@@ -113,8 +113,8 @@ pub fn replace_span_tags_with_links(
 /// Emits an internal tracing span for observability.
 /// This is used for internal tracing of signal workers.
 /// Returns Uuid::nil() if internal_project_id is None.
-pub async fn emit_internal_span(queue: Arc<MessageQueue>, ispan: InternalSpan) -> Uuid {
-    let project_id = match ispan.internal_project_id {
+pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) -> Uuid {
+    let project_id = match span.internal_project_id {
         Some(id) => id,
         None => return Uuid::nil(), // Internal tracing disabled
     };
@@ -124,25 +124,25 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, ispan: InternalSpan) -
     let mut attrs = HashMap::from([
         (
             "signal.job_id".to_string(),
-            serde_json::json!(ispan.job_id.to_string()),
+            serde_json::json!(span.job_id.to_string()),
         ),
         (
             "signal.run_id".to_string(),
-            serde_json::json!(ispan.run_id.to_string()),
+            serde_json::json!(span.run_id.to_string()),
         ),
         (
             "signal.event_name".to_string(),
-            serde_json::json!(ispan.signal_name),
+            serde_json::json!(span.signal_name),
         ),
     ]);
 
-    if let Some(tokens) = ispan.input_tokens {
+    if let Some(tokens) = span.input_tokens {
         attrs.insert(
             "gen_ai.usage.input_tokens".to_string(),
             serde_json::json!(tokens),
         );
     }
-    if let Some(tokens) = ispan.output_tokens {
+    if let Some(tokens) = span.output_tokens {
         attrs.insert(
             "gen_ai.usage.output_tokens".to_string(),
             serde_json::json!(tokens),
@@ -151,21 +151,21 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, ispan: InternalSpan) -
 
     attrs.insert(
         "gen_ai.request.model".to_string(),
-        serde_json::json!(ispan.model),
+        serde_json::json!(span.model),
     );
     attrs.insert(
         "gen_ai.system".to_string(),
-        serde_json::json!(ispan.provider),
+        serde_json::json!(span.provider),
     );
 
-    if let Some(parent_span_id) = ispan.parent_span_id {
+    if let Some(parent_span_id) = span.parent_span_id {
         attrs.insert(
             "lmnr.span.ids_path".to_string(),
             serde_json::json!([parent_span_id.to_string(), span_id.to_string()]),
         );
         attrs.insert(
             "lmnr.span.path".to_string(),
-            serde_json::json!(["signal.run".to_string(), ispan.name.to_string()]),
+            serde_json::json!(["signal.run".to_string(), span.name.to_string()]),
             // TODO: Pass parent span name in the message
         );
     } else {
@@ -175,21 +175,21 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, ispan: InternalSpan) -
         );
         attrs.insert(
             "lmnr.span.path".to_string(),
-            serde_json::json!([ispan.name.to_string()]),
+            serde_json::json!([span.name.to_string()]),
         );
     }
 
-    let span: Span = Span {
+    let db_span: Span = Span {
         span_id,
         project_id,
-        trace_id: ispan.trace_id,
-        parent_span_id: ispan.parent_span_id,
-        name: ispan.name.to_string(),
+        trace_id: span.trace_id,
+        parent_span_id: span.parent_span_id,
+        name: span.name.to_string(),
         attributes: SpanAttributes::new(attrs),
-        input: ispan.input,
-        output: ispan.output,
-        span_type: ispan.span_type,
-        start_time: ispan.start_time,
+        input: span.input,
+        output: span.output,
+        span_type: span.span_type,
+        start_time: span.start_time,
         end_time: Utc::now(),
         events: None,
         status: Some("OK".to_string()),
@@ -199,7 +199,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, ispan: InternalSpan) -
     };
 
     let message = RabbitMqSpanMessage {
-        span,
+        span: db_span,
         events: vec![],
     };
 
