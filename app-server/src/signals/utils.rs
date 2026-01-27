@@ -12,6 +12,26 @@ use crate::{
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
 
+// internal span for observability
+#[derive(Debug, Clone)]
+pub struct InternalSpan {
+    pub name: String,
+    pub trace_id: Uuid,
+    pub job_id: Uuid,
+    pub run_id: Uuid,
+    pub signal_name: String,
+    pub parent_span_id: Option<Uuid>,
+    pub span_type: SpanType,
+    pub start_time: chrono::DateTime<Utc>,
+    pub input: Option<Value>,
+    pub output: Option<Value>,
+    pub input_tokens: Option<i32>,
+    pub output_tokens: Option<i32>,
+    pub model: String,
+    pub provider: String,
+    pub internal_project_id: Option<Uuid>,
+}
+
 /// Try to parse JSON string, return the parsed value or the original string
 pub fn try_parse_json(json_string: &str) -> Value {
     if json_string.is_empty() {
@@ -93,25 +113,8 @@ pub fn replace_span_tags_with_links(
 /// Emits an internal tracing span for observability.
 /// This is used for internal tracing of signal workers.
 /// Returns Uuid::nil() if internal_project_id is None.
-pub async fn emit_internal_span(
-    name: &str,
-    trace_id: Uuid,
-    job_id: Uuid,
-    run_id: Uuid,
-    signal_name: &str,
-    parent_span_id: Option<Uuid>,
-    span_type: SpanType,
-    start_time: chrono::DateTime<Utc>,
-    input: Option<Value>,
-    output: Option<Value>,
-    input_tokens: Option<i32>,
-    output_tokens: Option<i32>,
-    model: Option<String>,
-    provider: Option<String>,
-    queue: Arc<MessageQueue>,
-    internal_project_id: Option<Uuid>,
-) -> Uuid {
-    let project_id = match internal_project_id {
+pub async fn emit_internal_span(queue: Arc<MessageQueue>, ispan: InternalSpan) -> Uuid {
+    let project_id = match ispan.internal_project_id {
         Some(id) => id,
         None => return Uuid::nil(), // Internal tracing disabled
     };
@@ -121,47 +124,48 @@ pub async fn emit_internal_span(
     let mut attrs = HashMap::from([
         (
             "signal.job_id".to_string(),
-            serde_json::json!(job_id.to_string()),
+            serde_json::json!(ispan.job_id.to_string()),
         ),
         (
             "signal.run_id".to_string(),
-            serde_json::json!(run_id.to_string()),
+            serde_json::json!(ispan.run_id.to_string()),
         ),
         (
             "signal.event_name".to_string(),
-            serde_json::json!(signal_name),
+            serde_json::json!(ispan.signal_name),
         ),
     ]);
 
-    if let Some(tokens) = input_tokens {
+    if let Some(tokens) = ispan.input_tokens {
         attrs.insert(
             "gen_ai.usage.input_tokens".to_string(),
             serde_json::json!(tokens),
         );
     }
-    if let Some(tokens) = output_tokens {
+    if let Some(tokens) = ispan.output_tokens {
         attrs.insert(
             "gen_ai.usage.output_tokens".to_string(),
             serde_json::json!(tokens),
         );
     }
 
-    if let Some(model) = model {
-        attrs.insert("gen_ai.request.model".to_string(), serde_json::json!(model));
-    }
+    attrs.insert(
+        "gen_ai.request.model".to_string(),
+        serde_json::json!(ispan.model),
+    );
+    attrs.insert(
+        "gen_ai.system".to_string(),
+        serde_json::json!(ispan.provider),
+    );
 
-    if let Some(model) = provider {
-        attrs.insert("gen_ai.system".to_string(), serde_json::json!(model));
-    }
-
-    if let Some(parent_span_id) = parent_span_id {
+    if let Some(parent_span_id) = ispan.parent_span_id {
         attrs.insert(
             "lmnr.span.ids_path".to_string(),
             serde_json::json!([parent_span_id.to_string(), span_id.to_string()]),
         );
         attrs.insert(
             "lmnr.span.path".to_string(),
-            serde_json::json!(["signal.run".to_string(), name.to_string()]),
+            serde_json::json!(["signal.run".to_string(), ispan.name.to_string()]),
             // TODO: Pass parent span name in the message
         );
     } else {
@@ -171,21 +175,21 @@ pub async fn emit_internal_span(
         );
         attrs.insert(
             "lmnr.span.path".to_string(),
-            serde_json::json!([name.to_string()]),
+            serde_json::json!([ispan.name.to_string()]),
         );
     }
 
-    let span = Span {
+    let span: Span = Span {
         span_id,
         project_id,
-        trace_id,
-        parent_span_id,
-        name: name.to_string(),
+        trace_id: ispan.trace_id,
+        parent_span_id: ispan.parent_span_id,
+        name: ispan.name.to_string(),
         attributes: SpanAttributes::new(attrs),
-        input,
-        output,
-        span_type,
-        start_time,
+        input: ispan.input,
+        output: ispan.output,
+        span_type: ispan.span_type,
+        start_time: ispan.start_time,
         end_time: Utc::now(),
         events: None,
         status: Some("OK".to_string()),
