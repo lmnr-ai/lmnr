@@ -288,7 +288,7 @@ export default function Pricing() {
   const posthog = usePostHog();
 
   const handleQuestionClick = (question: string) => {
-    posthog?.capture("faq_question_clicked", { question });
+    posthog.capture("faq_question_clicked", { question });
   };
 
   // Add FAQ data

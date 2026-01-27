@@ -11,7 +11,7 @@ import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shiel
 import { type TraceViewListSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { cn } from "@/lib/utils.ts";
 
 interface ListItemProps {
@@ -98,28 +98,30 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isLast = false }
             </Button>
 
             {span.pathInfo && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-0.5 text-xs text-muted-foreground min-w-0 overflow-hidden">
-                    {span.pathInfo.display.map((ref, index) => (
-                      <React.Fragment key={ref.spanId}>
-                        {index > 0 && <ChevronRight size={12} className="flex-shrink-0" />}
-                        <span className="truncate">{ref.name}</span>
-                        {ref.count && (
-                          <span className="text-secondary-foreground px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium flex-shrink-0">
-                            {ref.count}
-                          </span>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </div>
-                </TooltipTrigger>
-                <TooltipPortal>
-                  <TooltipContent className="p-1 border">
-                    <MiniTree span={span} />
-                  </TooltipContent>
-                </TooltipPortal>
-              </Tooltip>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-0.5 text-xs text-muted-foreground min-w-0 overflow-hidden">
+                      {span.pathInfo.display.map((ref, index) => (
+                        <React.Fragment key={ref.spanId}>
+                          {index > 0 && <ChevronRight size={12} className="flex-shrink-0" />}
+                          <span className="truncate">{ref.name}</span>
+                          {ref.count && (
+                            <span className="text-secondary-foreground px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium flex-shrink-0">
+                              {ref.count}
+                            </span>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipPortal>
+                    <TooltipContent className="p-1 border">
+                      <MiniTree span={span} />
+                    </TooltipContent>
+                  </TooltipPortal>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </div>

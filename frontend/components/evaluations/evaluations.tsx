@@ -2,7 +2,6 @@
 
 import { type ColumnDef } from "@tanstack/react-table";
 import { useParams, useSearchParams } from "next/navigation";
-import { usePostHog } from "posthog-js/react";
 import React, { useCallback, useState } from "react";
 
 import SearchInput from "@/components/common/search-input";
@@ -15,10 +14,8 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
-import { useUserContext } from "@/contexts/user-context";
 import { AggregationFunction, aggregationLabelMap } from "@/lib/clickhouse/types";
 import { type Evaluation } from "@/lib/evaluation/types";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
@@ -108,8 +105,6 @@ function EvaluationsContent() {
   const params = useParams();
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const posthog = usePostHog();
-  const user = useUserContext();
   const groupId = searchParams.get("groupId");
   const filter = searchParams.getAll("filter");
   const search = searchParams.get("search");
@@ -206,10 +201,6 @@ function EvaluationsContent() {
     }
   };
 
-  if (isFeatureEnabled(Feature.POSTHOG)) {
-    posthog.identify(user.email);
-  }
-
   return (
     <>
       <Header path="evaluations" />
@@ -234,7 +225,7 @@ function EvaluationsContent() {
               </SelectContent>
             </Select>
           </div>
-          <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" direction="vertical">
+          <ResizablePanelGroup id="evaluations-panels" className="overflow-hidden" orientation="vertical">
             <ResizablePanel className="px-2 border rounded bg-secondary" minSize={20} defaultSize={20}>
               <ProgressionChart
                 evaluations={evaluations.map(({ id, name }) => ({ id, name }))}

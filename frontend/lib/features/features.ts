@@ -71,5 +71,9 @@ export const isFeatureEnabled = (feature: Feature) => {
     );
   }
 
+  if (feature === Feature.POSTHOG) {
+    return process.env.POSTHOG_TELEMETRY === "true";
+  }
+
   return process.env.ENVIRONMENT === "PRODUCTION";
 };
