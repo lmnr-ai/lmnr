@@ -1031,7 +1031,17 @@ fn main() -> anyhow::Result<()> {
                     {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
-                        let client = reqwest::Client::new();
+                        let client_timeout = env::var("SIGNALS_CLIENT_TIMEOUT")
+                            .unwrap_or(String::from("350"))
+                            .parse::<u64>()
+                            .unwrap_or(350);
+                        let client = reqwest::Client::builder()
+                            .timeout(std::time::Duration::from_secs(client_timeout))
+                            .build()
+                            .map_err(|e| {
+                                log::error!("Failed to create HTTP client for signals: {:?}", e);
+                            })
+                            .unwrap_or(reqwest::Client::new());
                         let clickhouse = clickhouse_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Signals,
