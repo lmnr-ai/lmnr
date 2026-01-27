@@ -1,0 +1,110 @@
+---
+title: "To Scaffold or Not to Scaffold: The Problems That Won't Dissolve"
+date: "2026-01-26"
+description: ""
+author:
+  name: Sam Komesarook
+  url: https://x.com/raymondmarkable
+tags: ["agents", "infrastructure"]
+---
+
+There's [a post](https://x.com/nicbstme/status/2015174818497437834) making the rounds about how models will eventually "eat the scaffolding." The elaborate agent architectures we're building today will become obsolete as models get smarter: next year's model handles your decorated skill MD file with a one-liner.
+
+Let's assume we get a model with effectively infinite context and reasoning good enough to solve any problem in a single pass. What's still hard?
+
+## The financial statement problem, solved
+
+[I tweeted](https://x.com/raymondmarkable/status/2013611762440929337) about a problem from my forward-deployed days: a financial statement with thousands of pages where a figure on page 5 needs to match the same figure on page 800. With current models this is genuinely annoying. Single agent blows up the context window. Multiple agents need elaborate orchestration to share state.
+
+With infinite context? Load the document, ask "are all the numbers internally consistent?", done. No agents, no orchestration. The model eats it.
+
+_A caveat: even if infinite context arrives, reliability may not scale linearly with context length. Attention dilution is real, and error localization gets harder as context grows. But the directional point stands: context limits are a capability constraint, not a fundamental one._
+
+Most problems people call "hard" are like this. They're hard because of current limitations, not because of anything fundamental. Cross-referencing large codebases, synthesizing documents, maintaining consistency over long conversations: all of this dissolves with sufficient context and reasoning.
+
+## Where agents become necessary
+
+Some problems can't be solved in a single pass no matter how good the model gets.
+
+Maybe negotiating a deal, running an A/B test, or you have a hypothesis about user behavior. The model can't deduce the answer because the information literally doesn't exist until you put your answer in the wild.
+
+You're debugging production. By the time you've reasoned about Service A, Service B has shifted.
+
+Agent scaffolding here isn't compensating for model limitations. It's handling something models can't do by definition: interact with things that have their own clocks.
+
+But capability isn't the only axis that matters. Even when models _can_ do something, cost, latency, and failure modes still shape what we _should_ build.
+
+## The efficiency question
+
+So we have problems that dissolve with capability, and problems that require interaction regardless. But there's a third thing.
+
+Even when you _could_ solve something with raw capability, should you?
+
+Take the financial statement again. An infinite-context model could verify consistency by loading everything and checking. But rather than running inference over thousands of pages, wouldn't it be cheaper to setup a simple agent with access to a search tool? The agent breaks the problem into local queries, each cheap and quick to verify.
+
+This isn't just about cost. It's also about failure isolation: if a local query fails, you know exactly where. It's about observability: you can trace what the agent checked. It's about blast radius: a mistake in one section doesn't cascade.
+
+Or code review across a large monorepo. You could give the model everything and ask it to find issues. Or you could structure the code so modules have clear boundaries and local changes stay local.
+
+I keep running into this pattern. Some things get cheaper with better models. Some things stay constant cost regardless of capability. And some things are better solved without the model at all.
+
+There's empirical backing for this intuition. [A recent Google/MIT study](https://venturebeat.com/orchestration/research-shows-more-agents-isnt-a-reliable-path-to-better-enterprise-ai) tested 180 multi-agent configurations and found performance swung wildly: 81% improvement on parallelizable tasks like financial analysis, but 70% _degradation_ on sequential tasks like Minecraft planning where each step changes the state for subsequent steps. Their rule of thumb: if a single agent solves more than 45% of a task correctly, adding more agents usually makes things worse. Errors compound faster than capabilities stack. The scaffolding isn't free.
+
+## Classifying efficiency
+
+Here's where this gets interesting. Inference costs are dropping fast. A16z calls it ["LLMflation"](https://a16z.com/llmflation-llm-inference-cost/): for equivalent performance, inference costs are falling 10x per year. The [Stanford AI Index](https://hai.stanford.edu/ai-index-2025) found that achieving GPT-3.5 level performance dropped 280-fold between late 2022 and late 2024. [Epoch AI](https://epoch.ai/data-insights/llm-inference-price-trends) measured 9x to 900x annual price drops depending on the task.
+
+There's a subtlety here worth noting. Per-token costs for a _fixed quality level_ are dropping fast. But total inference spend at frontier labs is exploding. [Ed Zitron reported](https://www.wheresyoured.at/oai_docs/) that OpenAI spent $8.67 billion on inference through Q3 2025, nearly triple what had been previously reported. The reconciliation: companies are deploying more models, larger models, handling more demand, and pushing into compute-intensive reasoning. The frontier keeps moving even as yesterday's frontier gets cheaper.
+
+This changes the calculus. What's "too expensive to throw capability at" keeps shrinking. But the rate of decline isn't uniform, and some costs don't decline at all.
+
+### Inference costs
+
+Falling fast. Whatever seems expensive today will probably be cheap in 18 months. Elaborate prompt engineering to save tokens? Probably not worth the complexity. Just pay for the extra context.
+
+### Human attention costs
+
+Not falling. If anything, rising. A human reviewing an AI decision costs the same whether the AI is GPT-4 or GPT-7. This is why human-in-the-loop checkpoints remain valuable even as models improve. They're not compensating for model weakness; they're providing something models can't: accountability, judgment calls, the ability to say "this looks wrong" based on context the model doesn't have. (Though the _frequency_ of review may drop as models improve, the cost per review doesn't.)
+
+### Wall-clock time
+
+Fixed by physics. Waiting for a market to open, a build to compile, a human to respond. No amount of model capability compresses these. Agent scaffolding that handles waiting and retrying persists regardless of how smart the underlying model gets.
+
+### Architectural constraints
+
+Often _more_ valuable than verification. A database constraint that makes inconsistency impossible is better than a model that checks for inconsistency. A type system that prevents certain bugs is better than a code reviewer that catches them. These don't get eaten by capability because they operate at a different layer entirely.
+
+The pattern that emerges: scaffolding that trades inference for human attention or wall-clock time gets more valuable as inference gets cheaper. Scaffolding that enforces correctness by construction stays valuable regardless.
+
+## What survives
+
+This reframes what agent infrastructure is actually for.
+
+**Scaffolding that compensates for limitations gets eaten.** I mean specifically: prompt gymnastics working around context limits. Artificial decomposition breaking problems into model-sized pieces. Retrieval systems substituting for full-document reasoning. The cognitive orchestration you build because the model can't hold enough in its head. All of this thins out as models improve.
+
+There's an important tension here. [Recent research from Meta and Harvard](https://x.com/zhentingqi/status/2008611973622047147) found that carefully designed scaffolding allowed Claude Sonnet to outperform Claude Opus on SWE-Bench-Pro (52.7% vs 52.0%) under identical conditions. Their key insight: hierarchical working memory and adaptive context compression let a weaker model beat a stronger one. A note-taking agent that persists insights across runs reduced token costs and improved performance. Some scaffolding isn't just compensating for limitations; it's providing genuine architectural advantages that don't disappear with scale. The line between "workaround" and "architecture" isn't always obvious.
+
+**Scaffolding that handles genuine interaction persists.** Waiting for responses. Managing changing state. Coordinating with systems that have their own logic. This is about problem structure rather than capability.
+
+**Scaffolding for governance and compliance persists regardless.** Audit trails. Guardrails. Rollback mechanisms. Human approval gates for regulated decisions. These don't exist because models are weak. They exist because organizations need accountability, explainability, and control. A model that's 10x smarter still needs to show its work to a regulator.
+
+**Scaffolding that provides efficiency advantages sticks around, but the threshold shifts.** The question isn't "can the model do this?" but "is inference cheaper than the alternative?" As inference costs drop 10x annually, more problems flip from "worth optimizing" to "just throw capability at it." But some alternatives don't get more expensive:
+
+- Human checkpoints: catching drift early costs human attention, not inference
+- Architectural constraints: database foreign keys cost nothing to enforce
+- Caching and memoization: avoiding redundant work is always cheaper than doing the work
+- Physical waiting: no amount of capability compresses wall-clock time
+
+## Where I'm uncertain
+
+I don't think "model eats everything" is wrong. Most scaffolding exists to compensate for current limitations and will dissolve. The elaborate architectures we're building will look quaint soon.
+
+But the efficiency question keeps nagging at me. Even with infinite capability, you'd still want:
+
+1. Constraints that make problems impossible rather than catching them after
+2. Humans in the loop for accountability and judgment, not capability
+3. Infrastructure that handles waiting and external state
+
+The question I keep circling: as capability increases, how do you know which scaffolding to dissolve and which to keep? The answer probably isn't static. Inference is getting 10x cheaper per year. The things worth optimizing today won't be worth optimizing tomorrow.
+
+The real skill, going forward, may be continuously re-evaluating where scaffolding still buys you efficiency, reliability, or governance that raw capability can't provide. And having the discipline to delete it once it doesn't.
