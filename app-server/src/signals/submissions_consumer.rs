@@ -18,8 +18,8 @@ use crate::{
     db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
     signals::{
-        RunStatus, SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalRun,
-        SignalRunPayload, SignalWorkerConfig,
+        InternalSpan, RunStatus, SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage,
+        SignalRun, SignalRunPayload, SignalWorkerConfig,
         gemini::{
             Content, GeminiClient, GenerateContentRequest, GenerationConfig, InlineRequestItem,
             Part,
@@ -466,22 +466,24 @@ async fn process_run(
         contents_with_sys.insert(0, sys);
     }
     emit_internal_span(
-        &format!("step_{}.submit_request", run.step),
-        internal_trace_id,
-        job_id,
-        run_id,
-        signal_name,
-        Some(internal_span_id),
-        SpanType::LLM,
-        processing_start_time,
-        Some(serde_json::json!(contents_with_sys)),
-        None,
-        None,
-        None,
-        Some(message.model.clone()),
-        Some(message.provider.clone()),
         queue.clone(),
-        internal_project_id,
+        InternalSpan {
+            name: format!("step_{}.submit_request", run.step),
+            trace_id: internal_trace_id,
+            job_id,
+            run_id,
+            signal_name: signal_name.to_string(),
+            parent_span_id: Some(internal_span_id),
+            span_type: SpanType::LLM,
+            start_time: processing_start_time,
+            input: Some(serde_json::json!(contents_with_sys)),
+            output: None,
+            input_tokens: None,
+            output_tokens: None,
+            model: message.model.clone(),
+            provider: message.provider.clone(),
+            internal_project_id,
+        },
     )
     .await;
 

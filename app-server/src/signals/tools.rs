@@ -6,6 +6,7 @@ use uuid::Uuid;
 use super::spans::{get_span_type, get_trace_spans_with_id_mapping};
 use super::utils::{nanoseconds_to_iso, try_parse_json};
 use crate::signals::gemini::{FunctionDeclaration, Tool};
+use crate::signals::prompts::{GET_FULL_SPAN_INFO_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION};
 
 /// Full span info returned by get_full_span_info tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,7 +41,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
     let function_declarations = vec![
         FunctionDeclaration {
             name: "get_full_span_info".to_string(),
-            description: "Retrieves complete information (full input, output, timing, etc.) for specific spans by their IDs. Use this when you need more details about spans to make an identification decision. The compressed trace view may have truncated or omitted some data.".to_string(),
+            description: GET_FULL_SPAN_INFO_DESCRIPTION.to_string(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -55,7 +56,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
         },
         FunctionDeclaration {
             name: "submit_identification".to_string(),
-            description: "Submits the final identification result. Call this when you have determined whether the semantic event can be identified in the trace and have extracted the relevant data (if identified=true) or determined it cannot be found (if identified=false).".to_string(),
+            description: SUBMIT_IDENTIFICATION_DESCRIPTION.to_string(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {

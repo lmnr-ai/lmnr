@@ -39,7 +39,9 @@ use super::{
     push_to_submissions_queue, push_to_waiting_queue,
     spans::get_trace_spans_with_id_mapping,
     tools::get_full_span_info,
-    utils::{emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links},
+    utils::{
+        InternalSpan, emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links,
+    },
 };
 
 #[derive(Debug, Serialize)]
@@ -478,28 +480,33 @@ async fn process_single_response(
 
     // Check if response contains an error
     if response.has_error {
-        let error = "Response contains error".to_string();
+        let error = match &response.error_message {
+            Some(msg) => format!("LLM response contains error:\n {}", msg),
+            None => "LLM response contains error".to_string(),
+        };
         return (StepResult::Failed { error }, vec![]);
     }
 
     // Internal tracing span with LLM response
     emit_internal_span(
-        &format!("step_{}.process_response", run.step),
-        run.internal_trace_id,
-        message.job_id,
-        run.run_id,
-        &message.signal_name,
-        Some(run.internal_span_id),
-        SpanType::LLM,
-        chrono::Utc::now(),
-        None,
-        Some(serde_json::json!(&response.content)),
-        response.input_tokens,
-        response.output_tokens,
-        Some(message.model.clone()),
-        Some(message.provider.clone()),
         queue.clone(),
-        config.internal_project_id,
+        InternalSpan {
+            name: format!("step_{}.process_response", run.step),
+            trace_id: run.internal_trace_id,
+            job_id: message.job_id,
+            run_id: run.run_id,
+            signal_name: message.signal_name.clone(),
+            parent_span_id: Some(run.internal_span_id),
+            span_type: SpanType::LLM,
+            start_time: chrono::Utc::now(),
+            input: None,
+            output: Some(serde_json::json!(&response.content)),
+            input_tokens: response.input_tokens,
+            output_tokens: response.output_tokens,
+            model: message.model.clone(),
+            provider: message.provider.clone(),
+            internal_project_id: config.internal_project_id,
+        },
     )
     .await;
 
@@ -519,22 +526,24 @@ async fn process_single_response(
 
         // Internal tracing span for tool call
         emit_internal_span(
-            &function_call.name,
-            run.internal_trace_id,
-            message.job_id,
-            run.run_id,
-            &message.signal_name,
-            Some(run.internal_span_id),
-            SpanType::Tool,
-            tool_call_start_time,
-            Some(serde_json::json!(function_call)),
-            Some(serde_json::json!(step_result)),
-            None,
-            None,
-            Some(message.model.clone()),
-            Some(message.provider.clone()),
             queue.clone(),
-            config.internal_project_id,
+            InternalSpan {
+                name: function_call.name.clone(),
+                trace_id: run.internal_trace_id,
+                job_id: message.job_id,
+                run_id: run.run_id,
+                signal_name: message.signal_name.clone(),
+                parent_span_id: Some(run.internal_span_id),
+                span_type: SpanType::Tool,
+                start_time: tool_call_start_time,
+                input: Some(serde_json::json!(function_call)),
+                output: Some(serde_json::json!(step_result)),
+                input_tokens: None,
+                output_tokens: None,
+                model: message.model.clone(),
+                provider: message.provider.clone(),
+                internal_project_id: config.internal_project_id,
+            },
         )
         .await;
 
@@ -582,7 +591,7 @@ async fn process_single_response(
         }
     } else {
         let error = format!(
-            "No function_call in response, got text: {}",
+            "Expected function call in LLM response, got text:\n{}",
             response.text.clone().unwrap_or_default()
         );
         return (StepResult::Failed { error }, new_messages);
@@ -740,28 +749,30 @@ async fn handle_create_event(
 
     // Internal tracing span for event creation
     emit_internal_span(
-        "create_event",
-        run.internal_trace_id,
-        message.job_id,
-        run.run_id,
-        &message.signal_name,
-        Some(parent_span_id),
-        SpanType::Default,
-        create_event_start_time,
-        Some(serde_json::json!({
-            "id": event_id,
-            "signal_id": message.signal_id,
-            "trace_id": run.trace_id,
-            "run_id": run.run_id,
-            "name": message.signal_name,
-        })),
-        None,
-        None,
-        None,
-        Some(message.model.clone()),
-        Some(message.provider.clone()),
         queue,
-        internal_project_id,
+        InternalSpan {
+            name: "create_event".to_string(),
+            trace_id: run.internal_trace_id,
+            job_id: message.job_id,
+            run_id: run.run_id,
+            signal_name: message.signal_name.clone(),
+            parent_span_id: Some(parent_span_id),
+            span_type: SpanType::Default,
+            start_time: create_event_start_time,
+            input: Some(serde_json::json!({
+                "id": event_id,
+                "signal_id": message.signal_id,
+                "trace_id": run.trace_id,
+                "run_id": run.run_id,
+                "name": message.signal_name,
+            })),
+            output: None,
+            input_tokens: None,
+            output_tokens: None,
+            model: message.model.clone(),
+            provider: message.provider.clone(),
+            internal_project_id,
+        },
     )
     .await;
 

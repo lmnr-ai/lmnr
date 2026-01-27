@@ -64,7 +64,7 @@ pub use queue::{
     SignalJobSubmissionBatchMessage, SignalRunPayload, push_to_pending_queue,
     push_to_submissions_queue,
 };
-pub use utils::emit_internal_span;
+pub use utils::{InternalSpan, emit_internal_span};
 
 /// Represents a signal run with its current state and metadata.
 /// Used to track individual runs.

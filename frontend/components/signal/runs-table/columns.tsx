@@ -1,3 +1,4 @@
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef, type Row } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 import React from "react";
@@ -6,6 +7,7 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
 import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
@@ -79,6 +81,36 @@ export const getSignalRunsColumns = ({
     id: "eventId",
   },
   {
+    accessorKey: "errorMessage",
+    header: "Error Message",
+    cell: ({ getValue, column }) => {
+      const value = getValue() as string | null;
+      if (!value) return <span className="text-muted-foreground">-</span>;
+
+      return (
+        <TooltipProvider delayDuration={100}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div style={{ width: column.getSize() - 32 }} className="truncate">
+                {value}
+              </div>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent
+                side="bottom"
+                className="max-w-md p-2 border text-secondary-foreground whitespace-pre-wrap break-words"
+              >
+                {value}
+              </TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    },
+    size: 300,
+    id: "errorMessage",
+  },
+  {
     accessorKey: "updatedAt",
     header: "Updated At",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
@@ -87,7 +119,7 @@ export const getSignalRunsColumns = ({
   },
 ];
 
-export const defaultRunsColumnOrder = ["runId", "traceId", "source", "status", "eventId", "updatedAt"];
+export const defaultRunsColumnOrder = ["runId", "traceId", "source", "status", "eventId", "errorMessage", "updatedAt"];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {
@@ -120,5 +152,10 @@ export const signalRunsFilters: ColumnFilter[] = [
     key: "status",
     dataType: "enum",
     options: ["PENDING", "COMPLETED", "FAILED"].map((value) => ({ value, label: capitalize(value) })),
+  },
+  {
+    name: "Error Message",
+    key: "error_message",
+    dataType: "string",
   },
 ];

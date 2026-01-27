@@ -12,6 +12,8 @@ pub struct ParsedInlineResponse {
     pub trace_id: Option<Uuid>,
     /// Whether the response contains an error
     pub has_error: bool,
+    /// Original error message from Gemini API if present
+    pub error_message: Option<String>,
     /// Serialized content for storage
     pub content: String,
     /// Function call if present
@@ -29,6 +31,7 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
     let run_id = extract_run_id(inline_response);
     let trace_id = extract_trace_id(inline_response);
     let has_error = inline_response.error.is_some();
+    let error_message = inline_response.error.as_ref().map(|e| e.message.clone());
     let candidate = get_first_candidate(inline_response);
 
     let content = candidate
@@ -68,6 +71,7 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
         run_id,
         trace_id,
         has_error,
+        error_message,
         content,
         function_call,
         text,

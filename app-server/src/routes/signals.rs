@@ -10,14 +10,11 @@ use crate::{
     db::{self, DB, signal_jobs},
     mq::MessageQueue,
     query_engine::QueryEngine,
-    signals::{self, RunStatus, SignalRun, SignalRunPayload, emit_internal_span},
+    signals::{self, InternalSpan, RunStatus, SignalRun, SignalRunPayload, emit_internal_span},
     sql::{self, ClickhouseReadonlyClient},
 };
 
 use super::{ResponseResult, error::Error};
-
-const LLM_MODEL: &str = "gemini-2.5-pro";
-const LLM_PROVIDER: &str = "gemini";
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,6 +49,9 @@ pub async fn submit_signal_job(
     let internal_project_id: Option<Uuid> = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
         .ok()
         .and_then(|s| s.parse().ok());
+
+    let llm_model = env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-2.5-flash".to_string());
+    let llm_provider = env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string());
 
     let SubmitSignalJobRequest {
         query,
@@ -125,27 +125,29 @@ pub async fn submit_signal_job(
 
         // Emit root span for internal tracing of a run
         let internal_span_id = emit_internal_span(
-            "signal.run",
-            internal_trace_id,
-            job.id,
-            run_id,
-            &signal.name,
-            None,
-            SpanType::Default,
-            chrono::Utc::now(),
-            Some(serde_json::json!({
-                "run_id": run_id,
-                "trace_id": trace_id,
-                "signal_id": signal_id,
-                "job_id": job.id,
-            })),
-            None,
-            None,
-            None,
-            Some(LLM_MODEL.to_string()),
-            Some(LLM_PROVIDER.to_string()),
             queue.as_ref().clone(),
-            internal_project_id,
+            InternalSpan {
+                name: "signal.run".to_string(),
+                trace_id: internal_trace_id,
+                job_id: job.id,
+                run_id,
+                signal_name: signal.name.clone(),
+                parent_span_id: None,
+                span_type: SpanType::Default,
+                start_time: chrono::Utc::now(),
+                input: Some(serde_json::json!({
+                    "run_id": run_id,
+                    "trace_id": trace_id,
+                    "signal_id": signal_id,
+                    "job_id": job.id,
+                })),
+                output: None,
+                input_tokens: None,
+                output_tokens: None,
+                model: llm_model.clone(),
+                provider: llm_provider.clone(),
+                internal_project_id,
+            },
         )
         .await;
 
@@ -199,8 +201,8 @@ pub async fn submit_signal_job(
         signal_name: signal.name,
         prompt: signal.prompt,
         structured_output_schema: signal.structured_output_schema,
-        model: LLM_MODEL.to_string(),
-        provider: LLM_PROVIDER.to_string(),
+        model: llm_model,
+        provider: llm_provider,
         runs,
     };
 

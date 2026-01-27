@@ -16,6 +16,7 @@ const signalRunsSelectColumns = [
   "formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') as updatedAt",
   "status",
   "event_id eventId",
+  "error_message errorMessage"
 ];
 
 export const signalRunsColumnFilterConfig: ColumnFilterConfig = {
@@ -26,6 +27,7 @@ export const signalRunsColumnFilterConfig: ColumnFilterConfig = {
     ["trigger_id", createStringFilter],
     ["event_id", createStringFilter],
     ["status", createStringFilter],
+    ["error_message", createStringFilter],
   ]),
 };
 
@@ -46,11 +48,11 @@ export const buildSignalRunsQueryWithParams = (options: BuildSignalRunsQueryOpti
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: "signal_id = {signalId:UUID}",
-      params: { signalId },
-    },
-  ];
+      {
+        condition: "signal_id = {signalId:UUID}",
+        params: { signalId },
+      },
+    ];
 
   const queryOptions: SelectQueryOptions = {
     select: {
