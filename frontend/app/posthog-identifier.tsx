@@ -11,10 +11,7 @@ export default function PostHogIdentifier({ email }: PostHogIdentifierProps) {
   const posthog = usePostHog();
 
   useEffect(() => {
-    // posthog will only be properly initialized if telemetry is enabled
-    if (posthog?.__loaded && email) {
-      posthog.identify(email, { email });
-    }
+    posthog?.identify(email, { email });
   }, [email, posthog]);
 
   return null;
