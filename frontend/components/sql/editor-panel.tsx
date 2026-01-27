@@ -209,7 +209,7 @@ export default function EditorPanel() {
   );
 
   return (
-    <ResizablePanelGroup id="sql-editor-panels" direction="vertical">
+    <ResizablePanelGroup id="sql-editor-panels" orientation="vertical">
       <ResizablePanel className="h-full flex flex-col" defaultSize={40} minSize={20}>
         <SQLEditor />
       </ResizablePanel>

@@ -18,9 +18,10 @@ import { useScrollContext } from "../scroll-context.tsx";
 interface ListProps {
   traceId: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
+  isShared?: boolean;
 }
 
-const List = ({ traceId, onSpanSelect }: ListProps) => {
+const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
   const { getListData, spans, isSpansLoading, selectedSpan, trace } = useTraceViewStoreContext((state) => ({
@@ -66,11 +67,16 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
 
   const visibleSpanIds = compact(items.map((item) => listSpans[item.index]?.spanId)) as string[];
 
-  const { outputs } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
-    id: traceId,
-    startTime: trace?.startTime,
-    endTime: trace?.endTime,
-  });
+  const { outputs } = useBatchedSpanOutputs(
+    projectId,
+    visibleSpanIds,
+    {
+      id: traceId,
+      startTime: trace?.startTime,
+      endTime: trace?.endTime,
+    },
+    { isShared }
+  );
 
   useEffect(() => {
     const currentIdsKey = visibleSpanIds.join(",");

@@ -265,7 +265,7 @@ function QueueInner() {
   return (
     <>
       <Header path={`labeling queues/${storeQueue?.name || "Queue"}`} />
-      <ResizablePanelGroup className="px-4 pb-4" direction="horizontal">
+      <ResizablePanelGroup className="px-4 pb-4" orientation="horizontal">
         <ResizablePanel className="flex flex-1 flex-col overflow-hidden" minSize={20} defaultSize={50}>
           {isLoading === "first-load" ? (
             <div className="size-full flex flex-col flex-1 gap-2">

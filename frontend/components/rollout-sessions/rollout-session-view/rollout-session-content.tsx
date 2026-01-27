@@ -538,7 +538,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
             <p className="text-xs text-muted-foreground">{spansError}</p>
           </div>
         ) : (
-          <ResizablePanelGroup id="rollout-session-view-panels" direction="vertical">
+          <ResizablePanelGroup id="rollout-session-view-panels" orientation="vertical">
             <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
               {tab === "metadata" && trace && <Metadata trace={trace} />}
               {tab === "timeline" && <Timeline />}
