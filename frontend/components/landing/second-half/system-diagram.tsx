@@ -1,10 +1,11 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
 import Image from "next/image";
+import { useRef } from "react";
+
 import architecture from "@/assets/landing/architecture.svg";
+import { cn } from "@/lib/utils";
 
 interface Props {
   className?: string;

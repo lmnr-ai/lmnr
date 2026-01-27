@@ -8,9 +8,9 @@ import ChapterButton from "./chapter-button";
 
 const chapters = [
   { label: "Run local,\ndebug in browser", startTime: 0 },
-  { label: "Rerun at step N with\nprevious context preserved", startTime: 18 },
-  { label: "Tune your\nsystem prompts", startTime: 33 },
-  { label: "Instantly reflect\nchanges as you save", startTime: 54 },
+  { label: "Rerun at step N with\nprevious context preserved", startTime: 26 },
+  { label: "Tune your\nsystem prompts", startTime: 37 },
+  { label: "Instantly reflect\nchanges as you save", startTime: 50 },
 ];
 
 const DebuggerVideo = () => {
@@ -66,7 +66,7 @@ const DebuggerVideo = () => {
         <MuxPlayer
           ref={playerRef}
           className="block"
-          playbackId="iS7iVMNzIQkDGRKymCqqxn3XC3WPdsXlQ74qDCkSG4E"
+          playbackId="GHkdcXx8unYRtXWDvuSoY8LDwDgWAx6p5soFBTI02vTU"
           metadata={{
             video_title: "Debugger",
           }}

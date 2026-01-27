@@ -100,7 +100,7 @@ const FullContextImage = ({ className }: Props) => {
       </motion.div>
 
       {/* Gradient overlay at bottom */}
-      <div className="absolute bottom-0 left-0 flex h-[60%] items-center justify-center w-full bg-gradient-to-t from-landing-surface-700 to-landing-surface-700/0 pointer-events-none" />
+      <div className="absolute bottom-0 left-0 flex h-[100%] items-center justify-center w-full bg-gradient-to-t from-landing-surface-700 to-landing-surface-700/0 pointer-events-none" />
     </motion.div>
   );
 };

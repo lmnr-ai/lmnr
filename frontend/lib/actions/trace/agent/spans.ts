@@ -1,6 +1,5 @@
 import { groupBy } from "lodash";
 import YAML from "yaml";
-import { z } from "zod/v4";
 
 import { executeQuery } from "@/lib/actions/sql";
 import { tryParseJson } from "@/lib/utils";

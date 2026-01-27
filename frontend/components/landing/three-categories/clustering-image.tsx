@@ -1,8 +1,9 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { useScroll, useTransform, motion } from "framer-motion";
+import { motion,useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
+
+import { cn } from "@/lib/utils";
 
 interface Props {
   className?: string;

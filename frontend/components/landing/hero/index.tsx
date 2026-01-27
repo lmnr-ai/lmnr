@@ -23,10 +23,10 @@ interface Props {
 type TabType = "Tracing" | "Debugger" | "Analysis" | "Evals";
 
 const tabConfig: Record<TabType, { images: string[] }> = {
-  Tracing: { images: ["/assets/landing/observability.png"] },
-  Debugger: { images: ["/assets/landing/observability.png"] },
+  Tracing: { images: ["/assets/landing/tracing.png"] },
+  Debugger: { images: ["/assets/landing/debugger.png"] },
   Analysis: { images: ["/assets/landing/dashboards.png"] },
-  Evals: { images: ["/assets/landing/evals.png", "/assets/landing/observability.png"] },
+  Evals: { images: ["/assets/landing/evals-2.png", "/assets/landing/evals.png"] },
 };
 
 const TABS: TabType[] = ["Tracing", "Debugger", "Analysis", "Evals"];
@@ -131,8 +131,8 @@ const Hero = ({ className, hasSession }: Props) => {
               </h1>
               <p
                 className={cn(
-                  "text-secondary-foreground text-center md:text-xl md:leading-8 mt-8 font-base",
-                  "text-sm leading-5"
+                  "text-secondary-foreground text-center md:text-xl md:leading-8 xl:mt-8 lg:mt-6 font-base",
+                  "text-sm leading-5 mt-4"
                 )}
               >
                 Open-source observability platform for agent debugging,
@@ -175,18 +175,31 @@ const Hero = ({ className, hasSession }: Props) => {
         </div>
         <div
           className={cn(
-            "relative md:w-[990px] md:h-[700px] rounded-lg overflow-hidden md:outline-[4px] md:outline-offset-4 outline-white/10",
-            "w-full aspect-[990/700] outline-[2px] outline-offset-2"
+            "relative lg:max-w-[1100px] md:max-w-[990px] w-full rounded-lg overflow-hidden md:outline-[4px] md:outline-offset-4 outline-white/10",
+            "outline-[2px] outline-offset-2"
           )}
         >
           {/* Background image - shows the target image during transition */}
-          <Image src={currentImage} alt={`${activeTab} screenshot`} fill className="object-cover" priority />
+          <Image
+            src={currentImage}
+            alt={`${activeTab} screenshot`}
+            width={0}
+            height={0}
+            sizes="100vw"
+            className="w-full h-auto"
+            priority
+          />
           {/* Foreground image - fades out to reveal background */}
           <Image
             src={displayedImage}
             alt={`${activeTab} screenshot`}
-            fill
-            className={cn("object-cover transition-opacity ease-in-out", isTransitioning ? "opacity-0" : "opacity-100")}
+            width={800}
+            height={600}
+            sizes="100vw"
+            className={cn(
+              "w-full h-auto absolute inset-0 transition-opacity ease-in-out",
+              isTransitioning ? "opacity-0" : "opacity-100"
+            )}
             style={{ transitionDuration: `${FADE_DURATION_MS}ms` }}
             priority
           />
