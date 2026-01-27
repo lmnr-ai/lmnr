@@ -1,8 +1,10 @@
 import { type Metadata } from "next";
+import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import Landing from "@/components/landing";
 import { authOptions } from "@/lib/auth";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
   title: "Laminar - Open-source observability for AI agents",
@@ -13,19 +15,17 @@ export const metadata: Metadata = {
 export default async function LandingPage() {
   const session = await getServerSession(authOptions);
 
-  // TODO: reenable
-  //if (!isFeatureEnabled(Feature.LANDING)) {
-  //  if (!session) {
-  //    redirect("/sign-in");
-  //  } else {
-  //    redirect("/projects");
-  //  }
-  //}
-  //
-  //if (session) {
-  //  redirect("/projects");
-  //}
+  if (!isFeatureEnabled(Feature.LANDING)) {
+    if (!session) {
+      redirect("/sign-in");
+    } else {
+      redirect("/projects");
+    }
+  }
+
+  if (session) {
+    redirect("/projects");
+  }
 
   return <Landing hasSession={session !== null && session !== undefined} />;
 }
-

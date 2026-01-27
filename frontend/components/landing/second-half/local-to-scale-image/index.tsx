@@ -86,10 +86,9 @@ const LocalToScaleImage = ({ className, scrollYProgress }: Props) => {
           style={
             {
               y: traceY,
-              // @ts-ignore - CSS custom properties work but TS doesn't know about them
               "--text-opacity": textOpacity,
               "--skeleton-opacity": skeletonOpacity,
-            } as React.CSSProperties
+            } as unknown as React.CSSProperties
           }
         >
           {/* Trace Panel Header */}
