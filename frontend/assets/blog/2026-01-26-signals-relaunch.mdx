@@ -16,12 +16,9 @@ When you're debugging agent behavior at scale, raw traces aren't enough. You nee
 
 ## What is a signal?
 
-A signal is a definition: a name, a prompt, and a structured output schema. Once defined, it can be produced two ways:
+A signal is a definition: a name, a prompt, and a structured output schema. Once defined, Laminar runs it against trace context with an LLM to produce structured signal events.
 
-- **Code-emitted events** you're already sending from your application
-- **LLM-extracted signals** that read trace context and return structured data
-
-Manual instrumentation and LLM extraction work together. Keep the events you already emit. Add new signals without shipping code.
+Signals complement code-emitted events. Keep your explicit instrumentation, and add signals when you need to extract meaning from traces.
 
 This means you can define signals for behaviors you only discovered after the fact: hallucinations in a specific workflow, unexpected tool calls, or latency patterns that correlate with poor outputs.
 
