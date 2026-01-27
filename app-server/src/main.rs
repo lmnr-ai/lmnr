@@ -814,7 +814,7 @@ fn main() -> anyhow::Result<()> {
         };
 
         // == Gemini client ==
-        let gemini_client = if is_feature_enabled(Feature::TraceAnalysis) {
+        let gemini_client = if is_feature_enabled(Feature::Signals) {
             log::info!("Initializing Gemini client for trace analysis");
             match signals::gemini::GeminiClient::new() {
                 Ok(client) => Some(Arc::new(client)),
