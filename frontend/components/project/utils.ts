@@ -2,10 +2,10 @@ import {
   Database,
   FlaskConical,
   GitFork,
-  Layers,
   LayoutGrid,
   Pen,
   PlayCircle,
+  Radio,
   Rows4,
   Settings,
   SquareFunction,
@@ -26,7 +26,7 @@ export const getSidebarMenus = (projectId: string) => [
   {
     name: "signals",
     href: `/project/${projectId}/signals`,
-    icon: Layers,
+    icon: Radio,
   },
   {
     name: "evaluations",
