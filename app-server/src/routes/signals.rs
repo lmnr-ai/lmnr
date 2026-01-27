@@ -16,14 +16,6 @@ use crate::{
 
 use super::{ResponseResult, error::Error};
 
-fn llm_model() -> String {
-    env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or_else(|_| "gemini-2.5-flash".to_string())
-}
-
-fn llm_provider() -> String {
-    env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or_else(|_| "gemini".to_string())
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubmitSignalJobRequest {
@@ -57,6 +49,9 @@ pub async fn submit_signal_job(
     let internal_project_id: Option<Uuid> = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
         .ok()
         .and_then(|s| s.parse().ok());
+
+    let llm_model = env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-2.5-flash".to_string());
+    let llm_provider = env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string());
 
     let SubmitSignalJobRequest {
         query,
@@ -147,8 +142,8 @@ pub async fn submit_signal_job(
             None,
             None,
             None,
-            Some(llm_model()),
-            Some(llm_provider()),
+            Some(llm_model.clone()),
+            Some(llm_provider.clone()),
             queue.as_ref().clone(),
             internal_project_id,
         )
@@ -204,8 +199,8 @@ pub async fn submit_signal_job(
         signal_name: signal.name,
         prompt: signal.prompt,
         structured_output_schema: signal.structured_output_schema,
-        model: llm_model(),
-        provider: llm_provider(),
+        model: llm_model,
+        provider: llm_provider,
         runs,
     };
 
