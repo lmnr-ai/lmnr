@@ -27,6 +27,7 @@ CREATE VIEW IF NOT EXISTS signal_runs_v0 SQL SECURITY INVOKER AS
         trigger_id,
         run_id,
         trace_id,
+        error_message
         CASE
             WHEN status = 0 THEN 'PENDING'
             WHEN status = 1 THEN 'COMPLETED'
@@ -37,9 +38,6 @@ CREATE VIEW IF NOT EXISTS signal_runs_v0 SQL SECURITY INVOKER AS
         updated_at,
     FROM signal_runs FINAL
     WHERE project_id={project_id:UUID};
-
-GRANT SELECT ON signal_runs TO sql_readonly_scoped;
-GRANT SELECT ON signal_runs_v0 TO sql_readonly_scoped;
 
 CREATE TABLE IF NOT EXISTS signal_run_messages
 (
@@ -79,6 +77,3 @@ CREATE VIEW IF NOT EXISTS signal_events_v0 SQL SECURITY INVOKER AS
         timestamp
     FROM signal_events
     WHERE project_id={project_id:UUID};
-
-GRANT SELECT ON signal_events TO sql_readonly_scoped;
-GRANT SELECT ON signal_events_v0 TO sql_readonly_scoped;
