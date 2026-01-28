@@ -29,12 +29,13 @@ interface SessionPlayerProps {
   hasBrowserSession?: boolean;
   traceId: string;
   llmSpanIds?: string[];
+  browserLiveViewUrl?: string | null;
   onClose: () => void;
 }
 
 const speedOptions = [1, 2, 4, 8, 16];
 
-const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }: SessionPlayerProps) => {
+const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], browserLiveViewUrl, onClose }: SessionPlayerProps) => {
   const { projectId } = useParams();
   const { setSessionTime, sessionTime } = useRolloutSessionStoreContext((state) => ({
     setSessionTime: state.setSessionTime,
@@ -52,7 +53,9 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
   const [duration, setDuration] = useState(0);
   const [currentUrl, setCurrentUrl] = useState("");
   const [urlChanges, setUrlChanges] = useState<UrlChange[]>([]);
-  const [activeTab, setActiveTab] = useState(hasBrowserSession ? "browser-session" : "images");
+  const [activeTab, setActiveTab] = useState(
+    hasBrowserSession ? "browser-session" : browserLiveViewUrl ? "live-view" : "images"
+  );
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [speed, setSpeed] = useLocalStorage("session-player-speed", 1);
 
@@ -101,9 +104,9 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
 
   useEffect(() => {
     if (!hasBrowserSession && activeTab === "browser-session") {
-      setActiveTab("images");
+      setActiveTab(browserLiveViewUrl ? "live-view" : "images");
     }
-  }, [hasBrowserSession, activeTab]);
+  }, [hasBrowserSession, activeTab, browserLiveViewUrl]);
 
   useEffect(() => {
     if (!browserContentRef.current || activeTab !== "browser-session") return;
@@ -246,11 +249,10 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
         {hasBrowserSession && (
           <button
             onClick={() => setActiveTab("browser-session")}
-            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${
-              activeTab === "browser-session"
-                ? "border-secondary-foreground text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
+            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1 transition-all text-sm first-of-type:ml-0 gap-2 font-medium ${activeTab === "browser-session"
+              ? "border-secondary-foreground text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
           >
             Session
           </button>
@@ -258,14 +260,25 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
 
         <button
           onClick={() => setActiveTab("images")}
-          className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${
-            activeTab === "images"
-              ? "border-secondary-foreground text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          } ${!hasBrowserSession ? "first-of-type:ml-0" : ""}`}
+          className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${activeTab === "images"
+            ? "border-secondary-foreground text-foreground"
+            : "border-transparent text-muted-foreground hover:text-foreground"
+            } ${!hasBrowserSession ? "first-of-type:ml-0" : ""}`}
         >
           Images
         </button>
+
+        {browserLiveViewUrl && (
+          <button
+            onClick={() => setActiveTab("live-view")}
+            className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${activeTab === "live-view"
+              ? "border-secondary-foreground text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+          >
+            Live View
+          </button>
+        )}
 
         <Button onClick={onClose} className="ml-auto" variant="ghost">
           <X className="w-4 h-4" />
@@ -354,6 +367,12 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
         <div className={`h-full ${activeTab === "images" ? "block" : "hidden"}`}>
           <SpanImagesVideoPlayer traceId={traceId} spanIds={llmSpanIds} />
         </div>
+
+        {browserLiveViewUrl && (
+          <div className={`h-full ${activeTab === "live-view" ? "block" : "hidden"}`}>
+            <iframe src={browserLiveViewUrl} className="w-full h-full border-0" />
+          </div>
+        )}
       </div>
     </div>
   );

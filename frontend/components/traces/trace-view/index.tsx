@@ -478,7 +478,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           ) : (
             <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-                {tab === "metadata" && trace && <Metadata trace={trace} />}
+                {tab === "metadata" && trace && <Metadata metadata={trace.metadata} />}
                 {tab === "chat" && trace && (
                   <Chat
                     trace={trace}

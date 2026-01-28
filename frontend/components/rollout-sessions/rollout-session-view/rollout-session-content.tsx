@@ -330,6 +330,13 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
           setIsSessionDeleted(true);
         }
       },
+      trace_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data);
+        if (payload.trace) {
+          console.log("trace_update", payload.trace);
+          setTrace(payload.trace);
+        }
+      },
     }),
     [setSpans, setTrace, setBrowserSession, setHasBrowserSession, setSessionStatus, setIsSessionDeleted]
   );
@@ -540,7 +547,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
         ) : (
           <ResizablePanelGroup id="rollout-session-view-panels" orientation="vertical">
             <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-              {tab === "metadata" && trace && <Metadata trace={trace} />}
+              {tab === "metadata" && trace && <Metadata metadata={trace.metadata} />}
               {tab === "timeline" && <Timeline />}
               {tab === "reader" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
@@ -572,6 +579,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
                       hasBrowserSession={hasBrowserSession}
                       traceId={trace?.id}
                       llmSpanIds={llmSpanIds}
+                      browserLiveViewUrl={JSON.parse(trace?.metadata || "{}").browser_live_view_url}
                     />
                   )}
                 </ResizablePanel>
