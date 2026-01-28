@@ -3,8 +3,6 @@
 import Image, { type StaticImageData } from "next/image";
 import { useEffect, useRef } from "react";
 
-import amplitude from "@/assets/landing/companies/amplitude.png";
-import skyvern from "@/assets/landing/companies/skyvern.webp";
 import { LogoAxionRay, LogoBrowserUse, LogoRemo, LogoRye } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 

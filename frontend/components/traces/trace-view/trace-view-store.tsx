@@ -110,6 +110,7 @@ interface TraceViewStoreState {
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
   spanPathCounts: Map<string, number>; // Track count per span path for rollout sessions
+  showTreeContent: boolean;
 }
 
 interface TraceViewStoreActions {
@@ -135,6 +136,7 @@ interface TraceViewStoreActions {
   updateTraceVisibility: (visibility: "private" | "public") => void;
   saveSpanTemplate: (spanPathKey: string, template: string) => void;
   deleteSpanTemplate: (spanPathKey: string) => void;
+  setShowTreeContent: (show: boolean) => void;
 
   incrementSessionTime: (increment: number, maxTime: number) => boolean;
   // Selectors
@@ -177,6 +179,7 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         hasBrowserSession: initialTrace?.hasBrowserSession || false,
         spanTemplates: {},
         spanPathCounts: new Map(),
+        showTreeContent: true,
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         setTrace: (trace) => {
@@ -293,6 +296,7 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
             return { spanTemplates: newTemplates };
           });
         },
+        setShowTreeContent: (showTreeContent: boolean) => set({ showTreeContent }),
         setZoom: (type) => {
           const zoom =
             type === "in"
@@ -403,6 +407,7 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
           spanPath: state.spanPath,
           spanTemplates: state.spanTemplates,
           tab: state.tab,
+          showTreeContent: state.showTreeContent,
         }),
       }
     )
