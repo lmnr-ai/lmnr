@@ -130,8 +130,8 @@ const ThreeCategories = ({ className }: Props) => (
 
       <div className={cn("flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
         <div className="flex flex-col gap-1 items-start w-full">
-          <h2 className={subsectionTitle}>Trace understanding at scale</h2>
-          <p className={bodyLarge}>Get deep insights from millions of traces without reading every single one</p>
+          <h2 className={subsectionTitle}>Ask questions. Get answers from every trace at scale.</h2>
+          <p className={bodyLarge}>Describe a Signal that you're looking for. Laminar extracts it from past and future traces.</p>
         </div>
         <div
           className={cn("flex md:flex-row md:gap-[30px] md:h-[481px] items-start w-full", "flex-col gap-4 h-[800px]")}
@@ -145,9 +145,9 @@ const ThreeCategories = ({ className }: Props) => (
             <EventDefinitionImage className="absolute inset-0" />
             <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
               <div className="flex flex-col gap-1 items-start w-full">
-                <p className={cn(cardTitle, "w-full")}>You describe it, we track it</p>
+                <p className={cn(cardTitle, "w-full")}>Define Signals in plain English</p>
                 <p className={cn(bodyMedium, "w-full")}>
-                  Use natural language prompts to describe semantic events. Laminar finds matching traces automatically.
+                  Ask a question: <span className="text-primary-foreground/80">"Did the agent get stuck in a loop?"</span>. Laminar extracts structured answers from every trace automatically.
                 </p>
               </div>
               <DocsButton href="https://docs.laminar.sh/tracing/events/semantic-events" />
@@ -162,9 +162,9 @@ const ThreeCategories = ({ className }: Props) => (
             <ClusteringImage className="absolute inset-0" />
             <div className="basis-0 flex flex-col gap-6 grow items-start min-h-px min-w-px relative z-10 shrink-0">
               <div className="flex flex-col gap-1 items-start w-full">
-                <p className={cn(cardTitle, "w-full")}>Automatic trace clustering</p>
+                <p className={cn(cardTitle, "w-full")}>Discover patterns in traces</p>
                 <p className={cn(bodyMedium, "w-full")}>
-                  Traces are automatically categorized to help you uncover high level patterns in your agent's behavior
+                  Traces are automatically clustered by behavior. Surface failure modes, find outliers, and spot trends.
                 </p>
               </div>
               <DocsButton href="https://docs.laminar.sh/tracing/events/clusters" />
@@ -209,11 +209,14 @@ const ThreeCategories = ({ className }: Props) => (
 
             <div className={cn("flex flex-col items-start md:max-w-[380px]", "w-full")}>
               <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Track what's important for you</p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Track tokens, latency, and more.</p>
+              </div>
+              <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Correlate data across users and sessions.</p>
               </div>
               <div className="border-t border-landing-surface-400 flex items-center justify-center px-0 py-[18px] w-full">
                 <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>
-                  Powered by our state-of-the-art SQL query engine
+                  Comprehensive UI dashboard builder with support for <span className="text-primary-foreground">custom SQL queries</span>.
                 </p>
               </div>
             </div>

@@ -135,9 +135,9 @@ const Hero = ({ className, hasSession }: Props) => {
                   "text-sm leading-5 mt-4"
                 )}
               >
-                Open-source observability platform for agent debugging,
+                Open-source observability platform for agent tracing,
                 <br className="hidden md:block" />
-                evals, and analyzing traces at scale.
+                evals, and signal extraction from traces at scale.
               </p>
             </div>
             <div className={cn("flex md:flex-row md:gap-5 items-center justify-center", "gap-2")}>
@@ -146,7 +146,7 @@ const Hero = ({ className, hasSession }: Props) => {
                   Get Started
                 </LandingButton>
               </Link>
-              <Link href="https://docs.lmnr.ai" target="_blank" className="md:w-auto w-full">
+              <Link href="https://docs.laminar.sh" target="_blank" className="md:w-auto w-full">
                 <LandingButton size="lg" variant="outline" className={cn("md:w-[206px]", "flex-1 basis-0")}>
                   Read the Docs
                 </LandingButton>

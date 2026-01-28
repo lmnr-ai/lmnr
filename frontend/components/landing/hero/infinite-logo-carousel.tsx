@@ -18,12 +18,6 @@ interface Logo {
 
 const logos: Logo[] = [
   {
-    id: "amplitude",
-    name: "Amplitude",
-    image: amplitude,
-    className: "md:w-32 md:h-8 w-24 h-6",
-  },
-  {
     id: "browser-use",
     name: "Browser Use",
     component: LogoBrowserUse,
@@ -34,12 +28,6 @@ const logos: Logo[] = [
     name: "Rye",
     component: LogoRye,
     className: "md:w-16 md:h-5 w-12 h-4",
-  },
-  {
-    id: "skyvern",
-    name: "Skyvern",
-    image: skyvern,
-    className: "md:w-24 md:h-8 w-18 h-6",
   },
   {
     id: "axion-ray",
