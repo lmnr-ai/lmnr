@@ -11,6 +11,7 @@ import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 
 export const metadata: Metadata = {
   title: "Get Started - Laminar",
+  description: "Set up your workspace and start tracing your AI agents.",
 };
 
 export default async function OnboardingPage() {

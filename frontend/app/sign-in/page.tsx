@@ -1,9 +1,15 @@
+import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import SignIn from "@/components/auth/sign-in";
 import { authOptions } from "@/lib/auth.ts";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+
+export const metadata: Metadata = {
+  title: "Sign In - Laminar",
+  description: "Sign in to your Laminar account.",
+};
 
 export default async function SignInPage(props: {
   params: Promise<Record<string, never>>;

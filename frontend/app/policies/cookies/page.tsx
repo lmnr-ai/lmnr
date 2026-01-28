@@ -1,3 +1,10 @@
+import { type Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Cookie Policy - Laminar",
+  description: "How Laminar uses cookies and similar technologies.",
+};
+
 export default function CookiesPage() {
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-4">
