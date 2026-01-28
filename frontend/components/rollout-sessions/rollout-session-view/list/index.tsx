@@ -39,7 +39,7 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
     count: listSpans.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 291,
-    overscan: 20,
+    overscan: 2,
   });
 
   useEffect(() => {

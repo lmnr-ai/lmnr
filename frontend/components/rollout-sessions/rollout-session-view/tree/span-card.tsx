@@ -49,7 +49,7 @@ const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo
 export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathInfo, onOpenSettings }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { selectedSpan, spans, toggleCollapse, cacheToSpan, uncacheFromSpan, isSpanCached } =
+  const { selectedSpan, spans, toggleCollapse, cacheToSpan, uncacheFromSpan, isSpanCached, showTreeContent } =
     useRolloutSessionStoreContext((state) => ({
       selectedSpan: state.selectedSpan,
       spans: state.spans,
@@ -57,6 +57,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
       cacheToSpan: state.cacheToSpan,
       uncacheFromSpan: state.uncacheFromSpan,
       isSpanCached: state.isSpanCached,
+      showTreeContent: state.showTreeContent,
     }));
 
   const isCached = isSpanCached(span);
@@ -70,9 +71,11 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const savedTemplate = useRolloutSessionStoreContext((state) => state.getSpanTemplate(spanPathKey));
 
   const hasChildren = childSpans && childSpans.length > 0;
-  const isExpandable = hasChildren || span.spanType !== "DEFAULT";
+  const isExpandable = hasChildren || (span.spanType !== "DEFAULT" && (showTreeContent ?? true));
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
+
+  const showContent = (showTreeContent ?? true) && !span.collapsed && (span.spanType === "LLM" || span.spanType === "TOOL");
 
   const isLoadingOutput = output === undefined;
 
@@ -205,7 +208,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
         </div>
 
         {/* Expandable content */}
-        {!span.collapsed && (span.spanType === "LLM" || span.spanType === "TOOL") && (
+        {showContent && (
           <div className="px-2 pt-0">
             {isLoadingOutput && (
               <div className="w-full pb-2">
