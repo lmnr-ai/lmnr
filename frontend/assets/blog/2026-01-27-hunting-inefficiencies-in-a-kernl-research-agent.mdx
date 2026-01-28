@@ -4,13 +4,27 @@ date: "2026-01-27"
 description: "Tracing a kernl research agent to remove redundant doc fetches and cut runtime and tokens."
 author:
   name: Sam Komesarook
-  url: https://x.com/komesarook
+  url: https://x.com/raymondmarkable
 tags: ["agents", "kernl", "tracing", "performance", "optimization"]
 ---
 
 We obsess over agent performance not because any single run matters that much, but because inefficiencies compound: a wasted second becomes wasted hours, and redundant tokens become real cost at scale. So we look everywhere.
 
-This is a breakdown of one investigation: a research paper analysis agent built on [kernl](https://docs.kernl.sh/), examined through Laminar's traces and Ask AI.
+This is a breakdown of one investigation: a research paper analysis agent built on kernl, examined through Laminar's traces and Ask AI.
+
+## Kernl
+
+If you have not used [kernl](https://docs.kernl.sh/) yet, it is a lightweight TypeScript framework for building agents with threads, memory, and tools baked in, and the basic setup is only a handful of lines:
+
+```typescript
+import { Agent } from "kernl";
+
+const agent = new Agent({
+  instructions: "Summarize the paper and flag relevance to kernl.",
+});
+```
+
+Feed it a paper when you need it and build up from there with tools, memory, and parallel sub-agents.
 
 ## The setup
 
@@ -20,15 +34,30 @@ First run: 104.89 seconds, 296,869 tokens, $1.165.
 
 [![Trace showing 104.89s, 296,869 tokens, $1.165 cost](/blog/2026-01-27-first.png)](https://laminar.sh/shared/traces/24aa8e28-5f60-c166-d874-2b47f232faea)
 
-Those numbers mean nothing in isolation; the question is whether they're justified.
+Let's dig a bit deeper to find out where the time and tokens are going.
+
+## Ask AI analysis
+
+A good place to start is Laminar's Ask AI feature, which can analyze traces for inefficiencies automatically.
+
+I selected the trace and asked for a breakdown.
+
+<img
+  src="/blog/2026-01-27-ai.gif"
+  alt="Ask AI analysis"
+  className="block w-full max-w-[560px] mx-auto border rounded-lg mb-8"
+/>
+
+The response identified multiple inefficiencies, but let's select the most impactful one: Each analyst fetches kernl docs separately, so for N papers you get N x (number of doc pages) redundant network requests even though the documents are identical across runs.
 
 ## Examining the trace
 
-The harvester looked clean, papers filtered correctly, analyst agents spawned as expected, and the span structure showed proper separation of concerns.
+Now we can examine the trace more closely. The harvester looked clean, papers filtered correctly, analyst agents spawned as expected, and the [span structure](https://laminar.sh/shared/traces/24aa8e28-5f60-c166-d874-2b47f232faea) showed proper separation of concerns.
 
 Then I expanded the analyst spans and watched the fetch calls.
 
-Each analyst was hitting the same URLs:
+As expected, each analyst was hitting the same URLs:
+
 - `https://docs.kernl.sh/core/agents`
 - `https://docs.kernl.sh/core/memory`
 - `https://docs.kernl.sh/core/threads`
@@ -36,30 +65,6 @@ Each analyst was hitting the same URLs:
 Same documentation, fetched by every analyst for every paper.
 
 This is static content that doesn't change between papers, so each analyst fetching it independently makes no sense.
-
-## Ask AI analysis
-
-I selected the trace and asked for a breakdown. The response identified five inefficiencies:
-
-**1. Redundant documentation fetches**
-
-Each analyst fetches kernl docs separately, so for N papers you get N x (number of doc pages) redundant network requests even though the documents are identical across runs.
-
-**2. LLM calls for predictable decisions**
-
-Before fetching docs, each analyst makes an LLM call that outputs something like "Now let me fetch kernl's multi-agent documentation to compare approaches," which is a reasoning step for a deterministic decision. The agent will always need the docs, so the LLM call adds latency and tokens for no informational value.
-
-**3. Sequential fetches within each analyst**
-
-Even within a single analyst, doc fetches happen one at a time (agents doc, wait; memory doc, wait), but they could be parallel.
-
-**4. Model selection for trivial tasks**
-
-Claude Sonnet is making the "should I fetch docs?" decision, which is expensive reasoning power for a lookup task.
-
-**5. Prompt structure**
-
-The analyst instructions say "If the paper touches on a specific kernl feature, fetch the relevant doc," which invites the LLM to deliberate; a better instruction is "Refer to the provided documentation below."
 
 ## The fix
 
@@ -90,13 +95,14 @@ const analyst = new Agent({
 ```
 
 This eliminates:
+
 - All redundant fetch calls
 - All "should I fetch?" LLM reasoning steps
 - The latency of sequential network requests
 
 ## Second run
 
-Same pipeline and papers.
+[Same pipeline and papers.](https://laminar.sh/shared/traces/5313bc58-6d46-2875-2bae-dc2b41f4080e)
 
 [![Trace showing 93.73s, 263,250 tokens, $1.041 cost](/blog/2026-01-27-second.png)](https://laminar.sh/shared/traces/5313bc58-6d46-2875-2bae-dc2b41f4080e)
 
@@ -139,7 +145,7 @@ This pipeline runs on new arXiv drops daily, so the savings are small in isolati
 
 ## What we learned
 
-The inefficiency wasn't in the agent's logic: the harvester/analyst separation was correct, the structured outputs were well-designed, and the model selection was reasonable.
+The inefficiency wasn't in the agent's logic or prompting: the harvester/analyst separation was correct, the structured outputs were well-designed, and the model selection was reasonable.
 
 The waste was in the plumbing: how context flowed between stages, what decisions were delegated to the LLM versus hardcoded, where network calls happened relative to each other.
 
@@ -147,11 +153,11 @@ These are exactly the things that disappear when you're writing the code because
 
 ## The investigation loop
 
-This took about fifteen minutes:
+This took about ten minutes:
 
 1. **Run** the pipeline, capture the trace
-2. **Scan** the timeline for obvious anomalies
-3. **Ask** for systematic analysis of inefficiencies
+2. **Ask** for systematic analysis of inefficiencies
+3. **Scan** the timeline for these anomalies
 4. **Implement** the recommended changes
 5. **Rerun** and compare
 
