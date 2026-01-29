@@ -36,7 +36,7 @@ const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
     count: treeSpans.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 36,
-    overscan: 10,
+    overscan: 20,
   });
 
   const items = virtualizer?.getVirtualItems() || [];
