@@ -46,10 +46,11 @@ const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo
 export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathInfo, onOpenSettings }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { selectedSpan, spans, toggleCollapse } = useTraceViewStoreContext((state) => ({
+  const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewStoreContext((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
     toggleCollapse: state.toggleCollapse,
+    showTreeContent: state.showTreeContent,
   }));
   const llmMetrics = getLLMMetrics(span);
   // Get child spans from the store
@@ -60,9 +61,12 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const savedTemplate = useTraceViewStoreContext((state) => state.getSpanTemplate(spanPathKey));
 
   const hasChildren = childSpans && childSpans.length > 0;
-  const isExpandable = hasChildren || span.spanType !== "DEFAULT";
+  const isExpandable = hasChildren || (span.spanType === "LLM" && (showTreeContent ?? true));
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
+
+  // Only show content for LLM spans for now.
+  const showContent = (showTreeContent ?? true) && !span.collapsed && (span.spanType === "LLM");
 
   const isLoadingOutput = output === undefined;
 
@@ -163,18 +167,15 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
         </div>
 
         {/* Expandable content */}
-        {!span.collapsed && (span.spanType === "LLM" || span.spanType === "TOOL") && (
+        {showContent && (
           <div className="px-2 pt-0">
             {isLoadingOutput && (
               <div className="w-full pb-2">
                 <Skeleton className="h-12 w-full" />
               </div>
             )}
-            {!isLoadingOutput && isNil(output) && (
-              <div className="text-sm text-muted-foreground italic pb-2">No output available</div>
-            )}
             {!isLoadingOutput && !isNil(output) && (
-              <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
+              <Markdown className="max-h-48" output={output} defaultValue={savedTemplate} />
             )}
           </div>
         )}

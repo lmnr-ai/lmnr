@@ -58,7 +58,7 @@ const SecondHalf = ({ className }: Props) => {
                   "md:py-[18px]"
                 )}
               >
-                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Fully open-source, MIT licensed</p>
+                <p className={cn(bodySQL, "basis-0 grow min-h-px min-w-px")}>Fully open-source, Apache 2.0 licensed</p>
               </div>
               <div
                 className={cn(
