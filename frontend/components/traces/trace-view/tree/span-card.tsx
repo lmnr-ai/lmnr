@@ -65,7 +65,8 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
-  const showContent = (showTreeContent ?? true) && !span.collapsed && (span.spanType === "LLM" || span.spanType === "TOOL");
+  // Only show content for LLM spans for now.
+  const showContent = (showTreeContent ?? true) && !span.collapsed && (span.spanType === "LLM");
 
   const isLoadingOutput = output === undefined;
 
@@ -173,11 +174,8 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
                 <Skeleton className="h-12 w-full" />
               </div>
             )}
-            {!isLoadingOutput && isNil(output) && (
-              <div className="text-sm text-muted-foreground italic pb-2">No output available</div>
-            )}
             {!isLoadingOutput && !isNil(output) && (
-              <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
+              <Markdown className="max-h-48" output={output} defaultValue={savedTemplate} />
             )}
           </div>
         )}
