@@ -1,12 +1,10 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { type Cell, flexRender, type RowData } from "@tanstack/react-table";
-import { get } from "lodash";
 import { type CSSProperties } from "react";
 import { useStore } from "zustand";
 
 import { TableCell } from "@/components/ui/table.tsx";
-import { cn } from "@/lib/utils.ts";
 
 import { useDataTableStore } from "../model/datatable-store.tsx";
 
@@ -38,7 +36,6 @@ export function InfiniteTableCell<TData extends RowData>({ cell }: InfiniteTable
     zIndex: isDragging ? 50 : isOtherDragging ? 1 : 0,
   };
 
-  const cellClassName: string = get(cell.column.columnDef.meta, "cellClassName", "");
   return (
     <TableCell
       className="relative px-4 m-0 truncate h-full my-auto"
@@ -49,7 +46,7 @@ export function InfiniteTableCell<TData extends RowData>({ cell }: InfiniteTable
       }}
       ref={setNodeRef}
     >
-      <div className={cn("truncate", cellClassName)}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</div>
+      <div className="truncate">{flexRender(cell.column.columnDef.cell, cell.getContext())}</div>
     </TableCell>
   );
 }

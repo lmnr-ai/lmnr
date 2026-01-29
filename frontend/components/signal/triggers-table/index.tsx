@@ -20,10 +20,27 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";
 import { type Trigger } from "@/lib/actions/signal-triggers";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
+
+const EmptyRow = (
+  <TableRow className="flex">
+    <TableCell className="text-center p-4 rounded-b w-full h-auto">
+      <div className="flex flex-1 justify-center">
+        <div className="flex flex-col gap-2 items-center max-w-md">
+          <h3 className="text-base font-medium text-secondary-foreground">No triggers yet</h3>
+          <p className="text-sm text-muted-foreground text-center">
+            Triggers are used to automatically execute signals when certain conditions are met. Create your first
+            trigger to start automating signal execution.
+          </p>
+        </div>
+      </div>
+    </TableCell>
+  </TableRow>
+);
 
 function TriggersTableContent() {
   const { toast } = useToast();
@@ -151,6 +168,7 @@ function TriggersTableContent() {
         selectionPanel={(selectedRowIds) => (
           <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDeleteTriggers} entityName="triggers" />
         )}
+        emptyRow={EmptyRow}
       >
         <div className="flex flex-1 w-full space-x-2">
           <FilterPopover columns={triggersFilters} filters={storeTriggersFilters} onAddFilter={handleAddFilter} />

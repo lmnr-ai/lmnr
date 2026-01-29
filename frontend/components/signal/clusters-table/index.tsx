@@ -12,8 +12,25 @@ import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { type EventCluster } from "@/lib/actions/clusters";
 import { useToast } from "@/lib/hooks/use-toast.ts";
+
+const EmptyRow = (
+  <TableRow className="flex">
+    <TableCell className="text-center p-4 rounded-b w-full h-auto">
+      <div className="flex flex-1 justify-center">
+        <div className="flex flex-col gap-2 items-center max-w-md">
+          <h3 className="text-base font-medium text-secondary-foreground">No clusters yet</h3>
+          <p className="text-sm text-muted-foreground text-center">
+            Clusters group similar events together for easier analysis. Enable clustering in your triggers by defining a
+            clustering key to start organizing your signal events.
+          </p>
+        </div>
+      </div>
+    </TableCell>
+  </TableRow>
+);
 
 const PureClustersTable = () => {
   const { toast } = useToast();
@@ -97,6 +114,7 @@ const PureClustersTable = () => {
         isLoading={isLoading}
         fetchNextPage={() => {}}
         meta={{ totalCount }}
+        emptyRow={EmptyRow}
       >
         <div className="flex flex-1 w-full space-x-2">
           <ColumnsMenu

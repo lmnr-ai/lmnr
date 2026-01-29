@@ -11,17 +11,45 @@ import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
 import DateRangeFilter from "@/components/ui/date-range-filter";
+import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { defaultEventsColumnOrder, eventsTableColumns, eventsTableFilters } from "./columns";
 
 const FETCH_SIZE = 50;
+
+const getEmptyRow = ({
+  startDate,
+  endDate,
+  pastHours,
+}: {
+  pastHours?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+}) => {
+  const { from, to } = getDisplayRange({ startDate, endDate, pastHours });
+
+  return (
+    <TableRow className="flex">
+      <TableCell className="text-center p-4 rounded-b w-full h-auto">
+        <div className="flex flex-1 justify-center">
+          <div className="max-w-md">
+            <h3 className="text-sm font-medium text-secondary-foreground">
+              No events in the {pastHours ? `last ${getTimeDifference(from, to)}` : "time range"}
+            </h3>
+          </div>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+};
 
 function PureEventsTable() {
   const { toast } = useToast();
@@ -188,7 +216,7 @@ function PureEventsTable() {
       <span className="text-xs text-muted-foreground font-medium">
         Last event:{" "}
         {lastEvent ? (
-          <ClientTimestampFormatter timestamp={lastEvent.timestamp} className="text-xs text-foreground" />
+          <ClientTimestampFormatter timestamp={lastEvent.timestamp} className="text-xs text-primary" />
         ) : (
           <span className="text-xs">-</span>
         )}
@@ -207,6 +235,8 @@ function PureEventsTable() {
         getRowHref={getRowHref}
         fetchNextPage={fetchNextPage}
         loadMoreButton
+        estimatedRowHeight={57}
+        emptyRow={getEmptyRow({ pastHours, startDate, endDate })}
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={eventsTableFilters} />

@@ -77,11 +77,6 @@ function SchemaFieldRow({ index, onRemove, canRemove }: { index: number; onRemov
           render={({ field }) => <Input {...field} placeholder="Field name" className="w-32 font-mono text-sm" />}
         />
         <Controller
-          name={`schemaFields.${index}.description`}
-          control={control}
-          render={({ field }) => <Input {...field} placeholder="Description" className="flex-1 text-sm" />}
-        />
-        <Controller
           name={`schemaFields.${index}.type`}
           control={control}
           render={({ field }) => (
@@ -97,6 +92,13 @@ function SchemaFieldRow({ index, onRemove, canRemove }: { index: number; onRemov
                 ))}
               </SelectContent>
             </Select>
+          )}
+        />
+        <Controller
+          name={`schemaFields.${index}.description`}
+          control={control}
+          render={({ field }) => (
+            <Textarea {...field} placeholder="Description" rows={0} className="flex-1 text-xs! py-1.25 min-h-7!" />
           )}
         />
         <Button type="button" variant="ghost" onClick={onRemove} disabled={!canRemove} className="py-[7px] shrink-0">
@@ -140,8 +142,8 @@ function SchemaFieldsBuilder() {
       <div className="space-y-2 border rounded-md p-3 bg-muted/30">
         <div className="flex gap-2 text-xs text-muted-foreground font-medium mb-2">
           <span className="w-32">Name</span>
-          <span className="flex-1">Description</span>
           <span className="w-28">Type</span>
+          <span className="flex-1">Description</span>
           <span className="w-9" />
         </div>
         {fields.length === 0 && (

@@ -1,10 +1,11 @@
 "use client";
 
-import { subHours } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useRef } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
 import { createStore, type StoreApi, useStore } from "zustand";
+
+import { getDisplayRange } from "@/components/ui/date-range-filter/utils.ts";
 
 export type DateRangeMode = "url" | "state";
 
@@ -76,20 +77,7 @@ const createDateRangeFilterStore = (
 
     getDisplayRange: () => {
       const { startDate, endDate, pastHours } = get();
-      if (startDate && endDate) {
-        return { from: new Date(startDate), to: new Date(endDate) };
-      }
-      if (pastHours) {
-        const parsedHours = parseInt(pastHours);
-        if (!isNaN(parsedHours)) {
-          const to = new Date();
-          const from = subHours(to, parsedHours);
-          return { from, to };
-        }
-      }
-      const to = new Date();
-      const from = subHours(to, 24);
-      return { from, to };
+      return getDisplayRange({ startDate, endDate, pastHours });
     },
 
     selectQuickRange: (rangeValue) => {

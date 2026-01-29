@@ -27,11 +27,14 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     accessorKey: "payload",
     header: "Payload",
     accessorFn: (row) => row.payload,
-    cell: ({ getValue, column }) => <JsonTooltip data={getValue()} columnSize={column.getSize()} />,
+    cell: ({ getValue, column }) => (
+      <JsonTooltip
+        data={getValue()}
+        columnSize={column.getSize()}
+        className="line-clamp-2 break-words whitespace-normal"
+      />
+    ),
     size: 360,
-    meta: {
-      cellClassName: "line-clamp-2",
-    },
   },
   {
     accessorKey: "timestamp",

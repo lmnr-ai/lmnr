@@ -10,6 +10,7 @@ import { cn, isValidJsonObject } from "@/lib/utils";
 interface JsonTooltipProps {
   data: Record<string, unknown> | unknown | string | null;
   columnSize?: number;
+  className?: string;
 }
 
 const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
@@ -24,11 +25,11 @@ const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
               mode="static"
               parseIncompleteMarkdown={false}
               isAnimating={false}
-              className="inline"
+              className="inline break-all"
               rehypePlugins={[defaultRehypePlugins.harden]}
               components={{
                 p: ({ children, className, ...props }) => (
-                  <span {...props} className={cn(className, "text-xs")}>
+                  <span {...props} className={cn(className, "text-xs break-all inline")}>
                     {children}
                   </span>
                 ),
@@ -38,23 +39,23 @@ const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={cn(className, "text-primary hover:underline")}
+                    className={cn(className, "text-primary/80 underline break-all")}
                   >
                     {children}
                   </a>
                 ),
                 code: ({ children, className, ...props }) => (
-                  <code {...props} className={cn(className, "text-xs font-mono bg-muted px-1 rounded")}>
+                  <code {...props} className={cn(className, "text-xs font-mono bg-muted px-1 rounded break-all")}>
                     {children}
                   </code>
                 ),
                 strong: ({ children, className, ...props }) => (
-                  <strong {...props} className={cn(className, "font-semibold")}>
+                  <strong {...props} className={cn(className, "font-semibold break-all")}>
                     {children}
                   </strong>
                 ),
                 em: ({ children, className, ...props }) => (
-                  <em {...props} className={cn(className, "italic")}>
+                  <em {...props} className={cn(className, "italic break-all")}>
                     {children}
                   </em>
                 ),
@@ -63,7 +64,7 @@ const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
               {value}
             </Streamdown>
           ) : (
-            <span>{JSON.stringify(value)}</span>
+            <span className="break-words overflow-wrap-anywhere">{JSON.stringify(value)}</span>
           )}
           {index < array.length - 1 && <span>,</span>}
         </div>
@@ -73,7 +74,7 @@ const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
   </div>
 );
 
-const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
+const JsonTooltip = ({ data, columnSize, className }: JsonTooltipProps) => {
   const parsedData = useMemo(() => {
     if (data == null) return null;
 
@@ -98,6 +99,7 @@ const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
 
   const jsonString = JSON.stringify(parsedData, null, 2);
   const displayValue = JSON.stringify(parsedData);
+  const isObject = typeof parsedData === "object" && parsedData !== null && !Array.isArray(parsedData);
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -111,7 +113,7 @@ const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
                   }
                 : {}),
             }}
-            className="line-clamp-2"
+            className={cn("truncate", className)}
           >
             {displayValue}
           </div>
@@ -119,7 +121,7 @@ const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
         <TooltipPortal>
           <TooltipContent
             side="bottom"
-            className="relative p-0 border max-w-96 max-h-96 min-h-8 min-w-16"
+            className="relative p-0 border max-w-96 max-h-96 min-h-8 min-w-32"
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
@@ -132,8 +134,14 @@ const JsonTooltip = ({ data, columnSize }: JsonTooltipProps) => {
               text={jsonString}
             />
 
-            <ScrollArea>
-              <ObjectWithMarkdown data={parsedData as Record<string, any>} />
+            <ScrollArea className="max-w-96">
+              {isObject ? (
+                <ObjectWithMarkdown data={parsedData as Record<string, any>} />
+              ) : (
+                <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96 whitespace-pre-wrap wrap-anywhere">
+                  {jsonString}
+                </div>
+              )}
             </ScrollArea>
           </TooltipContent>
         </TooltipPortal>
