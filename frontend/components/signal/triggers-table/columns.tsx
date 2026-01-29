@@ -94,7 +94,7 @@ export const getTriggersTableColumns = (fields: SchemaField[]): ColumnDef<Trigge
   {
     accessorKey: "createdAt",
     header: "Created",
-    cell: (row) => (row.getValue() ? <ClientTimestampFormatter timestamp={String(row.getValue())} /> : "-"),
+    cell: (row) => (row.getValue() ? <ClientTimestampFormatter absolute timestamp={String(row.getValue())} /> : "-"),
     size: 140,
     id: "createdAt",
   },

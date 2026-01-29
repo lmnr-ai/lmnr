@@ -31,10 +31,10 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
       <JsonTooltip
         data={getValue()}
         columnSize={column.getSize()}
-        className="line-clamp-2 break-words whitespace-normal"
+        className="line-clamp-4 whitespace-pre-wrap break-words"
       />
     ),
-    size: 360,
+    size: 840,
   },
   {
     accessorKey: "timestamp",

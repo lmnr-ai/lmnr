@@ -15,7 +15,9 @@ export type SignalRow = {
   name: string;
   createdAt: string;
   projectId: string;
+  triggersCount: number;
   eventsCount: number;
+  lastEventAt: string | null;
 };
 
 export type Signal = {
@@ -65,6 +67,7 @@ const DeleteSignalsSchema = z.object({
 const GetLastEventSchema = z.object({
   projectId: z.string(),
   name: z.string(),
+  signalId: z.string(),
 });
 
 export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
@@ -115,9 +118,26 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
     .offset(offset);
 
   const signalIds = results.map((r) => r.id);
+  let triggerCountBySignal: Record<string, number> = {};
   let eventCountBySignal: Record<string, number> = {};
+  let lastEventBySignal: Record<string, string> = {};
 
   if (signalIds.length > 0) {
+    const triggerCountsResult = await db
+      .select({
+        signalId: signalTriggers.signalId,
+      })
+      .from(signalTriggers)
+      .where(and(eq(signalTriggers.projectId, projectId), inArray(signalTriggers.signalId, signalIds)));
+
+    triggerCountBySignal = triggerCountsResult.reduce(
+      (acc, row) => ({
+        ...acc,
+        [row.signalId]: (acc[row.signalId] || 0) + 1,
+      }),
+      {} as Record<string, number>
+    );
+
     const eventCountsResult = await clickhouseClient.query({
       query: `
         SELECT
@@ -144,11 +164,40 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       }),
       {} as Record<string, number>
     );
+
+    const lastEventResult = await clickhouseClient.query({
+      query: `
+        SELECT
+          signal_id,
+          formatDateTime(max(timestamp), '%Y-%m-%dT%H:%i:%S.%fZ') as last_event_at
+        FROM signal_events
+        WHERE project_id = {projectId: UUID}
+          AND signal_id IN ({signalIds: Array(UUID)})
+        GROUP BY signal_id
+      `,
+      query_params: {
+        projectId,
+        signalIds,
+      },
+      format: "JSONEachRow",
+    });
+
+    const lastEvents = (await lastEventResult.json()) as { signal_id: string; last_event_at: string }[];
+
+    lastEventBySignal = lastEvents.reduce(
+      (acc, row) => ({
+        ...acc,
+        [row.signal_id]: row.last_event_at,
+      }),
+      {} as Record<string, string>
+    );
   }
 
   const items: SignalRow[] = results.map((signal) => ({
     ...signal,
+    triggersCount: triggerCountBySignal[signal.id] || 0,
     eventsCount: eventCountBySignal[signal.id] || 0,
+    lastEventAt: lastEventBySignal[signal.id] || null,
   }));
 
   return {
@@ -271,7 +320,7 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
 export { executeSignal } from "./execute";
 
 export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) => {
-  const { projectId, name } = GetLastEventSchema.parse(input);
+  const { projectId, name, signalId } = GetLastEventSchema.parse(input);
 
   const query = `
       SELECT
@@ -279,7 +328,7 @@ export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) =>
           formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, 
       name
       FROM signal_events
-      WHERE name = {name: String}
+      WHERE signal_id = {signalId: UUID} AND name = {name: String}
       ORDER BY timestamp DESC
       LIMIT 1
   `;
@@ -290,6 +339,7 @@ export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) =>
     parameters: {
       name,
       projectId,
+      signalId,
     },
   });
 

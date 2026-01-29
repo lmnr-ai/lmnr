@@ -235,7 +235,7 @@ function PureEventsTable() {
         getRowHref={getRowHref}
         fetchNextPage={fetchNextPage}
         loadMoreButton
-        estimatedRowHeight={57}
+        estimatedRowHeight={80}
         emptyRow={getEmptyRow({ pastHours, startDate, endDate })}
       >
         <div className="flex flex-1 w-full space-x-2">

@@ -99,14 +99,14 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
   {
     accessorFn: (row) => row.createdAt,
     header: "Created",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
     id: "created_at",
     size: 150,
   },
   {
     accessorFn: (row) => row.updatedAt,
     header: "Updated",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
     id: "updated_at",
     size: 150,
   },

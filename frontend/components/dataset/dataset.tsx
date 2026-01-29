@@ -46,7 +46,7 @@ const columns: ColumnDef<Datapoint>[] = [
     accessorKey: "createdAt",
     header: "Updated",
     size: 150,
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
   },
   {
     accessorFn: (row) => row.data,

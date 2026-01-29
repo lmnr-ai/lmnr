@@ -26,10 +26,22 @@ function formatShortRelativeTime(date: Date): string {
   }
 }
 
-export default function ClientTimestampFormatter({ timestamp, className }: { timestamp: string; className?: string }) {
+export default function ClientTimestampFormatter({
+  timestamp,
+  className,
+  absolute = false,
+}: {
+  timestamp: string;
+  className?: string;
+  absolute?: boolean;
+}) {
   const date = new Date(timestamp);
   const days = differenceInDays(new Date(), date);
-  const displayText = days < 7 ? formatShortRelativeTime(date) : formatTimestamp(timestamp);
+  const displayText = absolute
+    ? formatTimestamp(timestamp)
+    : days < 7
+      ? formatShortRelativeTime(date)
+      : formatTimestamp(timestamp);
   const tooltipText = format(date, "MMMM d, yyyy, h:mm a O");
 
   return (

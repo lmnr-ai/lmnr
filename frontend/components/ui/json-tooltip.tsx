@@ -98,14 +98,14 @@ const JsonTooltip = ({ data, columnSize, className }: JsonTooltipProps) => {
   }
 
   const jsonString = JSON.stringify(parsedData, null, 2);
-  const displayValue = JSON.stringify(parsedData);
+  const displayValue = JSON.stringify(parsedData, null, 2);
   const isObject = typeof parsedData === "object" && parsedData !== null && !Array.isArray(parsedData);
 
   return (
     <TooltipProvider delayDuration={100}>
       <Tooltip>
         <TooltipTrigger asChild className="relative p-0">
-          <div
+          <pre
             style={{
               ...(columnSize
                 ? {
@@ -113,10 +113,10 @@ const JsonTooltip = ({ data, columnSize, className }: JsonTooltipProps) => {
                   }
                 : {}),
             }}
-            className={cn("truncate", className)}
+            className={cn("font-mono text-secondary-foreground overflow-hidden text-xs truncate", className)}
           >
             {displayValue}
-          </div>
+          </pre>
         </TooltipTrigger>
         <TooltipPortal>
           <TooltipContent

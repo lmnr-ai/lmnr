@@ -112,7 +112,7 @@ export const getSignalRunsColumns = ({
   {
     accessorKey: "updatedAt",
     header: "Updated At",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
     size: 150,
     id: "updatedAt",
   },
