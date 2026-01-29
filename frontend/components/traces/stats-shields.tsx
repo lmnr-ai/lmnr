@@ -169,66 +169,68 @@ function StatsShieldsContent({
 }>) {
   return (
     <div className={cn("flex items-center gap-2 font-mono min-w-0", className)}>
-      <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
-        <Clock3 size={12} className="min-w-3 min-h-3" />
-        <Label className="text-xs truncate text-foreground" title={getDurationString(stats.startTime, stats.endTime)}>
-          {getDurationString(stats.startTime, stats.endTime)}
-        </Label>
-      </div>
-      <TooltipProvider delayDuration={250}>
-        <Tooltip>
-          <TooltipTrigger className="min-w-8">
-            <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
-              <Coins className="min-w-3" size={12} />
-              <Label className="text-xs truncate text-foreground">{numberFormat.format(stats.totalTokens)}</Label>
-            </div>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent side="bottom" className="p-2 border">
-              <div className="flex-col space-y-1">
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Input tokens</span>{" "}
-                  {numberFormat.format(stats.inputTokens)}
-                </Label>
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Output tokens</span>{" "}
-                  {numberFormat.format(stats.outputTokens)}
-                </Label>
-                {!!stats.cacheReadInputTokens && (
-                  <Label className="flex text-xs gap-1 text-success-bright">
-                    <span>Cache read input tokens</span> {numberFormat.format(stats.cacheReadInputTokens)}
+      <div className="flex items-center gap-2 border rounded-md px-2 p-0.5 min-w-0">
+        <div className="flex space-x-1 items-center min-w-0">
+          <Clock3 size={12} className="min-w-3 min-h-3" />
+          <Label className="text-xs truncate text-foreground" title={getDurationString(stats.startTime, stats.endTime)}>
+            {getDurationString(stats.startTime, stats.endTime)}
+          </Label>
+        </div>
+        <TooltipProvider delayDuration={250}>
+          <Tooltip>
+            <TooltipTrigger className="min-w-0">
+              <div className="flex space-x-1 items-center min-w-0">
+                <Coins className="min-w-3" size={12} />
+                <Label className="text-xs truncate text-foreground">{numberFormat.format(stats.totalTokens)}</Label>
+              </div>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent side="bottom" className="p-2 border">
+                <div className="flex-col space-y-1">
+                  <Label className="flex text-xs gap-1">
+                    <span className="text-secondary-foreground">Input tokens</span>{" "}
+                    {numberFormat.format(stats.inputTokens)}
                   </Label>
-                )}
+                  <Label className="flex text-xs gap-1">
+                    <span className="text-secondary-foreground">Output tokens</span>{" "}
+                    {numberFormat.format(stats.outputTokens)}
+                  </Label>
+                  {!!stats.cacheReadInputTokens && (
+                    <Label className="flex text-xs gap-1 text-success-bright">
+                      <span>Cache read input tokens</span> {numberFormat.format(stats.cacheReadInputTokens)}
+                    </Label>
+                  )}
+                </div>
+              </TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
+        </TooltipProvider>
+        <TooltipProvider delayDuration={250}>
+          <Tooltip>
+            <TooltipTrigger className="min-w-0">
+              <div className="flex space-x-1 items-center min-w-0">
+                <CircleDollarSign className="min-w-3" size={12} />
+                <Label className="text-xs truncate text-foreground">{stats.totalCost?.toFixed(3)}</Label>
               </div>
-            </TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
-      </TooltipProvider>
-      <TooltipProvider delayDuration={250}>
-        <Tooltip>
-          <TooltipTrigger className="min-w-8">
-            <div className="flex space-x-1 items-center p-0.5 px-2 min-w-8 border rounded-md">
-              <CircleDollarSign className="min-w-3" size={12} />
-              <Label className="text-xs truncate text-foreground">{stats.totalCost?.toFixed(3)}</Label>
-            </div>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent side="bottom" className="p-2 border">
-              <div className="flex-col space-y-1">
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Total cost</span> {"$" + stats.totalCost?.toFixed(5)}
-                </Label>
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Input cost</span> {"$" + stats.inputCost?.toFixed(5)}
-                </Label>
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Output cost</span> {"$" + stats.outputCost?.toFixed(5)}
-                </Label>
-              </div>
-            </TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
-      </TooltipProvider>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent side="bottom" className="p-2 border">
+                <div className="flex-col space-y-1">
+                  <Label className="flex text-xs gap-1">
+                    <span className="text-secondary-foreground">Total cost</span> {"$" + stats.totalCost?.toFixed(5)}
+                  </Label>
+                  <Label className="flex text-xs gap-1">
+                    <span className="text-secondary-foreground">Input cost</span> {"$" + stats.inputCost?.toFixed(5)}
+                  </Label>
+                  <Label className="flex text-xs gap-1">
+                    <span className="text-secondary-foreground">Output cost</span> {"$" + stats.outputCost?.toFixed(5)}
+                  </Label>
+                </div>
+              </TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
       {children}
     </div>
   );
