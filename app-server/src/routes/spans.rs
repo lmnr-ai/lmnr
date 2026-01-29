@@ -37,10 +37,11 @@ const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
 fn escape_quickwit_query(query: &str) -> String {
     query
         .chars()
-        .filter(|c| !QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS.contains(c))
         .flat_map(|c| {
             if QUICKWIT_RESERVED_CHARACTERS.contains(&c) {
                 vec!['\\', c]
+            } else if QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS.contains(&c) {
+                vec![' ']
             } else {
                 vec![c]
             }
