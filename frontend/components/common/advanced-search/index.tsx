@@ -24,6 +24,10 @@ interface AdvancedSearchInnerProps {
   resource: "traces" | "spans";
   placeholder?: string;
   className?: string;
+  options?: {
+    suggestions?: Map<string, string[]>;
+    disableHotKey?: boolean;
+  };
 }
 
 export const AdvancedSearchInner = ({
@@ -31,6 +35,7 @@ export const AdvancedSearchInner = ({
   placeholder = "Search...",
   className,
   filters,
+  options: { suggestions, disableHotKey } = { disableHotKey: false },
 }: AdvancedSearchInnerProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -97,24 +102,41 @@ export const AdvancedSearchInner = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlTags, setTags, updateLastSubmitted, mode]);
 
-  useSWR<{ suggestions: AutocompleteSuggestion[] }>(`/api/projects/${projectId}/${resource}/autocomplete`, swrFetcher, {
-    onSuccess: (data) => {
-      const cache = new Map<string, string[]>();
-      data.suggestions.forEach((suggestion) => {
-        const existing = cache.get(suggestion.field) || [];
-        if (!existing.includes(suggestion.value)) {
-          existing.push(suggestion.value);
-        }
-        cache.set(suggestion.field, existing);
-      });
-      setAutocompleteData(cache);
-    },
-    fallbackData: { suggestions: [] },
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-  });
+  useSWR<{ suggestions: AutocompleteSuggestion[] }>(
+    suggestions ? null : `/api/projects/${projectId}/${resource}/autocomplete`,
+    swrFetcher,
+    {
+      onSuccess: (data) => {
+        const cache = new Map<string, string[]>();
+        data.suggestions.forEach((suggestion) => {
+          const existing = cache.get(suggestion.field) || [];
+          if (!existing.includes(suggestion.value)) {
+            existing.push(suggestion.value);
+          }
+          cache.set(suggestion.field, existing);
+        });
+        setAutocompleteData(cache);
+      },
+      fallbackData: { suggestions: [] },
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
+  );
 
-  return <FilterSearchInput placeholder={placeholder} className={className} resource={resource} />;
+  useEffect(() => {
+    if (suggestions) {
+      setAutocompleteData(suggestions);
+    }
+  }, [suggestions]);
+
+  return (
+    <FilterSearchInput
+      disableHotKey={disableHotKey}
+      placeholder={placeholder}
+      className={className}
+      resource={resource}
+    />
+  );
 };
 
 AdvancedSearchInner.displayName = "AdvancedSearchInner";
@@ -127,6 +149,11 @@ interface AdvancedSearchProps {
   mode?: AdvancedSearchMode;
   value?: { filters: Filter[]; search: string };
   onSubmit?: (filters: Filter[], search: string) => void;
+  options?: {
+    // If provided autocomplete won't fetch suggestions
+    suggestions?: Map<string, string[]>;
+    disableHotKey?: boolean;
+  };
 }
 
 const AdvancedSearch = ({
@@ -137,6 +164,7 @@ const AdvancedSearch = ({
   mode = "url",
   value,
   onSubmit,
+  options: { suggestions, disableHotKey } = { disableHotKey: false },
 }: AdvancedSearchProps) => (
   <AdvancedSearchStoreProvider
     filters={filters}
@@ -144,8 +172,18 @@ const AdvancedSearch = ({
     initialFilters={value?.filters}
     initialSearch={value?.search}
     onSubmit={onSubmit}
+    suggestions={suggestions}
   >
-    <AdvancedSearchInner filters={filters} resource={resource} placeholder={placeholder} className={className} />
+    <AdvancedSearchInner
+      filters={filters}
+      resource={resource}
+      placeholder={placeholder}
+      className={className}
+      options={{
+        suggestions,
+        disableHotKey,
+      }}
+    />
   </AdvancedSearchStoreProvider>
 );
 

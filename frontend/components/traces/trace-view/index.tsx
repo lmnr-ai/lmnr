@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
+import { AlertTriangle, Minus, Plus, Sparkles } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
@@ -9,7 +9,7 @@ import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import List from "@/components/traces/trace-view/list";
 import Metadata from "@/components/traces/trace-view/metadata";
 import Minimap from "@/components/traces/trace-view/minimap.tsx";
-import SearchTraceSpansInput from "@/components/traces/trace-view/search";
+import TraceViewSearch from "@/components/traces/trace-view/search";
 import TraceViewStoreProvider, {
   MAX_ZOOM,
   MIN_TREE_VIEW_WIDTH,
@@ -18,16 +18,9 @@ import TraceViewStoreProvider, {
   type TraceViewTrace,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
-import {
-  enrichSpansWithPending,
-  filterColumns,
-  findSpanToSelect,
-  onRealtimeUpdateSpans,
-} from "@/components/traces/trace-view/utils";
+import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button.tsx";
-import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -47,7 +40,6 @@ interface TraceViewProps {
   spanId?: string;
   propsTrace?: TraceViewTrace;
   onClose: () => void;
-  initialSearch?: string;
 }
 
 const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps) => {
@@ -93,10 +85,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const {
     tab,
     setTab,
-    search,
-    setSearch,
-    searchEnabled,
-    setSearchEnabled,
     browserSession,
     setBrowserSession,
     zoom,
@@ -108,10 +96,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
     setTab: state.setTab,
-    search: state.search,
-    setSearch: state.setSearch,
-    searchEnabled: state.searchEnabled,
-    setSearchEnabled: state.setSearchEnabled,
     zoom: state.zoom,
     handleZoom: state.setZoom,
     browserSession: state.browserSession,
@@ -131,7 +115,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setSpanPath: state.setSpanPath,
   }));
 
-  const { value: filters, onChange: setFilters } = useFiltersContextProvider();
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const llmSpanIds = useMemo(
     () => spans.filter((span) => span.spanType === SpanType.LLM).map((span) => span.spanId),
@@ -302,25 +285,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     [setTreeWidth, treeWidth]
   );
 
-  const handleToggleSearch = useCallback(async () => {
-    if (searchEnabled) {
-      setSearchEnabled(false);
-      setSearch("");
-      if (search !== "") {
-        await fetchSpans("", filters);
-      }
-    } else {
-      setSearchEnabled(true);
-    }
-  }, [searchEnabled, setSearchEnabled, setSearch, search, fetchSpans, filters]);
-
-  const handleAddFilter = useCallback(
-    (filter: Filter) => {
-      setFilters((prevFilters) => [...prevFilters, filter]);
-    },
-    [setFilters]
-  );
-
   const isLoading = isTraceLoading && !trace;
 
   const eventHandlers = useMemo(
@@ -351,14 +315,14 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }, [handleFetchTrace]);
 
   useEffect(() => {
-    fetchSpans(search, filters);
+    fetchSpans("", []);
 
     return () => {
       setSpans([]);
       setTraceError(undefined);
       setSpansError(undefined);
     };
-  }, [traceId, projectId, filters, setSpans, setTraceError, setSpansError]);
+  }, [traceId, projectId, setSpans, setTraceError, setSpansError]);
 
   useRealtime({
     key: `trace_${traceId}`,
@@ -405,32 +369,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           <div className="flex flex-col gap-2 px-2 pb-2 border-b box-border">
             <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
               <ViewDropdown />
-              <StatefulFilter columns={filterColumns}>
-                <Button variant="outline" className="h-6 text-xs">
-                  <ListFilter size={14} className="mr-1" />
-                  Filters
-                </Button>
-              </StatefulFilter>
-              <Button
-                onClick={handleToggleSearch}
-                variant="outline"
-                className={cn("h-6 text-xs px-1.5", {
-                  "border-primary text-primary": search || searchEnabled,
-                })}
-              >
-                <Search size={14} className="mr-1" />
-                <span>Search</span>
-              </Button>
-              <Button
-                onClick={() => setTab("metadata")}
-                variant="outline"
-                className={cn("h-6 text-xs px-1.5", {
-                  "border-primary text-primary": tab === "metadata",
-                })}
-              >
-                <FileText size={14} className="mr-1" />
-                <span>Metadata</span>
-              </Button>
+              <Metadata trace={trace} />
               <Button
                 onClick={() => setTab("chat")}
                 variant="outline"
@@ -464,11 +403,9 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 </>
               )}
             </div>
-            <StatefulFilterList className="py-[3px] text-xs px-1" />
           </div>
-          {(search || searchEnabled) && (
-            <SearchTraceSpansInput spans={spans} submit={fetchSpans} filters={filters} onAddFilter={handleAddFilter} />
-          )}
+          <TraceViewSearch spans={spans} onSubmit={(filters, search) => fetchSpans(search, filters)} />
+
           {spansError ? (
             <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
               <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
@@ -478,10 +415,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           ) : (
             <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-                {tab === "metadata" && trace && <Metadata trace={trace} />}
                 {tab === "chat" && trace && (
                   <Chat
                     trace={trace}
+                    onSearchSpans={(search) => {
+                      fetchSpans(search, []);
+                    }}
                     onSetSpanId={(spanId) => {
                       const span = spans.find((span) => span.spanId === spanId);
                       if (span) {
@@ -560,7 +499,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
 export default function TraceView(props: TraceViewProps) {
   return (
-    <TraceViewStoreProvider initialSearch={props.initialSearch} initialTrace={props.propsTrace}>
+    <TraceViewStoreProvider initialTrace={props.propsTrace}>
       <PureTraceView {...props} />
     </TraceViewStoreProvider>
   );

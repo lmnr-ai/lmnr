@@ -14,6 +14,7 @@ import { TraceStatsShields } from "@/components/traces/stats-shields";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import List from "@/components/traces/trace-view/list";
+import Metadata from "@/components/traces/trace-view/metadata.tsx";
 import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import Timeline from "@/components/traces/trace-view/timeline";
@@ -65,10 +66,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     setTrace: state.setTrace,
     selectedSpan: state.selectedSpan,
     setSelectedSpan: state.setSelectedSpan,
-    search: state.search,
-    setSearch: state.setSearch,
-    searchEnabled: state.searchEnabled,
-    setSearchEnabled: state.setSearchEnabled,
     zoom: state.zoom,
     handleZoom: state.setZoom,
     browserSession: state.browserSession,
@@ -182,6 +179,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                 </div>
                 <div className="flex gap-2 px-2 py-2 h-10 border-b box-border">
                   <ViewDropdown />
+                  <Metadata trace={trace} />
                   {tab === "timeline" && (
                     <>
                       <Button

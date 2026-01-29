@@ -5,8 +5,7 @@ import { Resizable, type ResizeCallback } from "re-resizable";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
-import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
-import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
+import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { setTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -133,21 +132,18 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
               width: defaultTraceViewWidth,
             }}
           >
-            <FiltersContextProvider columns={filterColumns}>
-              <TraceView
-                spanId={spanId || undefined}
-                key={traceId}
-                onClose={() => {
-                  const params = new URLSearchParams(searchParams);
-                  params.delete("traceId");
-                  params.delete("spanId");
-                  router.push(`${pathName}?${params.toString()}`);
-                  setTraceId(null);
-                }}
-                traceId={traceId}
-                initialSearch={searchParams.get("search") || undefined}
-              />
-            </FiltersContextProvider>
+            <TraceView
+              spanId={spanId || undefined}
+              key={traceId}
+              onClose={() => {
+                const params = new URLSearchParams(searchParams);
+                params.delete("traceId");
+                params.delete("spanId");
+                router.push(`${pathName}?${params.toString()}`);
+                setTraceId(null);
+              }}
+              traceId={traceId}
+            />
           </Resizable>
         </div>
       )}

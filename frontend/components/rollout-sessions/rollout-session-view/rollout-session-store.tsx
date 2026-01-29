@@ -56,13 +56,11 @@ interface RolloutSessionStoreState {
   spanPath: string[] | null;
   isSpansLoading: boolean;
   spansError?: string;
-  searchEnabled: boolean;
   selectedSpan?: TraceViewSpan;
   browserSession: boolean;
   langGraph: boolean;
   sessionTime?: number;
-  tab: "tree" | "timeline" | "chat" | "metadata" | "reader";
-  search: string;
+  tab: "tree" | "timeline" | "chat" | "reader";
   zoom: number;
   sidebarWidth: number;
   hasBrowserSession: boolean;
@@ -94,12 +92,10 @@ interface RolloutSessionStoreActions {
   setSelectedSpan: (span?: TraceViewSpan) => void;
   selectSpanById: (spanId: string) => void;
   setSpanPath: (spanPath: string[]) => void;
-  setSearchEnabled: (searchEnabled: boolean) => void;
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
   setSessionTime: (time?: number) => void;
   setTab: (tab: RolloutSessionStoreState["tab"]) => void;
-  setSearch: (search: string) => void;
   setSidebarWidth: (width: number) => void;
   setZoom: (type: "in" | "out") => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
@@ -176,8 +172,6 @@ const createRolloutSessionStore = ({
         browserSession: false,
         sessionTime: undefined,
         tab: "tree",
-        search: "",
-        searchEnabled: false,
         zoom: 1,
         sidebarWidth: MIN_SIDEBAR_WIDTH,
         langGraph: false,
@@ -251,7 +245,6 @@ const createRolloutSessionStore = ({
             set({ cachedSpanCounts: newCachedCounts });
           }
         },
-        setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
         getMinimapSpans: () => {
           const trace = get().trace;
           if (trace) {
@@ -335,7 +328,6 @@ const createRolloutSessionStore = ({
           set({ sessionTime: newTime });
           return newTime >= maxTime;
         },
-        setSearch: (search) => set({ search }),
         setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
         saveSpanTemplate: (spanPathKey: string, template: string) => {
           set((state) => ({
@@ -668,13 +660,18 @@ const createRolloutSessionStore = ({
       }),
       {
         name: storeKey,
-        partialize: (state) => ({
-          sidebarWidth: state.sidebarWidth,
-          spanPath: state.spanPath,
-          spanTemplates: state.spanTemplates,
-          tab: state.tab,
-          showTreeContent: state.showTreeContent,
-        }),
+        partialize: (state) => {
+          const persistentTabs = ["tree", "timeline", "reader"] as const;
+          const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
+
+          return {
+            sidebarWidth: state.sidebarWidth,
+            spanPath: state.spanPath,
+            spanTemplates: state.spanTemplates,
+            ...(tabToPersist && { tab: tabToPersist }),
+            showTreeContent: state.showTreeContent,
+          };
+        },
       }
     )
   );
