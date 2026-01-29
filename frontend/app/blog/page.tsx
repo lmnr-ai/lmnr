@@ -9,14 +9,17 @@ import { formatUTCDate } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Laminar Blog",
-  description: "Laminar blog posts",
+  description:
+    "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
   openGraph: {
     title: "Laminar Blog",
-    description: "Laminar blog posts",
+    description:
+      "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
   },
   twitter: {
     title: "Laminar Blog",
-    description: "Laminar blog posts",
+    description:
+      "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
   },
 };
 

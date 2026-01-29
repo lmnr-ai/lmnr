@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { compact, isEmpty } from "lodash";
+import { compact, isEmpty, times } from "lodash";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -9,6 +9,7 @@ import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-b
 import { useScrollContext } from "@/components/traces/trace-view/scroll-context";
 import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { type PathInfo } from "@/components/traces/trace-view/trace-view-store-utils.ts";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { SpanCard } from "./span-card";
 
@@ -20,10 +21,11 @@ interface TreeProps {
 const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
-  const { getTreeSpans, spans, trace } = useRolloutSessionStoreContext((state) => ({
+  const { getTreeSpans, spans, trace, isSpansLoading } = useRolloutSessionStoreContext((state) => ({
     getTreeSpans: state.getTreeSpans,
     spans: state.spans,
     trace: state.trace,
+    isSpansLoading: state.isSpansLoading,
   }));
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans]);
@@ -34,7 +36,7 @@ const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
     count: treeSpans.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 36,
-    overscan: 100,
+    overscan: 20,
   });
 
   const items = virtualizer?.getVirtualItems() || [];
@@ -78,6 +80,16 @@ const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
       el.removeEventListener("scroll", handleScroll);
     };
   }, [handleScroll, scrollRef?.current]);
+
+  if (isSpansLoading) {
+    return (
+      <div className="flex flex-col gap-2 p-2 pb-4 w-full min-w-full">
+        {times(3, (i) => (
+          <Skeleton key={i} className="h-8 w-full" />
+        ))}
+      </div>
+    );
+  }
 
   if (isEmpty(treeSpans) && isEmpty(spans)) {
     return <span className="text-base text-secondary-foreground mx-auto mt-4 text-center">No spans found.</span>;

@@ -124,7 +124,6 @@
     "react": "^19.2.3",
     "react-day-picker": "^8.10.1",
     "react-dom": "^19.2.3",
-    "react-github-btn": "^1.4.0",
     "react-grid-layout": "^1.5.2",
     "react-hook-form": "^7.62.0",
     "react-hotkeys-hook": "^5.1.0",

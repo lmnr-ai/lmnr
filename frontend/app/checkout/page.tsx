@@ -1,9 +1,15 @@
 import { eq } from "drizzle-orm";
+import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import Stripe from "stripe";
 
 import { authOptions } from "@/lib/auth";
+
+export const metadata: Metadata = {
+  title: "Checkout - Laminar",
+  description: "Complete your Laminar subscription.",
+};
 import { getIdFromStripeObject, getUserSubscriptionInfo } from "@/lib/checkout/utils";
 import { db } from "@/lib/db/drizzle";
 import { users, userSubscriptionInfo } from "@/lib/db/migrations/schema";

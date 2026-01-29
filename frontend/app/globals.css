@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 @import "tw-shimmer";
 
 @plugin 'tailwindcss-animate';
@@ -12,8 +12,8 @@
   padding-inline: 2rem;
 
   @media (width >=--theme(--breakpoint-sm)) {
-  max-width: none;
-}
+    max-width: none;
+  }
 
   @media (width >=1400px) {
     max-width: 1400px;
@@ -22,7 +22,8 @@
 
 @theme {
   --font-sans: var(--font-inter);
-  --font-title: var(--font-title);
+  --font-manrope: var(--font-manrope);
+  --font-space-grotesk: var(--font-space-grotesk);
 
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));
@@ -70,6 +71,25 @@
 
   --color-llm: hsl(var(--llm));
   --color-llm-foreground: hsl(var(--llm-foreground));
+
+  /*TODO: unify landing and platform colors*/
+  --color-landing-primary-200: rgb(218 135 95);
+  --color-landing-primary-300: rgb(213 126 87);
+  --color-landing-primary-400: rgb(208 117 78);
+  --color-landing-surface-400: rgb(46 46 47);
+  --color-landing-surface-500: rgb(37 37 38);
+  --color-landing-surface-600: rgb(27 27 28);
+  --color-landing-surface-700: rgb(22 22 23);
+  --color-landing-surface-800: rgb(15 15 15);
+  --color-landing-surface-900: rgb(5 5 5);
+  --color-landing-text-100: rgb(255 255 255);
+  --color-landing-text-200: rgb(195 196 200);
+  --color-landing-text-300: rgb(146 148 156);
+  --color-landing-text-400: rgb(124 126 133);
+  --color-landing-text-500: rgb(95 97 102);
+  --color-landing-text-600: rgb(67 68 71);
+  --color-landing-primary-400-10: rgb(208 117 78 / 0.1);
+  --color-landing-primary-400-50: rgb(208 117 78 / 0.5);
 }
 
 @utility no-scrollbar {
@@ -82,19 +102,19 @@
 }
 
 @utility hide-arrow {
-  &[type='number']::-webkit-inner-spin-button {
+  &[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
   }
 
-  &[type='number']::-webkit-outer-spin-button {
+  &[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
   }
 
-    &[type='number'] {
-     -moz-appearance: textfield
-    }
+  &[type="number"] {
+    -moz-appearance: textfield;
+  }
 }
 
 @layer base {
@@ -172,5 +192,10 @@
 
   button {
     cursor: pointer;
+  }
+
+  ::selection {
+    background-color: var(--color-landing-primary-400-50);
+    color: white;
   }
 }

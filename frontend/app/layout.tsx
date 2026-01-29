@@ -6,7 +6,7 @@ import { type PropsWithChildren } from "react";
 
 import { Toaster } from "@/components/ui/toaster";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
-import { manrope, sans } from "@/lib/fonts";
+import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 
 import { PostHogProvider } from "./providers";
@@ -52,7 +52,10 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   const telemetryEnabled = isFeatureEnabled(Feature.POSTHOG);
 
   return (
-    <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable)}>
+    <html
+      lang="en"
+      className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}
+    >
       <PostHogProvider telemetryEnabled={telemetryEnabled}>
         <body className="flex flex-col h-full">
           <div className="flex">

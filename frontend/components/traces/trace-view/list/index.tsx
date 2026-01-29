@@ -69,6 +69,8 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
 
   const { outputs } = useBatchedSpanOutputs(
     projectId,
+    // Fetches outputs for visible or rendered spans in virtualized list.
+    // Make sure that spans in view (~20) + overscan spans < cache size (default 100) in this hook.
     visibleSpanIds,
     {
       id: traceId,
