@@ -11,7 +11,6 @@ use super::{SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY};
 use crate::ch::signal_events::{CHSignalEvent, insert_signal_events};
 use crate::ch::signal_runs::{CHSignalRun, insert_signal_runs};
 use crate::db;
-use crate::db::events::EventSource;
 use crate::db::signals::Signal;
 use crate::features::{Feature, is_feature_enabled};
 use crate::mq::{MessageQueue, MessageQueueTrait};
@@ -29,6 +28,7 @@ pub struct SignalMessage {
     pub project_id: Uuid,
     pub trigger_id: Option<Uuid>, // TODO: Remove Option once old messages in queue without trigger_id are processed
     pub event_definition: Signal, // should stay "event_definition" for backward compatibility
+    pub clustering_key: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -46,6 +46,7 @@ pub async fn push_to_signals_queue(
     project_id: Uuid,
     trigger_id: Option<Uuid>,
     signal: Signal,
+    clustering_key: Option<String>,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let message = SignalMessage {
@@ -53,6 +54,7 @@ pub async fn push_to_signals_queue(
         project_id,
         trigger_id,
         event_definition: signal.clone(),
+        clustering_key,
     };
 
     let serialized = serde_json::to_vec(&message)?;
@@ -201,6 +203,7 @@ async fn process_signal(
             message.project_id,
             message.trace_id,
             signal_event,
+            message.clustering_key.clone(),
         )
         .await?;
 
@@ -233,6 +236,7 @@ pub async fn process_event_notifications_and_clustering(
     project_id: Uuid,
     trace_id: Uuid,
     signal_event: CHSignalEvent,
+    clustering_key: Option<String>,
 ) -> anyhow::Result<()> {
     let event_name = signal_event.name().to_string();
     let attributes = signal_event.payload_value().unwrap_or_default();
@@ -272,19 +276,11 @@ pub async fn process_event_notifications_and_clustering(
     }
 
     if is_feature_enabled(Feature::Clustering) {
-        // Check for event clustering configuration
-        if let Ok(Some(cluster_config)) = db::event_cluster_configs::get_event_cluster_config(
-            &db.pool,
-            project_id,
-            &event_name,
-            EventSource::Semantic,
-        )
-        .await
-        {
+        if let Some(value_template) = clustering_key {
             if let Err(e) = clustering::push_to_event_clustering_queue(
                 project_id,
                 signal_event,
-                cluster_config.value_template,
+                value_template,
                 queue.clone(),
             )
             .await

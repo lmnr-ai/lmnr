@@ -5,7 +5,7 @@ import postgres from "postgres";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { Button } from "@/components/ui/button";
 import { type EventCluster } from "@/lib/actions/clusters";
-import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
+import { cn } from "@/lib/utils.ts";
 import column = postgres.toPascal.column;
 
 export interface ClusterRow extends EventCluster {
@@ -99,14 +99,14 @@ export const getClusterColumns = (projectId: string, eventDefinitionId: string):
   {
     accessorFn: (row) => row.createdAt,
     header: "Created",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "created_at",
     size: 150,
   },
   {
     accessorFn: (row) => row.updatedAt,
     header: "Updated",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "updated_at",
     size: 150,
   },

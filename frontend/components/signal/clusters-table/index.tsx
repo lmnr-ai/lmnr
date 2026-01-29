@@ -1,6 +1,5 @@
 "use client";
 
-import { Network } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -9,10 +8,7 @@ import {
   defaultClustersColumnOrder,
   getClusterColumns,
 } from "@/components/signal/clusters-table/columns.tsx";
-import DisableClusteringDialog from "@/components/signal/disable-clustering-dialog.tsx";
-import StartClusteringDialog from "@/components/signal/start-clustering-dialog.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
-import { Button } from "@/components/ui/button.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
@@ -22,10 +18,7 @@ import { useToast } from "@/lib/hooks/use-toast.ts";
 const PureClustersTable = () => {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
-  const { signal, clusterConfig } = useSignalStoreContext((state) => ({
-    signal: state.signal,
-    clusterConfig: state.clusterConfig,
-  }));
+  const signal = useSignalStoreContext((state) => state.signal);
   const columns = useMemo(() => getClusterColumns(params.projectId, signal.id), [params.projectId, signal.id]);
 
   const [rawClusters, setRawClusters] = useState<EventCluster[]>([]);
@@ -52,7 +45,7 @@ const PureClustersTable = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [params.projectId, toast]);
+  }, [params.projectId, signal.name, toast]);
 
   useEffect(() => {
     fetchClusters();
@@ -92,21 +85,6 @@ const PureClustersTable = () => {
     <div className="flex flex-col gap-2">
       <div className="flex gap-4">
         <span className="text-lg font-semibold">Clusters</span>
-        {clusterConfig ? (
-          <DisableClusteringDialog>
-            <Button variant="secondary">
-              <Network className="mr-1 size-3.5" />
-              Disable Clustering
-            </Button>
-          </DisableClusteringDialog>
-        ) : (
-          <StartClusteringDialog>
-            <Button variant="secondary" className="w-fit">
-              <Network className="mr-1 size-3.5" />
-              Start Clustering
-            </Button>
-          </StartClusteringDialog>
-        )}
       </div>
       <InfiniteDataTable<ClusterRow>
         className="w-full"

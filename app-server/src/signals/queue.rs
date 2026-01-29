@@ -33,6 +33,7 @@ pub struct SignalJobSubmissionBatchMessage {
     pub signal_name: String,
     pub model: String,
     pub provider: String,
+    pub clustering_key: Option<String>,
     pub runs: Vec<SignalRunPayload>,
 }
 
@@ -48,6 +49,7 @@ pub struct SignalJobPendingBatchMessage {
     pub provider: String,
     pub runs: Vec<SignalRunPayload>,
     pub batch_id: String, // LLM Request Batch ID that can be used to track the completion of the batch
+    pub clustering_key: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -93,6 +95,7 @@ pub async fn push_to_submissions_queue(
             model: message.model.clone(),
             provider: message.provider.clone(),
             runs: runs_batch.to_vec(),
+            clustering_key: message.clustering_key.clone(),
         };
 
         let serialized = serde_json::to_vec(&batch_message)?;

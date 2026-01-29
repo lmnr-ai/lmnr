@@ -537,6 +537,7 @@ async fn check_and_push_signals(
                 trace.project_id(),
                 Some(trigger.id),
                 trigger.signal.clone(),
+                trigger.clustering_key.clone(),
                 queue.clone(),
             )
             .await

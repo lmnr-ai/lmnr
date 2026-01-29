@@ -66,7 +66,7 @@ function SignalContent() {
       setSignal({
         ...signal,
         prompt: form.prompt,
-        structuredOutput: form.structuredOutput,
+        schemaFields: form.schemaFields,
       });
     },
     [signal, setSignal]

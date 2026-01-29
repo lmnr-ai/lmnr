@@ -225,6 +225,7 @@ async fn submit_batch_to_gemini(
                 provider: msg.provider.clone(),
                 runs,
                 batch_id,
+                clustering_key: msg.clustering_key.clone(),
             };
 
             push_to_pending_queue(queue, &pending_message)

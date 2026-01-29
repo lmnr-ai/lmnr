@@ -12,6 +12,7 @@ pub struct SignalTrigger {
     pub id: Uuid,
     pub filters: Vec<Filter>,
     pub signal: Signal,
+    pub clustering_key: Option<String>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -22,6 +23,7 @@ struct DBSignalTrigger {
     signal_name: String,
     prompt: String,
     structured_output_schema: Value,
+    clustering_key: Option<String>,
 }
 
 /// Returns all signal triggers for the project with pre-parsed filters
@@ -37,7 +39,8 @@ pub async fn get_signal_triggers(
             s.id as signal_id,
             s.name as signal_name,
             s.prompt as prompt,
-            s.structured_output_schema as structured_output_schema
+            s.structured_output_schema as structured_output_schema,
+            st.clustering_key
         FROM 
             signal_triggers st
         INNER JOIN 
@@ -75,6 +78,7 @@ pub async fn get_signal_triggers(
                     prompt: db_trigger.prompt,
                     structured_output_schema: db_trigger.structured_output_schema,
                 },
+                clustering_key: db_trigger.clustering_key,
             })
         })
         .collect())

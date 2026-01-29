@@ -1,11 +1,11 @@
 "use client";
 
 import { type Row } from "@tanstack/react-table";
-import { format, formatRelative } from "date-fns";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url.ts";
+import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import EventsChart from "@/components/signal/events-chart";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
@@ -18,7 +18,6 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn } from "@/lib/utils.ts";
 
 import { defaultEventsColumnOrder, eventsTableColumns, eventsTableFilters } from "./columns";
 
@@ -188,14 +187,11 @@ function PureEventsTable() {
     <div className="flex flex-col gap-2 flex-1">
       <span className="text-xs text-muted-foreground font-medium">
         Last event:{" "}
-        <span
-          title={lastEvent?.timestamp ? format(lastEvent?.timestamp, "PPpp") : "-"}
-          className={cn("text-xs", {
-            "text-foreground": lastEvent,
-          })}
-        >
-          {lastEvent ? formatRelative(new Date(lastEvent.timestamp), new Date()) : "-"}
-        </span>
+        {lastEvent ? (
+          <ClientTimestampFormatter timestamp={lastEvent.timestamp} className="text-xs text-foreground" />
+        ) : (
+          <span className="text-xs">-</span>
+        )}
       </span>
 
       <InfiniteDataTable<EventRow>

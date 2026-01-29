@@ -1,35 +1,29 @@
-import { useEffect, useState } from 'react';
+"use client";
 
-import {
-  convertToLocalTimeWithMillis,
-  formatTimestamp,
-  formatTimestampWithSeconds,
-  TIME_MILLISECONDS_FORMAT,
-  TIME_SECONDS_FORMAT
-} from '@/lib/utils';
+import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { differenceInDays, format, formatDistanceToNowStrict } from "date-fns";
 
-// This component is a client-side only component that will format a timestamp
-// If it's not used, then there will be error because SSR will try to render
-// this component with server's rather than user's timezone.
-export default function ClientTimestampFormatter({
-  timestamp,
-  format = null
-}: {
-  timestamp: string;
-  format?: string | null;
-}) {
-  const [formattedTimestamp, setFormattedTimestamp] = useState('');
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn, formatTimestamp } from "@/lib/utils.ts";
 
-  // This function will now run on the client side after mounting
-  useEffect(() => {
-    if (format === TIME_MILLISECONDS_FORMAT) {
-      setFormattedTimestamp(convertToLocalTimeWithMillis(timestamp));
-    } else if (format === TIME_SECONDS_FORMAT) {
-      setFormattedTimestamp(formatTimestampWithSeconds(timestamp));
-    } else {
-      setFormattedTimestamp(formatTimestamp(timestamp));
-    }
-  }, [format, timestamp]);
+export default function ClientTimestampFormatter({ timestamp, className }: { timestamp: string; className?: string }) {
+  const date = new Date(timestamp);
+  const days = differenceInDays(new Date(), date);
+  const displayText = days < 7 ? formatDistanceToNowStrict(date, { addSuffix: true }) : formatTimestamp(timestamp);
+  const tooltipText = format(date, "MMMM d, yyyy, h:mm a O");
 
-  return <span>{formattedTimestamp}</span>;
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <span className={cn("text-secondary-foreground cursor-pointer", className)}>{displayText}</span>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent className="border">
+            <span>{tooltipText}</span>
+          </TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }

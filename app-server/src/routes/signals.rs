@@ -23,6 +23,7 @@ pub struct SubmitSignalJobRequest {
     pub signal_id: Uuid,
     #[serde(default)]
     pub parameters: HashMap<String, serde_json::Value>,
+    pub clustering_key: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -57,6 +58,7 @@ pub async fn submit_signal_job(
         query,
         parameters,
         signal_id,
+        clustering_key,
     } = request.into_inner();
 
     let clickhouse_client = match clickhouse_ro.as_ref() {
@@ -204,6 +206,7 @@ pub async fn submit_signal_job(
         model: llm_model,
         provider: llm_provider,
         runs,
+        clustering_key,
     };
 
     signals::push_to_submissions_queue(message, queue.as_ref().clone())

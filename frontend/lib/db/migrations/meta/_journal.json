@@ -477,6 +477,13 @@
       "when": 1769442895267,
       "tag": "0067_lowly_frank_castle",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1769551743368,
+      "tag": "0068_bored_princess_powerful",
+      "breakpoints": true
     }
   ]
 }

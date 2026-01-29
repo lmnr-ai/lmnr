@@ -12,8 +12,15 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     accessorKey: "id",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
     header: "ID",
-    size: 300,
+    size: 100,
     id: "id",
+  },
+  {
+    accessorKey: "traceId",
+    header: "Trace ID",
+    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
+    size: 100,
+    id: "traceId",
   },
   {
     id: "payload",
@@ -21,6 +28,10 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     header: "Payload",
     accessorFn: (row) => row.payload,
     cell: ({ getValue, column }) => <JsonTooltip data={getValue()} columnSize={column.getSize()} />,
+    size: 360,
+    meta: {
+      cellClassName: "line-clamp-2",
+    },
   },
   {
     accessorKey: "timestamp",
@@ -29,23 +40,9 @@ export const eventsTableColumns: ColumnDef<EventRow>[] = [
     size: 140,
     id: "timestamp",
   },
-  {
-    accessorKey: "traceId",
-    header: "Trace ID",
-    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
-    size: 300,
-    id: "traceId",
-  },
-  {
-    accessorKey: "runId",
-    header: "Run ID",
-    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
-    size: 300,
-    id: "runId",
-  },
 ];
 
-export const defaultEventsColumnOrder = ["id", "payload", "timestamp", "traceId", "runId"];
+export const defaultEventsColumnOrder = ["id", "traceId", "payload", "timestamp"];
 
 export const eventsTableFilters: ColumnFilter[] = [
   {

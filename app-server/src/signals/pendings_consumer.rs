@@ -441,6 +441,7 @@ async fn process_succeeded_batch(
             model: message.model.clone(),
             provider: message.provider.clone(),
             runs: pending_runs_payloads,
+            clustering_key: message.clustering_key.clone(),
         };
 
         push_to_submissions_queue(submission_message, queue).await?;
@@ -744,6 +745,7 @@ async fn handle_create_event(
         message.project_id,
         run.trace_id,
         signal_event,
+        message.clustering_key.clone(),
     )
     .await?;
 

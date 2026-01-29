@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { type Filter, FilterSchema, parseFilters } from "@/lib/actions/common/filters";
+import { type Filter, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
@@ -38,17 +38,11 @@ const GetSignalSchema = z.object({
   id: z.string(),
 });
 
-export const TriggerSchema = z.object({
-  id: z.string().optional(),
-  filters: z.array(FilterSchema),
-});
-
 const CreateSignalSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
-  triggers: z.array(TriggerSchema).optional().default([]),
 });
 
 const UpdateSignalSchema = z.object({
@@ -56,7 +50,6 @@ const UpdateSignalSchema = z.object({
   id: z.string(),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
-  triggers: z.array(TriggerSchema).optional().default([]),
 });
 
 export const DeleteSignalSchema = z.object({
@@ -201,7 +194,7 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 }
 
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput, triggers } = CreateSignalSchema.parse(input);
+  const { projectId, name, prompt, structuredOutput } = CreateSignalSchema.parse(input);
 
   const [result] = await db
     .insert(signals)
@@ -213,52 +206,17 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
     })
     .returning();
 
-  if (triggers.length > 0) {
-    await db.insert(signalTriggers).values(
-      triggers.map((trigger) => ({
-        projectId,
-        signalId: result.id,
-        value: trigger.filters,
-      }))
-    );
-
-    await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
-  }
-
   return result;
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput, triggers } = UpdateSignalSchema.parse(input);
+  const { projectId, id, prompt, structuredOutput } = UpdateSignalSchema.parse(input);
 
-  const result = await db.transaction(async (tx) => {
-    const [result] = await tx
-      .update(signals)
-      .set({ prompt, structuredOutputSchema: structuredOutput })
-      .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
-      .returning();
-
-    if (!result) {
-      return undefined;
-    }
-
-    // Delete existing triggers and insert new ones (overwrite approach)
-    await tx
-      .delete(signalTriggers)
-      .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, result.id)));
-
-    if (triggers.length > 0) {
-      await tx.insert(signalTriggers).values(
-        triggers.map((trigger) => ({
-          projectId,
-          signalId: result.id,
-          value: trigger.filters,
-        }))
-      );
-    }
-
-    return result;
-  });
+  const result = await db
+    .update(signals)
+    .set({ prompt, structuredOutputSchema: structuredOutput })
+    .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
+    .returning();
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 

@@ -14,7 +14,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 import ClientTimestampFormatter from "../client-timestamp-formatter";
 import RenameDatasetDialog from "../datasets/rename-dataset-dialog";
@@ -46,7 +46,7 @@ const columns: ColumnDef<Datapoint>[] = [
     accessorKey: "createdAt",
     header: "Updated",
     size: 150,
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
   },
   {
     accessorFn: (row) => row.data,

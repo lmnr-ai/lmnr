@@ -51,7 +51,6 @@ const eventsSelectColumns = [
   "id",
   "signal_id signalId",
   "trace_id traceId",
-  "run_id runId",
   "formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp",
   "name",
   "payload",

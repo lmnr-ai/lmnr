@@ -3,15 +3,15 @@
 import { json } from "@codemirror/lang-json";
 import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
-import Ajv from "ajv";
 import { get } from "lodash";
-import { BookMarked, ChevronRight, Loader2, PlayIcon } from "lucide-react";
+import { BookMarked, ChevronRight, Loader2, PlayIcon, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
 import {
   type Control,
   Controller,
   FormProvider,
+  useFieldArray,
   useForm,
   useFormContext,
   type UseFormGetValues,
@@ -19,13 +19,20 @@ import {
 } from "react-hook-form";
 
 import templates from "@/components/signals/prompts";
+import {
+  getDefaultSchemaFields,
+  jsonSchemaToSchemaFields,
+  SCHEMA_FIELD_TYPES,
+  type SchemaField,
+  schemaFieldsToJsonSchema,
+} from "@/components/signals/utils";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { theme } from "@/components/ui/content-renderer/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { type Signal } from "@/lib/actions/signals";
@@ -34,33 +41,121 @@ import { cn, tryParseJson } from "@/lib/utils";
 
 export type ManageSignalForm = Omit<Signal, "isSemantic" | "createdAt" | "id" | "structuredOutput"> & {
   id?: string;
-  structuredOutput: string;
+  schemaFields: SchemaField[];
   testTraceId?: string;
 };
-
-const ajv = new Ajv({
-  validateFormats: false,
-});
 
 export const getDefaultValues = (projectId: string): ManageSignalForm => ({
   name: "",
   prompt: "",
-  structuredOutput:
-    "{\n" +
-    '  "type": "object",\n' +
-    '  "properties": {\n' +
-    '    "foo": {\n' +
-    '      "type": "string",\n' +
-    '      "description": "foo"\n' +
-    "    }\n" +
-    "  },\n" +
-    '   "required": [\n' +
-    '     "foo"\n' +
-    "  ]\n" +
-    "}",
+  schemaFields: getDefaultSchemaFields(),
   projectId,
   testTraceId: "",
 });
+
+function SchemaFieldRow({ index, onRemove, canRemove }: { index: number; onRemove: () => void; canRemove: boolean }) {
+  const {
+    control,
+    formState: { errors },
+  } = useFormContext<ManageSignalForm>();
+
+  const fieldErrors = errors.schemaFields?.[index];
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex gap-2 items-start">
+        <Controller
+          name={`schemaFields.${index}.name`}
+          control={control}
+          rules={{
+            required: "Name is required",
+            pattern: {
+              value: /^[a-zA-Z_][a-zA-Z0-9_]*$/,
+              message: "Name must be a valid identifier",
+            },
+          }}
+          render={({ field }) => <Input {...field} placeholder="Field name" className="w-32 font-mono text-sm" />}
+        />
+        <Controller
+          name={`schemaFields.${index}.description`}
+          control={control}
+          render={({ field }) => <Input {...field} placeholder="Description" className="flex-1 text-sm" />}
+        />
+        <Controller
+          name={`schemaFields.${index}.type`}
+          control={control}
+          render={({ field }) => (
+            <Select value={field.value} onValueChange={field.onChange}>
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SCHEMA_FIELD_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+        <Button type="button" variant="ghost" onClick={onRemove} disabled={!canRemove} className="py-[7px] shrink-0">
+          <X className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+      {fieldErrors && (
+        <p className="text-destructive text-xs">
+          {fieldErrors.name?.message || fieldErrors.description?.message || fieldErrors.type?.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SchemaFieldsBuilder() {
+  const { control } = useFormContext<ManageSignalForm>();
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "schemaFields",
+  });
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <Label>Structured Output</Label>
+          <p className="text-xs text-muted-foreground mt-1">
+            Define the fields for the structured output of this signal.
+          </p>
+        </div>
+        <Button
+          type="button"
+          icon="plus"
+          variant="outline"
+          onClick={() => append({ name: "", description: "", type: "string" })}
+        >
+          Add Field
+        </Button>
+      </div>
+      <div className="space-y-2 border rounded-md p-3 bg-muted/30">
+        <div className="flex gap-2 text-xs text-muted-foreground font-medium mb-2">
+          <span className="w-32">Name</span>
+          <span className="flex-1">Description</span>
+          <span className="w-28">Type</span>
+          <span className="w-9" />
+        </div>
+        {fields.length === 0 && (
+          <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-md">
+            No fields defined. Click "Add Field" to add one.
+          </div>
+        )}
+        {fields.map((field, index) => (
+          <SchemaFieldRow key={field.id} index={index} onRemove={() => remove(index)} canRemove={fields.length > 1} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const TestSignalField = ({
   control,
@@ -78,10 +173,10 @@ const TestSignalField = ({
 
   const testSemanticEvent = useCallback(async () => {
     const prompt = getValues("prompt");
-    const structuredOutput = getValues("structuredOutput");
+    const schemaFields = getValues("schemaFields");
     const testTraceId = getValues("testTraceId");
 
-    if (!prompt || !structuredOutput || !testTraceId?.trim()) return;
+    if (!prompt || !schemaFields?.length || !testTraceId?.trim()) return;
 
     setIsExecuting(true);
     setTestOutput("");
@@ -96,7 +191,7 @@ const TestSignalField = ({
           traceId: testTraceId,
           signal: {
             prompt,
-            structured_output_schema: tryParseJson(structuredOutput),
+            structured_output_schema: schemaFieldsToJsonSchema(schemaFields),
           },
         }),
       });
@@ -114,6 +209,9 @@ const TestSignalField = ({
       setIsExecuting(false);
     }
   }, [getValues, projectId]);
+
+  const schemaFields = watch("schemaFields");
+  const hasValidFields = schemaFields?.some((f) => f.name.trim());
 
   return (
     <Collapsible defaultOpen={false} className="group overflow-hidden">
@@ -156,9 +254,7 @@ const TestSignalField = ({
           type="button"
           variant="outline"
           onClick={testSemanticEvent}
-          disabled={
-            !watch("prompt") || !watch("structuredOutput")?.trim() || !watch("testTraceId")?.trim() || isExecuting
-          }
+          disabled={!watch("prompt") || !hasValidFields || !watch("testTraceId")?.trim() || isExecuting}
           className="w-fit"
         >
           {isExecuting ? (
@@ -229,7 +325,12 @@ function ManageSignalSheetContent({
     (templateIndex: number) => {
       const template = templates[templateIndex];
       setValue("prompt", template.prompt, { shouldValidate: true });
-      setValue("structuredOutput", template.structuredOutputSchema, { shouldValidate: true });
+
+      const parsedSchema = tryParseJson(template.structuredOutputSchema);
+      if (parsedSchema) {
+        const fields = jsonSchemaToSchemaFields(parsedSchema);
+        setValue("schemaFields", fields, { shouldValidate: true });
+      }
     },
     [setValue]
   );
@@ -239,10 +340,12 @@ function ManageSignalSheetContent({
       try {
         setIsLoading(true);
 
+        const structuredOutput = schemaFieldsToJsonSchema(data.schemaFields);
+
         const signal = {
           name: data.name,
           prompt: data.prompt,
-          structuredOutput: tryParseJson(data.structuredOutput),
+          structuredOutput,
         };
 
         const isUpdate = !!data.id;
@@ -284,25 +387,6 @@ function ManageSignalSheetContent({
     },
     [projectId, toast, setOpen, reset, onSuccess]
   );
-
-  const validateJsonSchema = useCallback((value?: string) => {
-    if (!value) {
-      return "Structured output is required.";
-    }
-
-    try {
-      const parsed = JSON.parse(value);
-
-      try {
-        ajv.compile(parsed);
-        return true;
-      } catch (schemaError) {
-        return `Invalid JSON Schema: ${schemaError instanceof Error ? schemaError.message : "Schema validation failed"}`;
-      }
-    } catch (e) {
-      return "Invalid JSON structure";
-    }
-  }, []);
 
   return (
     <>
@@ -367,40 +451,8 @@ function ManageSignalSheetContent({
             />
             {errors.prompt && <p className="text-xs text-destructive">{errors.prompt.message}</p>}
           </div>
-          <div className="grid gap-2">
-            <div>
-              <Label htmlFor="structuredOutput">Structured Output</Label>
-              <p className="text-xs text-muted-foreground mt-1">
-                Define a JSON schema for the structured output of this event.
-              </p>
-            </div>
-            <Controller
-              name="structuredOutput"
-              control={control}
-              rules={{
-                required: "Structured output is required.",
-                validate: validateJsonSchema,
-              }}
-              render={({ field }) => (
-                <div
-                  className={cn("border rounded-md bg-muted/50 overflow-hidden min-h-32 max-h-64", {
-                    "border border-destructive/75": errors.structuredOutput?.message,
-                  })}
-                >
-                  <CodeMirror
-                    height="100%"
-                    className="h-full"
-                    placeholder="Enter structured output for this event..."
-                    value={field.value}
-                    onChange={field.onChange}
-                    extensions={[json(), EditorView.lineWrapping]}
-                    theme={theme}
-                  />
-                </div>
-              )}
-            />
-            {errors.structuredOutput && <p className="text-xs text-destructive">{errors.structuredOutput.message}</p>}
-          </div>
+
+          <SchemaFieldsBuilder />
 
           <TestSignalField control={control} watch={watch} getValues={getValues} projectId={String(projectId)} />
 

@@ -9,7 +9,6 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import Mono from "@/components/ui/mono";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 export const getSignalRunsColumns = ({
   onJobNav,
@@ -113,7 +112,7 @@ export const getSignalRunsColumns = ({
   {
     accessorKey: "updatedAt",
     header: "Updated At",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     size: 150,
     id: "updatedAt",
   },
