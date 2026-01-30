@@ -191,7 +191,7 @@ function CondensedTimeline() {
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative">
       {/* Zoom controls - fixed position */}
-      <div className="absolute top-0 right-0 z-40 flex items-center gapy-1 pl-1 pr-2 h-6 bg-muted border-b border-l rounded-bl gap-1">
+      <div className="absolute top-0 right-0 z-40 flex items-center gapy-1 pl-1 pr-2 h-6 bg-background border-b border-l rounded-bl gap-1">
         <Button
           disabled={condensedTimelineZoom === MAX_ZOOM}
           className="size-4 min-w-4"
@@ -215,13 +215,13 @@ function CondensedTimeline() {
       {/* Scrollable timeline area */}
       <div
         ref={combinedScrollRef}
-        className="flex-1 overflow-auto relative no-scrollbar min-h-0 bg-muted/50"
+        className="flex-1 overflow-auto relative no-scrollbar min-h-0 bg-muted/50 h-full"
         onMouseMove={handleTimelineMouseMove}
         onMouseLeave={handleTimelineMouseLeave}
         onScroll={handleScroll}
       >
         {/* Inner container with zoom width */}
-        <div className="relative" style={{ width: `${100 * condensedTimelineZoom}%`, height: totalHeight }}>
+        <div className="relative h-full" style={{ width: `${100 * condensedTimelineZoom}%`, minHeight: totalHeight }}>
           {/* Time marker lines - full height including header */}
           {timeMarkers.map((marker, index) => (
             <div
@@ -230,6 +230,14 @@ function CondensedTimeline() {
               style={{ left: `${marker.positionPercent}%` }}
             />
           ))}
+
+          {/* Needle line - extends from header through content */}
+          {hoverPercent !== null && (
+            <div
+              className="absolute top-[6px] pointer-events-none w-px bg-primary/50 z-10 h-full"
+              style={{ left: `${hoverPercent}%` }}
+            />
+          )}
 
           {/* Time interval header - sticky */}
           <div
@@ -250,14 +258,6 @@ function CondensedTimeline() {
                   </div>
                 </div>
               ))}
-
-              {/* Needle line - extends from header through content */}
-              {hoverPercent !== null && (
-                <div
-                  className="absolute top-[6px] pointer-events-none w-px bg-primary/50 z-10"
-                  style={{ left: `${hoverPercent}%`, height: totalHeight }}
-                />
-              )}
 
               {/* Needle head - inside sticky header, above line */}
               {hoverPercent !== null && (

@@ -6,9 +6,6 @@ import React, { useCallback, useEffect, useMemo } from "react";
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
-import List from "@/components/traces/trace-view/list";
-import Metadata from "@/components/traces/trace-view/metadata";
-import Minimap from "@/components/traces/trace-view/minimap.tsx";
 import SearchTraceSpansInput from "@/components/traces/trace-view/search";
 import TraceViewStoreProvider, {
   MAX_ZOOM,
@@ -39,6 +36,9 @@ import SessionPlayer from "../session-player";
 import { SpanView } from "../span-view";
 import Chat from "./chat";
 import CondensedTimeline from "./condensed-timeline";
+import List from "./list";
+import Metadata from "./metadata";
+import Minimap from "./minimap";
 import { ScrollContextProvider } from "./scroll-context";
 import Timeline from "./timeline";
 import Tree from "./tree";
@@ -479,69 +479,57 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
           ) : (
-            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              <ResizablePanelGroup
-                id={condensedTimelineEnabled ? "trace-view-panels-with-timeline" : "trace-view-panels"}
-                orientation="vertical"
-                className="flex-1 min-h-0"
-              >
-                {condensedTimelineEnabled && (
-                  <>
-                    <ResizablePanel
-                      id="condensed-timeline"
-                      minSize={20}
-                      className="flex flex-col overflow-hidden relative"
-                    >
-                      <CondensedTimeline />
-                    </ResizablePanel>
-                    <ResizableHandle />
-                  </>
-                )}
-                <ResizablePanel id="main-content" minSize={20} className="flex flex-col overflow-hidden relative">
-                  {tab === "metadata" && trace && <Metadata trace={trace} />}
-                  {tab === "chat" && trace && (
-                    <Chat
-                      trace={trace}
-                      onSetSpanId={(spanId) => {
-                        const span = spans.find((span) => span.spanId === spanId);
-                        if (span) {
-                          handleSpanSelect(span);
-                        }
-                      }}
-                    />
-                  )}
-                  {tab === "timeline" && <Timeline />}
-                  {tab === "reader" && (
-                    <div className="flex flex-1 h-full overflow-hidden relative">
-                      <List traceId={traceId} onSpanSelect={handleSpanSelect} />
-                      <Minimap onSpanSelect={handleSpanSelect} />
-                    </div>
-                  )}
-                  {tab === "tree" && (
-                    <div className="flex flex-1 h-full overflow-hidden relative">
-                      <Tree traceId={traceId} onSpanSelect={handleSpanSelect} />
-                      <Minimap onSpanSelect={handleSpanSelect} />
-                    </div>
-                  )}
+            <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
+              {condensedTimelineEnabled && (
+                <ResizablePanel>
+                  <CondensedTimeline />
                 </ResizablePanel>
-                {browserSession && (
-                  <>
-                    <ResizableHandle className="z-50" withHandle />
-                    <ResizablePanel>
-                      {!isLoading && (
-                        <SessionPlayer
-                          onClose={() => setBrowserSession(false)}
-                          hasBrowserSession={hasBrowserSession}
-                          traceId={traceId}
-                          llmSpanIds={llmSpanIds}
-                        />
-                      )}
-                    </ResizablePanel>
-                  </>
+              )}
+              {condensedTimelineEnabled && <ResizableHandle />}
+              <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
+                {tab === "metadata" && trace && <Metadata trace={trace} />}
+                {tab === "chat" && trace && (
+                  <Chat
+                    trace={trace}
+                    onSetSpanId={(spanId) => {
+                      const span = spans.find((span) => span.spanId === spanId);
+                      if (span) {
+                        handleSpanSelect(span);
+                      }
+                    }}
+                  />
                 )}
-                {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
-              </ResizablePanelGroup>
-            </div>
+                {tab === "timeline" && <Timeline />}
+                {tab === "reader" && (
+                  <div className="flex flex-1 h-full overflow-hidden relative">
+                    <List traceId={traceId} onSpanSelect={handleSpanSelect} />
+                    <Minimap onSpanSelect={handleSpanSelect} />
+                  </div>
+                )}
+                {tab === "tree" && (
+                  <div className="flex flex-1 h-full overflow-hidden relative">
+                    <Tree traceId={traceId} onSpanSelect={handleSpanSelect} />
+                    <Minimap onSpanSelect={handleSpanSelect} />
+                  </div>
+                )}
+              </ResizablePanel>
+              {browserSession && (
+                <>
+                  <ResizableHandle className="z-50" withHandle />
+                  <ResizablePanel>
+                    {!isLoading && (
+                      <SessionPlayer
+                        onClose={() => setBrowserSession(false)}
+                        hasBrowserSession={hasBrowserSession}
+                        traceId={traceId}
+                        llmSpanIds={llmSpanIds}
+                      />
+                    )}
+                  </ResizablePanel>
+                </>
+              )}
+              {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
+            </ResizablePanelGroup>
           )}
           <div
             className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
