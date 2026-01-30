@@ -252,10 +252,7 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
             })
             .collect();
 
-        let results = futures_util::future::join_all(ack_futures).await;
-        for result in results {
-            result?;
-        }
+        futures_util::future::try_join_all(ack_futures).await?;
         Ok(())
     }
 
