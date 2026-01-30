@@ -492,6 +492,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.7b Event Clustering Batch message queue ====
+            channel
+                .exchange_declare(
+                    EVENT_CLUSTERING_BATCH_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    EVENT_CLUSTERING_BATCH_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             // ==== 3.8 Trace Analysis LLM Batch Submissions message queue ====
             channel
                 .exchange_declare(
@@ -588,32 +614,6 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.11 Clustering Batch message queue ====
-            channel
-                .exchange_declare(
-                    EVENT_CLUSTERING_BATCH_EXCHANGE,
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    EVENT_CLUSTERING_BATCH_QUEUE,
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
             let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -647,6 +647,11 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
         // ==== 3.7 Event Clustering message queue ====
         queue.register_queue(EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE);
+        // ==== 3.7b Event Clustering Batch message queue ====
+        queue.register_queue(
+            EVENT_CLUSTERING_BATCH_EXCHANGE,
+            EVENT_CLUSTERING_BATCH_QUEUE,
+        );
         // ==== 3.8 Signal Job Submission Batch message queue ====
         queue.register_queue(
             SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
@@ -661,11 +666,6 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(
             SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
             SIGNAL_JOB_WAITING_BATCH_QUEUE,
-        );
-        // ==== 3.11 Clustering Batch message queue ====
-        queue.register_queue(
-            EVENT_CLUSTERING_BATCH_EXCHANGE,
-            EVENT_CLUSTERING_BATCH_QUEUE,
         );
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())

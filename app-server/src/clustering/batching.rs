@@ -48,13 +48,7 @@ impl ClusteringEventBatchingHandler {
         batch: ClusteringBatch,
     ) -> Result<Vec<ClusteringMessage>, (Vec<ClusteringMessage>, HandlerError)> {
         match push_to_clustering_batch_queue(batch.messages.clone(), self.queue.clone()).await {
-            Ok(()) => {
-                log::debug!(
-                    "Successfully pushed batch of {} messages to queue",
-                    batch.messages.len()
-                );
-                Ok(batch.messages)
-            }
+            Ok(()) => Ok(batch.messages),
             Err(e) => Err((batch.messages, HandlerError::transient(e))),
         }
     }
@@ -83,6 +77,11 @@ impl StatefulMessageHandler for ClusteringEventBatchingHandler {
         message: Self::Message,
         state: &mut Self::State,
     ) -> Result<(), HandlerError> {
+        log::debug!(
+            "\n Adding message to batch: signal_id={}, project_id={}",
+            message.signal_event.signal_id,
+            message.project_id
+        );
         let key = (message.project_id, message.signal_event.signal_id);
         state
             .entry(key)
@@ -100,7 +99,11 @@ impl StatefulMessageHandler for ClusteringEventBatchingHandler {
     ) -> ProcessStateResult<Self::Message> {
         let key = (message.project_id, message.signal_event.signal_id);
         let batch_len = state.get(&key).map(|b| b.messages.len()).unwrap_or(0);
-        log::debug!("Batch len={}", batch_len);
+        log::debug!(
+            "\n Signal_id: {}, Batch len={}",
+            message.signal_event.signal_id,
+            batch_len
+        );
 
         // Check if batch is ready to flush (by size)
         if batch_len >= self.config.size {
@@ -136,7 +139,7 @@ impl StatefulMessageHandler for ClusteringEventBatchingHandler {
             .iter()
             .filter(|(_, batch)| {
                 !batch.messages.is_empty()
-                    && now.duration_since(batch.last_flush) > self.config.flush_interval
+                    && now.duration_since(batch.last_flush) >= self.config.flush_interval
             })
             .map(|(key, _)| *key)
             .collect();

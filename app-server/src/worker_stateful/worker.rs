@@ -106,7 +106,6 @@ impl<H: StatefulMessageHandler> StatefulQueueWorker<H> {
                             continue;
                         }
                     };
-                    log::debug!("Processing message: {:?}", message.get_unique_id());
 
                     // Store message acker before processing
                     self.ackers.insert(message.get_unique_id(), acker);
