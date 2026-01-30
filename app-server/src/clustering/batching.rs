@@ -55,7 +55,7 @@ impl ClusteringEventBatchingHandler {
                 );
                 Ok(batch.messages)
             }
-            Err(e) => Err((batch.messages, HandlerError::from(e))),
+            Err(e) => Err((batch.messages, HandlerError::transient(e))),
         }
     }
 }
