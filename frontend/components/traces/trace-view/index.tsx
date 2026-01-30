@@ -369,7 +369,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           <div className="flex flex-col gap-2 px-2 pb-2 border-b box-border">
             <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
               <ViewDropdown />
-              <Metadata trace={trace} />
+              <Metadata metadata={trace?.metadata} />
               <Button
                 onClick={() => setTab("chat")}
                 variant="outline"

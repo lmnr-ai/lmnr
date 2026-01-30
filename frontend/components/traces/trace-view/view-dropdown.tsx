@@ -51,7 +51,7 @@ export default function ViewDropdown() {
   const contentVisible = showTreeContent ?? true;
 
   return (
-    <div className="flex items-center">
+    <div className="flex items-center mr-auto">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -71,7 +71,11 @@ export default function ViewDropdown() {
             const view = viewOptions[option];
             const OptionIcon = view.icon;
             return (
-              <DropdownMenuItem key={option} onClick={() => setTab(option)} className={cn(tab === option && "bg-accent")}>
+              <DropdownMenuItem
+                key={option}
+                onClick={() => setTab(option)}
+                className={cn(tab === option && "bg-accent")}
+              >
                 <OptionIcon size={14} />
                 {view.label}
               </DropdownMenuItem>

@@ -1,8 +1,7 @@
-"use client";
-
 import { formatDate, subYears } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, CalendarIcon, ChevronRight } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
 
@@ -159,6 +158,7 @@ export const DateRangeFilterInner = ({
 }) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
+  const searchParams = useSearchParams();
 
   const pastHours = useDateRangeFilterContext((state) => state.pastHours);
   const calendarDate = useDateRangeFilterContext((state) => state.calendarDate);
@@ -178,12 +178,12 @@ export const DateRangeFilterInner = ({
   }, [isPopoverOpen]);
 
   const handleQuickRangeSelect = (rangeValue: string) => {
-    selectQuickRange(rangeValue);
+    selectQuickRange(rangeValue, searchParams.toString());
     setIsPopoverOpen(false);
   };
 
   const handleCalendarApply = () => {
-    applyAbsoluteRange();
+    applyAbsoluteRange(searchParams.toString());
     setIsPopoverOpen(false);
   };
 

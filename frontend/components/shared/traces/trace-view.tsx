@@ -179,7 +179,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                 </div>
                 <div className="flex gap-2 px-2 py-2 h-10 border-b box-border">
                   <ViewDropdown />
-                  <Metadata trace={trace} />
+                  <Metadata metadata={trace?.metadata} />
                   {tab === "timeline" && (
                     <>
                       <Button

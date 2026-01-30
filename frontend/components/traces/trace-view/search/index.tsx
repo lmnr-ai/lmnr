@@ -28,19 +28,21 @@ const TraceViewSearch = ({ spans, onSubmit }: TraceViewSearchProps) => {
   }, [spans]);
 
   return (
-    <AdvancedSearch
-      mode="state"
-      filters={filterColumns}
-      resource="spans"
-      value={{ filters: [], search: "" }}
-      onSubmit={onSubmit}
-      placeholder="Search in spans..."
-      className="w-full bg-transparent border-0 border-b rounded-none"
-      options={{
-        suggestions,
-        disableHotKey: true,
-      }}
-    />
+    <div className="px-2 pb-0.5 py-1.5">
+      <AdvancedSearch
+        mode="state"
+        filters={filterColumns}
+        resource="spans"
+        value={{ filters: [], search: "" }}
+        onSubmit={onSubmit}
+        placeholder="Search in spans..."
+        className="w-full"
+        options={{
+          suggestions,
+          disableHotKey: true,
+        }}
+      />
+    </div>
   );
 };
 
