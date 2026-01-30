@@ -12,8 +12,14 @@ use crate::mq::{
 };
 use crate::worker::{HandlerError, QueueConfig};
 
-/// Queue worker with internal state that processes messages indefinitely and processes state
-/// periodically or along with a message.
+/// A queue worker that maintains internal state across messages.
+///
+/// Unlike a simple worker that acks each message immediately, this worker:
+/// - Stores messages in handler-defined state before acking
+/// - Calls `process_state_after_message` after each message to decide what to ack/reject
+/// - Runs periodic `process_state_periodic` checks for time-based processing
+///
+/// On reconnection, state is reset and unacked messages are redelivered by the queue.
 pub struct BatchQueueWorker<H: BatchMessageHandler> {
     id: Uuid,
     worker_type: BatchWorkerType,
@@ -228,7 +234,7 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                 self.worker_type,
                 result.to_reject.len()
             );
-            self.reject_messages(&result.to_reject, false).await;
+            self.reject_messages(&result.to_reject, false).await?;
         }
 
         // Requeue transient failures
@@ -239,7 +245,7 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                 self.worker_type,
                 result.to_requeue.len()
             );
-            self.reject_messages(&result.to_requeue, true).await;
+            self.reject_messages(&result.to_requeue, true).await?;
         }
 
         Ok(())
@@ -262,20 +268,23 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
     }
 
     /// Reject messages in parallel
-    async fn reject_messages(&mut self, messages: &[H::Message], requeue: bool) {
+    async fn reject_messages(
+        &mut self,
+        messages: &[H::Message],
+        requeue: bool,
+    ) -> anyhow::Result<()> {
         let reject_futures: Vec<_> = messages
             .iter()
             .filter_map(|msg| {
                 let msg_id = msg.get_unique_id();
-                self.ackers.remove(&msg_id).map(|acker| async move {
-                    if let Err(e) = acker.reject(requeue).await {
-                        log::error!("Failed to reject message {}: {:?}", msg_id, e);
-                    }
-                })
+                self.ackers
+                    .remove(&msg_id)
+                    .map(|acker| async move { acker.reject(requeue).await })
             })
             .collect();
 
-        futures_util::future::join_all(reject_futures).await;
+        futures_util::future::try_join_all(reject_futures).await?;
+        Ok(())
     }
 }
 
