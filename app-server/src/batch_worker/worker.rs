@@ -5,7 +5,7 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::batch_worker::BatchWorkerType;
-use crate::batch_worker::message_handler::{BatchMessageHandler, ProcessStateResult, UniqueId};
+use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult, UniqueId};
 use crate::mq::{
     MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiver,
     MessageQueueReceiverTrait, MessageQueueTrait,
@@ -16,8 +16,8 @@ use crate::worker::{HandlerError, QueueConfig};
 ///
 /// Unlike a simple worker that acks each message immediately, this worker:
 /// - Stores messages in handler-defined state before acking
-/// - Calls `process_state_after_message` after each message to decide what to ack/reject
-/// - Runs periodic `process_state_periodic` checks for time-based processing
+/// - Calls `handle_message` after each message to decide what to ack/reject
+/// - Runs periodic `handle_interval` checks for time-based processing
 ///
 /// On reconnection, state is reset and unacked messages are redelivered by the queue.
 pub struct BatchQueueWorker<H: BatchMessageHandler> {
@@ -82,16 +82,16 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
             self.worker_type
         );
 
-        // Set up periodic state checking interval (use MAX if zero for no checks)
-        let check_interval = if self.handler.state_check_interval().is_zero() {
+        // Set up periodic interval (use MAX if zero to skip interval handling)
+        let interval_duration = if self.handler.interval().is_zero() {
             Duration::MAX
         } else {
-            self.handler.state_check_interval()
+            self.handler.interval()
         };
-        let mut interval = tokio::time::interval(check_interval);
+        let mut interval = tokio::time::interval(interval_duration);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
-        // Process messages and check state periodically
+        // Process messages and handle periodic intervals
         loop {
             tokio::select! {
                 // Message arrived from queue
@@ -100,12 +100,10 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                         Some(delivery) => {
                             let delivery = delivery?;
 
-                            // Process single message
+                            // Deserialize message
                             let acker = delivery.acker();
                             let data = delivery.data();
-                            let result = self.process_message(&data).await;
-
-                            let message = match result {
+                            let message = match self.deserialize_message(&data) {
                                 Ok(message) => message,
                                 Err(handler_error) => {
                                     acker.reject(handler_error.should_requeue()).await?;
@@ -116,12 +114,12 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                             // Store message acker before processing
                             self.ackers.insert(message.get_unique_id(), acker);
 
-                            // Process state
+                            // Handle message and process result
                             let result = self.handler
-                                .process_state_after_message(message, &mut self.state)
+                                .handle_message(message, &mut self.state)
                                 .await;
 
-                            self.handle_process_state_result(result).await?;
+                            self.handle_result(result).await?;
                         }
                         None => {
                             // Stream ended, exit to trigger reconnection
@@ -130,13 +128,13 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                     }
                 }
 
-                // Periodic state check
+                // Interval tick
                 _ = interval.tick() => {
-                    log::debug!("====== Periodic state check triggered ======");
+                    log::debug!("====== Interval tick triggered ======");
                     let result = self.handler
-                        .process_state_periodic(&mut self.state)
+                        .handle_interval(&mut self.state)
                         .await;
-                    self.handle_process_state_result(result).await?;
+                    self.handle_result(result).await?;
                 }
             }
         }
@@ -178,9 +176,9 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         .await
     }
 
-    /// Process a single message
-    async fn process_message(&mut self, data: &[u8]) -> Result<H::Message, HandlerError> {
-        let message = serde_json::from_slice::<H::Message>(data).map_err(|e| {
+    /// Deserialize a message from raw bytes
+    fn deserialize_message(&self, data: &[u8]) -> Result<H::Message, HandlerError> {
+        serde_json::from_slice::<H::Message>(data).map_err(|e| {
             log::error!(
                 "Queue message deserialization failed. Worker type: {:?}. Worker id: {}. Error: {:?}",
                 self.worker_type,
@@ -189,32 +187,11 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
             );
             // Malformed message - reject without requeue (it won't deserialize on retry)
             HandlerError::permanent(anyhow::anyhow!("Deserialization failed: {}", e))
-        })?;
-
-        // Handle the message
-        // On success: returns Ok(()) → caller will ack
-        // On error: HandlerError contains requeue decision
-        self.handler
-            .handle_message(message.clone(), &mut self.state)
-            .await
-            .map_err(|e| {
-                log::error!(
-                    "Worker {} ({:?}) handler failed: {}",
-                    self.id,
-                    self.worker_type,
-                    e
-                );
-                e
-            })?;
-
-        Ok(message)
+        })
     }
 
-    /// Handle the result of state processing (ack/reject/requeue messages)
-    async fn handle_process_state_result(
-        &mut self,
-        result: ProcessStateResult<H::Message>,
-    ) -> anyhow::Result<()> {
+    /// Handle the result from handler (ack/reject/requeue messages)
+    async fn handle_result(&mut self, result: HandlerResult<H::Message>) -> anyhow::Result<()> {
         // Ack successful messages
         if !result.to_ack.is_empty() {
             log::debug!(
@@ -316,20 +293,11 @@ mod tests {
     /// Mock handler that can be configured to return different results
     struct MockHandler {
         batch_size: usize,
-        fail_handle: bool,
     }
 
     impl MockHandler {
         fn new(batch_size: usize) -> Self {
-            Self {
-                batch_size,
-                fail_handle: false,
-            }
-        }
-
-        fn with_failing_handle(mut self) -> Self {
-            self.fail_handle = true;
-            self
+            Self { batch_size }
         }
     }
 
@@ -338,7 +306,7 @@ mod tests {
         type Message = TestMessage;
         type State = Vec<TestMessage>;
 
-        fn state_check_interval(&self) -> Duration {
+        fn interval(&self) -> Duration {
             Duration::from_secs(60)
         }
 
@@ -350,36 +318,23 @@ mod tests {
             &self,
             message: Self::Message,
             state: &mut Self::State,
-        ) -> Result<(), HandlerError> {
-            if self.fail_handle {
-                return Err(HandlerError::transient(anyhow::anyhow!("forced failure")));
-            }
+        ) -> HandlerResult<Self::Message> {
             state.push(message);
-            Ok(())
-        }
 
-        async fn process_state_after_message(
-            &self,
-            _message: Self::Message,
-            state: &mut Self::State,
-        ) -> ProcessStateResult<Self::Message> {
             if state.len() >= self.batch_size {
                 let messages = std::mem::take(state);
-                ProcessStateResult::ack(messages)
+                HandlerResult::ack(messages)
             } else {
-                ProcessStateResult::empty()
+                HandlerResult::empty()
             }
         }
 
-        async fn process_state_periodic(
-            &self,
-            state: &mut Self::State,
-        ) -> ProcessStateResult<Self::Message> {
+        async fn handle_interval(&self, state: &mut Self::State) -> HandlerResult<Self::Message> {
             if state.is_empty() {
-                ProcessStateResult::empty()
+                HandlerResult::empty()
             } else {
                 let messages = std::mem::take(state);
-                ProcessStateResult::ack(messages)
+                HandlerResult::ack(messages)
             }
         }
     }
@@ -417,10 +372,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_process_message_deserializes_and_handles() {
+    async fn test_deserialize_message_success() {
         let queue = create_test_queue();
         let handler = MockHandler::new(10);
-        let mut worker = create_worker(handler, queue);
+        let worker = create_worker(handler, queue);
 
         let msg = TestMessage {
             id: "test-1".to_string(),
@@ -428,22 +383,21 @@ mod tests {
         };
         let data = serde_json::to_vec(&msg).unwrap();
 
-        let result = worker.process_message(&data).await;
+        let result = worker.deserialize_message(&data);
 
         assert!(result.is_ok());
         let returned_msg = result.unwrap();
         assert_eq!(returned_msg.id, "test-1");
         assert_eq!(returned_msg.value, 42);
-        assert_eq!(worker.state.len(), 1);
     }
 
     #[tokio::test]
-    async fn test_process_message_rejects_invalid_json() {
+    async fn test_deserialize_message_rejects_invalid_json() {
         let queue = create_test_queue();
         let handler = MockHandler::new(10);
-        let mut worker = create_worker(handler, queue);
+        let worker = create_worker(handler, queue);
 
-        let result = worker.process_message(b"not valid json").await;
+        let result = worker.deserialize_message(b"not valid json");
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -451,26 +405,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_process_message_returns_handler_error() {
+    async fn test_handle_message_adds_to_state() {
         let queue = create_test_queue();
-        let handler = MockHandler::new(10).with_failing_handle();
+        let handler = MockHandler::new(10);
         let mut worker = create_worker(handler, queue);
 
         let msg = TestMessage {
             id: "test-1".to_string(),
             value: 42,
         };
-        let data = serde_json::to_vec(&msg).unwrap();
 
-        let result = worker.process_message(&data).await;
+        let result = worker.handler.handle_message(msg, &mut worker.state).await;
 
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.should_requeue()); // transient error from mock
+        assert!(result.to_ack.is_empty()); // batch not full yet
+        assert_eq!(worker.state.len(), 1);
     }
 
     #[tokio::test]
-    async fn test_handle_process_state_result_acks_messages() {
+    async fn test_handle_result_acks_messages() {
         let queue = create_test_queue();
         let handler = MockHandler::new(10);
         let mut worker = create_worker(handler, queue);
@@ -492,15 +444,15 @@ mod tests {
             .ackers
             .insert("msg-2".to_string(), MessageQueueAcker::TokioMpscAcker);
 
-        let result = ProcessStateResult::ack(vec![msg1, msg2]);
-        worker.handle_process_state_result(result).await.unwrap();
+        let result = HandlerResult::ack(vec![msg1, msg2]);
+        worker.handle_result(result).await.unwrap();
 
         // Ackers should be removed after acking
         assert!(worker.ackers.is_empty());
     }
 
     #[tokio::test]
-    async fn test_handle_process_state_result_rejects_messages() {
+    async fn test_handle_result_rejects_messages() {
         let queue = create_test_queue();
         let handler = MockHandler::new(10);
         let mut worker = create_worker(handler, queue);
@@ -513,14 +465,14 @@ mod tests {
             .ackers
             .insert("msg-1".to_string(), MessageQueueAcker::TokioMpscAcker);
 
-        let result = ProcessStateResult::reject(vec![msg]);
-        worker.handle_process_state_result(result).await.unwrap();
+        let result = HandlerResult::reject(vec![msg]);
+        worker.handle_result(result).await.unwrap();
 
         assert!(worker.ackers.is_empty());
     }
 
     #[tokio::test]
-    async fn test_handle_process_state_result_requeues_messages() {
+    async fn test_handle_result_requeues_messages() {
         let queue = create_test_queue();
         let handler = MockHandler::new(10);
         let mut worker = create_worker(handler, queue);
@@ -533,14 +485,14 @@ mod tests {
             .ackers
             .insert("msg-1".to_string(), MessageQueueAcker::TokioMpscAcker);
 
-        let result = ProcessStateResult::requeue(vec![msg]);
-        worker.handle_process_state_result(result).await.unwrap();
+        let result = HandlerResult::requeue(vec![msg]);
+        worker.handle_result(result).await.unwrap();
 
         assert!(worker.ackers.is_empty());
     }
 
     #[tokio::test]
-    async fn test_handle_process_state_result_handles_mixed() {
+    async fn test_handle_result_handles_mixed() {
         let queue = create_test_queue();
         let handler = MockHandler::new(10);
         let mut worker = create_worker(handler, queue);
@@ -568,12 +520,12 @@ mod tests {
             .ackers
             .insert("requeue-1".to_string(), MessageQueueAcker::TokioMpscAcker);
 
-        let result = ProcessStateResult {
+        let result = HandlerResult {
             to_ack: vec![msg1],
             to_reject: vec![msg2],
             to_requeue: vec![msg3],
         };
-        worker.handle_process_state_result(result).await.unwrap();
+        worker.handle_result(result).await.unwrap();
 
         assert!(worker.ackers.is_empty());
     }
