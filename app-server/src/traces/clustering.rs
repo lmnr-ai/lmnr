@@ -135,7 +135,17 @@ async fn call_clustering_endpoint(
     for message in &message.events {
         // Render the value_template with event attributes
         let attributes = message.signal_event.payload_value().unwrap_or_default();
-        let content = render_mustache_template(&message.value_template, &attributes)?;
+        let content = match render_mustache_template(&message.value_template, &attributes) {
+            Ok(content) => content,
+            Err(e) => {
+                log::error!(
+                    "Failed to render template for signal_event_id={}: {:?}",
+                    message.signal_event.id,
+                    e
+                );
+                continue;
+            }
+        };
 
         let event = serde_json::json!({
             "signal_event_id": message.signal_event.id.to_string(),
