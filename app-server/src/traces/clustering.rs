@@ -98,7 +98,10 @@ async fn process_clustering_logic(
     match result {
         Ok(success) => {
             if success {
-                log::info!("Successfully clustered event for project_id={}", project_id);
+                log::info!(
+                    "Successfully clustered events for project_id={}",
+                    project_id
+                );
             } else {
                 log::warn!(
                     "Clustering endpoint returned success=false for project_id={}",
