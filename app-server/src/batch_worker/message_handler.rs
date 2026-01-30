@@ -52,9 +52,9 @@ impl<M> ProcessStateResult<M> {
     }
 }
 
-/// Stateful message handler trait - implement this to process messages with internal state.
+/// Batch message handler trait - implement this to process messages with internal state.
 #[async_trait]
-pub trait StatefulMessageHandler: Send + Sync + 'static {
+pub trait BatchMessageHandler: Send + Sync + 'static {
     /// Message must implement UniqueId trait to be able to uniquely identify each message acker
     /// from the response of process_state_after_message() and process_state_periodic() methods.
     type Message: DeserializeOwned + Send + Sync + Clone + UniqueId;

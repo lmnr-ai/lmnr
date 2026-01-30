@@ -79,12 +79,13 @@ use storage::{
     mock::MockStorage,
 };
 
+use crate::batch_worker::{BatchWorkerType, worker_pool::BatchWorkerPool};
 use crate::features::{enable_consumer, enable_producer};
 use crate::worker::{QueueConfig, WorkerPool, WorkerType};
-use crate::worker_stateful::{StatefulWorkerType, worker_pool::StatefulWorkerPool};
 
 mod api;
 mod auth;
+mod batch_worker;
 mod browser_events;
 mod cache;
 mod ch;
@@ -113,7 +114,6 @@ mod storage;
 mod traces;
 mod utils;
 mod worker;
-mod worker_stateful;
 
 fn tonic_error_to_io_error(err: tonic::transport::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, err)
@@ -816,7 +816,7 @@ fn main() -> anyhow::Result<()> {
         log::info!("Enabling consumer mode, spinning up queue workers");
 
         let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
-        let stateful_worker_pool = Arc::new(StatefulWorkerPool::new(queue.clone()));
+        let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
 
         // == Evaluator client ==
         let evaluator_client = if is_feature_enabled(Feature::Evaluators) {
@@ -960,7 +960,7 @@ fn main() -> anyhow::Result<()> {
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
         let worker_pool_clone = worker_pool.clone();
-        let stateful_worker_pool_clone = stateful_worker_pool.clone();
+        let batch_worker_pool_clone = batch_worker_pool.clone();
 
         let consumer_handle = thread::Builder::new()
             .name("consumer".to_string())
@@ -1130,8 +1130,8 @@ fn main() -> anyhow::Result<()> {
                     let batch_flush_interval = Duration::from_secs(batch_flush_interval_sec);
                     {
                         let queue: Arc<MessageQueue> = mq_for_consumer.clone();
-                        stateful_worker_pool_clone.spawn(
-                            StatefulWorkerType::ClusteringBatching,
+                        batch_worker_pool_clone.spawn(
+                            BatchWorkerType::ClusteringBatching,
                             num_clustering_batching_workers as usize,
                             move || {
                                 ClusteringEventBatchingHandler::new(

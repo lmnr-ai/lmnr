@@ -4,8 +4,8 @@ pub mod queue;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::batch_worker::message_handler::UniqueId;
 use crate::ch::signal_events::CHSignalEvent;
-use crate::worker_stateful::message_handler::UniqueId;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClusteringMessage {

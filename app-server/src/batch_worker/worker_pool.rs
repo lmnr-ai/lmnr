@@ -3,15 +3,15 @@ use std::sync::Arc;
 use crate::mq::MessageQueue;
 use crate::worker::QueueConfig;
 
-use super::StatefulWorkerType;
-use super::message_handler::StatefulMessageHandler;
-use super::worker::StatefulQueueWorker;
+use super::BatchWorkerType;
+use super::message_handler::BatchMessageHandler;
+use super::worker::BatchQueueWorker;
 
-pub struct StatefulWorkerPool {
+pub struct BatchWorkerPool {
     queue: Arc<MessageQueue>,
 }
 
-impl StatefulWorkerPool {
+impl BatchWorkerPool {
     pub fn new(queue: Arc<MessageQueue>) -> Self {
         Self { queue }
     }
@@ -19,18 +19,18 @@ impl StatefulWorkerPool {
     /// Spawn N workers of a type
     pub fn spawn<H, F>(
         &self,
-        worker_type: StatefulWorkerType,
+        worker_type: BatchWorkerType,
         count: usize,
         handler_factory: F,
         config: QueueConfig,
     ) where
-        H: StatefulMessageHandler,
+        H: BatchMessageHandler,
         F: Fn() -> H + Send + Sync + 'static,
     {
         for i in 0..count {
             let handler = handler_factory();
             let mut worker =
-                StatefulQueueWorker::new(worker_type, handler, self.queue.clone(), config.clone());
+                BatchQueueWorker::new(worker_type, handler, self.queue.clone(), config.clone());
 
             let worker_id = worker.id();
 

@@ -4,21 +4,19 @@ use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
+use crate::batch_worker::BatchWorkerType;
+use crate::batch_worker::message_handler::{BatchMessageHandler, ProcessStateResult, UniqueId};
 use crate::mq::{
     MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiver,
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
 use crate::worker::{HandlerError, QueueConfig};
-use crate::worker_stateful::StatefulWorkerType;
-use crate::worker_stateful::message_handler::{
-    ProcessStateResult, StatefulMessageHandler, UniqueId,
-};
 
 /// Queue worker with internal state that processes messages indefinitely and processes state
 /// periodically or along with a message.
-pub struct StatefulQueueWorker<H: StatefulMessageHandler> {
+pub struct BatchQueueWorker<H: BatchMessageHandler> {
     id: Uuid,
-    worker_type: StatefulWorkerType,
+    worker_type: BatchWorkerType,
     handler: H,
     queue: Arc<MessageQueue>,
     config: QueueConfig,
@@ -26,9 +24,9 @@ pub struct StatefulQueueWorker<H: StatefulMessageHandler> {
     ackers: HashMap<String, MessageQueueAcker>,
 }
 
-impl<H: StatefulMessageHandler> StatefulQueueWorker<H> {
+impl<H: BatchMessageHandler> BatchQueueWorker<H> {
     pub fn new(
-        worker_type: StatefulWorkerType,
+        worker_type: BatchWorkerType,
         handler: H,
         queue: Arc<MessageQueue>,
         config: QueueConfig,

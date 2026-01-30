@@ -4,9 +4,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
+use crate::batch_worker::message_handler::{BatchMessageHandler, ProcessStateResult};
 use crate::mq::MessageQueue;
 use crate::worker::HandlerError;
-use crate::worker_stateful::message_handler::{ProcessStateResult, StatefulMessageHandler};
 
 use super::ClusteringMessage;
 use super::queue::push_to_clustering_batch_queue;
@@ -55,7 +55,7 @@ impl ClusteringEventBatchingHandler {
 }
 
 #[async_trait]
-impl StatefulMessageHandler for ClusteringEventBatchingHandler {
+impl BatchMessageHandler for ClusteringEventBatchingHandler {
     type Message = ClusteringMessage;
 
     /// State is a map of project_id and signal_id to a batch of clustering messages
