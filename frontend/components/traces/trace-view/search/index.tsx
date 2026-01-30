@@ -5,13 +5,15 @@ import { extractSpanSuggestions, STATIC_SPAN_SUGGESTIONS } from "@/components/tr
 import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store";
 import { filterColumns } from "@/components/traces/trace-view/utils";
 import { type Filter } from "@/lib/actions/common/filters";
+import { cn } from "@/lib/utils";
 
 interface TraceViewSearchProps {
   spans: TraceViewSpan[];
   onSubmit: (filters: Filter[], search: string) => void;
+  className?: string;
 }
 
-const TraceViewSearch = ({ spans, onSubmit }: TraceViewSearchProps) => {
+const TraceViewSearch = ({ spans, onSubmit, className }: TraceViewSearchProps) => {
   const suggestions = useMemo(() => {
     const dynamicSuggestions = extractSpanSuggestions(spans);
     const allSuggestions = [...dynamicSuggestions, ...STATIC_SPAN_SUGGESTIONS];
@@ -28,21 +30,19 @@ const TraceViewSearch = ({ spans, onSubmit }: TraceViewSearchProps) => {
   }, [spans]);
 
   return (
-    <div className="px-2 pb-0.5 py-1.5">
-      <AdvancedSearch
-        mode="state"
-        filters={filterColumns}
-        resource="spans"
-        value={{ filters: [], search: "" }}
-        onSubmit={onSubmit}
-        placeholder="Search in spans..."
-        className="w-full"
-        options={{
-          suggestions,
-          disableHotKey: true,
-        }}
-      />
-    </div>
+    <AdvancedSearch
+      mode="state"
+      filters={filterColumns}
+      resource="spans"
+      value={{ filters: [], search: "" }}
+      onSubmit={onSubmit}
+      placeholder="Search in spans..."
+      className={cn("w-full", className)}
+      options={{
+        suggestions,
+        disableHotKey: true,
+      }}
+    />
   );
 };
 

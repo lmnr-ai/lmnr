@@ -1,49 +1,74 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Copy, Database, Expand, Loader } from "lucide-react";
-import Link from "next/link";
+import {
+  Check,
+  ChevronDown,
+  ChevronsRight,
+  ChevronUp,
+  Copy,
+  Database,
+  Globe,
+  Link,
+  Loader,
+  Lock,
+  Maximize,
+  Sparkles,
+  Upload,
+} from "lucide-react";
+import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { memo, useCallback, useMemo } from "react";
+import React, { memo, useCallback, useMemo, useState } from "react";
 
-import ShareTraceButton from "@/components/traces/share-trace-button";
-import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
-import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import TraceViewSearch from "@/components/traces/trace-view/search";
+import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 import { TraceStatsShields } from "../stats-shields";
+import Metadata from "./metadata";
 
 interface HeaderProps {
   handleClose: () => void;
+  chatOpen: boolean;
+  setChatOpen: (open: boolean) => void;
+  spans: TraceViewSpan[];
+  onSearch: (filters: Filter[], search: string) => void;
 }
 
-const Header = ({ handleClose }: HeaderProps) => {
+const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
   const { navigateDown, navigateUp } = useTraceViewNavigation();
+
   const {
     trace,
-    browserSession,
-    setBrowserSession,
-    langGraph,
-    setLangGraph,
-    getHasLangGraph,
+    updateTraceVisibility,
+    condensedTimelineEnabled,
   } = useTraceViewStoreContext((state) => ({
     trace: state.trace,
-    browserSession: state.browserSession,
-    setBrowserSession: state.setBrowserSession,
-    langGraph: state.langGraph,
-    setLangGraph: state.setLangGraph,
-    getHasLangGraph: state.getHasLangGraph,
+    updateTraceVisibility: state.updateTraceVisibility,
+    condensedTimelineEnabled: state.condensedTimelineEnabled,
   }));
 
   const { toast } = useToast();
-  const { openInSql, isLoading } = useOpenInSql({ projectId: projectId as string, params: { type: 'trace', traceId: String(trace?.id) } });
+  const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
+    projectId: projectId as string,
+    params: { type: "trace", traceId: String(trace?.id) },
+  });
+  const [isVisibilityLoading, setIsVisibilityLoading] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const handleCopyTraceId = useCallback(async () => {
     if (trace?.id) {
@@ -51,6 +76,54 @@ const Header = ({ handleClose }: HeaderProps) => {
       toast({ title: "Copied trace ID", duration: 1000 });
     }
   }, [trace?.id, toast]);
+
+  const handleCopyLink = useCallback(async () => {
+    if (trace?.id) {
+      const url = `${window.location.origin}/shared/traces/${trace.id}`;
+      await navigator.clipboard.writeText(url);
+      setCopiedLink(true);
+      toast({ title: "Copied link", duration: 1000 });
+      setTimeout(() => setCopiedLink(false), 2000);
+    }
+  }, [trace?.id, toast]);
+
+  const handleChangeVisibility = useCallback(
+    async (value: "private" | "public") => {
+      if (!trace?.id || trace.visibility === value) return;
+
+      try {
+        setIsVisibilityLoading(true);
+        const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            visibility: value,
+          }),
+        });
+
+        if (res.ok) {
+          toast({
+            title: `Trace is now ${value}`,
+            duration: 1000,
+          });
+          updateTraceVisibility(value);
+        } else {
+          const text = await res.json();
+          if ("error" in text) {
+            toast({ variant: "destructive", title: "Error", description: String(text.error) });
+          }
+        }
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to update trace visibility. Please try again.",
+        });
+      } finally {
+        setIsVisibilityLoading(false);
+      }
+    },
+    [trace?.id, trace?.visibility, projectId, toast, updateTraceVisibility]
+  );
 
   const fullScreenParams = useMemo(() => {
     const ps = new URLSearchParams(searchParams);
@@ -60,99 +133,130 @@ const Header = ({ handleClose }: HeaderProps) => {
     return ps;
   }, [params.evaluationId, searchParams]);
 
-  const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
+  const isPublic = trace?.visibility === "public";
 
   return (
-    <div className="h-10 min-h-10 flex items-center gap-x-2 px-2">
-      {!params?.traceId && (
-        <>
-          <Button variant={"ghost"} className="px-0" onClick={handleClose}>
-            <ChevronsRight />
-          </Button>
-          {trace && (
-            <Link passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-              <Button variant="ghost" className="px-0 mr-1">
-                <Expand className="w-4 h-4" size={16} />
+    <div className={cn("flex flex-col gap-1.5 px-2 py-1.5", { "pb-2": condensedTimelineEnabled && !chatOpen })}>
+      {/* Line 1: close, expand, down, up, trace, shield ... export */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center min-w-0">
+          {!params?.traceId && (
+            <div className="flex items-center flex-shrink-0">
+              <Button variant="ghost" className="px-1" onClick={handleClose}>
+                <ChevronsRight className="w-5 h-5" />
               </Button>
-            </Link>
+              {trace && (
+                <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
+                  <Button variant="ghost" className="px-1">
+                    <Maximize className="w-4 h-4" />
+                  </Button>
+                </NextLink>
+              )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button disabled={!trace} onClick={navigateDown} className="hover:bg-secondary px-1" variant="ghost">
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipPortal>
+                  <TooltipContent className="flex items-center">
+                    Navigate down (
+                    <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
+                      j
+                    </kbd>
+                    )
+                  </TooltipContent>
+                </TooltipPortal>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button disabled={!trace} onClick={navigateUp} className="hover:bg-secondary px-1" variant="ghost">
+                    <ChevronUp className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipPortal>
+                  <TooltipContent className="flex items-center">
+                    Navigate up (
+                    <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
+                      k
+                    </kbd>
+                    )
+                  </TooltipContent>
+                </TooltipPortal>
+              </Tooltip>
+            </div>
           )}
+          {trace && <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>}
+          {trace && <TraceStatsShields className="ml-2 min-w-0 overflow-hidden" trace={trace} singlePill />}
+        </div>
+        <div className="flex items-center gap-x-0.5 flex-shrink-0">
+          <Metadata metadata={trace?.metadata} />
+          {/* Export dropdown */}
           {trace && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-6 px-1 text-base font-medium focus-visible:outline-0">
-                  Trace
-                  <ChevronDown className="ml-1 size-3.5" />
+                <Button variant="ghost" className="hover:bg-secondary px-1.5">
+                  <Upload className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
+              <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onClick={handleCopyTraceId}>
                   <Copy size={14} />
                   Copy trace ID
                 </DropdownMenuItem>
-                <DropdownMenuItem disabled={isLoading} onClick={openInSql}>
-                  {isLoading ? <Loader className="size-3.5" /> : <Database className="size-3.5" />}
+                <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
+                  {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
                   Open in SQL editor
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={isVisibilityLoading}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    handleChangeVisibility(isPublic ? "private" : "public");
+                  }}
+                >
+                  {isVisibilityLoading ? (
+                    <Loader className="size-3.5 animate-spin" />
+                  ) : isPublic ? (
+                    <Lock className="size-3.5" />
+                  ) : (
+                    <Globe className="size-3.5" />
+                  )}
+                  {isPublic ? "Make private" : "Make public"}
+                </DropdownMenuItem>
+                {isPublic && (
+                  <DropdownMenuItem onClick={handleCopyLink}>
+                    {copiedLink ? <Check className="size-3.5" /> : <Link className="size-3.5" />}
+                    {copiedLink ? "Copied!" : "Copy link"}
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-        </>
-      )}
-      {trace && <TraceStatsShields className="box-border sticky top-0 bg-background" trace={trace} />}
-      <div className="flex items-center ml-auto">
-        {!params?.traceId && (
-          <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button disabled={!trace} onClick={navigateDown} className="hover:bg-secondary px-1.5" variant="ghost">
-                  <ChevronDown className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent className="flex items-center">
-                  Navigate down (
-                  <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
-                    j
-                  </kbd>
-                  )
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button disabled={!trace} onClick={navigateUp} className="hover:bg-secondary px-1.5" variant="ghost">
-                  <ChevronUp className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent className="flex items-center">
-                  Navigate up (
-                  <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
-                    k
-                  </kbd>
-                  )
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          </>
-        )}
+        </div>
+      </div>
+
+      {/* Ask AI + Search */}
+      <div className="flex items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              disabled={!trace}
-              className="hover:bg-secondary px-1.5"
-              variant="ghost"
-              onClick={() => setBrowserSession(!browserSession)}
+              onClick={() => setChatOpen(!chatOpen)}
+              variant="outline"
+              size="icon"
+              className={cn("h-8 w-8", {
+                "border-primary text-primary": chatOpen,
+              })}
             >
-              <CirclePlay className={cn("w-4 h-4", { "text-primary": browserSession })} />
+              <Sparkles size={16} />
             </Button>
           </TooltipTrigger>
           <TooltipPortal>
-            <TooltipContent>{browserSession ? "Hide Media Viewer" : "Show Media Viewer"}</TooltipContent>
+            <TooltipContent>Ask AI about your trace</TooltipContent>
           </TooltipPortal>
         </Tooltip>
-        {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
-        {trace && <ShareTraceButton projectId={projectId} />}
+        {!chatOpen && <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />}
       </div>
     </div>
   );

@@ -1,28 +1,23 @@
 import { get } from "lodash";
-import { AlertTriangle, Minus, Plus, Sparkles } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
-import TraceViewSearch from "@/components/traces/trace-view/search";
 import TraceViewStoreProvider, {
-  MAX_ZOOM,
   MIN_TREE_VIEW_WIDTH,
-  MIN_ZOOM,
   type TraceViewSpan,
   type TraceViewTrace,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
-import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
-import { Button } from "@/components/ui/button.tsx";
+import ViewSelect from "@/components/traces/trace-view/view-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
-import { cn } from "@/lib/utils.ts";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 import SessionPlayer from "../session-player";
@@ -30,10 +25,8 @@ import { SpanView } from "../span-view";
 import Chat from "./chat";
 import CondensedTimeline from "./condensed-timeline";
 import List from "./list";
-import Metadata from "./metadata";
 import Minimap from "./minimap";
 import { ScrollContextProvider } from "./scroll-context";
-import Timeline from "./timeline";
 import Tree from "./tree";
 
 interface TraceViewProps {
@@ -48,6 +41,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Data states
   const {
@@ -85,11 +79,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   // UI states
   const {
     tab,
-    setTab,
     browserSession,
     setBrowserSession,
-    zoom,
-    handleZoom,
     langGraph,
     getHasLangGraph,
     hasBrowserSession,
@@ -97,12 +88,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     condensedTimelineEnabled,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
-    setTab: state.setTab,
-    zoom: state.zoom,
-    handleZoom: state.setZoom,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
-    setBrowserSessionTime: state.setSessionTime,
     langGraph: state.langGraph,
     getHasLangGraph: state.getHasLangGraph,
     hasBrowserSession: state.hasBrowserSession,
@@ -352,7 +339,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   if (traceError) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <Header handleClose={handleClose} />
+        <Header
+          handleClose={handleClose}
+          chatOpen={chatOpen}
+          setChatOpen={setChatOpen}
+          spans={[]}
+          onSearch={() => {}}
+        />
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
           <div className="max-w-md mx-auto">
             <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
@@ -368,46 +361,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     <ScrollContextProvider>
       <div className="flex h-full w-full">
         <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-          <Header handleClose={handleClose} />
-          <div className="flex flex-col gap-2 px-2 pb-2 border-b box-border">
-            <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
-              <ViewDropdown />
-              <Metadata metadata={trace?.metadata} />
-              <Button
-                onClick={() => setTab("chat")}
-                variant="outline"
-                className={cn("h-6 text-xs px-1.5", {
-                  "border-primary text-primary": tab === "chat",
-                })}
-              >
-                <Sparkles size={14} className="mr-1" />
-                <span>Ask AI</span>
-              </Button>
-              {tab === "timeline" && (
-                <>
-                  <Button
-                    disabled={zoom === MAX_ZOOM}
-                    className="size-6 min-w-6 ml-auto"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleZoom("in")}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    disabled={zoom === MIN_ZOOM}
-                    className="size-6 min-w-6"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleZoom("out")}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-          <TraceViewSearch spans={spans} onSubmit={(filters, search) => fetchSpans(search, filters)} />
+          <Header
+            handleClose={handleClose}
+            chatOpen={chatOpen}
+            setChatOpen={setChatOpen}
+            spans={spans}
+            onSearch={(filters, search) => fetchSpans(search, filters)}
+          />
 
           {spansError ? (
             <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
@@ -415,42 +375,51 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
               <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
+          ) : chatOpen ? (
+            // Ask AI takes over entire view
+            trace && (
+              <Chat
+                trace={trace}
+                onSearchSpans={(search) => {
+                  fetchSpans(search, []);
+                }}
+                onSetSpanId={(spanId) => {
+                  const span = spans.find((span) => span.spanId === spanId);
+                  if (span) {
+                    handleSpanSelect(span);
+                  }
+                }}
+              />
+            )
           ) : (
             <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
               {condensedTimelineEnabled && (
                 <>
                   <ResizablePanel>
-                    <CondensedTimeline />
+                    <div className="border-t h-full">
+                      <CondensedTimeline />
+                    </div>
                   </ResizablePanel>
                   <ResizableHandle className="hover:border hover:border-blue-400 z-50" />
                 </>
               )}
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-                {tab === "chat" && trace && (
-                  <Chat
-                    trace={trace}
-                    onSearchSpans={(search) => {
-                      fetchSpans(search, []);
-                    }}
-                    onSetSpanId={(spanId) => {
-                      const span = spans.find((span) => span.spanId === spanId);
-                      if (span) {
-                        handleSpanSelect(span);
-                      }
-                    }}
-                  />
-                )}
-                {tab === "timeline" && <Timeline />}
+                {/* View select bar */}
+                <div className="flex items-center gap-2 px-2 py-2 border-b box-border">
+                  <ViewSelect />
+                </div>
                 {tab === "reader" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
                     <List traceId={traceId} onSpanSelect={handleSpanSelect} />
-                    <Minimap onSpanSelect={handleSpanSelect} />
+                    {/* TODO: BUGBOT flag this decision on whether to remove TBD */}
+                    {/* <Minimap onSpanSelect={handleSpanSelect} /> */}
                   </div>
                 )}
                 {tab === "tree" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
                     <Tree traceId={traceId} onSpanSelect={handleSpanSelect} />
-                    <Minimap onSpanSelect={handleSpanSelect} />
+                    {/* TODO: BUGBOT flag this decision on whether to remove TBD */}
+                    {/* <Minimap onSpanSelect={handleSpanSelect} /> */}
                   </div>
                 )}
               </ResizablePanel>

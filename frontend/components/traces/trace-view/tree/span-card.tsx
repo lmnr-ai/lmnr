@@ -17,7 +17,7 @@ import SpanTypeIcon from "../../span-type-icon";
 import Markdown from "../list/markdown";
 import { BranchConnector } from "./branch-connector";
 
-const ROW_HEIGHT = 36;
+const ROW_HEIGHT = 32;
 const SQUARE_SIZE = 20;
 const SQUARE_ICON_SIZE = 14;
 
@@ -66,7 +66,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
   // Only show content for LLM spans for now.
-  const showContent = (showTreeContent ?? true) && !span.collapsed && (span.spanType === "LLM");
+  const showContent = (showTreeContent ?? true) && !span.collapsed && span.spanType === "LLM";
 
   const isLoadingOutput = output === undefined;
 
@@ -88,7 +88,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
       <BranchConnector depth={depth} branchMask={branchMask} isSelected={isSelected} />
 
       {/* Icon column */}
-      <div className="flex flex-col items-center shrink-0 pt-2 self-stretch">
+      <div className="flex flex-col items-center shrink-0 pt-[6px] self-stretch">
         <SpanTypeIcon
           iconClassName="min-w-4 min-h-4"
           spanType={span.spanType}
@@ -115,7 +115,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
           <SpanDisplayTooltip isLLM={span.spanType === "LLM"} name={span.name}>
             <div
               className={cn(
-                "text-ellipsis overflow-hidden whitespace-nowrap text-base truncate",
+                "text-ellipsis overflow-hidden whitespace-nowrap text-sm truncate",
                 span.pending && "text-muted-foreground"
               )}
             >

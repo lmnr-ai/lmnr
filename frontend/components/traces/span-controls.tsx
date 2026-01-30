@@ -1,5 +1,5 @@
 import { get } from "lodash";
-import { ChevronDown, Copy, Database, Loader, PlayCircle } from "lucide-react";
+import { Copy, Database, Loader, PlayCircle, Upload } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import React, { type PropsWithChildren, useCallback, useMemo } from "react";
@@ -57,19 +57,29 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
       <div className="flex flex-col px-2 pt-2 gap-2">
-        <div className="flex flex-none items-center space-x-2">
-          <SpanTypeIcon spanType={span.spanType} />
+        <div className="flex flex-none items-center justify-between">
+          <div className="flex items-center space-x-2 min-w-0">
+            <SpanTypeIcon spanType={span.spanType} />
+            <span className="text-base font-medium truncate">{span.name}</span>
+            {span.spanType === SpanType.LLM && (
+              <Link
+                href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
+                passHref
+              >
+                <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
+                  <PlayCircle className="mr-1" size={14} />
+                  Experiment in playground
+                </Button>
+              </Link>
+            )}
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-6 px-1 text-xl font-medium focus-visible:outline-0 truncate text-left min-w-0"
-              >
-                <span className="truncate">{span.name}</span>
-                <ChevronDown className="ml-1 min-w-3.5 size-3.5" />
+              <Button variant="ghost" className="px-1.5">
+                <Upload className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
+            <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleCopySpanId}>
                 <Copy size={14} />
                 Copy span ID
@@ -80,19 +90,6 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {span.spanType === SpanType.LLM && (
-            <>
-              <Link
-                href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
-                passHref
-              >
-                <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
-                  <PlayCircle className="mr-1" size={14} />
-                  Experiment in playground
-                </Button>
-              </Link>
-            </>
-          )}
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">
           <SpanStatsShields className="flex-wrap" span={span}>

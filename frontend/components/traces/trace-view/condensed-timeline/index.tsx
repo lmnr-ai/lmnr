@@ -1,5 +1,5 @@
 import { isEmpty } from "lodash";
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus, X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MAX_ZOOM, MIN_ZOOM, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store";
@@ -29,6 +29,7 @@ function CondensedTimeline() {
     clearCondensedTimelineSelection,
     condensedTimelineZoom,
     setCondensedTimelineZoom,
+    setCondensedTimelineEnabled,
   } = useTraceViewStoreContext((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
     spans: state.spans,
@@ -41,6 +42,7 @@ function CondensedTimeline() {
     clearCondensedTimelineSelection: state.clearCondensedTimelineSelection,
     condensedTimelineZoom: state.condensedTimelineZoom,
     setCondensedTimelineZoom: state.setCondensedTimelineZoom,
+    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
   }));
 
   const {
@@ -177,25 +179,38 @@ function CondensedTimeline() {
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative">
       {/* Zoom controls - fixed position */}
-      <div className="absolute top-0 right-0 z-40 flex items-center gapy-1 pl-1 pr-2 h-6 bg-muted border-b border-l rounded-bl gap-1">
-        <Button
-          disabled={condensedTimelineZoom === MAX_ZOOM}
-          className="size-4 min-w-4"
-          variant="ghost"
-          size="icon"
-          onClick={() => setCondensedTimelineZoom("in")}
-        >
-          <Plus className="w-3 h-3" />
-        </Button>
-        <Button
-          disabled={condensedTimelineZoom === MIN_ZOOM}
-          className="size-4 min-w-4"
-          variant="ghost"
-          size="icon"
-          onClick={() => setCondensedTimelineZoom("out")}
-        >
-          <Minus className="w-3 h-3" />
-        </Button>
+      <div className="absolute top-0 right-0 z-40 flex items-center h-7 bg-muted border-b border-l rounded-bl">
+        <div className="flex items-center gap-1 px-1.5">
+          <Button
+            disabled={condensedTimelineZoom === MAX_ZOOM}
+            className="size-5 min-w-5"
+            variant="ghost"
+            size="icon"
+            onClick={() => setCondensedTimelineZoom("in")}
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            disabled={condensedTimelineZoom === MIN_ZOOM}
+            className="size-5 min-w-5"
+            variant="ghost"
+            size="icon"
+            onClick={() => setCondensedTimelineZoom("out")}
+          >
+            <Minus className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+        <div className="w-px h-full bg-border" />
+        <div className="flex items-center px-1.5">
+          <Button
+            className="size-5 min-w-5"
+            variant="ghost"
+            size="icon"
+            onClick={() => setCondensedTimelineEnabled(false)}
+          >
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
       </div>
 
       {/* Scrollable timeline area */}

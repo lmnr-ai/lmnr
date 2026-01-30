@@ -33,6 +33,10 @@ const numberFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 3,
 });
 
+const compactNumberFormat = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+});
+
 const ToolsList = ({ tools }: { tools: Tool[] }) => {
   if (tools.length === 0) return null;
 
@@ -152,6 +156,7 @@ function StatsShieldsContent({
   stats,
   className,
   children,
+  singlePill = false,
 }: PropsWithChildren<{
   stats: Pick<
     TraceViewSpan,
@@ -166,75 +171,107 @@ function StatsShieldsContent({
     | "cacheReadInputTokens"
   >;
   className?: string;
+  singlePill?: boolean;
 }>) {
+  const durationContent = (
+    <div className="flex space-x-1 items-center">
+      <Clock3 size={12} className="min-w-3 min-h-3" />
+      <Label className="text-xs truncate" title={getDurationString(stats.startTime, stats.endTime)}>
+        {getDurationString(stats.startTime, stats.endTime)}
+      </Label>
+    </div>
+  );
+
+  const tokensContent = (
+    <TooltipProvider delayDuration={250}>
+      <Tooltip>
+        <TooltipTrigger className="min-w-8">
+          <div className="flex space-x-1 items-center">
+            <Coins className="min-w-3" size={12} />
+            <Label className="text-xs truncate">{compactNumberFormat.format(stats.totalTokens)}</Label>
+          </div>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent side="bottom" className="p-2 border">
+            <div className="flex-col space-y-1">
+              <Label className="flex text-xs gap-1">
+                <span className="text-secondary-foreground">Input tokens</span>{" "}
+                {numberFormat.format(stats.inputTokens)}
+              </Label>
+              <Label className="flex text-xs gap-1">
+                <span className="text-secondary-foreground">Output tokens</span>{" "}
+                {numberFormat.format(stats.outputTokens)}
+              </Label>
+              {!!stats.cacheReadInputTokens && (
+                <Label className="flex text-xs gap-1 text-success-bright">
+                  <span>Cache read input tokens</span> {numberFormat.format(stats.cacheReadInputTokens)}
+                </Label>
+              )}
+            </div>
+          </TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    </TooltipProvider>
+  );
+
+  const costContent = (
+    <TooltipProvider delayDuration={250}>
+      <Tooltip>
+        <TooltipTrigger className="min-w-8">
+          <div className="flex space-x-1 items-center">
+            <CircleDollarSign className="min-w-3" size={12} />
+            <Label className="text-xs truncate">{stats.totalCost?.toFixed(2)}</Label>
+          </div>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent side="bottom" className="p-2 border">
+            <div className="flex-col space-y-1">
+              <Label className="flex text-xs gap-1">
+                <span className="text-secondary-foreground">Total cost</span> {"$" + stats.totalCost?.toFixed(5)}
+              </Label>
+              <Label className="flex text-xs gap-1">
+                <span className="text-secondary-foreground">Input cost</span> {"$" + stats.inputCost?.toFixed(5)}
+              </Label>
+              <Label className="flex text-xs gap-1">
+                <span className="text-secondary-foreground">Output cost</span> {"$" + stats.outputCost?.toFixed(5)}
+              </Label>
+            </div>
+          </TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    </TooltipProvider>
+  );
+
+  if (singlePill) {
+    return (
+      <div className={cn("flex items-center min-w-0", className)}>
+        <div className="flex items-center gap-2 px-1.5 py-0.5 bg-muted rounded-md overflow-hidden text-secondary-foreground">
+          {durationContent}
+          {tokensContent}
+          {costContent}
+        </div>
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className={cn("flex items-center gap-2 font-mono min-w-0", className)}>
       <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
-        <Clock3 size={12} className="min-w-3 min-h-3" />
-        <Label className="text-xs truncate text-foreground" title={getDurationString(stats.startTime, stats.endTime)}>
-          {getDurationString(stats.startTime, stats.endTime)}
-        </Label>
+        {durationContent}
       </div>
-      <TooltipProvider delayDuration={250}>
-        <Tooltip>
-          <TooltipTrigger className="min-w-8">
-            <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
-              <Coins className="min-w-3" size={12} />
-              <Label className="text-xs truncate text-foreground">{numberFormat.format(stats.totalTokens)}</Label>
-            </div>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent side="bottom" className="p-2 border">
-              <div className="flex-col space-y-1">
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Input tokens</span>{" "}
-                  {numberFormat.format(stats.inputTokens)}
-                </Label>
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Output tokens</span>{" "}
-                  {numberFormat.format(stats.outputTokens)}
-                </Label>
-                {!!stats.cacheReadInputTokens && (
-                  <Label className="flex text-xs gap-1 text-success-bright">
-                    <span>Cache read input tokens</span> {numberFormat.format(stats.cacheReadInputTokens)}
-                  </Label>
-                )}
-              </div>
-            </TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
-      </TooltipProvider>
-      <TooltipProvider delayDuration={250}>
-        <Tooltip>
-          <TooltipTrigger className="min-w-8">
-            <div className="flex space-x-1 items-center p-0.5 px-2 min-w-8 border rounded-md">
-              <CircleDollarSign className="min-w-3" size={12} />
-              <Label className="text-xs truncate text-foreground">{stats.totalCost?.toFixed(3)}</Label>
-            </div>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent side="bottom" className="p-2 border">
-              <div className="flex-col space-y-1">
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Total cost</span> {"$" + stats.totalCost?.toFixed(5)}
-                </Label>
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Input cost</span> {"$" + stats.inputCost?.toFixed(5)}
-                </Label>
-                <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Output cost</span> {"$" + stats.outputCost?.toFixed(5)}
-                </Label>
-              </div>
-            </TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
-      </TooltipProvider>
+      <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
+        {tokensContent}
+      </div>
+      <div className="flex space-x-1 items-center p-0.5 px-2 min-w-8 border rounded-md">
+        {costContent}
+      </div>
       {children}
     </div>
   );
 }
 
-const PureTraceStatsShields = ({ trace, className, children }: PropsWithChildren<TraceStatsShieldsProps>) => (
+const PureTraceStatsShields = ({ trace, className, children, singlePill }: PropsWithChildren<TraceStatsShieldsProps & { singlePill?: boolean }>) => (
   <StatsShieldsContent
     stats={pick(trace, [
       "startTime",
@@ -248,6 +285,7 @@ const PureTraceStatsShields = ({ trace, className, children }: PropsWithChildren
       "totalCost",
     ])}
     className={className}
+    singlePill={singlePill}
   >
     {children}
   </StatsShieldsContent>
