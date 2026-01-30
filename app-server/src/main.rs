@@ -68,7 +68,6 @@ use realtime::SseConnectionMap;
 use sodiumoxide;
 use std::{
     borrow::Cow,
-    collections::HashMap,
     env,
     io::{self, Error},
     sync::Arc,
@@ -1148,7 +1147,6 @@ fn main() -> anyhow::Result<()> {
                                 exchange_name: EVENT_CLUSTERING_EXCHANGE,
                                 routing_key: EVENT_CLUSTERING_ROUTING_KEY,
                             },
-                            HashMap::new(),
                         );
                     }
 

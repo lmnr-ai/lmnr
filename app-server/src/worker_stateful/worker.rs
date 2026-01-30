@@ -30,8 +30,8 @@ impl<H: StatefulMessageHandler> StatefulQueueWorker<H> {
         handler: H,
         queue: Arc<MessageQueue>,
         config: QueueConfig,
-        initial_state: H::State,
     ) -> Self {
+        let initial_state = handler.initial_state();
         Self {
             id: Uuid::new_v4(),
             worker_type,
@@ -64,6 +64,10 @@ impl<H: StatefulMessageHandler> StatefulQueueWorker<H> {
 
     /// Inner processing loop - connects to the queue and processes messages indefinitely.
     async fn process_inner(&mut self) -> anyhow::Result<()> {
+        // Reset state and ackers on each connection - unacked messages will be redelivered
+        self.state = self.handler.initial_state();
+        self.ackers.clear();
+
         let mut receiver: MessageQueueReceiver = self.connect().await?;
 
         log::info!(

@@ -23,20 +23,14 @@ impl StatefulWorkerPool {
         count: usize,
         handler_factory: F,
         config: QueueConfig,
-        initial_state: H::State,
     ) where
         H: StatefulMessageHandler,
         F: Fn() -> H + Send + Sync + 'static,
     {
         for i in 0..count {
             let handler = handler_factory();
-            let mut worker = StatefulQueueWorker::new(
-                worker_type,
-                handler,
-                self.queue.clone(),
-                config.clone(),
-                initial_state.clone(),
-            );
+            let mut worker =
+                StatefulQueueWorker::new(worker_type, handler, self.queue.clone(), config.clone());
 
             let worker_id = worker.id();
 

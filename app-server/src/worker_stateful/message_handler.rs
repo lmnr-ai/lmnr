@@ -23,6 +23,10 @@ pub trait StatefulMessageHandler: Send + Sync + 'static {
     /// The interval at which the process_state_periodic() method will be called.
     fn state_check_interval(&self) -> Duration;
 
+    /// Returns the initial state for the handler.
+    /// Called on worker creation and on reconnection to reset state.
+    fn initial_state(&self) -> Self::State;
+
     /// Handle a single message.
     ///
     /// On error, behavior depends on the error type:

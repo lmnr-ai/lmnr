@@ -73,6 +73,10 @@ impl StatefulMessageHandler for ClusteringEventBatchingHandler {
         self.config.flush_interval / 2
     }
 
+    fn initial_state(&self) -> Self::State {
+        HashMap::new()
+    }
+
     /// Add message to the batch
     async fn handle_message(
         &self,
