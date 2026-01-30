@@ -96,21 +96,7 @@ function CondensedTimeline() {
   // Calculate hover time from position
   const hoverTimeMs = hoverPercent !== null ? (hoverPercent / 100) * totalDurationMs : null;
 
-  // Calculate selected span count (excluding ancestors)
-  const selectedCount = useMemo(() => {
-    if (condensedTimelineVisibleSpanIds.size === 0) return 0;
-    // Count only non-ancestor spans (spans that were actually selected)
-    return condensedSpans.filter(
-      (cs) =>
-        condensedTimelineVisibleSpanIds.has(cs.span.spanId) &&
-        !condensedSpans.some(
-          (other) =>
-            other.span.spanId !== cs.span.spanId &&
-            condensedTimelineVisibleSpanIds.has(other.span.spanId) &&
-            other.parentSpanId === cs.span.spanId
-        )
-    ).length;
-  }, [condensedTimelineVisibleSpanIds, condensedSpans]);
+  const selectedCount = condensedTimelineVisibleSpanIds.size;
 
   // Scroll to selected span when it changes
   useEffect(() => {
@@ -191,7 +177,7 @@ function CondensedTimeline() {
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative">
       {/* Zoom controls - fixed position */}
-      <div className="absolute top-0 right-0 z-40 flex items-center gapy-1 pl-1 pr-2 h-6 bg-background border-b border-l rounded-bl gap-1">
+      <div className="absolute top-0 right-0 z-40 flex items-center gapy-1 pl-1 pr-2 h-6 bg-muted border-b border-l rounded-bl gap-1">
         <Button
           disabled={condensedTimelineZoom === MAX_ZOOM}
           className="size-4 min-w-4"
@@ -298,10 +284,7 @@ function CondensedTimeline() {
       </div>
 
       {/* Selection bar */}
-      <SelectionBar
-        selectedCount={condensedTimelineVisibleSpanIds.size > 0 ? selectedCount : 0}
-        onClear={clearCondensedTimelineSelection}
-      />
+      <SelectionBar selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
     </div>
   );
 }
