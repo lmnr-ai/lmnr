@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 import CondensedTimelineElement, { ROW_HEIGHT } from "./condensed-timeline-element";
-import SelectionBar from "./selection-bar";
+import SelectionIndicator from "./selection-indicator";
 import SelectionOverlay from "./selection-overlay";
 import { formatTimeMarkerLabel, useDynamicTimeIntervals } from "./use-dynamic-time-intervals";
 
@@ -283,8 +283,8 @@ function CondensedTimeline() {
         </div>
       </div>
 
-      {/* Selection bar */}
-      <SelectionBar selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
+      {/* Selection indicator */}
+      <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
     </div>
   );
 }

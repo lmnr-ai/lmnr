@@ -60,8 +60,8 @@ export default function ViewDropdown() {
         <DropdownMenuTrigger asChild>
           <button
             className={cn(
-              "flex items-center h-6 px-1.5 text-xs border bg-background focus-visible:outline-0",
-              isValidTab ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary/50",
+              "flex items-center h-6 px-1.5 text-xs border focus-visible:outline-0",
+              isValidTab ? "border-primary text-primary bg-primary/10 hover:bg-primary/20" : "bg-background hover:bg-secondary/50",
               showTimelineToggle ? "rounded-l-md rounded-r-none border-r-primary" : "rounded-md"
             )}
           >
@@ -89,7 +89,7 @@ export default function ViewDropdown() {
           className={cn(
             "flex items-center h-6 px-1.5 text-xs border border-l-0 bg-background",
             isTreeView ? "rounded-none" : "rounded-r-md",
-            condensedTimelineEnabled ? "border-primary text-primary hover:bg-primary/10" : "border-input hover:bg-secondary/50"
+            condensedTimelineEnabled ? "border-primary text-primary bg-primary/10 hover:bg-primary/20" : "border-input bg-background hover:bg-secondary/50"
           )}
         >
           <GanttChart size={14} />
@@ -101,7 +101,7 @@ export default function ViewDropdown() {
           onClick={() => setShowTreeContent(!contentVisible)}
           className={cn(
             "flex items-center h-6 px-1.5 text-xs border border-l-0 rounded-r-md bg-background",
-            contentVisible ? "border-primary text-primary hover:bg-primary/10" : "border-input hover:bg-secondary/50"
+            contentVisible ? "border-primary text-primary bg-primary/10 hover:bg-primary/20" : "border-input bg-background hover:bg-secondary/50"
           )}
         >
           <AlignLeft size={14} />
