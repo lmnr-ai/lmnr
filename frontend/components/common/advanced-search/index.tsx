@@ -30,7 +30,7 @@ interface AdvancedSearchInnerProps {
   };
 }
 
-export const AdvancedSearchInner = ({
+const AdvancedSearchInner = ({
   resource,
   placeholder = "Search...",
   className,

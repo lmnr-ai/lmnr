@@ -60,7 +60,7 @@ interface RolloutSessionStoreState {
   browserSession: boolean;
   langGraph: boolean;
   sessionTime?: number;
-  tab: "tree" | "timeline" | "chat" | "reader";
+  tab: "tree" | "timeline" | "reader";
   zoom: number;
   sidebarWidth: number;
   hasBrowserSession: boolean;
