@@ -21,14 +21,20 @@ interface TreeProps {
 const Tree = ({ traceId, onSpanSelect, isShared = false }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
-  const { getTreeSpans, spans, trace, isSpansLoading } = useTraceViewStoreContext((state) => ({
-    getTreeSpans: state.getTreeSpans,
-    spans: state.spans,
-    trace: state.trace,
-    isSpansLoading: state.isSpansLoading,
-  }));
+  const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds } = useTraceViewStoreContext(
+    (state) => ({
+      getTreeSpans: state.getTreeSpans,
+      spans: state.spans,
+      trace: state.trace,
+      isSpansLoading: state.isSpansLoading,
+      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+    })
+  );
 
-  const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans]);
+  const treeSpans = useMemo(
+    () => getTreeSpans(),
+    [getTreeSpans, spans, condensedTimelineVisibleSpanIds]
+  );
 
   const [settingsSpan, setSettingsSpan] = useState<(TraceViewSpan & { pathInfo: PathInfo }) | null>(null);
 

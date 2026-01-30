@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import {ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Copy, Database, Expand, Loader} from "lucide-react";
+import { ChartNoAxesGantt, ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Copy, Database, Expand, Loader } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useMemo } from "react";
@@ -26,15 +26,25 @@ const Header = ({ handleClose }: HeaderProps) => {
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
   const { navigateDown, navigateUp } = useTraceViewNavigation();
-  const { trace, browserSession, setBrowserSession, langGraph, setLangGraph, getHasLangGraph } =
-    useTraceViewStoreContext((state) => ({
-      trace: state.trace,
-      browserSession: state.browserSession,
-      setBrowserSession: state.setBrowserSession,
-      langGraph: state.langGraph,
-      setLangGraph: state.setLangGraph,
-      getHasLangGraph: state.getHasLangGraph,
-    }));
+  const {
+    trace,
+    browserSession,
+    setBrowserSession,
+    langGraph,
+    setLangGraph,
+    getHasLangGraph,
+    condensedTimelineEnabled,
+    setCondensedTimelineEnabled,
+  } = useTraceViewStoreContext((state) => ({
+    trace: state.trace,
+    browserSession: state.browserSession,
+    setBrowserSession: state.setBrowserSession,
+    langGraph: state.langGraph,
+    setLangGraph: state.setLangGraph,
+    getHasLangGraph: state.getHasLangGraph,
+    condensedTimelineEnabled: state.condensedTimelineEnabled,
+    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
+  }));
 
   const { toast } = useToast();
   const { openInSql, isLoading } = useOpenInSql({ projectId: projectId as string, params: { type: 'trace', traceId: String(trace?.id) } });
@@ -130,6 +140,23 @@ const Header = ({ handleClose }: HeaderProps) => {
             </Tooltip>
           </>
         )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              disabled={!trace}
+              className="hover:bg-secondary px-1.5"
+              variant="ghost"
+              onClick={() => setCondensedTimelineEnabled(!condensedTimelineEnabled)}
+            >
+              <ChartNoAxesGantt className={cn("w-4 h-4", { "text-primary": condensedTimelineEnabled })} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipPortal>
+            <TooltipContent>
+              {condensedTimelineEnabled ? "Hide Condensed Timeline" : "Show Condensed Timeline"}
+            </TooltipContent>
+          </TooltipPortal>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

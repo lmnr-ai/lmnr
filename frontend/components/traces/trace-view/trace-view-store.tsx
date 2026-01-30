@@ -6,9 +6,11 @@ import { persist } from "zustand/middleware";
 import {
   buildSpanNameMap,
   computePathInfoMap,
+  type CondensedTimelineData,
   groupIntoSections,
   type MinimapSpan,
   type TimelineData,
+  transformSpansToCondensedTimeline,
   transformSpansToFlatMinimap,
   transformSpansToMinimap,
   transformSpansToTimeline,
@@ -111,6 +113,10 @@ interface TraceViewStoreState {
   spanTemplates: Record<string, string>;
   spanPathCounts: Map<string, number>; // Track count per span path for rollout sessions
   showTreeContent: boolean;
+  // Condensed timeline state
+  condensedTimelineEnabled: boolean;
+  condensedTimelineVisibleSpanIds: Set<string>; // selected + ancestors (pre-computed)
+  condensedTimelineZoom: number;
 }
 
 interface TraceViewStoreActions {
@@ -138,10 +144,17 @@ interface TraceViewStoreActions {
   deleteSpanTemplate: (spanPathKey: string) => void;
   setShowTreeContent: (show: boolean) => void;
 
+  // Condensed timeline actions
+  setCondensedTimelineEnabled: (enabled: boolean) => void;
+  setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => void;
+  clearCondensedTimelineSelection: () => void;
+  setCondensedTimelineZoom: (type: "in" | "out") => void;
+
   incrementSessionTime: (increment: number, maxTime: number) => boolean;
   // Selectors
   getTreeSpans: () => TreeSpan[];
   getTimelineData: () => TimelineData;
+  getCondensedTimelineData: () => CondensedTimelineData;
   getMinimapSpans: () => MinimapSpan[];
   getListMinimapSpans: () => MinimapSpan[];
   getListData: () => TraceViewListSpan[];
@@ -180,6 +193,9 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         spanTemplates: {},
         spanPathCounts: new Map(),
         showTreeContent: true,
+        condensedTimelineEnabled: false,
+        condensedTimelineVisibleSpanIds: new Set(),
+        condensedTimelineZoom: 1,
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         setTrace: (trace) => {
@@ -212,34 +228,71 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         },
         setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
         getTreeSpans: () => {
-          const spans = get().spans;
-          const pathInfoMap = computePathInfoMap(spans);
-          return transformSpansToTree(spans, pathInfoMap);
+          const { spans, condensedTimelineVisibleSpanIds } = get();
+
+          // If no selection, show all spans
+          const filteredSpans =
+            condensedTimelineVisibleSpanIds.size === 0
+              ? spans
+              : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+
+          const pathInfoMap = computePathInfoMap(filteredSpans);
+          return transformSpansToTree(filteredSpans, pathInfoMap);
         },
         getMinimapSpans: () => {
-          const trace = get().trace;
+          const { trace, spans, condensedTimelineVisibleSpanIds } = get();
           if (trace) {
             const startTime = new Date(trace.startTime).getTime();
             const endTime = new Date(trace.endTime).getTime();
-            return transformSpansToMinimap(get().spans, endTime - startTime);
+
+            const filteredSpans =
+              condensedTimelineVisibleSpanIds.size === 0
+                ? spans
+                : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+
+            return transformSpansToMinimap(filteredSpans, endTime - startTime);
           }
           return [];
         },
         getListMinimapSpans: () => {
-          const trace = get().trace;
-          const spans = get().spans;
+          const { trace, spans, condensedTimelineVisibleSpanIds } = get();
           if (trace) {
             const startTime = new Date(trace.startTime).getTime();
             const endTime = new Date(trace.endTime).getTime();
-            const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
+
+            // First filter by condensed timeline selection
+            const selectionFilteredSpans =
+              condensedTimelineVisibleSpanIds.size === 0
+                ? spans
+                : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+
+            // Then apply DEFAULT filter for list view
+            const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
             return transformSpansToFlatMinimap(listSpans, endTime - startTime);
           }
           return [];
         },
-        getTimelineData: () => transformSpansToTimeline(get().spans),
+        getTimelineData: () => {
+          const { spans, condensedTimelineVisibleSpanIds } = get();
+
+          const filteredSpans =
+            condensedTimelineVisibleSpanIds.size === 0
+              ? spans
+              : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+
+          return transformSpansToTimeline(filteredSpans);
+        },
         getListData: () => {
-          const spans = get().spans;
-          const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
+          const { spans, condensedTimelineVisibleSpanIds } = get();
+
+          // First filter by condensed timeline selection if active
+          const selectionFilteredSpans =
+            condensedTimelineVisibleSpanIds.size === 0
+              ? spans
+              : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+
+          // Then apply existing DEFAULT filter (removes ancestor clutter)
+          const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
           const pathInfoMap = computePathInfoMap(spans);
 
           const lightweightListSpans: TraceViewListSpan[] = listSpans.map((span) => ({
@@ -297,6 +350,17 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
           });
         },
         setShowTreeContent: (showTreeContent: boolean) => set({ showTreeContent }),
+        setCondensedTimelineEnabled: (enabled: boolean) => set({ condensedTimelineEnabled: enabled }),
+        setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => set({ condensedTimelineVisibleSpanIds: ids }),
+        clearCondensedTimelineSelection: () => set({ condensedTimelineVisibleSpanIds: new Set() }),
+        setCondensedTimelineZoom: (type) => {
+          const condensedTimelineZoom =
+            type === "in"
+              ? Math.min(get().condensedTimelineZoom + ZOOM_INCREMENT, MAX_ZOOM)
+              : Math.max(get().condensedTimelineZoom - ZOOM_INCREMENT, MIN_ZOOM);
+          set({ condensedTimelineZoom });
+        },
+        getCondensedTimelineData: () => transformSpansToCondensedTimeline(get().spans),
         setZoom: (type) => {
           const zoom =
             type === "in"
@@ -408,6 +472,8 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
           spanTemplates: state.spanTemplates,
           tab: state.tab,
           showTreeContent: state.showTreeContent,
+          condensedTimelineEnabled: state.condensedTimelineEnabled,
+          condensedTimelineZoom: state.condensedTimelineZoom,
         }),
       }
     )

@@ -464,3 +464,227 @@ export const buildPathInfo = (
     full: parentChain,
   };
 };
+
+// ============================================================================
+// Condensed Timeline Types and Functions
+// ============================================================================
+
+export interface CondensedTimelineSpan {
+  span: TraceViewSpan;
+  left: number; // percentage (0-100)
+  width: number; // percentage (0-100)
+  row: number; // computed row after gravity
+  originalDepth: number; // tree depth before condensing
+  parentSpanId?: string;
+}
+
+export interface CondensedTimelineData {
+  spans: CondensedTimelineSpan[];
+  startTime: number;
+  endTime: number;
+  totalRows: number;
+  timelineWidthInMilliseconds: number;
+  timeIntervals: string[];
+}
+
+/**
+ * Computes the visible span IDs by adding all ancestors of selected spans.
+ * This ensures tree views maintain hierarchy when filtering.
+ */
+export const computeVisibleSpanIds = (
+  selectedIds: Set<string>,
+  spans: TraceViewSpan[]
+): Set<string> => {
+  if (selectedIds.size === 0) return new Set();
+
+  const visibleIds = new Set(selectedIds);
+  const spanMap = new Map(spans.map((s) => [s.spanId, s]));
+
+  // For each selected span, walk up to root adding ancestors
+  for (const spanId of selectedIds) {
+    let current = spanMap.get(spanId);
+    while (current?.parentSpanId) {
+      visibleIds.add(current.parentSpanId);
+      current = spanMap.get(current.parentSpanId);
+    }
+  }
+
+  return visibleIds;
+};
+
+/**
+ * Transforms spans into a condensed timeline layout using a gravity algorithm.
+ * Spans are compacted vertically while maintaining the parent-child hierarchy invariant
+ * (children never appear above their parents).
+ */
+export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): CondensedTimelineData => {
+  if (spans.length === 0) {
+    return {
+      spans: [],
+      startTime: 0,
+      endTime: 0,
+      totalRows: 0,
+      timelineWidthInMilliseconds: 0,
+      timeIntervals: [],
+    };
+  }
+
+  // Calculate time bounds
+  let startTime = Infinity;
+  let endTime = -Infinity;
+
+  for (const span of spans) {
+    startTime = Math.min(startTime, new Date(span.startTime).getTime());
+    endTime = Math.max(endTime, new Date(span.endTime).getTime());
+  }
+
+  const totalDuration = endTime - startTime;
+  const upperIntervalInSeconds = Math.ceil(totalDuration / 1000);
+  const unit = upperIntervalInSeconds / 10;
+
+  const timeIntervals: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    timeIntervals.push((i * unit).toFixed(2) + "s");
+  }
+
+  const upperIntervalInMilliseconds = upperIntervalInSeconds * 1000;
+
+  // Build parent lookup and compute original tree depths
+  const spanMap = new Map(spans.map((s) => [s.spanId, s]));
+  const childSpansMap = getChildSpansMap(spans);
+
+  // Compute original depths using DFS from root spans
+  const depthMap = new Map<string, number>();
+  const computeDepth = (spanId: string, depth: number) => {
+    depthMap.set(spanId, depth);
+    const children = childSpansMap[spanId] || [];
+    for (const child of children) {
+      computeDepth(child.spanId, depth + 1);
+    }
+  };
+
+  const topLevelSpans = spans.filter((span) => !span.parentSpanId);
+  for (const span of topLevelSpans) {
+    computeDepth(span.spanId, 0);
+  }
+
+  // Calculate positions for each span
+  const spansWithPosition: Array<{
+    span: TraceViewSpan;
+    left: number;
+    width: number;
+    originalDepth: number;
+    startMs: number;
+    endMs: number;
+  }> = [];
+
+  for (const span of spans) {
+    const spanStartMs = new Date(span.startTime).getTime();
+    const spanEndMs = new Date(span.endTime).getTime();
+    const spanDuration = spanEndMs - spanStartMs;
+
+    const left = ((spanStartMs - startTime) / upperIntervalInMilliseconds) * 100;
+    const width = (spanDuration / upperIntervalInMilliseconds) * 100;
+
+    spansWithPosition.push({
+      span,
+      left,
+      width: Math.max(width, 0.5), // Minimum width for visibility
+      originalDepth: depthMap.get(span.spanId) ?? 0,
+      startMs: spanStartMs,
+      endMs: spanEndMs,
+    });
+  }
+
+  // Use DFS order to process spans (parent before children) instead of sorting by start time
+  const orderedSpans: typeof spansWithPosition = [];
+  const visited = new Set<string>();
+
+  const dfsOrder = (spanId: string) => {
+    if (visited.has(spanId)) return;
+    visited.add(spanId);
+
+    const spanWithPos = spansWithPosition.find((s) => s.span.spanId === spanId);
+    if (spanWithPos) {
+      orderedSpans.push(spanWithPos);
+    }
+
+    // Process children in order
+    const children = childSpansMap[spanId] || [];
+    for (const child of children) {
+      dfsOrder(child.spanId);
+    }
+  };
+
+  // Start from top-level spans
+  for (const span of topLevelSpans) {
+    dfsOrder(span.spanId);
+  }
+
+  // Gravity algorithm: compact spans upward while respecting parent-child invariant
+  const rowAssignments = new Map<string, number>();
+  const rowOccupancy: Array<Array<{ left: number; right: number; spanId: string }>> = [];
+
+  // Helper to check if a span overlaps with any existing span in a row
+  const hasOverlap = (row: number, left: number, right: number, excludeSpanId?: string): boolean => {
+    if (!rowOccupancy[row]) return false;
+    return rowOccupancy[row].some(
+      (occupant) => occupant.spanId !== excludeSpanId && !(right <= occupant.left || left >= occupant.right)
+    );
+  };
+
+  // Helper to get parent's row (returns -1 if no parent)
+  const getParentRow = (spanId: string): number => {
+    const span = spanMap.get(spanId);
+    if (!span?.parentSpanId) return -1;
+    return rowAssignments.get(span.parentSpanId) ?? -1;
+  };
+
+  for (const item of orderedSpans) {
+    const parentRow = getParentRow(item.span.spanId);
+    const minRow = parentRow + 1; // Child must be at least one row below parent
+
+    // Find the lowest valid row (closest to top)
+    let targetRow = minRow;
+    const leftBound = item.left;
+    const rightBound = item.left + item.width;
+
+    while (hasOverlap(targetRow, leftBound, rightBound)) {
+      targetRow++;
+    }
+
+    // Assign the row
+    rowAssignments.set(item.span.spanId, targetRow);
+
+    // Mark the row as occupied
+    if (!rowOccupancy[targetRow]) {
+      rowOccupancy[targetRow] = [];
+    }
+    rowOccupancy[targetRow].push({
+      left: leftBound,
+      right: rightBound,
+      spanId: item.span.spanId,
+    });
+  }
+
+  // Build final result
+  const condensedSpans: CondensedTimelineSpan[] = orderedSpans.map((item) => ({
+    span: item.span,
+    left: item.left,
+    width: item.width,
+    row: rowAssignments.get(item.span.spanId) ?? 0,
+    originalDepth: item.originalDepth,
+    parentSpanId: item.span.parentSpanId,
+  }));
+
+  const totalRows = rowOccupancy.length;
+
+  return {
+    spans: condensedSpans,
+    startTime,
+    endTime,
+    totalRows,
+    timelineWidthInMilliseconds: upperIntervalInMilliseconds,
+    timeIntervals,
+  };
+};

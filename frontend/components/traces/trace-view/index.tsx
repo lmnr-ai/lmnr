@@ -38,6 +38,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/r
 import SessionPlayer from "../session-player";
 import { SpanView } from "../span-view";
 import Chat from "./chat";
+import CondensedTimeline from "./condensed-timeline";
 import { ScrollContextProvider } from "./scroll-context";
 import Timeline from "./timeline";
 import Tree from "./tree";
@@ -105,6 +106,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     getHasLangGraph,
     hasBrowserSession,
     setHasBrowserSession,
+    condensedTimelineEnabled,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
     setTab: state.setTab,
@@ -121,6 +123,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     getHasLangGraph: state.getHasLangGraph,
     hasBrowserSession: state.hasBrowserSession,
     setHasBrowserSession: state.setHasBrowserSession,
+    condensedTimelineEnabled: state.condensedTimelineEnabled,
   }));
 
   // Local storage states
@@ -476,8 +479,14 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
           ) : (
-            <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
-              <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {condensedTimelineEnabled && (
+                <div className="h-[30%] min-h-[120px] max-h-[200px] border-b shrink-0">
+                  <CondensedTimeline />
+                </div>
+              )}
+              <ResizablePanelGroup id="trace-view-panels" orientation="vertical" className="flex-1 min-h-0">
+                <ResizablePanel defaultSize={100} minSize={20} className="flex flex-col overflow-hidden relative">
                 {tab === "metadata" && trace && <Metadata trace={trace} />}
                 {tab === "chat" && trace && (
                   <Chat
@@ -520,7 +529,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 </>
               )}
               {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
-            </ResizablePanelGroup>
+              </ResizablePanelGroup>
+            </div>
           )}
           <div
             className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
