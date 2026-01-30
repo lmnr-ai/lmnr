@@ -1,4 +1,3 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { CirclePlay, Eye, EyeOff, GanttChart, List, ListTree, SlidersHorizontal } from "lucide-react";
 
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
@@ -10,7 +9,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils.ts";
 
 export default function ViewSelect() {
@@ -98,42 +96,30 @@ export default function ViewSelect() {
         </DropdownMenu>
       </div>
 
-      <div className="flex items-center gap-x-0.5">
-        {/* Timeline toggle */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={() => setCondensedTimelineEnabled(!condensedTimelineEnabled)}
-              variant="ghost"
-              className={cn("h-6 px-1.5", {
-                "text-primary": condensedTimelineEnabled,
-              })}
-            >
-              <GanttChart size={14} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent>{condensedTimelineEnabled ? "Hide Timeline" : "Show Timeline"}</TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
+      <div className="flex items-center gap-1">
         {/* Session toggle */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              disabled={!trace}
-              className={cn("h-6 px-1.5", {
-                "text-primary": browserSession,
-              })}
-              variant="ghost"
-              onClick={() => setBrowserSession(!browserSession)}
-            >
-              <CirclePlay size={14} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent>{browserSession ? "Hide Media Viewer" : "Show Media Viewer"}</TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
+        <Button
+          disabled={!trace}
+          className={cn("h-6 px-1.5 text-xs", {
+            "text-primary": browserSession,
+          })}
+          variant="ghost"
+          onClick={() => setBrowserSession(!browserSession)}
+        >
+          <CirclePlay size={14} className="mr-1" />
+          Media
+        </Button>
+        {/* Timeline toggle */}
+        <Button
+          onClick={() => setCondensedTimelineEnabled(!condensedTimelineEnabled)}
+          variant="ghost"
+          className={cn("h-6 px-1.5 text-xs", {
+            "text-primary": condensedTimelineEnabled,
+          })}
+        >
+          <GanttChart size={14} className="mr-1" />
+          Timeline
+        </Button>
         {/* LangGraph toggle */}
         {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
       </div>
