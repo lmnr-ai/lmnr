@@ -40,7 +40,7 @@ const CondensedTimelineElement = ({ condensedSpan, selectedSpan, onClick }: Cond
       <TooltipTrigger asChild>
         <div
           className={cn("absolute rounded-xs cursor-pointer", "hover:brightness-110", {
-            "ring-1 ring-white z-20": isSelected,
+            "ring ring-white z-20": isSelected,
           })}
           style={{
             left: `${left}%`,

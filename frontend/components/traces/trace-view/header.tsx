@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChartNoAxesGantt, ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Copy, Database, Expand, Loader } from "lucide-react";
+import { ChevronDown, ChevronsRight, ChevronUp, CirclePlay, Copy, Database, Expand, Loader } from "lucide-react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useMemo } from "react";
@@ -33,8 +33,6 @@ const Header = ({ handleClose }: HeaderProps) => {
     langGraph,
     setLangGraph,
     getHasLangGraph,
-    condensedTimelineEnabled,
-    setCondensedTimelineEnabled,
   } = useTraceViewStoreContext((state) => ({
     trace: state.trace,
     browserSession: state.browserSession,
@@ -42,8 +40,6 @@ const Header = ({ handleClose }: HeaderProps) => {
     langGraph: state.langGraph,
     setLangGraph: state.setLangGraph,
     getHasLangGraph: state.getHasLangGraph,
-    condensedTimelineEnabled: state.condensedTimelineEnabled,
-    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
   }));
 
   const { toast } = useToast();
@@ -140,23 +136,6 @@ const Header = ({ handleClose }: HeaderProps) => {
             </Tooltip>
           </>
         )}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              disabled={!trace}
-              className="hover:bg-secondary px-1.5"
-              variant="ghost"
-              onClick={() => setCondensedTimelineEnabled(!condensedTimelineEnabled)}
-            >
-              <ChartNoAxesGantt className={cn("w-4 h-4", { "text-primary": condensedTimelineEnabled })} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent>
-              {condensedTimelineEnabled ? "Hide Condensed Timeline" : "Show Condensed Timeline"}
-            </TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

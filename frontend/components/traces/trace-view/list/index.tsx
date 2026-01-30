@@ -37,10 +37,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
   const prevVisibleIdsRef = useRef<string>("");
   const [settingsSpan, setSettingsSpan] = useState<TraceViewListSpan | null>(null);
 
-  const listSpans = useMemo(
-    () => getListData(),
-    [getListData, spans, condensedTimelineVisibleSpanIds]
-  );
+  const listSpans = useMemo(() => getListData(), [getListData, spans, condensedTimelineVisibleSpanIds]);
 
   const virtualizer = useVirtualizer({
     count: listSpans.length,
@@ -193,6 +190,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
               return (
                 <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
                   <ListItem
+                    isFirst={virtualRow.index === 0}
                     isLast={isLast}
                     span={listSpan}
                     output={outputs[listSpan.spanId]}

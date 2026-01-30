@@ -480,55 +480,66 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             </div>
           ) : (
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              {condensedTimelineEnabled && (
-                <div className="h-[30%] min-h-[120px] max-h-[200px] border-b shrink-0">
-                  <CondensedTimeline />
-                </div>
-              )}
-              <ResizablePanelGroup id="trace-view-panels" orientation="vertical" className="flex-1 min-h-0">
-                <ResizablePanel defaultSize={100} minSize={20} className="flex flex-col overflow-hidden relative">
-                {tab === "metadata" && trace && <Metadata trace={trace} />}
-                {tab === "chat" && trace && (
-                  <Chat
-                    trace={trace}
-                    onSetSpanId={(spanId) => {
-                      const span = spans.find((span) => span.spanId === spanId);
-                      if (span) {
-                        handleSpanSelect(span);
-                      }
-                    }}
-                  />
+              <ResizablePanelGroup
+                id={condensedTimelineEnabled ? "trace-view-panels-with-timeline" : "trace-view-panels"}
+                orientation="vertical"
+                className="flex-1 min-h-0"
+              >
+                {condensedTimelineEnabled && (
+                  <>
+                    <ResizablePanel
+                      id="condensed-timeline"
+                      minSize={20}
+                      className="flex flex-col overflow-hidden relative"
+                    >
+                      <CondensedTimeline />
+                    </ResizablePanel>
+                    <ResizableHandle />
+                  </>
                 )}
-                {tab === "timeline" && <Timeline />}
-                {tab === "reader" && (
-                  <div className="flex flex-1 h-full overflow-hidden relative">
-                    <List traceId={traceId} onSpanSelect={handleSpanSelect} />
-                    <Minimap onSpanSelect={handleSpanSelect} />
-                  </div>
+                <ResizablePanel id="main-content" minSize={20} className="flex flex-col overflow-hidden relative">
+                  {tab === "metadata" && trace && <Metadata trace={trace} />}
+                  {tab === "chat" && trace && (
+                    <Chat
+                      trace={trace}
+                      onSetSpanId={(spanId) => {
+                        const span = spans.find((span) => span.spanId === spanId);
+                        if (span) {
+                          handleSpanSelect(span);
+                        }
+                      }}
+                    />
+                  )}
+                  {tab === "timeline" && <Timeline />}
+                  {tab === "reader" && (
+                    <div className="flex flex-1 h-full overflow-hidden relative">
+                      <List traceId={traceId} onSpanSelect={handleSpanSelect} />
+                      <Minimap onSpanSelect={handleSpanSelect} />
+                    </div>
+                  )}
+                  {tab === "tree" && (
+                    <div className="flex flex-1 h-full overflow-hidden relative">
+                      <Tree traceId={traceId} onSpanSelect={handleSpanSelect} />
+                      <Minimap onSpanSelect={handleSpanSelect} />
+                    </div>
+                  )}
+                </ResizablePanel>
+                {browserSession && (
+                  <>
+                    <ResizableHandle className="z-50" withHandle />
+                    <ResizablePanel>
+                      {!isLoading && (
+                        <SessionPlayer
+                          onClose={() => setBrowserSession(false)}
+                          hasBrowserSession={hasBrowserSession}
+                          traceId={traceId}
+                          llmSpanIds={llmSpanIds}
+                        />
+                      )}
+                    </ResizablePanel>
+                  </>
                 )}
-                {tab === "tree" && (
-                  <div className="flex flex-1 h-full overflow-hidden relative">
-                    <Tree traceId={traceId} onSpanSelect={handleSpanSelect} />
-                    <Minimap onSpanSelect={handleSpanSelect} />
-                  </div>
-                )}
-              </ResizablePanel>
-              {browserSession && (
-                <>
-                  <ResizableHandle className="z-50" withHandle />
-                  <ResizablePanel>
-                    {!isLoading && (
-                      <SessionPlayer
-                        onClose={() => setBrowserSession(false)}
-                        hasBrowserSession={hasBrowserSession}
-                        traceId={traceId}
-                        llmSpanIds={llmSpanIds}
-                      />
-                    )}
-                  </ResizablePanel>
-                </>
-              )}
-              {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
+                {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
               </ResizablePanelGroup>
             </div>
           )}

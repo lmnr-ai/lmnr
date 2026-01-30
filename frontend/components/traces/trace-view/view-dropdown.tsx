@@ -1,4 +1,4 @@
-import { ChartNoAxesGantt, ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
+import { AlignLeft, ChartNoAxesGantt, ChevronDown, GanttChart, List, ListTree, type LucideIcon } from "lucide-react";
 
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import {
@@ -35,11 +35,13 @@ const viewOptions: Record<
 const viewTabs: ViewTab[] = ["tree", "timeline", "reader"];
 
 export default function ViewDropdown() {
-  const { tab, setTab, showTreeContent, setShowTreeContent } = useTraceViewStoreContext((state) => ({
+  const { tab, setTab, showTreeContent, setShowTreeContent, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
     setTab: state.setTab,
     showTreeContent: state.showTreeContent,
     setShowTreeContent: state.setShowTreeContent,
+    condensedTimelineEnabled: state.condensedTimelineEnabled,
+    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
   }));
 
   const isValidTab = viewTabs.includes(tab as ViewTab);
@@ -48,6 +50,8 @@ export default function ViewDropdown() {
   const CurrentIcon = currentView.icon;
 
   const isTreeView = tab === "tree";
+  const isReaderView = tab === "reader";
+  const showTimelineToggle = isTreeView || isReaderView;
   const contentVisible = showTreeContent ?? true;
 
   return (
@@ -56,9 +60,9 @@ export default function ViewDropdown() {
         <DropdownMenuTrigger asChild>
           <button
             className={cn(
-              "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0",
+              "flex items-center h-6 px-1.5 text-xs border bg-background focus-visible:outline-0",
               isValidTab ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary/50",
-              isTreeView && "rounded-r-none border-r-0 outline-1 outline-inset outline-primary -outline-offset-1"
+              showTimelineToggle ? "rounded-l-md rounded-r-none border-r-primary" : "rounded-md"
             )}
           >
             <CurrentIcon size={14} className="mr-1" />
@@ -79,16 +83,29 @@ export default function ViewDropdown() {
           })}
         </DropdownMenuContent>
       </DropdownMenu>
+      {showTimelineToggle && (
+        <button
+          onClick={() => setCondensedTimelineEnabled(!condensedTimelineEnabled)}
+          className={cn(
+            "flex items-center h-6 px-1.5 text-xs border border-l-0 bg-background",
+            isTreeView ? "rounded-none" : "rounded-r-md",
+            condensedTimelineEnabled ? "border-primary text-primary hover:bg-primary/10" : "border-input hover:bg-secondary/50"
+          )}
+        >
+          <GanttChart size={14} />
+          <span className="ml-1">Timeline</span>
+        </button>
+      )}
       {isTreeView && (
         <button
           onClick={() => setShowTreeContent(!contentVisible)}
           className={cn(
-            "flex items-center h-6 px-1.5 text-xs border border-l-0 rounded-md rounded-l-none bg-background",
+            "flex items-center h-6 px-1.5 text-xs border border-l-0 rounded-r-md bg-background",
             contentVisible ? "border-primary text-primary hover:bg-primary/10" : "border-input hover:bg-secondary/50"
           )}
         >
-          {contentVisible ? <Eye size={14} className="mr-1" /> : <EyeOff size={14} className="mr-1" />}
-          <span>Content</span>
+          <AlignLeft size={14} />
+          <span className="ml-1">Content</span>
         </button>
       )}
     </div>

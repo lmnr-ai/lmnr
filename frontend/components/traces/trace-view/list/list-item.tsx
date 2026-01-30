@@ -19,10 +19,11 @@ interface ListItemProps {
   output: any | undefined;
   onSpanSelect: (span: TraceViewListSpan) => void;
   onOpenSettings: (span: TraceViewListSpan) => void;
+  isFirst: boolean;
   isLast: boolean;
 }
 
-const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isLast = false }: ListItemProps) => {
+const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
   const selectedSpan = useTraceViewStoreContext((state) => state.selectedSpan);
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
@@ -48,7 +49,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isLast = false }
           ? "bg-primary/5 border-l-4 border-l-primary"
           : "border-l-4 border-l-transparent",
         {
-          "border-t pt-1": span.spanType === "LLM",
+          "border-t pt-1": span.spanType === "LLM" && !isFirst,
           "pb-1": isLast,
         }
       )}

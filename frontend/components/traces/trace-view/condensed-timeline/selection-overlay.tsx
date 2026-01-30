@@ -35,105 +35,113 @@ const SelectionOverlay = ({
   const startPos = useRef<{ x: number; y: number } | null>(null);
   const clickedSpanId = useRef<string | null>(null);
 
-  const getRelativePosition = useCallback((e: React.MouseEvent): { x: number; y: number } => {
-    if (!containerRef.current) return { x: 0, y: 0 };
-    const rect = containerRef.current.getBoundingClientRect();
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    };
-  }, [containerRef]);
+  const getRelativePosition = useCallback(
+    (e: React.MouseEvent): { x: number; y: number } => {
+      if (!containerRef.current) return { x: 0, y: 0 };
+      const rect = containerRef.current.getBoundingClientRect();
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
+    },
+    [containerRef]
+  );
 
-  const findSpanAtPosition = useCallback((x: number, y: number): string | null => {
-    if (!containerRef.current) return null;
-    const containerWidth = containerRef.current.clientWidth;
+  const findSpanAtPosition = useCallback(
+    (x: number, y: number): string | null => {
+      if (!containerRef.current) return null;
+      const containerWidth = containerRef.current.clientWidth;
 
-    for (const span of spans) {
-      const spanLeft = (span.left / 100) * containerWidth;
-      const spanWidth = Math.max((span.width / 100) * containerWidth, 4);
-      const spanTop = span.row * ROW_HEIGHT + 1;
-      const spanHeight = ROW_HEIGHT - 2;
+      for (const span of spans) {
+        const spanLeft = (span.left / 100) * containerWidth;
+        const spanWidth = Math.max((span.width / 100) * containerWidth, 4);
+        const spanTop = span.row * ROW_HEIGHT + 1;
+        const spanHeight = ROW_HEIGHT - 2;
 
-      if (
-        x >= spanLeft &&
-        x <= spanLeft + spanWidth &&
-        y >= spanTop &&
-        y <= spanTop + spanHeight
-      ) {
-        return span.span.spanId;
+        if (x >= spanLeft && x <= spanLeft + spanWidth && y >= spanTop && y <= spanTop + spanHeight) {
+          return span.span.spanId;
+        }
       }
-    }
-    return null;
-  }, [spans, containerRef]);
+      return null;
+    },
+    [spans, containerRef]
+  );
 
-  const findSpansInRect = useCallback((rect: SelectionRect): Set<string> => {
-    if (!containerRef.current) return new Set();
-    const containerWidth = containerRef.current.clientWidth;
+  const findSpansInRect = useCallback(
+    (rect: SelectionRect): Set<string> => {
+      if (!containerRef.current) return new Set();
+      const containerWidth = containerRef.current.clientWidth;
 
-    const minX = Math.min(rect.startX, rect.endX);
-    const maxX = Math.max(rect.startX, rect.endX);
-    const minY = Math.min(rect.startY, rect.endY);
-    const maxY = Math.max(rect.startY, rect.endY);
+      const minX = Math.min(rect.startX, rect.endX);
+      const maxX = Math.max(rect.startX, rect.endX);
+      const minY = Math.min(rect.startY, rect.endY);
+      const maxY = Math.max(rect.startY, rect.endY);
 
-    const selectedIds = new Set<string>();
+      const selectedIds = new Set<string>();
 
-    for (const span of spans) {
-      const spanLeft = (span.left / 100) * containerWidth;
-      const spanWidth = Math.max((span.width / 100) * containerWidth, 4);
-      const spanTop = span.row * ROW_HEIGHT + 1;
-      const spanHeight = ROW_HEIGHT - 2;
+      for (const span of spans) {
+        const spanLeft = (span.left / 100) * containerWidth;
+        const spanWidth = Math.max((span.width / 100) * containerWidth, 4);
+        const spanTop = span.row * ROW_HEIGHT + 1;
+        const spanHeight = ROW_HEIGHT - 2;
 
-      // Check for intersection
-      const intersects =
-        spanLeft < maxX &&
-        spanLeft + spanWidth > minX &&
-        spanTop < maxY &&
-        spanTop + spanHeight > minY;
+        // Check for intersection
+        const intersects =
+          spanLeft < maxX && spanLeft + spanWidth > minX && spanTop < maxY && spanTop + spanHeight > minY;
 
-      if (intersects) {
-        selectedIds.add(span.span.spanId);
+        if (intersects) {
+          selectedIds.add(span.span.spanId);
+        }
       }
-    }
 
-    return selectedIds;
-  }, [spans, containerRef]);
+      return selectedIds;
+    },
+    [spans, containerRef]
+  );
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return; // Only left click
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return; // Only left click
 
-    const pos = getRelativePosition(e);
-    startPos.current = pos;
-    clickedSpanId.current = findSpanAtPosition(pos.x, pos.y);
-    setState("pending");
-    setSelectionRect({
-      startX: pos.x,
-      startY: pos.y,
-      endX: pos.x,
-      endY: pos.y,
-    });
-  }, [getRelativePosition, findSpanAtPosition]);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (state === "idle" || !startPos.current) return;
-
-    const pos = getRelativePosition(e);
-    const distance = Math.sqrt(
-      Math.pow(pos.x - startPos.current.x, 2) +
-      Math.pow(pos.y - startPos.current.y, 2)
-    );
-
-    if (state === "pending" && distance > DRAG_THRESHOLD) {
-      setState("dragging");
-    }
-
-    if (state === "pending" || state === "dragging") {
-      setSelectionRect((prev) => prev ? {
-        ...prev,
+      const pos = getRelativePosition(e);
+      startPos.current = pos;
+      clickedSpanId.current = findSpanAtPosition(pos.x, pos.y);
+      setState("pending");
+      setSelectionRect({
+        startX: pos.x,
+        startY: pos.y,
         endX: pos.x,
         endY: pos.y,
-      } : null);
-    }
-  }, [state, getRelativePosition]);
+      });
+    },
+    [getRelativePosition, findSpanAtPosition]
+  );
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (state === "idle" || !startPos.current) return;
+
+      const pos = getRelativePosition(e);
+      const distance = Math.sqrt(Math.pow(pos.x - startPos.current.x, 2) + Math.pow(pos.y - startPos.current.y, 2));
+
+      if (state === "pending" && distance > DRAG_THRESHOLD) {
+        setState("dragging");
+      }
+
+      if (state === "pending" || state === "dragging") {
+        setSelectionRect((prev) =>
+          prev
+            ? {
+                ...prev,
+                endX: pos.x,
+                endY: pos.y,
+              }
+            : null
+        );
+      }
+    },
+    [state, getRelativePosition]
+  );
 
   const handleMouseUp = useCallback(() => {
     if (state === "pending") {
@@ -170,12 +178,15 @@ const SelectionOverlay = ({
   }, [state, selectionRect, findSpansInRect, onSelectionComplete]);
 
   // Calculate selection rectangle display
-  const displayRect = selectionRect && state === "dragging" ? {
-    left: Math.min(selectionRect.startX, selectionRect.endX),
-    top: Math.min(selectionRect.startY, selectionRect.endY),
-    width: Math.abs(selectionRect.endX - selectionRect.startX),
-    height: Math.abs(selectionRect.endY - selectionRect.startY),
-  } : null;
+  const displayRect =
+    selectionRect && state === "dragging"
+      ? {
+          left: Math.min(selectionRect.startX, selectionRect.endX),
+          top: Math.min(selectionRect.startY, selectionRect.endY),
+          width: Math.abs(selectionRect.endX - selectionRect.startX),
+          height: Math.abs(selectionRect.endY - selectionRect.startY),
+        }
+      : null;
 
   return (
     <div
@@ -188,7 +199,7 @@ const SelectionOverlay = ({
     >
       {displayRect && (
         <div
-          className="absolute bg-primary/20 border border-primary/50 rounded pointer-events-none"
+          className="absolute bg-primary/20 border border-primary/50 pointer-events-none"
           style={{
             left: displayRect.left,
             top: displayRect.top,

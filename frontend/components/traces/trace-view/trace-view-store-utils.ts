@@ -484,7 +484,7 @@ export interface CondensedTimelineData {
   endTime: number;
   totalRows: number;
   timelineWidthInMilliseconds: number;
-  timeIntervals: string[];
+  totalDurationMs: number;
 }
 
 /**
@@ -525,7 +525,7 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
       endTime: 0,
       totalRows: 0,
       timelineWidthInMilliseconds: 0,
-      timeIntervals: [],
+      totalDurationMs: 0,
     };
   }
 
@@ -540,13 +540,6 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
 
   const totalDuration = endTime - startTime;
   const upperIntervalInSeconds = Math.ceil(totalDuration / 1000);
-  const unit = upperIntervalInSeconds / 10;
-
-  const timeIntervals: string[] = [];
-  for (let i = 0; i < 10; i++) {
-    timeIntervals.push((i * unit).toFixed(2) + "s");
-  }
-
   const upperIntervalInMilliseconds = upperIntervalInSeconds * 1000;
 
   // Build parent lookup and compute original tree depths
@@ -685,6 +678,6 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
     endTime,
     totalRows,
     timelineWidthInMilliseconds: upperIntervalInMilliseconds,
-    timeIntervals,
+    totalDurationMs: totalDuration,
   };
 };
