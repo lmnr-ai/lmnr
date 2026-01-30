@@ -1,108 +1,49 @@
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 
-import BaseAutocomplete from "@/components/common/autocomplete/base-autocomplete.tsx";
-import { extractSpanSuggestions, STATIC_SPAN_SUGGESTIONS } from "@/components/traces/trace-view/search/utils.ts";
-import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
-import { type Filter } from "@/lib/actions/common/filters.ts";
-import { Operator } from "@/lib/actions/common/operators.ts";
+import AdvancedSearch from "@/components/common/advanced-search";
+import { extractSpanSuggestions, STATIC_SPAN_SUGGESTIONS } from "@/components/traces/trace-view/search/utils";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store";
+import { filterColumns } from "@/components/traces/trace-view/utils";
+import { type Filter } from "@/lib/actions/common/filters";
 
-interface SearchTraceSpansInputProps {
+interface TraceViewSearchProps {
   spans: TraceViewSpan[];
-  submit: (search: string, filters: Filter[]) => Promise<void>;
-  filters: Filter[];
-  onAddFilter: (filter: Filter) => void;
+  onSubmit: (filters: Filter[], search: string) => void;
 }
 
-const MAX_SUGGESTIONS = 15;
-
-const SearchTraceSpansInput = ({ spans, submit, filters, onAddFilter }: SearchTraceSpansInputProps) => {
-  const { storeSearch, setSearch } = useTraceViewStoreContext((state) => ({
-    storeSearch: state.search,
-    setSearch: state.setSearch,
-  }));
-
-  const [localSearch, setLocalSearch] = useState(storeSearch);
-  const lastSubmittedValueRef = useRef<string>(storeSearch);
-
-  const dynamicSuggestions = useMemo(() => extractSpanSuggestions(spans), [spans]);
-
-  const filteredSuggestions = useMemo(() => {
-    const searchTerm = localSearch.trim().toLowerCase();
-    const MAX_PER_CATEGORY = 3;
-    const byCategory = new Map<string, AutocompleteSuggestion[]>();
-
+const TraceViewSearch = ({ spans, onSubmit }: TraceViewSearchProps) => {
+  const suggestions = useMemo(() => {
+    const dynamicSuggestions = extractSpanSuggestions(spans);
     const allSuggestions = [...dynamicSuggestions, ...STATIC_SPAN_SUGGESTIONS];
 
+    const map = new Map<string, string[]>();
     for (const suggestion of allSuggestions) {
-      const matches =
-        !searchTerm ||
-        suggestion.value.toLowerCase().includes(searchTerm) ||
-        suggestion.field.toLowerCase().includes(searchTerm);
-
-      if (!matches) continue;
-
-      const items = byCategory.get(suggestion.field);
-      if (!items) {
-        byCategory.set(suggestion.field, [suggestion]);
-      } else if (items.length < MAX_PER_CATEGORY) {
-        items.push(suggestion);
+      const existing = map.get(suggestion.field) || [];
+      if (!existing.includes(suggestion.value)) {
+        existing.push(suggestion.value);
       }
+      map.set(suggestion.field, existing);
     }
-
-    const results = Array.from(byCategory.values()).flat();
-
-    if (searchTerm) {
-      results.push({ field: "search", value: localSearch.trim() });
-    }
-
-    return results.slice(0, MAX_SUGGESTIONS);
-  }, [localSearch, dynamicSuggestions]);
-
-  const handleSubmit = useCallback(async () => {
-    if (localSearch !== lastSubmittedValueRef.current) {
-      lastSubmittedValueRef.current = localSearch;
-      setSearch(localSearch); // Only update store on submit
-      await submit(localSearch, filters);
-    }
-  }, [localSearch, submit, filters, setSearch]);
-
-  const handleSelect = useCallback(
-    async (suggestion: AutocompleteSuggestion) => {
-      if (suggestion.field === "search") {
-        lastSubmittedValueRef.current = suggestion.value;
-        setLocalSearch(suggestion.value);
-        setSearch(suggestion.value);
-        await submit(suggestion.value, filters);
-      } else {
-        lastSubmittedValueRef.current = "";
-        setLocalSearch("");
-        setSearch("");
-        const newFilter: Filter = {
-          column: suggestion.field,
-          operator: Operator.Eq,
-          value: suggestion.value,
-        };
-        onAddFilter(newFilter);
-      }
-    },
-    [submit, filters, onAddFilter, setSearch]
-  );
+    return map;
+  }, [spans]);
 
   return (
-    <div className="flex flex-col sticky bg-background z-40 box-border">
-      <BaseAutocomplete
-        suggestions={filteredSuggestions}
-        inputValue={localSearch}
-        onInputChange={setLocalSearch}
-        onSelect={handleSelect}
-        onSubmit={handleSubmit}
+    <div className="px-2 pb-0.5 py-1.5">
+      <AdvancedSearch
+        mode="state"
+        filters={filterColumns}
+        resource="spans"
+        value={{ filters: [], search: "" }}
+        onSubmit={onSubmit}
         placeholder="Search in spans..."
-        wrapperClassName="px-2 py-0.5 rounded-none border-0 border-b ring-0 bg-background not-focus-within:bg-background focus-within:ring-0"
-        listClassName="bg-background mt-0 w-[calc(100%_-_16px)] left-2 rounded-t-none border-t-0"
+        className="w-full"
+        options={{
+          suggestions,
+          disableHotKey: true,
+        }}
       />
     </div>
   );
 };
 
-export default memo(SearchTraceSpansInput);
+export default TraceViewSearch;

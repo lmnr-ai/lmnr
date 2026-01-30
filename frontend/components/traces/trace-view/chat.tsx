@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
-import { type TraceViewTrace, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { cn } from "@/lib/utils";
@@ -20,14 +20,12 @@ const EXAMPLE_QUESTIONS = [
 interface ChatProps {
   trace: TraceViewTrace;
   onSetSpanId: (spanId: string) => void;
+  onSearchSpans: (search: string) => void;
 }
 
-export default function Chat({ trace, onSetSpanId }: ChatProps) {
+export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
   const [input, setInput] = useState("");
   const [newChatLoading, setNewChatLoading] = useState(false);
-  const { setSearch } = useTraceViewStoreContext((state) => ({
-    setSearch: state.setSearch,
-  }));
   const projectId = useParams().projectId;
 
   // Resolve sequential span ID to UUID on-demand
@@ -96,7 +94,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
           return (
             <button
               onClick={async () => {
-                setSearch(unescapedReferenceText);
+                onSearchSpans(unescapedReferenceText);
                 const spanUuid = await resolveSpanId(spanId);
                 if (spanUuid) {
                   onSetSpanId(spanUuid);
@@ -113,7 +111,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),
-    [resolveSpanId, onSetSpanId, setSearch]
+    [resolveSpanId, onSetSpanId, onSearchSpans]
   );
 
   const { messages, sendMessage, setMessages, status } = useChat({

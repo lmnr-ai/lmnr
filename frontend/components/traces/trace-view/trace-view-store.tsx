@@ -100,13 +100,11 @@ interface TraceViewStoreState {
   spanPath: string[] | null;
   isSpansLoading: boolean;
   spansError?: string;
-  searchEnabled: boolean;
   selectedSpan?: TraceViewSpan;
   browserSession: boolean;
   langGraph: boolean;
   sessionTime?: number;
-  tab: "tree" | "timeline" | "chat" | "metadata" | "reader";
-  search: string;
+  tab: "tree" | "timeline" | "chat" | "reader";
   zoom: number;
   treeWidth: number;
   hasBrowserSession: boolean;
@@ -129,12 +127,10 @@ interface TraceViewStoreActions {
   setSelectedSpan: (span?: TraceViewSpan) => void;
   selectSpanById: (spanId: string) => void;
   setSpanPath: (spanPath: string[]) => void;
-  setSearchEnabled: (searchEnabled: boolean) => void;
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
   setSessionTime: (time?: number) => void;
   setTab: (tab: TraceViewStoreState["tab"]) => void;
-  setSearch: (search: string) => void;
   setTreeWidth: (width: number) => void;
   setZoom: (type: "in" | "out") => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
@@ -169,7 +165,7 @@ interface TraceViewStoreActions {
 
 type TraceViewStore = TraceViewStoreState & TraceViewStoreActions;
 
-const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTrace, storeKey?: string) =>
+const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) =>
   createStore<TraceViewStore>()(
     persist(
       (set, get) => ({
@@ -183,8 +179,6 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         browserSession: initialTrace?.hasBrowserSession || false,
         sessionTime: undefined,
         tab: "tree",
-        search: initialSearch || "",
-        searchEnabled: !!initialSearch,
         zoom: 1,
         treeWidth: MIN_TREE_VIEW_WIDTH,
         langGraph: false,
@@ -226,7 +220,6 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
             set({ spans: spans.map((s) => ({ ...s, collapsed: false })) });
           }
         },
-        setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
         getTreeSpans: () => {
           const { spans, condensedTimelineVisibleSpanIds } = get();
 
@@ -335,7 +328,6 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
           set({ sessionTime: newTime });
           return newTime >= maxTime;
         },
-        setSearch: (search) => set({ search }),
         setTreeWidth: (treeWidth) => set({ treeWidth }),
         saveSpanTemplate: (spanPathKey: string, template: string) => {
           set((state) => ({
@@ -466,15 +458,20 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
       }),
       {
         name: storeKey ?? "trace-view-state",
-        partialize: (state) => ({
-          treeWidth: state.treeWidth,
-          spanPath: state.spanPath,
-          spanTemplates: state.spanTemplates,
-          tab: state.tab,
-          showTreeContent: state.showTreeContent,
-          condensedTimelineEnabled: state.condensedTimelineEnabled,
-          condensedTimelineZoom: state.condensedTimelineZoom,
-        }),
+        partialize: (state) => {
+          const persistentTabs = ["tree", "timeline", "reader"] as const;
+          const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
+
+          return {
+            treeWidth: state.treeWidth,
+            spanPath: state.spanPath,
+            spanTemplates: state.spanTemplates,
+            ...(tabToPersist && { tab: tabToPersist }),
+            showTreeContent: state.showTreeContent,
+            condensedTimelineEnabled: state.condensedTimelineEnabled,
+            condensedTimelineZoom: state.condensedTimelineZoom,
+          };
+        },
       }
     )
   );
@@ -483,14 +480,13 @@ const TraceViewStoreContext = createContext<StoreApi<TraceViewStore> | undefined
 
 const TraceViewStoreProvider = ({
   children,
-  initialSearch,
   initialTrace,
   storeKey,
-}: PropsWithChildren<{ initialSearch?: string; initialTrace?: TraceViewTrace; storeKey?: string }>) => {
+}: PropsWithChildren<{ initialTrace?: TraceViewTrace; storeKey?: string }>) => {
   const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createTraceViewStore(initialSearch, initialTrace, storeKey);
+    storeRef.current = createTraceViewStore(initialTrace, storeKey);
   }
 
   return <TraceViewStoreContext.Provider value={storeRef.current}>{children}</TraceViewStoreContext.Provider>;

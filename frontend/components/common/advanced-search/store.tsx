@@ -91,7 +91,8 @@ const createAdvancedSearchStore = (
   initialTags: FilterTag[],
   initialSearch: string,
   mode: AdvancedSearchMode,
-  onSubmit?: (filters: Filter[], search: string) => void
+  onSubmit?: (filters: Filter[], search: string) => void,
+  suggestions?: Map<string, string[]>
 ) => {
   // Track last submitted state to avoid redundant submits
   let lastSubmitted = {
@@ -101,7 +102,7 @@ const createAdvancedSearchStore = (
 
   return createStore<AdvancedSearchStore>()((set, get) => ({
     // Initial state
-    autocompleteData: new Map(),
+    autocompleteData: suggestions || new Map(),
     tags: initialTags,
     inputValue: initialSearch,
     isOpen: false,
@@ -382,6 +383,7 @@ interface AdvancedSearchStoreProviderProps {
   initialFilters?: Filter[];
   initialSearch?: string;
   onSubmit?: (filters: Filter[], search: string) => void;
+  suggestions?: Map<string, string[]>;
 }
 
 export const AdvancedSearchStoreProvider = ({
@@ -391,6 +393,7 @@ export const AdvancedSearchStoreProvider = ({
   initialFilters = [],
   initialSearch = "",
   onSubmit,
+  suggestions,
 }: PropsWithChildren<AdvancedSearchStoreProviderProps>) => {
   const searchParams = useSearchParams();
 
@@ -436,7 +439,7 @@ export const AdvancedSearchStoreProvider = ({
   const tagHandlesRef = useRef<Map<string, FilterTagRef>>(new Map());
 
   if (!storeRef.current) {
-    storeRef.current = createAdvancedSearchStore(filters, tags, search, mode, onSubmit);
+    storeRef.current = createAdvancedSearchStore(filters, tags, search, mode, onSubmit, suggestions);
   }
 
   const refsValue = useMemo(() => ({ mainInputRef, tagHandlesRef }), []);
