@@ -1,0 +1,148 @@
+use async_trait::async_trait;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use uuid::Uuid;
+
+use crate::mq::MessageQueue;
+use crate::worker::HandlerError;
+use crate::worker_stateful::message_handler::StatefulMessageHandler;
+
+use super::ClusteringMessage;
+use super::queue::push_to_clustering_batch_queue;
+
+/// A batch of clustering messages with metadata for interval-based flushing
+#[derive(Clone)]
+pub struct ClusteringBatch {
+    pub messages: Vec<ClusteringMessage>,
+    pub last_flush: Instant,
+}
+
+impl ClusteringBatch {
+    pub fn new() -> Self {
+        Self {
+            messages: Vec::new(),
+            last_flush: Instant::now(),
+        }
+    }
+}
+
+pub struct BatchingConfig {
+    pub size: usize,
+    pub flush_interval: Duration,
+}
+
+pub struct ClusteringEventBatchingHandler {
+    queue: Arc<MessageQueue>,
+    config: BatchingConfig,
+}
+
+impl ClusteringEventBatchingHandler {
+    pub fn new(queue: Arc<MessageQueue>, config: BatchingConfig) -> Self {
+        Self { queue, config }
+    }
+
+    /// Flush a batch to the queue and return (messages, optional error)
+    async fn flush_batch(
+        &self,
+        batch: ClusteringBatch,
+    ) -> (Vec<ClusteringMessage>, Option<HandlerError>) {
+        match push_to_clustering_batch_queue(batch.messages.clone(), self.queue.clone()).await {
+            Ok(()) => {
+                log::debug!(
+                    "Successfully pushed batch of {} messages to queue",
+                    batch.messages.len()
+                );
+                (batch.messages, None)
+            }
+            Err(e) => (batch.messages, Some(HandlerError::from(e))),
+        }
+    }
+}
+
+#[async_trait]
+impl StatefulMessageHandler for ClusteringEventBatchingHandler {
+    type Message = ClusteringMessage;
+
+    /// State is a map of project_id and signal_id to a batch of clustering messages
+    type State = HashMap<(Uuid, Uuid), ClusteringBatch>;
+
+    /// State check interval is half of the flush interval to ensure we never wait for more than
+    /// the flush interval.
+    fn state_check_interval(&self) -> Duration {
+        self.config.flush_interval / 2
+    }
+
+    /// Add message to the batch
+    async fn handle_message(
+        &self,
+        message: Self::Message,
+        state: &mut Self::State,
+    ) -> Result<(), HandlerError> {
+        let key = (message.project_id, message.signal_event.signal_id);
+        state
+            .entry(key)
+            .or_insert_with(ClusteringBatch::new)
+            .messages
+            .push(message);
+        Ok(())
+    }
+
+    /// Flush batch if it's reached the required size
+    async fn process_state_after_message(
+        &self,
+        message: Self::Message,
+        state: &mut Self::State,
+    ) -> (Vec<Self::Message>, Option<HandlerError>) {
+        let key = (message.project_id, message.signal_event.signal_id);
+        let batch_len = state.get(&key).map(|b| b.messages.len()).unwrap_or(0);
+        log::debug!("Batch len={}", batch_len);
+
+        // Check if batch is ready to flush (by size)
+        if batch_len >= self.config.size {
+            if let Some(batch) = state.remove(&key) {
+                return self.flush_batch(batch).await;
+            }
+        }
+
+        (Vec::new(), None)
+    }
+
+    /// Flush stale batches if they haven't been flushed for the required interval
+    async fn process_state_periodic(
+        &self,
+        state: &mut Self::State,
+    ) -> (Vec<Self::Message>, Option<HandlerError>) {
+        let now = Instant::now();
+        let mut all_flushed_messages = Vec::new();
+
+        // Find all stale batches
+        let stale_keys: Vec<_> = state
+            .iter()
+            .filter(|(_, batch)| {
+                !batch.messages.is_empty()
+                    && now.duration_since(batch.last_flush) > self.config.flush_interval
+            })
+            .map(|(key, _)| *key)
+            .collect();
+
+        // Flush all stale batches
+        for key in stale_keys {
+            if let Some(batch) = state.remove(&key) {
+                log::debug!(
+                    "Flushing stale batch: {} messages, age={:?}",
+                    batch.messages.len(),
+                    now.duration_since(batch.last_flush)
+                );
+                let (flushed, error) = self.flush_batch(batch).await;
+                all_flushed_messages.extend(flushed);
+                if error.is_some() {
+                    // Return early on first error with all messages collected so far
+                    return (all_flushed_messages, error);
+                }
+            }
+        }
+
+        (all_flushed_messages, None)
+    }
+}
