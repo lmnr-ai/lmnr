@@ -172,3 +172,270 @@ impl BatchMessageHandler for ClusteringEventBatchingHandler {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ch::signal_events::CHSignalEvent;
+    use crate::clustering::queue::{
+        EVENT_CLUSTERING_BATCH_EXCHANGE, EVENT_CLUSTERING_BATCH_ROUTING_KEY,
+    };
+    use crate::mq::tokio_mpsc::TokioMpscQueue;
+    use crate::mq::{MessageQueue, MessageQueueTrait};
+    use std::time::Duration;
+    use uuid::Uuid;
+
+    fn create_test_message(project_id: Uuid, signal_id: Uuid) -> ClusteringMessage {
+        ClusteringMessage {
+            id: Uuid::new_v4(),
+            project_id,
+            signal_event: CHSignalEvent {
+                id: Uuid::new_v4(),
+                project_id,
+                signal_id,
+                trace_id: Uuid::new_v4(),
+                run_id: Uuid::new_v4(),
+                name: "test_signal".to_string(),
+                payload: "{}".to_string(),
+                timestamp: 0,
+            },
+            value_template: "test".to_string(),
+        }
+    }
+
+    fn create_test_queue() -> Arc<MessageQueue> {
+        let queue = TokioMpscQueue::new();
+        queue.register_queue(
+            EVENT_CLUSTERING_BATCH_EXCHANGE,
+            EVENT_CLUSTERING_BATCH_ROUTING_KEY,
+        );
+        Arc::new(MessageQueue::TokioMpsc(queue))
+    }
+
+    fn create_handler(
+        queue: Arc<MessageQueue>,
+        batch_size: usize,
+    ) -> ClusteringEventBatchingHandler {
+        ClusteringEventBatchingHandler::new(
+            queue,
+            BatchingConfig {
+                size: batch_size,
+                flush_interval: Duration::from_secs(60),
+            },
+        )
+    }
+
+    #[tokio::test]
+    async fn test_handle_message_adds_to_batch() {
+        let queue = create_test_queue();
+        let handler = create_handler(queue, 10);
+        let mut state = handler.initial_state();
+
+        let project_id = Uuid::new_v4();
+        let signal_id = Uuid::new_v4();
+        let message = create_test_message(project_id, signal_id);
+
+        handler.handle_message(message, &mut state).await.unwrap();
+
+        let key = (project_id, signal_id);
+        assert!(state.contains_key(&key));
+        assert_eq!(state.get(&key).unwrap().messages.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_handle_message_groups_by_project_and_signal() {
+        let queue = create_test_queue();
+        let handler = create_handler(queue, 10);
+        let mut state = handler.initial_state();
+
+        let project1 = Uuid::new_v4();
+        let project2 = Uuid::new_v4();
+        let signal1 = Uuid::new_v4();
+        let signal2 = Uuid::new_v4();
+
+        // Add messages to different batches
+        handler
+            .handle_message(create_test_message(project1, signal1), &mut state)
+            .await
+            .unwrap();
+        handler
+            .handle_message(create_test_message(project1, signal1), &mut state)
+            .await
+            .unwrap();
+        handler
+            .handle_message(create_test_message(project1, signal2), &mut state)
+            .await
+            .unwrap();
+        handler
+            .handle_message(create_test_message(project2, signal1), &mut state)
+            .await
+            .unwrap();
+
+        assert_eq!(state.len(), 3); // 3 different batches
+        assert_eq!(state.get(&(project1, signal1)).unwrap().messages.len(), 2);
+        assert_eq!(state.get(&(project1, signal2)).unwrap().messages.len(), 1);
+        assert_eq!(state.get(&(project2, signal1)).unwrap().messages.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_process_state_after_message_flushes_when_batch_full() {
+        let queue = create_test_queue();
+        let handler = create_handler(queue.clone(), 3); // batch size = 3
+        let mut state = handler.initial_state();
+
+        let project_id = Uuid::new_v4();
+        let signal_id = Uuid::new_v4();
+
+        // Add 3 messages (should trigger flush)
+        for _ in 0..3 {
+            let msg = create_test_message(project_id, signal_id);
+            handler
+                .handle_message(msg.clone(), &mut state)
+                .await
+                .unwrap();
+            handler.process_state_after_message(msg, &mut state).await;
+        }
+
+        // Batch should be removed from state after flush
+        assert!(!state.contains_key(&(project_id, signal_id)));
+    }
+
+    #[tokio::test]
+    async fn test_process_state_after_message_returns_ack_on_flush() {
+        let queue = create_test_queue();
+        // Need a receiver to avoid "no queues exist" error
+        let _receiver = queue
+            .get_receiver(
+                "test",
+                EVENT_CLUSTERING_BATCH_EXCHANGE,
+                EVENT_CLUSTERING_BATCH_ROUTING_KEY,
+            )
+            .await
+            .unwrap();
+
+        let handler = create_handler(queue.clone(), 2);
+        let mut state = handler.initial_state();
+
+        let project_id = Uuid::new_v4();
+        let signal_id = Uuid::new_v4();
+
+        // Add 2 messages
+        let msg1 = create_test_message(project_id, signal_id);
+        let msg2 = create_test_message(project_id, signal_id);
+
+        handler
+            .handle_message(msg1.clone(), &mut state)
+            .await
+            .unwrap();
+        handler
+            .handle_message(msg2.clone(), &mut state)
+            .await
+            .unwrap();
+
+        let result = handler.process_state_after_message(msg2, &mut state).await;
+
+        assert_eq!(result.to_ack.len(), 2);
+        assert!(result.to_reject.is_empty());
+        assert!(result.to_requeue.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_process_state_after_message_returns_empty_when_not_full() {
+        let queue = create_test_queue();
+        let handler = create_handler(queue, 10);
+        let mut state = handler.initial_state();
+
+        let project_id = Uuid::new_v4();
+        let signal_id = Uuid::new_v4();
+        let msg = create_test_message(project_id, signal_id);
+
+        handler
+            .handle_message(msg.clone(), &mut state)
+            .await
+            .unwrap();
+        let result = handler.process_state_after_message(msg, &mut state).await;
+
+        assert!(result.to_ack.is_empty());
+        assert!(result.to_reject.is_empty());
+        assert!(result.to_requeue.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_process_state_periodic_flushes_stale_batches() {
+        let queue = create_test_queue();
+        let _receiver = queue
+            .get_receiver(
+                "test",
+                EVENT_CLUSTERING_BATCH_EXCHANGE,
+                EVENT_CLUSTERING_BATCH_ROUTING_KEY,
+            )
+            .await
+            .unwrap();
+
+        let handler = ClusteringEventBatchingHandler::new(
+            queue,
+            BatchingConfig {
+                size: 100,                                 // large size so it won't flush by size
+                flush_interval: Duration::from_millis(10), // very short interval
+            },
+        );
+        let mut state = handler.initial_state();
+
+        let project_id = Uuid::new_v4();
+        let signal_id = Uuid::new_v4();
+        let msg = create_test_message(project_id, signal_id);
+
+        handler.handle_message(msg, &mut state).await.unwrap();
+
+        // Wait for batch to become stale
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        let result = handler.process_state_periodic(&mut state).await;
+
+        assert_eq!(result.to_ack.len(), 1);
+        assert!(state.is_empty()); // batch removed
+    }
+
+    #[tokio::test]
+    async fn test_process_state_periodic_ignores_fresh_batches() {
+        let queue = create_test_queue();
+        let handler = ClusteringEventBatchingHandler::new(
+            queue,
+            BatchingConfig {
+                size: 100,
+                flush_interval: Duration::from_secs(60), // long interval
+            },
+        );
+        let mut state = handler.initial_state();
+
+        let project_id = Uuid::new_v4();
+        let signal_id = Uuid::new_v4();
+        let msg = create_test_message(project_id, signal_id);
+
+        handler.handle_message(msg, &mut state).await.unwrap();
+
+        let result = handler.process_state_periodic(&mut state).await;
+
+        assert!(result.to_ack.is_empty());
+        assert_eq!(state.len(), 1); // batch still there
+    }
+
+    #[tokio::test]
+    async fn test_flush_batch_returns_requeue_on_queue_error() {
+        // Create queue but don't register or add receiver - publish will fail
+        let queue = Arc::new(MessageQueue::TokioMpsc(TokioMpscQueue::new()));
+        let handler = create_handler(queue, 2);
+
+        let batch = ClusteringBatch {
+            messages: vec![create_test_message(Uuid::new_v4(), Uuid::new_v4())],
+            last_flush: Instant::now(),
+        };
+
+        let result = handler.flush_batch(batch).await;
+
+        assert!(result.is_err());
+        let (messages, error) = result.unwrap_err();
+        assert_eq!(messages.len(), 1);
+        assert!(error.should_requeue()); // transient error
+    }
+}
