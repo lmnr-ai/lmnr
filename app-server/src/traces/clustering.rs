@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait, keys};
 use crate::utils::{call_service_with_retry, render_mustache_template};
@@ -42,11 +43,13 @@ async fn process_clustering_logic(
     cache: Arc<Cache>,
     client: reqwest::Client,
 ) -> Result<(), HandlerError> {
+    // All events in the batch have the same project_id and signal_id
     let first = match message.events.first() {
         Some(event) => event,
         None => return Ok(()),
     };
     let project_id = first.project_id;
+    let signal_id = first.signal_event.signal_id;
 
     let lock_key = format!("{}-{}", keys::CLUSTERING_LOCK_CACHE_KEY, project_id);
     let lock_ttl = 300; // 5 minutes
@@ -83,7 +86,7 @@ async fn process_clustering_logic(
     }
 
     // Call clustering endpoint
-    let result = call_clustering_endpoint(&client, &message).await;
+    let result = call_clustering_endpoint(&client, project_id, signal_id, &message).await;
 
     // Always release lock
     if let Err(e) = cache.release_lock(&lock_key).await {
@@ -117,6 +120,8 @@ async fn process_clustering_logic(
 
 async fn call_clustering_endpoint(
     client: &reqwest::Client,
+    project_id: Uuid,
+    signal_id: Uuid,
     message: &ClusteringBatchMessage,
 ) -> anyhow::Result<bool> {
     let cluster_endpoint = env::var("CLUSTERING_SERVICE_URL")
@@ -126,24 +131,23 @@ async fn call_clustering_endpoint(
         anyhow::anyhow!("CLUSTERING_SERVICE_SECRET_KEY environment variable not set")
     })?;
 
-    let mut events = Vec::new();
+    let mut events: Vec<serde_json::Value> = Vec::new();
     for message in &message.events {
         // Render the value_template with event attributes
         let attributes = message.signal_event.payload_value().unwrap_or_default();
         let content = render_mustache_template(&message.value_template, &attributes)?;
 
         let event = serde_json::json!({
-            "project_id": message.project_id.to_string(),
-            "event_name": message.signal_event.name,
-            "event_id": message.signal_event.id.to_string(),
+            "signal_event_id": message.signal_event.id.to_string(),
             "content": content,
-            "event_source": message.signal_event.source().to_string(),
         });
         events.push(event);
     }
 
     let request_body = serde_json::json!({
-        "events": events,
+        "project_id": project_id.to_string(),
+        "signal_id": signal_id.to_string(),
+        "signal_events": events,
     });
 
     let cluster_response: ClusterResponse = call_service_with_retry(
