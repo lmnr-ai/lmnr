@@ -195,7 +195,7 @@ const SelectionOverlay = ({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
-      style={{ cursor: state === "dragging" ? "crosshair" : "default" }}
+      //style={{ cursor: state === "dragging" ? "crosshair" : "pointer" }}
     >
       {displayRect && (
         <div

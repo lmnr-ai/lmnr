@@ -481,11 +481,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           ) : (
             <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
               {condensedTimelineEnabled && (
-                <ResizablePanel>
-                  <CondensedTimeline />
-                </ResizablePanel>
+                <>
+                  <ResizablePanel>
+                    <CondensedTimeline />
+                  </ResizablePanel>
+                  <ResizableHandle className="hover:border hover:border-blue-400 z-50" />
+                </>
               )}
-              {condensedTimelineEnabled && <ResizableHandle />}
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
                 {tab === "metadata" && trace && <Metadata trace={trace} />}
                 {tab === "chat" && trace && (
@@ -515,7 +517,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               </ResizablePanel>
               {browserSession && (
                 <>
-                  <ResizableHandle className="z-50" withHandle />
+                  <ResizableHandle className="z-50 hover:border hover:border-blue-400" />
                   <ResizablePanel>
                     {!isLoading && (
                       <SessionPlayer
@@ -535,7 +537,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
             onMouseDown={handleResizeTreeView}
           >
-            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
+            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
           </div>
         </div>
         <div className="grow overflow-hidden flex-wrap h-full w-full">

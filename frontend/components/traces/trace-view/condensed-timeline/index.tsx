@@ -262,14 +262,22 @@ function CondensedTimeline() {
           {/* Timeline content */}
           <div ref={timelineContentRef} className="relative" style={{ height: contentHeight }}>
             {/* Span elements */}
-            {condensedSpans.map((condensedSpan) => (
-              <CondensedTimelineElement
-                key={condensedSpan.span.spanId}
-                condensedSpan={condensedSpan}
-                selectedSpan={selectedSpan}
-                onClick={handleSpanClick}
-              />
-            ))}
+            {condensedSpans.map((condensedSpan) => {
+              const hasGroupSelection = condensedTimelineVisibleSpanIds.size > 0;
+              const isIncludedInGroupSelection = hasGroupSelection
+                ? condensedTimelineVisibleSpanIds.has(condensedSpan.span.spanId)
+                : null;
+
+              return (
+                <CondensedTimelineElement
+                  key={condensedSpan.span.spanId}
+                  condensedSpan={condensedSpan}
+                  selectedSpan={selectedSpan}
+                  isIncludedInGroupSelection={isIncludedInGroupSelection}
+                  onClick={handleSpanClick}
+                />
+              );
+            })}
 
             {/* Selection overlay */}
             <SelectionOverlay
