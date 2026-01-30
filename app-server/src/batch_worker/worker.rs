@@ -89,31 +89,39 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         loop {
             tokio::select! {
                 // Message arrived from queue
-                Some(delivery) = receiver.receive() => {
-                    let delivery = delivery?;
+                result = receiver.receive() => {
+                    match result {
+                        Some(delivery) => {
+                            let delivery = delivery?;
 
-                    // Process single message
-                    let acker = delivery.acker();
-                    let data = delivery.data();
-                    let result = self.process_message(&data).await;
+                            // Process single message
+                            let acker = delivery.acker();
+                            let data = delivery.data();
+                            let result = self.process_message(&data).await;
 
-                    let message = match result {
-                        Ok(message) => message,
-                        Err(handler_error) => {
-                            acker.reject(handler_error.should_requeue()).await?;
-                            continue;
+                            let message = match result {
+                                Ok(message) => message,
+                                Err(handler_error) => {
+                                    acker.reject(handler_error.should_requeue()).await?;
+                                    continue;
+                                }
+                            };
+
+                            // Store message acker before processing
+                            self.ackers.insert(message.get_unique_id(), acker);
+
+                            // Process state
+                            let result = self.handler
+                                .process_state_after_message(message, &mut self.state)
+                                .await;
+
+                            self.handle_process_state_result(result).await?;
                         }
-                    };
-
-                    // Store message acker before processing
-                    self.ackers.insert(message.get_unique_id(), acker);
-
-                    // Process state
-                    let result = self.handler
-                        .process_state_after_message(message, &mut self.state)
-                        .await;
-
-                    self.handle_process_state_result(result).await?;
+                        None => {
+                            // Stream ended, exit to trigger reconnection
+                            return Ok(());
+                        }
+                    }
                 }
 
                 // Periodic state check
@@ -126,9 +134,6 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                 }
             }
         }
-
-        #[allow(unreachable_code)]
-        Ok(())
     }
 
     /// Connect to the queue
