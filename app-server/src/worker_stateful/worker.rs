@@ -10,7 +10,9 @@ use crate::mq::{
 };
 use crate::worker::{HandlerError, QueueConfig};
 use crate::worker_stateful::StatefulWorkerType;
-use crate::worker_stateful::message_handler::{StatefulMessageHandler, UniqueId};
+use crate::worker_stateful::message_handler::{
+    ProcessStateResult, StatefulMessageHandler, UniqueId,
+};
 
 /// Queue worker with internal state that processes messages indefinitely and processes state
 /// periodically or along with a message.
@@ -200,41 +202,44 @@ impl<H: StatefulMessageHandler> StatefulQueueWorker<H> {
         Ok(message)
     }
 
-    /// Handle the result of state processing (ack/reject messages)
+    /// Handle the result of state processing (ack/reject/requeue messages)
     async fn handle_process_state_result(
         &mut self,
-        result: (Vec<H::Message>, Option<HandlerError>),
+        result: ProcessStateResult<H::Message>,
     ) -> anyhow::Result<()> {
-        let (messages, error) = result;
-
-        match error {
-            None => {
-                // Success - ack all messages
-                if !messages.is_empty() {
-                    log::debug!(
-                        "Worker {} ({:?}) processing state successful, messages to ack: {}",
-                        self.id,
-                        self.worker_type,
-                        messages.len()
-                    );
-                    self.ack_messages(&messages).await?;
-                }
-            }
-            Some(handler_error) => {
-                if !messages.is_empty() {
-                    let should_requeue = handler_error.should_requeue();
-                    log::error!(
-                        "Worker {} ({:?}) error, rejecting {} messages with requeue={}: {:?}",
-                        self.id,
-                        self.worker_type,
-                        messages.len(),
-                        should_requeue,
-                        handler_error
-                    );
-                    self.reject_messages(&messages, should_requeue).await;
-                }
-            }
+        // Ack successful messages
+        if !result.to_ack.is_empty() {
+            log::debug!(
+                "Worker {} ({:?}) acking {} messages",
+                self.id,
+                self.worker_type,
+                result.to_ack.len()
+            );
+            self.ack_messages(&result.to_ack).await?;
         }
+
+        // Reject permanent failures (no requeue)
+        if !result.to_reject.is_empty() {
+            log::error!(
+                "Worker {} ({:?}) rejecting {} messages (permanent failure)",
+                self.id,
+                self.worker_type,
+                result.to_reject.len()
+            );
+            self.reject_messages(&result.to_reject, false).await;
+        }
+
+        // Requeue transient failures
+        if !result.to_requeue.is_empty() {
+            log::warn!(
+                "Worker {} ({:?}) requeuing {} messages (transient failure)",
+                self.id,
+                self.worker_type,
+                result.to_requeue.len()
+            );
+            self.reject_messages(&result.to_requeue, true).await;
+        }
+
         Ok(())
     }
 
@@ -243,8 +248,9 @@ impl<H: StatefulMessageHandler> StatefulQueueWorker<H> {
         let ack_futures: Vec<_> = messages
             .iter()
             .filter_map(|msg| {
+                let msg_id = msg.get_unique_id();
                 self.ackers
-                    .remove(&msg.get_unique_id())
+                    .remove(&msg_id)
                     .map(|acker| async move { acker.ack().await })
             })
             .collect();
@@ -256,7 +262,7 @@ impl<H: StatefulMessageHandler> StatefulQueueWorker<H> {
         Ok(())
     }
 
-    /// Reject specific messages in parallel
+    /// Reject messages in parallel
     async fn reject_messages(&mut self, messages: &[H::Message], requeue: bool) {
         let reject_futures: Vec<_> = messages
             .iter()

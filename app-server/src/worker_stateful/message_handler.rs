@@ -8,6 +8,50 @@ pub trait UniqueId {
     fn get_unique_id(&self) -> String;
 }
 
+/// Result of processing state - specifies what to do with each message.
+pub struct ProcessStateResult<M> {
+    /// Messages to acknowledge (successfully processed)
+    pub to_ack: Vec<M>,
+    /// Messages to reject permanently (unrecoverable error, no requeue)
+    pub to_reject: Vec<M>,
+    /// Messages to requeue (transient error, will be redelivered)
+    pub to_requeue: Vec<M>,
+}
+
+impl<M> ProcessStateResult<M> {
+    pub fn empty() -> Self {
+        Self {
+            to_ack: Vec::new(),
+            to_reject: Vec::new(),
+            to_requeue: Vec::new(),
+        }
+    }
+
+    pub fn ack(messages: Vec<M>) -> Self {
+        Self {
+            to_ack: messages,
+            to_reject: Vec::new(),
+            to_requeue: Vec::new(),
+        }
+    }
+
+    pub fn reject(messages: Vec<M>) -> Self {
+        Self {
+            to_ack: Vec::new(),
+            to_reject: messages,
+            to_requeue: Vec::new(),
+        }
+    }
+
+    pub fn requeue(messages: Vec<M>) -> Self {
+        Self {
+            to_ack: Vec::new(),
+            to_reject: Vec::new(),
+            to_requeue: messages,
+        }
+    }
+}
+
 /// Stateful message handler trait - implement this to process messages with internal state.
 #[async_trait]
 pub trait StatefulMessageHandler: Send + Sync + 'static {
@@ -45,26 +89,22 @@ pub trait StatefulMessageHandler: Send + Sync + 'static {
 
     /// Process state after a message is received.
     ///
-    /// Returns a tuple of:
-    /// - Messages to ack (successfully processed) or reject (on error)
-    /// - Optional error if processing failed
+    /// Returns which messages to ack, reject, or requeue.
     ///
     /// Example: check if batch size is reached and flush if needed.
     async fn process_state_after_message(
         &self,
         message: Self::Message,
         state: &mut Self::State,
-    ) -> (Vec<Self::Message>, Option<HandlerError>);
+    ) -> ProcessStateResult<Self::Message>;
 
     /// Process state periodically according to the set state timeout.
     ///
-    /// Returns a tuple of:
-    /// - Messages to ack (successfully processed) or reject (on error)
-    /// - Optional error if processing failed
+    /// Returns which messages to ack, reject, or requeue.
     ///
     /// Example: check if batch wasn't flushed for a long time and flush if needed.
     async fn process_state_periodic(
         &self,
         state: &mut Self::State,
-    ) -> (Vec<Self::Message>, Option<HandlerError>);
+    ) -> ProcessStateResult<Self::Message>;
 }

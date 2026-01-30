@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::mq::MessageQueue;
 use crate::worker::HandlerError;
-use crate::worker_stateful::message_handler::StatefulMessageHandler;
+use crate::worker_stateful::message_handler::{ProcessStateResult, StatefulMessageHandler};
 
 use super::ClusteringMessage;
 use super::queue::push_to_clustering_batch_queue;
@@ -42,20 +42,20 @@ impl ClusteringEventBatchingHandler {
         Self { queue, config }
     }
 
-    /// Flush a batch to the queue and return (messages, optional error)
+    /// Flush a batch to the queue
     async fn flush_batch(
         &self,
         batch: ClusteringBatch,
-    ) -> (Vec<ClusteringMessage>, Option<HandlerError>) {
+    ) -> Result<Vec<ClusteringMessage>, (Vec<ClusteringMessage>, HandlerError)> {
         match push_to_clustering_batch_queue(batch.messages.clone(), self.queue.clone()).await {
             Ok(()) => {
                 log::debug!(
                     "Successfully pushed batch of {} messages to queue",
                     batch.messages.len()
                 );
-                (batch.messages, None)
+                Ok(batch.messages)
             }
-            Err(e) => (batch.messages, Some(HandlerError::from(e))),
+            Err(e) => Err((batch.messages, HandlerError::from(e))),
         }
     }
 }
@@ -97,7 +97,7 @@ impl StatefulMessageHandler for ClusteringEventBatchingHandler {
         &self,
         message: Self::Message,
         state: &mut Self::State,
-    ) -> (Vec<Self::Message>, Option<HandlerError>) {
+    ) -> ProcessStateResult<Self::Message> {
         let key = (message.project_id, message.signal_event.signal_id);
         let batch_len = state.get(&key).map(|b| b.messages.len()).unwrap_or(0);
         log::debug!("Batch len={}", batch_len);
@@ -105,20 +105,31 @@ impl StatefulMessageHandler for ClusteringEventBatchingHandler {
         // Check if batch is ready to flush (by size)
         if batch_len >= self.config.size {
             if let Some(batch) = state.remove(&key) {
-                return self.flush_batch(batch).await;
+                return match self.flush_batch(batch).await {
+                    Ok(messages) => ProcessStateResult::ack(messages),
+                    Err((messages, error)) => {
+                        if error.should_requeue() {
+                            ProcessStateResult::requeue(messages)
+                        } else {
+                            ProcessStateResult::reject(messages)
+                        }
+                    }
+                };
             }
         }
 
-        (Vec::new(), None)
+        ProcessStateResult::empty()
     }
 
     /// Flush stale batches if they haven't been flushed for the required interval
     async fn process_state_periodic(
         &self,
         state: &mut Self::State,
-    ) -> (Vec<Self::Message>, Option<HandlerError>) {
+    ) -> ProcessStateResult<Self::Message> {
         let now = Instant::now();
-        let mut all_flushed_messages = Vec::new();
+        let mut to_ack = Vec::new();
+        let mut to_reject = Vec::new();
+        let mut to_requeue = Vec::new();
 
         // Find all stale batches
         let stale_keys: Vec<_> = state
@@ -138,15 +149,23 @@ impl StatefulMessageHandler for ClusteringEventBatchingHandler {
                     batch.messages.len(),
                     now.duration_since(batch.last_flush)
                 );
-                let (flushed, error) = self.flush_batch(batch).await;
-                all_flushed_messages.extend(flushed);
-                if error.is_some() {
-                    // Return early on first error with all messages collected so far
-                    return (all_flushed_messages, error);
+                match self.flush_batch(batch).await {
+                    Ok(messages) => to_ack.extend(messages),
+                    Err((messages, error)) => {
+                        if error.should_requeue() {
+                            to_requeue.extend(messages);
+                        } else {
+                            to_reject.extend(messages);
+                        }
+                    }
                 }
             }
         }
 
-        (all_flushed_messages, None)
+        ProcessStateResult {
+            to_ack,
+            to_reject,
+            to_requeue,
+        }
     }
 }
