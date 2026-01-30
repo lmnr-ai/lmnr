@@ -9,6 +9,7 @@ use crate::worker_stateful::message_handler::UniqueId;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClusteringMessage {
+    #[serde(default = "Uuid::new_v4")]
     pub id: Uuid,
     pub project_id: Uuid,
     pub signal_event: CHSignalEvent,
