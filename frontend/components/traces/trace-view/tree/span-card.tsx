@@ -75,7 +75,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
       ref={ref}
       className={cn(
         "group flex flex-row cursor-pointer transition-all w-full min-w-full border-l-2 pl-2 text-md",
-        "hover:bg-red-100/10",
+        "hover:bg-red-100/5",
         isSelected ? "bg-primary/25 border-l-primary hover:bg-primary/30" : "border-l-transparent"
       )}
       onClick={() => {

@@ -1,4 +1,4 @@
-import { CirclePlay, Eye, EyeOff, GanttChart, List, ListTree, SlidersHorizontal } from "lucide-react";
+import { CirclePlay, Eye, EyeOff, List, ListTree, SlidersHorizontal } from "lucide-react";
 
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
@@ -17,8 +17,6 @@ export default function ViewSelect() {
     setTab,
     showTreeContent,
     setShowTreeContent,
-    condensedTimelineEnabled,
-    setCondensedTimelineEnabled,
     browserSession,
     setBrowserSession,
     langGraph,
@@ -30,8 +28,6 @@ export default function ViewSelect() {
     setTab: state.setTab,
     showTreeContent: state.showTreeContent,
     setShowTreeContent: state.setShowTreeContent,
-    condensedTimelineEnabled: state.condensedTimelineEnabled,
-    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
     langGraph: state.langGraph,
@@ -108,17 +104,6 @@ export default function ViewSelect() {
         >
           <CirclePlay size={14} className="mr-1" />
           Media
-        </Button>
-        {/* Timeline toggle */}
-        <Button
-          onClick={() => setCondensedTimelineEnabled(!condensedTimelineEnabled)}
-          variant="ghost"
-          className={cn("h-6 px-1.5 text-xs", {
-            "text-primary": condensedTimelineEnabled,
-          })}
-        >
-          <GanttChart size={14} className="mr-1" />
-          Timeline
         </Button>
         {/* LangGraph toggle */}
         {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}

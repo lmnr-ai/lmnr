@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 import SessionPlayer from "../session-player";
@@ -405,7 +406,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               )}
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
                 {/* View select bar */}
-                <div className="flex items-center gap-2 px-2 py-2 border-b box-border">
+                <div
+                  className={cn(
+                    "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
+                    condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[91px]"
+                  )}
+                >
                   <ViewSelect />
                 </div>
                 {tab === "reader" && (

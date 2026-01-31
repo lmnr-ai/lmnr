@@ -20,6 +20,7 @@ import React, { memo, useCallback, useMemo, useState } from "react";
 
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TraceViewSearch from "@/components/traces/trace-view/search";
+import TimelineToggle from "@/components/traces/trace-view/timeline-toggle";
 import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
@@ -55,11 +56,9 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
   const {
     trace,
     updateTraceVisibility,
-    condensedTimelineEnabled,
   } = useTraceViewStoreContext((state) => ({
     trace: state.trace,
     updateTraceVisibility: state.updateTraceVisibility,
-    condensedTimelineEnabled: state.condensedTimelineEnabled,
   }));
 
   const { toast } = useToast();
@@ -136,7 +135,7 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
   const isPublic = trace?.visibility === "public";
 
   return (
-    <div className={cn("flex flex-col gap-1.5 px-2 py-1.5", { "pb-2": condensedTimelineEnabled && !chatOpen })}>
+    <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-2">
       {/* Line 1: close, expand, down, up, trace, shield ... export */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center min-w-0">
@@ -258,6 +257,9 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
         </Tooltip>
         {!chatOpen && <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />}
       </div>
+
+      {/* Timeline toggle - absolutely positioned below search bar */}
+      {!chatOpen && <TimelineToggle />}
     </div>
   );
 };
