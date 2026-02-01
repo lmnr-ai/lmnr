@@ -10,6 +10,7 @@ use uuid::Uuid;
 use super::{SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY};
 use crate::ch::signal_events::{CHSignalEvent, insert_signal_events};
 use crate::ch::signal_runs::{CHSignalRun, insert_signal_runs};
+use crate::clustering::queue::push_to_event_clustering_queue;
 use crate::db;
 use crate::db::events::EventSource;
 use crate::db::signals::Signal;
@@ -19,7 +20,6 @@ use crate::notifications::{
     self, EventIdentificationPayload, NotificationType, SlackMessagePayload,
 };
 use crate::signals::{RunStatus, SignalRun};
-use crate::traces::clustering;
 use crate::utils::call_service_with_retry;
 use crate::worker::{HandlerError, MessageHandler};
 
@@ -281,7 +281,7 @@ pub async fn process_event_notifications_and_clustering(
         )
         .await
         {
-            if let Err(e) = clustering::push_to_event_clustering_queue(
+            if let Err(e) = push_to_event_clustering_queue(
                 project_id,
                 signal_event,
                 cluster_config.value_template,
