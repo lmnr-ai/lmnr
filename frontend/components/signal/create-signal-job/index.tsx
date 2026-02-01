@@ -5,9 +5,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import React, { useCallback, useEffect, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import ConfirmSignalJobDialog, {
-  type SignalJobFormValues,
-} from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
+import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
 import SelectionBanner from "@/components/signal/create-signal-job/selection-banner.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import {
@@ -185,7 +183,7 @@ const CreateSignalJobContent = () => {
   }, []);
 
   const handleCreateSignalJob = useCallback(
-    async (values: SignalJobFormValues) => {
+    async () => {
       try {
         setIsCreating(true);
         const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
@@ -200,8 +198,6 @@ const CreateSignalJobContent = () => {
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
             traceIds: selectedTraceIds,
-            // mustache syntax field access
-            clusteringKey: `{{${values.clusteringKey}}}`,
           }),
         });
 
@@ -247,7 +243,6 @@ const CreateSignalJobContent = () => {
       <ConfirmSignalJobDialog
         open={confirmDialogOpen}
         onOpenChange={setConfirmDialogOpen}
-        schemaFields={signal.schemaFields}
         isCreating={isCreating}
         onConfirm={handleCreateSignalJob}
         traceCount={selectionMode === "all" ? traceCount : selectedCount}

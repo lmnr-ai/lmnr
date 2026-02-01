@@ -1,2 +1,0 @@
-ALTER TABLE "signal_triggers" ADD COLUMN "clustering_key" text;--> statement-breakpoint
-ALTER TABLE "signal_triggers" ADD CONSTRAINT "signal_triggers_signal_id_fkey" FOREIGN KEY ("signal_id") REFERENCES "public"."signals"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

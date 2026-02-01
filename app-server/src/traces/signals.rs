@@ -277,7 +277,7 @@ pub async fn process_event_notifications_and_clustering(
 
     if is_feature_enabled(Feature::Clustering) {
         if let Some(value_template) = clustering_key {
-            if let Err(e) = clustering::push_to_event_clustering_queue(
+            if let Err(e) = push_to_event_clustering_queue(
                 project_id,
                 signal_event,
                 value_template,

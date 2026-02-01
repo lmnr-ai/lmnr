@@ -71,7 +71,7 @@ function TriggersTableContent() {
 
   const triggers: TriggerRow[] = data?.items || [];
 
-  const columns = getTriggersTableColumns(signal.schemaFields);
+  const columns = getTriggersTableColumns();
 
   const handleAddFilter = useCallback(
     (filter: Filter) => {
@@ -143,7 +143,6 @@ function TriggersTableContent() {
         open={isDialogOpen}
         setOpen={setIsDialogOpen}
         signalId={signal.id}
-        schemaFields={signal.schemaFields}
         defaultValues={editingTrigger}
         onSuccess={handleTriggerSuccess}
       >

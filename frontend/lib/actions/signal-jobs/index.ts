@@ -55,7 +55,6 @@ export const CreateSignalJob = z.object({
   signalId: z.string(),
   search: z.string().nullable().optional(),
   traceIds: z.array(z.string()).optional(),
-  clusteringKey: z.string().optional(),
   ...FiltersSchema.shape,
   ...TimeRangeSchema.shape,
 });
@@ -88,7 +87,6 @@ export async function createSignalJob(
     startDate,
     endDate,
     traceIds: selectedTraceIds,
-    clusteringKey,
   } = CreateSignalJob.parse(input);
 
   const filters: Filter[] = compact(inputFilters);
@@ -129,7 +127,6 @@ export async function createSignalJob(
       query: sqlQuery,
       parameters,
       signalId,
-      clusteringKey,
     }),
   });
 
