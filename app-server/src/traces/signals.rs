@@ -10,6 +10,7 @@ use uuid::Uuid;
 use super::{SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY};
 use crate::ch::signal_events::{CHSignalEvent, insert_signal_events};
 use crate::ch::signal_runs::{CHSignalRun, insert_signal_runs};
+use crate::clustering::queue::push_to_event_clustering_queue;
 use crate::db;
 use crate::db::signals::Signal;
 use crate::features::{Feature, is_feature_enabled};
@@ -18,7 +19,6 @@ use crate::notifications::{
     self, EventIdentificationPayload, NotificationType, SlackMessagePayload,
 };
 use crate::signals::{RunStatus, SignalRun};
-use crate::traces::clustering;
 use crate::utils::call_service_with_retry;
 use crate::worker::{HandlerError, MessageHandler};
 
