@@ -38,7 +38,7 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
-    signals::prebatch::push_to_signals_queue,
+    signals::queue::push_to_signals_queue,
     storage::Storage,
     traces::{
         IngestedBytes,

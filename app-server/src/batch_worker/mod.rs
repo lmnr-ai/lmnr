@@ -1,3 +1,4 @@
+pub mod config;
 pub mod message_handler;
 pub mod worker;
 pub mod worker_pool;
@@ -8,12 +9,14 @@ use serde::Serialize;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum BatchWorkerType {
     ClusteringBatching,
+    SignalsBatching,
 }
 
 impl std::fmt::Display for BatchWorkerType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             BatchWorkerType::ClusteringBatching => write!(f, "clustering_batch"),
+            BatchWorkerType::SignalsBatching => write!(f, "signals_batch"),
         }
     }
 }

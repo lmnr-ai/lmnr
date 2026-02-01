@@ -25,7 +25,7 @@ use crate::{
             Part,
         },
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
-        push_to_pending_queue,
+        queue::push_to_pending_queue,
         spans::get_trace_structure_as_string,
         tools::build_tool_definitions,
         utils::{emit_internal_span, extract_batch_id_from_operation},

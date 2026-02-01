@@ -1,10 +1,14 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{env, sync::Arc};
 use uuid::Uuid;
 
-use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
+use crate::{
+    batch_worker::message_handler::UniqueId,
+    mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
+};
 
 // Queue for batch submissions that should be requested to LLM
 pub const SIGNAL_JOB_SUBMISSION_BATCH_QUEUE: &str = "signal_job_submission_batch_queue";
@@ -21,7 +25,12 @@ pub const SIGNAL_JOB_WAITING_BATCH_QUEUE: &str = "signal_job_waiting_batch_queue
 pub const SIGNAL_JOB_WAITING_BATCH_EXCHANGE: &str = "signal_job_waiting_batch_exchange";
 pub const SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY: &str = "signal_job_waiting_batch_routing_key";
 
-const DEFAULT_BATCH_SIZE: usize = 128;
+// Flat unbatched queue in front of the batched processsing
+pub const SIGNALS_QUEUE: &str = "semantic_event_queue";
+pub const SIGNALS_EXCHANGE: &str = "semantic_event_exchange";
+pub const SIGNALS_ROUTING_KEY: &str = "semantic_event_routing_key";
+
+pub const DEFAULT_BATCH_SIZE: usize = 64;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct SignalJobSubmissionBatchMessage {
@@ -71,53 +80,61 @@ impl From<&super::SignalRun> for SignalRunPayload {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SignalMessage {
+    pub trace_id: Uuid,
+    pub project_id: Uuid,
+    pub trigger_id: Option<Uuid>, // TODO: Remove Option once old messages in queue without trigger_id are processed
+    #[serde(alias = "event_definition")] // backwards compatibility with old messages
+    pub signal: crate::db::signals::Signal,
+}
+
+impl UniqueId for SignalMessage {
+    fn get_unique_id(&self) -> String {
+        format!("{}-{}", self.project_id, self.signal.id)
+    }
+}
+
 pub async fn push_to_submissions_queue(
     message: SignalJobSubmissionBatchMessage,
     queue: Arc<MessageQueue>,
 ) -> Result<()> {
-    let batch_size = env::var("SIGNAL_JOB_BATCH_SIZE")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_BATCH_SIZE);
+    let number_of_runs = message.runs.len();
 
-    let all_runs = message.runs;
+    let batch_message = SignalJobSubmissionBatchMessage {
+        project_id: message.project_id,
+        job_id: message.job_id,
+        signal_id: message.signal_id,
+        signal_name: message.signal_name.clone(),
+        prompt: message.prompt.clone(),
+        structured_output_schema: message.structured_output_schema.clone(),
+        model: message.model.clone(),
+        provider: message.provider.clone(),
+        runs: message.runs,
+    };
 
-    for runs_batch in all_runs.chunks(batch_size) {
-        let batch_message = SignalJobSubmissionBatchMessage {
-            project_id: message.project_id,
-            job_id: message.job_id,
-            signal_id: message.signal_id,
-            signal_name: message.signal_name.clone(),
-            prompt: message.prompt.clone(),
-            structured_output_schema: message.structured_output_schema.clone(),
-            model: message.model.clone(),
-            provider: message.provider.clone(),
-            runs: runs_batch.to_vec(),
-        };
+    let serialized = serde_json::to_vec(&batch_message)?;
 
-        let serialized = serde_json::to_vec(&batch_message)?;
-
-        if serialized.len() >= mq_max_payload() {
-            log::warn!(
-                "[SIGNAL JOB] MQ payload limit exceeded. Project ID: [{}], Job ID: [{}], payload size: [{}]. Batch size: [{}]",
-                batch_message.project_id,
-                batch_message.job_id,
-                serialized.len(),
-                runs_batch.len()
-            );
-            // Skip publishing this batch
-            continue;
-        }
-
-        queue
-            .publish(
-                &serialized,
-                SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
-                SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
-                None,
-            )
-            .await?;
+    if serialized.len() >= mq_max_payload() {
+        log::warn!(
+            "[SIGNAL JOB] MQ payload limit exceeded. Project ID: [{}], Job ID: [{}], payload size: [{}]. Batch size: [{}]",
+            batch_message.project_id,
+            batch_message.job_id,
+            serialized.len(),
+            number_of_runs
+        );
+        // Skip publishing this batch
+        return Ok(());
     }
+
+    queue
+        .publish(
+            &serialized,
+            SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+            SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
+            None,
+        )
+        .await?;
 
     Ok(())
 }
@@ -140,7 +157,7 @@ pub async fn push_to_pending_queue(
     Ok(())
 }
 
-pub(crate) async fn push_to_waiting_queue(
+pub async fn push_to_waiting_queue(
     queue: Arc<MessageQueue>,
     message: &SignalJobPendingBatchMessage, // Same message as for pending queue
     ttl_ms: Option<u64>,
@@ -155,6 +172,37 @@ pub(crate) async fn push_to_waiting_queue(
             ttl_ms,
         )
         .await?;
+
+    Ok(())
+}
+
+pub async fn push_to_signals_queue(
+    trace_id: Uuid,
+    project_id: Uuid,
+    trigger_id: Option<Uuid>,
+    signal: crate::db::signals::Signal,
+    queue: Arc<MessageQueue>,
+) -> anyhow::Result<()> {
+    let message = SignalMessage {
+        trace_id,
+        project_id,
+        trigger_id,
+        signal: signal.clone(),
+    };
+
+    let serialized = serde_json::to_vec(&message)?;
+
+    queue
+        .publish(&serialized, SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY, None)
+        .await?;
+
+    log::debug!(
+        "Pushed signal message to queue: trace_id={}, project_id={}, trigger_id={}, event={}",
+        trace_id,
+        project_id,
+        trigger_id.unwrap_or_default(),
+        signal.name
+    );
 
     Ok(())
 }

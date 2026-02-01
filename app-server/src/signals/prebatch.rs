@@ -1,306 +1,295 @@
-use std::env;
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    env,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use uuid::Uuid;
 
-use crate::ch::signal_events::{CHSignalEvent, insert_signal_events};
-use crate::ch::signal_runs::{CHSignalRun, insert_signal_runs};
-use crate::clustering::queue::push_to_event_clustering_queue;
-use crate::db;
-use crate::db::events::EventSource;
+use crate::batch_worker::config::BatchingConfig;
+use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult};
+use crate::ch::signal_runs::insert_signal_runs;
+use crate::db::DB;
 use crate::db::signals::Signal;
-use crate::features::{Feature, is_feature_enabled};
-use crate::mq::{MessageQueue, MessageQueueTrait};
-use crate::notifications::{
-    self, EventIdentificationPayload, NotificationType, SlackMessagePayload,
+use crate::mq::MessageQueue;
+use crate::signals::queue::SignalMessage;
+
+use crate::routes::signals::SubmitSignalJobResponse;
+use crate::signals::{
+    InternalSpan, SignalJobSubmissionBatchMessage, SignalRunPayload, push_to_signals_queue,
+    queue::push_to_submissions_queue,
 };
-use crate::signals::{RunStatus, SignalRun};
-use crate::utils::call_service_with_retry;
-use crate::worker::{HandlerError, MessageHandler};
+use crate::worker::HandlerError;
 
-pub const SIGNALS_QUEUE: &str = "semantic_event_queue";
-pub const SIGNALS_EXCHANGE: &str = "semantic_event_exchange";
-pub const SIGNALS_ROUTING_KEY: &str = "semantic_event_routing_key";
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SignalMessage {
-    trace_id: Uuid,
+/// Flatten the job runs and push it to the queue, so that only BatchMessageHandler
+/// is responsible for batching
+pub async fn enqueue_signal_job(
     project_id: Uuid,
-    trigger_id: Option<Uuid>, // TODO: Remove Option once old messages in queue without trigger_id are processed
-    #[serde(alias = "event_definition")] // backwards compatibility with old messages
     signal: Signal,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SignalEventResponse {
-    pub success: bool,
-    #[serde(default)]
-    pub attributes: Option<Value>,
-    #[serde(default)]
-    pub error: Option<String>,
-}
-
-/// Push a signal message to the signals queue
-pub async fn push_to_signals_queue(
-    trace_id: Uuid,
-    project_id: Uuid,
-    trigger_id: Option<Uuid>,
-    signal: Signal,
+    db: Arc<DB>,
+    trace_ids: Vec<Uuid>,
+    clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-) -> anyhow::Result<()> {
-    let message = SignalMessage {
-        trace_id,
-        project_id,
-        trigger_id,
-        signal: signal.clone(),
+) -> anyhow::Result<SubmitSignalJobResponse> {
+    // get internal project id for tracing
+    let internal_project_id: Option<Uuid> = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
+        .ok()
+        .and_then(|s| s.parse().ok());
+
+    let llm_model = env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-2.5-flash".to_string());
+    let llm_provider = env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string());
+
+    let total_traces: i32 = trace_ids.len() as i32;
+
+    let job =
+        crate::db::signal_jobs::create_signal_job(&db.pool, signal.id, project_id, total_traces)
+            .await
+            .map_err(|e| {
+                log::error!("Failed to create signal job: {:?}", e);
+                anyhow::anyhow!("Failed to create signal job")
+            })?;
+
+    let mut signal_runs: Vec<super::SignalRun> = Vec::with_capacity(trace_ids.len());
+    for trace_id in trace_ids {
+        let run_id = Uuid::new_v4();
+        let internal_trace_id = Uuid::new_v4();
+
+        // Emit root span for internal tracing of a run
+        let internal_span_id = super::emit_internal_span(
+            queue.clone(),
+            InternalSpan {
+                name: "signal.run".to_string(),
+                trace_id: internal_trace_id,
+                job_id: job.id,
+                run_id,
+                signal_name: signal.name.clone(),
+                parent_span_id: None,
+                span_type: crate::db::spans::SpanType::Default,
+                start_time: chrono::Utc::now(),
+                input: Some(serde_json::json!({
+                    "run_id": run_id,
+                    "trace_id": trace_id,
+                    "signal_id": signal.id,
+                    "job_id": job.id,
+                })),
+                output: None,
+                input_tokens: None,
+                output_tokens: None,
+                model: llm_model.clone(),
+                provider: llm_provider.clone(),
+                internal_project_id,
+            },
+        )
+        .await;
+
+        let mut signal_run = super::SignalRun {
+            run_id,
+            project_id,
+            job_id: job.id,
+            trigger_id: Uuid::nil(),
+            signal_id: signal.id,
+            trace_id,
+            step: 0,
+            status: super::RunStatus::Pending,
+            internal_trace_id,
+            internal_span_id,
+            updated_at: Utc::now(),
+            event_id: None,
+            error_message: None,
+        };
+
+        if push_to_signals_queue(trace_id, project_id, None, signal.clone(), queue.clone())
+            .await
+            .is_err()
+        {
+            signal_run = signal_run.failed("Failed to push to signals queue");
+        }
+
+        signal_runs.push(signal_run);
+    }
+
+    let ch_runs: Vec<crate::ch::signal_runs::CHSignalRun> = signal_runs
+        .iter()
+        .map(crate::ch::signal_runs::CHSignalRun::from)
+        .collect();
+
+    insert_signal_runs(clickhouse.clone(), &ch_runs)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to insert signal runs: {:?}", e);
+            anyhow::anyhow!("Failed to insert signal runs")
+        })?;
+
+    let response = SubmitSignalJobResponse {
+        job_id: job.id,
+        total_traces: job.total_traces,
+        signal_id: job.signal_id,
     };
 
-    let serialized = serde_json::to_vec(&message)?;
-
-    queue
-        .publish(&serialized, SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY, None)
-        .await?;
-
-    log::debug!(
-        "Pushed signal message to queue: trace_id={}, project_id={}, trigger_id={}, event={}",
-        trace_id,
-        project_id,
-        trigger_id.unwrap_or_default(),
-        signal.name
-    );
-
-    Ok(())
+    Ok(response)
 }
 
-/// Handler for signal messages
-pub struct SignalHandler {
-    db: Arc<db::DB>,
-    queue: Arc<MessageQueue>,
-    clickhouse: clickhouse::Client,
-    client: reqwest::Client,
+#[derive(Clone)]
+pub struct SignalBatch {
+    message: SignalMessage,
+    runs: Vec<SignalRunPayload>,
+    last_flush: Instant,
 }
 
-impl SignalHandler {
-    pub fn new(
-        db: Arc<db::DB>,
-        queue: Arc<MessageQueue>,
-        clickhouse: clickhouse::Client,
-        client: reqwest::Client,
-    ) -> Self {
+impl SignalBatch {
+    pub fn from_message(message: SignalMessage) -> Self {
         Self {
-            db,
-            queue,
-            clickhouse,
-            client,
+            message,
+            runs: Vec::new(),
+            last_flush: Instant::now(),
+        }
+    }
+}
+
+pub struct SignalBatchingHandler {
+    queue: Arc<MessageQueue>,
+    config: BatchingConfig,
+}
+
+impl SignalBatchingHandler {
+    pub fn new(queue: Arc<MessageQueue>, config: BatchingConfig) -> Self {
+        Self { queue, config }
+    }
+
+    /// Process signal identification
+    async fn flush_batch(
+        &self,
+        batch: SignalBatch,
+    ) -> Result<Vec<SignalMessage>, (Vec<SignalMessage>, HandlerError)> {
+        let llm_model = env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-2.5-flash".to_string());
+        let llm_provider = env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string());
+        let message = batch.message;
+        let runs = batch.runs;
+
+        match push_to_submissions_queue(
+            SignalJobSubmissionBatchMessage {
+                project_id: message.project_id,
+                job_id: Uuid::new_v4(),
+                signal_id: message.signal.id,
+                signal_name: message.signal.name.clone(),
+                prompt: message.signal.prompt.clone(),
+                structured_output_schema: message.signal.structured_output_schema.clone(),
+                model: llm_model,
+                provider: llm_provider,
+                runs,
+            },
+            self.queue.clone(),
+        )
+        .await
+        {
+            Ok(()) => Ok(vec![message]),
+            Err(e) => Err((vec![message], HandlerError::transient(e))),
         }
     }
 }
 
 #[async_trait]
-impl MessageHandler for SignalHandler {
+impl BatchMessageHandler for SignalBatchingHandler {
     type Message = SignalMessage;
+    // project_id, signal_id to a batch of signal messages
+    type State = HashMap<(Uuid, Uuid), SignalBatch>;
 
-    async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        process_signal(
-            &self.client,
-            message,
-            self.db.clone(),
-            self.clickhouse.clone(),
-            self.queue.clone(),
-        )
-        .await
-        .map_err(Into::into)
+    /// Interval is half of the flush interval to ensure batches are checked frequently enough.
+    fn interval(&self) -> Duration {
+        self.config.flush_interval / 2
     }
-}
 
-/// Process signal identification
-async fn process_signal(
-    client: &reqwest::Client,
-    message: SignalMessage,
-    db: Arc<db::DB>,
-    clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-) -> anyhow::Result<()> {
-    // Create signal run instance
-    let mut run: SignalRun = SignalRun {
-        run_id: Uuid::new_v4(),
-        project_id: message.project_id,
-        job_id: Uuid::nil(),
-        trigger_id: message.trigger_id.unwrap_or_default(),
-        signal_id: message.signal.id,
-        trace_id: message.trace_id,
-        step: 0,
-        status: RunStatus::Pending,
-        internal_trace_id: Uuid::nil(),
-        internal_span_id: Uuid::nil(),
-        updated_at: Utc::now(),
-        event_id: None,
-        error_message: None,
-    };
+    fn initial_state(&self) -> Self::State {
+        HashMap::new()
+    }
 
-    let signal = &message.signal;
+    async fn handle_message(
+        &self,
+        message: Self::Message,
+        state: &mut Self::State,
+    ) -> HandlerResult<Self::Message> {
+        let key = (message.project_id, message.signal.id);
+        let trace_id = message.trace_id;
 
-    let service_url = env::var("SEMANTIC_EVENT_SERVICE_URL")
-        .map_err(|_| anyhow::anyhow!("SEMANTIC_EVENT_SERVICE_URL environment variable not set"))?;
+        // Add message to batch
+        state
+            .entry(key)
+            .or_insert_with(|| SignalBatch::from_message(message))
+            .runs
+            .push(SignalRunPayload {
+                run_id: Uuid::new_v4(),
+                trace_id,
+                step: 0,
+                internal_trace_id: Uuid::nil(),
+                internal_span_id: Uuid::nil(),
+            });
 
-    let auth_token = env::var("SEMANTIC_EVENT_SERVICE_SECRET_KEY").map_err(|_| {
-        anyhow::anyhow!("SEMANTIC_EVENT_SERVICE_SECRET_KEY environment variable not set")
-    })?;
+        let batch_len = state.get(&key).map(|b| b.runs.len()).unwrap_or(0);
+        log::debug!("Batch key={:?}, len={}", key, batch_len);
 
-    let request_body: Value = serde_json::json!({
-        "project_id": message.project_id.to_string(),
-        "trace_id": message.trace_id.to_string(),
-        "event_definition": serde_json::to_value(signal).unwrap(), // shall stay "event_definition" until modal service is updated
-    });
-
-    let response: SignalEventResponse =
-        call_service_with_retry(client, &service_url, &auth_token, &request_body).await?;
-
-    if !response.success {
-        let error_msg = response
-            .error
-            .clone()
-            .unwrap_or_else(|| "Unknown error".to_string());
-        run = run.failed(&error_msg);
-
-        if !run.trigger_id.is_nil() {
-            // don't insert runs for old queue messages with no trigger id
-            let ch_run = CHSignalRun::from(&run);
-            if let Err(e) = insert_signal_runs(clickhouse, &[ch_run]).await {
-                log::error!("Failed to insert failed signal run to ClickHouse: {:?}", e);
+        // Flush if batch size reached
+        if batch_len >= self.config.size {
+            if let Some(batch) = state.remove(&key) {
+                return match self.flush_batch(batch).await {
+                    Ok(messages) => HandlerResult::ack(messages),
+                    Err((messages, error)) => {
+                        if error.should_requeue() {
+                            HandlerResult::requeue(messages)
+                        } else {
+                            HandlerResult::reject(messages)
+                        }
+                    }
+                };
             }
         }
 
-        return Err(anyhow::anyhow!(
-            "Semantic event identification failed: {:?}",
-            response.error
-        ));
+        HandlerResult::empty()
     }
 
-    // if response has attributes it means we identified the event
-    if let Some(attributes) = response.attributes.clone() {
-        let event_id = Uuid::new_v4();
+    async fn handle_interval(&self, state: &mut Self::State) -> HandlerResult<Self::Message> {
+        let now = Instant::now();
+        let mut to_ack = Vec::new();
+        let mut to_reject = Vec::new();
+        let mut to_requeue = Vec::new();
 
-        // Create signal event
-        let signal_event = CHSignalEvent::new(
-            event_id,
-            message.project_id,
-            message.signal.id,
-            message.trace_id,
-            run.run_id,
-            signal.name.clone(),
-            attributes.clone(),
-            Utc::now(),
-        );
+        // Find all stale batches
+        let stale_keys: Vec<_> = state
+            .iter()
+            .filter(|(_, batch)| {
+                !batch.runs.is_empty()
+                    && now.duration_since(batch.last_flush) >= self.config.flush_interval
+            })
+            .map(|(key, _)| *key)
+            .collect();
 
-        insert_signal_events(clickhouse.clone(), vec![signal_event.clone()]).await?;
-
-        process_event_notifications_and_clustering(
-            db,
-            queue,
-            message.project_id,
-            message.trace_id,
-            signal_event,
-        )
-        .await?;
-
-        // Mark run as completed with event
-        run = run.completed_with_event(event_id);
-    } else {
-        // No event identified, but still completed successfully
-        run = run.completed();
-    }
-
-    // Insert completed signal run to ClickHouse
-    if !run.trigger_id.is_nil() {
-        // don't insert runs for old queue messages with no trigger id
-        let ch_run = CHSignalRun::from(&run);
-        if let Err(e) = insert_signal_runs(clickhouse, &[ch_run]).await {
-            log::error!(
-                "Failed to insert completed signal run to ClickHouse: {:?}",
-                e
-            );
-        }
-    }
-
-    Ok(())
-}
-
-/// Process notifications and clustering for an identified signal event
-pub async fn process_event_notifications_and_clustering(
-    db: Arc<db::DB>,
-    queue: Arc<MessageQueue>,
-    project_id: Uuid,
-    trace_id: Uuid,
-    signal_event: CHSignalEvent,
-) -> anyhow::Result<()> {
-    let event_name = signal_event.name().to_string();
-    let attributes = signal_event.payload_value().unwrap_or_default();
-
-    // Check for Slack notifications
-    // It's ok to not check for feature flag here, because channels can't be added without Slack integration
-    let channels =
-        db::slack_channel_to_events::get_channels_for_event(&db.pool, project_id, &event_name)
-            .await?;
-
-    // Push a notification for each configured channel
-    for channel in channels {
-        let payload = EventIdentificationPayload {
-            event_name: event_name.to_string(),
-            extracted_information: Some(attributes.clone()),
-            channel_id: channel.channel_id.clone(),
-            integration_id: channel.integration_id,
-        };
-
-        let notification_message = notifications::NotificationMessage {
-            project_id,
-            trace_id,
-            notification_type: NotificationType::Slack,
-            event_name: event_name.to_string(),
-            payload: serde_json::to_value(SlackMessagePayload::EventIdentification(payload))?,
-        };
-
-        if let Err(e) =
-            notifications::push_to_notification_queue(notification_message, queue.clone()).await
-        {
-            log::error!(
-                "Failed to push to notification queue for channel {}: {:?}",
-                channel.channel_id,
-                e
-            );
-        }
-    }
-
-    if is_feature_enabled(Feature::Clustering) {
-        // Check for event clustering configuration
-        if let Ok(Some(cluster_config)) = db::event_cluster_configs::get_event_cluster_config(
-            &db.pool,
-            project_id,
-            &event_name,
-            EventSource::Semantic,
-        )
-        .await
-        {
-            if let Err(e) = push_to_event_clustering_queue(
-                project_id,
-                signal_event,
-                cluster_config.value_template,
-                queue.clone(),
-            )
-            .await
-            {
-                log::error!(
-                    "Failed to push to event clustering queue for event {}: {:?}",
-                    event_name,
-                    e
+        // Flush all stale batches
+        for key in stale_keys {
+            if let Some(batch) = state.remove(&key) {
+                log::debug!(
+                    "Flushing stale batch: {} messages, age={:?}",
+                    batch.runs.len(),
+                    now.duration_since(batch.last_flush)
                 );
+                match self.flush_batch(batch).await {
+                    Ok(messages) => to_ack.extend(messages),
+                    Err((messages, error)) => {
+                        if error.should_requeue() {
+                            to_requeue.extend(messages);
+                        } else {
+                            to_reject.extend(messages);
+                        }
+                    }
+                }
             }
         }
-    }
 
-    Ok(())
+        HandlerResult {
+            to_ack,
+            to_reject,
+            to_requeue,
+        }
+    }
 }

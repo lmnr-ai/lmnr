@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 pub mod gemini;
 pub mod pendings_consumer;
+pub mod postprocess;
 pub mod prebatch;
 pub mod prompts;
 pub mod queue;
@@ -13,7 +14,7 @@ pub mod submissions_consumer;
 pub mod tools;
 pub mod utils;
 
-pub(crate) use queue::push_to_waiting_queue;
+pub use queue::push_to_signals_queue;
 
 /// Configuration for signal workers, initialized from environment variables.
 #[derive(Debug, Clone)]
@@ -62,8 +63,7 @@ pub use queue::{
     SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
     SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
     SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SignalJobPendingBatchMessage,
-    SignalJobSubmissionBatchMessage, SignalRunPayload, push_to_pending_queue,
-    push_to_submissions_queue,
+    SignalJobSubmissionBatchMessage, SignalRunPayload,
 };
 pub use utils::{InternalSpan, emit_internal_span};
 
