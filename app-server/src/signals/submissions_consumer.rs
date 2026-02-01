@@ -18,17 +18,19 @@ use crate::{
     db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
     signals::{
-        InternalSpan, RunStatus, SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage,
-        SignalRun, SignalRunPayload, SignalWorkerConfig,
+        RunStatus, SignalRun, SignalWorkerConfig,
         gemini::{
             Content, GeminiClient, GenerateContentRequest, GenerationConfig, InlineRequestItem,
             Part,
         },
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
-        queue::push_to_pending_queue,
+        queue::{
+            SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalRunPayload,
+            push_to_pending_queue,
+        },
         spans::get_trace_structure_as_string,
         tools::build_tool_definitions,
-        utils::{emit_internal_span, extract_batch_id_from_operation},
+        utils::{InternalSpan, emit_internal_span, extract_batch_id_from_operation},
     },
     worker::{HandlerError, MessageHandler},
 };
@@ -65,8 +67,8 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         log::debug!(
-            "[SIGNAL JOB] Processing submission message. job_id: {}, runs: {}",
-            message.job_id,
+            "[SIGNAL JOB] Processing submission message. tracking_id: {}, runs: {}",
+            message.tracking_id,
             message.runs.len(),
         );
 
@@ -91,7 +93,6 @@ async fn process(
     config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
     let project_id = msg.project_id;
-    let job_id = msg.job_id;
     let prompt = &msg.prompt;
     let structured_output_schema = &msg.structured_output_schema;
 
@@ -105,7 +106,6 @@ async fn process(
             &msg,
             run,
             project_id,
-            job_id,
             prompt,
             &msg.signal_name,
             structured_output_schema,
@@ -125,7 +125,7 @@ async fn process(
                 failed_runs.push(SignalRun {
                     run_id: run.run_id,
                     project_id,
-                    job_id,
+                    job_id: run.job_id,
                     trigger_id: Uuid::nil(),
                     signal_id: msg.signal_id,
                     trace_id: run.trace_id,
@@ -144,7 +144,7 @@ async fn process(
     if requests.is_empty() {
         log::error!("[SIGNAL JOB] No requests to submit");
         // All runs failed during processing, handle them before returning
-        handle_failed_runs(clickhouse, db, project_id, job_id, failed_runs).await;
+        handle_failed_runs(clickhouse, db, project_id, failed_runs).await;
         return Err(HandlerError::permanent(anyhow::anyhow!(
             "No requests to submit"
         )));
@@ -165,14 +165,14 @@ async fn process(
     match batch_result {
         Ok(()) => {
             // Batch submitted successfully, handle any runs that failed during processing
-            handle_failed_runs(clickhouse, db, project_id, job_id, failed_runs).await;
+            handle_failed_runs(clickhouse, db, project_id, failed_runs).await;
             Ok(())
         }
         Err((batch_failed_runs, handler_error)) => {
             // Only handle failed runs for permanent errors (transient errors will be retried)
             if matches!(handler_error, HandlerError::Permanent(_)) {
                 failed_runs.extend(batch_failed_runs);
-                handle_failed_runs(clickhouse, db, project_id, job_id, failed_runs).await;
+                handle_failed_runs(clickhouse, db, project_id, failed_runs).await;
             }
             Err(handler_error)
         }
@@ -189,10 +189,14 @@ async fn submit_batch_to_gemini(
     queue: Arc<MessageQueue>,
 ) -> Result<(), (Vec<SignalRun>, HandlerError)> {
     let project_id = msg.project_id;
-    let job_id = msg.job_id;
+    let tracking_id = msg.tracking_id;
 
     match gemini
-        .create_batch(&msg.model, requests, Some(format!("signal_job_{}", job_id)))
+        .create_batch(
+            &msg.model,
+            requests,
+            Some(format!("signal_batch_{}", tracking_id)),
+        )
         .await
     {
         Ok(operation) => {
@@ -216,7 +220,7 @@ async fn submit_batch_to_gemini(
 
             let pending_message = SignalJobPendingBatchMessage {
                 project_id,
-                job_id,
+                tracking_id,
                 signal_id: msg.signal_id,
                 prompt: msg.prompt.clone(),
                 signal_name: msg.signal_name.clone(),
@@ -271,7 +275,7 @@ fn create_failed_runs_from_payloads(
         .map(|run| SignalRun {
             run_id: run.run_id,
             project_id: msg.project_id,
-            job_id: msg.job_id,
+            job_id: run.job_id,
             trigger_id: Uuid::nil(),
             signal_id: msg.signal_id,
             trace_id: run.trace_id,
@@ -291,9 +295,10 @@ async fn handle_failed_runs(
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     project_id: uuid::Uuid,
-    job_id: uuid::Uuid,
     failed_runs: Vec<SignalRun>,
 ) {
+    use std::collections::HashMap;
+
     if failed_runs.is_empty() {
         return;
     }
@@ -313,10 +318,17 @@ async fn handle_failed_runs(
         );
     }
 
-    // Update job statistics
-    let failed_count = failed_runs.len() as i32;
-    if let Err(e) = update_signal_job_stats(&db.pool, job_id, 0, failed_count).await {
-        log::error!("Failed to update job statistics for failed batch: {}", e);
+    // Update job statistics - group by job_id since runs may belong to different jobs
+    let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
+    for run in &failed_runs {
+        if !run.job_id.is_nil() {
+            *failed_by_job.entry(run.job_id).or_insert(0) += 1;
+        }
+    }
+    for (job_id, failed_count) in failed_by_job {
+        if let Err(e) = update_signal_job_stats(&db.pool, job_id, 0, failed_count).await {
+            log::error!("Failed to update job statistics for job {}: {}", job_id, e);
+        }
     }
 }
 
@@ -324,7 +336,6 @@ async fn process_run(
     message: &SignalJobSubmissionBatchMessage,
     run: &SignalRunPayload,
     project_id: uuid::Uuid,
-    job_id: uuid::Uuid,
     prompt: &str,
     signal_name: &str,
     structured_output_schema: &serde_json::Value,
@@ -465,12 +476,16 @@ async fn process_run(
         sys.role = Some("system".to_string());
         contents_with_sys.insert(0, sys);
     }
+    let job_ids = if run.job_id.is_nil() {
+        vec![]
+    } else {
+        vec![run.job_id]
+    };
     emit_internal_span(
         queue.clone(),
         InternalSpan {
             name: format!("step_{}.submit_request", run.step),
             trace_id: internal_trace_id,
-            job_id,
             run_id,
             signal_name: signal_name.to_string(),
             parent_span_id: Some(internal_span_id),
@@ -483,6 +498,7 @@ async fn process_run(
             model: message.model.clone(),
             provider: message.provider.clone(),
             internal_project_id,
+            job_ids,
         },
     )
     .await;

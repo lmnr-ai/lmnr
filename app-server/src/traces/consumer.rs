@@ -38,7 +38,7 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
-    signals::queue::push_to_signals_queue,
+    signals::queue::{SignalMessage, push_to_signals_queue},
     storage::Storage,
     traces::{
         IngestedBytes,
@@ -539,15 +539,15 @@ async fn check_and_push_signals(
             }
 
             // Lock acquired - push to signals queue
-            if let Err(e) = push_to_signals_queue(
-                trace.id(),
-                trace.project_id(),
-                Some(trigger.id),
-                trigger.signal.clone(),
-                queue.clone(),
-            )
-            .await
-            {
+            let message = SignalMessage {
+                trace_id: trace.id(),
+                project_id: trace.project_id(),
+                trigger_id: Some(trigger.id),
+                signal: trigger.signal.clone(),
+                run_metadata: None,
+            };
+
+            if let Err(e) = push_to_signals_queue(message, queue.clone()).await {
                 log::error!(
                     "Failed to push trace to signals queue: trace_id={}, project_id={}, signal={}, error={:?}",
                     trace.id(),

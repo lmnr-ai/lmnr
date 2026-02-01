@@ -15,13 +15,13 @@ use crate::ch::signal_runs::insert_signal_runs;
 use crate::db::DB;
 use crate::db::signals::Signal;
 use crate::mq::MessageQueue;
-use crate::signals::queue::SignalMessage;
-
 use crate::routes::signals::SubmitSignalJobResponse;
-use crate::signals::{
-    InternalSpan, SignalJobSubmissionBatchMessage, SignalRunPayload, push_to_signals_queue,
-    queue::push_to_submissions_queue,
+use crate::signals::push_to_signals_queue;
+use crate::signals::queue::{
+    SignalJobSubmissionBatchMessage, SignalMessage, SignalRunMetadata, SignalRunPayload,
+    push_to_submissions_queue,
 };
+use crate::signals::utils::{InternalSpan, emit_internal_span};
 use crate::worker::HandlerError;
 
 /// Flatten the job runs and push it to the queue, so that only BatchMessageHandler
@@ -58,12 +58,11 @@ pub async fn enqueue_signal_job(
         let internal_trace_id = Uuid::new_v4();
 
         // Emit root span for internal tracing of a run
-        let internal_span_id = super::emit_internal_span(
+        let internal_span_id = emit_internal_span(
             queue.clone(),
             InternalSpan {
                 name: "signal.run".to_string(),
                 trace_id: internal_trace_id,
-                job_id: job.id,
                 run_id,
                 signal_name: signal.name.clone(),
                 parent_span_id: None,
@@ -81,6 +80,7 @@ pub async fn enqueue_signal_job(
                 model: llm_model.clone(),
                 provider: llm_provider.clone(),
                 internal_project_id,
+                job_ids: vec![job.id],
             },
         )
         .await;
@@ -101,10 +101,20 @@ pub async fn enqueue_signal_job(
             error_message: None,
         };
 
-        if push_to_signals_queue(trace_id, project_id, None, signal.clone(), queue.clone())
-            .await
-            .is_err()
-        {
+        let message = SignalMessage {
+            trace_id,
+            project_id,
+            trigger_id: None,
+            signal: signal.clone(),
+            run_metadata: Some(SignalRunMetadata {
+                run_id,
+                internal_trace_id,
+                internal_span_id,
+                job_id: job.id,
+            }),
+        };
+
+        if push_to_signals_queue(message, queue.clone()).await.is_err() {
             signal_run = signal_run.failed("Failed to push to signals queue");
         }
 
@@ -168,11 +178,14 @@ impl SignalBatchingHandler {
         let llm_provider = env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string());
         let message = batch.message;
         let runs = batch.runs;
+        // Generate a tracking ID for the batch message (used only for logging/display)
+        // Individual runs track their own job_ids for stats updates
+        let tracking_id = Uuid::new_v4();
 
         match push_to_submissions_queue(
             SignalJobSubmissionBatchMessage {
                 project_id: message.project_id,
-                job_id: Uuid::new_v4(),
+                tracking_id,
                 signal_id: message.signal.id,
                 signal_name: message.signal.name.clone(),
                 prompt: message.signal.prompt.clone(),
@@ -214,18 +227,32 @@ impl BatchMessageHandler for SignalBatchingHandler {
         let key = (message.project_id, message.signal.id);
         let trace_id = message.trace_id;
 
-        // Add message to batch
-        state
-            .entry(key)
-            .or_insert_with(|| SignalBatch::from_message(message))
-            .runs
-            .push(SignalRunPayload {
+        // Use provided run_metadata (from batch API) or create new run info (for triggered runs)
+        let run_payload = match message.run_metadata {
+            Some(ref metadata) => SignalRunPayload {
+                run_id: metadata.run_id,
+                trace_id,
+                step: 0,
+                internal_trace_id: metadata.internal_trace_id,
+                internal_span_id: metadata.internal_span_id,
+                job_id: metadata.job_id,
+            },
+            None => SignalRunPayload {
                 run_id: Uuid::new_v4(),
                 trace_id,
                 step: 0,
                 internal_trace_id: Uuid::nil(),
                 internal_span_id: Uuid::nil(),
-            });
+                job_id: Uuid::nil(),
+            },
+        };
+
+        // Add message to batch
+        state
+            .entry(key)
+            .or_insert_with(|| SignalBatch::from_message(message))
+            .runs
+            .push(run_payload);
 
         let batch_len = state.get(&key).map(|b| b.runs.len()).unwrap_or(0);
         log::debug!("Batch key={:?}, len={}", key, batch_len);

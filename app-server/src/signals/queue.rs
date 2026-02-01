@@ -35,7 +35,8 @@ pub const DEFAULT_BATCH_SIZE: usize = 64;
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct SignalJobSubmissionBatchMessage {
     pub project_id: Uuid,
-    pub job_id: Uuid,
+    /// Internal tracking ID for this batch (used for logging/display, not for job stats)
+    pub tracking_id: Uuid,
     pub signal_id: Uuid,
     pub prompt: String,
     pub structured_output_schema: Value,
@@ -48,7 +49,8 @@ pub struct SignalJobSubmissionBatchMessage {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct SignalJobPendingBatchMessage {
     pub project_id: Uuid,
-    pub job_id: Uuid,
+    /// Internal tracking ID for this batch (used for logging/display, not for job stats)
+    pub tracking_id: Uuid,
     pub signal_id: Uuid,
     pub prompt: String,
     pub structured_output_schema: Value,
@@ -56,7 +58,8 @@ pub struct SignalJobPendingBatchMessage {
     pub model: String,
     pub provider: String,
     pub runs: Vec<SignalRunPayload>,
-    pub batch_id: String, // LLM Request Batch ID that can be used to track the completion of the batch
+    /// LLM Request Batch ID returned by Gemini API for polling completion status
+    pub batch_id: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -66,6 +69,9 @@ pub struct SignalRunPayload {
     pub step: usize,
     pub internal_trace_id: Uuid,
     pub internal_span_id: Uuid,
+    /// Job ID this run belongs to. Uuid::nil() for triggered runs without a job.
+    #[serde(default)]
+    pub job_id: Uuid,
 }
 
 impl From<&super::SignalRun> for SignalRunPayload {
@@ -76,8 +82,18 @@ impl From<&super::SignalRun> for SignalRunPayload {
             step: run.step,
             internal_trace_id: run.internal_trace_id,
             internal_span_id: run.internal_span_id,
+            job_id: run.job_id,
         }
     }
+}
+
+/// Metadata for pre-created signal runs (from batch API).
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct SignalRunMetadata {
+    pub run_id: Uuid,
+    pub internal_trace_id: Uuid,
+    pub internal_span_id: Uuid,
+    pub job_id: Uuid,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -87,6 +103,9 @@ pub struct SignalMessage {
     pub trigger_id: Option<Uuid>, // TODO: Remove Option once old messages in queue without trigger_id are processed
     #[serde(alias = "event_definition")] // backwards compatibility with old messages
     pub signal: crate::db::signals::Signal,
+    /// Pre-created run metadata from batch API. None for triggered runs (batcher creates new).
+    #[serde(default)]
+    pub run_metadata: Option<SignalRunMetadata>,
 }
 
 impl UniqueId for SignalMessage {
@@ -103,7 +122,7 @@ pub async fn push_to_submissions_queue(
 
     let batch_message = SignalJobSubmissionBatchMessage {
         project_id: message.project_id,
-        job_id: message.job_id,
+        tracking_id: message.tracking_id,
         signal_id: message.signal_id,
         signal_name: message.signal_name.clone(),
         prompt: message.prompt.clone(),
@@ -117,9 +136,9 @@ pub async fn push_to_submissions_queue(
 
     if serialized.len() >= mq_max_payload() {
         log::warn!(
-            "[SIGNAL JOB] MQ payload limit exceeded. Project ID: [{}], Job ID: [{}], payload size: [{}]. Batch size: [{}]",
+            "[SIGNAL JOB] MQ payload limit exceeded. Project ID: [{}], Tracking ID: [{}], payload size: [{}]. Batch size: [{}]",
             batch_message.project_id,
-            batch_message.job_id,
+            batch_message.tracking_id,
             serialized.len(),
             number_of_runs
         );
@@ -177,19 +196,9 @@ pub async fn push_to_waiting_queue(
 }
 
 pub async fn push_to_signals_queue(
-    trace_id: Uuid,
-    project_id: Uuid,
-    trigger_id: Option<Uuid>,
-    signal: crate::db::signals::Signal,
+    message: SignalMessage,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
-    let message = SignalMessage {
-        trace_id,
-        project_id,
-        trigger_id,
-        signal: signal.clone(),
-    };
-
     let serialized = serde_json::to_vec(&message)?;
 
     queue
@@ -197,11 +206,11 @@ pub async fn push_to_signals_queue(
         .await?;
 
     log::debug!(
-        "Pushed signal message to queue: trace_id={}, project_id={}, trigger_id={}, event={}",
-        trace_id,
-        project_id,
-        trigger_id.unwrap_or_default(),
-        signal.name
+        "Pushed signal message to queue: trace_id={}, project_id={}, trigger_id={}, signal={}",
+        message.trace_id,
+        message.project_id,
+        message.trigger_id.unwrap_or_default(),
+        message.signal.name
     );
 
     Ok(())

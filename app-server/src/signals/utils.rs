@@ -17,7 +17,6 @@ use crate::{
 pub struct InternalSpan {
     pub name: String,
     pub trace_id: Uuid,
-    pub job_id: Uuid,
     pub run_id: Uuid,
     pub signal_name: String,
     pub parent_span_id: Option<Uuid>,
@@ -30,6 +29,8 @@ pub struct InternalSpan {
     pub model: String,
     pub provider: String,
     pub internal_project_id: Option<Uuid>,
+    /// Job IDs associated with this span (may be empty for triggered runs)
+    pub job_ids: Vec<Uuid>,
 }
 
 /// Try to parse JSON string, return the parsed value or the original string
@@ -123,10 +124,6 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
 
     let mut attrs = HashMap::from([
         (
-            "signal.job_id".to_string(),
-            serde_json::json!(span.job_id.to_string()),
-        ),
-        (
             "signal.run_id".to_string(),
             serde_json::json!(span.run_id.to_string()),
         ),
@@ -135,6 +132,12 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
             serde_json::json!(span.signal_name),
         ),
     ]);
+
+    // Only add job_ids if non-empty
+    if !span.job_ids.is_empty() {
+        let job_ids_strs: Vec<String> = span.job_ids.iter().map(|id| id.to_string()).collect();
+        attrs.insert("signal.job_ids".to_string(), serde_json::json!(job_ids_strs));
+    }
 
     if let Some(tokens) = span.input_tokens {
         attrs.insert(

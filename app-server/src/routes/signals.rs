@@ -8,7 +8,7 @@ use crate::{
     db::{self, DB},
     mq::MessageQueue,
     query_engine::QueryEngine,
-    signals::prebatch::enqueue_signal_job,
+    signals::batching::enqueue_signal_job,
     sql::{self, ClickhouseReadonlyClient},
 };
 

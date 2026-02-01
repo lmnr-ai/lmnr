@@ -46,10 +46,9 @@ use signals::{
     SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY, SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
     SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
     SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
-    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SignalWorkerConfig,
+    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SIGNALS_EXCHANGE, SIGNALS_QUEUE, SIGNALS_ROUTING_KEY,
+    SignalWorkerConfig, batching::SignalBatchingHandler,
     pendings_consumer::SignalJobPendingBatchHandler,
-    prebatch::SignalBatchingHandler,
-    queue::{SIGNALS_EXCHANGE, SIGNALS_QUEUE, SIGNALS_ROUTING_KEY},
     submissions_consumer::SignalJobSubmissionBatchHandler,
 };
 use tonic::transport::Server;
