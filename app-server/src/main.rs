@@ -48,13 +48,13 @@ use signals::{
     SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
     SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SignalWorkerConfig,
     pendings_consumer::SignalJobPendingBatchHandler,
+    prebatch::{SIGNALS_EXCHANGE, SIGNALS_QUEUE, SIGNALS_ROUTING_KEY, SignalHandler},
     submissions_consumer::SignalJobSubmissionBatchHandler,
 };
 use tonic::transport::Server;
 use traces::{
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SIGNALS_EXCHANGE,
-    SIGNALS_QUEUE, SIGNALS_ROUTING_KEY, clustering::ClusteringHandler, consumer::SpanHandler,
-    grpc_service::ProcessTracesService, signals::SignalHandler,
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
+    clustering::ClusteringHandler, consumer::SpanHandler, grpc_service::ProcessTracesService,
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};

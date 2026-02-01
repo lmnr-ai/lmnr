@@ -24,7 +24,6 @@ use crate::{
     },
     db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
-    traces::signals::process_event_notifications_and_clustering,
     worker::{HandlerError, MessageHandler},
 };
 
@@ -36,6 +35,7 @@ use super::{
         client::GeminiClient,
         utils::{ParsedInlineResponse, parse_inline_response},
     },
+    prebatch::process_event_notifications_and_clustering,
     push_to_submissions_queue, push_to_waiting_queue,
     spans::get_trace_spans_with_id_mapping,
     tools::get_full_span_info,

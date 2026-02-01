@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 pub mod gemini;
 pub mod pendings_consumer;
+pub mod prebatch;
 pub mod prompts;
 pub mod queue;
 pub mod spans;

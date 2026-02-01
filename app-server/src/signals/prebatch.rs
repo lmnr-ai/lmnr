@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use super::{SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY};
 use crate::ch::signal_events::{CHSignalEvent, insert_signal_events};
 use crate::ch::signal_runs::{CHSignalRun, insert_signal_runs};
 use crate::clustering::queue::push_to_event_clustering_queue;
@@ -23,12 +22,17 @@ use crate::signals::{RunStatus, SignalRun};
 use crate::utils::call_service_with_retry;
 use crate::worker::{HandlerError, MessageHandler};
 
+pub const SIGNALS_QUEUE: &str = "semantic_event_queue";
+pub const SIGNALS_EXCHANGE: &str = "semantic_event_exchange";
+pub const SIGNALS_ROUTING_KEY: &str = "semantic_event_routing_key";
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SignalMessage {
-    pub trace_id: Uuid,
-    pub project_id: Uuid,
-    pub trigger_id: Option<Uuid>, // TODO: Remove Option once old messages in queue without trigger_id are processed
-    pub event_definition: Signal, // should stay "event_definition" for backward compatibility
+    trace_id: Uuid,
+    project_id: Uuid,
+    trigger_id: Option<Uuid>, // TODO: Remove Option once old messages in queue without trigger_id are processed
+    #[serde(alias = "event_definition")] // backwards compatibility with old messages
+    signal: Signal,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -52,7 +56,7 @@ pub async fn push_to_signals_queue(
         trace_id,
         project_id,
         trigger_id,
-        event_definition: signal.clone(),
+        signal: signal.clone(),
     };
 
     let serialized = serde_json::to_vec(&message)?;
@@ -127,7 +131,7 @@ async fn process_signal(
         project_id: message.project_id,
         job_id: Uuid::nil(),
         trigger_id: message.trigger_id.unwrap_or_default(),
-        signal_id: message.event_definition.id,
+        signal_id: message.signal.id,
         trace_id: message.trace_id,
         step: 0,
         status: RunStatus::Pending,
@@ -138,7 +142,7 @@ async fn process_signal(
         error_message: None,
     };
 
-    let signal = &message.event_definition;
+    let signal = &message.signal;
 
     let service_url = env::var("SEMANTIC_EVENT_SERVICE_URL")
         .map_err(|_| anyhow::anyhow!("SEMANTIC_EVENT_SERVICE_URL environment variable not set"))?;
@@ -185,7 +189,7 @@ async fn process_signal(
         let signal_event = CHSignalEvent::new(
             event_id,
             message.project_id,
-            message.event_definition.id,
+            message.signal.id,
             message.trace_id,
             run.run_id,
             signal.name.clone(),
