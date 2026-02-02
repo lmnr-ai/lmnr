@@ -103,7 +103,7 @@ impl BatchMessageHandler for SignalBatchingHandler {
         state: &mut Self::State,
     ) -> HandlerResult<Self::Message> {
         // Add message to the single batch
-        state.messages.push(delivery.clone());
+        state.messages.push(delivery);
 
         let batch_len = state.messages.len();
 
