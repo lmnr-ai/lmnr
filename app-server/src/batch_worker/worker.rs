@@ -5,7 +5,7 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::batch_worker::BatchWorkerType;
-use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult, UniqueId};
+use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult, MessageDelivery};
 use crate::mq::{
     MessageQueue, MessageQueueAcker, MessageQueueDeliveryTrait, MessageQueueReceiver,
     MessageQueueReceiverTrait, MessageQueueTrait,
@@ -27,7 +27,7 @@ pub struct BatchQueueWorker<H: BatchMessageHandler> {
     queue: Arc<MessageQueue>,
     config: QueueConfig,
     state: H::State,
-    ackers: HashMap<String, MessageQueueAcker>,
+    ackers: HashMap<u64, MessageQueueAcker>,
 }
 
 impl<H: BatchMessageHandler> BatchQueueWorker<H> {
@@ -100,9 +100,12 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                         Some(delivery) => {
                             let delivery = delivery?;
 
-                            // Deserialize message
+                            // Extract delivery metadata
                             let acker = delivery.acker();
-                            let data = delivery.data();
+                            let delivery_tag = delivery.delivery_tag();
+                            let data = delivery.data(); // consumes delivery
+
+                            // Deserialize message
                             let message = match self.deserialize_message(&data) {
                                 Ok(message) => message,
                                 Err(handler_error) => {
@@ -111,12 +114,13 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
                                 }
                             };
 
-                            // Store message acker before processing
-                            self.ackers.insert(message.get_unique_id(), acker);
+                            // Store acker for later acknowledgment
+                            self.ackers.insert(delivery_tag, acker);
 
-                            // Handle message and process result
+                            // Wrap message with delivery metadata and handle
+                            let message_delivery = MessageDelivery::new(message, delivery_tag);
                             let result = self.handler
-                                .handle_message(message, &mut self.state)
+                                .handle_message(message_delivery, &mut self.state)
                                 .await;
 
                             self.handle_result(result).await?;
@@ -190,52 +194,54 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         })
     }
 
-    /// Handle the result from handler (ack/reject/requeue messages)
+    /// Handle the result from handler (ack/reject/requeue deliveries)
     async fn handle_result(&mut self, result: HandlerResult<H::Message>) -> anyhow::Result<()> {
-        // Ack successful messages
+        // Ack successful deliveries
         if !result.to_ack.is_empty() {
             log::debug!(
-                "Worker {} ({:?}) acking {} messages",
+                "Worker {} ({:?}) acking {} deliveries",
                 self.id,
                 self.worker_type,
                 result.to_ack.len()
             );
-            self.ack_messages(&result.to_ack).await?;
+            self.ack_deliveries(&result.to_ack).await?;
         }
 
         // Reject permanent failures (no requeue)
         if !result.to_reject.is_empty() {
             log::error!(
-                "Worker {} ({:?}) rejecting {} messages (permanent failure)",
+                "Worker {} ({:?}) rejecting {} deliveries (permanent failure)",
                 self.id,
                 self.worker_type,
                 result.to_reject.len()
             );
-            self.reject_messages(&result.to_reject, false).await?;
+            self.reject_deliveries(&result.to_reject, false).await?;
         }
 
         // Requeue transient failures
         if !result.to_requeue.is_empty() {
             log::warn!(
-                "Worker {} ({:?}) requeuing {} messages (transient failure)",
+                "Worker {} ({:?}) requeuing {} deliveries (transient failure)",
                 self.id,
                 self.worker_type,
                 result.to_requeue.len()
             );
-            self.reject_messages(&result.to_requeue, true).await?;
+            self.reject_deliveries(&result.to_requeue, true).await?;
         }
 
         Ok(())
     }
 
-    /// Ack messages in parallel
-    async fn ack_messages(&mut self, messages: &[H::Message]) -> anyhow::Result<()> {
-        let ack_futures: Vec<_> = messages
+    /// Ack deliveries in parallel
+    async fn ack_deliveries(
+        &mut self,
+        deliveries: &[MessageDelivery<H::Message>],
+    ) -> anyhow::Result<()> {
+        let ack_futures: Vec<_> = deliveries
             .iter()
-            .filter_map(|msg| {
-                let msg_id = msg.get_unique_id();
+            .filter_map(|delivery| {
                 self.ackers
-                    .remove(&msg_id)
+                    .remove(&delivery.delivery_tag)
                     .map(|acker| async move { acker.ack().await })
             })
             .collect();
@@ -244,18 +250,17 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         Ok(())
     }
 
-    /// Reject messages in parallel
-    async fn reject_messages(
+    /// Reject deliveries in parallel
+    async fn reject_deliveries(
         &mut self,
-        messages: &[H::Message],
+        deliveries: &[MessageDelivery<H::Message>],
         requeue: bool,
     ) -> anyhow::Result<()> {
-        let reject_futures: Vec<_> = messages
+        let reject_futures: Vec<_> = deliveries
             .iter()
-            .filter_map(|msg| {
-                let msg_id = msg.get_unique_id();
+            .filter_map(|delivery| {
                 self.ackers
-                    .remove(&msg_id)
+                    .remove(&delivery.delivery_tag)
                     .map(|acker| async move { acker.reject(requeue).await })
             })
             .collect();
@@ -284,12 +289,6 @@ mod tests {
         value: i32,
     }
 
-    impl UniqueId for TestMessage {
-        fn get_unique_id(&self) -> String {
-            self.id.clone()
-        }
-    }
-
     /// Mock handler that can be configured to return different results
     struct MockHandler {
         batch_size: usize,
@@ -304,7 +303,7 @@ mod tests {
     #[async_trait]
     impl BatchMessageHandler for MockHandler {
         type Message = TestMessage;
-        type State = Vec<TestMessage>;
+        type State = Vec<MessageDelivery<TestMessage>>;
 
         fn interval(&self) -> Duration {
             Duration::from_secs(60)
@@ -316,14 +315,14 @@ mod tests {
 
         async fn handle_message(
             &self,
-            message: Self::Message,
+            delivery: MessageDelivery<Self::Message>,
             state: &mut Self::State,
         ) -> HandlerResult<Self::Message> {
-            state.push(message);
+            state.push(delivery);
 
             if state.len() >= self.batch_size {
-                let messages = std::mem::take(state);
-                HandlerResult::ack(messages)
+                let deliveries = std::mem::take(state);
+                HandlerResult::ack(deliveries)
             } else {
                 HandlerResult::empty()
             }
@@ -333,8 +332,8 @@ mod tests {
             if state.is_empty() {
                 HandlerResult::empty()
             } else {
-                let messages = std::mem::take(state);
-                HandlerResult::ack(messages)
+                let deliveries = std::mem::take(state);
+                HandlerResult::ack(deliveries)
             }
         }
     }
@@ -414,78 +413,86 @@ mod tests {
             id: "test-1".to_string(),
             value: 42,
         };
+        let delivery = MessageDelivery::new(msg, 1);
 
-        let result = worker.handler.handle_message(msg, &mut worker.state).await;
+        let result = worker
+            .handler
+            .handle_message(delivery, &mut worker.state)
+            .await;
 
         assert!(result.to_ack.is_empty()); // batch not full yet
         assert_eq!(worker.state.len(), 1);
     }
 
     #[tokio::test]
-    async fn test_handle_result_acks_messages() {
+    async fn test_handle_result_acks_deliveries() {
         let queue = create_test_queue();
         let handler = MockHandler::new(10);
         let mut worker = create_worker(handler, queue);
 
         // Add some ackers
-        let msg1 = TestMessage {
-            id: "msg-1".to_string(),
-            value: 1,
-        };
-        let msg2 = TestMessage {
-            id: "msg-2".to_string(),
-            value: 2,
-        };
+        let delivery1 = MessageDelivery::new(
+            TestMessage {
+                id: "msg-1".to_string(),
+                value: 1,
+            },
+            1,
+        );
+        let delivery2 = MessageDelivery::new(
+            TestMessage {
+                id: "msg-2".to_string(),
+                value: 2,
+            },
+            2,
+        );
 
-        worker
-            .ackers
-            .insert("msg-1".to_string(), MessageQueueAcker::TokioMpscAcker);
-        worker
-            .ackers
-            .insert("msg-2".to_string(), MessageQueueAcker::TokioMpscAcker);
+        worker.ackers.insert(1, MessageQueueAcker::TokioMpscAcker);
+        worker.ackers.insert(2, MessageQueueAcker::TokioMpscAcker);
 
-        let result = HandlerResult::ack(vec![msg1, msg2]);
+        let result = HandlerResult::ack(vec![delivery1, delivery2]);
         worker.handle_result(result).await.unwrap();
 
-        // Ackers should be removed after acking
+        // Both ackers should be removed after acking
         assert!(worker.ackers.is_empty());
     }
 
     #[tokio::test]
-    async fn test_handle_result_rejects_messages() {
+    async fn test_handle_result_rejects_deliveries() {
         let queue = create_test_queue();
         let handler = MockHandler::new(10);
         let mut worker = create_worker(handler, queue);
 
-        let msg = TestMessage {
-            id: "msg-1".to_string(),
-            value: 1,
-        };
-        worker
-            .ackers
-            .insert("msg-1".to_string(), MessageQueueAcker::TokioMpscAcker);
+        let delivery = MessageDelivery::new(
+            TestMessage {
+                id: "msg-1".to_string(),
+                value: 1,
+            },
+            1,
+        );
+        worker.ackers.insert(1, MessageQueueAcker::TokioMpscAcker);
 
-        let result = HandlerResult::reject(vec![msg]);
+        let result = HandlerResult::reject(vec![delivery]);
         worker.handle_result(result).await.unwrap();
 
         assert!(worker.ackers.is_empty());
     }
 
     #[tokio::test]
-    async fn test_handle_result_requeues_messages() {
+    async fn test_handle_result_requeues_deliveries() {
         let queue = create_test_queue();
         let handler = MockHandler::new(10);
         let mut worker = create_worker(handler, queue);
 
-        let msg = TestMessage {
-            id: "msg-1".to_string(),
-            value: 1,
-        };
-        worker
-            .ackers
-            .insert("msg-1".to_string(), MessageQueueAcker::TokioMpscAcker);
+        let delivery = MessageDelivery::new(
+            TestMessage {
+                id: "msg-1".to_string(),
+                value: 1,
+            },
+            1,
+        );
+        worker.ackers.insert(1, MessageQueueAcker::TokioMpscAcker);
 
-        let result = HandlerResult::requeue(vec![msg]);
+        let result = HandlerResult::requeue(vec![delivery]);
         worker.handle_result(result).await.unwrap();
 
         assert!(worker.ackers.is_empty());
@@ -497,36 +504,40 @@ mod tests {
         let handler = MockHandler::new(10);
         let mut worker = create_worker(handler, queue);
 
-        let msg1 = TestMessage {
-            id: "ack-1".to_string(),
-            value: 1,
-        };
-        let msg2 = TestMessage {
-            id: "reject-1".to_string(),
-            value: 2,
-        };
-        let msg3 = TestMessage {
-            id: "requeue-1".to_string(),
-            value: 3,
-        };
+        let delivery1 = MessageDelivery::new(
+            TestMessage {
+                id: "ack-1".to_string(),
+                value: 1,
+            },
+            1,
+        );
+        let delivery2 = MessageDelivery::new(
+            TestMessage {
+                id: "reject-1".to_string(),
+                value: 2,
+            },
+            2,
+        );
+        let delivery3 = MessageDelivery::new(
+            TestMessage {
+                id: "requeue-1".to_string(),
+                value: 3,
+            },
+            3,
+        );
 
-        worker
-            .ackers
-            .insert("ack-1".to_string(), MessageQueueAcker::TokioMpscAcker);
-        worker
-            .ackers
-            .insert("reject-1".to_string(), MessageQueueAcker::TokioMpscAcker);
-        worker
-            .ackers
-            .insert("requeue-1".to_string(), MessageQueueAcker::TokioMpscAcker);
+        worker.ackers.insert(1, MessageQueueAcker::TokioMpscAcker);
+        worker.ackers.insert(2, MessageQueueAcker::TokioMpscAcker);
+        worker.ackers.insert(3, MessageQueueAcker::TokioMpscAcker);
 
         let result = HandlerResult {
-            to_ack: vec![msg1],
-            to_reject: vec![msg2],
-            to_requeue: vec![msg3],
+            to_ack: vec![delivery1],
+            to_reject: vec![delivery2],
+            to_requeue: vec![delivery3],
         };
         worker.handle_result(result).await.unwrap();
 
+        // All ackers should be removed
         assert!(worker.ackers.is_empty());
     }
 }

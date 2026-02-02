@@ -99,7 +99,6 @@ async fn create_session_event(
     let events_count = filtered_batch.events.len();
 
     let message = QueueBrowserEventMessage {
-        id: Uuid::new_v4(),
         batch: filtered_batch,
         project_id: project_api_key.project_id,
     };
