@@ -167,7 +167,7 @@ function CondensedTimeline() {
           </div>
 
           {/* Timeline content */}
-          <div ref={timelineContentRef} className="relative" style={{ minHeight: contentHeight }}>
+          <div ref={timelineContentRef} className="relative bg-red-500" style={{ minHeight: contentHeight }}>
             {/* Span elements */}
             {condensedSpans.map((condensedSpan) => {
               const hasGroupSelection = condensedTimelineVisibleSpanIds.size > 0;

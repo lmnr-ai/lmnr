@@ -400,7 +400,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                       <CondensedTimeline />
                     </div>
                   </ResizablePanel>
-                  <ResizableHandle className="hover:bg-blue-400 z-50 transition-colors hover:scale-200" />
+                  <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
                 </>
               )}
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
@@ -429,7 +429,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               </ResizablePanel>
               {browserSession && (
                 <>
-                  <ResizableHandle className="hover:bg-blue-400 z-50 transition-colors hover:scale-200" />
+                  <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
                   <ResizablePanel>
                     {!isLoading && (
                       <SessionPlayer
@@ -446,7 +446,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             </ResizablePanelGroup>
           )}
           <div
-            className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
+            className="absolute top-0 right-0 h-full cursor-col-resize z-10 group w-2"
             onMouseDown={handleResizeTreeView}
           >
             <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
