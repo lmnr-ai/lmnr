@@ -48,7 +48,7 @@ export default function ClientTimestampFormatter({
     <TooltipProvider>
       <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>
-          <span className={cn("text-secondary-foreground cursor-pointer", className)}>{displayText}</span>
+          <span className={cn("text-sm cursor-pointer", className)}>{displayText}</span>
         </TooltipTrigger>
         <TooltipPortal>
           <TooltipContent className="border">
