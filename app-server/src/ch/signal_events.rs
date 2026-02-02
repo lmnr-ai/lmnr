@@ -4,8 +4,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::db::events::EventSource;
-
 use super::utils::chrono_to_nanoseconds;
 
 /// ClickHouse representation of a signal event
@@ -60,11 +58,6 @@ impl CHSignalEvent {
     pub fn payload_value(&self) -> Result<Value> {
         serde_json::from_str(&self.payload)
             .map_err(|e| anyhow::anyhow!("Failed to parse payload: {}", e))
-    }
-
-    /// Get the event source (always Semantic for signal events)
-    pub fn source(&self) -> EventSource {
-        EventSource::Semantic
     }
 }
 
