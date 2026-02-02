@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use backoff::ExponentialBackoffBuilder;
@@ -15,6 +15,7 @@ use crate::{
     db::DB,
     features::{Feature, is_feature_enabled},
     traces::limits::update_workspace_limit_exceeded_by_project_id,
+    worker::HandlerError,
 };
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -45,36 +46,29 @@ pub struct BrowserEventHandler {
     pub config: BatchingConfig,
 }
 
-/// A batch of browser events with metadata for interval-based flushing
-#[derive(Clone)]
-pub struct BrowserEventBatch {
-    pub messages: Vec<QueueBrowserEventMessage>,
-    pub last_flush: Instant,
-}
-
 impl BrowserEventHandler {
     /// Flattens accumulated messages into BrowserEventCHRow and inserts them into ClickHouse.
-    /// Returns a HandlerResult with all messages to ack on success, or requeue on failure.
+    /// Returns a HandlerResult with all messages to ack on success, or requeue/reject on failure.
     async fn flush_batch(
         &self,
-        state: &mut BrowserEventBatch,
+        state: &mut Vec<QueueBrowserEventMessage>,
     ) -> HandlerResult<QueueBrowserEventMessage> {
         log::debug!("Flushing browser events batch");
 
         // Take ownership of messages and reset state
-        let messages_to_flush = std::mem::take(&mut state.messages);
-        state.last_flush = Instant::now();
+        let messages_to_flush = std::mem::take(state);
 
         match self.flush_batch_inner(&messages_to_flush).await {
-            Ok(result) => result,
-            Err(()) => HandlerResult::requeue(messages_to_flush),
+            Ok(()) => HandlerResult::ack(messages_to_flush),
+            Err(HandlerError::Transient(_)) => HandlerResult::requeue(messages_to_flush),
+            Err(HandlerError::Permanent(_)) => HandlerResult::reject(messages_to_flush),
         }
     }
 
     async fn flush_batch_inner(
         &self,
         messages_to_flush: &[QueueBrowserEventMessage],
-    ) -> Result<HandlerResult<QueueBrowserEventMessage>, ()> {
+    ) -> Result<(), HandlerError> {
         // Flatten all messages into BrowserEventCHRows
         let events_to_insert: Vec<BrowserEventCHRow> = messages_to_flush
             .iter()
@@ -95,7 +89,7 @@ impl BrowserEventHandler {
             .collect();
 
         if events_to_insert.is_empty() {
-            return Ok(HandlerResult::empty());
+            return Ok(());
         }
 
         // Insert events into ClickHouse with exponential backoff
@@ -124,6 +118,7 @@ impl BrowserEventHandler {
             .await
             .map_err(|e| {
                 log::error!("Failed to insert browser events after retries: {:?}", e);
+                HandlerError::transient(e)
             })?;
 
         // Update usage limits for all affected projects
@@ -152,25 +147,21 @@ impl BrowserEventHandler {
             }
         }
 
-        Ok(HandlerResult::ack(messages_to_flush.to_vec()))
+        Ok(())
     }
 }
 
 #[async_trait]
 impl BatchMessageHandler for BrowserEventHandler {
     type Message = QueueBrowserEventMessage;
-    type State = BrowserEventBatch;
+    type State = Vec<QueueBrowserEventMessage>;
 
-    /// Interval is half of the flush interval to ensure batches are checked frequently enough.
     fn interval(&self) -> Duration {
         self.config.flush_interval
     }
 
     fn initial_state(&self) -> Self::State {
-        BrowserEventBatch {
-            messages: Vec::new(),
-            last_flush: Instant::now(),
-        }
+        Vec::new()
     }
 
     async fn handle_message(
@@ -180,14 +171,14 @@ impl BatchMessageHandler for BrowserEventHandler {
     ) -> HandlerResult<Self::Message> {
         // Skip empty batches
         if message.batch.events.is_empty() {
-            return HandlerResult::empty();
+            return HandlerResult::ack(vec![message]);
         }
 
         // Add message to the batch
-        state.messages.push(message);
+        state.push(message);
 
         // Check if we've reached the batch size threshold
-        let total_events: usize = state.messages.iter().map(|m| m.batch.events.len()).sum();
+        let total_events: usize = state.iter().map(|m| m.batch.events.len()).sum();
         log::debug!(
             "Browser events batch size: {}, total events: {}",
             self.config.size,
@@ -203,7 +194,7 @@ impl BatchMessageHandler for BrowserEventHandler {
 
     async fn handle_interval(&self, state: &mut Self::State) -> HandlerResult<Self::Message> {
         // Check if we have messages and enough time has passed since last flush
-        if !state.messages.is_empty() && state.last_flush.elapsed() >= self.config.flush_interval {
+        if !state.is_empty() {
             return self.flush_batch(state).await;
         }
 
