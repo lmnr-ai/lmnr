@@ -1,7 +1,7 @@
 import { isEmpty } from "lodash";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store";
+import { MAX_ZOOM, MIN_ZOOM, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/trace-view-store-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,7 @@ function CondensedTimeline() {
     setCondensedTimelineVisibleSpanIds,
     clearCondensedTimelineSelection,
     condensedTimelineZoom,
+    setCondensedTimelineZoom,
   } = useTraceViewStoreContext((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
     spans: state.spans,
@@ -37,6 +38,7 @@ function CondensedTimeline() {
     setCondensedTimelineVisibleSpanIds: state.setCondensedTimelineVisibleSpanIds,
     clearCondensedTimelineSelection: state.clearCondensedTimelineSelection,
     condensedTimelineZoom: state.condensedTimelineZoom,
+    setCondensedTimelineZoom: state.setCondensedTimelineZoom,
   }));
 
   const {
@@ -55,7 +57,7 @@ function CondensedTimeline() {
   const combinedScrollRef = useCallback(
     (node: HTMLDivElement | null) => {
       // Update the scrollRef for scrolling functionality
-      (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      (scrollRef as React.RefObject<HTMLDivElement | null>).current = node;
       // Update the container ref for resize observation
       setContainerRef(node);
     },
@@ -128,6 +130,63 @@ function CondensedTimeline() {
       behavior: "smooth",
     });
   }, [selectedSpan, condensedSpans]);
+
+  // Cmd/Ctrl + scroll to zoom (centered on mouse position)
+  useEffect(() => {
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+
+      e.preventDefault();
+
+      const direction = e.deltaY < 0 ? "in" : e.deltaY > 0 ? "out" : null;
+      if (!direction) return;
+
+      // Get current state before zoom
+      const oldScrollLeft = scrollContainer.scrollLeft;
+      const oldScrollWidth = scrollContainer.scrollWidth;
+      const containerWidth = scrollContainer.clientWidth;
+      const containerRect = scrollContainer.getBoundingClientRect();
+
+      // Mouse position relative to container
+      const mouseX = e.clientX - containerRect.left;
+
+      // Content position under mouse as fraction of total width
+      const contentX = oldScrollLeft + mouseX;
+      const fraction = contentX / oldScrollWidth;
+
+      // Calculate new zoom (mirrors store logic)
+      const ZOOM_INCREMENT = 0.5;
+      const newZoom =
+        direction === "in"
+          ? Math.min(condensedTimelineZoom + ZOOM_INCREMENT, MAX_ZOOM)
+          : Math.max(condensedTimelineZoom - ZOOM_INCREMENT, MIN_ZOOM);
+
+      // Don't do anything if zoom didn't change (at limits)
+      if (newZoom === condensedTimelineZoom) return;
+
+      // Calculate new scroll width and position
+      const zoomRatio = newZoom / condensedTimelineZoom;
+      const newScrollWidth = oldScrollWidth * zoomRatio;
+      const newScrollLeft = fraction * newScrollWidth - mouseX;
+
+      // Update zoom
+      setCondensedTimelineZoom(direction);
+
+      // Adjust scroll position (use requestAnimationFrame to ensure DOM has updated)
+      requestAnimationFrame(() => {
+        scrollContainer.scrollLeft = Math.max(0, Math.min(newScrollLeft, newScrollWidth - containerWidth));
+      });
+    };
+
+    // passive: false is required for preventDefault() to work on wheel events
+    scrollContainer.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      scrollContainer.removeEventListener("wheel", handleWheel);
+    };
+  }, [condensedTimelineZoom, setCondensedTimelineZoom]);
 
   const handleSingleClick = useCallback(
     (spanId: string) => {
@@ -234,7 +293,12 @@ function CondensedTimeline() {
           </div>
 
           {/* Timeline content */}
-          <div ref={timelineContentRef} className="relative" style={{ height: contentHeight }}>
+          <div
+            ref={timelineContentRef}
+            className="relative"
+            //style={{ minHeight: `max(${contentHeight}px, calc(100% - ${headerHeight}px))` }}
+            style={{ minHeight: contentHeight }}
+          >
             {/* Span elements */}
             {condensedSpans.map((condensedSpan) => {
               const hasGroupSelection = condensedTimelineVisibleSpanIds.size > 0;

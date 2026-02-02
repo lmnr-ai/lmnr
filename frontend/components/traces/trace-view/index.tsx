@@ -26,7 +26,6 @@ import { SpanView } from "../span-view";
 import Chat from "./chat";
 import CondensedTimeline from "./condensed-timeline";
 import List from "./list";
-import Minimap from "./minimap";
 import { ScrollContextProvider } from "./scroll-context";
 import Tree from "./tree";
 
@@ -396,7 +395,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
               {condensedTimelineEnabled && (
                 <>
-                  <ResizablePanel>
+                  <ResizablePanel defaultSize={200}>
                     <div className="border-t h-full">
                       <CondensedTimeline />
                     </div>
@@ -405,7 +404,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 </>
               )}
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-                {/* View select bar */}
                 <div
                   className={cn(
                     "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",

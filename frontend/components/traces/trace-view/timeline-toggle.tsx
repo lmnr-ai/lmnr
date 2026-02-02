@@ -4,7 +4,7 @@ import { MAX_ZOOM, MIN_ZOOM, useTraceViewStoreContext } from "@/components/trace
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export default function TimelineToggle() {
+export default function CondensedTimelineControls() {
   const { condensedTimelineEnabled, setCondensedTimelineEnabled, condensedTimelineZoom, setCondensedTimelineZoom } =
     useTraceViewStoreContext((state) => ({
       condensedTimelineEnabled: state.condensedTimelineEnabled,

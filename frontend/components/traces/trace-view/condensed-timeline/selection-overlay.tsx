@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 
 import { type CondensedTimelineSpan } from "@/components/traces/trace-view/trace-view-store-utils";
 
@@ -36,13 +36,13 @@ const SelectionOverlay = ({
   const clickedSpanId = useRef<string | null>(null);
 
   const getRelativePosition = useCallback(
-    (e: React.MouseEvent): { x: number; y: number } => {
+    (e: MouseEvent | React.MouseEvent): { x: number; y: number } => {
       if (!containerRef.current) return { x: 0, y: 0 };
       const rect = containerRef.current.getBoundingClientRect();
-      return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      };
+      // Clamp to container bounds so selection stays within container when dragging outside
+      const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const y = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
+      return { x, y };
     },
     [containerRef]
   );
@@ -102,6 +102,7 @@ const SelectionOverlay = ({
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return; // Only left click
+      e.preventDefault(); // Prevent text selection while dragging
 
       const pos = getRelativePosition(e);
       startPos.current = pos;
@@ -118,7 +119,7 @@ const SelectionOverlay = ({
   );
 
   const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+    (e: MouseEvent) => {
       if (state === "idle" || !startPos.current) return;
 
       const pos = getRelativePosition(e);
@@ -164,18 +165,18 @@ const SelectionOverlay = ({
     clickedSpanId.current = null;
   }, [state, selectionRect, findSpansInRect, onSingleClick, onSelectionComplete]);
 
-  const handleMouseLeave = useCallback(() => {
-    if (state === "dragging" && selectionRect) {
-      const selectedIds = findSpansInRect(selectionRect);
-      if (selectedIds.size > 0) {
-        onSelectionComplete(selectedIds);
-      }
-    }
-    setState("idle");
-    setSelectionRect(null);
-    startPos.current = null;
-    clickedSpanId.current = null;
-  }, [state, selectionRect, findSpansInRect, onSelectionComplete]);
+  // Attach document-level listeners when dragging to track mouse outside container
+  useEffect(() => {
+    if (state === "idle") return;
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [state, handleMouseMove, handleMouseUp]);
 
   // Calculate selection rectangle display
   const displayRect =
@@ -192,10 +193,6 @@ const SelectionOverlay = ({
     <div
       className="absolute inset-0 z-20"
       onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
-      //style={{ cursor: state === "dragging" ? "crosshair" : "pointer" }}
     >
       {displayRect && (
         <div

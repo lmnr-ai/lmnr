@@ -1,43 +1,23 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import {
-  Check,
-  ChevronDown,
-  ChevronsRight,
-  ChevronUp,
-  Copy,
-  Database,
-  Globe,
-  Link,
-  Loader,
-  Lock,
-  Maximize,
-  Sparkles,
-  Upload,
-} from "lucide-react";
+import { ChevronDown, ChevronsRight, ChevronUp, Maximize, Sparkles } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useMemo, useState } from "react";
 
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TraceViewSearch from "@/components/traces/trace-view/search";
-import TimelineToggle from "@/components/traces/trace-view/timeline-toggle";
+import CondensedTimelineControls from "@/components/traces/trace-view/timeline-toggle";
 import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-import { TraceStatsShields } from "../stats-shields";
-import Metadata from "./metadata";
+import { TraceStatsShields } from "../../stats-shields";
+import Metadata from "../metadata";
+import ExportDropdown from "./export-dropdown";
 
 interface HeaderProps {
   handleClose: () => void;
@@ -53,10 +33,7 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
   const projectId = params?.projectId as string;
   const { navigateDown, navigateUp } = useTraceViewNavigation();
 
-  const {
-    trace,
-    updateTraceVisibility,
-  } = useTraceViewStoreContext((state) => ({
+  const { trace, updateTraceVisibility } = useTraceViewStoreContext((state) => ({
     trace: state.trace,
     updateTraceVisibility: state.updateTraceVisibility,
   }));
@@ -192,46 +169,16 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
           <Metadata metadata={trace?.metadata} />
           {/* Export dropdown */}
           {trace && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="hover:bg-secondary px-1.5">
-                  <Upload className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={handleCopyTraceId}>
-                  <Copy size={14} />
-                  Copy trace ID
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
-                  {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
-                  Open in SQL editor
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  disabled={isVisibilityLoading}
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    handleChangeVisibility(isPublic ? "private" : "public");
-                  }}
-                >
-                  {isVisibilityLoading ? (
-                    <Loader className="size-3.5 animate-spin" />
-                  ) : isPublic ? (
-                    <Lock className="size-3.5" />
-                  ) : (
-                    <Globe className="size-3.5" />
-                  )}
-                  {isPublic ? "Make private" : "Make public"}
-                </DropdownMenuItem>
-                {isPublic && (
-                  <DropdownMenuItem onClick={handleCopyLink}>
-                    {copiedLink ? <Check className="size-3.5" /> : <Link className="size-3.5" />}
-                    {copiedLink ? "Copied!" : "Copy link"}
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <ExportDropdown
+              handleCopyTraceId={handleCopyTraceId}
+              isSqlLoading={isSqlLoading}
+              openInSql={openInSql}
+              isVisibilityLoading={isVisibilityLoading}
+              handleChangeVisibility={handleChangeVisibility}
+              isPublic={isPublic}
+              handleCopyLink={handleCopyLink}
+              copiedLink={copiedLink}
+            />
           )}
         </div>
       </div>
@@ -259,7 +206,7 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
       </div>
 
       {/* Timeline toggle - absolutely positioned below search bar */}
-      {!chatOpen && <TimelineToggle />}
+      {!chatOpen && <CondensedTimelineControls />}
     </div>
   );
 };
