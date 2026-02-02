@@ -188,7 +188,7 @@ function CondensedTimeline() {
       {/* Scrollable timeline area - ALWAYS rendered so refs are attached */}
       <div
         ref={combinedScrollRef}
-        className="flex-1 overflow-auto relative scrollbar scrollbar-w-1 scrollbar-h-1 scrollbar-thumb-white/15 scrollbar-thumb-rounded-full min-h-0 bg-muted/50 h-full"
+        className="flex-1 overflow-auto relative min-h-0 bg-muted/50 h-full styled-scrollbar"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onScroll={handleScroll}

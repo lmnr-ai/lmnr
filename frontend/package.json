@@ -140,7 +140,6 @@
     "streamdown": "^1.6.10",
     "stripe": "^16.12.0",
     "swr": "^2.3.6",
-    "tailwind-scrollbar": "^4.0.2",
     "tw-shimmer": "^0.4.2",
     "use-stick-to-bottom": "^1.1.1",
     "uuid": "^13.0.0",
