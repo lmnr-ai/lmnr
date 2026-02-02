@@ -49,13 +49,6 @@ pub struct RRWebEvent {
     pub data: Vec<u8>,
 }
 
-impl RRWebEvent {
-    pub fn estimate_size_bytes(&self) -> usize {
-        // 1 byte for event_type, 8 bytes for timestamp
-        9 + self.data.len()
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EventBatch {
@@ -106,6 +99,7 @@ async fn create_session_event(
     let events_count = filtered_batch.events.len();
 
     let message = QueueBrowserEventMessage {
+        id: Uuid::new_v4(),
         batch: filtered_batch,
         project_id: project_api_key.project_id,
     };

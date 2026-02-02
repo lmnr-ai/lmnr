@@ -16,7 +16,7 @@ use api::v1::browser_sessions::{
     BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
 };
 use aws_config::BehaviorVersion;
-use browser_events::BrowserEventHandler;
+use browser_events::{BatchingConfig as BrowserEventsBatchingConfig, BrowserEventHandler};
 use clustering::batching::{BatchingConfig, ClusteringEventBatchingHandler};
 use clustering::queue::{
     EVENT_CLUSTERING_BATCH_EXCHANGE, EVENT_CLUSTERING_BATCH_QUEUE,
@@ -754,7 +754,7 @@ fn main() -> anyhow::Result<()> {
         //    the validation in the SDK would require us to make it a String
         .with_validation(false)
         .with_option("async_insert", "1")
-        .with_option("wait_for_async_insert", "1");
+        .with_option("wait_for_async_insert", "0");
 
     let clickhouse = match clickhouse_password {
         Ok(password) => clickhouse_client.with_password(password),
@@ -1016,16 +1016,37 @@ fn main() -> anyhow::Result<()> {
 
                     // Spawn browser events workers
                     {
+                        let size: usize = env::var("BROWSER_EVENTS_BATCH_SIZE")
+                            .unwrap_or("1024".to_string())
+                            .parse()
+                            .unwrap_or(1024);
+                        let flush_interval_sec: u64 =
+                            env::var("BROWSER_EVENTS_BATCH_FLUSH_INTERVAL_SEC")
+                                .unwrap_or("1".to_string())
+                                .parse()
+                                .unwrap_or(1);
+                        let flush_interval = Duration::from_secs(flush_interval_sec);
+                        let ch_wait_for_async_insert: bool =
+                            env::var("BROWSER_EVENTS_CH_WAIT_FOR_ASYNC_INSERT")
+                                .unwrap_or("true".to_string())
+                                .parse()
+                                .unwrap_or(true);
+
                         let db = db_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
-                        worker_pool_clone.spawn(
-                            WorkerType::BrowserEvents,
+                        batch_worker_pool_clone.spawn(
+                            BatchWorkerType::BrowserEvents,
                             num_browser_events_workers as usize,
                             move || BrowserEventHandler {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
                                 cache: cache.clone(),
+                                config: BrowserEventsBatchingConfig {
+                                    size,
+                                    flush_interval,
+                                    ch_wait_for_async_insert,
+                                },
                             },
                             QueueConfig {
                                 queue_name: BROWSER_SESSIONS_QUEUE,
