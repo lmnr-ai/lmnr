@@ -80,13 +80,97 @@ export const getDefaultValues = (projectId: string): ManageSignalForm => ({
   testTraceId: "",
 });
 
+function EnumValuesInput({
+  values,
+  onChange,
+}: {
+  values: string[] | undefined;
+  onChange: (values: string[] | undefined) => void;
+}) {
+  const [inputValue, setInputValue] = useState("");
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter" || e.key === ",") {
+        e.preventDefault();
+        const trimmed = inputValue.trim();
+        if (trimmed && !values?.includes(trimmed)) {
+          onChange([...(values || []), trimmed]);
+          setInputValue("");
+        }
+      } else if (e.key === "Backspace" && !inputValue && values && values.length > 0) {
+        onChange(values.slice(0, -1));
+      }
+    },
+    [inputValue, values, onChange]
+  );
+
+  const removeValue = useCallback(
+    (valueToRemove: string) => {
+      const newValues = values?.filter((v) => v !== valueToRemove);
+      onChange(newValues && newValues.length > 0 ? newValues : undefined);
+    },
+    [values, onChange]
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 min-h-7 px-2 py-1 border rounded-md bg-background w-full">
+      {values?.map((value) => (
+        <span
+          key={value}
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs bg-muted text-secondary-foreground rounded"
+        >
+          {value}
+          <button
+            type="button"
+            onClick={() => removeValue(value)}
+            className="hover:text-destructive text-muted-foreground transition-colors"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </span>
+      ))}
+      <input
+        type="text"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={values?.length ? "" : "Add values..."}
+        className="flex-1 min-w-16 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
+      />
+    </div>
+  );
+}
+
 function SchemaFieldRow({ index, onRemove, canRemove }: { index: number; onRemove: () => void; canRemove: boolean }) {
   const {
     control,
+    watch,
+    setValue,
     formState: { errors },
   } = useFormContext<ManageSignalForm>();
 
+  const fieldType = watch(`schemaFields.${index}.type`);
+  const enumValues = watch(`schemaFields.${index}.enumValues`);
   const fieldErrors = errors.schemaFields?.[index];
+
+  const handleTypeChange = useCallback(
+    (newType: string) => {
+      setValue(`schemaFields.${index}.type`, newType as "string" | "number" | "boolean" | "enum");
+      // Clear enum values when switching away from enum
+      if (newType !== "enum") {
+        setValue(`schemaFields.${index}.enumValues`, undefined);
+      }
+    },
+    [setValue, index]
+  );
+
+  const handleEnumValuesChange = useCallback(
+    (values: string[] | undefined) => {
+      setValue(`schemaFields.${index}.enumValues`, values);
+    },
+    [setValue, index]
+  );
 
   return (
     <div className="flex flex-col gap-1">
@@ -101,31 +185,55 @@ function SchemaFieldRow({ index, onRemove, canRemove }: { index: number; onRemov
               message: "Name must be a valid identifier",
             },
           }}
-          render={({ field }) => <Input {...field} placeholder="Field name" className="w-32 font-mono text-sm" />}
+          render={({ field }) => <Input {...field} placeholder="Field name" className="w-32 text-sm" />}
         />
-        <Controller
-          name={`schemaFields.${index}.type`}
-          control={control}
-          render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger className="w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SCHEMA_FIELD_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        />
+        {fieldType === "enum" ? (
+          <div className="flex flex-col gap-1 w-28">
+            <Controller
+              name={`schemaFields.${index}.type`}
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={handleTypeChange}>
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SCHEMA_FIELD_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <EnumValuesInput values={enumValues} onChange={handleEnumValuesChange} />
+          </div>
+        ) : (
+          <Controller
+            name={`schemaFields.${index}.type`}
+            control={control}
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={handleTypeChange}>
+                <SelectTrigger className="w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SCHEMA_FIELD_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        )}
         <Controller
           name={`schemaFields.${index}.description`}
           control={control}
           render={({ field }) => (
-            <Textarea {...field} placeholder="Description" rows={0} className="flex-1 text-xs! py-1.25 min-h-7!" />
+            <Textarea {...field} placeholder="Description of the field" rows={0} className="flex-1 text-xs! py-1.25 min-h-7!" />
           )}
         />
         <Button type="button" variant="ghost" onClick={onRemove} disabled={!canRemove} className="py-[7px] shrink-0">
@@ -152,9 +260,9 @@ function SchemaFieldsBuilder() {
     <div className="grid gap-2">
       <div className="flex items-center justify-between">
         <div>
-          <Label>Structured Output</Label>
+          <Label>Output Schema</Label>
           <p className="text-xs text-muted-foreground mt-1">
-            Define the fields for the structured output of this signal.
+            Define what gets extracted from each trace.
           </p>
         </div>
         <Button
