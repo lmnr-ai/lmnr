@@ -1,4 +1,4 @@
-import { ChartNoAxesGantt, ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils.ts";
 
-type ViewTab = "tree" | "timeline" | "reader";
+type ViewTab = "tree" | "reader";
 
 const viewOptions: Record<
   ViewTab,
@@ -22,17 +22,13 @@ const viewOptions: Record<
     icon: ListTree,
     label: "Tree",
   },
-  timeline: {
-    icon: ChartNoAxesGantt,
-    label: "Timeline",
-  },
   reader: {
     icon: List,
     label: "Reader",
   },
 };
 
-const viewTabs: ViewTab[] = ["tree", "timeline", "reader"];
+const viewTabs: ViewTab[] = ["tree", "reader"];
 
 export default function ViewDropdown() {
   const { tab, setTab, showTreeContent, setShowTreeContent } = useRolloutSessionStoreContext((state) => ({

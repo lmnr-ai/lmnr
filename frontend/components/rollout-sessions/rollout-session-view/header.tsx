@@ -3,6 +3,7 @@ import { ChevronDown, CirclePlay, Copy, Database, Loader } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback } from "react";
 
+import CondensedTimelineControls from "@/components/rollout-sessions/rollout-session-view/condensed-timeline-toggle";
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
@@ -41,7 +42,8 @@ const Header = () => {
   }, [trace?.id, toast]);
 
   return (
-    <div className="h-10 min-h-10 flex items-center gap-x-2 px-2 border-b">
+    <div className="h-10 min-h-10 flex items-center gap-x-2 px-2 border-b relative">
+      <CondensedTimelineControls />
       {trace && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

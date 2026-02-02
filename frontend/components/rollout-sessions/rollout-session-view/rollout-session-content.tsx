@@ -1,23 +1,17 @@
 "use client";
 
 import { get, isEmpty } from "lodash";
-import { AlertTriangle, Minus, Plus, Radio } from "lucide-react";
+import { AlertTriangle, Radio } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
+import CondensedTimeline from "@/components/rollout-sessions/rollout-session-view/condensed-timeline";
 import Header from "@/components/rollout-sessions/rollout-session-view/header";
 import List from "@/components/rollout-sessions/rollout-session-view/list";
-import Minimap from "@/components/rollout-sessions/rollout-session-view/minimap.tsx";
-import {
-  MAX_ZOOM,
-  MIN_ZOOM,
-  ZOOM_INCREMENT,
-  useRolloutSessionStoreContext,
-} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/session-player";
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import { SessionTerminatedOverlay } from "@/components/rollout-sessions/rollout-session-view/terminated-overlay.tsx";
-import Timeline from "@/components/rollout-sessions/rollout-session-view/timeline";
 import Tree from "@/components/rollout-sessions/rollout-session-view/tree/index";
 import {
   onRealtimeStartSpan,
@@ -32,7 +26,6 @@ import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-con
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
-import { Button } from "@/components/ui/button.tsx";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
@@ -73,13 +66,12 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     tab,
     browserSession,
     setBrowserSession,
-    zoom,
-    setZoom,
     langGraph,
     getHasLangGraph,
     hasBrowserSession,
     setHasBrowserSession,
     setSpanPath,
+    condensedTimelineEnabled,
     // Rollout state
     setSystemMessagesMap,
     setIsSystemMessagesLoading,
@@ -106,8 +98,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     rebuildSpanPathCounts: state.rebuildSpanPathCounts,
     // UI state
     tab: state.tab,
-    zoom: state.zoom,
-    setZoom: state.setZoom,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
     langGraph: state.langGraph,
@@ -115,6 +105,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     hasBrowserSession: state.hasBrowserSession,
     setHasBrowserSession: state.setHasBrowserSession,
     setSpanPath: state.setSpanPath,
+    condensedTimelineEnabled: state.condensedTimelineEnabled,
     // Rollout state
     setSystemMessagesMap: state.setSystemMessagesMap,
     setIsSystemMessagesLoading: state.setIsSystemMessagesLoading,
@@ -426,28 +417,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
           <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
             <ViewDropdown />
             <Metadata metadata={trace?.metadata} />
-            {tab === "timeline" && (
-              <>
-                <Button
-                  disabled={zoom === MAX_ZOOM}
-                  className="size-6 min-w-6 ml-auto"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setZoom(zoom + ZOOM_INCREMENT)}
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
-                <Button
-                  disabled={zoom === MIN_ZOOM}
-                  className="size-6 min-w-6"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setZoom(zoom - ZOOM_INCREMENT)}
-                >
-                  <Minus className="w-4 h-4" />
-                </Button>
-              </>
-            )}
           </div>
         </div>
 
@@ -461,18 +430,25 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
           </div>
         ) : (
           <ResizablePanelGroup id="rollout-session-view-panels" orientation="vertical">
+            {condensedTimelineEnabled && (
+              <>
+                <ResizablePanel defaultSize={200} minSize={80}>
+                  <div className="border-t h-full">
+                    <CondensedTimeline />
+                  </div>
+                </ResizablePanel>
+                <ResizableHandle />
+              </>
+            )}
             <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-              {tab === "timeline" && <Timeline />}
               {tab === "reader" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
                   <List traceId={trace?.id} onSpanSelect={handleSpanSelect} />
-                  <Minimap onSpanSelect={handleSpanSelect} />
                 </div>
               )}
               {tab === "tree" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
                   <Tree traceId={trace?.id} onSpanSelect={handleSpanSelect} />
-                  <Minimap onSpanSelect={handleSpanSelect} />
                 </div>
               )}
             </ResizablePanel>
