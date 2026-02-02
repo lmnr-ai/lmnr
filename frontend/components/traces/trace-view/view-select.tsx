@@ -1,6 +1,7 @@
-import { CirclePlay, Eye, EyeOff, List, ListTree, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, CirclePlay, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
 
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
+import { TraceStatsShields } from "@/components/traces/stats-shields";
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +11,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils.ts";
+
+type ViewTab = "tree" | "reader";
+
+const viewOptions: Record<
+  ViewTab,
+  {
+    icon: LucideIcon;
+    label: string;
+  }
+> = {
+  tree: {
+    icon: ListTree,
+    label: "Tree",
+  },
+  reader: {
+    icon: List,
+    label: "Reader",
+  },
+};
+
+const viewTabs: ViewTab[] = ["tree", "reader"];
 
 export default function ViewSelect() {
   const {
@@ -36,60 +58,61 @@ export default function ViewSelect() {
     trace: state.trace,
   }));
 
+  const isValidTab = viewTabs.includes(tab as ViewTab);
+  const displayTab: ViewTab = isValidTab ? (tab as ViewTab) : "tree";
+  const currentView = viewOptions[displayTab];
+  const CurrentIcon = currentView.icon;
+
   const isTreeView = tab === "tree";
-  const isReaderView = tab === "reader";
+  const contentVisible = showTreeContent ?? true;
   const hasLangGraph = getHasLangGraph();
 
   return (
     <div className="flex items-center justify-between w-full">
-      <div className="flex items-center gap-1">
-        {/* Tree button */}
-        <button
-          onClick={() => setTab("tree")}
-          className={cn(
-            "flex items-center h-6 px-1.5 text-xs border rounded-md",
-            isTreeView
-              ? "border-primary text-primary bg-primary/10 hover:bg-primary/20"
-              : "border-input bg-background hover:bg-secondary/50"
-          )}
-        >
-          <ListTree size={14} className="mr-1" />
-          Tree
-        </button>
-
-        {/* Reader button */}
-        <button
-          onClick={() => setTab("reader")}
-          className={cn(
-            "flex items-center h-6 px-1.5 text-xs border rounded-md",
-            isReaderView
-              ? "border-primary text-primary bg-primary/10 hover:bg-primary/20"
-              : "border-input bg-background hover:bg-secondary/50"
-          )}
-        >
-          <List size={14} className="mr-1" />
-          Reader
-        </button>
-
-        {/* Config dropdown */}
+      <div className="flex items-center gap-2">
+        {/* View dropdown */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild disabled={isReaderView}>
+          <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                "flex items-center h-6 px-1.5 rounded-md",
-                isReaderView ? "text-muted-foreground cursor-not-allowed" : "hover:bg-secondary/50"
+                "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0",
+                isValidTab ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary/50",
+                isTreeView && "rounded-r-none border-r-0 outline-1 outline-inset outline-primary -outline-offset-1"
               )}
             >
-              <SlidersHorizontal size={14} />
+              <CurrentIcon size={14} className="mr-1" />
+              <span className="capitalize">{currentView.label}</span>
+              <ChevronDown size={14} className="ml-1" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => setShowTreeContent(!showTreeContent)}>
-              {showTreeContent ? <EyeOff size={14} /> : <Eye size={14} />}
-              {showTreeContent ? "Hide content" : "Show content"}
-            </DropdownMenuItem>
+            {viewTabs.map((option) => {
+              const view = viewOptions[option];
+              const OptionIcon = view.icon;
+              return (
+                <DropdownMenuItem key={option} onClick={() => setTab(option)} className={cn(tab === option && "bg-accent")}>
+                  <OptionIcon size={14} />
+                  {view.label}
+                </DropdownMenuItem>
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* Content toggle (only visible in tree view) */}
+        {isTreeView && (
+          <button
+            onClick={() => setShowTreeContent(!contentVisible)}
+            className={cn(
+              "flex items-center h-6 px-1.5 text-xs border border-l-0 rounded-md rounded-l-none bg-background -ml-2",
+              contentVisible ? "border-primary text-primary hover:bg-primary/10" : "border-input hover:bg-secondary/50"
+            )}
+          >
+            {contentVisible ? <Eye size={14} className="mr-1" /> : <EyeOff size={14} className="mr-1" />}
+            <span>Content</span>
+          </button>
+        )}
+        {/* Stats Shield */}
+        {trace && <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} singlePill />}
       </div>
 
       <div className="flex items-center gap-1">
@@ -97,9 +120,9 @@ export default function ViewSelect() {
         <Button
           disabled={!trace}
           className={cn("h-6 px-1.5 text-xs", {
-            "text-primary": browserSession,
+            "border-primary text-primary": browserSession,
           })}
-          variant="ghost"
+          variant="outline"
           onClick={() => setBrowserSession(!browserSession)}
         >
           <CirclePlay size={14} className="mr-1" />

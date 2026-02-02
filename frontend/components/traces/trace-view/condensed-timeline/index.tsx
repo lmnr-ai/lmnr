@@ -13,6 +13,7 @@ import { formatTimeMarkerLabel, useDynamicTimeIntervals } from "./use-dynamic-ti
 import { useHoverNeedle } from "./use-hover-needle";
 import { useScrollToSpan } from "./use-scroll-to-span";
 import { useWheelZoom } from "./use-wheel-zoom";
+import ZoomControls from "./zoom-controls";
 
 const HEADER_HEIGHT = 24; // h-6 = 1.5rem = 24px
 
@@ -126,9 +127,7 @@ function CondensedTimeline() {
 
     if (isEmpty(condensedSpans)) {
       return (
-        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-          No spans found
-        </div>
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No spans found</div>
       );
     }
 
@@ -149,7 +148,7 @@ function CondensedTimeline() {
           <div
             className={cn(
               "sticky top-0 z-30 text-xs h-6 pointer-events-none select-none overflow-visible",
-              isScrolled && "bg-gradient-to-b from-muted/90 via-muted/80 to-transparent"
+              isScrolled && "bg-gradient-to-b from-[hsla(240,4%,9%,90%)] via-[hsla(240,4%,9%,80%)] to-transparent"
             )}
           >
             <div className="w-full h-full relative">
@@ -168,11 +167,7 @@ function CondensedTimeline() {
           </div>
 
           {/* Timeline content */}
-          <div
-            ref={timelineContentRef}
-            className="relative"
-            style={{ minHeight: contentHeight }}
-          >
+          <div ref={timelineContentRef} className="relative" style={{ minHeight: contentHeight }}>
             {/* Span elements */}
             {condensedSpans.map((condensedSpan) => {
               const hasGroupSelection = condensedTimelineVisibleSpanIds.size > 0;
@@ -220,10 +215,7 @@ function CondensedTimeline() {
 
       {/* Hover Needle - outside scroll, z-35 (below SelectionIndicator z-40) */}
       {needleLeft !== null && (
-        <div
-          className="absolute inset-y-0 pointer-events-none z-[35]"
-          style={{ left: `${needleLeft}%` }}
-        >
+        <div className="absolute inset-y-0 pointer-events-none z-[35]" style={{ left: `${needleLeft}%` }}>
           {/* Head */}
           <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
             <div className="px-1.5 py-0.5 bg-primary text-white text-[10px] rounded whitespace-nowrap">
@@ -237,6 +229,9 @@ function CondensedTimeline() {
 
       {/* Selection indicator */}
       <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
+
+      {/* Zoom controls */}
+      <ZoomControls />
     </div>
   );
 }

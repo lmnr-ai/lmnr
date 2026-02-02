@@ -1,4 +1,4 @@
-import { Check, Copy, Database, Globe, Link, Loader, Lock, Upload } from "lucide-react";
+import { Check, Globe, Link, Loader, Lock, Upload } from "lucide-react";
 import { memo } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -6,14 +6,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
 interface ExportDropdownProps {
-  handleCopyTraceId: () => void;
-  isSqlLoading: boolean;
-  openInSql: () => void;
   isVisibilityLoading: boolean;
   handleChangeVisibility: (value: "private" | "public") => void;
   isPublic: boolean;
@@ -22,9 +18,6 @@ interface ExportDropdownProps {
 }
 
 const ExportDropdown = ({
-  handleCopyTraceId,
-  isSqlLoading,
-  openInSql,
   isVisibilityLoading,
   handleChangeVisibility,
   isPublic,
@@ -39,15 +32,6 @@ const ExportDropdown = ({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem onClick={handleCopyTraceId}>
-          <Copy size={14} />
-          Copy trace ID
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
-          {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
-          Open in SQL editor
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={isVisibilityLoading}
           onSelect={(e) => {

@@ -395,12 +395,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
               {condensedTimelineEnabled && (
                 <>
-                  <ResizablePanel defaultSize={200}>
+                  <ResizablePanel defaultSize={200} minSize={80}>
                     <div className="border-t h-full">
                       <CondensedTimeline />
                     </div>
                   </ResizablePanel>
-                  <ResizableHandle className="hover:border hover:border-blue-400 z-50" />
+                  <ResizableHandle className="hover:bg-blue-400 z-50 transition-colors hover:scale-200" />
                 </>
               )}
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
@@ -429,7 +429,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               </ResizablePanel>
               {browserSession && (
                 <>
-                  <ResizableHandle className="z-50 hover:border hover:border-blue-400" />
+                  <ResizableHandle className="hover:bg-blue-400 z-50 transition-colors hover:scale-200" />
                   <ResizablePanel>
                     {!isLoading && (
                       <SessionPlayer

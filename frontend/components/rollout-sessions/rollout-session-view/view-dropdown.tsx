@@ -56,9 +56,8 @@ export default function ViewDropdown() {
         <DropdownMenuTrigger asChild>
           <button
             className={cn(
-              "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0",
-              isValidTab ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary/50",
-              isTreeView && "rounded-r-none border-r-0 outline-1 outline-inset outline-primary -outline-offset-1"
+              "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0 hover:bg-secondary/50",
+              isTreeView && "rounded-r-none border-r-0"
             )}
           >
             <CurrentIcon size={14} className="mr-1" />

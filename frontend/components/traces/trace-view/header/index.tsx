@@ -1,21 +1,23 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronDown, ChevronsRight, ChevronUp, Maximize, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Sparkles } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 
-import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import CondensedTimelineControls from "@/components/traces/trace-view/timeline-toggle";
 import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-import { TraceStatsShields } from "../../stats-shields";
 import Metadata from "../metadata";
 import ExportDropdown from "./export-dropdown";
 
@@ -31,7 +33,6 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
-  const { navigateDown, navigateUp } = useTraceViewNavigation();
 
   const { trace, updateTraceVisibility } = useTraceViewStoreContext((state) => ({
     trace: state.trace,
@@ -113,7 +114,7 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
 
   return (
     <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-2">
-      {/* Line 1: close, expand, down, up, trace, shield ... export */}
+      {/* Line 1: Close, Expand, Trace + chevron dropdown, Ask AI, Metadata, Export */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center min-w-0">
           {!params?.traceId && (
@@ -128,51 +129,44 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
                   </Button>
                 </NextLink>
               )}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button disabled={!trace} onClick={navigateDown} className="hover:bg-secondary px-1" variant="ghost">
-                    <ChevronDown className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipPortal>
-                  <TooltipContent className="flex items-center">
-                    Navigate down (
-                    <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
-                      j
-                    </kbd>
-                    )
-                  </TooltipContent>
-                </TooltipPortal>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button disabled={!trace} onClick={navigateUp} className="hover:bg-secondary px-1" variant="ghost">
-                    <ChevronUp className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipPortal>
-                  <TooltipContent className="flex items-center">
-                    Navigate up (
-                    <kbd className="inline-flex items-center justify-center w-3 h-3 text-xs font-medium text-muted-foreground bg-muted border border-border rounded-lg shadow-md">
-                      k
-                    </kbd>
-                    )
-                  </TooltipContent>
-                </TooltipPortal>
-              </Tooltip>
             </div>
           )}
           {trace && <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>}
-          {trace && <TraceStatsShields className="ml-2 min-w-0 overflow-hidden" trace={trace} singlePill />}
+          {/* Chevron dropdown (Copy trace ID, Open in SQL) */}
+          {trace && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-6 px-1 hover:bg-secondary">
+                  <ChevronDown className="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={handleCopyTraceId}>
+                  <Copy size={14} />
+                  Copy trace ID
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
+                  {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
+                  Open in SQL editor
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {/* Ask AI button */}
+          <Button
+            onClick={() => setChatOpen(!chatOpen)}
+            variant="outline"
+            className="h-6 text-xs px-1.5 border-primary text-primary hover:bg-primary/10"
+          >
+            <Sparkles size={14} className="mr-1" />
+            Ask AI
+          </Button>
         </div>
         <div className="flex items-center gap-x-0.5 flex-shrink-0">
           <Metadata metadata={trace?.metadata} />
           {/* Export dropdown */}
           {trace && (
             <ExportDropdown
-              handleCopyTraceId={handleCopyTraceId}
-              isSqlLoading={isSqlLoading}
-              openInSql={openInSql}
               isVisibilityLoading={isVisibilityLoading}
               handleChangeVisibility={handleChangeVisibility}
               isPublic={isPublic}
@@ -183,29 +177,12 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
         </div>
       </div>
 
-      {/* Ask AI + Search */}
+      {/* Line 2: Search only */}
       <div className="flex items-center gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              onClick={() => setChatOpen(!chatOpen)}
-              variant="outline"
-              size="icon"
-              className={cn("h-8 w-8", {
-                "border-primary text-primary": chatOpen,
-              })}
-            >
-              <Sparkles size={16} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent>Ask AI about your trace</TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
         {!chatOpen && <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />}
       </div>
 
-      {/* Timeline toggle - absolutely positioned below search bar */}
+      {/* Line 3: Timeline toggle */}
       {!chatOpen && <CondensedTimelineControls />}
     </div>
   );

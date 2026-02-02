@@ -1,9 +1,13 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { compact, get, isNil, pick, sortBy, uniq } from "lodash";
 import { Bolt, Braces, ChevronDown, CircleDollarSign, Clock3, Coins } from "lucide-react";
-import { memo, type PropsWithChildren } from "react";
+import { memo, type PropsWithChildren, useMemo } from "react";
 
-import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import {
+  type TraceViewSpan,
+  type TraceViewTrace,
+  useTraceViewStoreContext,
+} from "@/components/traces/trace-view/trace-view-store.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -16,6 +20,71 @@ import { Label } from "../ui/label";
 interface TraceStatsShieldsProps {
   trace: TraceViewTrace;
   className?: string;
+}
+
+// Compute aggregate stats from a list of spans
+function computeSpanStats(spans: TraceViewSpan[]): Pick<
+  TraceViewSpan,
+  | "startTime"
+  | "endTime"
+  | "inputTokens"
+  | "outputTokens"
+  | "totalTokens"
+  | "inputCost"
+  | "outputCost"
+  | "totalCost"
+  | "cacheReadInputTokens"
+> {
+  if (spans.length === 0) {
+    return {
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString(),
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      cacheReadInputTokens: 0,
+    };
+  }
+
+  let minStart = new Date(spans[0].startTime).getTime();
+  let maxEnd = new Date(spans[0].endTime).getTime();
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let totalTokens = 0;
+  let inputCost = 0;
+  let outputCost = 0;
+  let totalCost = 0;
+  let cacheReadInputTokens = 0;
+
+  for (const span of spans) {
+    const start = new Date(span.startTime).getTime();
+    const end = new Date(span.endTime).getTime();
+    if (start < minStart) minStart = start;
+    if (end > maxEnd) maxEnd = end;
+
+    inputTokens += span.inputTokens || 0;
+    outputTokens += span.outputTokens || 0;
+    totalTokens += span.totalTokens || 0;
+    inputCost += span.inputCost || 0;
+    outputCost += span.outputCost || 0;
+    totalCost += span.totalCost || 0;
+    cacheReadInputTokens += span.cacheReadInputTokens || 0;
+  }
+
+  return {
+    startTime: new Date(minStart).toISOString(),
+    endTime: new Date(maxEnd).toISOString(),
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    inputCost,
+    outputCost,
+    totalCost,
+    cacheReadInputTokens,
+  };
 }
 
 interface SpanStatsShieldsProps {
@@ -271,25 +340,41 @@ function StatsShieldsContent({
   );
 }
 
-const PureTraceStatsShields = ({ trace, className, children, singlePill }: PropsWithChildren<TraceStatsShieldsProps & { singlePill?: boolean }>) => (
-  <StatsShieldsContent
-    stats={pick(trace, [
-      "startTime",
-      "endTime",
-      "inputTokens",
-      "outputTokens",
-      "totalTokens",
-      "cacheReadInputTokens",
-      "inputCost",
-      "outputCost",
-      "totalCost",
-    ])}
-    className={className}
-    singlePill={singlePill}
-  >
-    {children}
-  </StatsShieldsContent>
-);
+const PureTraceStatsShields = ({ trace, className, children, singlePill }: PropsWithChildren<TraceStatsShieldsProps & { singlePill?: boolean }>) => {
+  const { spans, condensedTimelineVisibleSpanIds } = useTraceViewStoreContext((state) => ({
+    spans: state.spans,
+    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+  }));
+
+  // Compute stats: use filtered spans if selection is active, otherwise use trace stats
+  const stats = useMemo(() => {
+    const hasSelection = condensedTimelineVisibleSpanIds.size > 0;
+
+    if (!hasSelection) {
+      return pick(trace, [
+        "startTime",
+        "endTime",
+        "inputTokens",
+        "outputTokens",
+        "totalTokens",
+        "cacheReadInputTokens",
+        "inputCost",
+        "outputCost",
+        "totalCost",
+      ]);
+    }
+
+    // Filter spans by selection and compute aggregate stats
+    const filteredSpans = spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+    return computeSpanStats(filteredSpans);
+  }, [trace, spans, condensedTimelineVisibleSpanIds]);
+
+  return (
+    <StatsShieldsContent stats={stats} className={className} singlePill={singlePill}>
+      {children}
+    </StatsShieldsContent>
+  );
+};
 
 const SpanStatsShields = ({ span, className, children }: PropsWithChildren<SpanStatsShieldsProps>) => {
   const model = get(span.attributes, "gen_ai.response.model") || get(span.attributes, "gen_ai.request.model") || "";

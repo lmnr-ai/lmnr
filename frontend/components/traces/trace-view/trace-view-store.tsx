@@ -21,7 +21,7 @@ import { type Event } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { type SpanType } from "@/lib/traces/types";
 
-export const MAX_ZOOM = 14;
+export const MAX_ZOOM = 18;
 export const MIN_ZOOM = 1;
 export const ZOOM_INCREMENT = 0.5;
 export const MIN_TREE_VIEW_WIDTH = 450;
