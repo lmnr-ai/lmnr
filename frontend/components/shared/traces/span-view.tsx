@@ -61,12 +61,11 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
               </div>
               <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
             </div>
-            <div className="flex flex-wrap py-1 gap-2">
-              <SpanStatsShields span={span}>
-                <div className="flex flex-row text-xs font-mono space-x-2 rounded-md p-0.5 px-2 border items-center">
-                  {new Date(span.startTime).toLocaleString()}
-                </div>
-              </SpanStatsShields>
+            <div className="flex items-center gap-2 flex-wrap py-1">
+              <SpanStatsShields span={span} />
+              <div className="text-xs font-mono rounded-md py-0.5 px-2 border border-muted">
+                {new Date(span.startTime).toLocaleString()}
+              </div>
             </div>
             {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
           </div>

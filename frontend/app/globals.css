@@ -2,6 +2,7 @@
 @import "tw-shimmer";
 
 @plugin 'tailwindcss-animate';
+@plugin 'tailwind-scrollbar';
 
 @source "../node_modules/streamdown/dist/index.js";
 
@@ -199,3 +200,4 @@
     color: white;
   }
 }
+

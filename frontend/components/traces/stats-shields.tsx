@@ -1,7 +1,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { compact, get, isNil, pick, sortBy, uniq } from "lodash";
 import { Bolt, Braces, ChevronDown, CircleDollarSign, Clock3, Coins } from "lucide-react";
-import { memo, type PropsWithChildren, useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import {
   type TraceViewSpan,
@@ -23,7 +23,9 @@ interface TraceStatsShieldsProps {
 }
 
 // Compute aggregate stats from a list of spans
-function computeSpanStats(spans: TraceViewSpan[]): Pick<
+function computeSpanStats(
+  spans: TraceViewSpan[]
+): Pick<
   TraceViewSpan,
   | "startTime"
   | "endTime"
@@ -224,9 +226,9 @@ const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => 
 function StatsShieldsContent({
   stats,
   className,
-  children,
   singlePill = false,
-}: PropsWithChildren<{
+  variant = "filled",
+}: {
   stats: Pick<
     TraceViewSpan,
     | "startTime"
@@ -241,7 +243,8 @@ function StatsShieldsContent({
   >;
   className?: string;
   singlePill?: boolean;
-}>) {
+  variant?: "filled" | "outline";
+}) {
   const durationContent = (
     <div className="flex space-x-1 items-center">
       <Clock3 size={12} className="min-w-3 min-h-3" />
@@ -264,8 +267,7 @@ function StatsShieldsContent({
           <TooltipContent side="bottom" className="p-2 border">
             <div className="flex-col space-y-1">
               <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">Input tokens</span>{" "}
-                {numberFormat.format(stats.inputTokens)}
+                <span className="text-secondary-foreground">Input tokens</span> {numberFormat.format(stats.inputTokens)}
               </Label>
               <Label className="flex text-xs gap-1">
                 <span className="text-secondary-foreground">Output tokens</span>{" "}
@@ -313,34 +315,34 @@ function StatsShieldsContent({
 
   if (singlePill) {
     return (
-      <div className={cn("flex items-center min-w-0", className)}>
-        <div className="flex items-center gap-2 px-1.5 py-0.5 bg-muted rounded-md overflow-hidden text-secondary-foreground">
-          {durationContent}
-          {tokensContent}
-          {costContent}
-        </div>
-        {children}
+      <div
+        className={cn(
+          "flex items-center gap-2 px-1.5 py-0.5 rounded-md overflow-hidden text-xs font-mono min-w-0",
+          variant === "outline" ? "border border-muted" : "bg-muted text-secondary-foreground",
+          className
+        )}
+      >
+        {durationContent}
+        {tokensContent}
+        {costContent}
       </div>
     );
   }
 
   return (
     <div className={cn("flex items-center gap-2 font-mono min-w-0", className)}>
-      <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
-        {durationContent}
-      </div>
-      <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
-        {tokensContent}
-      </div>
-      <div className="flex space-x-1 items-center p-0.5 px-2 min-w-8 border rounded-md">
-        {costContent}
-      </div>
-      {children}
+      <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">{durationContent}</div>
+      <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">{tokensContent}</div>
+      <div className="flex space-x-1 items-center p-0.5 px-2 min-w-8 border rounded-md">{costContent}</div>
     </div>
   );
 }
 
-const PureTraceStatsShields = ({ trace, className, children, singlePill }: PropsWithChildren<TraceStatsShieldsProps & { singlePill?: boolean }>) => {
+const PureTraceStatsShields = ({
+  trace,
+  className,
+  singlePill,
+}: TraceStatsShieldsProps & { singlePill?: boolean }) => {
   const { spans, condensedTimelineVisibleSpanIds } = useTraceViewStoreContext((state) => ({
     spans: state.spans,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
@@ -369,14 +371,14 @@ const PureTraceStatsShields = ({ trace, className, children, singlePill }: Props
     return computeSpanStats(filteredSpans);
   }, [trace, spans, condensedTimelineVisibleSpanIds]);
 
-  return (
-    <StatsShieldsContent stats={stats} className={className} singlePill={singlePill}>
-      {children}
-    </StatsShieldsContent>
-  );
+  return <StatsShieldsContent stats={stats} className={className} singlePill={singlePill} />;
 };
 
-const SpanStatsShields = ({ span, className, children }: PropsWithChildren<SpanStatsShieldsProps>) => {
+const SpanStatsShields = ({
+  span,
+  className,
+  variant,
+}: SpanStatsShieldsProps & { variant?: "filled" | "outline" }) => {
   const model = get(span.attributes, "gen_ai.response.model") || get(span.attributes, "gen_ai.request.model") || "";
   const tools = extractToolsFromAttributes(span.attributes);
   const structuredOutputSchema =
@@ -396,9 +398,9 @@ const SpanStatsShields = ({ span, className, children }: PropsWithChildren<SpanS
           "totalCost",
         ])}
         className={className}
-      >
-        {children}
-      </StatsShieldsContent>
+        variant={variant}
+        singlePill
+      />
       {(model || tools?.length > 0 || structuredOutputSchema) && (
         <div className="flex flex-wrap gap-2">
           {model && (

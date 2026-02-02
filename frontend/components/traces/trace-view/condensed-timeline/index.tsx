@@ -167,7 +167,7 @@ function CondensedTimeline() {
           </div>
 
           {/* Timeline content */}
-          <div ref={timelineContentRef} className="relative bg-red-500" style={{ minHeight: contentHeight }}>
+          <div ref={timelineContentRef} className="relative h-full" style={{ minHeight: contentHeight }}>
             {/* Span elements */}
             {condensedSpans.map((condensedSpan) => {
               const hasGroupSelection = condensedTimelineVisibleSpanIds.size > 0;
@@ -205,7 +205,7 @@ function CondensedTimeline() {
       {/* Scrollable timeline area - ALWAYS rendered so refs are attached */}
       <div
         ref={combinedScrollRef}
-        className="flex-1 overflow-auto relative no-scrollbar min-h-0 bg-muted/50 h-full"
+        className="flex-1 overflow-auto relative scrollbar scrollbar-thumb-red-500 scrollbar-track-transparent min-h-0 bg-muted/50 h-full"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onScroll={handleScroll}

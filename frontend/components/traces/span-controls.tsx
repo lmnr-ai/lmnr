@@ -1,11 +1,9 @@
-import { get } from "lodash";
 import { ChevronDown, Copy, Database, Loader, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { type PropsWithChildren, useCallback, useMemo } from "react";
+import { type PropsWithChildren, useCallback, useMemo } from "react";
 
 import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
-import RegisterEvaluatorPopover from "@/components/evaluators/register-evaluator-popover";
 import TagsContextProvider from "@/components/tags/tags-context";
 import TagsList from "@/components/tags/tags-list";
 import TagsTrigger from "@/components/tags/tags-trigger";
@@ -95,15 +93,15 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
           )}
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">
-          <SpanStatsShields className="flex-wrap" span={span}>
-            <div className="text-xs font-mono space-x-2 rounded-md p-0.5 truncate px-2 border items-center">
+          <div className="flex items-center gap-2 flex-wrap">
+            <SpanStatsShields span={span} variant="outline" />
+            <div className="text-xs font-mono rounded-md py-0.5 truncate px-2 border border-muted">
               {new Date(span.startTime).toLocaleString()}
             </div>
-          </SpanStatsShields>
+          </div>
           <TagsContextProvider spanId={span.spanId}>
             <div className="flex gap-2 flex-wrap items-center">
               <TagsTrigger />
-              <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
               <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} />
               <ExportSpansPopover span={span} />
             </div>

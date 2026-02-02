@@ -13,7 +13,7 @@ export default function CondensedTimelineControls() {
   return (
     <div
       className={cn(
-        "absolute z-10 top-full flex items-end overflow-hidden transition-all duration-200",
+        "absolute z-40 top-full flex items-end overflow-hidden transition-all duration-200",
         condensedTimelineEnabled
           ? "right-0 h-6 w-7 bg-muted border-b border-l rounded-none rounded-bl "
           : "right-2 h-6 bg-background border rounded-md"
