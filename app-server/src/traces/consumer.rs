@@ -11,11 +11,13 @@ use serde_json::Value;
 use tracing::instrument;
 use uuid::Uuid;
 
-use super::{signals::push_to_signals_queue, trigger::get_signal_triggers_cached};
-use crate::cache::autocomplete::populate_autocomplete_cache;
+use super::trigger::get_signal_triggers_cached;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    cache::{Cache, CacheTrait, keys::SIGNAL_TRIGGER_LOCK_CACHE_KEY},
+    cache::{
+        Cache, CacheTrait, autocomplete::populate_autocomplete_cache,
+        keys::SIGNAL_TRIGGER_LOCK_CACHE_KEY,
+    },
     ch::{
         self,
         spans::CHSpan,
@@ -36,6 +38,7 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
+    signals::queue::{SignalMessage, push_to_signals_queue},
     storage::Storage,
     traces::{
         IngestedBytes,
@@ -480,12 +483,12 @@ async fn check_and_push_signals(
         return;
     }
 
-    for trace in traces {
-        for trigger in &triggers {
-            if !trace.matches_filters(spans, &trigger.filters) {
-                continue;
-            }
+    for trigger in &triggers {
+        let matching_traces = traces
+            .iter()
+            .filter(|trace| trace.matches_filters(spans, &trigger.filters));
 
+        for trace in matching_traces {
             // Filters matched - try to acquire lock to prevent duplicate triggers
             let lock_key = format!(
                 "{}:{}:{}:{}",
@@ -503,7 +506,11 @@ async fn check_and_push_signals(
                     // Lock doesn't exist, try to acquire it
                 }
                 Err(e) => {
-                    log::warn!("Failed to check lock existence: {:?}", e);
+                    log::warn!(
+                        "[Signal trigger] Failed to check lock existence (key {}): {:?}",
+                        lock_key,
+                        e
+                    );
                     // Continue to try acquiring lock
                 }
             }
@@ -527,20 +534,20 @@ async fn check_and_push_signals(
             };
 
             if !lock_acquired {
-                // Lock was already held by another process
+                // Lock was already held by another processor
                 continue;
             }
 
             // Lock acquired - push to signals queue
-            if let Err(e) = push_to_signals_queue(
-                trace.id(),
-                trace.project_id(),
-                Some(trigger.id),
-                trigger.signal.clone(),
-                queue.clone(),
-            )
-            .await
-            {
+            let message = SignalMessage {
+                trace_id: trace.id(),
+                project_id: trace.project_id(),
+                trigger_id: Some(trigger.id),
+                signal: trigger.signal.clone(),
+                run_metadata: crate::signals::queue::SignalRunMetadata::default(),
+            };
+
+            if let Err(e) = push_to_signals_queue(message, queue.clone()).await {
                 log::error!(
                     "Failed to push trace to signals queue: trace_id={}, project_id={}, signal={}, error={:?}",
                     trace.id(),

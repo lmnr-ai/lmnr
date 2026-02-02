@@ -189,10 +189,11 @@ const CreateSignalJobContent = () => {
         const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
         const selectedCount = selectionMode === "all" ? traceCount : (selectedTraceIds?.length ?? 0);
 
-        await fetch(`/api/projects/${projectId}/signals/${signal.id}/jobs`, {
+        const response = await fetch(`/api/projects/${projectId}/signals/${signal.id}/jobs`, {
           method: "POST",
           body: JSON.stringify({
-            filters: filters.filters,
+            // Zod expects filters to be stringified
+            filter: filters.filters.map((filter) => JSON.stringify(filter)),
             search: filters.search || undefined,
             pastHours: dateRange.pastHours,
             startDate: dateRange.startDate,
@@ -200,6 +201,10 @@ const CreateSignalJobContent = () => {
             traceIds: selectedTraceIds,
           }),
         });
+
+        if (!response.ok) {
+          throw new Error("Failed to create signal job");
+        }
 
         setConfirmDialogOpen(false);
         router.push(`/project/${projectId}/signals/${signal.id}?tab=jobs`);

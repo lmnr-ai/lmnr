@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
+use crate::batch_worker::config::BatchingConfig;
 use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult, MessageDelivery};
 use crate::mq::MessageQueue;
 use crate::worker::HandlerError;
@@ -25,11 +26,6 @@ impl ClusteringBatch {
             last_flush: Instant::now(),
         }
     }
-}
-
-pub struct BatchingConfig {
-    pub size: usize,
-    pub flush_interval: Duration,
 }
 
 pub struct ClusteringEventBatchingHandler {

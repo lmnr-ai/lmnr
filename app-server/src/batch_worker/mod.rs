@@ -1,3 +1,4 @@
+pub mod config;
 pub mod message_handler;
 pub mod worker;
 pub mod worker_pool;
@@ -9,6 +10,7 @@ use serde::Serialize;
 pub enum BatchWorkerType {
     ClusteringBatching,
     BrowserEvents,
+    SignalsBatching,
 }
 
 impl std::fmt::Display for BatchWorkerType {
@@ -16,6 +18,7 @@ impl std::fmt::Display for BatchWorkerType {
         match self {
             BatchWorkerType::ClusteringBatching => write!(f, "clustering_batch"),
             BatchWorkerType::BrowserEvents => write!(f, "browser_events"),
+            BatchWorkerType::SignalsBatching => write!(f, "signals_batch"),
         }
     }
 }

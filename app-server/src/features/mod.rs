@@ -49,11 +49,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             env::var("CLUSTERING_SERVICE_URL").is_ok()
                 && env::var("CLUSTERING_SERVICE_SECRET_KEY").is_ok()
         }
-        Feature::Signals => {
-            env::var("SEMANTIC_EVENT_SERVICE_URL").is_ok()
-                && env::var("SEMANTIC_EVENT_SERVICE_SECRET_KEY").is_ok()
-                && env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok()
-        }
+        Feature::Signals => env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok(),
     }
 }
 

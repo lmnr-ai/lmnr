@@ -1,7 +1,7 @@
 use backoff::ExponentialBackoffBuilder;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-use std::time::Duration;
+use std::{env, time::Duration};
 
 pub fn json_value_to_string(v: &Value) -> String {
     match v {
@@ -161,4 +161,11 @@ pub fn render_mustache_template(template: &str, attributes: &Value) -> anyhow::R
     }
 
     Ok(result)
+}
+
+pub fn get_unsigned_env_with_default(key: &str, default: usize) -> usize {
+    env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
 }
