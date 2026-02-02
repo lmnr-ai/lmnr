@@ -754,7 +754,7 @@ fn main() -> anyhow::Result<()> {
         //    the validation in the SDK would require us to make it a String
         .with_validation(false)
         .with_option("async_insert", "1")
-        .with_option("wait_for_async_insert", "0");
+        .with_option("wait_for_async_insert", "1");
 
     let clickhouse = match clickhouse_password {
         Ok(password) => clickhouse_client.with_password(password),
