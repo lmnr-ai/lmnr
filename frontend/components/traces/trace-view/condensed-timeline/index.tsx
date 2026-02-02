@@ -1,7 +1,7 @@
 import { isEmpty } from "lodash";
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 
-import { MAX_ZOOM, MIN_ZOOM, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store";
+import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/trace-view-store-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,11 @@ import CondensedTimelineElement, { ROW_HEIGHT } from "./condensed-timeline-eleme
 import SelectionIndicator from "./selection-indicator";
 import SelectionOverlay from "./selection-overlay";
 import { formatTimeMarkerLabel, useDynamicTimeIntervals } from "./use-dynamic-time-intervals";
+import { useHoverNeedle } from "./use-hover-needle";
+import { useScrollToSpan } from "./use-scroll-to-span";
+import { useWheelZoom } from "./use-wheel-zoom";
+
+const HEADER_HEIGHT = 24; // h-6 = 1.5rem = 24px
 
 function CondensedTimeline() {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -53,140 +58,33 @@ function CondensedTimeline() {
     zoom: condensedTimelineZoom,
   });
 
-  // Combine the callback ref with the scrollRef
+  // Callback ref to connect scrollRef with resize observer
   const combinedScrollRef = useCallback(
     (node: HTMLDivElement | null) => {
-      // Update the scrollRef for scrolling functionality
-      (scrollRef as React.RefObject<HTMLDivElement | null>).current = node;
-      // Update the container ref for resize observation
+      (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
       setContainerRef(node);
     },
     [setContainerRef]
   );
 
-  // Hover needle state - tracks percentage position
-  const [hoverPercent, setHoverPercent] = useState<number | null>(null);
-
   // Track if container is scrolled (for sticky header background)
   const [isScrolled, setIsScrolled] = useState(false);
 
-  const handleTimelineMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const scrollContainer = scrollRef.current;
-    if (!scrollContainer) return;
+  const selectedCount = condensedTimelineVisibleSpanIds.size;
 
-    const scrollRect = scrollContainer.getBoundingClientRect();
-    // Calculate position including scroll offset
-    const x = e.clientX - scrollRect.left + scrollContainer.scrollLeft;
-    const percent = (x / scrollContainer.scrollWidth) * 100;
-
-    setHoverPercent(Math.max(0, Math.min(100, percent)));
-  }, []);
-
-  const handleTimelineMouseLeave = useCallback(() => {
-    setHoverPercent(null);
-  }, []);
+  // Hover needle tracking
+  const { needleLeft, hoverTimeMs, handleMouseMove, handleMouseLeave } = useHoverNeedle(scrollRef, totalDurationMs);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
     setIsScrolled(target.scrollTop > 0);
   }, []);
 
-  // Calculate hover time from position
-  const hoverTimeMs = hoverPercent !== null ? (hoverPercent / 100) * totalDurationMs : null;
+  // Auto-scroll to selected span
+  useScrollToSpan(scrollRef, selectedSpan, condensedSpans);
 
-  const selectedCount = condensedTimelineVisibleSpanIds.size;
-
-  // Scroll to selected span when it changes
-  useEffect(() => {
-    if (!selectedSpan || !scrollRef.current) return;
-
-    // Find the selected span in condensedSpans
-    const selectedCondensedSpan = condensedSpans.find((cs) => cs.span.spanId === selectedSpan.spanId);
-    if (!selectedCondensedSpan) return;
-
-    // Get container dimensions
-    const container = scrollRef.current;
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-    const scrollWidth = container.scrollWidth;
-
-    // Calculate horizontal pixel position from percentage
-    const spanLeftPx = (selectedCondensedSpan.left / 100) * scrollWidth;
-    const spanWidthPx = (selectedCondensedSpan.width / 100) * scrollWidth;
-
-    // Calculate vertical pixel position from row
-    const spanTopPx = selectedCondensedSpan.row * ROW_HEIGHT;
-    const headerHeight = 24; // h-6 = 1.5rem = 24px
-
-    // Center the span in the view horizontally
-    const targetScrollX = spanLeftPx + spanWidthPx / 2 - containerWidth / 2;
-
-    // Center the span in the view vertically (accounting for sticky header)
-    const targetScrollY = spanTopPx - containerHeight / 2 + headerHeight;
-
-    container.scrollTo({
-      left: Math.max(0, targetScrollX),
-      top: Math.max(0, targetScrollY),
-      behavior: "smooth",
-    });
-  }, [selectedSpan, condensedSpans]);
-
-  // Cmd/Ctrl + scroll to zoom (centered on mouse position)
-  useEffect(() => {
-    const scrollContainer = scrollRef.current;
-    if (!scrollContainer) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
-
-      e.preventDefault();
-
-      const direction = e.deltaY < 0 ? "in" : e.deltaY > 0 ? "out" : null;
-      if (!direction) return;
-
-      // Get current state before zoom
-      const oldScrollLeft = scrollContainer.scrollLeft;
-      const oldScrollWidth = scrollContainer.scrollWidth;
-      const containerWidth = scrollContainer.clientWidth;
-      const containerRect = scrollContainer.getBoundingClientRect();
-
-      // Mouse position relative to container
-      const mouseX = e.clientX - containerRect.left;
-
-      // Content position under mouse as fraction of total width
-      const contentX = oldScrollLeft + mouseX;
-      const fraction = contentX / oldScrollWidth;
-
-      // Calculate new zoom (mirrors store logic)
-      const ZOOM_INCREMENT = 0.5;
-      const newZoom =
-        direction === "in"
-          ? Math.min(condensedTimelineZoom + ZOOM_INCREMENT, MAX_ZOOM)
-          : Math.max(condensedTimelineZoom - ZOOM_INCREMENT, MIN_ZOOM);
-
-      // Don't do anything if zoom didn't change (at limits)
-      if (newZoom === condensedTimelineZoom) return;
-
-      // Calculate new scroll width and position
-      const zoomRatio = newZoom / condensedTimelineZoom;
-      const newScrollWidth = oldScrollWidth * zoomRatio;
-      const newScrollLeft = fraction * newScrollWidth - mouseX;
-
-      // Update zoom
-      setCondensedTimelineZoom(direction);
-
-      // Adjust scroll position (use requestAnimationFrame to ensure DOM has updated)
-      requestAnimationFrame(() => {
-        scrollContainer.scrollLeft = Math.max(0, Math.min(newScrollLeft, newScrollWidth - containerWidth));
-      });
-    };
-
-    // passive: false is required for preventDefault() to work on wheel events
-    scrollContainer.addEventListener("wheel", handleWheel, { passive: false });
-    return () => {
-      scrollContainer.removeEventListener("wheel", handleWheel);
-    };
-  }, [condensedTimelineZoom, setCondensedTimelineZoom]);
+  // Cmd/Ctrl + scroll to zoom
+  useWheelZoom(scrollRef, condensedTimelineZoom, setCondensedTimelineZoom);
 
   const handleSingleClick = useCallback(
     (spanId: string) => {
@@ -212,33 +110,30 @@ function CondensedTimeline() {
     [setSelectedSpan]
   );
 
-  if (isSpansLoading) {
-    return (
-      <div className="flex flex-col gap-2 p-2 w-full h-full">
-        <Skeleton className="h-6 w-full" />
-        <Skeleton className="h-full w-full" />
-      </div>
-    );
-  }
-
-  if (isEmpty(condensedSpans)) {
-    return <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No spans found</div>;
-  }
-
-  const headerHeight = 24; // h-6 = 1.5rem = 24px
   const contentHeight = (totalRows + 1) * ROW_HEIGHT;
-  const totalHeight = headerHeight + contentHeight;
+  const totalHeight = HEADER_HEIGHT + contentHeight;
 
-  return (
-    <div className="flex flex-col h-full w-full overflow-hidden relative">
-      {/* Scrollable timeline area */}
-      <div
-        ref={combinedScrollRef}
-        className="flex-1 overflow-auto relative no-scrollbar min-h-0 bg-muted/50 h-full"
-        onMouseMove={handleTimelineMouseMove}
-        onMouseLeave={handleTimelineMouseLeave}
-        onScroll={handleScroll}
-      >
+  // Render loading and empty states inside the ref'd element to ensure hooks work correctly
+  const renderContent = () => {
+    if (isSpansLoading) {
+      return (
+        <div className="flex flex-col gap-2 p-2 w-full h-full">
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-full w-full" />
+        </div>
+      );
+    }
+
+    if (isEmpty(condensedSpans)) {
+      return (
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+          No spans found
+        </div>
+      );
+    }
+
+    return (
+      <>
         {/* Inner container with zoom width */}
         <div className="relative h-full" style={{ width: `${100 * condensedTimelineZoom}%`, minHeight: totalHeight }}>
           {/* Time marker lines - full height including header */}
@@ -249,14 +144,6 @@ function CondensedTimeline() {
               style={{ left: `${marker.positionPercent}%` }}
             />
           ))}
-
-          {/* Needle line - extends from header through content */}
-          {hoverPercent !== null && (
-            <div
-              className="absolute top-[6px] pointer-events-none w-px bg-primary/50 z-10 h-full"
-              style={{ left: `${hoverPercent}%` }}
-            />
-          )}
 
           {/* Time interval header - sticky */}
           <div
@@ -277,18 +164,6 @@ function CondensedTimeline() {
                   </div>
                 </div>
               ))}
-
-              {/* Needle head - inside sticky header, above line */}
-              {hoverPercent !== null && (
-                <div
-                  className="absolute top-0 h-full flex items-center pointer-events-none -translate-x-1/2 z-20"
-                  style={{ left: `${hoverPercent}%` }}
-                >
-                  <div className="px-1.5 py-0.5 bg-primary text-white text-[10px] rounded whitespace-nowrap">
-                    {hoverTimeMs !== null ? formatTimeMarkerLabel(Math.round(hoverTimeMs)) : ""}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
@@ -296,7 +171,6 @@ function CondensedTimeline() {
           <div
             ref={timelineContentRef}
             className="relative"
-            //style={{ minHeight: `max(${contentHeight}px, calc(100% - ${headerHeight}px))` }}
             style={{ minHeight: contentHeight }}
           >
             {/* Span elements */}
@@ -327,7 +201,39 @@ function CondensedTimeline() {
             />
           </div>
         </div>
+      </>
+    );
+  };
+
+  return (
+    <div className="flex flex-col h-full w-full overflow-hidden relative">
+      {/* Scrollable timeline area - ALWAYS rendered so refs are attached */}
+      <div
+        ref={combinedScrollRef}
+        className="flex-1 overflow-auto relative no-scrollbar min-h-0 bg-muted/50 h-full"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onScroll={handleScroll}
+      >
+        {renderContent()}
       </div>
+
+      {/* Hover Needle - outside scroll, z-35 (below SelectionIndicator z-40) */}
+      {needleLeft !== null && (
+        <div
+          className="absolute inset-y-0 pointer-events-none z-[35]"
+          style={{ left: `${needleLeft}%` }}
+        >
+          {/* Head */}
+          <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
+            <div className="px-1.5 py-0.5 bg-primary text-white text-[10px] rounded whitespace-nowrap">
+              {hoverTimeMs !== null ? formatTimeMarkerLabel(Math.round(hoverTimeMs)) : ""}
+            </div>
+          </div>
+          {/* Line */}
+          <div className="absolute top-[6px] bottom-0 w-px bg-primary/50" />
+        </div>
+      )}
 
       {/* Selection indicator */}
       <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
