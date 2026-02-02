@@ -94,10 +94,13 @@ pub struct SignalRunMetadata {
     pub internal_trace_id: Uuid,
     pub internal_span_id: Uuid,
     pub job_id: Uuid,
+    pub step: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SignalMessage {
+    #[serde(default = "Uuid::new_v4")]
+    pub id: Uuid,
     pub trace_id: Uuid,
     pub project_id: Uuid,
     pub trigger_id: Option<Uuid>, // TODO: Remove Option once old messages in queue without trigger_id are processed
@@ -110,7 +113,7 @@ pub struct SignalMessage {
 
 impl UniqueId for SignalMessage {
     fn get_unique_id(&self) -> String {
-        format!("{}-{}", self.project_id, self.signal.id)
+        self.id.to_string()
     }
 }
 

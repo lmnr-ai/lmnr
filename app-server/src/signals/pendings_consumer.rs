@@ -456,6 +456,7 @@ async fn process_succeeded_batch(
 
         for run in pending_runs_payloads {
             let msg = SignalMessage {
+                id: Uuid::new_v4(),
                 trace_id: run.trace_id,
                 project_id: message.project_id,
                 trigger_id: None,
@@ -465,6 +466,7 @@ async fn process_succeeded_batch(
                     internal_trace_id: run.internal_trace_id,
                     internal_span_id: run.internal_span_id,
                     job_id: run.job_id,
+                    step: run.step, // already incremented above
                 }),
             };
 
@@ -474,7 +476,22 @@ async fn process_succeeded_batch(
                     run.run_id,
                     e
                 );
-                // Continue with other runs - this run may be retried via the original batch
+                // Mark as failed so status is updated, messages are cleaned up, and job stats are updated
+                failed_runs.push(SignalRun {
+                    run_id: run.run_id,
+                    project_id: message.project_id,
+                    job_id: run.job_id,
+                    trigger_id: Uuid::nil(),
+                    signal_id: message.signal_id,
+                    trace_id: run.trace_id,
+                    status: RunStatus::Failed,
+                    step: run.step,
+                    internal_trace_id: run.internal_trace_id,
+                    internal_span_id: run.internal_span_id,
+                    updated_at: chrono::Utc::now(),
+                    event_id: None,
+                    error_message: Some(format!("Failed to enqueue for next step: {}", e)),
+                });
             }
         }
     }

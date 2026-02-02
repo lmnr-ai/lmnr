@@ -540,6 +540,7 @@ async fn check_and_push_signals(
 
             // Lock acquired - push to signals queue
             let message = SignalMessage {
+                id: Uuid::new_v4(),
                 trace_id: trace.id(),
                 project_id: trace.project_id(),
                 trigger_id: Some(trigger.id),

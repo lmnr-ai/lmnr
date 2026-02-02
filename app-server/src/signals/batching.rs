@@ -102,6 +102,7 @@ pub async fn enqueue_signal_job(
         };
 
         let message = SignalMessage {
+            id: Uuid::new_v4(),
             trace_id,
             project_id,
             trigger_id: None,
@@ -111,6 +112,7 @@ pub async fn enqueue_signal_job(
                 internal_trace_id,
                 internal_span_id,
                 job_id: job.id,
+                step: 0,
             }),
         };
 
@@ -228,11 +230,11 @@ impl BatchMessageHandler for SignalBatchingHandler {
         let trace_id = message.trace_id;
 
         // Use provided run_metadata (from batch API) or create new run info (for triggered runs)
-        let run_payload = match message.run_metadata {
-            Some(ref metadata) => SignalRunPayload {
+        let run_payload = match &message.run_metadata {
+            Some(metadata) => SignalRunPayload {
                 run_id: metadata.run_id,
                 trace_id,
-                step: 0,
+                step: metadata.step,
                 internal_trace_id: metadata.internal_trace_id,
                 internal_span_id: metadata.internal_span_id,
                 job_id: metadata.job_id,
