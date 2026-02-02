@@ -127,42 +127,6 @@ where
         .map_err(Into::into)
 }
 
-/// Render mustache-style template with JSON object attributes
-/// Example: "{{input}}" with attributes {"input": "hello"} -> "hello"
-pub fn render_mustache_template(template: &str, attributes: &Value) -> anyhow::Result<String> {
-    if !attributes.is_object() {
-        return Err(anyhow::anyhow!("Attributes must be a JSON object"));
-    }
-
-    let mut result = template.to_string();
-
-    // Simple mustache-style template rendering
-    // Find all {{key}} patterns and replace with corresponding values from attributes
-    let re = regex::Regex::new(r"\{\{(\w+)\}\}").unwrap();
-
-    for cap in re.captures_iter(template) {
-        let key = &cap[1];
-        let placeholder = &cap[0];
-
-        if let Some(value) = attributes.get(key) {
-            let replacement = match value {
-                Value::String(s) => s.clone(),
-                Value::Number(n) => n.to_string(),
-                Value::Bool(b) => b.to_string(),
-                Value::Null => String::new(),
-                // For complex types, use JSON representation
-                _ => serde_json::to_string(value).unwrap_or_default(),
-            };
-            result = result.replace(placeholder, &replacement);
-        } else {
-            log::warn!("Template key '{}' not found in attributes", key);
-            // Leave placeholder as-is if key not found
-        }
-    }
-
-    Ok(result)
-}
-
 pub fn get_unsigned_env_with_default(key: &str, default: usize) -> usize {
     env::var(key)
         .ok()

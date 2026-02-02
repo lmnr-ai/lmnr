@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait, keys};
-use crate::utils::{call_service_with_retry, render_mustache_template};
+use crate::utils::call_service_with_retry;
 use crate::worker::{HandlerError, MessageHandler};
 
 use crate::clustering::ClusteringBatchMessage;
@@ -49,7 +49,7 @@ async fn process_clustering_logic(
         None => return Ok(()),
     };
     let project_id = first.project_id;
-    let signal_id = first.signal_event.signal_id;
+    let signal_id = first.signal_id;
 
     let lock_key = format!("{}-{}", keys::CLUSTERING_LOCK_CACHE_KEY, project_id);
     let lock_ttl = 300; // 5 minutes
@@ -137,22 +137,10 @@ async fn call_clustering_endpoint(
     let mut events: Vec<serde_json::Value> = Vec::new();
     for message in &message.events {
         // Render the value_template with event attributes
-        let attributes = message.signal_event.payload_value().unwrap_or_default();
-        let content = match render_mustache_template(&message.value_template, &attributes) {
-            Ok(content) => content,
-            Err(e) => {
-                log::error!(
-                    "Failed to render template for signal_event_id={}: {:?}",
-                    message.signal_event.id,
-                    e
-                );
-                continue;
-            }
-        };
 
         let event = serde_json::json!({
-            "signal_event_id": message.signal_event.id.to_string(),
-            "content": content,
+            "signal_event_id": message.event_id.to_string(),
+            "content": message.content,
         });
         events.push(event);
     }

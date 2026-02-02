@@ -1,4 +1,3 @@
-pub mod clustering;
 pub mod consumer;
 pub mod events;
 pub mod grpc_service;

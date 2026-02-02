@@ -53,8 +53,8 @@ use signals::{
 };
 use tonic::transport::Server;
 use traces::{
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY,
-    clustering::ClusteringHandler, consumer::SpanHandler, grpc_service::ProcessTracesService,
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, consumer::SpanHandler,
+    grpc_service::ProcessTracesService,
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
@@ -79,10 +79,13 @@ use storage::{
     mock::MockStorage,
 };
 
-use crate::batch_worker::{BatchWorkerType, config::BatchingConfig, worker_pool::BatchWorkerPool};
 use crate::features::{enable_consumer, enable_producer};
 use crate::utils::get_unsigned_env_with_default;
 use crate::worker::{QueueConfig, WorkerPool, WorkerType};
+use crate::{
+    batch_worker::{BatchWorkerType, config::BatchingConfig, worker_pool::BatchWorkerPool},
+    clustering::clustering::ClusteringHandler,
+};
 
 mod api;
 mod auth;

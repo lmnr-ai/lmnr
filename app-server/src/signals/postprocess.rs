@@ -23,6 +23,7 @@ pub async fn process_event_notifications_and_clustering(
     project_id: Uuid,
     trace_id: Uuid,
     signal_event: CHSignalEvent,
+    summary: String,
 ) -> anyhow::Result<()> {
     let event_name = signal_event.name().to_string();
     let attributes = signal_event.payload_value().unwrap_or_default();
@@ -67,7 +68,7 @@ pub async fn process_event_notifications_and_clustering(
             project_id,
             signal_event,
             // TODO: skull8888888 update value template
-            String::from(""),
+            summary,
             queue.clone(),
         )
         .await

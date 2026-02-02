@@ -47,9 +47,16 @@ use super::{
 #[derive(Debug, Serialize)]
 enum StepResult {
     CompletedNoEvent,
-    CompletedWithEvent { attributes: serde_json::Value },
-    RequiresNextStep { tool_result: serde_json::Value },
-    Failed { error: String },
+    CompletedWithEvent {
+        attributes: serde_json::Value,
+        summary: String,
+    },
+    RequiresNextStep {
+        tool_result: serde_json::Value,
+    },
+    Failed {
+        error: String,
+    },
 }
 
 pub struct SignalJobPendingBatchHandler {
@@ -377,11 +384,15 @@ async fn process_succeeded_batch(
             StepResult::CompletedNoEvent => {
                 succeeded_runs.push(run.completed());
             }
-            StepResult::CompletedWithEvent { attributes } => {
+            StepResult::CompletedWithEvent {
+                attributes,
+                summary,
+            } => {
                 match handle_create_event(
                     signal_message,
                     &run,
                     attributes,
+                    summary,
                     clickhouse.clone(),
                     db.clone(),
                     queue.clone(),
@@ -627,8 +638,17 @@ async fn process_single_response(
             StepResult::CompletedNoEvent => {
                 return (StepResult::CompletedNoEvent, new_messages);
             }
-            StepResult::CompletedWithEvent { attributes } => {
-                return (StepResult::CompletedWithEvent { attributes }, new_messages);
+            StepResult::CompletedWithEvent {
+                attributes,
+                summary,
+            } => {
+                return (
+                    StepResult::CompletedWithEvent {
+                        attributes,
+                        summary,
+                    },
+                    new_messages,
+                );
             }
             StepResult::RequiresNextStep { tool_result } => {
                 // Add tool result to new messages
@@ -735,6 +755,13 @@ async fn handle_tool_call(
                 .as_ref()
                 .and_then(|args| args.get("data").cloned());
 
+            let summary: Option<String> = function_call
+                .args
+                .as_ref()
+                .and_then(|args| args.get("_summary"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
             log::debug!(
                 "[SIGNAL JOB] submit_identification, identified: {:?}",
                 identified,
@@ -742,7 +769,10 @@ async fn handle_tool_call(
 
             if identified {
                 let attrs = attributes.unwrap_or(serde_json::Value::Null);
-                return StepResult::CompletedWithEvent { attributes: attrs };
+                return StepResult::CompletedWithEvent {
+                    attributes: attrs,
+                    summary: summary.unwrap_or_default(),
+                };
             }
 
             return StepResult::CompletedNoEvent;
@@ -760,6 +790,7 @@ async fn handle_create_event(
     signal_message: &SignalMessage,
     run: &SignalRun,
     attributes: serde_json::Value,
+    summary: String,
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
@@ -827,6 +858,7 @@ async fn handle_create_event(
         signal_message.project_id,
         run.trace_id,
         signal_event,
+        summary,
     )
     .await?;
 
