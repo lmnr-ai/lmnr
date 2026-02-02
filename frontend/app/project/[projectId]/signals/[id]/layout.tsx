@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import React, { type PropsWithChildren } from "react";
 
 import { SignalStoreProvider } from "@/components/signal/store.tsx";
-import { getClusterConfig } from "@/lib/actions/cluster-configs";
 import { getLastEvent, getSignal, type Signal } from "@/lib/actions/signals";
 import { EVENTS_TRACE_VIEW_WIDTH } from "@/lib/actions/traces";
 
@@ -16,10 +15,7 @@ const Layout = async (props: PropsWithChildren<{ params: Promise<{ projectId: st
     return notFound();
   }
 
-  const [lastEvent, clusterConfig] = await Promise.all([
-    getLastEvent({ projectId, name: signal.name }),
-    getClusterConfig({ projectId, eventName: signal.name }),
-  ]);
+  const lastEvent = await getLastEvent({ projectId, name: signal.name, signalId: signal.id });
 
   const cookieStore = await cookies();
   const traceViewWidthCookie = cookieStore.get(EVENTS_TRACE_VIEW_WIDTH);
@@ -27,12 +23,7 @@ const Layout = async (props: PropsWithChildren<{ params: Promise<{ projectId: st
 
   return (
     <>
-      <SignalStoreProvider
-        lastEvent={lastEvent}
-        initialTraceViewWidth={initialTraceViewWidth}
-        signal={signal}
-        clusterConfig={clusterConfig}
-      >
+      <SignalStoreProvider lastEvent={lastEvent} initialTraceViewWidth={initialTraceViewWidth} signal={signal}>
         {props.children}
       </SignalStoreProvider>
     </>

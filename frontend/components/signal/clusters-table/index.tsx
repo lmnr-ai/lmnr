@@ -1,6 +1,5 @@
 "use client";
 
-import { Network } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -9,23 +8,34 @@ import {
   defaultClustersColumnOrder,
   getClusterColumns,
 } from "@/components/signal/clusters-table/columns.tsx";
-import DisableClusteringDialog from "@/components/signal/disable-clustering-dialog.tsx";
-import StartClusteringDialog from "@/components/signal/start-clustering-dialog.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
-import { Button } from "@/components/ui/button.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { type EventCluster } from "@/lib/actions/clusters";
 import { useToast } from "@/lib/hooks/use-toast.ts";
+
+const EmptyRow = (
+  <TableRow className="flex">
+    <TableCell className="text-center p-4 rounded-b w-full h-auto">
+      <div className="flex flex-1 justify-center">
+        <div className="flex flex-col gap-2 items-center max-w-md">
+          <h3 className="text-base font-medium text-secondary-foreground">No clusters yet</h3>
+          <p className="text-sm text-muted-foreground text-center">
+            Clusters group similar events together for easier analysis. Enable clustering in your triggers by defining a
+            clustering key to start organizing your signal events.
+          </p>
+        </div>
+      </div>
+    </TableCell>
+  </TableRow>
+);
 
 const PureClustersTable = () => {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
-  const { signal, clusterConfig } = useSignalStoreContext((state) => ({
-    signal: state.signal,
-    clusterConfig: state.clusterConfig,
-  }));
+  const signal = useSignalStoreContext((state) => state.signal);
   const columns = useMemo(() => getClusterColumns(params.projectId, signal.id), [params.projectId, signal.id]);
 
   const [rawClusters, setRawClusters] = useState<EventCluster[]>([]);
@@ -52,7 +62,7 @@ const PureClustersTable = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [params.projectId, toast]);
+  }, [params.projectId, signal.name, toast]);
 
   useEffect(() => {
     fetchClusters();
@@ -92,21 +102,6 @@ const PureClustersTable = () => {
     <div className="flex flex-col gap-2">
       <div className="flex gap-4">
         <span className="text-lg font-semibold">Clusters</span>
-        {clusterConfig ? (
-          <DisableClusteringDialog>
-            <Button variant="secondary">
-              <Network className="mr-1 size-3.5" />
-              Disable Clustering
-            </Button>
-          </DisableClusteringDialog>
-        ) : (
-          <StartClusteringDialog>
-            <Button variant="secondary" className="w-fit">
-              <Network className="mr-1 size-3.5" />
-              Start Clustering
-            </Button>
-          </StartClusteringDialog>
-        )}
       </div>
       <InfiniteDataTable<ClusterRow>
         className="w-full"
@@ -119,6 +114,7 @@ const PureClustersTable = () => {
         isLoading={isLoading}
         fetchNextPage={() => {}}
         meta={{ totalCount }}
+        emptyRow={EmptyRow}
       >
         <div className="flex flex-1 w-full space-x-2">
           <ColumnsMenu

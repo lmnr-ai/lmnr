@@ -2,7 +2,7 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils.ts";
-import { createTraceAnalysisJob, getSignalJobs, GetSignalJobsSchema } from "@/lib/actions/signal-jobs";
+import { createSignalJob, getSignalJobs, GetSignalJobsSchema } from "@/lib/actions/signal-jobs";
 
 export async function GET(
   req: NextRequest,
@@ -50,7 +50,7 @@ export async function POST(
 
   try {
     const body = await req.json();
-    const result = await createTraceAnalysisJob({
+    const result = await createSignalJob({
       ...body,
       projectId,
       signalId,

@@ -66,10 +66,10 @@ export async function getSignalTriggers(input: z.infer<typeof GetSignalTriggersS
     .from(signalTriggers)
     .where(and(...whereConditions))
     .orderBy(desc(signalTriggers.createdAt))) as {
-    id: string;
-    value: Filter[];
-    createdAt: string;
-  }[];
+      id: string;
+      value: Filter[];
+      createdAt: string;
+    }[];
 
   return {
     items: rows.map((row) => ({

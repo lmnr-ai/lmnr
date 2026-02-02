@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, ilike, inArray, lte } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { type Filter, FilterSchema, parseFilters } from "@/lib/actions/common/filters";
+import { type Filter, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
@@ -15,7 +15,9 @@ export type SignalRow = {
   name: string;
   createdAt: string;
   projectId: string;
+  triggersCount: number;
   eventsCount: number;
+  lastEventAt: string | null;
 };
 
 export type Signal = {
@@ -38,17 +40,11 @@ const GetSignalSchema = z.object({
   id: z.string(),
 });
 
-export const TriggerSchema = z.object({
-  id: z.string().optional(),
-  filters: z.array(FilterSchema),
-});
-
 const CreateSignalSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
-  triggers: z.array(TriggerSchema).optional().default([]),
 });
 
 const UpdateSignalSchema = z.object({
@@ -56,7 +52,6 @@ const UpdateSignalSchema = z.object({
   id: z.string(),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
-  triggers: z.array(TriggerSchema).optional().default([]),
 });
 
 export const DeleteSignalSchema = z.object({
@@ -72,6 +67,7 @@ const DeleteSignalsSchema = z.object({
 const GetLastEventSchema = z.object({
   projectId: z.string(),
   name: z.string(),
+  signalId: z.string(),
 });
 
 export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
@@ -122,9 +118,26 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
     .offset(offset);
 
   const signalIds = results.map((r) => r.id);
+  let triggerCountBySignal: Record<string, number> = {};
   let eventCountBySignal: Record<string, number> = {};
+  let lastEventBySignal: Record<string, string> = {};
 
   if (signalIds.length > 0) {
+    const triggerCountsResult = await db
+      .select({
+        signalId: signalTriggers.signalId,
+      })
+      .from(signalTriggers)
+      .where(and(eq(signalTriggers.projectId, projectId), inArray(signalTriggers.signalId, signalIds)));
+
+    triggerCountBySignal = triggerCountsResult.reduce(
+      (acc, row) => ({
+        ...acc,
+        [row.signalId]: (acc[row.signalId] || 0) + 1,
+      }),
+      {} as Record<string, number>
+    );
+
     const eventCountsResult = await clickhouseClient.query({
       query: `
         SELECT
@@ -151,11 +164,40 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       }),
       {} as Record<string, number>
     );
+
+    const lastEventResult = await clickhouseClient.query({
+      query: `
+        SELECT
+          signal_id,
+          formatDateTime(max(timestamp), '%Y-%m-%dT%H:%i:%S.%fZ') as last_event_at
+        FROM signal_events
+        WHERE project_id = {projectId: UUID}
+          AND signal_id IN ({signalIds: Array(UUID)})
+        GROUP BY signal_id
+      `,
+      query_params: {
+        projectId,
+        signalIds,
+      },
+      format: "JSONEachRow",
+    });
+
+    const lastEvents = (await lastEventResult.json()) as { signal_id: string; last_event_at: string }[];
+
+    lastEventBySignal = lastEvents.reduce(
+      (acc, row) => ({
+        ...acc,
+        [row.signal_id]: row.last_event_at,
+      }),
+      {} as Record<string, string>
+    );
   }
 
   const items: SignalRow[] = results.map((signal) => ({
     ...signal,
+    triggersCount: triggerCountBySignal[signal.id] || 0,
     eventsCount: eventCountBySignal[signal.id] || 0,
+    lastEventAt: lastEventBySignal[signal.id] || null,
   }));
 
   return {
@@ -201,7 +243,7 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 }
 
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput, triggers } = CreateSignalSchema.parse(input);
+  const { projectId, name, prompt, structuredOutput } = CreateSignalSchema.parse(input);
 
   const [result] = await db
     .insert(signals)
@@ -213,52 +255,17 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
     })
     .returning();
 
-  if (triggers.length > 0) {
-    await db.insert(signalTriggers).values(
-      triggers.map((trigger) => ({
-        projectId,
-        signalId: result.id,
-        value: trigger.filters,
-      }))
-    );
-
-    await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
-  }
-
   return result;
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput, triggers } = UpdateSignalSchema.parse(input);
+  const { projectId, id, prompt, structuredOutput } = UpdateSignalSchema.parse(input);
 
-  const result = await db.transaction(async (tx) => {
-    const [result] = await tx
-      .update(signals)
-      .set({ prompt, structuredOutputSchema: structuredOutput })
-      .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
-      .returning();
-
-    if (!result) {
-      return undefined;
-    }
-
-    // Delete existing triggers and insert new ones (overwrite approach)
-    await tx
-      .delete(signalTriggers)
-      .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, result.id)));
-
-    if (triggers.length > 0) {
-      await tx.insert(signalTriggers).values(
-        triggers.map((trigger) => ({
-          projectId,
-          signalId: result.id,
-          value: trigger.filters,
-        }))
-      );
-    }
-
-    return result;
-  });
+  const result = await db
+    .update(signals)
+    .set({ prompt, structuredOutputSchema: structuredOutput })
+    .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
+    .returning();
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
@@ -313,7 +320,7 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
 export { executeSignal } from "./execute";
 
 export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) => {
-  const { projectId, name } = GetLastEventSchema.parse(input);
+  const { projectId, name, signalId } = GetLastEventSchema.parse(input);
 
   const query = `
       SELECT
@@ -321,7 +328,7 @@ export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) =>
           formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, 
       name
       FROM signal_events
-      WHERE name = {name: String}
+      WHERE signal_id = {signalId: UUID} AND name = {name: String}
       ORDER BY timestamp DESC
       LIMIT 1
   `;
@@ -332,6 +339,7 @@ export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) =>
     parameters: {
       name,
       projectId,
+      signalId,
     },
   });
 

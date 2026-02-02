@@ -1,11 +1,11 @@
 "use client";
 
 import type { Row } from "@tanstack/react-table";
-import { Loader2 } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
+import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
 import SelectionBanner from "@/components/signal/create-signal-job/selection-banner.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import {
@@ -38,6 +38,7 @@ const CreateSignalJobContent = () => {
   const { rowSelection, onRowSelectionChange } = useSelection();
 
   const [isCreating, setIsCreating] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [filters, setFilters] = useState<{ filters: Filter[]; search: string }>({ filters: [], search: "" });
   const [dateRange, setDateRange] = useState<{
     pastHours?: string;
@@ -177,52 +178,61 @@ const CreateSignalJobContent = () => {
     onRowSelectionChange(allTraceIds);
   }, [onRowSelectionChange, traces]);
 
-  const handleCreateSignalJob = useCallback(async () => {
-    try {
-      setIsCreating(true);
-      const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
-      const selectedCount = selectionMode === "all" ? traceCount : (selectedTraceIds?.length ?? 0);
+  const handleOpenConfirmDialog = useCallback(() => {
+    setConfirmDialogOpen(true);
+  }, []);
 
-      await fetch(`/api/projects/${projectId}/signals/${signal.id}/jobs`, {
-        method: "POST",
-        body: JSON.stringify({
-          filters: filters.filters,
-          search: filters.search || undefined,
-          pastHours: dateRange.pastHours,
-          startDate: dateRange.startDate,
-          endDate: dateRange.endDate,
-          traceIds: selectedTraceIds,
-        }),
-      });
+  const handleCreateSignalJob = useCallback(
+    async () => {
+      try {
+        setIsCreating(true);
+        const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
+        const selectedCount = selectionMode === "all" ? traceCount : (selectedTraceIds?.length ?? 0);
 
-      router.push(`/project/${projectId}/signals/${signal.id}?tab=jobs`);
-      toast({
-        title: "Signal job created",
-        description: `Job for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create signal job. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCreating(false);
-    }
-  }, [
-    selectionMode,
-    rowSelection,
-    traceCount,
-    projectId,
-    signal.id,
-    signal.name,
-    filters.filters,
-    filters.search,
-    dateRange.pastHours,
-    dateRange.startDate,
-    dateRange.endDate,
-    toast,
-  ]);
+        await fetch(`/api/projects/${projectId}/signals/${signal.id}/jobs`, {
+          method: "POST",
+          body: JSON.stringify({
+            filters: filters.filters,
+            search: filters.search || undefined,
+            pastHours: dateRange.pastHours,
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate,
+            traceIds: selectedTraceIds,
+          }),
+        });
+
+        setConfirmDialogOpen(false);
+        router.push(`/project/${projectId}/signals/${signal.id}?tab=jobs`);
+        toast({
+          title: "Signal job created",
+          description: `Job for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
+        });
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to create signal job. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsCreating(false);
+      }
+    },
+    [
+      selectionMode,
+      rowSelection,
+      traceCount,
+      projectId,
+      signal.id,
+      signal.name,
+      filters.filters,
+      filters.search,
+      dateRange.pastHours,
+      dateRange.startDate,
+      dateRange.endDate,
+      router,
+      toast,
+    ]
+  );
 
   const traceIdFromUrl = searchParams.get("traceId");
 
@@ -230,6 +240,13 @@ const CreateSignalJobContent = () => {
 
   return (
     <>
+      <ConfirmSignalJobDialog
+        open={confirmDialogOpen}
+        onOpenChange={setConfirmDialogOpen}
+        isCreating={isCreating}
+        onConfirm={handleCreateSignalJob}
+        traceCount={selectionMode === "all" ? traceCount : selectedCount}
+      />
       <Header
         path={[
           { name: "signals", href: `/project/${projectId}/signals` },
@@ -245,8 +262,7 @@ const CreateSignalJobContent = () => {
             or all matching traces based on your current filters and time range.
           </p>
         </div>
-        <Button className="ml-auto" onClick={handleCreateSignalJob} disabled={selectionMode === "none" || isCreating}>
-          {isCreating && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
+        <Button className="ml-auto" onClick={handleOpenConfirmDialog} disabled={selectionMode === "none"}>
           {selectionMode === "none"
             ? "Create signal job"
             : `Create signal job (${selectionMode === "all" ? traceCount.toLocaleString() : selectedCount.toLocaleString()} traces)`}

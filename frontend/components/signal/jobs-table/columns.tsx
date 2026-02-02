@@ -5,7 +5,6 @@ import React from "react";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono.tsx";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils.ts";
 
 export interface SignalJobRow {
   id: string;
@@ -62,14 +61,14 @@ export const signalJobsColumns: ColumnDef<SignalJobRow, any>[] = [
   {
     accessorFn: (row) => row.createdAt,
     header: "Created",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
     id: "created_at",
     size: 150,
   },
   {
     accessorFn: (row) => row.updatedAt,
     header: "Updated",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
     id: "updated_at",
     size: 150,
   },

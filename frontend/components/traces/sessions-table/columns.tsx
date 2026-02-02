@@ -9,7 +9,7 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import Mono from "@/components/ui/mono";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SessionRow } from "@/lib/traces/types";
-import { getDurationString, TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { getDurationString } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -106,7 +106,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
   {
     accessorFn: (row) => row.startTime,
     header: "Start time",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "start_time",
     size: 150,
   },

@@ -1,9 +1,10 @@
 "use client";
 
+import { get } from "lodash";
 import { Loader2 } from "lucide-react";
+import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm, useFormContext, useWatch } from "react-hook-form";
-import { v4 as uuidv4 } from "uuid";
 
 import { getDefaultFilter, TriggerFiltersField } from "@/components/signals/trigger-filter-field";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { type Filter } from "@/lib/actions/common/filters";
 import { type Trigger } from "@/lib/actions/signal-triggers";
+import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 export type TriggerFormValues = {
@@ -27,12 +29,21 @@ export type TriggerFormValues = {
 
 interface ManageTriggerDialogContentProps {
   setOpen: (open: boolean) => void;
-  onSave: (trigger: Trigger) => Promise<void>;
   isNew?: boolean;
+  signalId: string;
+  onSuccess?: () => Promise<void>;
 }
 
-function ManageTriggerDialogContent({ setOpen, onSave, isNew }: ManageTriggerDialogContentProps) {
+function ManageTriggerDialogContent({
+  setOpen,
+  isNew,
+  signalId,
+  onSuccess,
+}: ManageTriggerDialogContentProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const { projectId } = useParams();
+  const { toast } = useToast();
+
   const {
     handleSubmit,
     formState: { isValid },
@@ -43,16 +54,51 @@ function ManageTriggerDialogContent({ setOpen, onSave, isNew }: ManageTriggerDia
     async (data: TriggerFormValues) => {
       try {
         setIsLoading(true);
-        await onSave({
-          id: data.id || uuidv4(),
-          filters: data.filters,
+
+        const isUpdate = !!data.id;
+        const url = `/api/projects/${projectId}/signals/${signalId}/triggers`;
+        const method = isUpdate ? "PUT" : "POST";
+
+        const body = isUpdate
+          ? { triggerId: data.id, filters: data.filters }
+          : { filters: data.filters };
+
+        const res = await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
         });
+
+        if (!res.ok) {
+          const error = (await res.json()) as { error: string };
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: get(error, "error", `Failed to ${isUpdate ? "update" : "create"} the trigger`),
+          });
+          return;
+        }
+
+        if (onSuccess) {
+          await onSuccess();
+        }
+
+        toast({ title: `Successfully ${isUpdate ? "updated" : "created"} trigger` });
         setOpen(false);
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description:
+            e instanceof Error
+              ? e.message
+              : `Failed to ${data.id ? "update" : "create"} the trigger. Please try again.`,
+        });
       } finally {
         setIsLoading(false);
       }
     },
-    [onSave, setOpen]
+    [projectId, signalId, toast, setOpen, onSuccess]
   );
 
   return (
@@ -61,7 +107,7 @@ function ManageTriggerDialogContent({ setOpen, onSave, isNew }: ManageTriggerDia
         <DialogTitle>{isNew ? "Add Trigger" : "Edit Trigger"}</DialogTitle>
         <DialogDescription>Configure the filter conditions for this trigger.</DialogDescription>
       </DialogHeader>
-      <form onSubmit={handleSubmit(submit)} className="grid gap-4">
+      <form onSubmit={handleSubmit(submit)} className="grid gap-6">
         <TriggerFiltersField />
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
@@ -81,7 +127,8 @@ interface ManageTriggerDialogProps {
   open: boolean;
   setOpen: (open: boolean) => void;
   defaultValues?: Trigger;
-  onSave: (trigger: Trigger) => Promise<void>;
+  signalId: string;
+  onSuccess?: () => Promise<void>;
 }
 
 export default function ManageTriggerDialog({
@@ -89,7 +136,8 @@ export default function ManageTriggerDialog({
   open,
   setOpen,
   defaultValues,
-  onSave,
+  signalId,
+  onSuccess,
 }: PropsWithChildren<ManageTriggerDialogProps>) {
   const isNew = !defaultValues;
 
@@ -101,7 +149,9 @@ export default function ManageTriggerDialog({
   useEffect(() => {
     if (open) {
       form.reset(
-        defaultValues ? { id: defaultValues.id, filters: defaultValues.filters } : { filters: [getDefaultFilter()] }
+        defaultValues
+          ? { id: defaultValues.id, filters: defaultValues.filters }
+          : { filters: [getDefaultFilter()] }
       );
     }
   }, [open, defaultValues, form]);
@@ -110,7 +160,12 @@ export default function ManageTriggerDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       {children && <DialogTrigger asChild>{children}</DialogTrigger>}
       <FormProvider {...form}>
-        <ManageTriggerDialogContent setOpen={setOpen} onSave={onSave} isNew={isNew} />
+        <ManageTriggerDialogContent
+          setOpen={setOpen}
+          isNew={isNew}
+          signalId={signalId}
+          onSuccess={onSuccess}
+        />
       </FormProvider>
     </Dialog>
   );

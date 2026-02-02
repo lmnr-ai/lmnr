@@ -55,7 +55,7 @@ const columns: ColumnDef<Evaluation>[] = [
     id: "createdAt",
     header: "Created",
     accessorKey: "createdAt",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
   },
 ];
 

@@ -68,7 +68,7 @@ export function InfiniteDatatableRow<TData extends RowData>({
         willChange: "transform",
       }}
     >
-      {row.getIsSelected() && <div className="border-l-2 border-l-primary absolute h-full left-0 top-0 z-10" />}
+      {row.getIsSelected() && <td className="border-l-2 border-l-primary absolute h-full left-0 top-0 z-10" />}
       {row.getVisibleCells().map((cell) => (
         <InfiniteTableCell key={cell.id} cell={cell} />
       ))}
