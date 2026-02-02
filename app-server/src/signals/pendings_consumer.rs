@@ -456,6 +456,8 @@ async fn process_succeeded_batch(
 
     // Push pending runs back to signals queue for next step processing
     // Increment the step counter using next_step()
+    // Track runs that failed to enqueue so we can persist them to ClickHouse
+    let failed_runs_before_enqueue = failed_runs.len();
     if !pending_run_ids.is_empty() {
         for run_id in &pending_run_ids {
             let msg = run_to_message.get(run_id).unwrap();
@@ -474,6 +476,21 @@ async fn process_succeeded_batch(
                 let run = build_run(msg).next_step(); // Build with incremented step
                 failed_runs.push(run.failed(format!("Failed to enqueue for next step: {}", e)));
             }
+        }
+    }
+
+    // Insert newly failed runs (those that failed to enqueue) into ClickHouse
+    if failed_runs.len() > failed_runs_before_enqueue {
+        let newly_failed_runs: Vec<CHSignalRun> = failed_runs
+            .iter()
+            .skip(failed_runs_before_enqueue)
+            .map(CHSignalRun::from)
+            .collect();
+        if let Err(e) = insert_signal_runs(clickhouse.clone(), &newly_failed_runs).await {
+            log::error!(
+                "[SIGNAL JOB] Failed to insert newly failed runs to ClickHouse: {:?}",
+                e
+            );
         }
     }
 

@@ -1092,7 +1092,7 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn signals workers using new worker pool
-                    {
+                    if gemini_client.is_some() {
                         // Spawn clustering batching workers
                         let batch_size: usize = get_unsigned_env_with_default(
                             "SIGNALS_BATCH_SIZE",
@@ -1121,6 +1121,8 @@ fn main() -> anyhow::Result<()> {
                                 routing_key: SIGNALS_ROUTING_KEY,
                             },
                         );
+                    } else {
+                        log::warn!("Gemini client not available - skipping signals workers");
                     }
 
                     // Spawn notification workers

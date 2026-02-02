@@ -68,6 +68,19 @@ impl SignalBatchingHandler {
             }
         }
     }
+
+    async fn flush_and_handle(&self, batch: SignalBatch) -> HandlerResult<SignalMessage> {
+        match self.flush_batch(batch).await {
+            Ok(deliveries) => HandlerResult::ack(deliveries),
+            Err((deliveries, error)) => {
+                if error.should_requeue() {
+                    HandlerResult::requeue(deliveries)
+                } else {
+                    HandlerResult::reject(deliveries)
+                }
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -98,16 +111,7 @@ impl BatchMessageHandler for SignalBatchingHandler {
         if batch_len >= self.config.size {
             // Take the batch and replace with new one
             let batch = std::mem::replace(state, SignalBatch::new());
-            return match self.flush_batch(batch).await {
-                Ok(deliveries) => HandlerResult::ack(deliveries),
-                Err((deliveries, error)) => {
-                    if error.should_requeue() {
-                        HandlerResult::requeue(deliveries)
-                    } else {
-                        HandlerResult::reject(deliveries)
-                    }
-                }
-            };
+            return self.flush_and_handle(batch).await;
         }
 
         HandlerResult::empty()
@@ -122,16 +126,7 @@ impl BatchMessageHandler for SignalBatchingHandler {
         {
             // Take the batch and replace with new one
             let batch = std::mem::replace(state, SignalBatch::new());
-            return match self.flush_batch(batch).await {
-                Ok(deliveries) => HandlerResult::ack(deliveries),
-                Err((deliveries, error)) => {
-                    if error.should_requeue() {
-                        HandlerResult::requeue(deliveries)
-                    } else {
-                        HandlerResult::reject(deliveries)
-                    }
-                }
-            };
+            return self.flush_and_handle(batch).await;
         }
 
         HandlerResult::empty()
