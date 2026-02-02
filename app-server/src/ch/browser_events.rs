@@ -1,5 +1,6 @@
 use clickhouse::Row;
 use serde::Serialize;
+use std::env;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Row, Serialize)]
@@ -50,8 +51,12 @@ impl BrowserEventCHRow {
 pub async fn insert_browser_events(
     clickhouse: &clickhouse::Client,
     events: &[BrowserEventCHRow],
-    wait_for_async_insert: bool,
 ) -> Result<(), clickhouse::error::Error> {
+    let wait_for_async_insert: bool = env::var("BROWSER_EVENTS_CH_WAIT_FOR_ASYNC_INSERT")
+        .unwrap_or("true".to_string())
+        .parse()
+        .unwrap_or(true);
+
     let mut insert = clickhouse
         .insert::<BrowserEventCHRow>("browser_session_events")
         .await

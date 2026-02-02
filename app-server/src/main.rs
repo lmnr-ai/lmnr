@@ -1026,11 +1026,6 @@ fn main() -> anyhow::Result<()> {
                                 .parse()
                                 .unwrap_or(1);
                         let flush_interval = Duration::from_secs(flush_interval_sec);
-                        let ch_wait_for_async_insert: bool =
-                            env::var("BROWSER_EVENTS_CH_WAIT_FOR_ASYNC_INSERT")
-                                .unwrap_or("true".to_string())
-                                .parse()
-                                .unwrap_or(true);
 
                         let db = db_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
@@ -1045,7 +1040,6 @@ fn main() -> anyhow::Result<()> {
                                 config: BrowserEventsBatchingConfig {
                                     size,
                                     flush_interval,
-                                    ch_wait_for_async_insert,
                                 },
                             },
                             QueueConfig {

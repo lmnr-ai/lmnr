@@ -27,7 +27,6 @@ pub struct QueueBrowserEventMessage {
 pub struct BatchingConfig {
     pub size: usize,
     pub flush_interval: Duration,
-    pub ch_wait_for_async_insert: bool,
 }
 
 /// Handler for browser events
@@ -85,9 +84,8 @@ impl BrowserEventHandler {
         }
 
         // Insert events into ClickHouse with exponential backoff
-        let wait_for_async_insert = self.config.ch_wait_for_async_insert;
         let insert_browser_events_fn = || async {
-            insert_browser_events(&self.clickhouse, &events_to_insert, wait_for_async_insert)
+            insert_browser_events(&self.clickhouse, &events_to_insert)
                 .await
                 .map_err(|e| {
                     log::error!(
