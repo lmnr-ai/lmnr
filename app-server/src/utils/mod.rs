@@ -78,7 +78,7 @@ where
 
         if status.is_success() {
             let response_text = response.text().await.unwrap_or_default();
-            log::debug!("Service response ({}): {}", service_url, response_text);
+            // log::debug!("Service response ({}): {}", service_url, response_text);
 
             serde_json::from_str(&response_text).map_err(|e| {
                 log::error!(
