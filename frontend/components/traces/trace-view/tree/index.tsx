@@ -21,15 +21,15 @@ interface TreeProps {
 const Tree = ({ traceId, onSpanSelect, isShared = false }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
-  const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds } = useTraceViewStoreContext(
-    (state) => ({
+  const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds, selectedSpan } =
+    useTraceViewStoreContext((state) => ({
       getTreeSpans: state.getTreeSpans,
       spans: state.spans,
       trace: state.trace,
       isSpansLoading: state.isSpansLoading,
       condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    })
-  );
+      selectedSpan: state.selectedSpan,
+    }));
 
   const treeSpans = useMemo(
     () => getTreeSpans(),
@@ -44,6 +44,20 @@ const Tree = ({ traceId, onSpanSelect, isShared = false }: TreeProps) => {
     estimateSize: () => 36,
     overscan: 20,
   });
+
+  // Scroll to selected span when selection changes
+  useEffect(() => {
+    if (!selectedSpan || isSpansLoading) return;
+
+    const selectedIndex = treeSpans.findIndex((item) => item.span.spanId === selectedSpan.spanId);
+
+    if (selectedIndex !== -1) {
+      const rafId = requestAnimationFrame(() => {
+        virtualizer.scrollToIndex(selectedIndex, { align: "auto" });
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [selectedSpan?.spanId, treeSpans, virtualizer, isSpansLoading]);
 
   const items = virtualizer?.getVirtualItems() || [];
 

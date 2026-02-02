@@ -54,7 +54,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
 
       if (selectedIndex !== -1) {
         virtualizer.scrollToIndex(selectedIndex, {
-          align: "center",
+          align: "auto",
         });
       }
     };
@@ -62,8 +62,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
     const rafId = requestAnimationFrame(scrollToSelected);
 
     return () => cancelAnimationFrame(rafId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedSpan?.spanId, listSpans, virtualizer, isSpansLoading]);
 
   const items = virtualizer?.getVirtualItems() || [];
 

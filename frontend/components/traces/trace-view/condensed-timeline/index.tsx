@@ -15,8 +15,6 @@ import { useScrollToSpan } from "./use-scroll-to-span";
 import { useWheelZoom } from "./use-wheel-zoom";
 import ZoomControls from "./zoom-controls";
 
-const HEADER_HEIGHT = 24; // h-6 = 1.5rem = 24px
-
 function CondensedTimeline() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timelineContentRef = useRef<HTMLDivElement>(null);
@@ -26,7 +24,6 @@ function CondensedTimeline() {
     spans: storeSpans,
     selectedSpan,
     setSelectedSpan,
-    selectSpanById,
     isSpansLoading,
     condensedTimelineVisibleSpanIds,
     setCondensedTimelineVisibleSpanIds,
@@ -38,7 +35,6 @@ function CondensedTimeline() {
     spans: state.spans,
     selectedSpan: state.selectedSpan,
     setSelectedSpan: state.setSelectedSpan,
-    selectSpanById: state.selectSpanById,
     isSpansLoading: state.isSpansLoading,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
     setCondensedTimelineVisibleSpanIds: state.setCondensedTimelineVisibleSpanIds,
@@ -77,8 +73,7 @@ function CondensedTimeline() {
   const { needleLeft, hoverTimeMs, handleMouseMove, handleMouseLeave } = useHoverNeedle(scrollRef, totalDurationMs);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    setIsScrolled(target.scrollTop > 0);
+    setIsScrolled(e.currentTarget.scrollTop > 0);
   }, []);
 
   // Auto-scroll to selected span
@@ -86,13 +81,6 @@ function CondensedTimeline() {
 
   // Cmd/Ctrl + scroll to zoom
   useWheelZoom(scrollRef, condensedTimelineZoom, setCondensedTimelineZoom);
-
-  const handleSingleClick = useCallback(
-    (spanId: string) => {
-      selectSpanById(spanId);
-    },
-    [selectSpanById]
-  );
 
   const handleSelectionComplete = useCallback(
     (selectedIds: Set<string>) => {
@@ -112,7 +100,6 @@ function CondensedTimeline() {
   );
 
   const contentHeight = (totalRows + 1) * ROW_HEIGHT;
-  const totalHeight = HEADER_HEIGHT + contentHeight;
 
   // Render loading and empty states inside the ref'd element to ensure hooks work correctly
   const renderContent = () => {
@@ -134,8 +121,8 @@ function CondensedTimeline() {
     return (
       <>
         {/* Inner container with zoom width */}
-        <div className="relative h-full" style={{ width: `${100 * condensedTimelineZoom}%`, minHeight: totalHeight }}>
-          {/* Time marker lines - full height including header */}
+        <div className="relative h-full" style={{ width: `${100 * condensedTimelineZoom}%`, minHeight: contentHeight }}>
+          {/* Time marker lines - full height */}
           {timeMarkers.map((marker, index) => (
             <div
               key={`marker-${index}`}
@@ -144,26 +131,24 @@ function CondensedTimeline() {
             />
           ))}
 
-          {/* Time interval header - sticky */}
+          {/* Sticky header - scrolls horizontally with content, sticks vertically */}
           <div
             className={cn(
-              "sticky top-0 z-30 text-xs h-6 pointer-events-none select-none overflow-visible",
+              "sticky top-0 z-30 h-6 text-xs pointer-events-none select-none",
               isScrolled && "bg-gradient-to-b from-[hsla(240,4%,9%,90%)] via-[hsla(240,4%,9%,80%)] to-transparent"
             )}
           >
-            <div className="w-full h-full relative">
-              {timeMarkers.map((marker, index) => (
-                <div
-                  key={index}
-                  className="absolute flex items-center h-full"
-                  style={{ left: `${marker.positionPercent}%` }}
-                >
-                  <div className="text-secondary-foreground truncate text-[10px] whitespace-nowrap pl-1">
-                    {marker.label}
-                  </div>
+            {timeMarkers.map((marker, index) => (
+              <div
+                key={index}
+                className="absolute flex items-center h-full"
+                style={{ left: `${marker.positionPercent}%` }}
+              >
+                <div className="text-secondary-foreground truncate text-[10px] whitespace-nowrap pl-1">
+                  {marker.label}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
 
           {/* Timeline content */}
@@ -186,12 +171,10 @@ function CondensedTimeline() {
               );
             })}
 
-            {/* Selection overlay */}
+            {/* Selection overlay - only handles drag selection, clicks go to span elements */}
             <SelectionOverlay
               spans={condensedSpans}
               containerRef={timelineContentRef}
-              scrollContainerRef={scrollRef}
-              onSingleClick={handleSingleClick}
               onSelectionComplete={handleSelectionComplete}
             />
           </div>

@@ -4,7 +4,6 @@ import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useMemo, useState } from "react";
 
 import TraceViewSearch from "@/components/traces/trace-view/search";
-import CondensedTimelineControls from "./timeline-toggle";
 import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
@@ -16,10 +15,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
 import ExportDropdown from "./export-dropdown";
+import CondensedTimelineControls from "./timeline-toggle";
 
 interface HeaderProps {
   handleClose: () => void;

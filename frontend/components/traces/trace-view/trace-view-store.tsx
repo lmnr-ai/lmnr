@@ -310,6 +310,23 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
         selectSpanById: (spanId: string) => {
           const span = get().spans.find((s) => s.spanId === spanId);
           if (span && !span.pending) {
+            // Expand collapsed ancestors first
+            const spanMap = new Map(get().spans.map((s) => [s.spanId, s]));
+            const ancestorIds = new Set<string>();
+            let currentId = span.parentSpanId;
+            while (currentId) {
+              ancestorIds.add(currentId);
+              const parent = spanMap.get(currentId);
+              currentId = parent?.parentSpanId;
+            }
+
+            // Expand any collapsed ancestors
+            if (ancestorIds.size > 0) {
+              get().setSpans((prevSpans) =>
+                prevSpans.map((s) => (ancestorIds.has(s.spanId) && s.collapsed ? { ...s, collapsed: false } : s))
+              );
+            }
+
             set({ selectedSpan: span });
             const spanPath = span.attributes?.["lmnr.span.path"];
             if (spanPath && Array.isArray(spanPath)) {
