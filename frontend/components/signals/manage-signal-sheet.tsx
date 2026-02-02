@@ -4,7 +4,21 @@ import { json } from "@codemirror/lang-json";
 import { EditorView } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
 import { get } from "lodash";
-import { BookMarked, ChevronRight, Loader2, PlayIcon, X } from "lucide-react";
+import {
+  AlertCircle,
+  Brain,
+  CheckCircle,
+  ChevronRight,
+  CloudOff,
+  Frown,
+  Loader2,
+  Plus,
+  PlayIcon,
+  Shield,
+  Target,
+  X,
+  Zap,
+} from "lucide-react";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
 import {
@@ -34,10 +48,23 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { type Signal } from "@/lib/actions/signals";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, tryParseJson } from "@/lib/utils";
+import type { EventTemplate } from "@/components/signals/prompts";
+
+const TEMPLATE_ICONS: Record<EventTemplate["icon"], React.ComponentType<{ className?: string }>> = {
+  "alert-circle": AlertCircle,
+  brain: Brain,
+  "check-circle": CheckCircle,
+  frown: Frown,
+  zap: Zap,
+  shield: Shield,
+  "cloud-off": CloudOff,
+  target: Target,
+};
 
 export type ManageSignalForm = Omit<Signal, "isSemantic" | "createdAt" | "id" | "structuredOutput"> & {
   id?: string;
@@ -337,6 +364,11 @@ function ManageSignalSheetContent({
     [setValue]
   );
 
+  const clearToBlank = useCallback(() => {
+    setValue("prompt", "", { shouldValidate: true });
+    setValue("schemaFields", getDefaultSchemaFields(), { shouldValidate: true });
+  }, [setValue]);
+
   const submit = useCallback(
     async (data: ManageSignalForm) => {
       try {
@@ -392,30 +424,60 @@ function ManageSignalSheetContent({
 
   return (
     <>
-      <SheetHeader className="pt-4 px-4">
+      <SheetHeader className="py-4 px-4 border-b">
         <SheetTitle>{id ? getValues("name") : "Create new signal"}</SheetTitle>
       </SheetHeader>
       <ScrollArea className="flex-1">
         <form onSubmit={handleSubmit(submit)} className="grid gap-4 p-4">
           {!id && (
-            <Select onValueChange={(value) => applyTemplate(Number(value))}>
-              <SelectTrigger>
-                <div className="flex items-center">
-                  <BookMarked className="w-4 h-4 mr-1.5" />
-                  <span className="text-sm font-medium">Start from a template</span>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Start from a template</Label>
+              <TooltipProvider delayDuration={200}>
+                <div className="grid grid-cols-3 gap-2">
+                  {templates.map((template, index) => {
+                    const Icon = TEMPLATE_ICONS[template.icon];
+                    return (
+                      <Tooltip key={template.name}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => applyTemplate(index)}
+                            className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-input bg-background hover:bg-accent hover:border-accent-foreground/20 transition-colors text-center group"
+                          >
+                            <Icon className="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
+                            <span className="text-xs font-medium text-secondary-foreground group-hover:text-foreground">
+                              {template.shortName}
+                            </span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-52">
+                          <p className="font-medium">{template.name}</p>
+                          <p className="text-muted-foreground">{template.description}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={clearToBlank}
+                        className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-dashed border-input bg-background hover:bg-accent hover:border-accent-foreground/20 transition-colors text-center group"
+                      >
+                        <Plus className="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground">
+                          Blank
+                        </span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="font-medium">Start from scratch</p>
+                      <p className="text-muted-foreground">Create a custom signal</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
-              </SelectTrigger>
-              <SelectContent>
-                {templates.map((template, index) => (
-                  <SelectItem key={template.name} value={String(index)}>
-                    <div className="flex flex-col gap-0.5">
-                      <p className="text-sm font-medium">{template.name}</p>
-                      <p className="text-xs text-muted-foreground">{template.description}</p>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              </TooltipProvider>
+            </div>
           )}
           <div className="grid gap-2">
             <Label htmlFor="name">Name</Label>
@@ -432,8 +494,8 @@ function ManageSignalSheetContent({
 
           <div className="grid gap-2">
             <div>
-              <Label htmlFor="prompt">Prompt</Label>
-              <p className="text-xs text-muted-foreground mt-1">This prompt will be applied to trace data.</p>
+              <Label htmlFor="prompt">Signal Prompt</Label>
+              <p className="text-xs text-muted-foreground mt-1">Describe what you're looking for in the trace.</p>
             </div>
 
             <Controller
@@ -444,7 +506,7 @@ function ManageSignalSheetContent({
                 <Textarea
                   className="min-h-28 max-h-64"
                   id="prompt"
-                  placeholder="Enter the prompt for this event..."
+                  placeholder="Analyze this trace for failures, errors, or things that went wrong..."
                   rows={10}
                   {...field}
                   value={field.value || ""}

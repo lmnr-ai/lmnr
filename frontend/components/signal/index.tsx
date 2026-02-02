@@ -133,7 +133,7 @@ function SignalContent() {
         </div>
 
         <TabsContent value="events" className="flex flex-col gap-4 px-4 pb-4 overflow-auto">
-          <ClustersTable />
+          {/* Hide clusters for now until we migrate to mew clustering system <ClustersTable /> */}
           <EventsTable />
         </TabsContent>
         <TabsContent value="triggers" className="flex flex-col gap-4 px-4 pb-4 overflow-hidden">
@@ -147,7 +147,7 @@ function SignalContent() {
         </TabsContent>
       </Tabs>
       {traceId && (
-        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-[60] flex pointer-events-auto">
+        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-60 flex pointer-events-auto">
           <Resizable
             ref={ref}
             onResizeStop={handleResizeStop}
