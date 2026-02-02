@@ -81,6 +81,7 @@ impl MessageQueueAcker {
 pub trait MessageQueueDeliveryTrait {
     fn acker(&self) -> MessageQueueAcker;
     fn data(self) -> Vec<u8>;
+    fn delivery_tag(&self) -> u64;
 }
 
 #[enum_dispatch(MessageQueue)]

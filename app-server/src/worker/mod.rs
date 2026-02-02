@@ -70,7 +70,6 @@ pub struct QueueConfig {
 pub enum WorkerType {
     Spans,
     SpansIndexer,
-    BrowserEvents,
     Evaluators,
     Payloads,
     Signals,
@@ -85,7 +84,6 @@ impl std::fmt::Display for WorkerType {
         match self {
             WorkerType::Spans => write!(f, "spans"),
             WorkerType::SpansIndexer => write!(f, "spans_indexer"),
-            WorkerType::BrowserEvents => write!(f, "browser_events"),
             WorkerType::Evaluators => write!(f, "evaluators"),
             WorkerType::Payloads => write!(f, "payloads"),
             WorkerType::Signals => write!(f, "signals"),
