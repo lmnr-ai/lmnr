@@ -36,7 +36,7 @@ const TraceViewSearch = ({ spans, onSubmit, className }: TraceViewSearchProps) =
       resource="spans"
       value={{ filters: [], search: "" }}
       onSubmit={onSubmit}
-      placeholder="Search and filter by attribute"
+      placeholder="Search text, name, id, tags..."
       className={cn("w-full", className)}
       options={{
         suggestions,
