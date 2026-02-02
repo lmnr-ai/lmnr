@@ -18,7 +18,7 @@ use crate::{
     db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
     signals::{
-        RunStatus, SignalRun, SignalWorkerConfig,
+        LLM_MODEL, LLM_PROVIDER, RunStatus, SignalRun, SignalWorkerConfig,
         gemini::{
             Content, GeminiClient, GenerateContentRequest, GenerationConfig, InlineRequestItem,
             Part,
@@ -91,19 +91,10 @@ async fn process(
     gemini: Arc<GeminiClient>,
     config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
-    log::debug!(
-        "[SIGNAL JOB] Processing submission message. messages: {}",
-        msg.messages.len(),
-    );
-
     let mut requests: Vec<InlineRequestItem> = Vec::with_capacity(msg.messages.len());
     let mut all_new_messages: Vec<CHSignalRunMessage> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
     let mut successful_messages: Vec<SignalMessage> = Vec::new();
-
-    // Get LLM model and provider from environment (assume all use same model for now)
-    let llm_model = std::env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-2.5-flash".to_string());
-    let llm_provider = std::env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string());
 
     for message in msg.messages.iter() {
         let project_id = message.project_id;
@@ -122,8 +113,8 @@ async fn process(
             &signal.prompt,
             &signal.name,
             &signal.structured_output_schema,
-            &llm_model,
-            &llm_provider,
+            &LLM_MODEL,
+            &LLM_PROVIDER,
             clickhouse.clone(),
             queue.clone(),
             config.internal_project_id,
@@ -180,7 +171,7 @@ async fn process(
 
     // Submit batch to Gemini API
     let batch_result =
-        submit_batch_to_gemini(&llm_model, gemini, requests, successful_messages, queue).await;
+        submit_batch_to_gemini(&LLM_MODEL, gemini, requests, successful_messages, queue).await;
 
     match batch_result {
         Ok(()) => {

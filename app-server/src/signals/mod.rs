@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use std::{env, fmt};
+use std::{env, fmt, sync::LazyLock};
 use uuid::Uuid;
 
 pub mod batching;
+pub mod enqueue;
 pub mod gemini;
 pub mod pendings_consumer;
 pub mod postprocess;
@@ -23,6 +24,11 @@ pub use queue::{
     SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
     SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SIGNALS_EXCHANGE, SIGNALS_QUEUE, SIGNALS_ROUTING_KEY,
 };
+
+pub static LLM_MODEL: LazyLock<String> =
+    LazyLock::new(|| env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-2.5-flash".to_string()));
+pub static LLM_PROVIDER: LazyLock<String> =
+    LazyLock::new(|| env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string()));
 
 /// Configuration for signal workers, initialized from environment variables.
 #[derive(Debug, Clone)]

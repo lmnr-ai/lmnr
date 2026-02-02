@@ -38,7 +38,6 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
-    signals::queue::{SignalMessage, push_to_signals_queue},
     storage::Storage,
     traces::{
         IngestedBytes,
@@ -265,6 +264,7 @@ async fn process_batch(
                     &spans,
                     db.clone(),
                     cache.clone(),
+                    clickhouse.clone(),
                     queue.clone(),
                 )
                 .await;
@@ -465,6 +465,7 @@ async fn check_and_push_signals(
     spans: &[Span],
     db: Arc<DB>,
     cache: Arc<Cache>,
+    clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
 ) {
     let triggers = match get_signal_triggers_cached(db.clone(), cache.clone(), project_id).await {
@@ -538,20 +539,22 @@ async fn check_and_push_signals(
                 continue;
             }
 
-            // Lock acquired - push to signals queue
-            let message = SignalMessage {
-                trace_id: trace.id(),
-                project_id: trace.project_id(),
-                trigger_id: Some(trigger.id),
-                signal: trigger.signal.clone(),
-                run_metadata: crate::signals::queue::SignalRunMetadata::default(),
-            };
-
-            if let Err(e) = push_to_signals_queue(message, queue.clone()).await {
+            // Lock acquired - enqueue signal trigger run
+            if let Err(e) = crate::signals::enqueue::enqueue_signal_trigger_run(
+                trace.id(),
+                trace.project_id(),
+                trigger.id,
+                trigger.signal.clone(),
+                clickhouse.clone(),
+                queue.clone(),
+            )
+            .await
+            {
                 log::error!(
-                    "Failed to push trace to signals queue: trace_id={}, project_id={}, signal={}, error={:?}",
+                    "Failed to enqueue signal trigger run: trace_id={}, project_id={}, trigger_id={}, signal={}, error={:?}",
                     trace.id(),
                     trace.project_id(),
+                    trigger.id,
                     trigger.signal.name,
                     e
                 );
