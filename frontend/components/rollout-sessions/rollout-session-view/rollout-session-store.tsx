@@ -27,7 +27,7 @@ import { type SystemMessage } from "./system-messages-utils";
 
 export const MAX_ZOOM = 5;
 export const MIN_ZOOM = 1;
-const ZOOM_INCREMENT = 0.5;
+export const ZOOM_INCREMENT = 0.5;
 export const MIN_SIDEBAR_WIDTH = 450;
 
 export type TraceViewListSpan = {
@@ -97,7 +97,7 @@ interface RolloutSessionStoreActions {
   setSessionTime: (time?: number) => void;
   setTab: (tab: RolloutSessionStoreState["tab"]) => void;
   setSidebarWidth: (width: number) => void;
-  setZoom: (type: "in" | "out") => void;
+  setZoom: (zoom: number) => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
   toggleCollapse: (spanId: string) => void;
   updateTraceVisibility: (visibility: "private" | "public") => void;
@@ -342,12 +342,8 @@ const createRolloutSessionStore = ({
           });
         },
         setShowTreeContent: (showTreeContent: boolean) => set({ showTreeContent }),
-        setZoom: (type) => {
-          const zoom =
-            type === "in"
-              ? Math.min(get().zoom + ZOOM_INCREMENT, MAX_ZOOM)
-              : Math.max(get().zoom - ZOOM_INCREMENT, MIN_ZOOM);
-          set({ zoom });
+        setZoom: (zoom) => {
+          set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) });
         },
         setBrowserSession: (browserSession: boolean) => set({ browserSession }),
         toggleCollapse: (spanId: string) => {

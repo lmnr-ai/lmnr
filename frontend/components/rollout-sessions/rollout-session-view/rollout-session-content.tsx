@@ -11,6 +11,7 @@ import Minimap from "@/components/rollout-sessions/rollout-session-view/minimap.
 import {
   MAX_ZOOM,
   MIN_ZOOM,
+  ZOOM_INCREMENT,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/session-player";
@@ -432,7 +433,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
                   className="size-6 min-w-6 ml-auto"
                   variant="outline"
                   size="icon"
-                  onClick={() => setZoom("in")}
+                  onClick={() => setZoom(zoom + ZOOM_INCREMENT)}
                 >
                   <Plus className="w-4 h-4" />
                 </Button>
@@ -441,7 +442,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
                   className="size-6 min-w-6"
                   variant="outline"
                   size="icon"
-                  onClick={() => setZoom("out")}
+                  onClick={() => setZoom(zoom - ZOOM_INCREMENT)}
                 >
                   <Minus className="w-4 h-4" />
                 </Button>

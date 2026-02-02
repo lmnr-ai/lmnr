@@ -23,7 +23,7 @@ import { type SpanType } from "@/lib/traces/types";
 
 export const MAX_ZOOM = 14;
 export const MIN_ZOOM = 1;
-const ZOOM_INCREMENT = 0.5;
+export const ZOOM_INCREMENT = 0.5;
 export const MIN_TREE_VIEW_WIDTH = 450;
 
 export type TraceViewSpan = {
@@ -132,7 +132,7 @@ interface TraceViewStoreActions {
   setSessionTime: (time?: number) => void;
   setTab: (tab: TraceViewStoreState["tab"]) => void;
   setTreeWidth: (width: number) => void;
-  setZoom: (type: "in" | "out") => void;
+  setZoom: (zoom: number) => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
   toggleCollapse: (spanId: string) => void;
   updateTraceVisibility: (visibility: "private" | "public") => void;
@@ -144,7 +144,7 @@ interface TraceViewStoreActions {
   setCondensedTimelineEnabled: (enabled: boolean) => void;
   setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => void;
   clearCondensedTimelineSelection: () => void;
-  setCondensedTimelineZoom: (type: "in" | "out") => void;
+  setCondensedTimelineZoom: (zoom: number) => void;
 
   incrementSessionTime: (increment: number, maxTime: number) => boolean;
   // Selectors
@@ -345,20 +345,12 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
         setCondensedTimelineEnabled: (enabled: boolean) => set({ condensedTimelineEnabled: enabled }),
         setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => set({ condensedTimelineVisibleSpanIds: ids }),
         clearCondensedTimelineSelection: () => set({ condensedTimelineVisibleSpanIds: new Set() }),
-        setCondensedTimelineZoom: (type) => {
-          const condensedTimelineZoom =
-            type === "in"
-              ? Math.min(get().condensedTimelineZoom + ZOOM_INCREMENT, MAX_ZOOM)
-              : Math.max(get().condensedTimelineZoom - ZOOM_INCREMENT, MIN_ZOOM);
-          set({ condensedTimelineZoom });
+        setCondensedTimelineZoom: (zoom) => {
+          set({ condensedTimelineZoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) });
         },
         getCondensedTimelineData: () => transformSpansToCondensedTimeline(get().spans),
-        setZoom: (type) => {
-          const zoom =
-            type === "in"
-              ? Math.min(get().zoom + ZOOM_INCREMENT, MAX_ZOOM)
-              : Math.max(get().zoom - ZOOM_INCREMENT, MIN_ZOOM);
-          set({ zoom });
+        setZoom: (zoom) => {
+          set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) });
         },
         setBrowserSession: (browserSession: boolean) => set({ browserSession }),
         toggleCollapse: (spanId: string) => {

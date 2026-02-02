@@ -22,6 +22,7 @@ import TraceViewStoreProvider, {
   MAX_ZOOM,
   MIN_TREE_VIEW_WIDTH,
   MIN_ZOOM,
+  ZOOM_INCREMENT,
   type TraceViewSpan,
   type TraceViewTrace,
   useTraceViewStoreContext,
@@ -187,7 +188,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                         className="h-6 w-6 ml-auto"
                         variant="outline"
                         size="icon"
-                        onClick={() => handleZoom("in")}
+                        onClick={() => handleZoom(zoom + ZOOM_INCREMENT)}
                       >
                         <Plus className="w-4 h-4" />
                       </Button>
@@ -196,7 +197,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                         className="h-6 w-6"
                         variant="outline"
                         size="icon"
-                        onClick={() => handleZoom("out")}
+                        onClick={() => handleZoom(zoom - ZOOM_INCREMENT)}
                       >
                         <Minus className="w-4 h-4" />
                       </Button>

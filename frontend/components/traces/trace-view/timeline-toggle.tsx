@@ -1,6 +1,6 @@
 import { GanttChart, Minus, Plus, X } from "lucide-react";
 
-import { MAX_ZOOM, MIN_ZOOM, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store";
+import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +34,7 @@ export default function CondensedTimelineControls() {
           className="size-5 min-w-5"
           variant="ghost"
           size="icon"
-          onClick={() => setCondensedTimelineZoom("in")}
+          onClick={() => setCondensedTimelineZoom(condensedTimelineZoom + ZOOM_INCREMENT)}
         >
           <Plus className="w-3.5 h-3.5" />
         </Button>
@@ -43,7 +43,7 @@ export default function CondensedTimelineControls() {
           className="size-5 min-w-5"
           variant="ghost"
           size="icon"
-          onClick={() => setCondensedTimelineZoom("out")}
+          onClick={() => setCondensedTimelineZoom(condensedTimelineZoom - ZOOM_INCREMENT)}
         >
           <Minus className="w-3.5 h-3.5" />
         </Button>

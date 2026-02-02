@@ -12,7 +12,7 @@ const ZOOM_INCREMENT = 0.5;
 export function useWheelZoom(
   scrollRef: RefObject<HTMLDivElement | null>,
   zoom: number,
-  setZoom: (direction: "in" | "out") => void
+  setZoom: (zoom: number) => void
 ) {
   const zoomRef = useRef(zoom);
   const setZoomRef = useRef(setZoom);
@@ -52,14 +52,14 @@ export function useWheelZoom(
       const contentX = oldScrollLeft + mouseX;
       const fraction = contentX / oldScrollWidth;
 
-      // Calculate new zoom (mirrors store logic)
+      // Calculate new zoom
       const newZoom =
         direction === "in"
-          ? Math.min(currentZoom + ZOOM_INCREMENT, MAX_ZOOM)
-          : Math.max(currentZoom - ZOOM_INCREMENT, MIN_ZOOM);
+          ? currentZoom + ZOOM_INCREMENT
+          : currentZoom - ZOOM_INCREMENT;
 
-      // Don't do anything if zoom didn't change (at limits)
-      if (newZoom === currentZoom) return;
+      // Don't do anything if zoom would be outside limits
+      if (newZoom < MIN_ZOOM || newZoom > MAX_ZOOM) return;
 
       // Calculate new scroll width and position
       const zoomRatio = newZoom / currentZoom;
@@ -67,7 +67,7 @@ export function useWheelZoom(
       const newScrollLeft = fraction * newScrollWidth - mouseX;
 
       // Update zoom via ref
-      setZoomRef.current(direction);
+      setZoomRef.current(newZoom);
 
       // Adjust scroll position (use requestAnimationFrame to ensure DOM has updated)
       requestAnimationFrame(() => {
