@@ -2,7 +2,10 @@
 @import "tw-shimmer";
 
 @plugin 'tailwindcss-animate';
-@plugin 'tailwind-scrollbar';
+@plugin 'tailwind-scrollbar' {
+  nocompatible: true;
+  preferredStrategy: pseudoelements;
+}
 
 @source "../node_modules/streamdown/dist/index.js";
 
