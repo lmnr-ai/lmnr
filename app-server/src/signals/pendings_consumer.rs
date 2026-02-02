@@ -28,7 +28,7 @@ use crate::{
 };
 
 use super::{
-    RunStatus, SignalRun, SignalWorkerConfig,
+    LLM_MODEL, LLM_PROVIDER, RunStatus, SignalRun, SignalWorkerConfig,
     gemini::{
         Content, FunctionCall, FunctionResponse, GenerateContentBatchOutput, JobState, Part,
         client::GeminiClient,
@@ -184,7 +184,7 @@ async fn process_failed_batch(
                 run_id: metadata.run_id,
                 project_id: msg.project_id,
                 job_id: metadata.job_id,
-                trigger_id: Uuid::nil(),
+                trigger_id: msg.trigger_id.unwrap_or_default(),
                 signal_id: msg.signal.id,
                 trace_id: msg.trace_id,
                 status: RunStatus::Failed,
@@ -291,7 +291,7 @@ async fn process_succeeded_batch(
             run_id: msg.run_metadata.run_id,
             project_id: msg.project_id,
             job_id: msg.run_metadata.job_id,
-            trigger_id: Uuid::nil(),
+            trigger_id: msg.trigger_id.unwrap_or_default(),
             signal_id: msg.signal.id,
             trace_id: msg.trace_id,
             status: RunStatus::Pending,
@@ -418,7 +418,7 @@ async fn process_succeeded_batch(
                 run_id: run.run_id,
                 project_id: run.project_id,
                 job_id: run.job_id,
-                trigger_id: Uuid::nil(),
+                trigger_id: run.trigger_id,
                 signal_id: run.signal_id,
                 trace_id: run.trace_id,
                 status: RunStatus::Failed,
@@ -536,10 +536,6 @@ async fn process_single_response(
         return (StepResult::Failed { error }, vec![]);
     }
 
-    // Get model and provider from environment (consistent with submissions_consumer)
-    let model = std::env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-2.5-flash".to_string());
-    let provider = std::env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string());
-
     // Internal tracing span with LLM response
     let job_ids = if run.job_id.is_nil() {
         vec![]
@@ -560,8 +556,8 @@ async fn process_single_response(
             output: Some(serde_json::json!(&response.content)),
             input_tokens: response.input_tokens,
             output_tokens: response.output_tokens,
-            model,
-            provider,
+            model: LLM_MODEL.clone(),
+            provider: LLM_PROVIDER.clone(),
             internal_project_id: config.internal_project_id,
             job_ids: job_ids.clone(),
         },
@@ -583,10 +579,6 @@ async fn process_single_response(
         let step_result =
             handle_tool_call(signal_message, &run, &function_call, clickhouse.clone()).await;
 
-        // Get model and provider from environment
-        let model = std::env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-2.5-flash".to_string());
-        let provider = std::env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string());
-
         // Internal tracing span for tool call
         emit_internal_span(
             queue.clone(),
@@ -602,8 +594,8 @@ async fn process_single_response(
                 output: Some(serde_json::json!(step_result)),
                 input_tokens: None,
                 output_tokens: None,
-                model,
-                provider,
+                model: LLM_MODEL.clone(),
+                provider: LLM_PROVIDER.clone(),
                 internal_project_id: config.internal_project_id,
                 job_ids: job_ids.clone(),
             },
@@ -821,10 +813,6 @@ async fn handle_create_event(
     )
     .await?;
 
-    // Get model and provider from environment
-    let model = std::env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-2.5-flash".to_string());
-    let provider = std::env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string());
-
     // Internal tracing span for event creation
     let job_ids = if run.job_id.is_nil() {
         vec![]
@@ -851,8 +839,8 @@ async fn handle_create_event(
             output: None,
             input_tokens: None,
             output_tokens: None,
-            model,
-            provider,
+            model: LLM_MODEL.clone(),
+            provider: LLM_PROVIDER.clone(),
             internal_project_id,
             job_ids,
         },
