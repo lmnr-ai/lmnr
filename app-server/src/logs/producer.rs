@@ -16,6 +16,7 @@ use crate::{
         ExportLogsPartialSuccess, ExportLogsServiceRequest, ExportLogsServiceResponse, LogRecord,
     },
     traces::utils::convert_any_value_to_json_value,
+    utils::estimate_json_size,
 };
 
 /// Internal representation of a log record for processing.
@@ -96,7 +97,7 @@ impl Log {
         4 + // severity_number
         self.severity_text.len() +
         self.body.to_string().len() +
-        self.attributes.to_string().len() +
+        estimate_json_size(&self.attributes) +
         16 + // trace_id
         16 + // span_id
         4 + // flags
