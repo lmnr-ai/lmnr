@@ -188,12 +188,12 @@ function CondensedTimeline() {
       {/* Scrollable timeline area - ALWAYS rendered so refs are attached */}
       <div
         ref={combinedScrollRef}
-        className="flex-1 overflow-auto relative min-h-0 bg-muted/50 h-full styled-scrollbar"
+        className="flex-1 overflow-auto relative min-h-0 bg-muted/50 h-full minimal-scrollbar"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onScroll={handleScroll}
       >
-        {renderContent()}
+        <div className="px-2 h-full">{renderContent()}</div>
       </div>
 
       {/* Hover Needle - outside scroll, z-35 (below SelectionIndicator z-40) */}

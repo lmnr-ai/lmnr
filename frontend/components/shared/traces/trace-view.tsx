@@ -29,7 +29,7 @@ import TraceViewStoreProvider, {
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import Tree from "@/components/traces/trace-view/tree";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
-import ViewSelect from "@/components/traces/trace-view/view-select";
+import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -179,7 +179,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                   </div>
                 </div>
                 <div className="flex gap-2 px-2 py-2 h-10 border-b box-border">
-                  <ViewSelect />
+                  <ViewDropdown />
                   <Metadata metadata={trace?.metadata} />
                   {tab === "timeline" && (
                     <>

@@ -318,7 +318,9 @@ function StatsShieldsContent({
       <div
         className={cn(
           "flex items-center gap-2 px-1.5 py-0.5 rounded-md overflow-hidden text-xs font-mono min-w-0",
-          variant === "outline" ? "border border-muted" : "bg-muted text-secondary-foreground",
+          variant === "outline"
+            ? "border border-muted text-secondary-foreground"
+            : "bg-muted text-secondary-foreground",
           className
         )}
       >
@@ -338,11 +340,7 @@ function StatsShieldsContent({
   );
 }
 
-const PureTraceStatsShields = ({
-  trace,
-  className,
-  singlePill,
-}: TraceStatsShieldsProps & { singlePill?: boolean }) => {
+const PureTraceStatsShields = ({ trace, className, singlePill }: TraceStatsShieldsProps & { singlePill?: boolean }) => {
   const { spans, condensedTimelineVisibleSpanIds } = useTraceViewStoreContext((state) => ({
     spans: state.spans,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
@@ -374,11 +372,7 @@ const PureTraceStatsShields = ({
   return <StatsShieldsContent stats={stats} className={className} singlePill={singlePill} />;
 };
 
-const SpanStatsShields = ({
-  span,
-  className,
-  variant,
-}: SpanStatsShieldsProps & { variant?: "filled" | "outline" }) => {
+const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps & { variant?: "filled" | "outline" }) => {
   const model = get(span.attributes, "gen_ai.response.model") || get(span.attributes, "gen_ai.request.model") || "";
   const tools = extractToolsFromAttributes(span.attributes);
   const structuredOutputSchema =

@@ -24,7 +24,7 @@ import { type SpanType } from "@/lib/traces/types";
 export const MAX_ZOOM = 18;
 export const MIN_ZOOM = 1;
 export const ZOOM_INCREMENT = 0.5;
-export const MIN_TREE_VIEW_WIDTH = 450;
+export const MIN_TREE_VIEW_WIDTH = 500;
 
 export type TraceViewSpan = {
   spanId: string;

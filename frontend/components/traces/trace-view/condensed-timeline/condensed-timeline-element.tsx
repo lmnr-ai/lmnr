@@ -42,7 +42,7 @@ const CondensedTimelineElement = ({
   return (
     <div
       className={cn("absolute rounded-xs cursor-pointer", "hover:brightness-110", opacity, {
-        "ring ring-white z-20": isSelected,
+        "border border-white/70 z-20": isSelected,
       })}
       style={{
         left: `${left}%`,

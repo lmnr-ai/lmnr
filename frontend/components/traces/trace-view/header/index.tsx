@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Sparkles, X } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useMemo, useState } from "react";
@@ -115,41 +115,43 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
     <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-2">
       {/* Line 1: Close, Expand, Trace + chevron dropdown, Ask AI, Metadata, Export */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center min-w-0">
+        <div className="flex items-center min-w-0 gap-2">
           {!params?.traceId && (
-            <div className="flex items-center flex-shrink-0">
-              <Button variant="ghost" className="px-1" onClick={handleClose}>
+            <div className="flex items-center flex-shrink-0 gap-0.5">
+              <Button variant="ghost" className="px-0.5" onClick={handleClose}>
                 <ChevronsRight className="w-5 h-5" />
               </Button>
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-                  <Button variant="ghost" className="px-1">
+                  <Button variant="ghost" className="px-0.5">
                     <Maximize className="w-4 h-4" />
                   </Button>
                 </NextLink>
               )}
             </div>
           )}
-          {trace && <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>}
           {/* Chevron dropdown (Copy trace ID, Open in SQL) */}
           {trace && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-6 px-1 hover:bg-secondary">
-                  <ChevronDown className="size-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={handleCopyTraceId}>
-                  <Copy size={14} />
-                  Copy trace ID
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
-                  {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
-                  Open in SQL editor
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex">
+              <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-6 px-1 hover:bg-secondary">
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={handleCopyTraceId}>
+                    <Copy size={14} />
+                    Copy trace ID
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
+                    {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
+                    Open in SQL editor
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
           {/* Ask AI button */}
           <Button
@@ -157,8 +159,27 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
             variant="outline"
             className="h-6 text-xs px-1.5 border-primary text-primary hover:bg-primary/10"
           >
-            <Sparkles size={14} className="mr-1" />
-            Ask AI
+            <div
+              className="overflow-hidden transition-all duration-400"
+              style={{
+                width: chatOpen ? 0 : 14,
+                opacity: chatOpen ? 0 : 1,
+                marginRight: chatOpen ? 0 : 4,
+              }}
+            >
+              <Sparkles size={14} />
+            </div>
+            Chat with trace
+            <div
+              className="overflow-hidden transition-all duration-400"
+              style={{
+                width: chatOpen ? 14 : 0,
+                opacity: chatOpen ? 1 : 0,
+                marginLeft: chatOpen ? 4 : 0,
+              }}
+            >
+              <X size={14} />
+            </div>
           </Button>
         </div>
         <div className="flex items-center gap-x-0.5 flex-shrink-0">

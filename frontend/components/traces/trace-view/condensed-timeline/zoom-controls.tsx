@@ -15,7 +15,7 @@ export default function ZoomControls() {
   }));
 
   return (
-    <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center bg-muted border rounded-md px-0.5 h-[18px]">
+    <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center bg-muted border rounded-md px-0.5 h-[24px]">
       <Button
         disabled={condensedTimelineZoom >= MAX_ZOOM}
         className="size-5 min-w-5"

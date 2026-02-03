@@ -1,11 +1,13 @@
 import { get } from "lodash";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CirclePlay } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { TraceStatsShields } from "@/components/traces/stats-shields";
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
+import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   type TraceViewSpan,
@@ -13,7 +15,8 @@ import TraceViewStoreProvider, {
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
-import ViewSelect from "@/components/traces/trace-view/view-select";
+import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -82,6 +85,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     browserSession,
     setBrowserSession,
     langGraph,
+    setLangGraph,
     getHasLangGraph,
     hasBrowserSession,
     setHasBrowserSession,
@@ -91,6 +95,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
     langGraph: state.langGraph,
+    setLangGraph: state.setLangGraph,
     getHasLangGraph: state.getHasLangGraph,
     hasBrowserSession: state.hasBrowserSession,
     setHasBrowserSession: state.setHasBrowserSession,
@@ -407,10 +412,29 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 <div
                   className={cn(
                     "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
-                    condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[91px]"
+                    condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
                   )}
                 >
-                  <ViewSelect />
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <ViewDropdown />
+                      {trace && <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} singlePill />}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        disabled={!trace}
+                        className={cn("h-6 px-1.5 text-xs", {
+                          "border-primary text-primary": browserSession,
+                        })}
+                        variant="outline"
+                        onClick={() => setBrowserSession(!browserSession)}
+                      >
+                        <CirclePlay size={14} className="mr-1" />
+                        Media
+                      </Button>
+                      {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
+                    </div>
+                  </div>
                 </div>
                 {tab === "reader" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">

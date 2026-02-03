@@ -31,8 +31,8 @@ export default function CondensedTimelineControls() {
         {condensedTimelineEnabled ? (
           <X className="size-3.5" />
         ) : (
-          <span className="flex items-center text-xs">
-            <GanttChart size={14} className="mr-1" />
+          <span className="flex items-center text-xs h-6 gap-1">
+            <GanttChart size={14} />
             Timeline
           </span>
         )}
