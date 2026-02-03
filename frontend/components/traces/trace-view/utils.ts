@@ -238,7 +238,7 @@ export const onRealtimeUpdateSpans =
     });
   };
 
-export const isSpanPathsEqual = (path1: string[] | null, path2: string[] | null): boolean => {
+const isSpanPathsEqual = (path1: string[] | null, path2: string[] | null): boolean => {
   if (!path1 || !path2) return false;
   if (path1.length !== path2.length) return false;
   return path1.every((item, index) => item === path2[index]);

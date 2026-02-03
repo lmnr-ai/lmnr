@@ -22,8 +22,8 @@ import { tryParseJson } from "@/lib/utils.ts";
 
 import { type SystemMessage } from "./system-messages-utils";
 
-export const MAX_ZOOM = 5;
-export const MIN_ZOOM = 1;
+const MAX_ZOOM = 5;
+const MIN_ZOOM = 1;
 export const ZOOM_INCREMENT = 0.5;
 export const MIN_SIDEBAR_WIDTH = 450;
 export const CONDENSED_TIMELINE_MAX_ZOOM = 18;

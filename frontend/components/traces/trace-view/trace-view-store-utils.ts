@@ -48,7 +48,7 @@ export interface MinimapSpan extends TreeSpan {
   spanId: string;
 }
 
-export const getChildSpansMap = <T extends TraceViewSpan>(spans: T[]): { [key: string]: T[] } => {
+const getChildSpansMap = <T extends TraceViewSpan>(spans: T[]): { [key: string]: T[] } => {
   const childSpans = {} as { [key: string]: T[] };
 
   for (const span of spans) {
