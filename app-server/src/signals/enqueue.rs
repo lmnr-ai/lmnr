@@ -64,6 +64,7 @@ async fn create_signal_run_and_message(
             provider: LLM_PROVIDER.clone(),
             internal_project_id,
             job_id,
+            error: None,
         },
     )
     .await;

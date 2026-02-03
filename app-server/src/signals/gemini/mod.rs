@@ -425,12 +425,73 @@ pub struct Operation {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum GeminiFinishReason {
+    FinishReasonUnspecified,
+    Stop,
+    MaxTokens,
+    Safety,
+    Recitation,
+    Language,
+    Other,
+    Blocklist,
+    ProhibitedContent,
+    Spii,
+    MalformedFunctionCall,
+    ImageSafety,
+    ImageProhibitedContent,
+    ImageOther,
+    NoImage,
+    ImageRecitation,
+    UnexpectedToolCall,
+    TooManyToolCalls,
+    MissingThoughtSignature,
+}
+impl GeminiFinishReason {
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            // safety or too large output
+            GeminiFinishReason::ImageSafety
+            | GeminiFinishReason::ImageProhibitedContent
+            | GeminiFinishReason::MaxTokens
+            | GeminiFinishReason::Blocklist
+            | GeminiFinishReason::Spii
+            | GeminiFinishReason::ProhibitedContent => false,
+            // List the ones that are *definitely* retryable
+            GeminiFinishReason::FinishReasonUnspecified
+            | GeminiFinishReason::Stop
+            // on test examples, it often tried calling a python function, instead of 
+            // json tool definition
+            | GeminiFinishReason::MalformedFunctionCall => true,
+            // everything else is retryable
+            _ => true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FinishReason {
+    KnownFinishReason(GeminiFinishReason),
+    Unknown(String),
+}
+
+impl FinishReason {
+    pub fn should_retry(&self) -> bool {
+        match self {
+            FinishReason::KnownFinishReason(fr) => fr.is_retryable(),
+            FinishReason::Unknown(_) => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Candidate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content: Option<Content>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub finish_reason: Option<String>,
+    pub finish_reason: Option<FinishReason>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finish_message: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

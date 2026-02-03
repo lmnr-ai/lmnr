@@ -24,6 +24,7 @@ use crate::{
     },
     db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
+    signals::gemini::FinishReason,
     utils::get_unsigned_env_with_default,
     worker::{HandlerError, MessageHandler},
 };
@@ -59,6 +60,7 @@ enum StepResult {
     },
     Failed {
         error: String,
+        finish_reason: Option<FinishReason>,
     },
 }
 
@@ -152,8 +154,7 @@ async fn process(
         .map(|m| m.state)
         .unwrap_or(JobState::BATCH_STATE_UNSPECIFIED);
 
-    // TODO: put back to debug
-    log::info!("[SIGNAL JOB] Batch {} state: {:?}", message.batch_id, state);
+    log::debug!("[SIGNAL JOB] Batch {} state: {:?}", message.batch_id, state);
 
     // Handle batch depending on state
     match state {
@@ -180,6 +181,7 @@ async fn process(
 async fn retry_or_fail_runs(
     failed_runs: Vec<SignalRun>,
     run_to_message: &HashMap<Uuid, SignalMessage>,
+    run_to_finish_reason: &HashMap<Uuid, FinishReason>,
     queue: Arc<MessageQueue>,
 ) -> (Vec<SignalRun>, usize) {
     let max_retry_count =
@@ -189,6 +191,33 @@ async fn retry_or_fail_runs(
     let mut retried_count = 0;
 
     for failed_run in failed_runs {
+        // Check if this run has a non-retryable finish reason
+        if let Some(finish_reason) = run_to_finish_reason.get(&failed_run.run_id) {
+            if !finish_reason.should_retry() {
+                // Non-retryable finish reason - mark as permanently failed immediately
+                log::warn!(
+                    "[SIGNAL JOB] Non-retryable finish reason {:?} for run {}, marking as permanently failed: {}",
+                    finish_reason,
+                    failed_run.run_id,
+                    failed_run
+                        .error_message
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+                let mut perm_failed = failed_run;
+                perm_failed.error_message = Some(format!(
+                    "{} (non-retryable finish reason: {:?})",
+                    perm_failed
+                        .error_message
+                        .as_deref()
+                        .unwrap_or("unknown error"),
+                    finish_reason
+                ));
+                permanently_failed_runs.push(perm_failed);
+                continue;
+            }
+        }
+
         // Get the original message to check retry_count
         if let Some(msg) = run_to_message.get(&failed_run.run_id) {
             if msg.retry_count < max_retry_count {
@@ -302,7 +331,9 @@ async fn process_failed_batch(
     // Check if this state should be retried or permanently failed
     let (permanently_failed_runs, retried_count) = if state.should_retry_failed() {
         // Use helper function to retry or permanently fail runs based on retry_count
-        retry_or_fail_runs(failed_runs, &run_to_message, queue).await
+        // No individual finish reasons for batch-level failures
+        let run_to_finish_reason = HashMap::new();
+        retry_or_fail_runs(failed_runs, &run_to_message, &run_to_finish_reason, queue).await
     } else {
         // State should not be retried (e.g., BATCH_STATE_CANCELLED) - mark all as permanently failed
         log::warn!(
@@ -450,6 +481,8 @@ async fn process_succeeded_batch(
     let mut succeeded_runs: Vec<SignalRun> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
     let mut pending_run_ids: HashSet<Uuid> = HashSet::new();
+    // Track finish reasons for failed runs to determine retry eligibility
+    let mut run_to_finish_reason: HashMap<Uuid, FinishReason> = HashMap::new();
 
     // Process each response, matching by run_id from response metadata
     for inline_response in inlined_responses.iter() {
@@ -509,7 +542,14 @@ async fn process_succeeded_batch(
         new_messages.extend(new_run_messages);
 
         match step_result {
-            StepResult::Failed { error } => {
+            StepResult::Failed {
+                error,
+                finish_reason,
+            } => {
+                // Store finish reason for retry logic
+                if let Some(fr) = finish_reason {
+                    run_to_finish_reason.insert(run_id, fr);
+                }
                 failed_runs.push(run.failed(error));
             }
             StepResult::RequiresNextStep { tool_result: _ } => {
@@ -620,8 +660,13 @@ async fn process_succeeded_batch(
     }
 
     // Handle failed runs: use helper function to retry or permanently fail them
-    let (permanently_failed_runs, retried_count) =
-        retry_or_fail_runs(failed_runs, &run_to_message, queue.clone()).await;
+    let (permanently_failed_runs, retried_count) = retry_or_fail_runs(
+        failed_runs,
+        &run_to_message,
+        &run_to_finish_reason,
+        queue.clone(),
+    )
+    .await;
 
     // Insert permanently failed runs into ClickHouse
     if !permanently_failed_runs.is_empty() {
@@ -686,13 +731,27 @@ async fn process_single_response(
     let mut new_messages: Vec<CHSignalRunMessage> = Vec::new();
 
     // Check if response contains an error
-    if response.has_error {
+    let error = if response.has_error {
         let error = match &response.error_message {
             Some(msg) => format!("LLM response contains error:\n {}", msg),
             None => "LLM response contains error".to_string(),
         };
-        return (StepResult::Failed { error }, vec![]);
-    }
+        Some(error)
+    } else {
+        None
+    };
+
+    let finish_reason = response.finish_reason.clone();
+
+    let span_output = if let Some(content) = &response.content {
+        serde_json::to_value(content).ok()
+    } else if let Some(function_call) = &response.function_call {
+        serde_json::to_value(function_call).ok()
+    } else if let Some(finish_reason) = &response.finish_reason {
+        serde_json::to_value(finish_reason).ok()
+    } else {
+        None
+    };
 
     emit_internal_span(
         queue.clone(),
@@ -705,25 +764,36 @@ async fn process_single_response(
             span_type: SpanType::LLM,
             start_time: chrono::Utc::now(),
             input: None,
-            output: Some(serde_json::json!(&response.content)),
+            output: span_output,
             input_tokens: response.input_tokens,
             output_tokens: response.output_tokens,
             model: LLM_MODEL.clone(),
             provider: LLM_PROVIDER.clone(),
             internal_project_id: config.internal_project_id,
             job_id: run.job_id,
+            error: error.clone(),
         },
     )
     .await;
 
+    if let Some(error) = error {
+        return (
+            StepResult::Failed {
+                error,
+                finish_reason,
+            },
+            vec![],
+        );
+    }
+
     // Check if response contains a function call or text
-    if let Some(ref function_call) = response.function_call {
+    if let Some(function_call) = &response.function_call {
         // Save LLM output to new messages
         let llm_output_msg = CHSignalRunMessage::new(
             signal_message.project_id,
             run.run_id,
             chrono::Utc::now(),
-            response.content.clone(),
+            response.content.clone().unwrap_or_default(),
         );
         // only insert if there is a valid function call
         new_messages.push(llm_output_msg);
@@ -750,14 +820,24 @@ async fn process_single_response(
                 provider: LLM_PROVIDER.clone(),
                 internal_project_id: config.internal_project_id,
                 job_id: run.job_id,
+                error: None,
             },
         )
         .await;
 
         match step_result {
-            StepResult::Failed { error } => {
+            StepResult::Failed {
+                error,
+                finish_reason,
+            } => {
                 let error = format!("Tool call failed: {}", error);
-                return (StepResult::Failed { error }, new_messages);
+                return (
+                    StepResult::Failed {
+                        error,
+                        finish_reason,
+                    },
+                    new_messages,
+                );
             }
             StepResult::CompletedNoEvent => {
                 return (StepResult::CompletedNoEvent, new_messages);
@@ -803,7 +883,13 @@ async fn process_single_response(
                 // If step number is greater than maximum allowed, mark run as failed
                 if run.step >= config.max_allowed_steps {
                     let error = "Maximum step count exceeded".to_string();
-                    return (StepResult::Failed { error }, new_messages);
+                    return (
+                        StepResult::Failed {
+                            error,
+                            finish_reason,
+                        },
+                        new_messages,
+                    );
                 }
 
                 return (StepResult::RequiresNextStep { tool_result }, new_messages);
@@ -814,8 +900,13 @@ async fn process_single_response(
             "Expected function call in LLM response, got text:\n{}",
             response.text.clone().unwrap_or_default()
         );
-        log::error!("Full response: {:?}", response.original_response);
-        return (StepResult::Failed { error }, new_messages);
+        return (
+            StepResult::Failed {
+                error,
+                finish_reason,
+            },
+            new_messages,
+        );
     }
 }
 
@@ -850,6 +941,7 @@ async fn handle_tool_call(
             if span_ids.is_empty() {
                 return StepResult::Failed {
                     error: "get_full_span_info called with no span_ids".to_string(),
+                    finish_reason: None,
                 };
             }
 
@@ -908,6 +1000,7 @@ async fn handle_tool_call(
         }
         unknown => {
             return StepResult::Failed {
+                finish_reason: None,
                 error: format!("Unknown function called: {}", unknown),
             };
         }
@@ -1015,6 +1108,7 @@ async fn handle_create_event(
             provider: LLM_PROVIDER.clone(),
             internal_project_id,
             job_id: run.job_id,
+            error: None,
         },
     )
     .await;

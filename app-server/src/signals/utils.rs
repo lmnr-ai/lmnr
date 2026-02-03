@@ -7,7 +7,10 @@ use uuid::Uuid;
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    db::spans::{Span, SpanType},
+    db::{
+        events::{Event, EventSource},
+        spans::{Span, SpanType},
+    },
     mq::{MessageQueue, MessageQueueTrait},
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
@@ -31,6 +34,7 @@ pub struct InternalSpan {
     pub internal_project_id: Option<Uuid>,
     /// Job IDs associated with this span (may be empty for triggered runs)
     pub job_id: Option<Uuid>,
+    pub error: Option<String>,
 }
 
 /// Try to parse JSON string, return the parsed value or the original string
@@ -200,9 +204,26 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         output_url: None,
     };
 
+    let error_event = if let Some(error) = span.error {
+        Some(Event {
+            id: Uuid::new_v4(),
+            span_id,
+            project_id,
+            timestamp: span.start_time,
+            name: "exception".to_string(),
+            attributes: serde_json::json!({
+                "exception.message": error,
+            }),
+            trace_id: span.trace_id,
+            source: EventSource::Code,
+        })
+    } else {
+        None
+    };
+
     let message = RabbitMqSpanMessage {
         span: db_span,
-        events: vec![],
+        events: error_event.map(|event| vec![event]).unwrap_or_default(),
     };
 
     if let Ok(payload) = serde_json::to_vec(&vec![message]) {
