@@ -224,12 +224,16 @@ async fn retry_or_fail_runs(
                 // Can retry - push back to signals queue
                 let mut retry_msg = msg.clone();
                 retry_msg.retry_count += 1;
+                // Use the failed_run's step, not the original message's step
+                // to ensure we don't reprocess the same step after messages were already inserted
+                retry_msg.step = failed_run.step;
 
                 log::info!(
-                    "[SIGNAL JOB] Retrying failed run {} (retry {}/{}): {}",
+                    "[SIGNAL JOB] Retrying failed run {} (retry {}/{}, step {}): {}",
                     failed_run.run_id,
                     retry_msg.retry_count,
                     max_retry_count,
+                    retry_msg.step,
                     failed_run
                         .error_message
                         .as_deref()
@@ -599,22 +603,7 @@ async fn process_succeeded_batch(
 
     for (run_id, msg) in run_to_message.iter() {
         if !processed_run_ids.contains(run_id) {
-            let run = build_run(msg);
-            failed_runs.push(SignalRun {
-                run_id: run.run_id,
-                project_id: run.project_id,
-                job_id: run.job_id,
-                trigger_id: run.trigger_id,
-                signal_id: run.signal_id,
-                trace_id: run.trace_id,
-                status: RunStatus::Failed,
-                step: run.step,
-                internal_trace_id: run.internal_trace_id,
-                internal_span_id: run.internal_span_id,
-                updated_at: chrono::Utc::now(),
-                event_id: None,
-                error_message: Some("No response received for run".to_string()),
-            });
+            failed_runs.push(build_run(msg).failed("No response received for run"));
         }
     }
 
@@ -753,6 +742,18 @@ async fn process_single_response(
         None
     };
 
+    let span_error = if let Some(error) = &error {
+        Some(error.clone())
+    } else if let Some(finish_reason) = &response.finish_reason {
+        if finish_reason.is_success() {
+            None
+        } else {
+            serde_json::to_string(finish_reason).ok()
+        }
+    } else {
+        None
+    };
+
     emit_internal_span(
         queue.clone(),
         InternalSpan {
@@ -771,7 +772,7 @@ async fn process_single_response(
             provider: LLM_PROVIDER.clone(),
             internal_project_id: config.internal_project_id,
             job_id: run.job_id,
-            error: error.clone(),
+            error: span_error,
         },
     )
     .await;

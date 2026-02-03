@@ -467,6 +467,13 @@ impl GeminiFinishReason {
             _ => true,
         }
     }
+
+    pub fn is_success(&self) -> bool {
+        match self {
+            GeminiFinishReason::Stop | GeminiFinishReason::FinishReasonUnspecified => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -480,6 +487,12 @@ impl FinishReason {
     pub fn should_retry(&self) -> bool {
         match self {
             FinishReason::KnownFinishReason(fr) => fr.is_retryable(),
+            FinishReason::Unknown(_) => false,
+        }
+    }
+    pub fn is_success(&self) -> bool {
+        match self {
+            FinishReason::KnownFinishReason(fr) => fr.is_success(),
             FinishReason::Unknown(_) => false,
         }
     }
