@@ -2,7 +2,7 @@ import { ChevronDown, Copy, Database, Loader } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback } from "react";
 
-import CondensedTimelineControls from "@/components/rollout-sessions/rollout-session-view/condensed-timeline-toggle";
+import CondensedTimelineControls from "@/components/traces/trace-view/header/timeline-toggle";
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import Metadata from "@/components/traces/trace-view/metadata";
 import TraceViewSearch from "@/components/traces/trace-view/search";
@@ -26,7 +26,11 @@ interface HeaderProps {
 const Header = ({ spans, onSearch }: HeaderProps) => {
   const params = useParams();
   const projectId = params?.projectId as string;
-  const trace = useRolloutSessionStoreContext((state) => state.trace);
+  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useRolloutSessionStoreContext((state) => ({
+    trace: state.trace,
+    condensedTimelineEnabled: state.condensedTimelineEnabled,
+    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
+  }));
 
   const { toast } = useToast();
   const { openInSql, isLoading } = useOpenInSql({
@@ -81,7 +85,7 @@ const Header = ({ spans, onSearch }: HeaderProps) => {
       </div>
 
       {/* Line 3: Timeline toggle */}
-      <CondensedTimelineControls />
+      <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
     </div>
   );
 };

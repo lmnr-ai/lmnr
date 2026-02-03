@@ -33,7 +33,11 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
 
-  const trace = useTraceViewStoreContext((state) => state.trace);
+  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStoreContext((state) => ({
+    trace: state.trace,
+    condensedTimelineEnabled: state.condensedTimelineEnabled,
+    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
+  }));
 
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
@@ -139,7 +143,7 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
       </div>
 
       {/* Line 3: Timeline toggle */}
-      {!chatOpen && <CondensedTimelineControls />}
+      {!chatOpen && <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />}
     </div>
   );
 };
