@@ -898,8 +898,8 @@ async fn process_single_response(
         }
     } else {
         let error = format!(
-            "Expected function call in LLM response, got text:\n{}",
-            response.text.clone().unwrap_or_default()
+            "Expected function call in LLM response, got finish reason: {:?}",
+            finish_reason,
         );
         return (
             StepResult::Failed {
