@@ -1459,8 +1459,12 @@ fn main() -> anyhow::Result<()> {
                         queue.clone(),
                     );
 
-                    let process_logs_service =
-                        ProcessLogsService::new(db.clone(), cache.clone(), queue.clone());
+                    let process_logs_service = ProcessLogsService::new(
+                        db.clone(),
+                        cache.clone(),
+                        clickhouse.clone(),
+                        queue.clone(),
+                    );
 
                     Server::builder()
                         .add_service(
