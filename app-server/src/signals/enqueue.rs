@@ -94,6 +94,7 @@ async fn create_signal_run_and_message(
         internal_span_id,
         job_id,
         step: 0,
+        retry_count: 0,
     };
 
     (signal_run, message)

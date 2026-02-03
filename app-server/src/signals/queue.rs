@@ -60,6 +60,8 @@ pub struct SignalMessage {
     pub job_id: Option<Uuid>,
     #[serde(default)]
     pub step: usize,
+    #[serde(default)]
+    pub retry_count: usize,
 }
 
 pub async fn push_to_submissions_queue(

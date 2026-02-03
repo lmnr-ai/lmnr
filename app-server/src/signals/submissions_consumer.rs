@@ -305,23 +305,16 @@ async fn handle_failed_runs(
     }
 
     // Delete messages for failed runs since they won't be processed further
-    // Group by project_id since delete operation requires it
-    let mut runs_by_project: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
-    for run in &failed_runs {
-        runs_by_project
-            .entry(run.project_id)
-            .or_insert_with(Vec::new)
-            .push(run.run_id);
-    }
+    let project_run_pairs: Vec<(Uuid, Uuid)> = failed_runs
+        .iter()
+        .map(|run| (run.project_id, run.run_id))
+        .collect();
 
-    for (project_id, run_ids) in runs_by_project {
-        if let Err(e) = delete_signal_run_messages(clickhouse.clone(), project_id, &run_ids).await {
-            log::error!(
-                "[SIGNAL JOB] Failed to delete messages for failed runs in project {}: {:?}",
-                project_id,
-                e
-            );
-        }
+    if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
+        log::error!(
+            "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
+            e
+        );
     }
 
     // Update job statistics - group by job_id since runs may belong to different jobs
