@@ -105,7 +105,7 @@ function CondensedTimeline() {
   const renderContent = () => {
     if (isSpansLoading) {
       return (
-        <div className="flex flex-col gap-2 p-2 w-full h-full">
+        <div className="flex flex-col gap-2 py-2 w-full h-full">
           <Skeleton className="h-6 w-full" />
           <Skeleton className="h-full w-full" />
         </div>

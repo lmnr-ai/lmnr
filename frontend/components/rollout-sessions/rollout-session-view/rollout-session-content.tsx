@@ -392,16 +392,21 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     );
   }
 
-  if (isEmpty(spans) && sessionStatus === "PENDING") {
+  if (isEmpty(spans)) {
+    const isRunning = sessionStatus === "RUNNING";
     return (
       <div className="flex items-center justify-center p-6 h-full">
         <div className="flex flex-col items-center gap-4 p-6 rounded-lg border bg-card text-card-foreground">
           <div className="flex items-center gap-2">
             <Radio className="w-4 h-4 text-primary animate-pulse" />
-            <span className="text-sm text-muted-foreground">Waiting for traces...</span>
+            <span className="text-sm text-muted-foreground">
+              {isRunning ? "Running rollout..." : "Waiting for traces..."}
+            </span>
           </div>
           <p className="text-sm text-muted-foreground text-center max-w-sm">
-            Run the rollout to start, or traces will appear here when your code runs.
+            {isRunning
+              ? "The rollout is running. Traces will appear here once they arrive."
+              : "Run the rollout to start, or traces will appear here when your code runs."}
           </p>
         </div>
       </div>

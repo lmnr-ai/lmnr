@@ -470,7 +470,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             </ResizablePanelGroup>
           )}
           <div
-            className="absolute top-0 right-0 h-full cursor-col-resize z-10 group w-2"
+            className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
             onMouseDown={handleResizeTreeView}
           >
             <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />

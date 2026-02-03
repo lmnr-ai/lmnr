@@ -275,7 +275,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
       <div className="flex-1 min-h-0">
         <div
           ref={browserContentRef}
-          className={`h-full flex flex-col ${activeTab === "browser-session" ? "block" : "hidden"}`}
+          className={`h-full min-w-0 overflow-hidden flex flex-col ${activeTab === "browser-session" ? "block" : "hidden"}`}
         >
           {!hasBrowserSession ? (
             <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
@@ -289,7 +289,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
             </div>
           ) : (
             <>
-              <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b shrink-0">
+              <div className="flex flex-row items-center justify-center gap-2 px-3 h-8 border-b shrink-0">
                 <button onClick={handlePlayPause} className="text-white py-1 rounded">
                   {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
                 </button>
@@ -314,7 +314,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
                   value={[sessionTime || 0]}
                   onValueChange={(value) => handleTimelineChange(value[0] as number)}
                 />
-                <span className="font-mono">
+                <span className="font-mono text-sm">
                   {formatSecondsToMinutesAndSeconds(sessionTime || 0)}/{formatSecondsToMinutesAndSeconds(duration)}
                 </span>
               </div>
@@ -333,7 +333,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
                 </div>
               )}
 
-              <div className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 min-w-0 relative">
                 {isLoading ? (
                   <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
                     <Loader2 className="animate-spin w-4 h-4" /> Loading browser session...
@@ -344,7 +344,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
                     SDK version.
                   </div>
                 ) : (
-                  <div ref={playerContainerRef} className="w-full h-full" />
+                  <div ref={playerContainerRef} className="absolute inset-0 overflow-hidden" />
                 )}
               </div>
             </>

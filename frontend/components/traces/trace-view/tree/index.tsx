@@ -31,10 +31,7 @@ const Tree = ({ traceId, onSpanSelect, isShared = false }: TreeProps) => {
       selectedSpan: state.selectedSpan,
     }));
 
-  const treeSpans = useMemo(
-    () => getTreeSpans(),
-    [getTreeSpans, spans, condensedTimelineVisibleSpanIds]
-  );
+  const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
 
   const [settingsSpan, setSettingsSpan] = useState<(TraceViewSpan & { pathInfo: PathInfo }) | null>(null);
 
