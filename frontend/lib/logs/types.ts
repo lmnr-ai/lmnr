@@ -27,8 +27,9 @@ export function getSeverityLabel(severityNumber: number): string {
 export function getLogContent(body: string): string {
   try {
     const parsed = JSON.parse(body);
-    return parsed?.content ?? body;
-  } catch {
-    return body;
+    return parsed?.content ?? "";
+  } catch (e) {
+    console.error("Failed to parse log body:", e);
+    return "";
   }
 }
