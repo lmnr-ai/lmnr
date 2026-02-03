@@ -6,16 +6,18 @@ import { cn } from "@/lib/utils";
 interface CondensedTimelineControlsProps {
   enabled: boolean;
   setEnabled: (enabled: boolean) => void;
+  className?: string;
 }
 
-export default function CondensedTimelineControls({ enabled, setEnabled }: CondensedTimelineControlsProps) {
+export default function CondensedTimelineControls({ enabled, setEnabled, className }: CondensedTimelineControlsProps) {
   return (
     <div
       className={cn(
         "absolute z-40 top-full flex items-end overflow-hidden transition-all duration-200",
         enabled
           ? "right-0 h-6 w-7 bg-muted border-b border-l rounded-none rounded-bl "
-          : "right-2 h-6 bg-background border rounded-md hover:bg-muted"
+          : "right-2 h-6 bg-background border rounded-md hover:bg-muted",
+        className
       )}
     >
       <Button

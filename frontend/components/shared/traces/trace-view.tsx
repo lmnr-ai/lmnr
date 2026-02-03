@@ -164,8 +164,8 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
                 <div
                   className={cn(
-                    "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
-                    condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
+                    "flex items-center gap-2 py-2 border-b box-border transition-[padding] duration-200",
+                    condensedTimelineEnabled ? "pl-2 pr-2" : "pl-2 pr-[96px]"
                   )}
                 >
                   <div className="flex items-center justify-between w-full">
