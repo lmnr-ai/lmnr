@@ -42,28 +42,6 @@ pub struct SignalJobPendingBatchMessage {
     pub batch_id: String,
 }
 
-/// Metadata for pre-created signal runs (from batch API).
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct SignalRunMetadata {
-    pub run_id: Uuid,
-    pub internal_trace_id: Uuid,
-    pub internal_span_id: Uuid,
-    pub job_id: Uuid,
-    pub step: usize,
-}
-
-impl Default for SignalRunMetadata {
-    fn default() -> Self {
-        Self {
-            run_id: Uuid::new_v4(),
-            internal_trace_id: Uuid::nil(),
-            internal_span_id: Uuid::nil(),
-            job_id: Uuid::nil(),
-            step: 0,
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SignalMessage {
     pub trace_id: Uuid,
@@ -72,9 +50,16 @@ pub struct SignalMessage {
     pub trigger_id: Option<Uuid>,
     #[serde(alias = "event_definition")] // backwards compatibility with old messages
     pub signal: crate::db::signals::Signal,
-    /// Run metadata. Defaults with new run_id for triggered runs; batch API provides full metadata.
+    #[serde(default = "Uuid::new_v4")]
+    pub run_id: Uuid,
     #[serde(default)]
-    pub run_metadata: SignalRunMetadata,
+    pub internal_trace_id: Uuid,
+    #[serde(default)]
+    pub internal_span_id: Uuid,
+    #[serde(default)]
+    pub job_id: Option<Uuid>,
+    #[serde(default)]
+    pub step: usize,
 }
 
 pub async fn push_to_submissions_queue(

@@ -100,16 +100,15 @@ async fn process(
         let project_id = message.project_id;
         let signal = &message.signal;
         let trace_id = message.trace_id;
-        let metadata = &message.run_metadata;
 
         match process_run(
             project_id,
             trace_id,
-            metadata.run_id,
-            metadata.step,
-            metadata.internal_trace_id,
-            metadata.internal_span_id,
-            metadata.job_id,
+            message.run_id,
+            message.step,
+            message.internal_trace_id,
+            message.internal_span_id,
+            message.job_id,
             &signal.prompt,
             &signal.name,
             &signal.structured_output_schema,
@@ -129,20 +128,20 @@ async fn process(
             Err(e) => {
                 log::error!(
                     "[SIGNAL JOB] Failed to process run {}: {:?}",
-                    metadata.run_id,
+                    message.run_id,
                     e
                 );
                 failed_runs.push(SignalRun {
-                    run_id: metadata.run_id,
+                    run_id: message.run_id,
                     project_id,
-                    job_id: metadata.job_id,
-                    trigger_id: message.trigger_id.unwrap_or_default(),
+                    job_id: message.job_id,
+                    trigger_id: message.trigger_id,
                     signal_id: signal.id,
                     trace_id,
                     status: RunStatus::Failed,
-                    step: metadata.step,
-                    internal_trace_id: metadata.internal_trace_id,
-                    internal_span_id: metadata.internal_span_id,
+                    step: message.step,
+                    internal_trace_id: message.internal_trace_id,
+                    internal_span_id: message.internal_span_id,
                     updated_at: Utc::now(),
                     event_id: None,
                     error_message: Some(format!("Failed to process run: {}", e)),
@@ -269,23 +268,20 @@ fn create_failed_runs_from_messages(
 ) -> Vec<SignalRun> {
     messages
         .iter()
-        .map(|message| {
-            let metadata = &message.run_metadata;
-            SignalRun {
-                run_id: metadata.run_id,
-                project_id: message.project_id,
-                job_id: metadata.job_id,
-                trigger_id: message.trigger_id.unwrap_or_default(),
-                signal_id: message.signal.id,
-                trace_id: message.trace_id,
-                status: RunStatus::Failed,
-                step: metadata.step,
-                internal_trace_id: metadata.internal_trace_id,
-                internal_span_id: metadata.internal_span_id,
-                updated_at: Utc::now(),
-                event_id: None,
-                error_message: Some(error_message.clone()),
-            }
+        .map(|message| SignalRun {
+            run_id: message.run_id,
+            project_id: message.project_id,
+            job_id: message.job_id,
+            trigger_id: message.trigger_id,
+            signal_id: message.signal.id,
+            trace_id: message.trace_id,
+            status: RunStatus::Failed,
+            step: message.step,
+            internal_trace_id: message.internal_trace_id,
+            internal_span_id: message.internal_span_id,
+            updated_at: Utc::now(),
+            event_id: None,
+            error_message: Some(error_message.clone()),
         })
         .collect()
 }
@@ -331,8 +327,8 @@ async fn handle_failed_runs(
     // Update job statistics - group by job_id since runs may belong to different jobs
     let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
     for run in &failed_runs {
-        if !run.job_id.is_nil() {
-            *failed_by_job.entry(run.job_id).or_insert(0) += 1;
+        if let Some(job_id) = run.job_id {
+            *failed_by_job.entry(job_id).or_insert(0) += 1;
         }
     }
     for (job_id, failed_count) in failed_by_job {
@@ -349,7 +345,7 @@ async fn process_run(
     step: usize,
     internal_trace_id: Uuid,
     internal_span_id: Uuid,
-    job_id: Uuid,
+    job_id: Option<Uuid>,
     prompt: &str,
     signal_name: &str,
     structured_output_schema: &serde_json::Value,
@@ -487,11 +483,6 @@ async fn process_run(
         sys.role = Some("system".to_string());
         contents_with_sys.insert(0, sys);
     }
-    let job_ids = if job_id.is_nil() {
-        vec![]
-    } else {
-        vec![job_id]
-    };
     emit_internal_span(
         queue.clone(),
         InternalSpan {
@@ -509,7 +500,7 @@ async fn process_run(
             model: model.to_string(),
             provider: provider.to_string(),
             internal_project_id,
-            job_ids,
+            job_id,
         },
     )
     .await;

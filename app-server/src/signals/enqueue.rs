@@ -19,8 +19,8 @@ async fn create_signal_run_and_message(
     trace_id: Uuid,
     project_id: Uuid,
     signal: &Signal,
-    job_id: Uuid,
-    trigger_id: Uuid,
+    job_id: Option<Uuid>,
+    trigger_id: Option<Uuid>,
     queue: Arc<MessageQueue>,
 ) -> (super::SignalRun, SignalMessage) {
     // get internal project id for tracing
@@ -31,20 +31,16 @@ async fn create_signal_run_and_message(
     let run_id = Uuid::new_v4();
     let internal_trace_id = Uuid::new_v4();
 
-    // Determine if this is a job-based or trigger-based run
-    let is_job_run = job_id != Uuid::nil();
-    let is_trigger_run = trigger_id != Uuid::nil();
-
     // Build input map based on run type
     let mut input_map: HashMap<String, Uuid> = HashMap::from([
         ("run_id".to_string(), run_id),
         ("trace_id".to_string(), trace_id),
         ("signal_id".to_string(), signal.id),
     ]);
-    if is_job_run {
+    if let Some(job_id) = job_id {
         input_map.insert("job_id".to_string(), job_id);
     }
-    if is_trigger_run {
+    if let Some(trigger_id) = trigger_id {
         input_map.insert("trigger_id".to_string(), trigger_id);
     }
     let input = serde_json::to_value(input_map).unwrap();
@@ -67,7 +63,7 @@ async fn create_signal_run_and_message(
             model: LLM_MODEL.clone(),
             provider: LLM_PROVIDER.clone(),
             internal_project_id,
-            job_ids: if is_job_run { vec![job_id] } else { vec![] },
+            job_id,
         },
     )
     .await;
@@ -91,19 +87,13 @@ async fn create_signal_run_and_message(
     let message = SignalMessage {
         trace_id,
         project_id,
-        trigger_id: if is_trigger_run {
-            Some(trigger_id)
-        } else {
-            None
-        },
+        trigger_id,
         signal: signal.clone(),
-        run_metadata: super::queue::SignalRunMetadata {
-            run_id,
-            internal_trace_id,
-            internal_span_id,
-            job_id,
-            step: 0,
-        },
+        run_id,
+        internal_trace_id,
+        internal_span_id,
+        job_id,
+        step: 0,
     };
 
     (signal_run, message)
@@ -138,8 +128,8 @@ pub async fn enqueue_signal_job(
             trace_id,
             project_id,
             &signal,
-            job.id,
-            Uuid::nil(), // No trigger for job-based runs
+            Some(job.id),
+            None,
             queue.clone(),
         )
         .await;
@@ -229,8 +219,8 @@ pub async fn enqueue_signal_trigger_run(
         trace_id,
         project_id,
         &signal,
-        Uuid::nil(), // No job for trigger-based runs
-        trigger_id,
+        None,
+        Some(trigger_id),
         queue.clone(),
     )
     .await;

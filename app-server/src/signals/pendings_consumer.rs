@@ -180,28 +180,23 @@ async fn process_failed_batch(
     let error_message =
         custom_error.unwrap_or_else(|| format!("Batch failed with state: {:?}", state));
 
-    // Create failed SignalRun instances for all messages with valid run metadata
     let failed_runs: Vec<SignalRun> = message
         .messages
         .iter()
-        .filter(|msg| !msg.run_metadata.run_id.is_nil())
-        .map(|msg| {
-            let metadata = &msg.run_metadata;
-            SignalRun {
-                run_id: metadata.run_id,
-                project_id: msg.project_id,
-                job_id: metadata.job_id,
-                trigger_id: msg.trigger_id.unwrap_or_default(),
-                signal_id: msg.signal.id,
-                trace_id: msg.trace_id,
-                status: RunStatus::Failed,
-                step: metadata.step,
-                internal_trace_id: metadata.internal_trace_id,
-                internal_span_id: metadata.internal_span_id,
-                updated_at: chrono::Utc::now(),
-                event_id: None,
-                error_message: Some(error_message.clone()),
-            }
+        .map(|msg| SignalRun {
+            run_id: msg.run_id,
+            project_id: msg.project_id,
+            job_id: msg.job_id,
+            trigger_id: msg.trigger_id,
+            signal_id: msg.signal.id,
+            trace_id: msg.trace_id,
+            status: RunStatus::Failed,
+            step: msg.step,
+            internal_trace_id: msg.internal_trace_id,
+            internal_span_id: msg.internal_span_id,
+            updated_at: chrono::Utc::now(),
+            event_id: None,
+            error_message: Some(error_message.clone()),
         })
         .collect();
 
@@ -233,8 +228,8 @@ async fn process_failed_batch(
     // Update job statistics - group by job_id since runs may belong to different jobs
     let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
     for run in &failed_runs {
-        if !run.job_id.is_nil() {
-            *failed_by_job.entry(run.job_id).or_insert(0) += 1;
+        if let Some(job_id) = run.job_id {
+            *failed_by_job.entry(job_id).or_insert(0) += 1;
         }
     }
     for (job_id, failed_count) in failed_by_job {
@@ -249,8 +244,17 @@ async fn process_failed_batch(
     // - Rejecting based on retry_count threshold or message age
 
     Err(HandlerError::permanent(anyhow::anyhow!(
-        "LLM batch job failed. batch_id: {}, state: {:?}",
-        message.batch_id,
+        "LLM batch job failed. project, trigger, job, and run_ids: {:?}, state: {:?}",
+        message
+            .messages
+            .iter()
+            .map(|msg| HashMap::from([
+                ("project_id", Some(msg.project_id)),
+                ("trigger_id", msg.trigger_id),
+                ("job_id", msg.job_id),
+                ("run_id", Some(msg.run_id)),
+            ]))
+            .collect::<Vec<_>>(),
         state
     )))
 }
@@ -289,22 +293,22 @@ async fn process_succeeded_batch(
     // Build lookup: run_id -> SignalMessage (direct mapping, cleaner than index indirection)
     let mut run_to_message: HashMap<Uuid, SignalMessage> = HashMap::new();
     for msg in message.messages.iter() {
-        run_to_message.insert(msg.run_metadata.run_id, msg.clone());
+        run_to_message.insert(msg.run_id, msg.clone());
     }
 
     // Helper to build SignalRun from message
     let build_run = |msg: &SignalMessage| -> SignalRun {
         SignalRun {
-            run_id: msg.run_metadata.run_id,
+            run_id: msg.run_id,
             project_id: msg.project_id,
-            job_id: msg.run_metadata.job_id,
-            trigger_id: msg.trigger_id.unwrap_or_default(),
+            job_id: msg.job_id,
+            trigger_id: msg.trigger_id,
             signal_id: msg.signal.id,
             trace_id: msg.trace_id,
             status: RunStatus::Pending,
-            step: msg.run_metadata.step,
-            internal_trace_id: msg.run_metadata.internal_trace_id,
-            internal_span_id: msg.run_metadata.internal_span_id,
+            step: msg.step,
+            internal_trace_id: msg.internal_trace_id,
+            internal_span_id: msg.internal_span_id,
             updated_at: chrono::Utc::now(),
             event_id: None,
             error_message: None,
@@ -341,8 +345,8 @@ async fn process_succeeded_batch(
                 failed_runs.push(SignalRun {
                     run_id,
                     project_id: Uuid::nil(),
-                    job_id: Uuid::nil(),
-                    trigger_id: Uuid::nil(),
+                    job_id: None,
+                    trigger_id: None,
                     signal_id: Uuid::nil(),
                     trace_id: response.trace_id.unwrap_or_default(),
                     status: RunStatus::Failed,
@@ -454,28 +458,22 @@ async fn process_succeeded_batch(
     // Insert new messages into ClickHouse
     insert_signal_run_messages(clickhouse.clone(), &new_messages).await?;
 
-    // Update run statuses in Clickhouse (succeeded/failed)
+    // Insert succeeded runs into ClickHouse
     let succeeded_runs_ch: Vec<CHSignalRun> = succeeded_runs
         .iter()
         .map(|r| CHSignalRun::from(r))
         .collect();
     insert_signal_runs(clickhouse.clone(), &succeeded_runs_ch).await?;
 
-    let failed_runs_ch: Vec<CHSignalRun> =
-        failed_runs.iter().map(|r| CHSignalRun::from(r)).collect();
-    insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await?;
-
     // Push pending runs back to signals queue for next step processing
-    // Increment the step counter using next_step()
-    // Track runs that failed to enqueue so we can persist them to ClickHouse
-    let failed_runs_before_enqueue = failed_runs.len();
+    // If enqueue fails, add them to failed_runs so they're handled consistently
     if !pending_run_ids.is_empty() {
         for run_id in &pending_run_ids {
             let msg = run_to_message.get(run_id).unwrap();
 
             // Create next step message with incremented step
             let mut next_step_msg = msg.clone();
-            next_step_msg.run_metadata.step += 1;
+            next_step_msg.step += 1;
 
             if let Err(e) = push_to_signals_queue(next_step_msg, queue.clone()).await {
                 log::error!(
@@ -490,19 +488,10 @@ async fn process_succeeded_batch(
         }
     }
 
-    // Insert newly failed runs (those that failed to enqueue) into ClickHouse
-    if failed_runs.len() > failed_runs_before_enqueue {
-        let newly_failed_runs: Vec<CHSignalRun> = failed_runs
-            .iter()
-            .skip(failed_runs_before_enqueue)
-            .map(CHSignalRun::from)
-            .collect();
-        if let Err(e) = insert_signal_runs(clickhouse.clone(), &newly_failed_runs).await {
-            log::error!(
-                "[SIGNAL JOB] Failed to insert newly failed runs to ClickHouse: {:?}",
-                e
-            );
-        }
+    // Insert all failed runs into ClickHouse (including those that failed during enqueue)
+    if !failed_runs.is_empty() {
+        let failed_runs_ch: Vec<CHSignalRun> = failed_runs.iter().map(CHSignalRun::from).collect();
+        insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await?;
     }
 
     // Delete messages for finished runs (both succeeded and failed)
@@ -522,14 +511,14 @@ async fn process_succeeded_batch(
     // Update job stats - group by job_id since runs may belong to different jobs
     let mut stats_by_job: HashMap<Uuid, (i32, i32)> = HashMap::new();
     for run in &succeeded_runs {
-        if !run.job_id.is_nil() {
-            let entry = stats_by_job.entry(run.job_id).or_insert((0, 0));
+        if let Some(job_id) = run.job_id {
+            let entry = stats_by_job.entry(job_id).or_insert((0, 0));
             entry.0 += 1;
         }
     }
     for run in &failed_runs {
-        if !run.job_id.is_nil() {
-            let entry = stats_by_job.entry(run.job_id).or_insert((0, 0));
+        if let Some(job_id) = run.job_id {
+            let entry = stats_by_job.entry(job_id).or_insert((0, 0));
             entry.1 += 1;
         }
     }
@@ -564,12 +553,6 @@ async fn process_single_response(
         return (StepResult::Failed { error }, vec![]);
     }
 
-    // Internal tracing span with LLM response
-    let job_ids = if run.job_id.is_nil() {
-        vec![]
-    } else {
-        vec![run.job_id]
-    };
     emit_internal_span(
         queue.clone(),
         InternalSpan {
@@ -587,7 +570,7 @@ async fn process_single_response(
             model: LLM_MODEL.clone(),
             provider: LLM_PROVIDER.clone(),
             internal_project_id: config.internal_project_id,
-            job_ids: job_ids.clone(),
+            job_id: run.job_id,
         },
     )
     .await;
@@ -625,7 +608,7 @@ async fn process_single_response(
                 model: LLM_MODEL.clone(),
                 provider: LLM_PROVIDER.clone(),
                 internal_project_id: config.internal_project_id,
-                job_ids: job_ids.clone(),
+                job_id: run.job_id,
             },
         )
         .await;
@@ -862,12 +845,6 @@ async fn handle_create_event(
     )
     .await?;
 
-    // Internal tracing span for event creation
-    let job_ids = if run.job_id.is_nil() {
-        vec![]
-    } else {
-        vec![run.job_id]
-    };
     emit_internal_span(
         queue,
         InternalSpan {
@@ -891,7 +868,7 @@ async fn handle_create_event(
             model: LLM_MODEL.clone(),
             provider: LLM_PROVIDER.clone(),
             internal_project_id,
-            job_ids,
+            job_id: run.job_id,
         },
     )
     .await;

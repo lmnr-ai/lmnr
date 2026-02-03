@@ -77,8 +77,8 @@ impl SignalWorkerConfig {
 pub struct SignalRun {
     pub run_id: Uuid,
     pub project_id: Uuid,
-    pub job_id: Uuid,
-    pub trigger_id: Uuid,
+    pub job_id: Option<Uuid>,
+    pub trigger_id: Option<Uuid>,
     pub signal_id: Uuid,
     pub trace_id: Uuid,
     pub step: usize,

@@ -30,7 +30,7 @@ pub struct InternalSpan {
     pub provider: String,
     pub internal_project_id: Option<Uuid>,
     /// Job IDs associated with this span (may be empty for triggered runs)
-    pub job_ids: Vec<Uuid>,
+    pub job_id: Option<Uuid>,
 }
 
 /// Try to parse JSON string, return the parsed value or the original string
@@ -125,41 +125,40 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
     let mut attrs = HashMap::from([
         (
             "signal.run_id".to_string(),
-            serde_json::json!(span.run_id.to_string()),
+            Value::String(span.run_id.to_string()),
         ),
         (
             "signal.event_name".to_string(),
-            serde_json::json!(span.signal_name),
+            Value::String(span.signal_name),
         ),
     ]);
 
     // Only add job_ids if non-empty
-    if !span.job_ids.is_empty() {
-        let job_ids_strs: Vec<String> = span.job_ids.iter().map(|id| id.to_string()).collect();
-        attrs.insert("signal.job_ids".to_string(), serde_json::json!(job_ids_strs));
+    if let Some(job_id) = span.job_id {
+        attrs.insert(
+            "signal.job_id".to_string(),
+            Value::String(job_id.to_string()),
+        );
     }
 
     if let Some(tokens) = span.input_tokens {
         attrs.insert(
             "gen_ai.usage.input_tokens".to_string(),
-            serde_json::json!(tokens),
+            Value::Number(tokens.into()),
         );
     }
     if let Some(tokens) = span.output_tokens {
         attrs.insert(
             "gen_ai.usage.output_tokens".to_string(),
-            serde_json::json!(tokens),
+            Value::Number(tokens.into()),
         );
     }
 
     attrs.insert(
         "gen_ai.request.model".to_string(),
-        serde_json::json!(span.model),
+        Value::String(span.model),
     );
-    attrs.insert(
-        "gen_ai.system".to_string(),
-        serde_json::json!(span.provider),
-    );
+    attrs.insert("gen_ai.system".to_string(), Value::String(span.provider));
 
     if let Some(parent_span_id) = span.parent_span_id {
         attrs.insert(
