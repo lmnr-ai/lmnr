@@ -50,7 +50,7 @@ const Tree = ({ traceId, onSpanSelect, isShared = false }: TreeProps) => {
 
     if (selectedIndex !== -1) {
       const rafId = requestAnimationFrame(() => {
-        virtualizer.scrollToIndex(selectedIndex, { align: "auto" });
+        virtualizer.scrollToIndex(selectedIndex, { align: "start" });
       });
       return () => cancelAnimationFrame(rafId);
     }

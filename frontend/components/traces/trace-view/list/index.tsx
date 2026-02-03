@@ -54,7 +54,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
 
       if (selectedIndex !== -1) {
         virtualizer.scrollToIndex(selectedIndex, {
-          align: "auto",
+          align: "start",
         });
       }
     };
