@@ -1,10 +1,12 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ChevronDown, CirclePlay, Copy, Database, Loader } from "lucide-react";
+import { ChevronDown, Copy, Database, Loader } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback } from "react";
 
 import CondensedTimelineControls from "@/components/rollout-sessions/rollout-session-view/condensed-timeline-toggle";
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import Metadata from "@/components/traces/trace-view/metadata";
+import TraceViewSearch from "@/components/traces/trace-view/search";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,20 +15,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn } from "@/lib/utils";
 
-import { TraceStatsShields } from "../../traces/stats-shields";
+interface HeaderProps {
+  spans: TraceViewSpan[];
+  onSearch: (filters: Filter[], search: string) => void;
+}
 
-const Header = () => {
+const Header = ({ spans, onSearch }: HeaderProps) => {
   const params = useParams();
   const projectId = params?.projectId as string;
-  const { trace, browserSession, setBrowserSession } = useRolloutSessionStoreContext((state) => ({
-    trace: state.trace,
-    browserSession: state.browserSession,
-    setBrowserSession: state.setBrowserSession,
-  }));
+  const trace = useRolloutSessionStoreContext((state) => state.trace);
 
   const { toast } = useToast();
   const { openInSql, isLoading } = useOpenInSql({
@@ -42,44 +42,46 @@ const Header = () => {
   }, [trace?.id, toast]);
 
   return (
-    <div className="h-10 min-h-10 flex items-center gap-x-2 px-2 border-b relative">
+    <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-2">
+      {/* Line 1: Trace + chevron dropdown, Metadata */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center min-w-0 gap-2">
+          {/* Chevron dropdown (Copy trace ID, Open in SQL) */}
+          {trace && (
+            <div className="flex">
+              <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-6 px-1 hover:bg-secondary">
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={handleCopyTraceId}>
+                    <Copy size={14} />
+                    Copy trace ID
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={isLoading} onClick={openInSql}>
+                    {isLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
+                    Open in SQL editor
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-x-0.5 flex-shrink-0">
+          <Metadata metadata={trace?.metadata} />
+        </div>
+      </div>
+
+      {/* Line 2: Search only */}
+      <div className="flex items-center gap-2">
+        <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />
+      </div>
+
+      {/* Line 3: Timeline toggle */}
       <CondensedTimelineControls />
-      {trace && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-6 px-1 text-base font-medium focus-visible:outline-0">
-              Trace
-              <ChevronDown className="ml-1 size-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={handleCopyTraceId}>
-              <Copy size={14} />
-              Copy trace ID
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={isLoading} onClick={openInSql}>
-              {isLoading ? <Loader className="size-3.5" /> : <Database className="size-3.5" />}
-              Open in SQL editor
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-      {trace && <TraceStatsShields className="box-border sticky top-0 bg-background" trace={trace} />}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            disabled={!trace}
-            className="hover:bg-secondary px-1.5"
-            variant="ghost"
-            onClick={() => setBrowserSession(!browserSession)}
-          >
-            <CirclePlay className={cn("w-4 h-4", { "text-primary": browserSession })} />
-          </Button>
-        </TooltipTrigger>
-        <TooltipPortal>
-          <TooltipContent>{browserSession ? "Hide Media Viewer" : "Show Media Viewer"}</TooltipContent>
-        </TooltipPortal>
-      </Tooltip>
     </div>
   );
 };

@@ -1,8 +1,9 @@
 import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Sparkles, X } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo } from "react";
 
+import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
@@ -17,7 +18,6 @@ import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import Metadata from "../metadata";
-import ExportDropdown from "./export-dropdown";
 import CondensedTimelineControls from "./timeline-toggle";
 
 interface HeaderProps {
@@ -33,18 +33,13 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
 
-  const { trace, updateTraceVisibility } = useTraceViewStoreContext((state) => ({
-    trace: state.trace,
-    updateTraceVisibility: state.updateTraceVisibility,
-  }));
+  const trace = useTraceViewStoreContext((state) => state.trace);
 
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
     projectId: projectId as string,
     params: { type: "trace", traceId: String(trace?.id) },
   });
-  const [isVisibilityLoading, setIsVisibilityLoading] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
 
   const handleCopyTraceId = useCallback(async () => {
     if (trace?.id) {
@@ -53,54 +48,6 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
     }
   }, [trace?.id, toast]);
 
-  const handleCopyLink = useCallback(async () => {
-    if (trace?.id) {
-      const url = `${window.location.origin}/shared/traces/${trace.id}`;
-      await navigator.clipboard.writeText(url);
-      setCopiedLink(true);
-      toast({ title: "Copied link", duration: 1000 });
-      setTimeout(() => setCopiedLink(false), 2000);
-    }
-  }, [trace?.id, toast]);
-
-  const handleChangeVisibility = useCallback(
-    async (value: "private" | "public") => {
-      if (!trace?.id || trace.visibility === value) return;
-
-      try {
-        setIsVisibilityLoading(true);
-        const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}`, {
-          method: "PUT",
-          body: JSON.stringify({
-            visibility: value,
-          }),
-        });
-
-        if (res.ok) {
-          toast({
-            title: `Trace is now ${value}`,
-            duration: 1000,
-          });
-          updateTraceVisibility(value);
-        } else {
-          const text = await res.json();
-          if ("error" in text) {
-            toast({ variant: "destructive", title: "Error", description: String(text.error) });
-          }
-        }
-      } catch (e) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to update trace visibility. Please try again.",
-        });
-      } finally {
-        setIsVisibilityLoading(false);
-      }
-    },
-    [trace?.id, trace?.visibility, projectId, toast, updateTraceVisibility]
-  );
-
   const fullScreenParams = useMemo(() => {
     const ps = new URLSearchParams(searchParams);
     if (params.evaluationId) {
@@ -108,8 +55,6 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
     }
     return ps;
   }, [params.evaluationId, searchParams]);
-
-  const isPublic = trace?.visibility === "public";
 
   return (
     <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-2">
@@ -184,16 +129,7 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
         </div>
         <div className="flex items-center gap-x-0.5 flex-shrink-0">
           <Metadata metadata={trace?.metadata} />
-          {/* Export dropdown */}
-          {trace && (
-            <ExportDropdown
-              isVisibilityLoading={isVisibilityLoading}
-              handleChangeVisibility={handleChangeVisibility}
-              isPublic={isPublic}
-              handleCopyLink={handleCopyLink}
-              copiedLink={copiedLink}
-            />
-          )}
+          {trace && <ShareTraceButton projectId={projectId} />}
         </div>
       </div>
 

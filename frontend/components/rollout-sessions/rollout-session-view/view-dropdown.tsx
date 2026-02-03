@@ -52,8 +52,9 @@ export default function ViewDropdown() {
         <DropdownMenuTrigger asChild>
           <button
             className={cn(
-              "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0 hover:bg-secondary/50",
-              isTreeView && "rounded-r-none border-r-0"
+              "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0",
+              isValidTab ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary/50",
+              isTreeView && "rounded-r-none border-r-0 outline-1 outline-inset outline-primary -outline-offset-1"
             )}
           >
             <CurrentIcon size={14} className="mr-1" />
@@ -78,8 +79,8 @@ export default function ViewDropdown() {
         <button
           onClick={() => setShowTreeContent(!contentVisible)}
           className={cn(
-            "flex items-center h-6 px-1.5 text-xs border border-l-0 rounded-md rounded-l-none bg-background",
-            contentVisible ? "border-primary text-primary hover:bg-primary/10" : "border-input hover:bg-secondary/50"
+            "flex items-center h-6 px-1.5 text-xs border border-l-0 rounded-md rounded-l-none  text-muted-foreground",
+            contentVisible ? "border-muted text-white hover:bg-muted" : "border-input hover:bg-secondary/50"
           )}
         >
           {contentVisible ? <Eye size={14} className="mr-1" /> : <EyeOff size={14} className="mr-1" />}

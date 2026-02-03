@@ -1,7 +1,7 @@
 "use client";
 
 import { get, isEmpty } from "lodash";
-import { AlertTriangle, Radio } from "lucide-react";
+import { AlertTriangle, CirclePlay, Radio } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
@@ -9,6 +9,7 @@ import CondensedTimeline from "@/components/rollout-sessions/rollout-session-vie
 import Header from "@/components/rollout-sessions/rollout-session-view/header";
 import List from "@/components/rollout-sessions/rollout-session-view/list";
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import { RolloutTraceStatsShields } from "@/components/rollout-sessions/rollout-session-view/rollout-stats-shields";
 import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/session-player";
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import { SessionTerminatedOverlay } from "@/components/rollout-sessions/rollout-session-view/terminated-overlay.tsx";
@@ -21,16 +22,16 @@ import ViewDropdown from "@/components/rollout-sessions/rollout-session-view/vie
 import { SpanView } from "@/components/traces/span-view";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
-import Metadata from "@/components/traces/trace-view/metadata";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
-import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 
@@ -379,7 +380,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
   if (traceError) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <Header />
+        <Header spans={[]} onSearch={() => {}} />
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
           <div className="max-w-md mx-auto">
             <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
@@ -412,15 +413,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
       <div className="flex flex-col h-full w-full overflow-hidden">
         {isSessionDeleted && <SessionTerminatedOverlay />}
 
-        <Header />
-        <div className="flex flex-col gap-2 p-2 border-b box-border">
-          <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
-            <ViewDropdown />
-            <Metadata metadata={trace?.metadata} />
-          </div>
-        </div>
-
-        <TraceViewSearch key={trace?.id} spans={spans} onSubmit={(filters, search) => fetchSpans(search, filters)} />
+        <Header spans={spans} onSearch={(filters, search) => fetchSpans(search, filters)} />
 
         {spansError ? (
           <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
@@ -441,6 +434,32 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
               </>
             )}
             <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
+              <div
+                className={cn(
+                  "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
+                  condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
+                )}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <ViewDropdown />
+                    {trace && <RolloutTraceStatsShields className="min-w-0 overflow-hidden" trace={trace} singlePill />}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      disabled={!trace}
+                      className={cn("h-6 px-1.5 text-xs", {
+                        "border-primary text-primary": browserSession,
+                      })}
+                      variant="outline"
+                      onClick={() => setBrowserSession(!browserSession)}
+                    >
+                      <CirclePlay size={14} className="mr-1" />
+                      Media
+                    </Button>
+                  </div>
+                </div>
+              </div>
               {tab === "reader" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
                   <List traceId={trace?.id} onSpanSelect={handleSpanSelect} />

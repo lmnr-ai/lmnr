@@ -187,7 +187,7 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
         spanTemplates: {},
         spanPathCounts: new Map(),
         showTreeContent: true,
-        condensedTimelineEnabled: false,
+        condensedTimelineEnabled: true,
         condensedTimelineVisibleSpanIds: new Set(),
         condensedTimelineZoom: 1,
 
