@@ -395,14 +395,18 @@ async fn process_run(
             project_id,
             run_id,
             now,
-            serde_json::to_string(&system_content).unwrap_or_default(),
+            serde_json::to_string(&system_content)
+                .map_err(|e| log::error!("Failed to serialize system content: {}", e))
+                .unwrap_or_default(),
         );
 
         let user_message = CHSignalRunMessage::new(
             project_id,
             run_id,
             user_time,
-            serde_json::to_string(&user_content).unwrap_or_default(),
+            serde_json::to_string(&user_content)
+                .map_err(|e| log::error!("Failed to serialize user content: {}", e))
+                .unwrap_or_default(),
         );
 
         // For Gemini API: system instruction has role: None
@@ -421,7 +425,7 @@ async fn process_run(
         let mut system_instruction = None;
 
         for msg in existing_messages {
-            // Parse as Content object (all messages are now stored in this format)
+            // Parse as Content object (all messages are stored in this format)
             let content: Content = serde_json::from_str(&msg.message).map_err(|e| {
                 HandlerError::Permanent(anyhow::anyhow!(
                     "Failed to parse message as Content: {}",

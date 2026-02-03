@@ -24,6 +24,8 @@ pub struct ParsedInlineResponse {
     pub input_tokens: Option<i32>,
     /// Output tokens (candidates_token_count in Gemini)
     pub output_tokens: Option<i32>,
+
+    pub original_response: Option<InlineResponse>,
 }
 
 /// Parse an InlineResponse into a structured format with all extracted fields.
@@ -77,6 +79,7 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
         text,
         input_tokens,
         output_tokens,
+        original_response: Some(inline_response.clone()),
     }
 }
 

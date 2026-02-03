@@ -45,6 +45,8 @@ use super::{
     },
 };
 
+const DEFAULT_RETRY_COUNT: usize = 4;
+
 #[derive(Debug, Serialize)]
 enum StepResult {
     CompletedNoEvent,
@@ -133,7 +135,8 @@ async fn process(
             );
             process_failed_batch(
                 &message,
-                JobState::BATCH_STATE_FAILED,
+                // Cancelled, so that we don't retry
+                JobState::BATCH_STATE_CANCELLED,
                 db,
                 clickhouse,
                 queue,
@@ -149,7 +152,8 @@ async fn process(
         .map(|m| m.state)
         .unwrap_or(JobState::BATCH_STATE_UNSPECIFIED);
 
-    log::debug!("[SIGNAL JOB] Batch {} state: {:?}", message.batch_id, state);
+    // TODO: put back to debug
+    log::info!("[SIGNAL JOB] Batch {} state: {:?}", message.batch_id, state);
 
     // Handle batch depending on state
     match state {
@@ -171,6 +175,90 @@ async fn process(
     Ok(())
 }
 
+/// Helper function to retry failed runs or mark them as permanently failed
+/// Returns (permanently_failed_runs, retried_count)
+async fn retry_or_fail_runs(
+    failed_runs: Vec<SignalRun>,
+    run_to_message: &HashMap<Uuid, SignalMessage>,
+    queue: Arc<MessageQueue>,
+) -> (Vec<SignalRun>, usize) {
+    let max_retry_count =
+        get_unsigned_env_with_default("SIGNALS_MAX_RETRY_COUNT", DEFAULT_RETRY_COUNT);
+
+    let mut permanently_failed_runs: Vec<SignalRun> = Vec::new();
+    let mut retried_count = 0;
+
+    for failed_run in failed_runs {
+        // Get the original message to check retry_count
+        if let Some(msg) = run_to_message.get(&failed_run.run_id) {
+            if msg.retry_count < max_retry_count {
+                // Can retry - push back to signals queue
+                let mut retry_msg = msg.clone();
+                retry_msg.retry_count += 1;
+
+                log::info!(
+                    "[SIGNAL JOB] Retrying failed run {} (retry {}/{}): {}",
+                    failed_run.run_id,
+                    retry_msg.retry_count,
+                    max_retry_count,
+                    failed_run
+                        .error_message
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+
+                if let Err(e) = push_to_signals_queue(retry_msg.clone(), queue.clone()).await {
+                    log::error!(
+                        "[SIGNAL JOB] Failed to push retry message for run {} back to queue: {:?}",
+                        retry_msg.run_id,
+                        e
+                    );
+                    // If we can't enqueue for retry, mark as permanently failed
+                    let mut perm_failed = failed_run;
+                    perm_failed.error_message = Some(format!(
+                        "{} (failed to enqueue retry)",
+                        perm_failed
+                            .error_message
+                            .as_deref()
+                            .unwrap_or("unknown error")
+                    ));
+                    permanently_failed_runs.push(perm_failed);
+                } else {
+                    retried_count += 1;
+                }
+            } else {
+                // Max retries exceeded - mark as permanently failed
+                log::warn!(
+                    "[SIGNAL JOB] Max retries exceeded for run {}, marking as failed: {}",
+                    failed_run.run_id,
+                    failed_run
+                        .error_message
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+                let mut perm_failed = failed_run;
+                perm_failed.error_message = Some(format!(
+                    "{} (max retries exceeded)",
+                    perm_failed
+                        .error_message
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                ));
+                permanently_failed_runs.push(perm_failed);
+            }
+        } else {
+            // No message found (shouldn't happen), mark as permanently failed
+            log::warn!(
+                "[SIGNAL JOB] No message found for failed run {}, marking as permanently failed",
+                failed_run.run_id
+            );
+            permanently_failed_runs.push(failed_run);
+        }
+    }
+
+    (permanently_failed_runs, retried_count)
+}
+
 /// Handle failed batch
 async fn process_failed_batch(
     message: &SignalJobPendingBatchMessage,
@@ -183,86 +271,71 @@ async fn process_failed_batch(
     let error_message =
         custom_error.unwrap_or_else(|| format!("Batch failed with state: {:?}", state));
 
-    let max_retry_count = get_unsigned_env_with_default("SIGNALS_MAX_RETRY_COUNT", 4);
+    // Build lookup: run_id -> SignalMessage
+    let run_to_message: HashMap<Uuid, SignalMessage> = message
+        .messages
+        .iter()
+        .map(|msg| (msg.run_id, msg.clone()))
+        .collect();
 
-    // Separate runs into retryable and permanently failed
-    let mut retryable_messages: Vec<SignalMessage> = Vec::new();
-    let mut failed_runs: Vec<SignalRun> = Vec::new();
+    // Convert all messages to failed runs
+    let failed_runs: Vec<SignalRun> = message
+        .messages
+        .iter()
+        .map(|msg| SignalRun {
+            run_id: msg.run_id,
+            project_id: msg.project_id,
+            job_id: msg.job_id,
+            trigger_id: msg.trigger_id,
+            signal_id: msg.signal.id,
+            trace_id: msg.trace_id,
+            status: RunStatus::Failed,
+            step: msg.step,
+            internal_trace_id: msg.internal_trace_id,
+            internal_span_id: msg.internal_span_id,
+            updated_at: chrono::Utc::now(),
+            event_id: None,
+            error_message: Some(error_message.clone()),
+        })
+        .collect();
 
-    for msg in message.messages.iter() {
-        if msg.retry_count < max_retry_count {
-            // Can retry - will push back to signals queue
-            let mut retry_msg = msg.clone();
-            retry_msg.retry_count += 1;
-            retryable_messages.push(retry_msg);
-
-            log::info!(
-                "[SIGNAL JOB] Retrying failed run {} (retry {}/{})",
-                msg.run_id,
-                msg.retry_count + 1,
-                max_retry_count
-            );
-        } else {
-            // Max retries exceeded - mark as permanently failed
-            failed_runs.push(SignalRun {
-                run_id: msg.run_id,
-                project_id: msg.project_id,
-                job_id: msg.job_id,
-                trigger_id: msg.trigger_id,
-                signal_id: msg.signal.id,
-                trace_id: msg.trace_id,
-                status: RunStatus::Failed,
-                step: msg.step,
-                internal_trace_id: msg.internal_trace_id,
-                internal_span_id: msg.internal_span_id,
-                updated_at: chrono::Utc::now(),
-                event_id: None,
-                error_message: Some(format!("{} (max retries exceeded)", error_message)),
-            });
-
-            log::warn!(
-                "[SIGNAL JOB] Max retries exceeded for run {}, marking as failed",
-                msg.run_id
-            );
-        }
-    }
-
-    // Push retryable messages back to signals queue
-    for retry_msg in &retryable_messages {
-        if let Err(e) = push_to_signals_queue(retry_msg.clone(), queue.clone()).await {
-            log::error!(
-                "[SIGNAL JOB] Failed to push retry message for run {} back to queue: {:?}",
-                retry_msg.run_id,
-                e
-            );
-            // If we can't enqueue for retry, mark as failed instead
-            failed_runs.push(SignalRun {
-                run_id: retry_msg.run_id,
-                project_id: retry_msg.project_id,
-                job_id: retry_msg.job_id,
-                trigger_id: retry_msg.trigger_id,
-                signal_id: retry_msg.signal.id,
-                trace_id: retry_msg.trace_id,
-                status: RunStatus::Failed,
-                step: retry_msg.step,
-                internal_trace_id: retry_msg.internal_trace_id,
-                internal_span_id: retry_msg.internal_span_id,
-                updated_at: chrono::Utc::now(),
-                event_id: None,
-                error_message: Some(format!("Failed to enqueue retry: {}", e)),
-            });
-        }
-    }
+    // Check if this state should be retried or permanently failed
+    let (permanently_failed_runs, retried_count) = if state.should_retry_failed() {
+        // Use helper function to retry or permanently fail runs based on retry_count
+        retry_or_fail_runs(failed_runs, &run_to_message, queue).await
+    } else {
+        // State should not be retried (e.g., BATCH_STATE_CANCELLED) - mark all as permanently failed
+        log::warn!(
+            "[SIGNAL JOB] Batch state {:?} should not be retried, marking all {} runs as permanently failed",
+            state,
+            failed_runs.len()
+        );
+        let permanently_failed = failed_runs
+            .into_iter()
+            .map(|mut run| {
+                run.error_message = Some(format!(
+                    "{} (non-retryable state: {:?})",
+                    run.error_message.as_deref().unwrap_or("unknown error"),
+                    state
+                ));
+                run
+            })
+            .collect();
+        (permanently_failed, 0)
+    };
 
     // Insert permanently failed runs into ClickHouse
-    if !failed_runs.is_empty() {
-        let failed_runs_ch: Vec<CHSignalRun> = failed_runs.iter().map(CHSignalRun::from).collect();
+    if !permanently_failed_runs.is_empty() {
+        let failed_runs_ch: Vec<CHSignalRun> = permanently_failed_runs
+            .iter()
+            .map(CHSignalRun::from)
+            .collect();
         if let Err(e) = insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await {
             log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
         }
 
         // Delete messages for permanently failed runs
-        let project_run_pairs: Vec<(Uuid, Uuid)> = failed_runs
+        let project_run_pairs: Vec<(Uuid, Uuid)> = permanently_failed_runs
             .iter()
             .map(|run| (run.project_id, run.run_id))
             .collect();
@@ -276,7 +349,7 @@ async fn process_failed_batch(
 
         // Update job statistics for permanently failed runs
         let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
-        for run in &failed_runs {
+        for run in &permanently_failed_runs {
             if let Some(job_id) = run.job_id {
                 *failed_by_job.entry(job_id).or_insert(0) += 1;
             }
@@ -288,15 +361,14 @@ async fn process_failed_batch(
         }
     }
 
-    // Return success if we successfully enqueued retries or permanently failed all runs
-    // The retried messages will go through the normal processing pipeline again
-    if retryable_messages.len() > failed_runs.len() {
+    // Return success if we successfully enqueued retries
+    if retried_count > 0 {
         log::info!(
             "[SIGNAL JOB] Batch failed but {} runs successfully enqueued for retry",
-            retryable_messages.len() - failed_runs.len()
+            retried_count
         );
         Ok(())
-    } else if !failed_runs.is_empty() {
+    } else if !permanently_failed_runs.is_empty() {
         // All runs permanently failed or failed to retry
         Err(HandlerError::permanent(anyhow::anyhow!(
             "LLM batch job failed. All runs exceeded max retries or failed to enqueue. project, trigger, job, and run_ids: {:?}, state: {:?}",
@@ -476,7 +548,7 @@ async fn process_succeeded_batch(
         }
     }
 
-    // Find runs that didn't get any response (e.g., response missing run_id in metadata)
+    // Find runs that didn't get any response (e.g., response missing run_id)
     // Mark them as failed
     let processed_run_ids: HashSet<Uuid> = succeeded_runs
         .iter()
@@ -547,16 +619,23 @@ async fn process_succeeded_batch(
         }
     }
 
-    // Insert all failed runs into ClickHouse (including those that failed during enqueue)
-    if !failed_runs.is_empty() {
-        let failed_runs_ch: Vec<CHSignalRun> = failed_runs.iter().map(CHSignalRun::from).collect();
+    // Handle failed runs: use helper function to retry or permanently fail them
+    let (permanently_failed_runs, retried_count) =
+        retry_or_fail_runs(failed_runs, &run_to_message, queue.clone()).await;
+
+    // Insert permanently failed runs into ClickHouse
+    if !permanently_failed_runs.is_empty() {
+        let failed_runs_ch: Vec<CHSignalRun> = permanently_failed_runs
+            .iter()
+            .map(CHSignalRun::from)
+            .collect();
         insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await?;
     }
 
-    // Delete messages for finished runs (both succeeded and failed)
+    // Delete messages for finished runs (succeeded and permanently failed, but not retried)
     let finished_project_run_pairs: Vec<(Uuid, Uuid)> = succeeded_runs
         .iter()
-        .chain(failed_runs.iter())
+        .chain(permanently_failed_runs.iter())
         .map(|run| (run.project_id, run.run_id))
         .collect();
 
@@ -570,7 +649,7 @@ async fn process_succeeded_batch(
             entry.0 += 1;
         }
     }
-    for run in &failed_runs {
+    for run in &permanently_failed_runs {
         if let Some(job_id) = run.job_id {
             let entry = stats_by_job.entry(job_id).or_insert((0, 0));
             entry.1 += 1;
@@ -582,6 +661,14 @@ async fn process_succeeded_batch(
         {
             log::error!("Failed to update job statistics for job {}: {}", job_id, e);
         }
+    }
+
+    if retried_count > 0 {
+        log::info!(
+            "[SIGNAL JOB] Batch {} successfully enqueued {} failed runs for retry",
+            message.batch_id,
+            retried_count
+        );
     }
 
     Ok(())
@@ -629,17 +716,17 @@ async fn process_single_response(
     )
     .await;
 
-    // Save LLM output to new messages
-    let llm_output_msg = CHSignalRunMessage::new(
-        signal_message.project_id,
-        run.run_id,
-        chrono::Utc::now(),
-        response.content.clone(),
-    );
-    new_messages.push(llm_output_msg);
-
     // Check if response contains a function call or text
     if let Some(ref function_call) = response.function_call {
+        // Save LLM output to new messages
+        let llm_output_msg = CHSignalRunMessage::new(
+            signal_message.project_id,
+            run.run_id,
+            chrono::Utc::now(),
+            response.content.clone(),
+        );
+        // only insert if there is a valid function call
+        new_messages.push(llm_output_msg);
         let tool_call_start_time = chrono::Utc::now();
         let step_result =
             handle_tool_call(signal_message, &run, &function_call, clickhouse.clone()).await;
@@ -705,7 +792,11 @@ async fn process_single_response(
                     signal_message.project_id,
                     run.run_id,
                     chrono::Utc::now(),
-                    serde_json::to_string(&function_response_content).unwrap_or_default(),
+                    serde_json::to_string(&function_response_content)
+                        .map_err(|e| {
+                            log::error!("Failed to serialize function response content: {}", e)
+                        })
+                        .unwrap_or_default(),
                 );
                 new_messages.push(tool_output_msg);
 
@@ -723,6 +814,7 @@ async fn process_single_response(
             "Expected function call in LLM response, got text:\n{}",
             response.text.clone().unwrap_or_default()
         );
+        log::error!("Full response: {:?}", response.original_response);
         return (StepResult::Failed { error }, new_messages);
     }
 }
