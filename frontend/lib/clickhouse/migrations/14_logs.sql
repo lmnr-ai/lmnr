@@ -18,3 +18,21 @@ CREATE TABLE IF NOT EXISTS default.logs
 ENGINE = MergeTree()
 ORDER BY (project_id, time, trace_id, span_id, log_id)
 SETTINGS index_granularity = 8192;
+
+CREATE VIEW IF NOT EXISTS default.logs_v0 SQL SECURITY INVOKER AS
+SELECT
+    log_id,
+    project_id,
+    time,
+    observed_time,
+    severity_number,
+    severity_text,
+    body,
+    attributes,
+    trace_id,
+    span_id,
+    flags,
+    event_name,
+    dropped_attributes_count
+FROM logs
+WHERE project_id={project_id:UUID};

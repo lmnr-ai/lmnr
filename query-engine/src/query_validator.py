@@ -66,6 +66,10 @@ class TableRegistry:
             "id", "span_id", "name", "created_at", "source",
         }
 
+        logs_columns = {
+            "log_id", "project_id", "time", "observed_time", "severity_number", "severity_text", "body", "attributes", "trace_id", "span_id", "flags", "event_name", "dropped_attributes_count",
+        }
+
         self.tables['spans'] = TableSchema('spans', spans_columns, 'start_time')
         self.tables['traces'] = TableSchema('traces', traces_columns, 'start_time')
         self.tables['dataset_datapoints'] = TableSchema('dataset_datapoints', dataset_datapoints_columns, 'created_at')
@@ -75,6 +79,7 @@ class TableRegistry:
         self.tables['evaluation_datapoints'] = TableSchema('evaluation_datapoints', evaluation_datapoints_columns, 'created_at')
         self.tables['events'] = TableSchema('events', events_columns, 'timestamp')
         self.tables['tags'] = TableSchema('tags', tags_columns, 'created_at')
+        self.tables['logs'] = TableSchema('logs', logs_columns, 'time')
 
     def is_table_allowed(self, table_name: str) -> bool:
         """Check if a table is allowed"""
@@ -124,7 +129,7 @@ class QueryValidator:
             # Table and column validation
             self._validate_tables_and_columns(parsed)
 
-            # Replace table references with view functions
+        # Replace table references with view functions
             parsed = self._replace_tables_with_views(parsed, project_id)
 
             parsed = self._strip_settings_clause(parsed)
