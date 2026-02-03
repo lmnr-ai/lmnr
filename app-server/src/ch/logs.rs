@@ -31,8 +31,6 @@ pub struct CHLog {
     pub flags: u32,
     /// Event name for event-type log records
     pub event_name: String,
-    /// Number of attributes that were dropped due to limits
-    pub dropped_attributes_count: u32,
     pub size_bytes: u64,
 }
 
@@ -54,7 +52,6 @@ impl CHLog {
             span_id: log.span_id.unwrap_or(Uuid::nil()),
             flags: log.flags,
             event_name: log.event_name.clone(),
-            dropped_attributes_count: log.dropped_attributes_count,
             size_bytes: log.estimate_size_bytes() as u64,
         }
     }

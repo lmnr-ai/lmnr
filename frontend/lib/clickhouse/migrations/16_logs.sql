@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS default.logs
     span_id UUID,
     flags UInt32 DEFAULT 0,
     event_name String DEFAULT '',
-    dropped_attributes_count UInt32 DEFAULT 0,
     size_bytes UInt64 DEFAULT 0
 )
 ENGINE = MergeTree()
@@ -32,7 +31,6 @@ SELECT
     trace_id,
     span_id,
     flags,
-    event_name,
-    dropped_attributes_count
+    event_name
 FROM logs
 WHERE project_id={project_id:UUID};

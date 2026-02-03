@@ -75,7 +75,7 @@ class TableRegistry:
         }
 
         logs_columns = {
-            "log_id", "project_id", "time", "observed_time", "severity_number", "severity_text", "body", "attributes", "trace_id", "span_id", "flags", "event_name", "dropped_attributes_count",
+            "log_id", "project_id", "time", "observed_time", "severity_number", "severity_text", "body", "attributes", "trace_id", "span_id", "flags", "event_name",
         }
 
         self.tables['spans'] = TableSchema('spans', spans_columns, 'start_time')
