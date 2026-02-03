@@ -23,8 +23,11 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { type Span, SpanType } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
 
+import { ModelIndicator } from "./model-indicator";
 import SpanTypeIcon from "./span-type-icon";
 import SpanStatsShields from "./stats-shields";
+import { StructuredOutputSchema } from "./structured-output-schema";
+import { extractToolsFromAttributes, ToolList } from "./tool-list";
 
 interface SpanControlsProps {
   span: Span;
@@ -98,6 +101,13 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
             <div className="text-xs font-mono rounded-md py-0.5 truncate px-2 border border-muted">
               {new Date(span.startTime).toLocaleString()}
             </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <ModelIndicator attributes={span.attributes} />
+            <ToolList tools={extractToolsFromAttributes(span.attributes)} />
+            <StructuredOutputSchema
+              schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
+            />
           </div>
           <TagsContextProvider spanId={span.spanId}>
             <div className="flex gap-2 flex-wrap items-center">

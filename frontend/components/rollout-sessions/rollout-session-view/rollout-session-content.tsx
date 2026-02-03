@@ -9,7 +9,7 @@ import CondensedTimeline from "@/components/rollout-sessions/rollout-session-vie
 import Header from "@/components/rollout-sessions/rollout-session-view/header";
 import List from "@/components/rollout-sessions/rollout-session-view/list";
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
-import { RolloutTraceStatsShields } from "@/components/rollout-sessions/rollout-session-view/rollout-stats-shields";
+import { TraceStatsShields } from "@/components/traces/stats-shields";
 import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/session-player";
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import { SessionTerminatedOverlay } from "@/components/rollout-sessions/rollout-session-view/terminated-overlay.tsx";
@@ -73,6 +73,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     setHasBrowserSession,
     setSpanPath,
     condensedTimelineEnabled,
+    condensedTimelineVisibleSpanIds,
     // Rollout state
     setSystemMessagesMap,
     setIsSystemMessagesLoading,
@@ -107,6 +108,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     setHasBrowserSession: state.setHasBrowserSession,
     setSpanPath: state.setSpanPath,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
+    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
     // Rollout state
     setSystemMessagesMap: state.setSystemMessagesMap,
     setIsSystemMessagesLoading: state.setIsSystemMessagesLoading,
@@ -117,6 +119,10 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
   }));
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
+  const filteredSpansForStats = useMemo(() => {
+    if (condensedTimelineVisibleSpanIds.size === 0) return undefined;
+    return spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+  }, [spans, condensedTimelineVisibleSpanIds]);
   const llmSpanIds = useMemo(
     () =>
       spans
@@ -448,7 +454,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
                     <ViewDropdown />
-                    {trace && <RolloutTraceStatsShields className="min-w-0 overflow-hidden" trace={trace} singlePill />}
+                    {trace && <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} spans={filteredSpansForStats} />}
                   </div>
                   <div className="flex items-center gap-1">
                     <Button

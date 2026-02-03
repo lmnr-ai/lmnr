@@ -55,6 +55,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     setHasBrowserSession,
     condensedTimelineEnabled,
     setCondensedTimelineEnabled,
+    condensedTimelineVisibleSpanIds,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
     setSpans: state.setSpans,
@@ -70,6 +71,7 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     setHasBrowserSession: state.setHasBrowserSession,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
+    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
   }));
 
   const { treeWidth, setTreeWidth } = useTraceViewStoreContext((state) => ({
@@ -77,6 +79,10 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     setTreeWidth: state.setTreeWidth,
   }));
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
+  const filteredSpansForStats = useMemo(() => {
+    if (condensedTimelineVisibleSpanIds.size === 0) return undefined;
+    return spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+  }, [spans, condensedTimelineVisibleSpanIds]);
   const llmSpanIds = useMemo(
     () => spans.filter((span) => span.spanType === SpanType.LLM).map((span) => span.spanId),
     [spans]
@@ -171,7 +177,11 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2">
                       <ViewDropdown />
-                      <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} singlePill />
+                      <TraceStatsShields
+                        className="min-w-0 overflow-hidden"
+                        trace={trace}
+                        spans={filteredSpansForStats}
+                      />
                     </div>
                     <div className="flex items-center gap-1">
                       <Button
