@@ -14,7 +14,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Event } from "@/lib/events/types";
-import { getLogContent, getSeverityLabel, type Log } from "@/lib/logs/types";
 import { type Span } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
@@ -36,28 +35,16 @@ const swrFetcher = async (url: string) => {
   return res.json();
 };
 
-const severityColors: Record<string, string> = {
-  FATAL: "text-red-600",
-  ERROR: "text-red-500",
-  WARN: "text-yellow-500",
-  INFO: "text-emerald-400",
-  DEBUG: "text-gray-500",
-  TRACE: "text-gray-400",
-  UNKNOWN: "text-gray-400",
-};
-
 // Inner component that has access to SpanSearchContext
 const SpanViewTabs = ({
   span,
   cleanedEvents,
-  logs,
   searchRef,
   searchOpen,
   setSearchOpen,
 }: {
   span: Span;
   cleanedEvents: any;
-  logs: Log[] | undefined;
   searchRef: React.RefObject<HTMLInputElement | null>;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
@@ -79,9 +66,6 @@ const SpanViewTabs = ({
           </TabsTrigger>
           <TabsTrigger value="events" className="text-xs">
             Events
-          </TabsTrigger>
-          <TabsTrigger value="logs" className="text-xs">
-            Logs
           </TabsTrigger>
         </TabsList>
       </div>
@@ -113,23 +97,6 @@ const SpanViewTabs = ({
             searchTerm={searchContext?.searchTerm || ""}
           />
         </TabsContent>
-        <TabsContent value="logs" className="w-full h-full overflow-auto">
-          <div className="p-2 font-mono text-sm space-y-1">
-            {logs && logs.length > 0 ? (
-              logs.map((log) => {
-                const severity = getSeverityLabel(log.severityNumber);
-                return (
-                  <div key={log.logId} className="flex gap-2">
-                    <span className={`font-semibold ${severityColors[severity]}`}>[{severity}]</span>
-                    <span className="whitespace-pre-wrap break-all">{getLogContent(log.body)}</span>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-muted-foreground">No logs found for this span</div>
-            )}
-          </div>
-        </TabsContent>
       </div>
     </Tabs>
   );
@@ -145,10 +112,6 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
   } = useSWR<Span>(`/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`, swrFetcher);
   const { data: events } = useSWR<Event[]>(
     `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}/events`,
-    swrFetcher
-  );
-  const { data: logs } = useSWR<Log[]>(
-    `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}/logs`,
     swrFetcher
   );
 
@@ -214,7 +177,6 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
             <SpanViewTabs
               span={span}
               cleanedEvents={cleanedEvents}
-              logs={logs}
               searchRef={searchRef}
               searchOpen={searchOpen}
               setSearchOpen={setSearchOpen}
