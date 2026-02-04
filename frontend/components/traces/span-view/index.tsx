@@ -186,4 +186,4 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
       </SpanViewStateProvider>
     );
   }
-} 
+}
