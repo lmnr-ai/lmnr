@@ -1,45 +1,35 @@
 import { get } from "lodash";
-import { AlertTriangle, FileText, ListFilter, Minus, Plus, Search, Sparkles } from "lucide-react";
+import { AlertTriangle, CirclePlay } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { TraceStatsShields } from "@/components/traces/stats-shields";
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
-import List from "@/components/traces/trace-view/list";
-import Metadata from "@/components/traces/trace-view/metadata";
-import Minimap from "@/components/traces/trace-view/minimap.tsx";
-import SearchTraceSpansInput from "@/components/traces/trace-view/search";
+import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import TraceViewStoreProvider, {
-  MAX_ZOOM,
   MIN_TREE_VIEW_WIDTH,
-  MIN_ZOOM,
   type TraceViewSpan,
   type TraceViewTrace,
   useTraceViewStoreContext,
 } from "@/components/traces/trace-view/trace-view-store.tsx";
-import {
-  enrichSpansWithPending,
-  filterColumns,
-  findSpanToSelect,
-  onRealtimeUpdateSpans,
-} from "@/components/traces/trace-view/utils";
+import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
-import { Button } from "@/components/ui/button.tsx";
-import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
-import { cn } from "@/lib/utils.ts";
+import { cn } from "@/lib/utils";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 import SessionPlayer from "../session-player";
 import { SpanView } from "../span-view";
 import Chat from "./chat";
+import CondensedTimeline from "./condensed-timeline";
+import List from "./list";
 import { ScrollContextProvider } from "./scroll-context";
-import Timeline from "./timeline";
 import Tree from "./tree";
 
 interface TraceViewProps {
@@ -47,7 +37,6 @@ interface TraceViewProps {
   spanId?: string;
   propsTrace?: TraceViewTrace;
   onClose: () => void;
-  initialSearch?: string;
 }
 
 const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps) => {
@@ -55,6 +44,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Data states
   const {
@@ -92,35 +82,26 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   // UI states
   const {
     tab,
-    setTab,
-    search,
-    setSearch,
-    searchEnabled,
-    setSearchEnabled,
     browserSession,
     setBrowserSession,
-    zoom,
-    handleZoom,
     langGraph,
+    setLangGraph,
     getHasLangGraph,
     hasBrowserSession,
     setHasBrowserSession,
+    condensedTimelineEnabled,
+    condensedTimelineVisibleSpanIds,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
-    setTab: state.setTab,
-    search: state.search,
-    setSearch: state.setSearch,
-    searchEnabled: state.searchEnabled,
-    setSearchEnabled: state.setSearchEnabled,
-    zoom: state.zoom,
-    handleZoom: state.setZoom,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
-    setBrowserSessionTime: state.setSessionTime,
     langGraph: state.langGraph,
+    setLangGraph: state.setLangGraph,
     getHasLangGraph: state.getHasLangGraph,
     hasBrowserSession: state.hasBrowserSession,
     setHasBrowserSession: state.setHasBrowserSession,
+    condensedTimelineEnabled: state.condensedTimelineEnabled,
+    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
   }));
 
   // Local storage states
@@ -131,8 +112,11 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setSpanPath: state.setSpanPath,
   }));
 
-  const { value: filters, onChange: setFilters } = useFiltersContextProvider();
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
+  const filteredSpansForStats = useMemo(() => {
+    if (condensedTimelineVisibleSpanIds.size === 0) return undefined;
+    return spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+  }, [spans, condensedTimelineVisibleSpanIds]);
   const llmSpanIds = useMemo(
     () => spans.filter((span) => span.spanType === SpanType.LLM).map((span) => span.spanId),
     [spans]
@@ -302,25 +286,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     [setTreeWidth, treeWidth]
   );
 
-  const handleToggleSearch = useCallback(async () => {
-    if (searchEnabled) {
-      setSearchEnabled(false);
-      setSearch("");
-      if (search !== "") {
-        await fetchSpans("", filters);
-      }
-    } else {
-      setSearchEnabled(true);
-    }
-  }, [searchEnabled, setSearchEnabled, setSearch, search, fetchSpans, filters]);
-
-  const handleAddFilter = useCallback(
-    (filter: Filter) => {
-      setFilters((prevFilters) => [...prevFilters, filter]);
-    },
-    [setFilters]
-  );
-
   const isLoading = isTraceLoading && !trace;
 
   const eventHandlers = useMemo(
@@ -351,14 +316,14 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }, [handleFetchTrace]);
 
   useEffect(() => {
-    fetchSpans(search, filters);
+    fetchSpans("", []);
 
     return () => {
       setSpans([]);
       setTraceError(undefined);
       setSpansError(undefined);
     };
-  }, [traceId, projectId, filters, setSpans, setTraceError, setSpansError]);
+  }, [traceId, projectId, setSpans, setTraceError, setSpansError]);
 
   useRealtime({
     key: `trace_${traceId}`,
@@ -385,7 +350,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   if (traceError) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <Header handleClose={handleClose} />
+        <Header
+          handleClose={handleClose}
+          chatOpen={chatOpen}
+          setChatOpen={setChatOpen}
+          spans={[]}
+          onSearch={() => {}}
+        />
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
           <div className="max-w-md mx-auto">
             <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
@@ -401,112 +372,96 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     <ScrollContextProvider>
       <div className="flex h-full w-full">
         <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-          <Header handleClose={handleClose} />
-          <div className="flex flex-col gap-2 px-2 pb-2 border-b box-border">
-            <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
-              <ViewDropdown />
-              <StatefulFilter columns={filterColumns}>
-                <Button variant="outline" className="h-6 text-xs">
-                  <ListFilter size={14} className="mr-1" />
-                  Filters
-                </Button>
-              </StatefulFilter>
-              <Button
-                onClick={handleToggleSearch}
-                variant="outline"
-                className={cn("h-6 text-xs px-1.5", {
-                  "border-primary text-primary": search || searchEnabled,
-                })}
-              >
-                <Search size={14} className="mr-1" />
-                <span>Search</span>
-              </Button>
-              <Button
-                onClick={() => setTab("metadata")}
-                variant="outline"
-                className={cn("h-6 text-xs px-1.5", {
-                  "border-primary text-primary": tab === "metadata",
-                })}
-              >
-                <FileText size={14} className="mr-1" />
-                <span>Metadata</span>
-              </Button>
-              <Button
-                onClick={() => setTab("chat")}
-                variant="outline"
-                className={cn("h-6 text-xs px-1.5", {
-                  "border-primary text-primary": tab === "chat",
-                })}
-              >
-                <Sparkles size={14} className="mr-1" />
-                <span>Ask AI</span>
-              </Button>
-              {tab === "timeline" && (
-                <>
-                  <Button
-                    disabled={zoom === MAX_ZOOM}
-                    className="size-6 min-w-6 ml-auto"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleZoom("in")}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    disabled={zoom === MIN_ZOOM}
-                    className="size-6 min-w-6"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleZoom("out")}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
-            </div>
-            <StatefulFilterList className="py-[3px] text-xs px-1" />
-          </div>
-          {(search || searchEnabled) && (
-            <SearchTraceSpansInput spans={spans} submit={fetchSpans} filters={filters} onAddFilter={handleAddFilter} />
-          )}
+          <Header
+            handleClose={handleClose}
+            chatOpen={chatOpen}
+            setChatOpen={setChatOpen}
+            spans={spans}
+            onSearch={(filters, search) => fetchSpans(search, filters)}
+          />
+
           {spansError ? (
             <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
               <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
               <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
               <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
+          ) : chatOpen ? (
+            // Ask AI takes over entire view
+            trace && (
+              <Chat
+                trace={trace}
+                onSearchSpans={(search) => {
+                  fetchSpans(search, []);
+                }}
+                onSetSpanId={(spanId) => {
+                  const span = spans.find((span) => span.spanId === spanId);
+                  if (span) {
+                    handleSpanSelect(span);
+                  }
+                }}
+              />
+            )
           ) : (
             <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
+              {condensedTimelineEnabled && (
+                <>
+                  <ResizablePanel defaultSize={120} minSize={80}>
+                    <div className="border-t h-full">
+                      <CondensedTimeline />
+                    </div>
+                  </ResizablePanel>
+                  <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                </>
+              )}
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-                {tab === "metadata" && trace && <Metadata trace={trace} />}
-                {tab === "chat" && trace && (
-                  <Chat
-                    trace={trace}
-                    onSetSpanId={(spanId) => {
-                      const span = spans.find((span) => span.spanId === spanId);
-                      if (span) {
-                        handleSpanSelect(span);
-                      }
-                    }}
-                  />
-                )}
-                {tab === "timeline" && <Timeline />}
+                <div
+                  className={cn(
+                    "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
+                    condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <ViewDropdown />
+                      {trace && (
+                        <TraceStatsShields
+                          className="min-w-0 overflow-hidden"
+                          trace={trace}
+                          spans={filteredSpansForStats}
+                        />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        disabled={!trace}
+                        className={cn("h-6 px-1.5 text-xs", {
+                          "border-primary text-primary": browserSession,
+                        })}
+                        variant="outline"
+                        onClick={() => setBrowserSession(!browserSession)}
+                      >
+                        <CirclePlay size={14} className="mr-1" />
+                        Media
+                      </Button>
+                      {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
+                    </div>
+                  </div>
+                </div>
                 {tab === "reader" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
                     <List traceId={traceId} onSpanSelect={handleSpanSelect} />
-                    <Minimap onSpanSelect={handleSpanSelect} />
                   </div>
                 )}
                 {tab === "tree" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
                     <Tree traceId={traceId} onSpanSelect={handleSpanSelect} />
-                    <Minimap onSpanSelect={handleSpanSelect} />
                   </div>
                 )}
               </ResizablePanel>
               {browserSession && (
                 <>
-                  <ResizableHandle className="z-50" withHandle />
+                  <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
                   <ResizablePanel>
                     {!isLoading && (
                       <SessionPlayer
@@ -526,7 +481,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
             onMouseDown={handleResizeTreeView}
           >
-            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
+            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
           </div>
         </div>
         <div className="grow overflow-hidden flex-wrap h-full w-full">
@@ -560,7 +515,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
 export default function TraceView(props: TraceViewProps) {
   return (
-    <TraceViewStoreProvider initialSearch={props.initialSearch} initialTrace={props.propsTrace}>
+    <TraceViewStoreProvider initialTrace={props.propsTrace}>
       <PureTraceView {...props} />
     </TraceViewStoreProvider>
   );

@@ -1,4 +1,4 @@
-import { has } from "lodash";
+import { clamp, has } from "lodash";
 import { createContext, type PropsWithChildren, useContext, useRef } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
@@ -6,12 +6,9 @@ import { persist } from "zustand/middleware";
 import {
   buildSpanNameMap,
   computePathInfoMap,
+  type CondensedTimelineData,
   groupIntoSections,
-  type MinimapSpan,
-  type TimelineData,
-  transformSpansToFlatMinimap,
-  transformSpansToMinimap,
-  transformSpansToTimeline,
+  transformSpansToCondensedTimeline,
   transformSpansToTree,
   type TreeSpan,
 } from "@/components/traces/trace-view/trace-view-store-utils.ts";
@@ -19,10 +16,10 @@ import { type Event } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { type SpanType } from "@/lib/traces/types";
 
-export const MAX_ZOOM = 5;
+export const MAX_ZOOM = 18;
 export const MIN_ZOOM = 1;
-const ZOOM_INCREMENT = 0.5;
-export const MIN_TREE_VIEW_WIDTH = 450;
+export const ZOOM_INCREMENT = 0.5;
+export const MIN_TREE_VIEW_WIDTH = 500;
 
 export type TraceViewSpan = {
   spanId: string;
@@ -98,19 +95,20 @@ interface TraceViewStoreState {
   spanPath: string[] | null;
   isSpansLoading: boolean;
   spansError?: string;
-  searchEnabled: boolean;
   selectedSpan?: TraceViewSpan;
   browserSession: boolean;
   langGraph: boolean;
   sessionTime?: number;
-  tab: "tree" | "timeline" | "chat" | "metadata" | "reader";
-  search: string;
-  zoom: number;
+  tab: "tree" | "reader";
   treeWidth: number;
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
   spanPathCounts: Map<string, number>; // Track count per span path for rollout sessions
   showTreeContent: boolean;
+  // Condensed timeline state
+  condensedTimelineEnabled: boolean;
+  condensedTimelineVisibleSpanIds: Set<string>; // selected + ancestors (pre-computed)
+  condensedTimelineZoom: number;
 }
 
 interface TraceViewStoreActions {
@@ -123,14 +121,11 @@ interface TraceViewStoreActions {
   setSelectedSpan: (span?: TraceViewSpan) => void;
   selectSpanById: (spanId: string) => void;
   setSpanPath: (spanPath: string[]) => void;
-  setSearchEnabled: (searchEnabled: boolean) => void;
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
   setSessionTime: (time?: number) => void;
   setTab: (tab: TraceViewStoreState["tab"]) => void;
-  setSearch: (search: string) => void;
   setTreeWidth: (width: number) => void;
-  setZoom: (type: "in" | "out") => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
   toggleCollapse: (spanId: string) => void;
   updateTraceVisibility: (visibility: "private" | "public") => void;
@@ -138,12 +133,16 @@ interface TraceViewStoreActions {
   deleteSpanTemplate: (spanPathKey: string) => void;
   setShowTreeContent: (show: boolean) => void;
 
+  // Condensed timeline actions
+  setCondensedTimelineEnabled: (enabled: boolean) => void;
+  setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => void;
+  clearCondensedTimelineSelection: () => void;
+  setCondensedTimelineZoom: (zoom: number) => void;
+
   incrementSessionTime: (increment: number, maxTime: number) => boolean;
   // Selectors
   getTreeSpans: () => TreeSpan[];
-  getTimelineData: () => TimelineData;
-  getMinimapSpans: () => MinimapSpan[];
-  getListMinimapSpans: () => MinimapSpan[];
+  getCondensedTimelineData: () => CondensedTimelineData;
   getListData: () => TraceViewListSpan[];
   getSpanNameInfo: (spanId: string) => { name: string; count?: number } | undefined;
   getHasLangGraph: () => boolean;
@@ -156,7 +155,7 @@ interface TraceViewStoreActions {
 
 type TraceViewStore = TraceViewStoreState & TraceViewStoreActions;
 
-const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTrace, storeKey?: string) =>
+const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) =>
   createStore<TraceViewStore>()(
     persist(
       (set, get) => ({
@@ -170,9 +169,6 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         browserSession: initialTrace?.hasBrowserSession || false,
         sessionTime: undefined,
         tab: "tree",
-        search: initialSearch || "",
-        searchEnabled: !!initialSearch,
-        zoom: 1,
         treeWidth: MIN_TREE_VIEW_WIDTH,
         langGraph: false,
         spanPath: null,
@@ -180,6 +176,9 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         spanTemplates: {},
         spanPathCounts: new Map(),
         showTreeContent: true,
+        condensedTimelineEnabled: true,
+        condensedTimelineVisibleSpanIds: new Set(),
+        condensedTimelineZoom: 1,
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         setTrace: (trace) => {
@@ -210,36 +209,29 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
             set({ spans: spans.map((s) => ({ ...s, collapsed: false })) });
           }
         },
-        setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
         getTreeSpans: () => {
-          const spans = get().spans;
-          const pathInfoMap = computePathInfoMap(spans);
-          return transformSpansToTree(spans, pathInfoMap);
+          const { spans, condensedTimelineVisibleSpanIds } = get();
+
+          // If no selection, show all spans
+          const filteredSpans =
+            condensedTimelineVisibleSpanIds.size === 0
+              ? spans
+              : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+
+          const pathInfoMap = computePathInfoMap(filteredSpans);
+          return transformSpansToTree(filteredSpans, pathInfoMap);
         },
-        getMinimapSpans: () => {
-          const trace = get().trace;
-          if (trace) {
-            const startTime = new Date(trace.startTime).getTime();
-            const endTime = new Date(trace.endTime).getTime();
-            return transformSpansToMinimap(get().spans, endTime - startTime);
-          }
-          return [];
-        },
-        getListMinimapSpans: () => {
-          const trace = get().trace;
-          const spans = get().spans;
-          if (trace) {
-            const startTime = new Date(trace.startTime).getTime();
-            const endTime = new Date(trace.endTime).getTime();
-            const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
-            return transformSpansToFlatMinimap(listSpans, endTime - startTime);
-          }
-          return [];
-        },
-        getTimelineData: () => transformSpansToTimeline(get().spans),
         getListData: () => {
-          const spans = get().spans;
-          const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
+          const { spans, condensedTimelineVisibleSpanIds } = get();
+
+          // First filter by condensed timeline selection if active
+          const selectionFilteredSpans =
+            condensedTimelineVisibleSpanIds.size === 0
+              ? spans
+              : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+
+          // Then apply existing DEFAULT filter (removes ancestor clutter)
+          const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
           const pathInfoMap = computePathInfoMap(spans);
 
           const lightweightListSpans: TraceViewListSpan[] = listSpans.map((span) => ({
@@ -264,6 +256,23 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
         selectSpanById: (spanId: string) => {
           const span = get().spans.find((s) => s.spanId === spanId);
           if (span && !span.pending) {
+            // Expand collapsed ancestors first
+            const spanMap = new Map(get().spans.map((s) => [s.spanId, s]));
+            const ancestorIds = new Set<string>();
+            let currentId = span.parentSpanId;
+            while (currentId) {
+              ancestorIds.add(currentId);
+              const parent = spanMap.get(currentId);
+              currentId = parent?.parentSpanId;
+            }
+
+            // Expand any collapsed ancestors
+            if (ancestorIds.size > 0) {
+              get().setSpans((prevSpans) =>
+                prevSpans.map((s) => (ancestorIds.has(s.spanId) && s.collapsed ? { ...s, collapsed: false } : s))
+              );
+            }
+
             set({ selectedSpan: span });
             const spanPath = span.attributes?.["lmnr.span.path"];
             if (spanPath && Array.isArray(spanPath)) {
@@ -282,7 +291,6 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
           set({ sessionTime: newTime });
           return newTime >= maxTime;
         },
-        setSearch: (search) => set({ search }),
         setTreeWidth: (treeWidth) => set({ treeWidth }),
         saveSpanTemplate: (spanPathKey: string, template: string) => {
           set((state) => ({
@@ -297,13 +305,13 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
           });
         },
         setShowTreeContent: (showTreeContent: boolean) => set({ showTreeContent }),
-        setZoom: (type) => {
-          const zoom =
-            type === "in"
-              ? Math.min(get().zoom + ZOOM_INCREMENT, MAX_ZOOM)
-              : Math.max(get().zoom - ZOOM_INCREMENT, MIN_ZOOM);
-          set({ zoom });
+        setCondensedTimelineEnabled: (enabled: boolean) => set({ condensedTimelineEnabled: enabled }),
+        setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => set({ condensedTimelineVisibleSpanIds: ids }),
+        clearCondensedTimelineSelection: () => set({ condensedTimelineVisibleSpanIds: new Set() }),
+        setCondensedTimelineZoom: (zoom) => {
+          set({ condensedTimelineZoom: clamp(zoom, MIN_ZOOM, MAX_ZOOM) });
         },
+        getCondensedTimelineData: () => transformSpansToCondensedTimeline(get().spans),
         setBrowserSession: (browserSession: boolean) => set({ browserSession }),
         toggleCollapse: (spanId: string) => {
           get().setSpans((spans) =>
@@ -402,13 +410,31 @@ const createTraceViewStore = (initialSearch?: string, initialTrace?: TraceViewTr
       }),
       {
         name: storeKey ?? "trace-view-state",
-        partialize: (state) => ({
-          treeWidth: state.treeWidth,
-          spanPath: state.spanPath,
-          spanTemplates: state.spanTemplates,
-          tab: state.tab,
-          showTreeContent: state.showTreeContent,
-        }),
+        partialize: (state) => {
+          const persistentTabs = ["tree", "reader"] as const;
+          const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
+
+          return {
+            treeWidth: state.treeWidth,
+            spanPath: state.spanPath,
+            spanTemplates: state.spanTemplates,
+            ...(tabToPersist && { tab: tabToPersist }),
+            showTreeContent: state.showTreeContent,
+            condensedTimelineEnabled: state.condensedTimelineEnabled,
+          };
+        },
+        merge: (persistedState, currentState) => {
+          const persisted = persistedState as Partial<TraceViewStoreState>;
+          // Fix issue with old invalid tabs being in local storage
+          const validTabs = ["tree", "reader"] as const;
+          const tab = persisted.tab && validTabs.includes(persisted.tab as any) ? persisted.tab : currentState.tab;
+
+          return {
+            ...currentState,
+            ...persisted,
+            tab,
+          };
+        },
       }
     )
   );
@@ -417,14 +443,13 @@ const TraceViewStoreContext = createContext<StoreApi<TraceViewStore> | undefined
 
 const TraceViewStoreProvider = ({
   children,
-  initialSearch,
   initialTrace,
   storeKey,
-}: PropsWithChildren<{ initialSearch?: string; initialTrace?: TraceViewTrace; storeKey?: string }>) => {
+}: PropsWithChildren<{ initialTrace?: TraceViewTrace; storeKey?: string }>) => {
   const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
 
   if (!storeRef.current) {
-    storeRef.current = createTraceViewStore(initialSearch, initialTrace, storeKey);
+    storeRef.current = createTraceViewStore(initialTrace, storeKey);
   }
 
   return <TraceViewStoreContext.Provider value={storeRef.current}>{children}</TraceViewStoreContext.Provider>;

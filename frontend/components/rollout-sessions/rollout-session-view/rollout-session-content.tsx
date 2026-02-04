@@ -1,23 +1,18 @@
 "use client";
 
 import { get, isEmpty } from "lodash";
-import { AlertTriangle, FileText, ListFilter, Minus, Plus, Radio, Search } from "lucide-react";
+import { AlertTriangle, CirclePlay, Radio } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useLayoutEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 
+import CondensedTimeline from "@/components/rollout-sessions/rollout-session-view/condensed-timeline";
 import Header from "@/components/rollout-sessions/rollout-session-view/header";
 import List from "@/components/rollout-sessions/rollout-session-view/list";
-import Minimap from "@/components/rollout-sessions/rollout-session-view/minimap.tsx";
-import {
-  MAX_ZOOM,
-  MIN_ZOOM,
-  useRolloutSessionStoreContext,
-} from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
-import SearchRolloutSessionSpansInput from "@/components/rollout-sessions/rollout-session-view/search";
+import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import { TraceStatsShields } from "@/components/traces/stats-shields";
 import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/session-player";
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import { SessionTerminatedOverlay } from "@/components/rollout-sessions/rollout-session-view/terminated-overlay.tsx";
-import Timeline from "@/components/rollout-sessions/rollout-session-view/timeline";
 import Tree from "@/components/rollout-sessions/rollout-session-view/tree/index";
 import {
   onRealtimeStartSpan,
@@ -27,19 +22,16 @@ import ViewDropdown from "@/components/rollout-sessions/rollout-session-view/vie
 import { SpanView } from "@/components/traces/span-view";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
-import Metadata from "@/components/traces/trace-view/metadata";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { enrichSpansWithPending, filterColumns } from "@/components/traces/trace-view/utils";
-import { Button } from "@/components/ui/button.tsx";
-import { StatefulFilter, StatefulFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { useFiltersContextProvider } from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
+import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
-import { cn } from "@/lib/utils.ts";
+import { cn } from "@/lib/utils";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 
@@ -73,20 +65,15 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     rebuildSpanPathCounts,
     // UI state
     tab,
-    setTab,
-    search,
-    setSearch,
-    searchEnabled,
-    setSearchEnabled,
     browserSession,
     setBrowserSession,
-    zoom,
-    setZoom,
     langGraph,
     getHasLangGraph,
     hasBrowserSession,
     setHasBrowserSession,
     setSpanPath,
+    condensedTimelineEnabled,
+    condensedTimelineVisibleSpanIds,
     // Rollout state
     setSystemMessagesMap,
     setIsSystemMessagesLoading,
@@ -113,13 +100,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     rebuildSpanPathCounts: state.rebuildSpanPathCounts,
     // UI state
     tab: state.tab,
-    setTab: state.setTab,
-    search: state.search,
-    setSearch: state.setSearch,
-    searchEnabled: state.searchEnabled,
-    setSearchEnabled: state.setSearchEnabled,
-    zoom: state.zoom,
-    setZoom: state.setZoom,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
     langGraph: state.langGraph,
@@ -127,6 +107,8 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     hasBrowserSession: state.hasBrowserSession,
     setHasBrowserSession: state.setHasBrowserSession,
     setSpanPath: state.setSpanPath,
+    condensedTimelineEnabled: state.condensedTimelineEnabled,
+    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
     // Rollout state
     setSystemMessagesMap: state.setSystemMessagesMap,
     setIsSystemMessagesLoading: state.setIsSystemMessagesLoading,
@@ -136,8 +118,11 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     setIsSessionDeleted: state.setIsSessionDeleted,
   }));
 
-  const { value: filters, onChange: setFilters } = useFiltersContextProvider();
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
+  const filteredSpansForStats = useMemo(() => {
+    if (condensedTimelineVisibleSpanIds.size === 0) return undefined;
+    return spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+  }, [spans, condensedTimelineVisibleSpanIds]);
   const llmSpanIds = useMemo(
     () =>
       spans
@@ -281,25 +266,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     ]
   );
 
-  const handleToggleSearch = useCallback(async () => {
-    if (searchEnabled) {
-      setSearchEnabled(false);
-      setSearch("");
-      if (search !== "") {
-        await fetchSpans("", filters);
-      }
-    } else {
-      setSearchEnabled(true);
-    }
-  }, [searchEnabled, setSearchEnabled, setSearch, search, fetchSpans, filters]);
-
-  const handleAddFilter = useCallback(
-    (filter: Filter) => {
-      setFilters((prevFilters) => [...prevFilters, filter]);
-    },
-    [setFilters]
-  );
-
   const isLoading = isTraceLoading && !trace;
 
   const eventHandlers = useMemo(
@@ -347,24 +313,16 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     handleFetchTrace();
   }, [handleFetchTrace]);
 
-  useLayoutEffect(() => {
-    const urlSearch = searchParams.get("search");
-    if (urlSearch) {
-      setSearch(urlSearch);
-      setSearchEnabled(true);
-    }
-  }, [searchParams, setSearch, setSearchEnabled]);
-
   useEffect(() => {
     if (!trace?.id) return;
-    fetchSpans(search, filters);
+    fetchSpans("", []);
 
     return () => {
       setSpans([]);
       setTraceError(undefined);
       setSpansError(undefined);
     };
-  }, [projectId, filters, setSpans, setTraceError, setSpansError]);
+  }, [projectId, setSpans, setTraceError, setSpansError]);
 
   const llmPathsRef = React.useRef<Array<{ key: string; path: string[] }>>([]);
   const llmPaths = useMemo(() => {
@@ -428,7 +386,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
   if (traceError) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <Header />
+        <Header spans={[]} onSearch={() => {}} />
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
           <div className="max-w-md mx-auto">
             <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
@@ -466,70 +424,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
       <div className="flex flex-col h-full w-full overflow-hidden">
         {isSessionDeleted && <SessionTerminatedOverlay />}
 
-        <Header />
-        <div className="flex flex-col gap-2 p-2 border-b box-border">
-          <div className="flex items-center gap-2 flex-nowrap w-full overflow-x-auto no-scrollbar">
-            <ViewDropdown />
-            <StatefulFilter columns={filterColumns}>
-              <Button variant="outline" className="h-6 text-xs">
-                <ListFilter size={14} className="mr-1" />
-                Filters
-              </Button>
-            </StatefulFilter>
-            <Button
-              onClick={handleToggleSearch}
-              variant="outline"
-              className={cn("h-6 text-xs px-1.5", {
-                "border-primary text-primary": search || searchEnabled,
-              })}
-            >
-              <Search size={14} className="mr-1" />
-              <span>Search</span>
-            </Button>
-            <Button
-              onClick={() => setTab("metadata")}
-              variant="outline"
-              className={cn("h-6 text-xs px-1.5", {
-                "border-primary text-primary": tab === "metadata",
-              })}
-            >
-              <FileText size={14} className="mr-1" />
-              <span>Metadata</span>
-            </Button>
-            {tab === "timeline" && (
-              <>
-                <Button
-                  disabled={zoom === MAX_ZOOM}
-                  className="size-6 min-w-6 ml-auto"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setZoom("in")}
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
-                <Button
-                  disabled={zoom === MIN_ZOOM}
-                  className="size-6 min-w-6"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setZoom("out")}
-                >
-                  <Minus className="w-4 h-4" />
-                </Button>
-              </>
-            )}
-          </div>
-          <StatefulFilterList className="py-[3px] text-xs px-1" />
-        </div>
-
-        {(search || searchEnabled) && (
-          <SearchRolloutSessionSpansInput
-            spans={spans}
-            submit={fetchSpans}
-            filters={filters}
-            onAddFilter={handleAddFilter}
-          />
-        )}
+        <Header spans={spans} onSearch={(filters, search) => fetchSpans(search, filters)} />
 
         {spansError ? (
           <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
@@ -539,19 +434,57 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
           </div>
         ) : (
           <ResizablePanelGroup id="rollout-session-view-panels" orientation="vertical">
+            {condensedTimelineEnabled && (
+              <>
+                <ResizablePanel defaultSize={120} minSize={80}>
+                  <div className="border-t h-full">
+                    <CondensedTimeline />
+                  </div>
+                </ResizablePanel>
+                <ResizableHandle />
+              </>
+            )}
             <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-              {tab === "metadata" && trace && <Metadata trace={trace} />}
-              {tab === "timeline" && <Timeline />}
+              <div
+                className={cn(
+                  "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
+                  condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
+                )}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <ViewDropdown />
+                    {trace && (
+                      <TraceStatsShields
+                        className="min-w-0 overflow-hidden"
+                        trace={trace}
+                        spans={filteredSpansForStats}
+                      />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      disabled={!trace}
+                      className={cn("h-6 px-1.5 text-xs", {
+                        "border-primary text-primary": browserSession,
+                      })}
+                      variant="outline"
+                      onClick={() => setBrowserSession(!browserSession)}
+                    >
+                      <CirclePlay size={14} className="mr-1" />
+                      Media
+                    </Button>
+                  </div>
+                </div>
+              </div>
               {tab === "reader" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
                   <List traceId={trace?.id} onSpanSelect={handleSpanSelect} />
-                  <Minimap onSpanSelect={handleSpanSelect} />
                 </div>
               )}
               {tab === "tree" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
                   <Tree traceId={trace?.id} onSpanSelect={handleSpanSelect} />
-                  <Minimap onSpanSelect={handleSpanSelect} />
                 </div>
               )}
             </ResizablePanel>

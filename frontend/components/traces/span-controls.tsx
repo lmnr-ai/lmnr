@@ -1,11 +1,9 @@
-import { get } from "lodash";
 import { ChevronDown, Copy, Database, Loader, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import React, { type PropsWithChildren, useCallback, useMemo } from "react";
+import { type PropsWithChildren, useCallback, useMemo } from "react";
 
 import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
-import RegisterEvaluatorPopover from "@/components/evaluators/register-evaluator-popover";
 import TagsContextProvider from "@/components/tags/tags-context";
 import TagsList from "@/components/tags/tags-list";
 import TagsTrigger from "@/components/tags/tags-trigger";
@@ -25,8 +23,11 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { type Span, SpanType } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
 
+import { ModelIndicator } from "./model-indicator";
 import SpanTypeIcon from "./span-type-icon";
 import SpanStatsShields from "./stats-shields";
+import { StructuredOutputSchema } from "./structured-output-schema";
+import { extractToolsFromAttributes, ToolList } from "./tool-list";
 
 interface SpanControlsProps {
   span: Span;
@@ -63,7 +64,7 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="h-6 px-1 text-xl font-medium focus-visible:outline-0 truncate text-left min-w-0"
+                className="h-6 px-1 text-base font-medium focus-visible:outline-0 truncate text-left min-w-0"
               >
                 <span className="truncate">{span.name}</span>
                 <ChevronDown className="ml-1 min-w-3.5 size-3.5" />
@@ -95,15 +96,22 @@ export function SpanControls({ children, span, events }: PropsWithChildren<SpanC
           )}
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">
-          <SpanStatsShields className="flex-wrap" span={span}>
-            <div className="text-xs font-mono space-x-2 rounded-md p-0.5 truncate px-2 border items-center">
+          <div className="flex items-center gap-2 flex-wrap">
+            <SpanStatsShields span={span} variant="outline" />
+            <div className="text-xs font-mono rounded-md py-0.5 truncate px-2 border border-muted">
               {new Date(span.startTime).toLocaleString()}
             </div>
-          </SpanStatsShields>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <ModelIndicator attributes={span.attributes} />
+            <ToolList tools={extractToolsFromAttributes(span.attributes)} />
+            <StructuredOutputSchema
+              schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
+            />
+          </div>
           <TagsContextProvider spanId={span.spanId}>
             <div className="flex gap-2 flex-wrap items-center">
               <TagsTrigger />
-              <RegisterEvaluatorPopover spanPath={get(span.attributes, "lmnr.span.path", [])} />
               <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} />
               <ExportSpansPopover span={span} />
             </div>

@@ -2,13 +2,8 @@ import { get, isArray } from "lodash";
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
-import { SpanType } from "@/lib/traces/types.ts";
 
 export const STATIC_SPAN_SUGGESTIONS: AutocompleteSuggestion[] = [
-  ...Object.values(SpanType).map((value) => ({
-    field: "span_type",
-    value,
-  })),
   { field: "status", value: "success" },
   { field: "status", value: "error" },
 ];

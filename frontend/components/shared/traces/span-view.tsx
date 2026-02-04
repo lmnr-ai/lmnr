@@ -3,10 +3,13 @@ import React, { useMemo } from "react";
 import useSWR from "swr";
 
 import ErrorCard from "@/components/traces/error-card";
+import { ModelIndicator } from "@/components/traces/model-indicator";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import SpanContent from "@/components/traces/span-view/span-content.tsx";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import SpanStatsShields from "@/components/traces/stats-shields";
+import { StructuredOutputSchema } from "@/components/traces/structured-output-schema";
+import { extractToolsFromAttributes, ToolList } from "@/components/traces/tool-list";
 import ContentRenderer from "@/components/ui/content-renderer";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,12 +64,22 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
               </div>
               <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
             </div>
-            <div className="flex flex-wrap py-1 gap-2">
-              <SpanStatsShields span={span}>
-                <div className="flex flex-row text-xs font-mono space-x-2 rounded-md p-0.5 px-2 border items-center">
+            <div className="flex flex-col gap-1.5 py-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <SpanStatsShields span={span} variant="outline"/>
+                <div className="text-xs font-mono rounded-md py-0.5 px-2 border border-muted">
                   {new Date(span.startTime).toLocaleString()}
                 </div>
-              </SpanStatsShields>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <ModelIndicator attributes={span.attributes} />
+                <ToolList tools={extractToolsFromAttributes(span.attributes)} />
+                <StructuredOutputSchema
+                  schema={
+                    span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]
+                  }
+                />
+              </div>
             </div>
             {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
           </div>

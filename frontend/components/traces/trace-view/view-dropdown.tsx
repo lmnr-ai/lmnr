@@ -1,4 +1,4 @@
-import { ChartNoAxesGantt, ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
 
 import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils.ts";
 
-type ViewTab = "tree" | "timeline" | "reader";
+type ViewTab = "tree" | "reader";
 
 const viewOptions: Record<
   ViewTab,
@@ -22,17 +22,13 @@ const viewOptions: Record<
     icon: ListTree,
     label: "Tree",
   },
-  timeline: {
-    icon: ChartNoAxesGantt,
-    label: "Timeline",
-  },
   reader: {
     icon: List,
     label: "Reader",
   },
 };
 
-const viewTabs: ViewTab[] = ["tree", "timeline", "reader"];
+const viewTabs: ViewTab[] = ["tree", "reader"];
 
 export default function ViewDropdown() {
   const { tab, setTab, showTreeContent, setShowTreeContent } = useTraceViewStoreContext((state) => ({
@@ -51,14 +47,13 @@ export default function ViewDropdown() {
   const contentVisible = showTreeContent ?? true;
 
   return (
-    <div className="flex items-center">
+    <div className="flex item-center">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             className={cn(
               "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0",
-              isValidTab ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary/50",
-              isTreeView && "rounded-r-none border-r-0 outline-1 outline-inset outline-primary -outline-offset-1"
+              isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1 hover:bg-secondary"
             )}
           >
             <CurrentIcon size={14} className="mr-1" />
@@ -71,7 +66,11 @@ export default function ViewDropdown() {
             const view = viewOptions[option];
             const OptionIcon = view.icon;
             return (
-              <DropdownMenuItem key={option} onClick={() => setTab(option)} className={cn(tab === option && "bg-accent")}>
+              <DropdownMenuItem
+                key={option}
+                onClick={() => setTab(option)}
+                className={cn(tab === option && "bg-accent")}
+              >
                 <OptionIcon size={14} />
                 {view.label}
               </DropdownMenuItem>
@@ -79,12 +78,13 @@ export default function ViewDropdown() {
           })}
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* Content toggle (only visible in tree view) */}
       {isTreeView && (
         <button
           onClick={() => setShowTreeContent(!contentVisible)}
           className={cn(
-            "flex items-center h-6 px-1.5 text-xs border border-l-0 rounded-md rounded-l-none bg-background",
-            contentVisible ? "border-primary text-primary hover:bg-primary/10" : "border-input hover:bg-secondary/50"
+            "flex items-center h-6 px-1.5 text-xs border rounded-md rounded-l-none text-muted-foreground",
+            contentVisible ? "text-white hover:bg-muted" : "border-input hover:bg-secondary/50"
           )}
         >
           {contentVisible ? <Eye size={14} className="mr-1" /> : <EyeOff size={14} className="mr-1" />}

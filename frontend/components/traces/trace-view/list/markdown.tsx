@@ -191,27 +191,27 @@ const Markdown = ({ output, defaultValue, className }: MarkdownProps) => {
               </h1>
             ),
             p: ({ children, className, ...props }) => (
-              <p {...props} className={cn(className, "text-sm")}>
+              <p {...props} className={cn(className, "text-[13px]")}>
                 {children}
               </p>
             ),
             li: ({ children, className, ...props }) => (
-              <li {...props} className={cn(className, "text-sm")}>
+              <li {...props} className={cn(className, "text-[13px]")}>
                 {children}
               </li>
             ),
             ul: ({ children, className, ...props }) => (
-              <ul {...props} className={cn(className, "text-sm list-disc pl-6")}>
+              <ul {...props} className={cn(className, "text-[13px] list-disc pl-6")}>
                 {children}
               </ul>
             ),
             ol: ({ children, className, ...props }) => (
-              <ol {...props} className={cn(className, "text-sm list-decimal pl-6")}>
+              <ol {...props} className={cn(className, "text-[13px] list-decimal pl-6")}>
                 {children}
               </ol>
             ),
             code: ({ children, className, ...props }) => (
-              <code {...props} className={cn(className, "text-sm font-mono whitespace-pre-wrap")}>
+              <code {...props} className={cn(className, "text-[13px] font-mono whitespace-pre-wrap")}>
                 {children}
               </code>
             ),

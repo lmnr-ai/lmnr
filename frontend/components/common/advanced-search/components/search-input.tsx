@@ -18,9 +18,15 @@ interface FilterSearchInputProps {
   placeholder?: string;
   className?: string;
   resource?: "traces" | "spans";
+  disableHotKey?: boolean;
 }
 
-const FilterSearchInput = ({ placeholder = "Search...", className, resource = "traces" }: FilterSearchInputProps) => {
+const FilterSearchInput = ({
+  placeholder = "Search...",
+  className,
+  resource = "traces",
+  disableHotKey,
+}: FilterSearchInputProps) => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -206,10 +212,14 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
     ]
   );
 
-  useHotkeys("meta+k", (keyboardEvent: KeyboardEvent) => {
-    keyboardEvent.preventDefault();
-    mainInputRef.current?.focus();
-  });
+  useHotkeys(
+    "meta+k",
+    (keyboardEvent: KeyboardEvent) => {
+      keyboardEvent.preventDefault();
+      mainInputRef.current?.focus();
+    },
+    { enabled: !disableHotKey }
+  );
 
   const handleContainerBlur = useCallback(
     (e: FocusEvent<HTMLDivElement>) => {
@@ -261,7 +271,6 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
           )}
         />
       </div>
-
       {hasContent && (
         <Button
           type="button"
@@ -273,9 +282,11 @@ const FilterSearchInput = ({ placeholder = "Search...", className, resource = "t
           <X className="size-4" />
         </Button>
       )}
-      <kbd className="text-secondary-foreground pointer-events-none inline-flex h-6 w-6 items-center justify-center rounded-sm px-1 font-sans text-xs font-medium select-none">
-        ⌘K
-      </kbd>
+      {!disableHotKey && (
+        <kbd className="text-secondary-foreground pointer-events-none inline-flex h-6 w-6 items-center justify-center rounded-sm px-1 font-sans text-xs font-medium select-none">
+          ⌘K
+        </kbd>
+      )}
       <FilterSuggestions />
     </div>
   );

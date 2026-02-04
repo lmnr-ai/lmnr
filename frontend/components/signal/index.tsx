@@ -15,10 +15,9 @@ import { type EventNavigationItem, getEventsConfig } from "@/components/signal/u
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet.tsx";
 import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
-import { filterColumns, getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
+import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/ui/header.tsx";
-import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
@@ -158,21 +157,19 @@ function SignalContent() {
               width: defaultTraceViewWidth,
             }}
           >
-            <FiltersContextProvider columns={filterColumns}>
-              <TraceView
-                spanId={spanId || undefined}
-                key={traceId}
-                onClose={() => {
-                  const params = new URLSearchParams(searchParams);
-                  params.delete("traceId");
-                  params.delete("spanId");
-                  push(`${pathName}?${params.toString()}`);
-                  setTraceId(null);
-                  setSpanId(null);
-                }}
-                traceId={traceId}
-              />
-            </FiltersContextProvider>
+            <TraceView
+              spanId={spanId || undefined}
+              key={traceId}
+              onClose={() => {
+                const params = new URLSearchParams(searchParams);
+                params.delete("traceId");
+                params.delete("spanId");
+                push(`${pathName}?${params.toString()}`);
+                setTraceId(null);
+                setSpanId(null);
+              }}
+              traceId={traceId}
+            />
           </Resizable>
         </div>
       )}

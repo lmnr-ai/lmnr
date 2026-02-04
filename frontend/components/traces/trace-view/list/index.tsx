@@ -24,18 +24,20 @@ interface ListProps {
 const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
-  const { getListData, spans, isSpansLoading, selectedSpan, trace } = useTraceViewStoreContext((state) => ({
-    getListData: state.getListData,
-    spans: state.spans,
-    isSpansLoading: state.isSpansLoading,
-    selectedSpan: state.selectedSpan,
-    trace: state.trace,
-  }));
+  const { getListData, spans, isSpansLoading, selectedSpan, trace, condensedTimelineVisibleSpanIds } =
+    useTraceViewStoreContext((state) => ({
+      getListData: state.getListData,
+      spans: state.spans,
+      isSpansLoading: state.isSpansLoading,
+      selectedSpan: state.selectedSpan,
+      trace: state.trace,
+      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+    }));
 
   const prevVisibleIdsRef = useRef<string>("");
   const [settingsSpan, setSettingsSpan] = useState<TraceViewListSpan | null>(null);
 
-  const listSpans = useMemo(() => getListData(), [getListData, spans]);
+  const listSpans = useMemo(() => getListData(), [getListData, spans, condensedTimelineVisibleSpanIds]);
 
   const virtualizer = useVirtualizer({
     count: listSpans.length,
@@ -52,7 +54,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
 
       if (selectedIndex !== -1) {
         virtualizer.scrollToIndex(selectedIndex, {
-          align: "center",
+          align: "start",
         });
       }
     };
@@ -60,8 +62,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
     const rafId = requestAnimationFrame(scrollToSelected);
 
     return () => cancelAnimationFrame(rafId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedSpan?.spanId, listSpans, virtualizer, isSpansLoading]);
 
   const items = virtualizer?.getVirtualItems() || [];
 
@@ -188,6 +189,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
               return (
                 <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
                   <ListItem
+                    isFirst={virtualRow.index === 0}
                     isLast={isLast}
                     span={listSpan}
                     output={outputs[listSpan.spanId]}
