@@ -14,10 +14,27 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";
 import { Operator } from "@/lib/actions/common/operators.ts";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
+
+const EmptyRow = (
+  <TableRow className="flex">
+    <TableCell className="text-center p-4 rounded-b w-full h-auto">
+      <div className="flex flex-1 justify-center">
+        <div className="flex flex-col gap-2 items-center max-w-md">
+          <h3 className="text-base font-medium text-secondary-foreground">No jobs yet</h3>
+          <p className="text-sm text-muted-foreground text-center">
+            Jobs allow you to run signals against historical traces in bulk. Create a job to analyze past traces and
+            extract insights from your data.
+          </p>
+        </div>
+      </div>
+    </TableCell>
+  </TableRow>
+);
 
 const JobsTableContent = () => {
   const { toast } = useToast();
@@ -89,6 +106,8 @@ const JobsTableContent = () => {
         isLoading={isLoading}
         fetchNextPage={() => {}}
         onRowClick={handleRowClick}
+        emptyRow={EmptyRow}
+        estimatedRowHeight={200}
       >
         <div className="flex flex-1 w-full space-x-2">
           <FilterPopover columns={signalJobsFilters} filters={jobsFilters} onAddFilter={handleAddFilter} />

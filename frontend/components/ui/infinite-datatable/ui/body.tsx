@@ -41,11 +41,12 @@ export function InfiniteDatatableBody<TData extends RowData>({
   const columns = table.getAllColumns().filter((col) => col.id !== "__row_selection");
   const totalSize = rowVirtualizer.getTotalSize();
   const buttonHeight = loadMoreButton && hasMore ? 36 : 0;
+  const isEmpty = rows.length === 0;
 
   return (
     <TableBody
       style={{
-        height: isLoading ? "auto" : `${(totalSize > 0 ? totalSize : 52) + buttonHeight}px`,
+        height: isLoading || isEmpty ? "auto" : `${(totalSize > 0 ? totalSize : 52) + buttonHeight}px`,
         position: "relative",
         display: "block",
       }}

@@ -3,7 +3,7 @@ import { createContext, type Dispatch, type PropsWithChildren, type SetStateActi
 import { createStore, useStore } from "zustand";
 
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet.tsx";
-import { type SignalClusterConfig } from "@/lib/actions/cluster-configs";
+import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { type Filter } from "@/lib/actions/common/filters.ts";
 import { type Signal } from "@/lib/actions/signals";
 import { type EventRow } from "@/lib/events/types";
@@ -22,7 +22,6 @@ export type SignalState = {
   stats?: EventsStatsDataPoint[];
   isLoadingStats: boolean;
   chartContainerWidth: number | null;
-  clusterConfig?: SignalClusterConfig;
   runsFilters: Filter[];
   jobsFilters: Filter[];
   triggersFilters: Filter[];
@@ -41,7 +40,6 @@ export type SignalActions = {
   setSignal: (eventDefinition?: SignalState["signal"]) => void;
   fetchStats: (url: string) => Promise<void>;
   setChartContainerWidth: (width: number) => void;
-  setClusterConfig: (config?: SignalClusterConfig) => void;
   setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
   setJobsFilters: Dispatch<SetStateAction<Filter[]>>;
   setTriggersFilters: Dispatch<SetStateAction<Filter[]>>;
@@ -51,7 +49,6 @@ export interface EventsProps {
   signal: Signal;
   traceId?: string | null;
   spanId?: string | null;
-  clusterConfig?: SignalClusterConfig;
   lastEvent?: {
     name: string;
     id: string;
@@ -77,17 +74,15 @@ export const createSignalStore = (initProps: EventsProps) =>
     stats: undefined,
     isLoadingStats: false,
     chartContainerWidth: null,
-    clusterConfig: initProps.clusterConfig,
     signal: {
       ...initProps.signal,
       prompt: initProps.signal.prompt,
-      structuredOutput: JSON.stringify(initProps.signal.structuredOutput, null, 2),
+      schemaFields: jsonSchemaToSchemaFields(initProps.signal.structuredOutput as Record<string, unknown>),
     },
     setSignal: (signal) => set({ signal }),
     setTraceId: (traceId) => set({ traceId }),
     setSpanId: (spanId) => set({ spanId }),
     setChartContainerWidth: (width: number) => set({ chartContainerWidth: width }),
-    setClusterConfig: (clusterConfig) => set({ clusterConfig }),
     setRunsFilters: (filters) =>
       set((state) => ({
         runsFilters: typeof filters === "function" ? filters(state.runsFilters) : filters,

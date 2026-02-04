@@ -20,7 +20,7 @@ export const columns: ColumnDef<Evaluator>[] = [
     id: "createdAt",
     accessorKey: "createdAt",
     header: "Created",
-    cell: ({ row }) => <ClientTimestampFormatter timestamp={row.getValue("createdAt")} />,
+    cell: ({ row }) => <ClientTimestampFormatter absolute timestamp={row.getValue("createdAt")} />,
   },
 ];
 

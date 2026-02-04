@@ -13,7 +13,6 @@ export type EventRow = {
   id: string;
   signalId: string;
   traceId: string;
-  runId: string;
   name: string;
   payload: string;
   timestamp: string;

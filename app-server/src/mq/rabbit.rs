@@ -80,6 +80,7 @@ pub struct RabbitMQReceiver {
 pub struct RabbitMQDelivery {
     acker: Acker,
     data: Vec<u8>,
+    delivery_tag: u64,
 }
 
 impl MessageQueueDeliveryTrait for RabbitMQDelivery {
@@ -89,6 +90,10 @@ impl MessageQueueDeliveryTrait for RabbitMQDelivery {
 
     fn data(self) -> Vec<u8> {
         self.data
+    }
+
+    fn delivery_tag(&self) -> u64 {
+        self.delivery_tag
     }
 }
 
@@ -104,6 +109,7 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
             Some(Ok(MessageQueueDelivery::Rabbit(RabbitMQDelivery {
                 acker: delivery.acker,
                 data: delivery.data,
+                delivery_tag: delivery.delivery_tag,
             })))
         } else {
             None

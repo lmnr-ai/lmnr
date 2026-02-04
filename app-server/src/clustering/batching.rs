@@ -4,24 +4,24 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
-use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult};
+use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult, MessageDelivery};
 use crate::mq::MessageQueue;
 use crate::worker::HandlerError;
 
 use super::ClusteringMessage;
 use super::queue::push_to_clustering_batch_queue;
 
-/// A batch of clustering messages with metadata for interval-based flushing
+/// A batch of clustering message deliveries with metadata for interval-based flushing
 #[derive(Clone)]
 pub struct ClusteringBatch {
-    pub messages: Vec<ClusteringMessage>,
+    pub deliveries: Vec<MessageDelivery<ClusteringMessage>>,
     pub last_flush: Instant,
 }
 
 impl ClusteringBatch {
     pub fn new() -> Self {
         Self {
-            messages: Vec::new(),
+            deliveries: Vec::new(),
             last_flush: Instant::now(),
         }
     }
@@ -46,10 +46,16 @@ impl ClusteringEventBatchingHandler {
     async fn flush_batch(
         &self,
         batch: ClusteringBatch,
-    ) -> Result<Vec<ClusteringMessage>, (Vec<ClusteringMessage>, HandlerError)> {
-        match push_to_clustering_batch_queue(batch.messages.clone(), self.queue.clone()).await {
-            Ok(()) => Ok(batch.messages),
-            Err(e) => Err((batch.messages, HandlerError::transient(e))),
+    ) -> Result<
+        Vec<MessageDelivery<ClusteringMessage>>,
+        (Vec<MessageDelivery<ClusteringMessage>>, HandlerError),
+    > {
+        // Extract messages for pushing to queue
+        let messages: Vec<ClusteringMessage> =
+            batch.deliveries.iter().map(|d| d.message.clone()).collect();
+        match push_to_clustering_batch_queue(messages, self.queue.clone()).await {
+            Ok(()) => Ok(batch.deliveries),
+            Err(e) => Err((batch.deliveries, HandlerError::transient(e))),
         }
     }
 }
@@ -58,7 +64,7 @@ impl ClusteringEventBatchingHandler {
 impl BatchMessageHandler for ClusteringEventBatchingHandler {
     type Message = ClusteringMessage;
 
-    /// State is a map of project_id and signal_id to a batch of clustering messages
+    /// State is a map of project_id and signal_id to a batch of clustering deliveries
     type State = HashMap<(Uuid, Uuid), ClusteringBatch>;
 
     /// Interval is half of the flush interval to ensure batches are checked frequently enough.
@@ -70,34 +76,37 @@ impl BatchMessageHandler for ClusteringEventBatchingHandler {
         HashMap::new()
     }
 
-    /// Add message to batch and flush if batch size is reached
+    /// Add delivery to batch and flush if batch size is reached
     async fn handle_message(
         &self,
-        message: Self::Message,
+        delivery: MessageDelivery<Self::Message>,
         state: &mut Self::State,
     ) -> HandlerResult<Self::Message> {
-        let key = (message.project_id, message.signal_event.signal_id);
+        let key = (
+            delivery.message.project_id,
+            delivery.message.signal_event.signal_id,
+        );
 
-        // Add message to batch
+        // Add delivery to batch
         state
             .entry(key)
             .or_insert_with(ClusteringBatch::new)
-            .messages
-            .push(message);
+            .deliveries
+            .push(delivery);
 
-        let batch_len = state.get(&key).map(|b| b.messages.len()).unwrap_or(0);
+        let batch_len = state.get(&key).map(|b| b.deliveries.len()).unwrap_or(0);
         log::debug!("Batch key={:?}, len={}", key, batch_len);
 
         // Flush if batch size reached
         if batch_len >= self.config.size {
             if let Some(batch) = state.remove(&key) {
                 return match self.flush_batch(batch).await {
-                    Ok(messages) => HandlerResult::ack(messages),
-                    Err((messages, error)) => {
+                    Ok(deliveries) => HandlerResult::ack(deliveries),
+                    Err((deliveries, error)) => {
                         if error.should_requeue() {
-                            HandlerResult::requeue(messages)
+                            HandlerResult::requeue(deliveries)
                         } else {
-                            HandlerResult::reject(messages)
+                            HandlerResult::reject(deliveries)
                         }
                     }
                 };
@@ -118,7 +127,7 @@ impl BatchMessageHandler for ClusteringEventBatchingHandler {
         let stale_keys: Vec<_> = state
             .iter()
             .filter(|(_, batch)| {
-                !batch.messages.is_empty()
+                !batch.deliveries.is_empty()
                     && now.duration_since(batch.last_flush) >= self.config.flush_interval
             })
             .map(|(key, _)| *key)
@@ -128,17 +137,17 @@ impl BatchMessageHandler for ClusteringEventBatchingHandler {
         for key in stale_keys {
             if let Some(batch) = state.remove(&key) {
                 log::debug!(
-                    "Flushing stale batch: {} messages, age={:?}",
-                    batch.messages.len(),
+                    "Flushing stale batch: {} deliveries, age={:?}",
+                    batch.deliveries.len(),
                     now.duration_since(batch.last_flush)
                 );
                 match self.flush_batch(batch).await {
-                    Ok(messages) => to_ack.extend(messages),
-                    Err((messages, error)) => {
+                    Ok(deliveries) => to_ack.extend(deliveries),
+                    Err((deliveries, error)) => {
                         if error.should_requeue() {
-                            to_requeue.extend(messages);
+                            to_requeue.extend(deliveries);
                         } else {
-                            to_reject.extend(messages);
+                            to_reject.extend(deliveries);
                         }
                     }
                 }
@@ -162,8 +171,11 @@ mod tests {
     };
     use crate::mq::tokio_mpsc::TokioMpscQueue;
     use crate::mq::{MessageQueue, MessageQueueTrait};
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::Duration;
     use uuid::Uuid;
+
+    static DELIVERY_TAG_COUNTER: AtomicU64 = AtomicU64::new(1);
 
     fn create_test_message(project_id: Uuid, signal_id: Uuid) -> ClusteringMessage {
         ClusteringMessage {
@@ -181,6 +193,14 @@ mod tests {
             },
             value_template: "test".to_string(),
         }
+    }
+
+    fn create_test_delivery(
+        project_id: Uuid,
+        signal_id: Uuid,
+    ) -> MessageDelivery<ClusteringMessage> {
+        let tag = DELIVERY_TAG_COUNTER.fetch_add(1, Ordering::Relaxed);
+        MessageDelivery::new(create_test_message(project_id, signal_id), tag)
     }
 
     fn create_test_queue() -> Arc<MessageQueue> {
@@ -213,13 +233,13 @@ mod tests {
 
         let project_id = Uuid::new_v4();
         let signal_id = Uuid::new_v4();
-        let message = create_test_message(project_id, signal_id);
+        let delivery = create_test_delivery(project_id, signal_id);
 
-        handler.handle_message(message, &mut state).await;
+        handler.handle_message(delivery, &mut state).await;
 
         let key = (project_id, signal_id);
         assert!(state.contains_key(&key));
-        assert_eq!(state.get(&key).unwrap().messages.len(), 1);
+        assert_eq!(state.get(&key).unwrap().deliveries.len(), 1);
     }
 
     #[tokio::test]
@@ -233,24 +253,24 @@ mod tests {
         let signal1 = Uuid::new_v4();
         let signal2 = Uuid::new_v4();
 
-        // Add messages to different batches
+        // Add deliveries to different batches
         handler
-            .handle_message(create_test_message(project1, signal1), &mut state)
+            .handle_message(create_test_delivery(project1, signal1), &mut state)
             .await;
         handler
-            .handle_message(create_test_message(project1, signal1), &mut state)
+            .handle_message(create_test_delivery(project1, signal1), &mut state)
             .await;
         handler
-            .handle_message(create_test_message(project1, signal2), &mut state)
+            .handle_message(create_test_delivery(project1, signal2), &mut state)
             .await;
         handler
-            .handle_message(create_test_message(project2, signal1), &mut state)
+            .handle_message(create_test_delivery(project2, signal1), &mut state)
             .await;
 
         assert_eq!(state.len(), 3); // 3 different batches
-        assert_eq!(state.get(&(project1, signal1)).unwrap().messages.len(), 2);
-        assert_eq!(state.get(&(project1, signal2)).unwrap().messages.len(), 1);
-        assert_eq!(state.get(&(project2, signal1)).unwrap().messages.len(), 1);
+        assert_eq!(state.get(&(project1, signal1)).unwrap().deliveries.len(), 2);
+        assert_eq!(state.get(&(project1, signal2)).unwrap().deliveries.len(), 1);
+        assert_eq!(state.get(&(project2, signal1)).unwrap().deliveries.len(), 1);
     }
 
     #[tokio::test]
@@ -262,10 +282,10 @@ mod tests {
         let project_id = Uuid::new_v4();
         let signal_id = Uuid::new_v4();
 
-        // Add 3 messages (should trigger flush on third)
+        // Add 3 deliveries (should trigger flush on third)
         for _ in 0..3 {
-            let msg = create_test_message(project_id, signal_id);
-            handler.handle_message(msg, &mut state).await;
+            let delivery = create_test_delivery(project_id, signal_id);
+            handler.handle_message(delivery, &mut state).await;
         }
 
         // Batch should be removed from state after flush
@@ -291,14 +311,14 @@ mod tests {
         let project_id = Uuid::new_v4();
         let signal_id = Uuid::new_v4();
 
-        // First message - no flush yet
-        let msg1 = create_test_message(project_id, signal_id);
-        let result1 = handler.handle_message(msg1, &mut state).await;
+        // First delivery - no flush yet
+        let delivery1 = create_test_delivery(project_id, signal_id);
+        let result1 = handler.handle_message(delivery1, &mut state).await;
         assert!(result1.to_ack.is_empty());
 
-        // Second message - triggers flush
-        let msg2 = create_test_message(project_id, signal_id);
-        let result2 = handler.handle_message(msg2, &mut state).await;
+        // Second delivery - triggers flush
+        let delivery2 = create_test_delivery(project_id, signal_id);
+        let result2 = handler.handle_message(delivery2, &mut state).await;
 
         assert_eq!(result2.to_ack.len(), 2);
         assert!(result2.to_reject.is_empty());
@@ -313,9 +333,9 @@ mod tests {
 
         let project_id = Uuid::new_v4();
         let signal_id = Uuid::new_v4();
-        let msg = create_test_message(project_id, signal_id);
+        let delivery = create_test_delivery(project_id, signal_id);
 
-        let result = handler.handle_message(msg, &mut state).await;
+        let result = handler.handle_message(delivery, &mut state).await;
 
         assert!(result.to_ack.is_empty());
         assert!(result.to_reject.is_empty());
@@ -345,9 +365,9 @@ mod tests {
 
         let project_id = Uuid::new_v4();
         let signal_id = Uuid::new_v4();
-        let msg = create_test_message(project_id, signal_id);
+        let delivery = create_test_delivery(project_id, signal_id);
 
-        handler.handle_message(msg, &mut state).await;
+        handler.handle_message(delivery, &mut state).await;
 
         // Wait for batch to become stale
         tokio::time::sleep(Duration::from_millis(20)).await;
@@ -372,9 +392,9 @@ mod tests {
 
         let project_id = Uuid::new_v4();
         let signal_id = Uuid::new_v4();
-        let msg = create_test_message(project_id, signal_id);
+        let delivery = create_test_delivery(project_id, signal_id);
 
-        handler.handle_message(msg, &mut state).await;
+        handler.handle_message(delivery, &mut state).await;
 
         let result = handler.handle_interval(&mut state).await;
 
@@ -389,15 +409,15 @@ mod tests {
         let handler = create_handler(queue, 2);
 
         let batch = ClusteringBatch {
-            messages: vec![create_test_message(Uuid::new_v4(), Uuid::new_v4())],
+            deliveries: vec![create_test_delivery(Uuid::new_v4(), Uuid::new_v4())],
             last_flush: Instant::now(),
         };
 
         let result = handler.flush_batch(batch).await;
 
         assert!(result.is_err());
-        let (messages, error) = result.unwrap_err();
-        assert_eq!(messages.len(), 1);
+        let (deliveries, error) = result.unwrap_err();
+        assert_eq!(deliveries.len(), 1);
         assert!(error.should_requeue()); // transient error
     }
 }

@@ -1,4 +1,4 @@
-import { differenceInHours, differenceInMinutes } from "date-fns";
+import { differenceInHours, differenceInMinutes, subHours } from "date-fns";
 
 export type DateRange = {
   name: string;
@@ -24,4 +24,29 @@ export const getTimeDifference = (from: Date, to: Date): string => {
   if (days > 0) return `${days}d`;
   if (hours > 0) return `${hours}h`;
   return `${minutes}m`;
+};
+
+export const getDisplayRange = ({
+  startDate,
+  endDate,
+  pastHours,
+}: {
+  pastHours?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+}) => {
+  if (startDate && endDate) {
+    return { from: new Date(startDate), to: new Date(endDate) };
+  }
+  if (pastHours) {
+    const parsedHours = parseInt(pastHours);
+    if (!isNaN(parsedHours)) {
+      const to = new Date();
+      const from = subHours(to, parsedHours);
+      return { from, to };
+    }
+  }
+  const to = new Date();
+  const from = subHours(to, 24);
+  return { from, to };
 };

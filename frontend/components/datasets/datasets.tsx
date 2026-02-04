@@ -43,7 +43,7 @@ const columns: ColumnDef<DatasetInfo>[] = [
   {
     header: "Created",
     accessorKey: "createdAt",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
     id: "createdAt",
   },
 ];

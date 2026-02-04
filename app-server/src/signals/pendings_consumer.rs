@@ -737,7 +737,7 @@ async fn handle_create_event(
         run.run_id
     );
 
-    // Process notifications and clustering
+    // Process notifications
     process_event_notifications_and_clustering(
         db,
         queue.clone(),

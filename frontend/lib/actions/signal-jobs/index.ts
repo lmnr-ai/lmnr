@@ -50,7 +50,7 @@ export async function getSignalJobs(input: z.infer<typeof GetSignalJobsSchema>) 
   };
 }
 
-export const CreateSignalJobs = z.object({
+export const CreateSignalJob = z.object({
   projectId: z.string(),
   signalId: z.string(),
   search: z.string().nullable().optional(),
@@ -75,8 +75,8 @@ const getTraceSelection = (
   return { traceIds: undefined, limit: undefined };
 };
 
-export async function createTraceAnalysisJob(
-  input: z.infer<typeof CreateSignalJobs>
+export async function createSignalJob(
+  input: z.infer<typeof CreateSignalJob>
 ): Promise<{ success: boolean; message: string }> {
   const {
     projectId,
@@ -87,7 +87,7 @@ export async function createTraceAnalysisJob(
     startDate,
     endDate,
     traceIds: selectedTraceIds,
-  } = CreateSignalJobs.parse(input);
+  } = CreateSignalJob.parse(input);
 
   const filters: Filter[] = compact(inputFilters);
 
