@@ -138,7 +138,7 @@ function CondensedTimeline() {
                   <PlayIcon className="w-3 h-3" />
                 </div>
               </div>
-              <div className="absolute top-[6px] bottom-0 w-px bg-landing-text-500" />
+              <div className="absolute top-[6px] bottom-[-60px] w-px bg-landing-text-500" />
             </div>
           )}
 
@@ -146,7 +146,7 @@ function CondensedTimeline() {
           {timeMarkers.map((marker, index) => (
             <div
               key={`marker-${index}`}
-              className="absolute top-0 bottom-0 w-px pointer-events-none bg-muted"
+              className="absolute top-0 bottom-[-60px] w-px pointer-events-none bg-muted"
               style={{ left: `${marker.positionPercent}%` }}
             />
           ))}

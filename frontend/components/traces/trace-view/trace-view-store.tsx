@@ -105,7 +105,6 @@ interface TraceViewStoreState {
   langGraph: boolean;
   sessionTime?: number;
   tab: "tree" | "timeline" | "chat" | "reader";
-  zoom: number;
   treeWidth: number;
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
@@ -132,7 +131,6 @@ interface TraceViewStoreActions {
   setSessionTime: (time?: number) => void;
   setTab: (tab: TraceViewStoreState["tab"]) => void;
   setTreeWidth: (width: number) => void;
-  setZoom: (zoom: number) => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
   toggleCollapse: (spanId: string) => void;
   updateTraceVisibility: (visibility: "private" | "public") => void;
@@ -179,7 +177,6 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
         browserSession: initialTrace?.hasBrowserSession || false,
         sessionTime: undefined,
         tab: "tree",
-        zoom: 1,
         treeWidth: MIN_TREE_VIEW_WIDTH,
         langGraph: false,
         spanPath: null,
@@ -366,9 +363,6 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
           set({ condensedTimelineZoom: clamp(zoom, MIN_ZOOM, MAX_ZOOM) });
         },
         getCondensedTimelineData: () => transformSpansToCondensedTimeline(get().spans),
-        setZoom: (zoom) => {
-          set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) });
-        },
         setBrowserSession: (browserSession: boolean) => set({ browserSession }),
         toggleCollapse: (spanId: string) => {
           get().setSpans((spans) =>
@@ -478,7 +472,6 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
-            condensedTimelineZoom: state.condensedTimelineZoom,
           };
         },
       }

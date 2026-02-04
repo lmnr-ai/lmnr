@@ -22,8 +22,6 @@ import { tryParseJson } from "@/lib/utils.ts";
 
 import { type SystemMessage } from "./system-messages-utils";
 
-const MAX_ZOOM = 5;
-const MIN_ZOOM = 1;
 export const ZOOM_INCREMENT = 0.5;
 export const MIN_SIDEBAR_WIDTH = 450;
 export const CONDENSED_TIMELINE_MAX_ZOOM = 18;
@@ -60,7 +58,6 @@ interface RolloutSessionStoreState {
   langGraph: boolean;
   sessionTime?: number;
   tab: "tree" | "reader";
-  zoom: number;
   sidebarWidth: number;
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
@@ -100,7 +97,6 @@ interface RolloutSessionStoreActions {
   setSessionTime: (time?: number) => void;
   setTab: (tab: RolloutSessionStoreState["tab"]) => void;
   setSidebarWidth: (width: number) => void;
-  setZoom: (zoom: number) => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
   toggleCollapse: (spanId: string) => void;
   updateTraceVisibility: (visibility: "private" | "public") => void;
@@ -179,7 +175,6 @@ const createRolloutSessionStore = ({
         browserSession: false,
         sessionTime: undefined,
         tab: "tree",
-        zoom: 1,
         sidebarWidth: MIN_SIDEBAR_WIDTH,
         langGraph: false,
         spanPath: null,
@@ -351,9 +346,6 @@ const createRolloutSessionStore = ({
         clearCondensedTimelineSelection: () => set({ condensedTimelineVisibleSpanIds: new Set() }),
         setCondensedTimelineZoom: (zoom) => {
           set({ condensedTimelineZoom: Math.max(CONDENSED_TIMELINE_MIN_ZOOM, Math.min(CONDENSED_TIMELINE_MAX_ZOOM, zoom)) });
-        },
-        setZoom: (zoom) => {
-          set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) });
         },
         setBrowserSession: (browserSession: boolean) => set({ browserSession }),
         toggleCollapse: (spanId: string) => {
@@ -677,7 +669,6 @@ const createRolloutSessionStore = ({
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
-            condensedTimelineZoom: state.condensedTimelineZoom,
           };
         },
       }

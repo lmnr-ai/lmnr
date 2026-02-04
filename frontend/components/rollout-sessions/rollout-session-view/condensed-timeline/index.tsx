@@ -7,12 +7,12 @@ import { computeVisibleSpanIds } from "@/components/traces/trace-view/trace-view
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-import CondensedTimelineElement, { ROW_HEIGHT } from "./condensed-timeline-element";
-import SelectionIndicator from "./selection-indicator";
-import SelectionOverlay from "./selection-overlay";
-import { formatTimeMarkerLabel, useDynamicTimeIntervals } from "./use-dynamic-time-intervals";
-import { useHoverNeedle } from "./use-hover-needle";
-import { useScrollToSpan } from "./use-scroll-to-span";
+import CondensedTimelineElement, { ROW_HEIGHT } from "@/components/traces/trace-view/condensed-timeline/condensed-timeline-element";
+import SelectionIndicator from "@/components/traces/trace-view/condensed-timeline/selection-indicator";
+import SelectionOverlay from "@/components/traces/trace-view/condensed-timeline/selection-overlay";
+import { formatTimeMarkerLabel, useDynamicTimeIntervals } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
+import { useHoverNeedle } from "@/components/traces/trace-view/condensed-timeline/use-hover-needle";
+import { useScrollToSpan } from "@/components/traces/trace-view/condensed-timeline/use-scroll-to-span";
 import { useWheelZoom } from "./use-wheel-zoom";
 import ZoomControls from "./zoom-controls";
 
@@ -110,7 +110,7 @@ function CondensedTimeline() {
   const renderContent = () => {
     if (isSpansLoading) {
       return (
-        <div className="flex flex-col gap-2 p-2 w-full h-full">
+        <div className="flex flex-col gap-2 py-2 w-full h-full">
           <Skeleton className="h-6 w-full" />
           <Skeleton className="h-full w-full" />
         </div>
@@ -127,18 +127,18 @@ function CondensedTimeline() {
       <>
         {/* Inner container with zoom width */}
         <div className="relative h-full" style={{ width: `${100 * condensedTimelineZoom}%`, minHeight: contentHeight }}>
-          {/* Session Time Needle - inside content, scrolls naturally */}
+          {/* Session Time Needle */}
           {browserSession && sessionTime !== undefined && totalDurationMs > 0 && (
             <div
               className="absolute inset-y-0 pointer-events-none z-[34]"
               style={{ left: `${((sessionTime * 1000) / totalDurationMs) * 100}%` }}
             >
               <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
-                <div className="px-1.5 py-0.5 bg-landing-text-600 text-primary-foreground rounded flex items-center justify-center">
+                <div className="size-5 bg-landing-text-500 text-primary-foreground rounded-full flex items-center justify-center">
                   <PlayIcon className="w-3 h-3" />
                 </div>
               </div>
-              <div className="absolute top-[6px] bottom-0 w-px bg-landing-text-600/50" />
+              <div className="absolute top-[6px] bottom-0 w-px bg-landing-text-500" />
             </div>
           )}
 
