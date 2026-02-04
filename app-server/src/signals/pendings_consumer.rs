@@ -809,7 +809,7 @@ async fn process_single_response(
             internal_project_id: config.internal_project_id,
             job_id: run.job_id,
             error: span_error,
-            provider_batch_id: None,
+            provider_batch_id: Some(provider_batch_id),
         },
     )
     .await;
@@ -871,7 +871,7 @@ async fn process_single_response(
                 internal_project_id: config.internal_project_id,
                 job_id: run.job_id,
                 error: tool_error,
-                provider_batch_id: Some(provider_batch_id),
+                provider_batch_id: None,
             },
         )
         .await;
