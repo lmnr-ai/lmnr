@@ -436,7 +436,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
           <ResizablePanelGroup id="rollout-session-view-panels" orientation="vertical">
             {condensedTimelineEnabled && (
               <>
-                <ResizablePanel defaultSize={200} minSize={80}>
+                <ResizablePanel defaultSize={120} minSize={80}>
                   <div className="border-t h-full">
                     <CondensedTimeline />
                   </div>
@@ -454,7 +454,13 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
                     <ViewDropdown />
-                    {trace && <TraceStatsShields className="min-w-0 overflow-hidden" trace={trace} spans={filteredSpansForStats} />}
+                    {trace && (
+                      <TraceStatsShields
+                        className="min-w-0 overflow-hidden"
+                        trace={trace}
+                        spans={filteredSpansForStats}
+                      />
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <Button
