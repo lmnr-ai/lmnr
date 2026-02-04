@@ -9,14 +9,13 @@ import { type Trigger } from "@/lib/actions/signal-triggers";
 
 export type TriggerRow = Trigger;
 
-// Format a filter as a readable string
 const formatFilter = (filter: { column: string; operator: string; value: string | number }): string => {
   const columnName = getColumnName(filter.column);
   const operatorLabel = getOperatorLabel(filter.column, filter.operator);
   return `${columnName} ${operatorLabel} ${filter.value}`;
 };
 
-export const triggersTableColumns: ColumnDef<TriggerRow>[] = [
+export const getTriggersTableColumns = (): ColumnDef<TriggerRow>[] => [
   {
     accessorKey: "filters",
     header: "Filters",
@@ -41,7 +40,7 @@ export const triggersTableColumns: ColumnDef<TriggerRow>[] = [
   {
     accessorKey: "createdAt",
     header: "Created",
-    cell: (row) => (row.getValue() ? <ClientTimestampFormatter timestamp={String(row.getValue())} /> : "-"),
+    cell: (row) => (row.getValue() ? <ClientTimestampFormatter absolute timestamp={String(row.getValue())} /> : "-"),
     size: 140,
     id: "createdAt",
   },

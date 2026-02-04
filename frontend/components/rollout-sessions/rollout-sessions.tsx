@@ -57,7 +57,7 @@ const columns: ColumnDef<RolloutSession>[] = [
   {
     header: "Created",
     accessorKey: "createdAt",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
     id: "createdAt",
     size: 180,
   },

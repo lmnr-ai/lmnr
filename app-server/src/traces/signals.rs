@@ -10,11 +10,8 @@ use uuid::Uuid;
 use super::{SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY};
 use crate::ch::signal_events::{CHSignalEvent, insert_signal_events};
 use crate::ch::signal_runs::{CHSignalRun, insert_signal_runs};
-use crate::clustering::queue::push_to_event_clustering_queue;
 use crate::db;
-use crate::db::events::EventSource;
 use crate::db::signals::Signal;
-use crate::features::{Feature, is_feature_enabled};
 use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::notifications::{
     self, EventIdentificationPayload, NotificationType, SlackMessagePayload,
@@ -226,7 +223,7 @@ async fn process_signal(
     Ok(())
 }
 
-/// Process notifications and clustering for an identified signal event
+/// Process notifications for an identified signal event
 pub async fn process_event_notifications_and_clustering(
     db: Arc<db::DB>,
     queue: Arc<MessageQueue>,
@@ -268,33 +265,6 @@ pub async fn process_event_notifications_and_clustering(
                 channel.channel_id,
                 e
             );
-        }
-    }
-
-    if is_feature_enabled(Feature::Clustering) {
-        // Check for event clustering configuration
-        if let Ok(Some(cluster_config)) = db::event_cluster_configs::get_event_cluster_config(
-            &db.pool,
-            project_id,
-            &event_name,
-            EventSource::Semantic,
-        )
-        .await
-        {
-            if let Err(e) = push_to_event_clustering_queue(
-                project_id,
-                signal_event,
-                cluster_config.value_template,
-                queue.clone(),
-            )
-            .await
-            {
-                log::error!(
-                    "Failed to push to event clustering queue for event {}: {:?}",
-                    event_name,
-                    e
-                );
-            }
         }
     }
 

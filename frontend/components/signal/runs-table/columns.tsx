@@ -7,9 +7,9 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
+import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 export const getSignalRunsColumns = ({
   onJobNav,
@@ -22,15 +22,24 @@ export const getSignalRunsColumns = ({
     accessorKey: "runId",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
     header: "Run ID",
-    size: 300,
+    size: 120,
     id: "runId",
   },
   {
     accessorKey: "traceId",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
     header: "Trace ID",
-    size: 300,
+    size: 120,
     id: "traceId",
+  },
+  {
+    accessorKey: "eventId",
+    cell: (row) => (
+      <Mono>{String(row.getValue()) === "00000000-0000-0000-0000-000000000000" ? "-" : String(row.getValue())}</Mono>
+    ),
+    header: "Event ID",
+    size: 120,
+    id: "eventId",
   },
   {
     cell: (row) => {
@@ -72,15 +81,6 @@ export const getSignalRunsColumns = ({
     id: "status",
   },
   {
-    accessorKey: "eventId",
-    cell: (row) => (
-      <Mono>{String(row.getValue()) === "00000000-0000-0000-0000-000000000000" ? "-" : String(row.getValue())}</Mono>
-    ),
-    header: "Event ID",
-    size: 300,
-    id: "eventId",
-  },
-  {
     accessorKey: "errorMessage",
     header: "Error Message",
     cell: ({ getValue, column }) => {
@@ -96,11 +96,10 @@ export const getSignalRunsColumns = ({
               </div>
             </TooltipTrigger>
             <TooltipPortal>
-              <TooltipContent
-                side="bottom"
-                className="max-w-md p-2 border text-secondary-foreground whitespace-pre-wrap break-words"
-              >
-                {value}
+              <TooltipContent className="p-0 max-w-md border text-secondary-foreground whitespace-pre-wrap break-words">
+                <ScrollArea>
+                  <div className="max-h-64 min-h-8 p-2">{value}</div>
+                </ScrollArea>
               </TooltipContent>
             </TooltipPortal>
           </Tooltip>
@@ -113,13 +112,13 @@ export const getSignalRunsColumns = ({
   {
     accessorKey: "updatedAt",
     header: "Updated At",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
     size: 150,
     id: "updatedAt",
   },
 ];
 
-export const defaultRunsColumnOrder = ["runId", "traceId", "source", "status", "eventId", "errorMessage", "updatedAt"];
+export const defaultRunsColumnOrder = ["runId", "traceId", "eventId", "source", "status", "errorMessage", "updatedAt"];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {

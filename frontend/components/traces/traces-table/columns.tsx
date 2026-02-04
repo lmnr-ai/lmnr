@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
-import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -91,7 +91,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   {
     accessorFn: (row) => row.startTime,
     header: "Timestamp",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "start_time",
     size: 150,
   },

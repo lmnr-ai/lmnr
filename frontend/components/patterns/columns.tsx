@@ -4,7 +4,6 @@ import Link from "next/link";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Button } from "@/components/ui/button.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { TIME_SECONDS_FORMAT } from "@/lib/utils";
 
 export type PatternRow = {
   id: string;
@@ -77,14 +76,14 @@ export const getColumns = (projectId: string): ColumnDef<PatternRow, any>[] => [
   {
     accessorFn: (row) => row.createdAt,
     header: "Created",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
     id: "created_at",
     size: 150,
   },
   {
     accessorFn: (row) => row.updatedAt,
     header: "Updated",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
     id: "updated_at",
     size: 150,
   },

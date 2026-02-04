@@ -21,17 +21,41 @@ export const signalsColumns: ColumnDef<SignalRow>[] = [
     id: "name",
   },
   {
+    header: "Triggers",
+    id: "triggersCount",
+    accessorFn: (row) => row.triggersCount,
+    cell: ({ row }) => <span className="truncate">{row.original.triggersCount}</span>,
+  },
+  {
     header: "Events",
     id: "eventsCount",
     accessorFn: (row) => row.eventsCount,
     cell: ({ row }) => <span className="truncate">{row.original.eventsCount}</span>,
   },
   {
+    header: "Last Event",
+    id: "lastEventAt",
+    accessorFn: (row) => row.lastEventAt,
+    cell: ({ row }) => {
+      if (!row.original.lastEventAt) {
+        return <span className="text-muted-foreground">-</span>;
+      }
+      return <ClientTimestampFormatter timestamp={row.original.lastEventAt} />;
+    },
+  },
+  {
     header: "Created",
     accessorFn: (row) => row.createdAt,
-    cell: ({ row }) => <ClientTimestampFormatter timestamp={row.original.createdAt} />,
+    cell: ({ row }) => <ClientTimestampFormatter absolute timestamp={row.original.createdAt} />,
     id: "createdAt",
   },
 ];
 
-export const defaultSignalsColumnsOrder = ["__row_selection", "name", "triggersCount", "eventsCount", "createdAt"];
+export const defaultSignalsColumnsOrder = [
+  "__row_selection",
+  "name",
+  "triggersCount",
+  "eventsCount",
+  "lastEventAt",
+  "createdAt",
+];

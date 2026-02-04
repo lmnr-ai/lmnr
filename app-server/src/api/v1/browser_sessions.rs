@@ -49,13 +49,6 @@ pub struct RRWebEvent {
     pub data: Vec<u8>,
 }
 
-impl RRWebEvent {
-    pub fn estimate_size_bytes(&self) -> usize {
-        // 1 byte for event_type, 8 bytes for timestamp
-        9 + self.data.len()
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EventBatch {
