@@ -28,6 +28,7 @@ impl GeminiErrorStatus {
             GeminiErrorStatus::Internal
                 | GeminiErrorStatus::Unavailable
                 | GeminiErrorStatus::DeadlineExceeded
+                | GeminiErrorStatus::ResourceExhausted
         )
     }
 
@@ -461,7 +462,7 @@ impl GeminiFinishReason {
             // List the ones that are *definitely* retryable
             GeminiFinishReason::FinishReasonUnspecified
             | GeminiFinishReason::Stop
-            // on test examples, it often tried calling a python function, instead of 
+            // on test examples, it often tried calling a python function, instead of
             // json tool definition
             | GeminiFinishReason::MalformedFunctionCall => true,
             // everything else is retryable

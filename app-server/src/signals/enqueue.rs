@@ -65,6 +65,7 @@ async fn create_signal_run_and_message(
             internal_project_id,
             job_id,
             error: None,
+            provider_batch_id: None,
         },
     )
     .await;

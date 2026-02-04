@@ -35,6 +35,7 @@ pub struct InternalSpan {
     /// Job IDs associated with this span (may be empty for triggered runs)
     pub job_id: Option<Uuid>,
     pub error: Option<String>,
+    pub provider_batch_id: Option<String>,
 }
 
 /// Try to parse JSON string, return the parsed value or the original string
@@ -155,6 +156,12 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         attrs.insert(
             "gen_ai.usage.output_tokens".to_string(),
             Value::Number(tokens.into()),
+        );
+    }
+    if let Some(provider_batch_id) = span.provider_batch_id {
+        attrs.insert(
+            "signal.batch_id".to_string(),
+            Value::String(provider_batch_id.to_string()),
         );
     }
 
