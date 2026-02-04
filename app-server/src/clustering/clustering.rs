@@ -136,8 +136,6 @@ async fn call_clustering_endpoint(
 
     let mut events: Vec<serde_json::Value> = Vec::new();
     for message in &message.events {
-        // Render the value_template with event attributes
-
         let event = serde_json::json!({
             "signal_event_id": message.event_id.to_string(),
             "content": message.content,

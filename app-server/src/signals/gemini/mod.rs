@@ -447,6 +447,7 @@ pub enum GeminiFinishReason {
     TooManyToolCalls,
     MissingThoughtSignature,
 }
+
 impl GeminiFinishReason {
     pub fn is_retryable(&self) -> bool {
         match self {
@@ -479,20 +480,20 @@ impl GeminiFinishReason {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum FinishReason {
-    KnownFinishReason(GeminiFinishReason),
+    ModelResponse(GeminiFinishReason),
     Unknown(String),
 }
 
 impl FinishReason {
     pub fn should_retry(&self) -> bool {
         match self {
-            FinishReason::KnownFinishReason(fr) => fr.is_retryable(),
+            FinishReason::ModelResponse(fr) => fr.is_retryable(),
             FinishReason::Unknown(_) => false,
         }
     }
     pub fn is_success(&self) -> bool {
         match self {
-            FinishReason::KnownFinishReason(fr) => fr.is_success(),
+            FinishReason::ModelResponse(fr) => fr.is_success(),
             FinishReason::Unknown(_) => false,
         }
     }

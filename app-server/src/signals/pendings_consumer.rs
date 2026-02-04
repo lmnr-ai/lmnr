@@ -48,6 +48,17 @@ use super::{
 
 const DEFAULT_RETRY_COUNT: usize = 4;
 
+/// Metadata about a failed run for retry logic and monitoring
+#[derive(Debug, Clone)]
+struct FailureMetadata {
+    /// The finish reason from the LLM response (if any)
+    finish_reason: Option<FinishReason>,
+    /// Indicates if the failure is due to processing error (not LLM error).
+    /// When true, the model responded successfully but we failed to process the response.
+    /// This allows retry even if the finish_reason itself is not retryable.
+    is_processing_error: bool,
+}
+
 #[derive(Debug, Serialize)]
 enum StepResult {
     CompletedNoEvent,
@@ -61,6 +72,10 @@ enum StepResult {
     Failed {
         error: String,
         finish_reason: Option<FinishReason>,
+        /// Indicates if the failure is due to processing error (not LLM error).
+        /// When true, the model responded successfully but we failed to process the response.
+        /// This allows retry even if the finish_reason itself is not retryable.
+        is_processing_error: bool,
     },
 }
 
@@ -181,7 +196,7 @@ async fn process(
 async fn retry_or_fail_runs(
     failed_runs: Vec<SignalRun>,
     run_to_message: &HashMap<Uuid, SignalMessage>,
-    run_to_finish_reason: &HashMap<Uuid, FinishReason>,
+    failure_metadata: &HashMap<Uuid, FailureMetadata>,
     queue: Arc<MessageQueue>,
 ) -> (Vec<SignalRun>, usize) {
     let max_retry_count =
@@ -191,31 +206,45 @@ async fn retry_or_fail_runs(
     let mut retried_count = 0;
 
     for failed_run in failed_runs {
-        // Check if this run has a non-retryable finish reason
-        if let Some(finish_reason) = run_to_finish_reason.get(&failed_run.run_id) {
-            if !finish_reason.should_retry() {
-                // Non-retryable finish reason - mark as permanently failed immediately
-                log::warn!(
-                    "[SIGNAL JOB] Non-retryable finish reason {:?} for run {}, marking as permanently failed: {}",
-                    finish_reason,
-                    failed_run.run_id,
-                    failed_run
-                        .error_message
-                        .as_deref()
-                        .unwrap_or("unknown error")
-                );
-                let mut perm_failed = failed_run;
-                perm_failed.error_message = Some(format!(
-                    "{} (non-retryable finish reason: {:?})",
-                    perm_failed
-                        .error_message
-                        .as_deref()
-                        .unwrap_or("unknown error"),
-                    finish_reason
-                ));
-                permanently_failed_runs.push(perm_failed);
-                continue;
+        // Get failure metadata for this run
+        let metadata = failure_metadata.get(&failed_run.run_id);
+
+        let permanent_finish_reason = if let Some(metadata) = metadata {
+            // Processing errors are always retryable
+            if metadata.is_processing_error {
+                None
+            } else {
+                metadata
+                    .finish_reason
+                    .as_ref()
+                    .filter(|fr| !fr.should_retry())
             }
+        } else {
+            None
+        };
+
+        if let Some(finish_reason) = permanent_finish_reason {
+            // Non-retryable finish reason - mark as permanently failed immediately
+            log::warn!(
+                "[SIGNAL JOB] Non-retryable finish reason {:?} for run {}, marking as permanently failed: {}",
+                finish_reason,
+                failed_run.run_id,
+                failed_run
+                    .error_message
+                    .as_deref()
+                    .unwrap_or("unknown error")
+            );
+            let mut perm_failed = failed_run;
+            perm_failed.error_message = Some(format!(
+                "{} (non-retryable finish reason: {:?})",
+                perm_failed
+                    .error_message
+                    .as_deref()
+                    .unwrap_or("unknown error"),
+                finish_reason
+            ));
+            permanently_failed_runs.push(perm_failed);
+            continue;
         }
 
         // Get the original message to check retry_count
@@ -335,9 +364,9 @@ async fn process_failed_batch(
     // Check if this state should be retried or permanently failed
     let (permanently_failed_runs, retried_count) = if state.should_retry_failed() {
         // Use helper function to retry or permanently fail runs based on retry_count
-        // No individual finish reasons for batch-level failures
-        let run_to_finish_reason = HashMap::new();
-        retry_or_fail_runs(failed_runs, &run_to_message, &run_to_finish_reason, queue).await
+        // No individual failure metadata for batch-level failures
+        let failure_metadata = HashMap::new();
+        retry_or_fail_runs(failed_runs, &run_to_message, &failure_metadata, queue).await
     } else {
         // State should not be retried (e.g., BATCH_STATE_CANCELLED) - mark all as permanently failed
         log::warn!(
@@ -485,8 +514,8 @@ async fn process_succeeded_batch(
     let mut succeeded_runs: Vec<SignalRun> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
     let mut pending_run_ids: HashSet<Uuid> = HashSet::new();
-    // Track finish reasons for failed runs to determine retry eligibility
-    let mut run_to_finish_reason: HashMap<Uuid, FinishReason> = HashMap::new();
+    // Track failure metadata for failed runs to determine retry eligibility
+    let mut failure_metadata: HashMap<Uuid, FailureMetadata> = HashMap::new();
 
     // Process each response, matching by run_id from response metadata
     for inline_response in inlined_responses.iter() {
@@ -549,11 +578,16 @@ async fn process_succeeded_batch(
             StepResult::Failed {
                 error,
                 finish_reason,
+                is_processing_error,
             } => {
-                // Store finish reason for retry logic
-                if let Some(fr) = finish_reason {
-                    run_to_finish_reason.insert(run_id, fr);
-                }
+                // Store failure metadata for retry logic
+                failure_metadata.insert(
+                    run_id,
+                    FailureMetadata {
+                        finish_reason,
+                        is_processing_error,
+                    },
+                );
                 failed_runs.push(run.failed(error));
             }
             StepResult::RequiresNextStep { tool_result: _ } => {
@@ -652,7 +686,7 @@ async fn process_succeeded_batch(
     let (permanently_failed_runs, retried_count) = retry_or_fail_runs(
         failed_runs,
         &run_to_message,
-        &run_to_finish_reason,
+        &failure_metadata,
         queue.clone(),
     )
     .await;
@@ -782,6 +816,7 @@ async fn process_single_response(
             StepResult::Failed {
                 error,
                 finish_reason,
+                is_processing_error: false,
             },
             vec![],
         );
@@ -802,7 +837,18 @@ async fn process_single_response(
         let step_result =
             handle_tool_call(signal_message, &run, &function_call, clickhouse.clone()).await;
 
-        // Internal tracing span for tool call
+        // Emit internal tracing span for tool call
+        // Include processing error information in the error field
+        let tool_error = match &step_result {
+            StepResult::Failed {
+                error,
+                is_processing_error: true,
+                ..
+            } => Some(format!("Processing error: {}", error)),
+            StepResult::Failed { error, .. } => Some(error.clone()),
+            _ => None,
+        };
+
         emit_internal_span(
             queue.clone(),
             InternalSpan {
@@ -821,7 +867,7 @@ async fn process_single_response(
                 provider: LLM_PROVIDER.clone(),
                 internal_project_id: config.internal_project_id,
                 job_id: run.job_id,
-                error: None,
+                error: tool_error,
             },
         )
         .await;
@@ -830,12 +876,14 @@ async fn process_single_response(
             StepResult::Failed {
                 error,
                 finish_reason,
+                is_processing_error,
             } => {
                 let error = format!("Tool call failed: {}", error);
                 return (
                     StepResult::Failed {
                         error,
                         finish_reason,
+                        is_processing_error,
                     },
                     new_messages,
                 );
@@ -888,6 +936,7 @@ async fn process_single_response(
                         StepResult::Failed {
                             error,
                             finish_reason,
+                            is_processing_error: false,
                         },
                         new_messages,
                     );
@@ -906,6 +955,7 @@ async fn process_single_response(
             StepResult::Failed {
                 error,
                 finish_reason,
+                is_processing_error: false,
             },
             new_messages,
         );
@@ -944,6 +994,7 @@ async fn handle_tool_call(
                 return StepResult::Failed {
                     error: "get_full_span_info called with no span_ids".to_string(),
                     finish_reason: None,
+                    is_processing_error: true,
                 };
             }
 
@@ -991,19 +1042,28 @@ async fn handle_tool_call(
             );
 
             if identified {
-                let attrs = attributes.unwrap_or(serde_json::Value::Null);
-                return StepResult::CompletedWithEvent {
-                    attributes: attrs,
-                    summary: summary.unwrap_or_default(),
-                };
+                let attrs = attributes.unwrap_or_default();
+                if let Some(summary) = summary {
+                    return StepResult::CompletedWithEvent {
+                        attributes: attrs,
+                        summary: summary,
+                    };
+                } else {
+                    return StepResult::Failed {
+                        error: "submit_identification called with no summary".to_string(),
+                        finish_reason: None,
+                        is_processing_error: true,
+                    };
+                }
             }
 
             return StepResult::CompletedNoEvent;
         }
         unknown => {
             return StepResult::Failed {
-                finish_reason: None,
                 error: format!("Unknown function called: {}", unknown),
+                finish_reason: None,
+                is_processing_error: true,
             };
         }
     }
