@@ -8,12 +8,7 @@ import {
   computePathInfoMap,
   type CondensedTimelineData,
   groupIntoSections,
-  type MinimapSpan,
-  type TimelineData,
   transformSpansToCondensedTimeline,
-  transformSpansToFlatMinimap,
-  transformSpansToMinimap,
-  transformSpansToTimeline,
   transformSpansToTree,
   type TreeSpan,
 } from "@/components/traces/trace-view/trace-view-store-utils.ts";
@@ -104,7 +99,7 @@ interface TraceViewStoreState {
   browserSession: boolean;
   langGraph: boolean;
   sessionTime?: number;
-  tab: "tree" | "chat" | "reader";
+  tab: "tree" | "reader";
   treeWidth: number;
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
@@ -147,10 +142,7 @@ interface TraceViewStoreActions {
   incrementSessionTime: (increment: number, maxTime: number) => boolean;
   // Selectors
   getTreeSpans: () => TreeSpan[];
-  getTimelineData: () => TimelineData;
   getCondensedTimelineData: () => CondensedTimelineData;
-  getMinimapSpans: () => MinimapSpan[];
-  getListMinimapSpans: () => MinimapSpan[];
   getListData: () => TraceViewListSpan[];
   getSpanNameInfo: (spanId: string) => { name: string; count?: number } | undefined;
   getHasLangGraph: () => boolean;
@@ -228,49 +220,6 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
 
           const pathInfoMap = computePathInfoMap(filteredSpans);
           return transformSpansToTree(filteredSpans, pathInfoMap);
-        },
-        getMinimapSpans: () => {
-          const { trace, spans, condensedTimelineVisibleSpanIds } = get();
-          if (trace) {
-            const startTime = new Date(trace.startTime).getTime();
-            const endTime = new Date(trace.endTime).getTime();
-
-            const filteredSpans =
-              condensedTimelineVisibleSpanIds.size === 0
-                ? spans
-                : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
-
-            return transformSpansToMinimap(filteredSpans, endTime - startTime);
-          }
-          return [];
-        },
-        getListMinimapSpans: () => {
-          const { trace, spans, condensedTimelineVisibleSpanIds } = get();
-          if (trace) {
-            const startTime = new Date(trace.startTime).getTime();
-            const endTime = new Date(trace.endTime).getTime();
-
-            // First filter by condensed timeline selection
-            const selectionFilteredSpans =
-              condensedTimelineVisibleSpanIds.size === 0
-                ? spans
-                : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
-
-            // Then apply DEFAULT filter for list view
-            const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
-            return transformSpansToFlatMinimap(listSpans, endTime - startTime);
-          }
-          return [];
-        },
-        getTimelineData: () => {
-          const { spans, condensedTimelineVisibleSpanIds } = get();
-
-          const filteredSpans =
-            condensedTimelineVisibleSpanIds.size === 0
-              ? spans
-              : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
-
-          return transformSpansToTimeline(filteredSpans);
         },
         getListData: () => {
           const { spans, condensedTimelineVisibleSpanIds } = get();
@@ -472,6 +421,18 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
+          };
+        },
+        merge: (persistedState, currentState) => {
+          const persisted = persistedState as Partial<TraceViewStoreState>;
+          // Fix issue with old invalid tabs being in local storage
+          const validTabs = ["tree", "reader"] as const;
+          const tab = persisted.tab && validTabs.includes(persisted.tab as any) ? persisted.tab : currentState.tab;
+
+          return {
+            ...currentState,
+            ...persisted,
+            tab,
           };
         },
       }

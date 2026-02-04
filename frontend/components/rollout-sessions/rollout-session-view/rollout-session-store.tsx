@@ -345,7 +345,9 @@ const createRolloutSessionStore = ({
         setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => set({ condensedTimelineVisibleSpanIds: ids }),
         clearCondensedTimelineSelection: () => set({ condensedTimelineVisibleSpanIds: new Set() }),
         setCondensedTimelineZoom: (zoom) => {
-          set({ condensedTimelineZoom: Math.max(CONDENSED_TIMELINE_MIN_ZOOM, Math.min(CONDENSED_TIMELINE_MAX_ZOOM, zoom)) });
+          set({
+            condensedTimelineZoom: Math.max(CONDENSED_TIMELINE_MIN_ZOOM, Math.min(CONDENSED_TIMELINE_MAX_ZOOM, zoom)),
+          });
         },
         setBrowserSession: (browserSession: boolean) => set({ browserSession }),
         toggleCollapse: (spanId: string) => {
@@ -669,6 +671,18 @@ const createRolloutSessionStore = ({
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
+          };
+        },
+        merge: (persistedState, currentState) => {
+          const persisted = persistedState as Partial<RolloutSessionStoreState>;
+          // Fix issue with old invalid tabs being in local storage
+          const validTabs = ["tree", "reader"] as const;
+          const tab = persisted.tab && validTabs.includes(persisted.tab as any) ? persisted.tab : currentState.tab;
+
+          return {
+            ...currentState,
+            ...persisted,
+            tab,
           };
         },
       }
