@@ -1,4 +1,4 @@
-import { has } from "lodash";
+import { clamp, has } from "lodash";
 import { createContext, type PropsWithChildren, useContext, useRef } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
@@ -363,7 +363,7 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
         setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => set({ condensedTimelineVisibleSpanIds: ids }),
         clearCondensedTimelineSelection: () => set({ condensedTimelineVisibleSpanIds: new Set() }),
         setCondensedTimelineZoom: (zoom) => {
-          set({ condensedTimelineZoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) });
+          set({ condensedTimelineZoom: clamp(zoom, MIN_ZOOM, MAX_ZOOM) });
         },
         getCondensedTimelineData: () => transformSpansToCondensedTimeline(get().spans),
         setZoom: (zoom) => {

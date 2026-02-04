@@ -1,3 +1,4 @@
+import { PlayIcon } from "@radix-ui/react-icons";
 import { isEmpty } from "lodash";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 
@@ -30,6 +31,8 @@ function CondensedTimeline() {
     clearCondensedTimelineSelection,
     condensedTimelineZoom,
     setCondensedTimelineZoom,
+    sessionTime,
+    browserSession,
   } = useTraceViewStoreContext((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
     spans: state.spans,
@@ -41,6 +44,8 @@ function CondensedTimeline() {
     clearCondensedTimelineSelection: state.clearCondensedTimelineSelection,
     condensedTimelineZoom: state.condensedTimelineZoom,
     setCondensedTimelineZoom: state.setCondensedTimelineZoom,
+    sessionTime: state.sessionTime,
+    browserSession: state.browserSession,
   }));
 
   const {
@@ -122,6 +127,21 @@ function CondensedTimeline() {
       <>
         {/* Inner container with zoom width */}
         <div className="relative h-full" style={{ width: `${100 * condensedTimelineZoom}%`, minHeight: contentHeight }}>
+          {/* Session Time Needle */}
+          {browserSession && sessionTime !== undefined && totalDurationMs > 0 && (
+            <div
+              className="absolute inset-y-0 pointer-events-none z-[34]"
+              style={{ left: `${((sessionTime * 1000) / totalDurationMs) * 100}%` }}
+            >
+              <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
+                <div className="size-5 bg-landing-text-500 text-primary-foreground rounded-full flex items-center justify-center">
+                  <PlayIcon className="w-3 h-3" />
+                </div>
+              </div>
+              <div className="absolute top-[6px] bottom-0 w-px bg-landing-text-500" />
+            </div>
+          )}
+
           {/* Time marker lines - full height */}
           {timeMarkers.map((marker, index) => (
             <div
