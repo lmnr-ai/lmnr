@@ -127,7 +127,7 @@ const AdvancedSearchInner = ({
     if (suggestions) {
       setAutocompleteData(suggestions);
     }
-  }, [suggestions]);
+  }, [suggestions, setAutocompleteData]);
 
   return (
     <FilterSearchInput
