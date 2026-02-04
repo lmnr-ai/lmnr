@@ -137,14 +137,14 @@
     "rrweb": "2.0.0-alpha.18",
     "rrweb-player": "2.0.0-alpha.18",
     "sharp": "^0.33.5",
-    "streamdown": "^1.6.10",
+    "streamdown": "^2.1.0",
     "stripe": "^16.12.0",
     "swr": "^2.3.6",
     "tw-shimmer": "^0.4.2",
     "use-stick-to-bottom": "^1.1.1",
     "uuid": "^13.0.0",
     "yaml": "^2.8.1",
-    "zod": "^4.1.5",
+    "zod": "^4.3.6",
     "zustand": "^4.5.7"
   },
   "devDependencies": {
