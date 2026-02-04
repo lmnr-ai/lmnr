@@ -16,7 +16,7 @@ import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
 import { getCoreRowModel, getExpandedRowModel, type RowData, useReactTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import React, { type PropsWithChildren, useEffect, useMemo, useRef, useState } from "react";
+import React, { type PropsWithChildren, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { DraggingTableHeadOverlay } from "@/components/ui/infinite-datatable/ui/head.tsx";
@@ -64,6 +64,7 @@ export function InfiniteDataTable<TData extends RowData>({
   error,
   getRowHref,
   loadMoreButton,
+  hideSelectionPanel = false,
   ...tableOptions
 }: PropsWithChildren<InfiniteDataTableProps<TData>>) {
   const selectedRowIds = state?.rowSelection ? Object.keys(state.rowSelection) : [];
@@ -152,6 +153,8 @@ export function InfiniteDataTable<TData extends RowData>({
 
   const { rows } = table.getRowModel();
 
+  const dndContextId = useId();
+
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLTableRowElement>(null);
   const headerRef = useRef<HTMLTableSectionElement>(null);
@@ -213,12 +216,13 @@ export function InfiniteDataTable<TData extends RowData>({
 
   return (
     <div className={cn("flex flex-col gap-2 relative overflow-hidden w-full", className)}>
-      <SelectionPanel
-        selectedRowIds={selectedRowIds}
-        onClearSelection={handleClearSelection}
-        selectionPanel={selectionPanel}
-      />
-
+      {!hideSelectionPanel && (
+        <SelectionPanel
+          selectedRowIds={selectedRowIds}
+          onClearSelection={handleClearSelection}
+          selectionPanel={selectionPanel}
+        />
+      )}
       {children && <div className={cn("flex flex-col gap-2 items-start", childrenClassName)}>{children}</div>}
       <div
         ref={tableContainerRef}
@@ -226,6 +230,7 @@ export function InfiniteDataTable<TData extends RowData>({
       >
         <div className="size-full">
           <DndContext
+            id={dndContextId}
             collisionDetection={closestCenter}
             modifiers={[restrictToHorizontalAxis]}
             onDragStart={handleDragStart}

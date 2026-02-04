@@ -3,7 +3,6 @@
 import { formatDate, subYears } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, CalendarIcon, ChevronRight } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
 
@@ -15,7 +14,8 @@ import { Label } from "@/components/ui/label.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { cn } from "@/lib/utils.ts";
 
-import { getTimeDifference, QUICK_RANGES, useDateRangeState } from "./utils.ts";
+import { DateRangeFilterProvider, useDateRangeFilterContext } from "./store";
+import { getTimeDifference, QUICK_RANGES } from "./utils.ts";
 
 const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } }) => (
   <div className="flex items-center space-x-2">
@@ -148,7 +148,7 @@ const AbsoluteDatePicker = ({
   </motion.div>
 );
 
-export default function DateRangeFilter({
+export const DateRangeFilterInner = ({
   disabled = { after: new Date(), before: subYears(new Date(), 1) },
   buttonDisabled = false,
   className,
@@ -156,16 +156,20 @@ export default function DateRangeFilter({
   disabled?: CalendarProps["disabled"];
   buttonDisabled?: boolean;
   className?: string;
-}) {
-  const pathName = usePathname();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
+}) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
 
-  const { pastHours, getDisplayRange, calendarDate, setCalendarDate, startTime, setStartTime, endTime, setEndTime } =
-    useDateRangeState();
+  const pastHours = useDateRangeFilterContext((state) => state.pastHours);
+  const calendarDate = useDateRangeFilterContext((state) => state.calendarDate);
+  const startTime = useDateRangeFilterContext((state) => state.startTime);
+  const endTime = useDateRangeFilterContext((state) => state.endTime);
+  const getDisplayRange = useDateRangeFilterContext((state) => state.getDisplayRange);
+  const setCalendarDate = useDateRangeFilterContext((state) => state.setCalendarDate);
+  const setStartTime = useDateRangeFilterContext((state) => state.setStartTime);
+  const setEndTime = useDateRangeFilterContext((state) => state.setEndTime);
+  const selectQuickRange = useDateRangeFilterContext((state) => state.selectQuickRange);
+  const applyAbsoluteRange = useDateRangeFilterContext((state) => state.applyAbsoluteRange);
 
   useEffect(() => {
     if (!isPopoverOpen) {
@@ -174,36 +178,13 @@ export default function DateRangeFilter({
   }, [isPopoverOpen]);
 
   const handleQuickRangeSelect = (rangeValue: string) => {
-    const newSearchParams = new URLSearchParams(searchParams.toString());
-    newSearchParams.delete("startDate");
-    newSearchParams.delete("endDate");
-    newSearchParams.delete("groupByInterval");
-    newSearchParams.set("pastHours", rangeValue);
-    newSearchParams.set("pageNumber", "0");
+    selectQuickRange(rangeValue);
     setIsPopoverOpen(false);
-    router.push(`${pathName}?${newSearchParams.toString()}`);
   };
 
   const handleCalendarApply = () => {
-    if (!calendarDate?.from || !calendarDate?.to) return;
-
-    const from = new Date(calendarDate.from);
-    const [startHour, startMinute] = startTime.split(":").map(Number);
-    from.setHours(startHour);
-    from.setMinutes(startMinute);
-
-    const to = new Date(calendarDate.to);
-    const [endHour, endMinute] = endTime.split(":").map(Number);
-    to.setHours(endHour);
-    to.setMinutes(endMinute);
-
-    const newSearchParams = new URLSearchParams(searchParams.toString());
-    newSearchParams.delete("pastHours");
-    newSearchParams.set("pageNumber", "0");
-    newSearchParams.set("startDate", from.toISOString());
-    newSearchParams.set("endDate", to.toISOString());
+    applyAbsoluteRange();
     setIsPopoverOpen(false);
-    router.push(`${pathName}?${newSearchParams.toString()}`);
   };
 
   return (
@@ -243,4 +224,36 @@ export default function DateRangeFilter({
       </PopoverContent>
     </Popover>
   );
+};
+
+DateRangeFilterInner.displayName = "DateRangeFilterInner";
+
+export default function DateRangeFilter({
+  disabled = { after: new Date(), before: subYears(new Date(), 1) },
+  buttonDisabled = false,
+  className,
+  mode = "url",
+  value,
+  onChange,
+}: {
+  disabled?: CalendarProps["disabled"];
+  buttonDisabled?: boolean;
+  className?: string;
+  mode?: "url" | "state";
+  value?: { pastHours?: string; startDate?: string; endDate?: string };
+  onChange?: (value: { pastHours?: string; startDate?: string; endDate?: string }) => void;
+}) {
+  return (
+    <DateRangeFilterProvider
+      mode={mode}
+      initialPastHours={value?.pastHours}
+      initialStartDate={value?.startDate}
+      initialEndDate={value?.endDate}
+      onChange={onChange}
+    >
+      <DateRangeFilterInner disabled={disabled} buttonDisabled={buttonDisabled} className={className} />
+    </DateRangeFilterProvider>
+  );
 }
+
+export { DateRangeFilterProvider } from "./store";

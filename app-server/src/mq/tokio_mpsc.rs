@@ -3,7 +3,10 @@ use super::{
     MessageQueueReceiverTrait, MessageQueueTrait,
 };
 use dashmap::DashMap;
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 use tokio::sync::{
     Mutex,
     mpsc::{self, Receiver, Sender},
@@ -13,10 +16,12 @@ const CHANNEL_CAPACITY: usize = 100;
 
 pub struct TokioMpscReceiver {
     receiver: Receiver<Vec<u8>>,
+    delivery_counter: AtomicU64,
 }
 
 pub struct TokioMpscDelivery {
     data: Vec<u8>,
+    delivery_tag: u64,
 }
 
 impl MessageQueueDeliveryTrait for TokioMpscDelivery {
@@ -27,13 +32,24 @@ impl MessageQueueDeliveryTrait for TokioMpscDelivery {
     fn data(self) -> Vec<u8> {
         self.data
     }
+
+    fn delivery_tag(&self) -> u64 {
+        self.delivery_tag
+    }
 }
 
 impl MessageQueueReceiverTrait for TokioMpscReceiver {
     async fn receive(&mut self) -> Option<anyhow::Result<MessageQueueDelivery>> {
         let payload = self.receiver.recv().await;
         match payload {
-            Some(payload) => Some(Ok(TokioMpscDelivery { data: payload }.into())),
+            Some(payload) => {
+                let delivery_tag = self.delivery_counter.fetch_add(1, Ordering::Relaxed);
+                Some(Ok(TokioMpscDelivery {
+                    data: payload,
+                    delivery_tag,
+                }
+                .into()))
+            }
             None => None,
         }
     }
@@ -66,6 +82,7 @@ impl MessageQueueTrait for TokioMpscQueue {
         message: &[u8],
         exchange: &str,
         routing_key: &str,
+        _ttl_ms: Option<u64>, // TTL is ignored for in-memory queue (local dev only)
     ) -> anyhow::Result<()> {
         let key = self.key(exchange, routing_key);
 
@@ -111,7 +128,10 @@ impl MessageQueueTrait for TokioMpscQueue {
         let key = self.key(exchange, routing_key);
 
         let (sender, receiver) = mpsc::channel(CHANNEL_CAPACITY);
-        let tokio_mpsc_receiver = TokioMpscReceiver { receiver };
+        let tokio_mpsc_receiver = TokioMpscReceiver {
+            receiver,
+            delivery_counter: AtomicU64::new(0),
+        };
 
         self.senders
             .entry(key)

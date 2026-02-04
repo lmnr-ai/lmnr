@@ -1,20 +1,19 @@
+// Event from spans (old `events` table)
 export type Event = {
   id: string;
-  spanId: string;
   projectId: string;
+  spanId: string;
   timestamp: string;
   name: string;
   attributes: Record<string, any>;
 };
 
+// Event from signals (`signal_events` table)
 export type EventRow = {
   id: string;
-  projectId: string;
-  spanId: string;
+  signalId: string;
   traceId: string;
+  name: string;
+  payload: string;
   timestamp: string;
-  attributes: string;
-  userId: string;
-  sessionId: string;
-  sizeBytes: number;
 };

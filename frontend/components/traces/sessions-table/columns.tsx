@@ -1,4 +1,5 @@
 import { ChevronDownIcon } from "@radix-ui/react-icons";
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef } from "@tanstack/react-table";
 import { ChevronRightIcon } from "lucide-react";
 
@@ -6,8 +7,9 @@ import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SessionRow } from "@/lib/traces/types";
-import { getDurationString, TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { getDurationString } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -104,7 +106,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
   {
     accessorFn: (row) => row.startTime,
     header: "Start time",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "start_time",
     size: 150,
   },
@@ -175,13 +177,30 @@ export const columns: ColumnDef<SessionRow, any>[] = [
 
       if (Array.isArray(tags) && tags?.length > 0) {
         return (
-          <>
-            {tags.map((tag) => (
-              <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
-                <span>{tag}</span>
-              </Badge>
-            ))}
-          </>
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="truncate">
+                  {tags.map((tag) => (
+                    <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
+                      <span>{tag}</span>
+                    </Badge>
+                  ))}
+                </div>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent side="bottom" className="p-2 border max-w-sm">
+                  <div className="flex flex-wrap gap-1">
+                    {tags.map((tag) => (
+                      <Badge key={tag} className="rounded-3xl" variant="outline">
+                        <span>{tag}</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </TooltipContent>
+              </TooltipPortal>
+            </Tooltip>
+          </TooltipProvider>
         );
       }
       return "-";

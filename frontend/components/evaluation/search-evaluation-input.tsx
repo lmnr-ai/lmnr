@@ -1,19 +1,16 @@
 import { isNil } from "lodash";
 import { Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { usePostHog } from "posthog-js/react";
 import React, { type KeyboardEventHandler, memo, useCallback, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
 const SearchEvaluationInput = ({ className }: { className?: string }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathName = usePathname();
-  const posthog = usePostHog();
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState(searchParams.get("search") ?? "");
@@ -39,12 +36,7 @@ const SearchEvaluationInput = ({ className }: { className?: string }) => {
 
     router.push(`${pathName}?${params.toString()}`);
     inputRef.current?.blur();
-    if (isFeatureEnabled(Feature.POSTHOG)) {
-      posthog.capture("evaluation_results_searched", {
-        searchParams: searchParams.toString(),
-      });
-    }
-  }, [pathName, posthog, router, searchParams]);
+  }, [pathName, router, searchParams]);
 
   const handleKeyPress: KeyboardEventHandler<HTMLInputElement> = useCallback(
     (e) => {

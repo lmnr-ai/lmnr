@@ -18,11 +18,11 @@ export type EventCluster = {
 export const GetEventClustersSchema = z.object({
   projectId: z.string(),
   eventName: z.string(),
-  eventSource: z.enum(["SEMANTIC", "CODE"]),
+  eventSource: z.enum(["SEMANTIC", "CODE"]).optional().default("SEMANTIC"),
 });
 
 export async function getEventClusters(
-  input: z.infer<typeof GetEventClustersSchema>
+  input: Omit<z.infer<typeof GetEventClustersSchema>, "eventSource"> & { eventSource?: "SEMANTIC" | "CODE" }
 ): Promise<{ items: EventCluster[] }> {
   const { projectId, eventName, eventSource } = GetEventClustersSchema.parse(input);
 

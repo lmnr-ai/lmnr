@@ -1,31 +1,28 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, CircleDollarSign, Clock3, Coins, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, Settings } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
 import SpanTypeIcon from "@/components/traces/span-type-icon.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
 import { MiniTree } from "@/components/traces/trace-view/list/mini-tree.tsx";
 import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
+import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield.tsx";
 import { type TraceViewListSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
-import { cn, getDurationString } from "@/lib/utils.ts";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip.tsx";
+import { cn } from "@/lib/utils.ts";
 
 interface ListItemProps {
   span: TraceViewListSpan;
-  getOutput: (spanId: string) => any | undefined;
+  output: any | undefined;
   onSpanSelect: (span: TraceViewListSpan) => void;
   onOpenSettings: (span: TraceViewListSpan) => void;
   isLast: boolean;
 }
 
-const numberFormatter = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-});
-
-const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = false }: ListItemProps) => {
+const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isLast = false }: ListItemProps) => {
   const selectedSpan = useTraceViewStoreContext((state) => state.selectedSpan);
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
@@ -36,7 +33,6 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
     span.spanType === "LLM" || span.spanType === "EXECUTOR" || span.spanType === "EVALUATOR"
   );
 
-  const output = getOutput(span.spanId);
   const isLoadingOutput = output === undefined;
 
   const displayName = useMemo(
@@ -81,24 +77,14 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
           </div>
 
           <div className="flex items-center gap-2 min-w-0 ml-auto">
-            <div className="items-center gap-2 text-xs bg-muted px-1.5 rounded hidden group-hover/message:flex flex-shrink-0 animate-in fade-in duration-200">
-              <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-                <Clock3 size={12} className="min-w-3 min-h-3" />
-                <span>{getDurationString(span.startTime, span.endTime)}</span>
-              </div>
-              {span.totalTokens > 0 && (
-                <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-                  <Coins size={14} className="min-w-[14px] min-h-[14px]" />
-                  <span>{numberFormatter.format(span.totalTokens)}</span>
-                </div>
-              )}
-              {span.totalCost > 0 && (
-                <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-                  <CircleDollarSign size={14} className="min-w-[14px] min-h-[14px]" />
-                  <span>${span.totalCost.toFixed(4)}</span>
-                </div>
-              )}
-            </div>
+            <SpanStatsShield
+              startTime={span.startTime}
+              endTime={span.endTime}
+              tokens={span.totalTokens}
+              cost={span.totalCost}
+              cacheReadInputTokens={span.cacheReadInputTokens}
+              className="hidden group-hover/message:flex"
+            />
             <Button
               disabled={isLoadingOutput}
               variant="ghost"
@@ -112,28 +98,30 @@ const ListItem = ({ span, getOutput, onSpanSelect, onOpenSettings, isLast = fals
             </Button>
 
             {span.pathInfo && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-0.5 text-xs text-muted-foreground min-w-0 overflow-hidden">
-                    {span.pathInfo.display.map((ref, index) => (
-                      <React.Fragment key={ref.spanId}>
-                        {index > 0 && <ChevronRight size={12} className="flex-shrink-0" />}
-                        <span className="truncate">{ref.name}</span>
-                        {ref.count && (
-                          <span className="text-secondary-foreground px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium flex-shrink-0">
-                            {ref.count}
-                          </span>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </div>
-                </TooltipTrigger>
-                <TooltipPortal>
-                  <TooltipContent className="p-1 border">
-                    <MiniTree span={span} />
-                  </TooltipContent>
-                </TooltipPortal>
-              </Tooltip>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-0.5 text-xs text-muted-foreground min-w-0 overflow-hidden">
+                      {span.pathInfo.display.map((ref, index) => (
+                        <React.Fragment key={ref.spanId}>
+                          {index > 0 && <ChevronRight size={12} className="flex-shrink-0" />}
+                          <span className="truncate">{ref.name}</span>
+                          {ref.count && (
+                            <span className="text-secondary-foreground px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium flex-shrink-0">
+                              {ref.count}
+                            </span>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipPortal>
+                    <TooltipContent className="p-1 border">
+                      <MiniTree span={span} />
+                    </TooltipContent>
+                  </TooltipPortal>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </div>

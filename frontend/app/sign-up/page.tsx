@@ -1,9 +1,16 @@
+import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import SignUp from "@/components/auth/sign-up";
 import { authOptions } from "@/lib/auth.ts";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+
+export const metadata: Metadata = {
+  title: "Sign Up - Laminar",
+  description:
+    "Create a free Laminar account. Start tracing and evaluating your AI agents in minutes.",
+};
 
 export default async function SignUpPage(props: {
   params: Promise<Record<string, never>>;

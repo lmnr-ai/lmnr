@@ -1,6 +1,6 @@
 import { head, isNil } from "lodash";
 import Mustache from "mustache";
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { cn, tryParseJson } from "@/lib/utils.ts";
@@ -103,6 +103,45 @@ const preprocessDataForMustache = (data: any): any => {
 };
 
 const Markdown = ({ output, defaultValue, className }: MarkdownProps) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    setCanScrollUp(el.scrollTop > 0);
+    setCanScrollDown(el.scrollTop + el.clientHeight < el.scrollHeight - 1);
+  }, []);
+
+  const maskImage = useMemo(() => {
+    if (canScrollUp && canScrollDown) {
+      return "linear-gradient(to bottom, transparent, black 24px, black calc(100% - 30px), transparent)";
+    } else if (canScrollUp) {
+      return "linear-gradient(to bottom, transparent, black 30px)";
+    } else if (canScrollDown) {
+      return "linear-gradient(to bottom, black calc(100% - 60px), transparent)";
+    }
+    return undefined;
+  }, [canScrollUp, canScrollDown]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    updateScrollState();
+    el.addEventListener("scroll", updateScrollState);
+
+    const resizeObserver = new ResizeObserver(updateScrollState);
+    resizeObserver.observe(el);
+
+    return () => {
+      el.removeEventListener("scroll", updateScrollState);
+      resizeObserver.disconnect();
+    };
+  }, [updateScrollState]);
+
   const formattedOutput = useMemo(() => {
     if (!output) return "";
 
@@ -118,9 +157,9 @@ const Markdown = ({ output, defaultValue, className }: MarkdownProps) => {
         // Unescape HTML entities that Mustache escaped (like &quot; back to ")
         rendered = rendered
           .replace(/&quot;/g, '"')
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
           .replace(/&#x27;/g, "'");
 
         return rendered;
@@ -133,47 +172,55 @@ const Markdown = ({ output, defaultValue, className }: MarkdownProps) => {
   }, [output, defaultValue]);
 
   return (
-    <Streamdown
-      mode="static"
-      parseIncompleteMarkdown={false}
-      isAnimating={false}
-      className={cn("h-full overflow-auto text-white/80 rounded text-wrap", className)}
-      rehypePlugins={[defaultRehypePlugins.harden]}
-      components={{
-        h1: ({ children, className, ...props }) => (
-          <h1 {...props} className={cn(className, "text-base")}>
-            {children}
-          </h1>
-        ),
-        p: ({ children, className, ...props }) => (
-          <p {...props} className={cn(className, "text-sm")}>
-            {children}
-          </p>
-        ),
-        li: ({ children, className, ...props }) => (
-          <li {...props} className={cn(className, "text-sm")}>
-            {children}
-          </li>
-        ),
-        ul: ({ children, className, ...props }) => (
-          <ul {...props} className={cn(className, "text-sm list-disc pl-6")}>
-            {children}
-          </ul>
-        ),
-        ol: ({ children, className, ...props }) => (
-          <ol {...props} className={cn(className, "text-sm list-decimal pl-6")}>
-            {children}
-          </ol>
-        ),
-        code: ({ children, className, ...props }) => (
-          <code {...props} className={cn(className, "text-sm font-mono whitespace-pre-wrap")}>
-            {children}
-          </code>
-        ),
-      }}
+    <div
+      ref={scrollRef}
+      className={cn("h-full overflow-auto text-white/60 [&_*]:text-inherit", className)}
+      style={{ maskImage, WebkitMaskImage: maskImage }}
     >
-      {formattedOutput}
-    </Streamdown>
+      <div className="pb-2">
+        <Streamdown
+          mode="static"
+          parseIncompleteMarkdown={false}
+          isAnimating={false}
+          className="rounded text-wrap"
+          rehypePlugins={[defaultRehypePlugins.harden]}
+          components={{
+            h1: ({ children, className, ...props }) => (
+              <h1 {...props} className={cn(className, "text-base")}>
+                {children}
+              </h1>
+            ),
+            p: ({ children, className, ...props }) => (
+              <p {...props} className={cn(className, "text-sm")}>
+                {children}
+              </p>
+            ),
+            li: ({ children, className, ...props }) => (
+              <li {...props} className={cn(className, "text-sm")}>
+                {children}
+              </li>
+            ),
+            ul: ({ children, className, ...props }) => (
+              <ul {...props} className={cn(className, "text-sm list-disc pl-6")}>
+                {children}
+              </ul>
+            ),
+            ol: ({ children, className, ...props }) => (
+              <ol {...props} className={cn(className, "text-sm list-decimal pl-6")}>
+                {children}
+              </ol>
+            ),
+            code: ({ children, className, ...props }) => (
+              <code {...props} className={cn(className, "text-sm font-mono whitespace-pre-wrap")}>
+                {children}
+              </code>
+            ),
+          }}
+        >
+          {formattedOutput}
+        </Streamdown>
+      </div>
+    </div>
   );
 };
 

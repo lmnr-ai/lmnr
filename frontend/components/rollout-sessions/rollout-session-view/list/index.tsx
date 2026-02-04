@@ -7,11 +7,11 @@ import ListItem from "@/components/rollout-sessions/rollout-session-view/list/li
 import MustacheTemplateSheet from "@/components/rollout-sessions/rollout-session-view/list/mustache-template-sheet.tsx";
 import {
   type TraceViewListSpan,
-  type TraceViewSpan,
   useRolloutSessionStoreContext,
 } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store.tsx";
 import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
 import { useScrollContext } from "@/components/traces/trace-view/scroll-context.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 interface ListProps {
@@ -70,7 +70,7 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
     })
   ) as string[];
 
-  const { getOutput } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
+  const { outputs } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
     id: traceId ?? "-",
     startTime: trace?.startTime,
     endTime: trace?.endTime,
@@ -190,7 +190,7 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
                   <ListItem
                     isLast={isLast}
                     span={listSpan}
-                    getOutput={getOutput}
+                    output={outputs[listSpan.spanId]}
                     onSpanSelect={handleSpanSelect}
                     onOpenSettings={handleOpenSettings}
                   />
@@ -202,7 +202,7 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
       </div>
       <MustacheTemplateSheet
         span={settingsSpan}
-        output={getOutput(settingsSpan?.spanId ?? "")}
+        output={outputs[settingsSpan?.spanId ?? ""]}
         open={!!settingsSpan}
         onOpenChange={(open) => !open && setSettingsSpan(null)}
       />

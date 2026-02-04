@@ -62,13 +62,12 @@ pub fn decode_slack_token(
 fn format_event_identification_blocks(
     project_id: &str,
     trace_id: &str,
-    span_id: &str,
     event_name: &str,
     extracted_information: Option<serde_json::Value>,
 ) -> serde_json::Value {
     let trace_link = format!(
-        "https://laminar.sh/project/{}/traces/{}?spanId={}",
-        project_id, trace_id, span_id
+        "https://laminar.sh/project/{}/traces/{}",
+        project_id, trace_id
     );
 
     let extracted_information_text = if let Some(info) = extracted_information {
@@ -154,7 +153,6 @@ pub fn format_message_blocks(
     payload: &SlackMessagePayload,
     project_id: &str,
     trace_id: &str,
-    span_id: &str,
     event_name: &str,
 ) -> serde_json::Value {
     match payload {
@@ -162,7 +160,6 @@ pub fn format_message_blocks(
             format_event_identification_blocks(
                 project_id,
                 trace_id,
-                span_id,
                 event_name,
                 event_payload.extracted_information.clone(),
             )

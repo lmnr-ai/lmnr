@@ -15,7 +15,7 @@ aws-config = "1.8.12"
 aws-sdk-s3 = "1.120.0"
 backoff = {version = "0.4.0", features = ["tokio"]}
 base64 = "0.22.1"
-bytes = "1.11.0"
+bytes = "1.11.1"
 chrono = {version = "0.4.43", features = ["serde"]}
 clickhouse = {version = "0.14.1", features = ["rustls-tls", "uuid"]}
 dashmap = "6.1.0"
@@ -43,6 +43,7 @@ rustls = {version = "0.23", features = ["ring"]}
 sentry = {version = "0.46.0", features = ["opentelemetry"]}
 serde = "1.0"
 serde_json = {version = "1.0.149", features = ["preserve_order"]}
+serde_yaml = "0.9"
 sha3 = "0.10.8"
 sodiumoxide = "0.2.7"
 sqlx = {version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "json", "chrono", "bigdecimal", "tls-rustls"]}

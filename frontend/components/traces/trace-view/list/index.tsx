@@ -18,9 +18,10 @@ import { useScrollContext } from "../scroll-context.tsx";
 interface ListProps {
   traceId: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
+  isShared?: boolean;
 }
 
-const List = ({ traceId, onSpanSelect }: ListProps) => {
+const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
   const { getListData, spans, isSpansLoading, selectedSpan, trace } = useTraceViewStoreContext((state) => ({
@@ -66,11 +67,18 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
 
   const visibleSpanIds = compact(items.map((item) => listSpans[item.index]?.spanId)) as string[];
 
-  const { getOutput } = useBatchedSpanOutputs(projectId, visibleSpanIds, {
-    id: traceId,
-    startTime: trace?.startTime,
-    endTime: trace?.endTime,
-  });
+  const { outputs } = useBatchedSpanOutputs(
+    projectId,
+    // Fetches outputs for visible or rendered spans in virtualized list.
+    // Make sure that spans in view (~20) + overscan spans < cache size (default 100) in this hook.
+    visibleSpanIds,
+    {
+      id: traceId,
+      startTime: trace?.startTime,
+      endTime: trace?.endTime,
+    },
+    { isShared }
+  );
 
   useEffect(() => {
     const currentIdsKey = visibleSpanIds.join(",");
@@ -125,10 +133,6 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
     },
     [spans, onSpanSelect]
   );
-
-  const handleOpenSettings = useCallback((span: TraceViewListSpan) => {
-    setSettingsSpan(span);
-  }, []);
 
   if (isSpansLoading) {
     return (
@@ -186,9 +190,9 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
                   <ListItem
                     isLast={isLast}
                     span={listSpan}
-                    getOutput={getOutput}
+                    output={outputs[listSpan.spanId]}
                     onSpanSelect={handleSpanSelect}
-                    onOpenSettings={handleOpenSettings}
+                    onOpenSettings={setSettingsSpan}
                   />
                 </div>
               );
@@ -198,7 +202,7 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
       </div>
       <MustacheTemplateSheet
         span={settingsSpan}
-        output={getOutput(settingsSpan?.spanId ?? "")}
+        output={outputs[settingsSpan?.spanId ?? ""]}
         open={!!settingsSpan}
         onOpenChange={(open) => !open && setSettingsSpan(null)}
       />

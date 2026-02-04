@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
-import { cn, TIME_SECONDS_FORMAT } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -91,7 +91,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   {
     accessorFn: (row) => row.startTime,
     header: "Timestamp",
-    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} format={TIME_SECONDS_FORMAT} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "start_time",
     size: 150,
   },
@@ -165,13 +165,30 @@ export const columns: ColumnDef<TraceRow, any>[] = [
 
       if (tags?.length > 0) {
         return (
-          <>
-            {tags.map((tag) => (
-              <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
-                <span>{tag}</span>
-              </Badge>
-            ))}
-          </>
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="truncate">
+                  {tags.map((tag) => (
+                    <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
+                      <span>{tag}</span>
+                    </Badge>
+                  ))}
+                </div>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent side="bottom" className="p-2 border max-w-sm">
+                  <div className="flex flex-wrap gap-1">
+                    {tags.map((tag) => (
+                      <Badge key={tag} className="rounded-3xl" variant="outline">
+                        <span>{tag}</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </TooltipContent>
+              </TooltipPortal>
+            </Tooltip>
+          </TooltipProvider>
         );
       }
       return "-";
@@ -231,6 +248,11 @@ export const filters: ColumnFilter[] = [
     name: "Top span name",
     key: "top_span_name",
     dataType: "string",
+  },
+  {
+    name: "Span names",
+    key: "span_names",
+    dataType: "array",
   },
   {
     name: "Input cost",

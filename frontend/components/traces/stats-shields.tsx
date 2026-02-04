@@ -29,6 +29,10 @@ interface Tool {
   parameters?: string;
 }
 
+const numberFormat = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 3,
+});
+
 const ToolsList = ({ tools }: { tools: Tool[] }) => {
   if (tools.length === 0) return null;
 
@@ -106,6 +110,25 @@ const extractToolsFromAttributes = (attributes: Record<string, any>): Tool[] => 
     }
   }
 
+  const genAiToolDefinitions = get(attributes, "gen_ai.tool.definitions");
+  // TODO: add strong typing here, make it flexible for non-OpenAI tool typing, potentially
+  // moving the schema parsing to provider-specific types, i.e. @/lib/spans/types
+  if (genAiToolDefinitions) {
+    try {
+      const parsed = JSON.parse(genAiToolDefinitions);
+      return parsed.map((tool: any) => {
+        const func = tool.function ?? tool;
+        return {
+          name: func.name,
+          description: func.description,
+          parameters: typeof func.parameters === "string" ? func.parameters : JSON.stringify(func.parameters || {}),
+        };
+      });
+    } catch (e) {
+      console.error("Failed to parse gen_ai.tool.definitions:", e);
+    }
+  }
+
   const functionIndices = uniq(
     Object.keys(attributes)
       .map((key) => key.match(/^llm\.request\.functions\.(\d+)\.name$/)?.[1])
@@ -132,7 +155,15 @@ function StatsShieldsContent({
 }: PropsWithChildren<{
   stats: Pick<
     TraceViewSpan,
-    "startTime" | "endTime" | "inputTokens" | "outputTokens" | "totalTokens" | "inputCost" | "outputCost" | "totalCost"
+    | "startTime"
+    | "endTime"
+    | "inputTokens"
+    | "outputTokens"
+    | "totalTokens"
+    | "inputCost"
+    | "outputCost"
+    | "totalCost"
+    | "cacheReadInputTokens"
   >;
   className?: string;
 }>) {
@@ -149,18 +180,25 @@ function StatsShieldsContent({
           <TooltipTrigger className="min-w-8">
             <div className="flex space-x-1 items-center p-0.5 min-w-8 px-2 border rounded-md">
               <Coins className="min-w-3" size={12} />
-              <Label className="text-xs truncate text-foreground">{stats.totalTokens}</Label>
+              <Label className="text-xs truncate text-foreground">{numberFormat.format(stats.totalTokens)}</Label>
             </div>
           </TooltipTrigger>
           <TooltipPortal>
             <TooltipContent side="bottom" className="p-2 border">
               <div className="flex-col space-y-1">
                 <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Input tokens</span> {stats.inputTokens}
+                  <span className="text-secondary-foreground">Input tokens</span>{" "}
+                  {numberFormat.format(stats.inputTokens)}
                 </Label>
                 <Label className="flex text-xs gap-1">
-                  <span className="text-secondary-foreground">Output tokens</span> {stats.outputTokens}
+                  <span className="text-secondary-foreground">Output tokens</span>{" "}
+                  {numberFormat.format(stats.outputTokens)}
                 </Label>
+                {!!stats.cacheReadInputTokens && (
+                  <Label className="flex text-xs gap-1 text-success-bright">
+                    <span>Cache read input tokens</span> {numberFormat.format(stats.cacheReadInputTokens)}
+                  </Label>
+                )}
               </div>
             </TooltipContent>
           </TooltipPortal>
@@ -204,6 +242,7 @@ const PureTraceStatsShields = ({ trace, className, children }: PropsWithChildren
       "inputTokens",
       "outputTokens",
       "totalTokens",
+      "cacheReadInputTokens",
       "inputCost",
       "outputCost",
       "totalCost",

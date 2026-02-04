@@ -1,35 +1,61 @@
-import { useEffect, useState } from 'react';
+"use client";
 
-import {
-  convertToLocalTimeWithMillis,
-  formatTimestamp,
-  formatTimestampWithSeconds,
-  TIME_MILLISECONDS_FORMAT,
-  TIME_SECONDS_FORMAT
-} from '@/lib/utils';
+import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { differenceInDays, differenceInHours, differenceInMinutes, differenceInSeconds, format } from "date-fns";
 
-// This component is a client-side only component that will format a timestamp
-// If it's not used, then there will be error because SSR will try to render
-// this component with server's rather than user's timezone.
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn, formatTimestamp } from "@/lib/utils.ts";
+
+function formatShortRelativeTime(date: Date): string {
+  const now = new Date();
+  const seconds = differenceInSeconds(now, date);
+  const minutes = differenceInMinutes(now, date);
+  const hours = differenceInHours(now, date);
+  const days = differenceInDays(now, date);
+
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "narrow" });
+
+  if (seconds < 60) {
+    return rtf.format(-seconds, "second");
+  } else if (minutes < 60) {
+    return rtf.format(-minutes, "minute");
+  } else if (hours < 24) {
+    return rtf.format(-hours, "hour");
+  } else {
+    return rtf.format(-days, "day");
+  }
+}
+
 export default function ClientTimestampFormatter({
   timestamp,
-  format = null
+  className,
+  absolute = false,
 }: {
   timestamp: string;
-  format?: string | null;
+  className?: string;
+  absolute?: boolean;
 }) {
-  const [formattedTimestamp, setFormattedTimestamp] = useState('');
+  const date = new Date(timestamp);
+  const days = differenceInDays(new Date(), date);
+  const displayText = absolute
+    ? formatTimestamp(timestamp)
+    : days < 7
+      ? formatShortRelativeTime(date)
+      : formatTimestamp(timestamp);
+  const tooltipText = format(date, "MMMM d, yyyy, h:mm a O");
 
-  // This function will now run on the client side after mounting
-  useEffect(() => {
-    if (format === TIME_MILLISECONDS_FORMAT) {
-      setFormattedTimestamp(convertToLocalTimeWithMillis(timestamp));
-    } else if (format === TIME_SECONDS_FORMAT) {
-      setFormattedTimestamp(formatTimestampWithSeconds(timestamp));
-    } else {
-      setFormattedTimestamp(formatTimestamp(timestamp));
-    }
-  }, [format, timestamp]);
-
-  return <span>{formattedTimestamp}</span>;
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <span className={cn("text-sm cursor-pointer", className)}>{displayText}</span>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent className="border">
+            <span>{tooltipText}</span>
+          </TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }

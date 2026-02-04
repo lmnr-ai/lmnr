@@ -5,7 +5,7 @@ use lapin::{
     BasicProperties, Channel, Connection, Consumer,
     acker::Acker,
     options::{BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},
-    types::FieldTable,
+    types::{FieldTable, ShortString},
 };
 use std::sync::Arc;
 
@@ -80,6 +80,7 @@ pub struct RabbitMQReceiver {
 pub struct RabbitMQDelivery {
     acker: Acker,
     data: Vec<u8>,
+    delivery_tag: u64,
 }
 
 impl MessageQueueDeliveryTrait for RabbitMQDelivery {
@@ -89,6 +90,10 @@ impl MessageQueueDeliveryTrait for RabbitMQDelivery {
 
     fn data(self) -> Vec<u8> {
         self.data
+    }
+
+    fn delivery_tag(&self) -> u64 {
+        self.delivery_tag
     }
 }
 
@@ -104,6 +109,7 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
             Some(Ok(MessageQueueDelivery::Rabbit(RabbitMQDelivery {
                 acker: delivery.acker,
                 data: delivery.data,
+                delivery_tag: delivery.delivery_tag,
             })))
         } else {
             None
@@ -143,7 +149,15 @@ impl MessageQueueTrait for RabbitMQ {
         message: &[u8],
         exchange: &str,
         routing_key: &str,
+        ttl_ms: Option<u64>,
     ) -> anyhow::Result<()> {
+        // Build properties with delivery_mode=2 (persistent) and optional TTL
+        let properties = BasicProperties::default().with_delivery_mode(2);
+        let properties = match ttl_ms {
+            Some(ttl) => properties.with_expiration(ShortString::from(ttl.to_string())),
+            None => properties,
+        };
+
         let publish_with_retry = || async {
             let channel = match self.publisher_channel_pool.get().await {
                 Ok(channel) => channel,
@@ -177,7 +191,7 @@ impl MessageQueueTrait for RabbitMQ {
                     routing_key,
                     BasicPublishOptions::default(),
                     message,
-                    BasicProperties::default().with_delivery_mode(2),
+                    properties.clone(),
                 )
                 .await
             {

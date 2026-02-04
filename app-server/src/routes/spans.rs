@@ -101,7 +101,12 @@ pub async fn create_span(
         // Don't return error for now, skip publishing
     } else {
         spans_message_queue
-            .publish(&mq_message, OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY)
+            .publish(
+                &mq_message,
+                OBSERVATIONS_EXCHANGE,
+                OBSERVATIONS_ROUTING_KEY,
+                None,
+            )
             .await
             .map_err(|e| {
                 log::error!("Failed to publish span to queue: {:?}", e);
