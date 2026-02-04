@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
+use crate::batch_worker::config::BatchingConfig;
 use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult, MessageDelivery};
 use crate::mq::MessageQueue;
 use crate::worker::HandlerError;
@@ -25,11 +26,6 @@ impl ClusteringBatch {
             last_flush: Instant::now(),
         }
     }
-}
-
-pub struct BatchingConfig {
-    pub size: usize,
-    pub flush_interval: Duration,
 }
 
 pub struct ClusteringEventBatchingHandler {
@@ -82,10 +78,7 @@ impl BatchMessageHandler for ClusteringEventBatchingHandler {
         delivery: MessageDelivery<Self::Message>,
         state: &mut Self::State,
     ) -> HandlerResult<Self::Message> {
-        let key = (
-            delivery.message.project_id,
-            delivery.message.signal_event.signal_id,
-        );
+        let key = (delivery.message.project_id, delivery.message.signal_id);
 
         // Add delivery to batch
         state
@@ -165,7 +158,6 @@ impl BatchMessageHandler for ClusteringEventBatchingHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ch::signal_events::CHSignalEvent;
     use crate::clustering::queue::{
         EVENT_CLUSTERING_BATCH_EXCHANGE, EVENT_CLUSTERING_BATCH_ROUTING_KEY,
     };
@@ -179,19 +171,10 @@ mod tests {
 
     fn create_test_message(project_id: Uuid, signal_id: Uuid) -> ClusteringMessage {
         ClusteringMessage {
-            id: Uuid::new_v4(),
             project_id,
-            signal_event: CHSignalEvent {
-                id: Uuid::new_v4(),
-                project_id,
-                signal_id,
-                trace_id: Uuid::new_v4(),
-                run_id: Uuid::new_v4(),
-                name: "test_signal".to_string(),
-                payload: "{}".to_string(),
-                timestamp: 0,
-            },
-            value_template: "test".to_string(),
+            signal_id,
+            event_id: Uuid::new_v4(),
+            content: "test".to_string(),
         }
     }
 

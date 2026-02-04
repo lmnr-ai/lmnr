@@ -2,6 +2,8 @@
 
 use uuid::Uuid;
 
+use crate::signals::gemini::FinishReason;
+
 use super::{Candidate, FunctionCall, InlineResponse};
 
 /// Parsed response from Gemini API containing all extracted fields.
@@ -15,7 +17,7 @@ pub struct ParsedInlineResponse {
     /// Original error message from Gemini API if present
     pub error_message: Option<String>,
     /// Serialized content for storage
-    pub content: String,
+    pub content: Option<String>,
     /// Function call if present
     pub function_call: Option<FunctionCall>,
     /// Text response if present
@@ -24,6 +26,8 @@ pub struct ParsedInlineResponse {
     pub input_tokens: Option<i32>,
     /// Output tokens (candidates_token_count in Gemini)
     pub output_tokens: Option<i32>,
+    /// Finish reason if present
+    pub finish_reason: Option<FinishReason>,
 }
 
 /// Parse an InlineResponse into a structured format with all extracted fields.
@@ -36,8 +40,7 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
 
     let content = candidate
         .and_then(|c| c.content.as_ref())
-        .map(|c| serde_json::to_string(c).unwrap_or_default())
-        .unwrap_or_default();
+        .map(|c| serde_json::to_string(c).unwrap_or_default());
 
     let function_call = candidate
         .and_then(|c| c.content.as_ref())
@@ -48,6 +51,8 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
         .and_then(|c| c.content.as_ref())
         .and_then(|c| c.parts.as_ref())
         .and_then(|parts| parts.iter().find_map(|p| p.text.clone()));
+
+    let finish_reason = candidate.and_then(|c| c.finish_reason.clone());
 
     // Include thoughts tokens in output tokens.
     // Divide by 2 with ceiling to account for discounted batching price.
@@ -77,6 +82,7 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
         text,
         input_tokens,
         output_tokens,
+        finish_reason,
     }
 }
 

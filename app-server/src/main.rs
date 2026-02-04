@@ -16,8 +16,8 @@ use api::v1::browser_sessions::{
     BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE, BROWSER_SESSIONS_ROUTING_KEY,
 };
 use aws_config::BehaviorVersion;
-use browser_events::{BatchingConfig as BrowserEventsBatchingConfig, BrowserEventHandler};
-use clustering::batching::{BatchingConfig, ClusteringEventBatchingHandler};
+use browser_events::BrowserEventHandler;
+use clustering::batching::ClusteringEventBatchingHandler;
 use clustering::queue::{
     EVENT_CLUSTERING_BATCH_EXCHANGE, EVENT_CLUSTERING_BATCH_QUEUE,
     EVENT_CLUSTERING_BATCH_ROUTING_KEY, EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE,
@@ -51,15 +51,15 @@ use signals::{
     SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY, SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
     SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
     SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
-    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SignalWorkerConfig,
+    SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SIGNALS_EXCHANGE, SIGNALS_QUEUE, SIGNALS_ROUTING_KEY,
+    SignalWorkerConfig, batching::SignalBatchingHandler,
     pendings_consumer::SignalJobPendingBatchHandler,
     submissions_consumer::SignalJobSubmissionBatchHandler,
 };
 use tonic::transport::Server;
 use traces::{
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SIGNALS_EXCHANGE,
-    SIGNALS_QUEUE, SIGNALS_ROUTING_KEY, clustering::ClusteringHandler, consumer::SpanHandler,
-    grpc_service::ProcessTracesService, signals::SignalHandler,
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, consumer::SpanHandler,
+    grpc_service::ProcessTracesService,
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
@@ -84,9 +84,13 @@ use storage::{
     mock::MockStorage,
 };
 
-use crate::batch_worker::{BatchWorkerType, worker_pool::BatchWorkerPool};
 use crate::features::{enable_consumer, enable_producer};
+use crate::utils::get_unsigned_env_with_default;
 use crate::worker::{QueueConfig, WorkerPool, WorkerType};
+use crate::{
+    batch_worker::{BatchWorkerType, config::BatchingConfig, worker_pool::BatchWorkerPool},
+    clustering::clustering::ClusteringHandler,
+};
 
 mod api;
 mod auth;
@@ -1077,7 +1081,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
                                 cache: cache.clone(),
-                                config: BrowserEventsBatchingConfig {
+                                config: BatchingConfig {
                                     size,
                                     flush_interval,
                                 },
@@ -1131,20 +1135,27 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn signals workers using new worker pool
-                    {
-                        let db = db_for_consumer.clone();
+                    if gemini_client.is_some() {
+                        // Spawn clustering batching workers
+                        let batch_size: usize = get_unsigned_env_with_default(
+                            "SIGNALS_BATCH_SIZE",
+                            crate::signals::queue::DEFAULT_BATCH_SIZE,
+                        );
+                        let batch_flush_interval_sec =
+                            get_unsigned_env_with_default("SIGNALS_BATCH_FLUSH_INTERVAL_SEC", 300);
                         let queue = mq_for_consumer.clone();
-                        let client = reqwest::Client::new();
-                        let clickhouse = clickhouse_for_consumer.clone();
-                        worker_pool_clone.spawn(
-                            WorkerType::Signals,
+                        batch_worker_pool_clone.spawn(
+                            BatchWorkerType::SignalsBatching,
                             num_signals_workers as usize,
                             move || {
-                                SignalHandler::new(
-                                    db.clone(),
+                                SignalBatchingHandler::new(
                                     queue.clone(),
-                                    clickhouse.clone(),
-                                    client.clone(),
+                                    BatchingConfig {
+                                        size: batch_size,
+                                        flush_interval: Duration::from_secs(
+                                            batch_flush_interval_sec as u64,
+                                        ),
+                                    },
                                 )
                             },
                             QueueConfig {
@@ -1153,6 +1164,8 @@ fn main() -> anyhow::Result<()> {
                                 routing_key: SIGNALS_ROUTING_KEY,
                             },
                         );
+                    } else {
+                        log::warn!("Gemini client not available - skipping signals workers");
                     }
 
                     // Spawn notification workers

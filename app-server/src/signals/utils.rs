@@ -7,7 +7,10 @@ use uuid::Uuid;
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    db::spans::{Span, SpanType},
+    db::{
+        events::{Event, EventSource},
+        spans::{Span, SpanType},
+    },
     mq::{MessageQueue, MessageQueueTrait},
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
@@ -17,7 +20,6 @@ use crate::{
 pub struct InternalSpan {
     pub name: String,
     pub trace_id: Uuid,
-    pub job_id: Uuid,
     pub run_id: Uuid,
     pub signal_name: String,
     pub parent_span_id: Option<Uuid>,
@@ -30,6 +32,9 @@ pub struct InternalSpan {
     pub model: String,
     pub provider: String,
     pub internal_project_id: Option<Uuid>,
+    /// Job IDs associated with this span (may be empty for triggered runs)
+    pub job_id: Option<Uuid>,
+    pub error: Option<String>,
 }
 
 /// Try to parse JSON string, return the parsed value or the original string
@@ -123,40 +128,41 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
 
     let mut attrs = HashMap::from([
         (
-            "signal.job_id".to_string(),
-            serde_json::json!(span.job_id.to_string()),
-        ),
-        (
             "signal.run_id".to_string(),
-            serde_json::json!(span.run_id.to_string()),
+            Value::String(span.run_id.to_string()),
         ),
         (
             "signal.event_name".to_string(),
-            serde_json::json!(span.signal_name),
+            Value::String(span.signal_name),
         ),
     ]);
+
+    // Only add job_ids if non-empty
+    if let Some(job_id) = span.job_id {
+        attrs.insert(
+            "signal.job_id".to_string(),
+            Value::String(job_id.to_string()),
+        );
+    }
 
     if let Some(tokens) = span.input_tokens {
         attrs.insert(
             "gen_ai.usage.input_tokens".to_string(),
-            serde_json::json!(tokens),
+            Value::Number(tokens.into()),
         );
     }
     if let Some(tokens) = span.output_tokens {
         attrs.insert(
             "gen_ai.usage.output_tokens".to_string(),
-            serde_json::json!(tokens),
+            Value::Number(tokens.into()),
         );
     }
 
     attrs.insert(
         "gen_ai.request.model".to_string(),
-        serde_json::json!(span.model),
+        Value::String(span.model),
     );
-    attrs.insert(
-        "gen_ai.system".to_string(),
-        serde_json::json!(span.provider),
-    );
+    attrs.insert("gen_ai.system".to_string(), Value::String(span.provider));
 
     if let Some(parent_span_id) = span.parent_span_id {
         attrs.insert(
@@ -198,9 +204,26 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         output_url: None,
     };
 
+    let error_event = if let Some(error) = span.error {
+        Some(Event {
+            id: Uuid::new_v4(),
+            span_id,
+            project_id,
+            timestamp: span.start_time,
+            name: "exception".to_string(),
+            attributes: serde_json::json!({
+                "exception.message": error,
+            }),
+            trace_id: span.trace_id,
+            source: EventSource::Code,
+        })
+    } else {
+        None
+    };
+
     let message = RabbitMqSpanMessage {
         span: db_span,
-        events: vec![],
+        events: error_event.map(|event| vec![event]).unwrap_or_default(),
     };
 
     if let Ok(payload) = serde_json::to_vec(&vec![message]) {
