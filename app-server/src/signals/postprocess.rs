@@ -64,14 +64,8 @@ pub async fn process_event_notifications_and_clustering(
 
     if is_feature_enabled(Feature::Clustering) {
         // Check for event clustering configuration
-        if let Err(e) = push_to_event_clustering_queue(
-            project_id,
-            signal_event,
-            // TODO: skull8888888 update value template
-            summary,
-            queue.clone(),
-        )
-        .await
+        if let Err(e) =
+            push_to_event_clustering_queue(project_id, signal_event, summary, queue.clone()).await
         {
             log::error!(
                 "Failed to push to event clustering queue for event {}: {:?}",
