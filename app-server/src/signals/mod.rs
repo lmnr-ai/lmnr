@@ -47,7 +47,7 @@ impl SignalWorkerConfig {
     /// Environment variables:
     /// - `SIGNAL_JOB_MAX_ALLOWED_STEPS`: Maximum steps per run (default: 5)
     /// - `SIGNAL_JOB_INTERNAL_PROJECT_ID`: Project ID for internal tracing (optional)
-    /// - `SIGNAL_JOB_WAITING_QUEUE_TTL_MS`: TTL for waiting queue in milliseconds (default: 60000)
+    /// - `SIGNAL_JOB_WAITING_QUEUE_TTL_MS`: TTL for waiting queue in milliseconds (default: 300000)
     pub fn from_env() -> Self {
         let max_allowed_steps = env::var("SIGNAL_JOB_MAX_ALLOWED_STEPS")
             .ok()
@@ -61,7 +61,7 @@ impl SignalWorkerConfig {
         let waiting_queue_ttl_ms = env::var("SIGNAL_JOB_WAITING_QUEUE_TTL_MS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(60_000);
+            .unwrap_or(300_000);
 
         Self {
             max_allowed_steps,
