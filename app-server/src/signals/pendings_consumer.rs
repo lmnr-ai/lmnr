@@ -569,6 +569,7 @@ async fn process_succeeded_batch(
             clickhouse.clone(),
             queue.clone(),
             config.clone(),
+            message.batch_id.clone(),
         )
         .await;
 
@@ -750,6 +751,7 @@ async fn process_single_response(
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     config: Arc<SignalWorkerConfig>,
+    provider_batch_id: String,
 ) -> (StepResult, Vec<CHSignalRunMessage>) {
     let mut new_messages: Vec<CHSignalRunMessage> = Vec::new();
 
@@ -807,6 +809,7 @@ async fn process_single_response(
             internal_project_id: config.internal_project_id,
             job_id: run.job_id,
             error: span_error,
+            provider_batch_id: None,
         },
     )
     .await;
@@ -868,6 +871,7 @@ async fn process_single_response(
                 internal_project_id: config.internal_project_id,
                 job_id: run.job_id,
                 error: tool_error,
+                provider_batch_id: Some(provider_batch_id),
             },
         )
         .await;
@@ -1171,6 +1175,7 @@ async fn handle_create_event(
             internal_project_id,
             job_id: run.job_id,
             error: None,
+            provider_batch_id: None,
         },
     )
     .await;
