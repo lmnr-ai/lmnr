@@ -322,7 +322,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setTraceError(undefined);
       setSpansError(undefined);
     };
-  }, [traceId, projectId, setSpans, setTraceError, setSpansError]);
+  }, [traceId, projectId, fetchSpans, setSpans, setTraceError, setSpansError]);
 
   useRealtime({
     key: `trace_${traceId}`,

@@ -323,7 +323,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
       setTraceError(undefined);
       setSpansError(undefined);
     };
-  }, [projectId, setSpans, setTraceError, setSpansError]);
+  }, [trace?.id, projectId, fetchSpans, setSpans, setTraceError, setSpansError]);
 
   const llmPathsRef = React.useRef<Array<{ key: string; path: string[] }>>([]);
   const llmPaths = useMemo(() => {
