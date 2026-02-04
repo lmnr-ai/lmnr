@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/", "/project/", "/checkout/", "/onboarding"],
     },
-    sitemap: "https://www.lmnr.ai/sitemap.xml",
+    sitemap: "https://laminar.sh/sitemap.xml",
   };
 }
