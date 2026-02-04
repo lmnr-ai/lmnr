@@ -6,22 +6,23 @@ use crate::{
     db::DB,
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
-    opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
-        ExportTraceServiceRequest, ExportTraceServiceResponse, trace_service_server::TraceService,
+    opentelemetry_proto::opentelemetry::proto::collector::logs::v1::{
+        ExportLogsServiceRequest, ExportLogsServiceResponse, logs_service_server::LogsService,
     },
+    traces::limits::get_workspace_limit_exceeded_by_project_id,
 };
 use tonic::{Request, Response, Status};
 
-use super::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue};
+use super::producer::push_logs_to_queue;
 
-pub struct ProcessTracesService {
+pub struct ProcessLogsService {
     db: Arc<DB>,
     cache: Arc<Cache>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
 }
 
-impl ProcessTracesService {
+impl ProcessLogsService {
     pub fn new(
         db: Arc<DB>,
         cache: Arc<Cache>,
@@ -38,11 +39,11 @@ impl ProcessTracesService {
 }
 
 #[tonic::async_trait]
-impl TraceService for ProcessTracesService {
+impl LogsService for ProcessLogsService {
     async fn export(
         &self,
-        request: Request<ExportTraceServiceRequest>,
-    ) -> Result<Response<ExportTraceServiceResponse>, Status> {
+        request: Request<ExportLogsServiceRequest>,
+    ) -> Result<Response<ExportLogsServiceResponse>, Status> {
         let api_key = authenticate_request(request.metadata(), &self.db.pool, self.cache.clone())
             .await
             .map_err(|_| Status::unauthenticated("Failed to authenticate request"))?;
@@ -60,7 +61,7 @@ impl TraceService for ProcessTracesService {
             .map_err(|e| {
                 // Don't throw an error here. If there is a problem with us
                 // getting the limits, we don't want to block the user from
-                // sending traces.
+                // sending logs.
                 log::error!("Failed to get workspace limits: {:?}", e);
             });
 
@@ -69,11 +70,11 @@ impl TraceService for ProcessTracesService {
             }
         }
 
-        let response = push_spans_to_queue(request, project_id, self.queue.clone())
+        let response = push_logs_to_queue(request, project_id, self.queue.clone())
             .await
             .map_err(|e| {
-                log::error!("Failed to process traces: {:?}", e);
-                Status::internal("Failed to process traces")
+                log::error!("Failed to process logs: {:?}", e);
+                Status::internal("Failed to process logs")
             })?;
 
         Ok(Response::new(response))
