@@ -104,7 +104,7 @@ interface TraceViewStoreState {
   browserSession: boolean;
   langGraph: boolean;
   sessionTime?: number;
-  tab: "tree" | "timeline" | "chat" | "reader";
+  tab: "tree" | "chat" | "reader";
   treeWidth: number;
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
@@ -462,7 +462,7 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
       {
         name: storeKey ?? "trace-view-state",
         partialize: (state) => {
-          const persistentTabs = ["tree", "timeline", "reader"] as const;
+          const persistentTabs = ["tree", "reader"] as const;
           const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
 
           return {
