@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import React, { memo, useMemo } from "react";
+import { memo, useMemo } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { CopyButton } from "@/components/ui/copy-button.tsx";
@@ -64,7 +64,7 @@ const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
               {value}
             </Streamdown>
           ) : (
-            <span className="break-words overflow-wrap-anywhere">{JSON.stringify(value)}</span>
+            <span className="wrap-break-word overflow-wrap-anywhere">{JSON.stringify(value)}</span>
           )}
           {index < array.length - 1 && <span>,</span>}
         </div>
@@ -109,8 +109,8 @@ const JsonTooltip = ({ data, columnSize, className }: JsonTooltipProps) => {
             style={{
               ...(columnSize
                 ? {
-                    width: columnSize - 32,
-                  }
+                  width: columnSize - 32,
+                }
                 : {}),
             }}
             className={cn("font-mono text-secondary-foreground overflow-hidden text-xs truncate", className)}
