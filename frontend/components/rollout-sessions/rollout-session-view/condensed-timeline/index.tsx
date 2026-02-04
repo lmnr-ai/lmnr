@@ -3,16 +3,21 @@ import { isEmpty } from "lodash";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import CondensedTimelineElement, {
+  ROW_HEIGHT,
+} from "@/components/traces/trace-view/condensed-timeline/condensed-timeline-element";
+import SelectionIndicator from "@/components/traces/trace-view/condensed-timeline/selection-indicator";
+import SelectionOverlay from "@/components/traces/trace-view/condensed-timeline/selection-overlay";
+import {
+  formatTimeMarkerLabel,
+  useDynamicTimeIntervals,
+} from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
+import { useHoverNeedle } from "@/components/traces/trace-view/condensed-timeline/use-hover-needle";
+import { useScrollToSpan } from "@/components/traces/trace-view/condensed-timeline/use-scroll-to-span";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/trace-view-store-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-import CondensedTimelineElement, { ROW_HEIGHT } from "@/components/traces/trace-view/condensed-timeline/condensed-timeline-element";
-import SelectionIndicator from "@/components/traces/trace-view/condensed-timeline/selection-indicator";
-import SelectionOverlay from "@/components/traces/trace-view/condensed-timeline/selection-overlay";
-import { formatTimeMarkerLabel, useDynamicTimeIntervals } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
-import { useHoverNeedle } from "@/components/traces/trace-view/condensed-timeline/use-hover-needle";
-import { useScrollToSpan } from "@/components/traces/trace-view/condensed-timeline/use-scroll-to-span";
 import { useWheelZoom } from "./use-wheel-zoom";
 import ZoomControls from "./zoom-controls";
 
@@ -130,10 +135,10 @@ function CondensedTimeline() {
           {/* Session Time Needle */}
           {browserSession && sessionTime !== undefined && totalDurationMs > 0 && (
             <div
-              className="absolute inset-y-0 pointer-events-none z-[34]"
+              className="absolute inset-y-0 pointer-events-none z-[33]"
               style={{ left: `${((sessionTime * 1000) / totalDurationMs) * 100}%` }}
             >
-              <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
+              <div className="absolute top-0 h-6 flex items-center -translate-x-1/2 z-[34]">
                 <div className="size-5 bg-landing-text-500 text-primary-foreground rounded-full flex items-center justify-center">
                   <PlayIcon className="w-3 h-3" />
                 </div>
