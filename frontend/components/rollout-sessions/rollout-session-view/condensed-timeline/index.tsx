@@ -18,7 +18,7 @@ import { computeVisibleSpanIds } from "@/components/traces/trace-view/trace-view
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-import { useWheelZoom } from "./use-wheel-zoom";
+import { useWheelZoom } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
 import ZoomControls from "./zoom-controls";
 
 function CondensedTimeline() {
