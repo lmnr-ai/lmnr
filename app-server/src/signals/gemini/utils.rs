@@ -2,7 +2,7 @@
 
 use uuid::Uuid;
 
-use crate::signals::gemini::FinishReason;
+use crate::signals::gemini::{FinishReason, GeminiModality, Modality};
 
 use super::{Candidate, FunctionCall, InlineResponse};
 
@@ -24,10 +24,17 @@ pub struct ParsedInlineResponse {
     pub text: Option<String>,
     /// Input tokens (prompt_token_count in Gemini)
     pub input_tokens: Option<i32>,
+
+    pub input_cached_tokens: Option<i64>,
+
     /// Output tokens (candidates_token_count in Gemini)
     pub output_tokens: Option<i32>,
     /// Finish reason if present
     pub finish_reason: Option<FinishReason>,
+    /// Finish message if present
+    pub finish_message: Option<String>,
+
+    pub model_version: Option<String>,
 }
 
 /// Parse an InlineResponse into a structured format with all extracted fields.
@@ -55,22 +62,37 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
     let finish_reason = candidate.and_then(|c| c.finish_reason.clone());
 
     // Include thoughts tokens in output tokens.
-    // Divide by 2 with ceiling to account for discounted batching price.
-    // TODO: remove division once batching price is supported on cost calculation side.
-    let (input_tokens, output_tokens) = inline_response
+    let (input_tokens, input_cached_tokens, output_tokens) = inline_response
         .response
         .as_ref()
         .and_then(|r| r.usage_metadata.as_ref())
         .map(|u| {
-            let input = u.prompt_token_count.map(|t| (t + 1) / 2);
+            let input = u.prompt_token_count;
+            let input_cached_tokens = u.cache_tokens_details.as_ref().map(|details| {
+                details
+                    .iter()
+                    .filter_map(|d| {
+                        if d.modality == Modality::Gemini(GeminiModality::Text) {
+                            Some(d.token_count)
+                        } else {
+                            None
+                        }
+                    })
+                    .sum()
+            });
             let output = u
                 .candidates_token_count
                 .unwrap_or(0)
                 .saturating_add(u.thoughts_token_count.unwrap_or(0));
-            let output = (output + 1) / 2; // ceiling division
-            (input, Some(output))
+            (input, input_cached_tokens, Some(output))
         })
-        .unwrap_or((None, None));
+        .unwrap_or((None, None, None));
+
+    let finish_message = candidate.and_then(|c| c.finish_message.clone());
+    let model_version = inline_response
+        .response
+        .as_ref()
+        .and_then(|r| r.model_version.clone());
 
     ParsedInlineResponse {
         run_id,
@@ -81,8 +103,11 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
         function_call,
         text,
         input_tokens,
+        input_cached_tokens,
         output_tokens,
         finish_reason,
+        finish_message,
+        model_version,
     }
 }
 

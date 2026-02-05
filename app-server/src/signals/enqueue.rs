@@ -59,6 +59,7 @@ async fn create_signal_run_and_message(
             input: Some(input),
             output: None,
             input_tokens: None,
+            input_cached_tokens: None,
             output_tokens: None,
             model: LLM_MODEL.clone(),
             provider: LLM_PROVIDER.clone(),
@@ -97,6 +98,7 @@ async fn create_signal_run_and_message(
         job_id,
         step: 0,
         retry_count: 0,
+        request_start_time: Utc::now(),
     };
 
     (signal_run, message)

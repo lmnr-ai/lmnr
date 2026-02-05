@@ -28,6 +28,7 @@ pub struct InternalSpan {
     pub input: Option<Value>,
     pub output: Option<Value>,
     pub input_tokens: Option<i32>,
+    pub input_cached_tokens: Option<i64>,
     pub output_tokens: Option<i32>,
     pub model: String,
     pub provider: String,
@@ -149,6 +150,12 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
     if let Some(tokens) = span.input_tokens {
         attrs.insert(
             "gen_ai.usage.input_tokens".to_string(),
+            Value::Number(tokens.into()),
+        );
+    }
+    if let Some(tokens) = span.input_cached_tokens {
+        attrs.insert(
+            "gen_ai.usage.cache_read_input_tokens".to_string(),
             Value::Number(tokens.into()),
         );
     }
