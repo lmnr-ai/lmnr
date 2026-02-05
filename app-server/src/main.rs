@@ -1427,6 +1427,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::update_eval_datapoint)
                                     .service(api::v1::evaluators::create_evaluator_score)
                                     .service(api::v1::sql::execute_sql_query)
+                                    .service(api::v1::mcp::handle_mcp)
                                     .service(api::v1::payloads::get_payload)
                                     .service(api::v1::rollouts::stream)
                                     .service(api::v1::rollouts::update_status)
