@@ -953,6 +953,9 @@ async fn process_single_response(
                     .clone()
                     .unwrap_or(serde_json::to_string(finish_reason).unwrap_or_default());
 
+                let now = chrono::Utc::now();
+                let user_time = now + chrono::Duration::milliseconds(1);
+
                 // 1. Assistant message with malformed response
                 let assistant_content = Content {
                     role: Some("model".to_string()),
@@ -964,7 +967,7 @@ async fn process_single_response(
                 let assistant_msg = CHSignalRunMessage::new(
                     signal_message.project_id,
                     run.run_id,
-                    chrono::Utc::now(),
+                    now,
                     serde_json::to_string(&assistant_content).unwrap_or_default(),
                 );
                 new_messages.push(assistant_msg);
@@ -981,7 +984,7 @@ async fn process_single_response(
                 let user_msg = CHSignalRunMessage::new(
                     signal_message.project_id,
                     run.run_id,
-                    chrono::Utc::now(),
+                    user_time,
                     serde_json::to_string(&user_content).unwrap_or_default(),
                 );
                 new_messages.push(user_msg);
