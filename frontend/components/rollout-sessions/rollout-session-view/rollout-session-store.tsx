@@ -9,12 +9,9 @@ import {
   buildPathInfo,
   buildSpanNameMap,
   computePathInfoMap,
+  type CondensedTimelineData,
   groupIntoSections,
-  type MinimapSpan,
-  type TimelineData,
-  transformSpansToFlatMinimap,
-  transformSpansToMinimap,
-  transformSpansToTimeline,
+  transformSpansToCondensedTimeline,
   transformSpansToTree,
   type TreeSpan,
 } from "@/components/traces/trace-view/trace-view-store-utils.ts";
@@ -25,10 +22,10 @@ import { tryParseJson } from "@/lib/utils.ts";
 
 import { type SystemMessage } from "./system-messages-utils";
 
-export const MAX_ZOOM = 5;
-export const MIN_ZOOM = 1;
-const ZOOM_INCREMENT = 0.5;
+export const ZOOM_INCREMENT = 0.5;
 export const MIN_SIDEBAR_WIDTH = 450;
+export const CONDENSED_TIMELINE_MAX_ZOOM = 18;
+export const CONDENSED_TIMELINE_MIN_ZOOM = 1;
 
 export type TraceViewListSpan = {
   spanId: string;
@@ -56,19 +53,20 @@ interface RolloutSessionStoreState {
   spanPath: string[] | null;
   isSpansLoading: boolean;
   spansError?: string;
-  searchEnabled: boolean;
   selectedSpan?: TraceViewSpan;
   browserSession: boolean;
   langGraph: boolean;
   sessionTime?: number;
-  tab: "tree" | "timeline" | "chat" | "metadata" | "reader";
-  search: string;
-  zoom: number;
+  tab: "tree" | "reader";
   sidebarWidth: number;
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
   spanPathCounts: Map<string, number>;
   showTreeContent: boolean;
+  // Condensed timeline state
+  condensedTimelineEnabled: boolean;
+  condensedTimelineVisibleSpanIds: Set<string>;
+  condensedTimelineZoom: number;
 
   // Rollout-specific state
   systemMessagesMap: Map<string, SystemMessage>;
@@ -94,14 +92,11 @@ interface RolloutSessionStoreActions {
   setSelectedSpan: (span?: TraceViewSpan) => void;
   selectSpanById: (spanId: string) => void;
   setSpanPath: (spanPath: string[]) => void;
-  setSearchEnabled: (searchEnabled: boolean) => void;
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
   setSessionTime: (time?: number) => void;
   setTab: (tab: RolloutSessionStoreState["tab"]) => void;
-  setSearch: (search: string) => void;
   setSidebarWidth: (width: number) => void;
-  setZoom: (type: "in" | "out") => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
   toggleCollapse: (spanId: string) => void;
   updateTraceVisibility: (visibility: "private" | "public") => void;
@@ -110,11 +105,15 @@ interface RolloutSessionStoreActions {
   setShowTreeContent: (show: boolean) => void;
   incrementSessionTime: (increment: number, maxTime: number) => boolean;
 
+  // Condensed timeline actions
+  setCondensedTimelineEnabled: (enabled: boolean) => void;
+  setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => void;
+  clearCondensedTimelineSelection: () => void;
+  setCondensedTimelineZoom: (zoom: number) => void;
+
   // Selectors
   getTreeSpans: () => TreeSpan[];
-  getTimelineData: () => TimelineData;
-  getMinimapSpans: () => MinimapSpan[];
-  getListMinimapSpans: () => MinimapSpan[];
+  getCondensedTimelineData: () => CondensedTimelineData;
   getListData: () => TraceViewListSpan[];
   getSpanNameInfo: (spanId: string) => { name: string; count?: number } | undefined;
   getHasLangGraph: () => boolean;
@@ -176,9 +175,6 @@ const createRolloutSessionStore = ({
         browserSession: false,
         sessionTime: undefined,
         tab: "tree",
-        search: "",
-        searchEnabled: false,
-        zoom: 1,
         sidebarWidth: MIN_SIDEBAR_WIDTH,
         langGraph: false,
         spanPath: null,
@@ -186,6 +182,9 @@ const createRolloutSessionStore = ({
         spanTemplates: {},
         spanPathCounts: new Map(),
         showTreeContent: true,
+        condensedTimelineEnabled: false,
+        condensedTimelineVisibleSpanIds: new Set(),
+        condensedTimelineZoom: 1,
 
         // Rollout-specific state
         systemMessagesMap: new Map(),
@@ -202,9 +201,16 @@ const createRolloutSessionStore = ({
 
         setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession }),
         getTreeSpans: () => {
-          const spans = get().spans;
-          const pathInfoMap = computePathInfoMap(spans);
-          return transformSpansToTree(spans, pathInfoMap);
+          const { spans, condensedTimelineVisibleSpanIds } = get();
+
+          // If no selection, show all spans
+          const filteredSpans =
+            condensedTimelineVisibleSpanIds.size === 0
+              ? spans
+              : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+
+          const pathInfoMap = computePathInfoMap(filteredSpans);
+          return transformSpansToTree(filteredSpans, pathInfoMap);
         },
         setTrace: (trace) => {
           if (typeof trace === "function") {
@@ -251,32 +257,18 @@ const createRolloutSessionStore = ({
             set({ cachedSpanCounts: newCachedCounts });
           }
         },
-        setSearchEnabled: (searchEnabled) => set({ searchEnabled }),
-        getMinimapSpans: () => {
-          const trace = get().trace;
-          if (trace) {
-            const startTime = new Date(trace.startTime).getTime();
-            const endTime = new Date(trace.endTime).getTime();
-            return transformSpansToMinimap(get().spans, endTime - startTime);
-          }
-          return [];
-        },
-        getListMinimapSpans: () => {
-          const trace = get().trace;
-          const spans = get().spans;
-          if (trace) {
-            const startTime = new Date(trace.startTime).getTime();
-            const endTime = new Date(trace.endTime).getTime();
-            const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
-            return transformSpansToFlatMinimap(listSpans, endTime - startTime);
-          }
-          return [];
-        },
-        getTimelineData: () => transformSpansToTimeline(get().spans),
+        getCondensedTimelineData: () => transformSpansToCondensedTimeline(get().spans),
         getListData: () => {
-          const spans = get().spans;
+          const { spans, condensedTimelineVisibleSpanIds } = get();
 
-          const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
+          // First filter by condensed timeline selection if active
+          const selectionFilteredSpans =
+            condensedTimelineVisibleSpanIds.size === 0
+              ? spans
+              : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+
+          // Then apply existing DEFAULT filter (removes ancestor clutter)
+          const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
 
           const spanMap = new Map(
             spans.map((span) => [
@@ -335,7 +327,6 @@ const createRolloutSessionStore = ({
           set({ sessionTime: newTime });
           return newTime >= maxTime;
         },
-        setSearch: (search) => set({ search }),
         setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
         saveSpanTemplate: (spanPathKey: string, template: string) => {
           set((state) => ({
@@ -350,12 +341,13 @@ const createRolloutSessionStore = ({
           });
         },
         setShowTreeContent: (showTreeContent: boolean) => set({ showTreeContent }),
-        setZoom: (type) => {
-          const zoom =
-            type === "in"
-              ? Math.min(get().zoom + ZOOM_INCREMENT, MAX_ZOOM)
-              : Math.max(get().zoom - ZOOM_INCREMENT, MIN_ZOOM);
-          set({ zoom });
+        setCondensedTimelineEnabled: (enabled: boolean) => set({ condensedTimelineEnabled: enabled }),
+        setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => set({ condensedTimelineVisibleSpanIds: ids }),
+        clearCondensedTimelineSelection: () => set({ condensedTimelineVisibleSpanIds: new Set() }),
+        setCondensedTimelineZoom: (zoom) => {
+          set({
+            condensedTimelineZoom: Math.max(CONDENSED_TIMELINE_MIN_ZOOM, Math.min(CONDENSED_TIMELINE_MAX_ZOOM, zoom)),
+          });
         },
         setBrowserSession: (browserSession: boolean) => set({ browserSession }),
         toggleCollapse: (spanId: string) => {
@@ -668,13 +660,31 @@ const createRolloutSessionStore = ({
       }),
       {
         name: storeKey,
-        partialize: (state) => ({
-          sidebarWidth: state.sidebarWidth,
-          spanPath: state.spanPath,
-          spanTemplates: state.spanTemplates,
-          tab: state.tab,
-          showTreeContent: state.showTreeContent,
-        }),
+        partialize: (state) => {
+          const persistentTabs = ["tree", "reader"] as const;
+          const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
+
+          return {
+            sidebarWidth: state.sidebarWidth,
+            spanPath: state.spanPath,
+            spanTemplates: state.spanTemplates,
+            ...(tabToPersist && { tab: tabToPersist }),
+            showTreeContent: state.showTreeContent,
+            condensedTimelineEnabled: state.condensedTimelineEnabled,
+          };
+        },
+        merge: (persistedState, currentState) => {
+          const persisted = persistedState as Partial<RolloutSessionStoreState>;
+          // Fix issue with old invalid tabs being in local storage
+          const validTabs = ["tree", "reader"] as const;
+          const tab = persisted.tab && validTabs.includes(persisted.tab as any) ? persisted.tab : currentState.tab;
+
+          return {
+            ...currentState,
+            ...persisted,
+            tab,
+          };
+        },
       }
     )
   );

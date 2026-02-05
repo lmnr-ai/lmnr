@@ -19,8 +19,18 @@ use crate::{
 };
 
 const DEFAULT_SEARCH_MAX_HITS: usize = 500;
-const QUICKWIT_RESERVED_CHARACTERS: &[char] = &[
-    '?', '+', '^', '`', ':', '{', '}', '"', '[', ']', '(', ')', '~', '!', '\\',
+// TODO: maybe remove all punctuation similar to the default tokenizer in the index?
+const QUICKWIT_RESERVED_CHARACTERS: &[char] = &['?', '`', '~', '!', '\\'];
+// Quickwit documentation is very brief on this, it lists all of the reserved characters
+// with a note that you can escape them with a backslash. However, some of them break
+// the query parsing when escaped, so we need to remove them.
+const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
+    '"', ':', '^', '{', '}', '[', ']', '(', ')',
+    // The below characters won't break parsing but change the meaning of the query
+    // even when escaped, so safest to remove them.
+    '+', '\u{002D}', // - hyphen-minus
+    '\u{2013}', // – en dash
+    '\u{2014}', // — em dash
 ];
 
 /// Escape special characters for Quickwit query syntax
@@ -30,6 +40,8 @@ fn escape_quickwit_query(query: &str) -> String {
         .flat_map(|c| {
             if QUICKWIT_RESERVED_CHARACTERS.contains(&c) {
                 vec!['\\', c]
+            } else if QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS.contains(&c) {
+                vec![' ']
             } else {
                 vec![c]
             }

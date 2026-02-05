@@ -1,12 +1,13 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { motion } from "framer-motion";
 import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
-import { type TraceViewTrace, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { cn } from "@/lib/utils";
@@ -20,14 +21,12 @@ const EXAMPLE_QUESTIONS = [
 interface ChatProps {
   trace: TraceViewTrace;
   onSetSpanId: (spanId: string) => void;
+  onSearchSpans: (search: string) => void;
 }
 
-export default function Chat({ trace, onSetSpanId }: ChatProps) {
+export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
   const [input, setInput] = useState("");
   const [newChatLoading, setNewChatLoading] = useState(false);
-  const { setSearch } = useTraceViewStoreContext((state) => ({
-    setSearch: state.setSearch,
-  }));
   const projectId = useParams().projectId;
 
   // Resolve sequential span ID to UUID on-demand
@@ -96,7 +95,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
           return (
             <button
               onClick={async () => {
-                setSearch(unescapedReferenceText);
+                onSearchSpans(unescapedReferenceText);
                 const spanUuid = await resolveSpanId(spanId);
                 if (spanUuid) {
                   onSetSpanId(spanUuid);
@@ -113,7 +112,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),
-    [resolveSpanId, onSetSpanId, setSearch]
+    [resolveSpanId, onSetSpanId, onSearchSpans]
   );
 
   const { messages, sendMessage, setMessages, status } = useChat({
@@ -194,7 +193,8 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
   }, [trace.id, projectId, setMessages]);
 
   return (
-    <div className="grow flex flex-col overflow-auto">
+    <div className="grow flex flex-col overflow-auto relative minimal-scrollbar">
+      <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-0 left-0 absolute z-10 pointer-none" />
       <Conversation>
         <ConversationContent className="space-y-4 py-4 px-0 pb-12">
           {messages.length === 0 && status !== "submitted" && status !== "streaming" ? (
@@ -221,7 +221,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
           ) : (
             <>
               {messages.length > 0 && (
-                <div className="px-4 flex justify-end">
+                <div className="px-4 flex justify-end pt-1">
                   <Button
                     onClick={handleNewChat}
                     variant="outline"
@@ -283,7 +283,12 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
       </Conversation>
 
       <div className="flex-none px-3 pb-2 bg-transparent">
-        <div className="border rounded bg-muted/40">
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.2 }}
+          className="border rounded-lg bg-muted/40"
+        >
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -335,7 +340,7 @@ export default function Chat({ trace, onSetSpanId }: ChatProps) {
               </Button>
             </div>
           </form>
-        </div>
+        </motion.div>
       </div>
       <span className="text-xs text-muted-foreground/50 text-center pb-2">
         Trace assistant is in beta and can make mistakes

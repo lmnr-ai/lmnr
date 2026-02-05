@@ -1,5 +1,7 @@
 use anyhow::Result;
+use sqlx::PgPool;
 use std::future::{Ready, ready};
+use std::sync::Arc;
 
 use actix_web::Error;
 use actix_web::dev::Payload;
@@ -8,6 +10,7 @@ use actix_web::web;
 use actix_web::{FromRequest, HttpMessage, HttpRequest};
 use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
+use tonic::Status;
 
 use crate::api::utils::get_api_key_from_raw_value;
 use crate::cache::Cache;
@@ -86,4 +89,33 @@ pub async fn project_ingestion_validator(
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
     validate_project_api_key(req, credentials, true).await
+}
+
+/// Authenticates gRPC trace ingestion requests.
+/// Note: This endpoint accepts both default and ingest-only API keys,
+/// as it's used for writing trace data to the project.
+pub async fn authenticate_request(
+    metadata: &tonic::metadata::MetadataMap,
+    pool: &PgPool,
+    cache: Arc<Cache>,
+) -> anyhow::Result<ProjectApiKey> {
+    let token = extract_bearer_token(metadata)?;
+    get_api_key_from_raw_value(pool, cache, token).await
+}
+
+fn extract_bearer_token(metadata: &tonic::metadata::MetadataMap) -> anyhow::Result<String> {
+    // Default OpenTelemetry gRPC exporter uses `"authorization"` with lowercase `a`,
+    // but users may use `"Authorization"` with uppercase `A` in custom exporters.
+    let header = metadata
+        .get("authorization")
+        .or(metadata.get("Authorization"));
+    if let Some(auth_header) = header {
+        let auth_str = auth_header
+            .to_str()
+            .map_err(|_| Status::unauthenticated("Invalid token"))?;
+        if auth_str.starts_with("Bearer ") {
+            return Ok(auth_str.trim_start_matches("Bearer ").to_string());
+        }
+    }
+    Err(anyhow::anyhow!("No bearer token found"))
 }

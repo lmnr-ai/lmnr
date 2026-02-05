@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { compact, isEmpty, times } from "lodash";
+import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -21,14 +21,17 @@ interface TreeProps {
 const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
-  const { getTreeSpans, spans, trace, isSpansLoading } = useRolloutSessionStoreContext((state) => ({
-    getTreeSpans: state.getTreeSpans,
-    spans: state.spans,
-    trace: state.trace,
-    isSpansLoading: state.isSpansLoading,
-  }));
+  const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds, selectedSpan } =
+    useRolloutSessionStoreContext((state) => ({
+      getTreeSpans: state.getTreeSpans,
+      spans: state.spans,
+      trace: state.trace,
+      isSpansLoading: state.isSpansLoading,
+      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+      selectedSpan: state.selectedSpan,
+    }));
 
-  const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans]);
+  const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
 
   const [settingsSpan, setSettingsSpan] = useState<(TraceViewSpan & { pathInfo: PathInfo }) | null>(null);
 
@@ -38,6 +41,23 @@ const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
     estimateSize: () => 36,
     overscan: 20,
   });
+
+  const selectedSpanIndex = useMemo(() => {
+    if (isNil(selectedSpan)) return null;
+    const selectedIndex = treeSpans.findIndex((item) => item.span.spanId === selectedSpan.spanId);
+    return selectedIndex;
+  }, [selectedSpan?.spanId, treeSpans]);
+
+  // Scroll to selected span when selection changes
+  useEffect(() => {
+    if (isNull(selectedSpanIndex) || isSpansLoading) return;
+    if (selectedSpanIndex !== -1) {
+      const rafId = requestAnimationFrame(() => {
+        virtualizer.scrollToIndex(selectedSpanIndex, { align: "start" });
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [selectedSpanIndex, virtualizer, isSpansLoading]);
 
   const items = virtualizer?.getVirtualItems() || [];
 

@@ -69,6 +69,10 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
                         "description": "Data that was extracted from / identified in the trace. If 'identified' flag is false, you can omit this field or provide an empty object.",
                         "properties": properties,
                         "required": required
+                    },
+                    "_summary":  {
+                        "type": "string",
+                        "description": "If identified flag is true, this field should contain a short summary of the identification result. This will be used for clustering of an event."
                     }
                 },
                 "required": ["identified"]

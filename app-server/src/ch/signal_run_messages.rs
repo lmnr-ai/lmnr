@@ -80,29 +80,43 @@ pub async fn get_signal_run_messages(
     Ok(messages)
 }
 
-#[instrument(skip(clickhouse, run_ids))]
+#[instrument(skip(clickhouse, project_run_pairs))]
 pub async fn delete_signal_run_messages(
     clickhouse: clickhouse::Client,
-    project_id: Uuid,
-    run_ids: &[Uuid],
+    project_run_pairs: &[(Uuid, Uuid)],
 ) -> Result<()> {
-    if run_ids.is_empty() {
+    use std::collections::HashMap;
+
+    if project_run_pairs.is_empty() {
         return Ok(());
     }
 
-    // Build comma-separated list of quoted UUIDs
-    let run_ids_str = run_ids
-        .iter()
-        .map(|id| format!("'{}'", id))
-        .collect::<Vec<_>>()
-        .join(", ");
+    // Group run_ids by project_id
+    let mut runs_by_project: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for (project_id, run_id) in project_run_pairs {
+        runs_by_project
+            .entry(*project_id)
+            .or_insert_with(Vec::new)
+            .push(*run_id);
+    }
 
-    let query = format!(
-        "DELETE FROM signal_run_messages WHERE project_id = ? AND run_id IN ({})",
-        run_ids_str
-    );
+    // Execute DELETE queries in parallel for each project
+    let delete_futures: Vec<_> = runs_by_project
+        .into_iter()
+        .map(|(project_id, run_ids)| {
+            let ch = clickhouse.clone();
+            async move {
+                let query = "DELETE FROM signal_run_messages WHERE project_id = ? AND run_id IN ?";
+                ch.query(query)
+                    .bind(project_id)
+                    .bind(run_ids)
+                    .execute()
+                    .await
+            }
+        })
+        .collect();
 
-    clickhouse.query(&query).bind(project_id).execute().await?;
+    futures_util::future::try_join_all(delete_futures).await?;
 
     Ok(())
 }

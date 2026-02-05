@@ -1,4 +1,4 @@
-import { ChartNoAxesGantt, ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
 
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils.ts";
 
-type ViewTab = "tree" | "timeline" | "reader";
+type ViewTab = "tree" | "reader";
 
 const viewOptions: Record<
   ViewTab,
@@ -22,17 +22,13 @@ const viewOptions: Record<
     icon: ListTree,
     label: "Tree",
   },
-  timeline: {
-    icon: ChartNoAxesGantt,
-    label: "Timeline",
-  },
   reader: {
     icon: List,
     label: "Reader",
   },
 };
 
-const viewTabs: ViewTab[] = ["tree", "timeline", "reader"];
+const viewTabs: ViewTab[] = ["tree", "reader"];
 
 export default function ViewDropdown() {
   const { tab, setTab, showTreeContent, setShowTreeContent } = useRolloutSessionStoreContext((state) => ({
@@ -57,8 +53,8 @@ export default function ViewDropdown() {
           <button
             className={cn(
               "flex items-center h-6 px-1.5 text-xs border rounded-md bg-background focus-visible:outline-0",
-              isValidTab ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary/50",
-              isTreeView && "rounded-r-none border-r-0 outline-1 outline-inset outline-primary -outline-offset-1"
+              isValidTab ? "hover:bg-primary/10" : "hover:bg-secondary/50",
+              isTreeView && "rounded-r-none border-r-0 outline-inset -outline-offset-1"
             )}
           >
             <CurrentIcon size={14} className="mr-1" />
@@ -83,8 +79,8 @@ export default function ViewDropdown() {
         <button
           onClick={() => setShowTreeContent(!contentVisible)}
           className={cn(
-            "flex items-center h-6 px-1.5 text-xs border border-l-0 rounded-md rounded-l-none bg-background",
-            contentVisible ? "border-primary text-primary hover:bg-primary/10" : "border-input hover:bg-secondary/50"
+            "flex items-center h-6 px-1.5 text-xs border rounded-md rounded-l-none  text-muted-foreground",
+            contentVisible ? "text-white hover:bg-muted" : "border-input hover:bg-secondary/50"
           )}
         >
           {contentVisible ? <Eye size={14} className="mr-1" /> : <EyeOff size={14} className="mr-1" />}

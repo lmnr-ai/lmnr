@@ -1,16 +1,16 @@
-import { type MetadataRoute } from "next";
+import type { MetadataRoute } from "next";
 
 import { getBlogPosts } from "@/lib/blog/utils";
 
-const BASE_URL = "https://www.lmnr.ai";
+const BASE_URL = "https://laminar.sh";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const blogPosts = getBlogPosts({ sortByDate: false });
 
-  const blogUrls = blogPosts.map((post) => ({
+  const blogUrls: MetadataRoute.Sitemap = blogPosts.map((post) => ({
     url: `${BASE_URL}/blog/${post.slug}`,
     lastModified: new Date(post.data.date),
-    changeFrequency: "monthly" as const,
+    changeFrequency: "monthly",
     priority: 0.7,
   }));
 
@@ -20,6 +20,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 1,
+      images: [`${BASE_URL}/opengraph-image.png`],
     },
     {
       url: `${BASE_URL}/pricing`,

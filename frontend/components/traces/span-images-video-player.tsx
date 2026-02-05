@@ -237,7 +237,7 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex flex-row items-center justify-center gap-2 px-4 h-8 border-b shrink-0">
+      <div className="flex flex-row items-center justify-center gap-2 px-3 h-8 border-b shrink-0">
         <button onClick={handlePlayPause} className="text-white py-1 rounded">
           {isPlaying ? <PauseIcon strokeWidth={1.5} /> : <PlayIcon strokeWidth={1.5} />}
         </button>
@@ -266,7 +266,7 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
           onChange={handleTimelineChange}
         />
 
-        <span ref={timeDisplayRef} className="font-mono">
+        <span ref={timeDisplayRef} className="font-mono text-sm">
           {formatSecondsToMinutesAndSeconds(0)}/{formatSecondsToMinutesAndSeconds(totalDuration || 0)}
         </span>
       </div>
@@ -275,7 +275,7 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
         <div className="relative h-full w-full flex items-center justify-center">
           {images.map((image, index) => (
             <img
-              key={image.imageUrl}
+              key={`${index}-${image.imageUrl}`}
               src={image.imageUrl}
               alt={`Image from ${image.spanName}`}
               className={cn(`absolute max-w-full max-h-full object-contain opacity-0`, {

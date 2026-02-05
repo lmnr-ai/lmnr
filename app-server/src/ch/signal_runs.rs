@@ -35,8 +35,8 @@ impl From<&SignalRun> for CHSignalRun {
         Self {
             project_id: run.project_id,
             signal_id: run.signal_id,
-            job_id: run.job_id,
-            trigger_id: run.trigger_id,
+            job_id: run.job_id.unwrap_or_default(),
+            trigger_id: run.trigger_id.unwrap_or_default(),
             run_id: run.run_id,
             trace_id: run.trace_id,
             status: run.status.as_u8(),

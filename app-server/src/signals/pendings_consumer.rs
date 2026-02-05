@@ -24,19 +24,21 @@ use crate::{
     },
     db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
-    traces::signals::process_event_notifications_and_clustering,
+    signals::{gemini::FinishReason, prompts::MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE},
+    utils::get_unsigned_env_with_default,
     worker::{HandlerError, MessageHandler},
 };
 
 use super::{
-    RunStatus, SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalRun,
-    SignalRunPayload, SignalWorkerConfig,
+    LLM_MODEL, LLM_PROVIDER, SignalRun, SignalWorkerConfig,
     gemini::{
         Content, FunctionCall, FunctionResponse, GenerateContentBatchOutput, JobState, Part,
         client::GeminiClient,
         utils::{ParsedInlineResponse, parse_inline_response},
     },
-    push_to_submissions_queue, push_to_waiting_queue,
+    postprocess::process_event_notifications_and_clustering,
+    push_to_signals_queue,
+    queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_waiting_queue},
     spans::get_trace_spans_with_id_mapping,
     tools::get_full_span_info,
     utils::{
@@ -44,12 +46,46 @@ use super::{
     },
 };
 
+const DEFAULT_RETRY_COUNT: usize = 4;
+
+/// Metadata about a failed run for retry logic and monitoring
+#[derive(Debug, Clone)]
+struct FailureMetadata {
+    /// The finish reason from the LLM response (if any)
+    finish_reason: Option<FinishReason>,
+    /// Indicates if the failure is due to processing error (not LLM error).
+    /// When true, the model responded successfully but we failed to process the response.
+    /// This allows retry even if the finish_reason itself is not retryable.
+    is_processing_error: bool,
+}
+
+/// Reason for requiring a next step in signal processing
+#[derive(Debug, Serialize)]
+enum NextStepReason {
+    /// Tool was called successfully, result needs to be fed back to LLM
+    ToolResult(serde_json::Value),
+    /// LLM made a malformed function call, retry with guidance
+    MalformedFunctionCallRetry,
+}
+
 #[derive(Debug, Serialize)]
 enum StepResult {
     CompletedNoEvent,
-    CompletedWithEvent { attributes: serde_json::Value },
-    RequiresNextStep { tool_result: serde_json::Value },
-    Failed { error: String },
+    CompletedWithEvent {
+        attributes: serde_json::Value,
+        summary: String,
+    },
+    RequiresNextStep {
+        reason: NextStepReason,
+    },
+    Failed {
+        error: String,
+        finish_reason: Option<FinishReason>,
+        /// Indicates if the failure is due to processing error (not LLM error).
+        /// When true, the model responded successfully but we failed to process the response.
+        /// This allows retry even if the finish_reason itself is not retryable.
+        is_processing_error: bool,
+    },
 }
 
 pub struct SignalJobPendingBatchHandler {
@@ -104,10 +140,9 @@ async fn process(
     config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
     log::debug!(
-        "[SIGNAL JOB] Processing batch. job_id: {}, batch_id: {}, runs: {}",
-        message.job_id,
+        "[SIGNAL JOB] Processing batch. batch_id: {}, messages: {}",
         message.batch_id,
-        message.runs.len()
+        message.messages.len()
     );
 
     // Get batch state from Gemini
@@ -126,9 +161,11 @@ async fn process(
             );
             process_failed_batch(
                 &message,
-                JobState::BATCH_STATE_FAILED,
+                // Cancelled, so that we don't retry
+                JobState::BATCH_STATE_CANCELLED,
                 db,
                 clickhouse,
+                queue,
                 Some(format!("Failed to get batch response: {}", e)),
             )
             .await?;
@@ -149,7 +186,7 @@ async fn process(
         | JobState::BATCH_STATE_FAILED
         | JobState::BATCH_STATE_CANCELLED
         | JobState::BATCH_STATE_EXPIRED => {
-            process_failed_batch(&message, state, db, clickhouse, None).await?;
+            process_failed_batch(&message, state, db, clickhouse, queue, None).await?;
         }
         JobState::BATCH_STATE_PENDING | JobState::BATCH_STATE_RUNNING => {
             process_pending_batch(&message, queue, config.clone()).await?;
@@ -163,68 +200,253 @@ async fn process(
     Ok(())
 }
 
+/// Helper function to retry failed runs or mark them as permanently failed
+/// Returns (permanently_failed_runs, retried_count)
+async fn retry_or_fail_runs(
+    failed_runs: Vec<SignalRun>,
+    run_to_message: &HashMap<Uuid, SignalMessage>,
+    failure_metadata: &HashMap<Uuid, FailureMetadata>,
+    queue: Arc<MessageQueue>,
+) -> (Vec<SignalRun>, usize) {
+    let max_retry_count =
+        get_unsigned_env_with_default("SIGNALS_MAX_RETRY_COUNT", DEFAULT_RETRY_COUNT);
+
+    let mut permanently_failed_runs: Vec<SignalRun> = Vec::new();
+    let mut retried_count = 0;
+
+    for failed_run in failed_runs {
+        // Get failure metadata for this run
+        let metadata = failure_metadata.get(&failed_run.run_id);
+
+        let permanent_finish_reason = if let Some(metadata) = metadata {
+            // Processing errors are always retryable
+            if metadata.is_processing_error {
+                None
+            } else {
+                metadata
+                    .finish_reason
+                    .as_ref()
+                    .filter(|fr| !fr.should_retry())
+            }
+        } else {
+            None
+        };
+
+        if let Some(finish_reason) = permanent_finish_reason {
+            // Non-retryable finish reason - mark as permanently failed immediately
+            log::warn!(
+                "[SIGNAL JOB] Non-retryable finish reason {:?} for run {}, marking as permanently failed: {}",
+                finish_reason,
+                failed_run.run_id,
+                failed_run
+                    .error_message
+                    .as_deref()
+                    .unwrap_or("unknown error")
+            );
+            let mut perm_failed = failed_run;
+            perm_failed.error_message = Some(format!(
+                "{} (non-retryable finish reason: {:?})",
+                perm_failed
+                    .error_message
+                    .as_deref()
+                    .unwrap_or("unknown error"),
+                finish_reason
+            ));
+            permanently_failed_runs.push(perm_failed);
+            continue;
+        }
+
+        // Get the original message to check retry_count
+        if let Some(msg) = run_to_message.get(&failed_run.run_id) {
+            if msg.retry_count < max_retry_count {
+                // Can retry - push back to signals queue
+                let mut retry_msg = msg.clone();
+                retry_msg.retry_count += 1;
+                // Use the failed_run's step, not the original message's step
+                // to ensure we don't reprocess the same step after messages were already inserted
+                retry_msg.step = failed_run.step;
+
+                log::info!(
+                    "[SIGNAL JOB] Retrying failed run {} (retry {}/{}, step {}): {}",
+                    failed_run.run_id,
+                    retry_msg.retry_count,
+                    max_retry_count,
+                    retry_msg.step,
+                    failed_run
+                        .error_message
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+
+                if let Err(e) = push_to_signals_queue(retry_msg.clone(), queue.clone()).await {
+                    log::error!(
+                        "[SIGNAL JOB] Failed to push retry message for run {} back to queue: {:?}",
+                        retry_msg.run_id,
+                        e
+                    );
+                    // If we can't enqueue for retry, mark as permanently failed
+                    let mut perm_failed = failed_run;
+                    perm_failed.error_message = Some(format!(
+                        "{} (failed to enqueue retry)",
+                        perm_failed
+                            .error_message
+                            .as_deref()
+                            .unwrap_or("unknown error")
+                    ));
+                    permanently_failed_runs.push(perm_failed);
+                } else {
+                    retried_count += 1;
+                }
+            } else {
+                // Max retries exceeded - mark as permanently failed
+                log::warn!(
+                    "[SIGNAL JOB] Max retries exceeded for run {}, marking as failed: {}",
+                    failed_run.run_id,
+                    failed_run
+                        .error_message
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+                let mut perm_failed = failed_run;
+                perm_failed.error_message = Some(format!(
+                    "{} (max retries exceeded)",
+                    perm_failed
+                        .error_message
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                ));
+                permanently_failed_runs.push(perm_failed);
+            }
+        } else {
+            // No message found (shouldn't happen), mark as permanently failed
+            log::warn!(
+                "[SIGNAL JOB] No message found for failed run {}, marking as permanently failed",
+                failed_run.run_id
+            );
+            permanently_failed_runs.push(failed_run);
+        }
+    }
+
+    (permanently_failed_runs, retried_count)
+}
+
 /// Handle failed batch
 async fn process_failed_batch(
     message: &SignalJobPendingBatchMessage,
     state: JobState,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
+    queue: Arc<MessageQueue>,
     custom_error: Option<String>,
 ) -> Result<(), HandlerError> {
     let error_message =
         custom_error.unwrap_or_else(|| format!("Batch failed with state: {:?}", state));
 
-    // Create failed SignalRun instances for all runs
-    let failed_runs: Vec<SignalRun> = message
-        .runs
+    // Build lookup: run_id -> SignalMessage
+    let run_to_message: HashMap<Uuid, SignalMessage> = message
+        .messages
         .iter()
-        .map(|run| SignalRun {
-            run_id: run.run_id,
-            project_id: message.project_id,
-            job_id: message.job_id,
-            trigger_id: Uuid::nil(),
-            signal_id: message.signal_id,
-            trace_id: run.trace_id,
-            status: RunStatus::Failed,
-            step: run.step,
-            internal_trace_id: run.internal_trace_id,
-            internal_span_id: run.internal_span_id,
-            updated_at: chrono::Utc::now(),
-            event_id: None,
-            error_message: Some(error_message.clone()),
-        })
+        .map(|msg| (msg.run_id, msg.clone()))
         .collect();
 
-    // Insert failed runs into ClickHouse
-    let failed_runs_ch: Vec<CHSignalRun> = failed_runs.iter().map(CHSignalRun::from).collect();
-    if let Err(e) = insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await {
-        log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
-    }
+    // Convert all messages to failed runs
+    let failed_runs: Vec<SignalRun> = message
+        .messages
+        .iter()
+        .map(|msg| SignalRun::from_message(msg, msg.signal.id).failed(&error_message))
+        .collect();
 
-    // Delete messages for failed runs
-    let failed_run_ids: Vec<uuid::Uuid> = failed_runs.iter().map(|r| r.run_id).collect();
-    if let Err(e) =
-        delete_signal_run_messages(clickhouse, message.project_id, &failed_run_ids).await
-    {
-        log::error!(
-            "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
-            e
+    // Check if this state should be retried or permanently failed
+    let (permanently_failed_runs, retried_count) = if state.should_retry_failed() {
+        // Use helper function to retry or permanently fail runs based on retry_count
+        // No individual failure metadata for batch-level failures
+        let failure_metadata = HashMap::new();
+        retry_or_fail_runs(failed_runs, &run_to_message, &failure_metadata, queue).await
+    } else {
+        // State should not be retried (e.g., BATCH_STATE_CANCELLED) - mark all as permanently failed
+        log::warn!(
+            "[SIGNAL JOB] Batch state {:?} should not be retried, marking all {} runs as permanently failed",
+            state,
+            failed_runs.len()
         );
+        let permanently_failed = failed_runs
+            .into_iter()
+            .map(|mut run| {
+                run.error_message = Some(format!(
+                    "{} (non-retryable state: {:?})",
+                    run.error_message.as_deref().unwrap_or("unknown error"),
+                    state
+                ));
+                run
+            })
+            .collect();
+        (permanently_failed, 0)
+    };
+
+    // Insert permanently failed runs into ClickHouse
+    if !permanently_failed_runs.is_empty() {
+        let failed_runs_ch: Vec<CHSignalRun> = permanently_failed_runs
+            .iter()
+            .map(CHSignalRun::from)
+            .collect();
+        if let Err(e) = insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await {
+            log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
+        }
+
+        // Delete messages for permanently failed runs
+        let project_run_pairs: Vec<(Uuid, Uuid)> = permanently_failed_runs
+            .iter()
+            .map(|run| (run.project_id, run.run_id))
+            .collect();
+
+        if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
+            log::error!(
+                "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
+                e
+            );
+        }
+
+        // Update job statistics for permanently failed runs
+        let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
+        for run in &permanently_failed_runs {
+            if let Some(job_id) = run.job_id {
+                *failed_by_job.entry(job_id).or_insert(0) += 1;
+            }
+        }
+        for (job_id, failed_count) in failed_by_job {
+            if let Err(e) = update_signal_job_stats(&db.pool, job_id, 0, failed_count).await {
+                log::error!("Failed to update job statistics for job {}: {}", job_id, e);
+            }
+        }
     }
 
-    // Update job statistics
-    let failed_count = message.runs.len() as i32;
-    if let Err(e) = update_signal_job_stats(&db.pool, message.job_id, 0, failed_count).await {
-        log::error!("Failed to update job statistics for failed batch: {}", e);
+    // Return success if we successfully enqueued retries
+    if retried_count > 0 {
+        log::info!(
+            "[SIGNAL JOB] Batch failed but {} runs successfully enqueued for retry",
+            retried_count
+        );
+        Ok(())
+    } else if !permanently_failed_runs.is_empty() {
+        // All runs permanently failed or failed to retry
+        Err(HandlerError::permanent(anyhow::anyhow!(
+            "LLM batch job failed. All runs exceeded max retries or failed to enqueue. project, trigger, job, and run_ids: {:?}, state: {:?}",
+            message
+                .messages
+                .iter()
+                .map(|msg| HashMap::from([
+                    ("project_id", Some(msg.project_id)),
+                    ("trigger_id", msg.trigger_id),
+                    ("job_id", msg.job_id),
+                    ("run_id", Some(msg.run_id)),
+                ]))
+                .collect::<Vec<_>>(),
+            state
+        )))
+    } else {
+        // No messages in the batch (shouldn't happen, but handle it)
+        Ok(())
     }
-
-    Err(HandlerError::permanent(anyhow::anyhow!(
-        "LLM batch job failed. project_id: {}, job_id: {}, batch_id: {}, state: {:?}",
-        message.project_id,
-        message.job_id,
-        message.batch_id,
-        state
-    )))
 }
 
 /// Handle pending batch
@@ -258,36 +480,18 @@ async fn process_succeeded_batch(
     // Keep track of new messages to insert into ClickHouse
     let mut new_messages = Vec::new();
 
+    // Build lookup: run_id -> SignalMessage (direct mapping, cleaner than index indirection)
+    let mut run_to_message: HashMap<Uuid, SignalMessage> = HashMap::new();
+    for msg in message.messages.iter() {
+        run_to_message.insert(msg.run_id, msg.clone());
+    }
+
     // Keep track of succeeded, failed and pending runs
     let mut succeeded_runs: Vec<SignalRun> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
-    let mut pending_runs_payloads: Vec<SignalRunPayload> = Vec::new();
-
-    // Build a map of run_id -> run for efficient lookup
-    let run_map: HashMap<Uuid, SignalRun> = message
-        .runs
-        .iter()
-        .map(|r| {
-            (
-                r.run_id,
-                SignalRun {
-                    run_id: r.run_id,
-                    project_id: message.project_id,
-                    job_id: message.job_id,
-                    trigger_id: Uuid::nil(),
-                    signal_id: message.signal_id,
-                    trace_id: r.trace_id,
-                    status: RunStatus::Pending,
-                    step: r.step,
-                    internal_trace_id: r.internal_trace_id,
-                    internal_span_id: r.internal_span_id,
-                    updated_at: chrono::Utc::now(),
-                    event_id: None,
-                    error_message: None,
-                },
-            )
-        })
-        .collect();
+    let mut pending_run_ids: HashSet<Uuid> = HashSet::new();
+    // Track failure metadata for failed runs to determine retry eligibility
+    let mut failure_metadata: HashMap<Uuid, FailureMetadata> = HashMap::new();
 
     // Process each response, matching by run_id from response metadata
     for inline_response in inlined_responses.iter() {
@@ -307,57 +511,67 @@ async fn process_succeeded_batch(
             }
         };
 
-        let run = match run_map.get(&run_id) {
-            Some(p) => p.clone(),
+        let signal_message = match run_to_message.get(&run_id) {
+            Some(msg) => msg,
             None => {
-                failed_runs.push(SignalRun {
-                    run_id,
-                    project_id: message.project_id,
-                    job_id: message.job_id,
-                    trigger_id: Uuid::nil(),
-                    signal_id: message.signal_id,
-                    trace_id: response.trace_id.unwrap_or_default(),
-                    status: RunStatus::Failed,
-                    step: 0,
-                    internal_trace_id: Uuid::nil(),
-                    internal_span_id: Uuid::nil(),
-                    updated_at: chrono::Utc::now(),
-                    event_id: None,
-                    error_message: Some("No payload found for run_id".to_string()),
-                });
-                log::error!("No payload found for run_id {}, skipping", run_id);
+                // No message found for this run_id, mark as failed
+                failed_runs.push(
+                    SignalRun::nil_with_id(run_id, response.trace_id.unwrap_or_default())
+                        .failed("No message found for run_id"),
+                );
+                log::error!("No message found for run_id {}, skipping", run_id);
                 continue;
             }
         };
 
-        // Process inline response, now 'run' contains the updated SignalRun instance
+        let run = SignalRun::from_message(signal_message, signal_message.signal.id);
+
+        // Process inline response
         let (step_result, new_run_messages) = process_single_response(
             &response,
-            message,
+            signal_message,
             &run,
             clickhouse.clone(),
             queue.clone(),
             config.clone(),
+            message.batch_id.clone(),
         )
         .await;
 
         new_messages.extend(new_run_messages);
 
         match step_result {
-            StepResult::Failed { error } => {
-                failed_runs.push(run.clone().failed(error));
+            StepResult::Failed {
+                error,
+                finish_reason,
+                is_processing_error,
+            } => {
+                // Store failure metadata for retry logic
+                failure_metadata.insert(
+                    run_id,
+                    FailureMetadata {
+                        finish_reason,
+                        is_processing_error,
+                    },
+                );
+                failed_runs.push(run.failed(error));
             }
-            StepResult::RequiresNextStep { tool_result: _ } => {
-                pending_runs_payloads.push(SignalRunPayload::from(&run.clone().next_step()));
+            StepResult::RequiresNextStep { reason: _ } => {
+                // Mark this run for next step processing
+                pending_run_ids.insert(run_id);
             }
             StepResult::CompletedNoEvent => {
-                succeeded_runs.push(run.clone().completed());
+                succeeded_runs.push(run.completed());
             }
-            StepResult::CompletedWithEvent { attributes } => {
+            StepResult::CompletedWithEvent {
+                attributes,
+                summary,
+            } => {
                 match handle_create_event(
-                    message,
+                    signal_message,
                     &run,
                     attributes,
+                    summary,
                     clickhouse.clone(),
                     db.clone(),
                     queue.clone(),
@@ -367,43 +581,31 @@ async fn process_succeeded_batch(
                 .await
                 {
                     Ok(event_id) => {
-                        succeeded_runs.push(run.clone().completed_with_event(event_id));
+                        succeeded_runs.push(run.completed_with_event(event_id));
                     }
                     Err(e) => {
                         let error = format!("Failed to create event: {}", e);
-                        failed_runs.push(run.clone().failed(error));
+                        failed_runs.push(run.failed(error));
                     }
                 }
             }
         }
     }
 
-    // Find runs that didn't get any response (e.g., response missing run_id in metadata)
-    // This is important to delete messages for all finished runs
+    // Find runs that didn't get any response (e.g., response missing run_id)
+    // Mark them as failed
     let processed_run_ids: HashSet<Uuid> = succeeded_runs
         .iter()
         .map(|r| r.run_id)
         .chain(failed_runs.iter().map(|r| r.run_id))
-        .chain(pending_runs_payloads.iter().map(|t| t.run_id))
+        .chain(pending_run_ids.iter().copied())
         .collect();
 
-    for run in message.runs.iter() {
-        if !processed_run_ids.contains(&run.run_id) {
-            failed_runs.push(SignalRun {
-                run_id: run.run_id,
-                project_id: message.project_id,
-                job_id: message.job_id,
-                trigger_id: Uuid::nil(),
-                signal_id: message.signal_id,
-                trace_id: run.trace_id,
-                status: RunStatus::Failed,
-                step: run.step,
-                internal_trace_id: run.internal_trace_id,
-                internal_span_id: run.internal_span_id,
-                updated_at: chrono::Utc::now(),
-                event_id: None,
-                error_message: Some("No response received for run".to_string()),
-            });
+    for (run_id, msg) in run_to_message.iter() {
+        if !processed_run_ids.contains(run_id) {
+            failed_runs.push(
+                SignalRun::from_message(msg, msg.signal.id).failed("No response received for run"),
+            );
         }
     }
 
@@ -412,57 +614,98 @@ async fn process_succeeded_batch(
         message.batch_id,
         succeeded_runs.len(),
         failed_runs.len(),
-        pending_runs_payloads.len()
+        pending_run_ids.len()
     );
 
     // Insert new messages into ClickHouse
     insert_signal_run_messages(clickhouse.clone(), &new_messages).await?;
 
-    // Update run statuses in Clickhouse (succeeded/failed)
+    // Insert succeeded runs into ClickHouse
     let succeeded_runs_ch: Vec<CHSignalRun> = succeeded_runs
         .iter()
         .map(|r| CHSignalRun::from(r))
         .collect();
     insert_signal_runs(clickhouse.clone(), &succeeded_runs_ch).await?;
 
-    let failed_runs_ch: Vec<CHSignalRun> =
-        failed_runs.iter().map(|r| CHSignalRun::from(r)).collect();
-    insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await?;
+    // Push pending runs back to signals queue for next step processing
+    // If enqueue fails, add them to failed_runs so they're handled consistently
+    if !pending_run_ids.is_empty() {
+        for run_id in &pending_run_ids {
+            let msg = run_to_message.get(run_id).unwrap();
 
-    // Create a new message for submissions queue containing all unfinished runs
-    if !pending_runs_payloads.is_empty() {
-        let submission_message = SignalJobSubmissionBatchMessage {
-            project_id: message.project_id,
-            job_id: message.job_id,
-            signal_id: message.signal_id,
-            signal_name: message.signal_name.clone(),
-            prompt: message.prompt.clone(),
-            structured_output_schema: message.structured_output_schema.clone(),
-            model: message.model.clone(),
-            provider: message.provider.clone(),
-            runs: pending_runs_payloads,
-        };
+            // Create next step message with incremented step
+            let mut next_step_msg = msg.clone();
+            next_step_msg.step += 1;
 
-        push_to_submissions_queue(submission_message, queue).await?;
+            if let Err(e) = push_to_signals_queue(next_step_msg, queue.clone()).await {
+                log::error!(
+                    "[SIGNAL JOB] Failed to push pending run {} to signals queue: {:?}",
+                    run_id,
+                    e
+                );
+                // Mark as failed so status is updated, messages are cleaned up, and job stats are updated
+                let run = SignalRun::from_message(msg, msg.signal.id).next_step(); // Build with incremented step
+                failed_runs.push(run.failed(format!("Failed to enqueue for next step: {}", e)));
+            }
+        }
     }
 
-    // Delete messages for finished runs (both succeeded and failed)
-    let finished_run_ids: Vec<Uuid> = succeeded_runs
+    // Handle failed runs: use helper function to retry or permanently fail them
+    let (permanently_failed_runs, retried_count) = retry_or_fail_runs(
+        failed_runs,
+        &run_to_message,
+        &failure_metadata,
+        queue.clone(),
+    )
+    .await;
+
+    // Insert permanently failed runs into ClickHouse
+    if !permanently_failed_runs.is_empty() {
+        let failed_runs_ch: Vec<CHSignalRun> = permanently_failed_runs
+            .iter()
+            .map(CHSignalRun::from)
+            .collect();
+        insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await?;
+    }
+
+    // Delete messages for finished runs (succeeded and permanently failed, but not retried)
+    let finished_project_run_pairs: Vec<(Uuid, Uuid)> = succeeded_runs
         .iter()
-        .chain(failed_runs.iter())
-        .map(|r| r.run_id)
+        .chain(permanently_failed_runs.iter())
+        .map(|run| (run.project_id, run.run_id))
         .collect();
 
-    delete_signal_run_messages(clickhouse, message.project_id, &finished_run_ids).await?;
+    delete_signal_run_messages(clickhouse.clone(), &finished_project_run_pairs).await?;
 
-    // Update job stats
-    update_signal_job_stats(
-        &db.pool,
-        message.job_id,
-        succeeded_runs.len() as i32,
-        failed_runs.len() as i32,
-    )
-    .await?;
+    // Update job stats - group by job_id since runs may belong to different jobs
+    let mut stats_by_job: HashMap<Uuid, (i32, i32)> = HashMap::new();
+    for run in &succeeded_runs {
+        if let Some(job_id) = run.job_id {
+            let entry = stats_by_job.entry(job_id).or_insert((0, 0));
+            entry.0 += 1;
+        }
+    }
+    for run in &permanently_failed_runs {
+        if let Some(job_id) = run.job_id {
+            let entry = stats_by_job.entry(job_id).or_insert((0, 0));
+            entry.1 += 1;
+        }
+    }
+    for (job_id, (succeeded_count, failed_count)) in stats_by_job {
+        if let Err(e) =
+            update_signal_job_stats(&db.pool, job_id, succeeded_count, failed_count).await
+        {
+            log::error!("Failed to update job statistics for job {}: {}", job_id, e);
+        }
+    }
+
+    if retried_count > 0 {
+        log::info!(
+            "[SIGNAL JOB] Batch {} successfully enqueued {} failed runs for retry",
+            message.batch_id,
+            retried_count
+        );
+    }
 
     Ok(())
 }
@@ -470,137 +713,309 @@ async fn process_succeeded_batch(
 /// Handle an inline response of a single run, return step result and new messages
 async fn process_single_response(
     response: &ParsedInlineResponse,
-    message: &SignalJobPendingBatchMessage,
+    signal_message: &SignalMessage,
     run: &SignalRun,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     config: Arc<SignalWorkerConfig>,
+    provider_batch_id: String,
 ) -> (StepResult, Vec<CHSignalRunMessage>) {
     let mut new_messages: Vec<CHSignalRunMessage> = Vec::new();
 
     // Check if response contains an error
-    if response.has_error {
+    let error = if response.has_error {
         let error = match &response.error_message {
             Some(msg) => format!("LLM response contains error:\n {}", msg),
             None => "LLM response contains error".to_string(),
         };
-        return (StepResult::Failed { error }, vec![]);
-    }
+        Some(error)
+    } else {
+        None
+    };
 
-    // Internal tracing span with LLM response
+    let finish_reason = response.finish_reason.clone();
+
+    let span_output = if let Some(content) = &response.content {
+        serde_json::to_value(content).ok()
+    } else if let Some(function_call) = &response.function_call {
+        serde_json::to_value(function_call).ok()
+    } else if let Some(finish_reason) = &response.finish_reason {
+        serde_json::to_value(finish_reason).ok()
+    } else {
+        None
+    };
+
+    let span_error = if let Some(error) = &error {
+        Some(error.clone())
+    } else if let Some(finish_reason) = &response.finish_reason {
+        if finish_reason.is_success() {
+            None
+        } else {
+            serde_json::to_string(finish_reason).ok()
+        }
+    } else {
+        None
+    };
+
     emit_internal_span(
         queue.clone(),
         InternalSpan {
             name: format!("step_{}.process_response", run.step),
             trace_id: run.internal_trace_id,
-            job_id: message.job_id,
             run_id: run.run_id,
-            signal_name: message.signal_name.clone(),
+            signal_name: signal_message.signal.name.clone(),
             parent_span_id: Some(run.internal_span_id),
             span_type: SpanType::LLM,
-            start_time: chrono::Utc::now(),
+            start_time: signal_message.request_start_time,
             input: None,
-            output: Some(serde_json::json!(&response.content)),
+            output: span_output,
             input_tokens: response.input_tokens,
+            input_cached_tokens: response.input_cached_tokens,
             output_tokens: response.output_tokens,
-            model: message.model.clone(),
-            provider: message.provider.clone(),
+            model: format!(
+                "{}-batch",
+                response.model_version.as_ref().unwrap_or(&LLM_MODEL)
+            ),
+            provider: LLM_PROVIDER.clone(),
             internal_project_id: config.internal_project_id,
+            job_id: run.job_id,
+            error: span_error,
+            provider_batch_id: Some(provider_batch_id),
         },
     )
     .await;
 
-    // Save LLM output to new messages
-    let llm_output_msg = CHSignalRunMessage::new(
-        message.project_id,
-        run.run_id,
-        chrono::Utc::now(),
-        response.content.clone(),
-    );
-    new_messages.push(llm_output_msg);
+    if let Some(error) = error {
+        return (
+            StepResult::Failed {
+                error,
+                finish_reason,
+                is_processing_error: false,
+            },
+            vec![],
+        );
+    }
 
     // Check if response contains a function call or text
-    if let Some(ref function_call) = response.function_call {
+    if let Some(function_call) = &response.function_call {
+        let llm_output_msg = CHSignalRunMessage::new(
+            signal_message.project_id,
+            run.run_id,
+            chrono::Utc::now(),
+            response.content.clone().unwrap_or_default(),
+        );
+        // only insert if there is a valid function call
+        new_messages.push(llm_output_msg);
         let tool_call_start_time = chrono::Utc::now();
-        let step_result = handle_tool_call(message, &run, &function_call, clickhouse.clone()).await;
+        let step_result =
+            handle_tool_call(signal_message, &run, &function_call, clickhouse.clone()).await;
 
-        // Internal tracing span for tool call
+        // Emit internal tracing span for tool call
+        // Include processing error information in the error field
+        let tool_error = match &step_result {
+            StepResult::Failed {
+                error,
+                is_processing_error: true,
+                ..
+            } => Some(format!("Processing error: {}", error)),
+            StepResult::Failed { error, .. } => Some(error.clone()),
+            _ => None,
+        };
+
         emit_internal_span(
             queue.clone(),
             InternalSpan {
                 name: function_call.name.clone(),
                 trace_id: run.internal_trace_id,
-                job_id: message.job_id,
                 run_id: run.run_id,
-                signal_name: message.signal_name.clone(),
+                signal_name: signal_message.signal.name.clone(),
                 parent_span_id: Some(run.internal_span_id),
                 span_type: SpanType::Tool,
                 start_time: tool_call_start_time,
                 input: Some(serde_json::json!(function_call)),
                 output: Some(serde_json::json!(step_result)),
                 input_tokens: None,
+                input_cached_tokens: None,
                 output_tokens: None,
-                model: message.model.clone(),
-                provider: message.provider.clone(),
+                model: LLM_MODEL.clone(),
+                provider: LLM_PROVIDER.clone(),
                 internal_project_id: config.internal_project_id,
+                job_id: run.job_id,
+                error: tool_error,
+                provider_batch_id: None,
             },
         )
         .await;
 
         match step_result {
-            StepResult::Failed { error } => {
+            StepResult::Failed {
+                error,
+                finish_reason,
+                is_processing_error,
+            } => {
                 let error = format!("Tool call failed: {}", error);
-                return (StepResult::Failed { error }, new_messages);
+                return (
+                    StepResult::Failed {
+                        error,
+                        finish_reason,
+                        is_processing_error,
+                    },
+                    new_messages,
+                );
             }
             StepResult::CompletedNoEvent => {
                 return (StepResult::CompletedNoEvent, new_messages);
             }
-            StepResult::CompletedWithEvent { attributes } => {
-                return (StepResult::CompletedWithEvent { attributes }, new_messages);
-            }
-            StepResult::RequiresNextStep { tool_result } => {
-                // Add tool result to new messages
-                let function_response_content = Content {
-                    role: Some("user".to_string()),
-                    parts: Some(vec![Part {
-                        function_response: Some(FunctionResponse {
-                            name: function_call.name.clone(),
-                            response: tool_result.clone(),
-                            id: function_call.id.clone(),
-                        }),
-                        ..Default::default()
-                    }]),
-                };
-
-                let tool_output_msg = CHSignalRunMessage::new(
-                    message.project_id,
-                    run.run_id,
-                    chrono::Utc::now(),
-                    serde_json::to_string(&function_response_content).unwrap_or_default(),
+            StepResult::CompletedWithEvent {
+                attributes,
+                summary,
+            } => {
+                return (
+                    StepResult::CompletedWithEvent {
+                        attributes,
+                        summary,
+                    },
+                    new_messages,
                 );
-                new_messages.push(tool_output_msg);
+            }
+            StepResult::RequiresNextStep { reason } => {
+                // Handle different next step reasons
+                match &reason {
+                    NextStepReason::ToolResult(tool_result) => {
+                        // Add tool result to new messages
+                        let function_response_content = Content {
+                            role: Some("user".to_string()),
+                            parts: Some(vec![Part {
+                                function_response: Some(FunctionResponse {
+                                    name: function_call.name.clone(),
+                                    response: tool_result.clone(),
+                                    id: function_call.id.clone(),
+                                }),
+                                ..Default::default()
+                            }]),
+                        };
+
+                        let tool_output_msg = CHSignalRunMessage::new(
+                            signal_message.project_id,
+                            run.run_id,
+                            chrono::Utc::now(),
+                            serde_json::to_string(&function_response_content)
+                                .map_err(|e| {
+                                    log::error!(
+                                        "Failed to serialize function response content: {}",
+                                        e
+                                    )
+                                })
+                                .unwrap_or_default(),
+                        );
+                        new_messages.push(tool_output_msg);
+                    }
+                    NextStepReason::MalformedFunctionCallRetry => {
+                        // Messages already added by the caller, no additional processing needed
+                    }
+                }
 
                 // If step number is greater than maximum allowed, mark run as failed
                 if run.step >= config.max_allowed_steps {
                     let error = "Maximum step count exceeded".to_string();
-                    return (StepResult::Failed { error }, new_messages);
+                    return (
+                        StepResult::Failed {
+                            error,
+                            finish_reason,
+                            is_processing_error: false,
+                        },
+                        new_messages,
+                    );
                 }
 
-                return (StepResult::RequiresNextStep { tool_result }, new_messages);
+                return (StepResult::RequiresNextStep { reason }, new_messages);
             }
         }
     } else {
+        if let Some(finish_reason) = &finish_reason {
+            if finish_reason.is_malformed_function_call() {
+                // If step number is greater than maximum allowed, mark run as failed
+                if run.step >= config.max_allowed_steps {
+                    let error = "Maximum step count exceeded".to_string();
+                    return (
+                        StepResult::Failed {
+                            error,
+                            finish_reason: Some(finish_reason.clone()),
+                            is_processing_error: false,
+                        },
+                        new_messages,
+                    );
+                }
+
+                let finish_message = response
+                    .finish_message
+                    .clone()
+                    .unwrap_or(serde_json::to_string(finish_reason).unwrap_or_default());
+
+                let now = chrono::Utc::now();
+                let user_time = now + chrono::Duration::milliseconds(1);
+
+                // 1. Assistant message with malformed response
+                let assistant_content = Content {
+                    role: Some("model".to_string()),
+                    parts: Some(vec![Part {
+                        text: Some(finish_message),
+                        ..Default::default()
+                    }]),
+                };
+                let assistant_msg = CHSignalRunMessage::new(
+                    signal_message.project_id,
+                    run.run_id,
+                    now,
+                    serde_json::to_string(&assistant_content).unwrap_or_default(),
+                );
+                new_messages.push(assistant_msg);
+
+                // 2. User message with retry guidance
+                let guidance = MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE;
+                let user_content = Content {
+                    role: Some("user".to_string()),
+                    parts: Some(vec![Part {
+                        text: Some(guidance.to_string()),
+                        ..Default::default()
+                    }]),
+                };
+                let user_msg = CHSignalRunMessage::new(
+                    signal_message.project_id,
+                    run.run_id,
+                    user_time,
+                    serde_json::to_string(&user_content).unwrap_or_default(),
+                );
+                new_messages.push(user_msg);
+
+                // 3. Return RequiresNextStep with MalformedFunctionCallRetry
+                return (
+                    StepResult::RequiresNextStep {
+                        reason: NextStepReason::MalformedFunctionCallRetry,
+                    },
+                    new_messages,
+                );
+            }
+        }
         let error = format!(
-            "Expected function call in LLM response, got text:\n{}",
+            "Expected function call in LLM response, got finish reason: {:?}. Text: {}",
+            finish_reason,
             response.text.clone().unwrap_or_default()
         );
-        return (StepResult::Failed { error }, new_messages);
+        return (
+            StepResult::Failed {
+                error,
+                finish_reason,
+                is_processing_error: false,
+            },
+            new_messages,
+        );
     }
 }
 
 /// Handle a tool call, return the StepResult
 async fn handle_tool_call(
-    message: &SignalJobPendingBatchMessage,
+    signal_message: &SignalMessage,
     run: &SignalRun,
     function_call: &FunctionCall,
     clickhouse: clickhouse::Client,
@@ -629,22 +1044,30 @@ async fn handle_tool_call(
             if span_ids.is_empty() {
                 return StepResult::Failed {
                     error: "get_full_span_info called with no span_ids".to_string(),
+                    finish_reason: None,
+                    is_processing_error: true,
                 };
             }
 
             // Execute the tool
-            let tool_result =
-                match get_full_span_info(clickhouse, message.project_id, run.trace_id, span_ids)
-                    .await
-                {
-                    Ok(spans) => serde_json::json!({ "spans": spans }),
-                    Err(e) => {
-                        log::error!("Error fetching full span info: {}", e);
-                        serde_json::json!({ "error": e.to_string() })
-                    }
-                };
+            let tool_result = match get_full_span_info(
+                clickhouse,
+                signal_message.project_id,
+                run.trace_id,
+                span_ids,
+            )
+            .await
+            {
+                Ok(spans) => serde_json::json!({ "spans": spans }),
+                Err(e) => {
+                    log::error!("Error fetching full span info: {}", e);
+                    serde_json::json!({ "error": e.to_string() })
+                }
+            };
 
-            return StepResult::RequiresNextStep { tool_result };
+            return StepResult::RequiresNextStep {
+                reason: NextStepReason::ToolResult(tool_result),
+            };
         }
         "submit_identification" => {
             let identified = function_call
@@ -659,14 +1082,32 @@ async fn handle_tool_call(
                 .as_ref()
                 .and_then(|args| args.get("data").cloned());
 
+            let summary: Option<String> = function_call
+                .args
+                .as_ref()
+                .and_then(|args| args.get("_summary"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
             log::debug!(
                 "[SIGNAL JOB] submit_identification, identified: {:?}",
                 identified,
             );
 
             if identified {
-                let attrs = attributes.unwrap_or(serde_json::Value::Null);
-                return StepResult::CompletedWithEvent { attributes: attrs };
+                let attrs = attributes.unwrap_or_default();
+                if let Some(summary) = summary {
+                    return StepResult::CompletedWithEvent {
+                        attributes: attrs,
+                        summary: summary,
+                    };
+                } else {
+                    return StepResult::Failed {
+                        error: "submit_identification called with no summary".to_string(),
+                        finish_reason: None,
+                        is_processing_error: true,
+                    };
+                }
             }
 
             return StepResult::CompletedNoEvent;
@@ -674,6 +1115,8 @@ async fn handle_tool_call(
         unknown => {
             return StepResult::Failed {
                 error: format!("Unknown function called: {}", unknown),
+                finish_reason: None,
+                is_processing_error: true,
             };
         }
     }
@@ -681,9 +1124,10 @@ async fn handle_tool_call(
 
 /// Create event, push for notifications and clustering processing
 async fn handle_create_event(
-    message: &SignalJobPendingBatchMessage,
+    signal_message: &SignalMessage,
     run: &SignalRun,
     attributes: serde_json::Value,
+    summary: String,
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
@@ -693,9 +1137,12 @@ async fn handle_create_event(
     let create_event_start_time = chrono::Utc::now();
 
     // Get trace spans
-    let (ch_spans, uuid_to_seq) =
-        get_trace_spans_with_id_mapping(clickhouse.clone(), message.project_id, run.trace_id)
-            .await?;
+    let (ch_spans, uuid_to_seq) = get_trace_spans_with_id_mapping(
+        clickhouse.clone(),
+        signal_message.project_id,
+        run.trace_id,
+    )
+    .await?;
 
     if ch_spans.is_empty() {
         anyhow::bail!("No spans found for trace {}", run.trace_id);
@@ -711,18 +1158,22 @@ async fn handle_create_event(
         .map(|(uuid, seq)| (*seq, *uuid))
         .collect();
 
-    let attrs =
-        replace_span_tags_with_links(attributes, &seq_to_uuid, message.project_id, run.trace_id)?;
+    let attrs = replace_span_tags_with_links(
+        attributes,
+        &seq_to_uuid,
+        signal_message.project_id,
+        run.trace_id,
+    )?;
 
     // Create signal event
     let event_id = Uuid::new_v4();
     let signal_event = CHSignalEvent::new(
         event_id,
-        message.project_id,
-        message.signal_id,
+        signal_message.project_id,
+        signal_message.signal.id,
         run.trace_id,
         run.run_id,
-        message.signal_name.clone(),
+        signal_message.signal.name.clone(),
         attrs.clone(),
         timestamp,
     );
@@ -732,7 +1183,7 @@ async fn handle_create_event(
 
     log::debug!(
         "[SIGNAL JOB] Created signal event '{}' for trace {} (run {})",
-        message.signal_name,
+        signal_message.signal.name,
         run.trace_id,
         run.run_id
     );
@@ -741,37 +1192,40 @@ async fn handle_create_event(
     process_event_notifications_and_clustering(
         db,
         queue.clone(),
-        message.project_id,
+        signal_message.project_id,
         run.trace_id,
         signal_event,
+        summary,
     )
     .await?;
 
-    // Internal tracing span for event creation
     emit_internal_span(
         queue,
         InternalSpan {
             name: "create_event".to_string(),
             trace_id: run.internal_trace_id,
-            job_id: message.job_id,
             run_id: run.run_id,
-            signal_name: message.signal_name.clone(),
+            signal_name: signal_message.signal.name.clone(),
             parent_span_id: Some(parent_span_id),
             span_type: SpanType::Default,
             start_time: create_event_start_time,
             input: Some(serde_json::json!({
                 "id": event_id,
-                "signal_id": message.signal_id,
+                "signal_id": signal_message.signal.id,
                 "trace_id": run.trace_id,
                 "run_id": run.run_id,
-                "name": message.signal_name,
+                "name": signal_message.signal.name,
             })),
             output: None,
             input_tokens: None,
+            input_cached_tokens: None,
             output_tokens: None,
-            model: message.model.clone(),
-            provider: message.provider.clone(),
+            model: LLM_MODEL.clone(),
+            provider: LLM_PROVIDER.clone(),
             internal_project_id,
+            job_id: run.job_id,
+            error: None,
+            provider_batch_id: None,
         },
     )
     .await;

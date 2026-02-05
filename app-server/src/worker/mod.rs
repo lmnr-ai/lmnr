@@ -72,11 +72,11 @@ pub enum WorkerType {
     SpansIndexer,
     Evaluators,
     Payloads,
-    Signals,
     Notifications,
     Clustering,
     SignalJobSubmissionBatch,
     SignalJobPendingBatch,
+    Logs,
 }
 
 impl std::fmt::Display for WorkerType {
@@ -86,13 +86,13 @@ impl std::fmt::Display for WorkerType {
             WorkerType::SpansIndexer => write!(f, "spans_indexer"),
             WorkerType::Evaluators => write!(f, "evaluators"),
             WorkerType::Payloads => write!(f, "payloads"),
-            WorkerType::Signals => write!(f, "signals"),
             WorkerType::Notifications => write!(f, "notifications"),
             WorkerType::Clustering => write!(f, "clustering"),
             WorkerType::SignalJobSubmissionBatch => {
                 write!(f, "signal_job_submission_batch")
             }
             WorkerType::SignalJobPendingBatch => write!(f, "signal_job_pending_batch"),
+            WorkerType::Logs => write!(f, "logs"),
         }
     }
 }

@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use uuid::Uuid;
 
 use crate::{
@@ -18,20 +18,31 @@ use crate::{
     db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
     signals::{
-        InternalSpan, RunStatus, SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage,
-        SignalRun, SignalRunPayload, SignalWorkerConfig,
+        LLM_MODEL, LLM_PROVIDER, SignalRun, SignalWorkerConfig,
         gemini::{
             Content, GeminiClient, GenerateContentRequest, GenerationConfig, InlineRequestItem,
             Part,
         },
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
-        push_to_pending_queue,
+        queue::{
+            SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
+            push_to_pending_queue,
+        },
         spans::get_trace_structure_as_string,
         tools::build_tool_definitions,
-        utils::{emit_internal_span, extract_batch_id_from_operation},
+        utils::{InternalSpan, emit_internal_span, extract_batch_id_from_operation},
     },
+    utils::get_unsigned_env_with_default,
     worker::{HandlerError, MessageHandler},
 };
+
+const DEFAULT_SLEEP_DURATION_FOR_DELAYED_RETRY: usize = 60;
+
+struct ProcessRunResult {
+    request: InlineRequestItem,
+    new_messages: Vec<CHSignalRunMessage>,
+    request_start_time: chrono::DateTime<Utc>,
+}
 
 pub struct SignalJobSubmissionBatchHandler {
     pub db: Arc<DB>,
@@ -65,9 +76,8 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         log::debug!(
-            "[SIGNAL JOB] Processing submission message. job_id: {}, runs: {}",
-            message.job_id,
-            message.runs.len(),
+            "[SIGNAL JOB] Processing submission message. runs: {}",
+            message.messages.len(),
         );
 
         process(
@@ -90,53 +100,56 @@ async fn process(
     gemini: Arc<GeminiClient>,
     config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
-    let project_id = msg.project_id;
-    let job_id = msg.job_id;
-    let prompt = &msg.prompt;
-    let structured_output_schema = &msg.structured_output_schema;
-
-    let mut requests: Vec<InlineRequestItem> = Vec::with_capacity(msg.runs.len());
+    let mut requests: Vec<InlineRequestItem> = Vec::with_capacity(msg.messages.len());
     let mut all_new_messages: Vec<CHSignalRunMessage> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
-    let mut to_submit_runs: Vec<SignalRunPayload> = Vec::new();
+    let mut successful_messages: Vec<SignalMessage> = Vec::new();
 
-    for run in msg.runs.iter() {
+    for message in msg.messages.iter() {
+        let project_id = message.project_id;
+        let signal = &message.signal;
+        let trace_id = message.trace_id;
+
         match process_run(
-            &msg,
-            run,
             project_id,
-            job_id,
-            prompt,
-            &msg.signal_name,
-            structured_output_schema,
+            trace_id,
+            message.run_id,
+            message.step,
+            message.internal_trace_id,
+            message.internal_span_id,
+            message.job_id,
+            &signal.prompt,
+            &signal.name,
+            &signal.structured_output_schema,
+            &LLM_MODEL,
+            &LLM_PROVIDER,
             clickhouse.clone(),
             queue.clone(),
             config.internal_project_id,
         )
         .await
         {
-            Ok((request, new_messages)) => {
+            Ok(ProcessRunResult {
+                request,
+                new_messages,
+                request_start_time,
+            }) => {
                 requests.push(request);
                 all_new_messages.extend(new_messages);
-                to_submit_runs.push(run.clone());
+                let mut updated_message = message.clone();
+                updated_message.request_start_time = request_start_time;
+                successful_messages.push(updated_message);
             }
             Err(e) => {
-                log::error!("[SIGNAL JOB] Failed to process run {}: {:?}", run.run_id, e);
-                failed_runs.push(SignalRun {
-                    run_id: run.run_id,
-                    project_id,
-                    job_id,
-                    trigger_id: Uuid::nil(),
-                    signal_id: msg.signal_id,
-                    trace_id: run.trace_id,
-                    status: RunStatus::Failed,
-                    step: run.step,
-                    internal_trace_id: run.internal_trace_id,
-                    internal_span_id: run.internal_span_id,
-                    updated_at: Utc::now(),
-                    event_id: None,
-                    error_message: Some(format!("Failed to process run: {}", e)),
-                });
+                log::error!(
+                    "[SIGNAL JOB] Failed to process run {}: {:?}",
+                    message.run_id,
+                    e
+                );
+                failed_runs.push(
+                    SignalRun::from_message(message, signal.id)
+                        .failed(&format!("Failed to process run: {}", e)),
+                );
             }
         }
     }
@@ -144,7 +157,7 @@ async fn process(
     if requests.is_empty() {
         log::error!("[SIGNAL JOB] No requests to submit");
         // All runs failed during processing, handle them before returning
-        handle_failed_runs(clickhouse, db, project_id, job_id, failed_runs).await;
+        handle_failed_runs(clickhouse, db, failed_runs).await;
         return Err(HandlerError::permanent(anyhow::anyhow!(
             "No requests to submit"
         )));
@@ -160,19 +173,20 @@ async fn process(
     }
 
     // Submit batch to Gemini API
-    let batch_result = submit_batch_to_gemini(&msg, gemini, requests, to_submit_runs, queue).await;
+    let batch_result =
+        submit_batch_to_gemini(&LLM_MODEL, gemini, requests, successful_messages, queue).await;
 
     match batch_result {
         Ok(()) => {
             // Batch submitted successfully, handle any runs that failed during processing
-            handle_failed_runs(clickhouse, db, project_id, job_id, failed_runs).await;
+            handle_failed_runs(clickhouse, db, failed_runs).await;
             Ok(())
         }
         Err((batch_failed_runs, handler_error)) => {
             // Only handle failed runs for permanent errors (transient errors will be retried)
             if matches!(handler_error, HandlerError::Permanent(_)) {
                 failed_runs.extend(batch_failed_runs);
-                handle_failed_runs(clickhouse, db, project_id, job_id, failed_runs).await;
+                handle_failed_runs(clickhouse, db, failed_runs).await;
             }
             Err(handler_error)
         }
@@ -182,17 +196,18 @@ async fn process(
 /// Submit batch to Gemini API and push to pending queue on success.
 /// On failure, returns the failed runs and the handler error.
 async fn submit_batch_to_gemini(
-    msg: &SignalJobSubmissionBatchMessage,
+    model: &str,
     gemini: Arc<GeminiClient>,
     requests: Vec<InlineRequestItem>,
-    runs: Vec<SignalRunPayload>,
+    messages: Vec<SignalMessage>,
     queue: Arc<MessageQueue>,
 ) -> Result<(), (Vec<SignalRun>, HandlerError)> {
-    let project_id = msg.project_id;
-    let job_id = msg.job_id;
-
     match gemini
-        .create_batch(&msg.model, requests, Some(format!("signal_job_{}", job_id)))
+        .create_batch(
+            model,
+            requests,
+            Some(format!("signal_batch_{}", Uuid::new_v4())),
+        )
         .await
     {
         Ok(operation) => {
@@ -203,11 +218,13 @@ async fn submit_batch_to_gemini(
 
             let batch_id = extract_batch_id_from_operation(&operation.name).map_err(|e| {
                 // If we can't extract batch ID, mark all runs as failed
-                let batch_failed_runs = create_failed_runs_from_payloads(
-                    &runs,
-                    msg,
-                    format!("Failed to extract batch ID: {}", e),
-                );
+                let batch_failed_runs = messages
+                    .iter()
+                    .map(|message| {
+                        SignalRun::from_message(message, message.signal.id)
+                            .failed(&format!("Failed to extract batch ID: {}", e))
+                    })
+                    .collect();
                 (
                     batch_failed_runs,
                     HandlerError::Permanent(anyhow::anyhow!("Failed to extract batch ID: {}", e)),
@@ -215,15 +232,7 @@ async fn submit_batch_to_gemini(
             })?;
 
             let pending_message = SignalJobPendingBatchMessage {
-                project_id,
-                job_id,
-                signal_id: msg.signal_id,
-                prompt: msg.prompt.clone(),
-                signal_name: msg.signal_name.clone(),
-                structured_output_schema: msg.structured_output_schema.clone(),
-                model: msg.model.clone(),
-                provider: msg.provider.clone(),
-                runs,
+                messages: messages.clone(),
                 batch_id,
             };
 
@@ -231,11 +240,13 @@ async fn submit_batch_to_gemini(
                 .await
                 .map_err(|e| {
                     // If we can't push to pending queue, mark all runs as failed
-                    let batch_failed_runs = create_failed_runs_from_payloads(
-                        &pending_message.runs,
-                        msg,
-                        format!("Failed to push to pending queue: {}", e),
-                    );
+                    let batch_failed_runs = messages
+                        .iter()
+                        .map(|message| {
+                            SignalRun::from_message(message, message.signal.id)
+                                .failed(&format!("Failed to push to pending queue: {}", e))
+                        })
+                        .collect();
                     (batch_failed_runs, HandlerError::transient(e))
                 })?;
 
@@ -244,13 +255,22 @@ async fn submit_batch_to_gemini(
         Err(e) => {
             log::error!("[SIGNAL JOB] Failed to submit batch to Gemini: {:?}", e);
 
-            let batch_failed_runs = create_failed_runs_from_payloads(
-                &runs,
-                msg,
-                format!("Batch submission failed: {}", e),
-            );
+            let batch_failed_runs = messages
+                .iter()
+                .map(|message| {
+                    SignalRun::from_message(message, message.signal.id)
+                        .failed(&format!("Batch submission failed: {}", e))
+                })
+                .collect();
 
             let handler_error = if e.is_retryable() {
+                if e.is_resource_exhausted() {
+                    let sleep_duration = get_unsigned_env_with_default(
+                        "SIGNAL_JOB_SLEEP_BEFORE_RETRY_SEC",
+                        DEFAULT_SLEEP_DURATION_FOR_DELAYED_RETRY,
+                    );
+                    tokio::time::sleep(Duration::from_secs(sleep_duration as u64)).await;
+                }
                 HandlerError::transient(e)
             } else {
                 HandlerError::permanent(e)
@@ -261,37 +281,10 @@ async fn submit_batch_to_gemini(
     }
 }
 
-/// Create failed SignalRun instances from SignalRunPayload list
-fn create_failed_runs_from_payloads(
-    runs: &[SignalRunPayload],
-    msg: &SignalJobSubmissionBatchMessage,
-    error_message: String,
-) -> Vec<SignalRun> {
-    runs.iter()
-        .map(|run| SignalRun {
-            run_id: run.run_id,
-            project_id: msg.project_id,
-            job_id: msg.job_id,
-            trigger_id: Uuid::nil(),
-            signal_id: msg.signal_id,
-            trace_id: run.trace_id,
-            status: RunStatus::Failed,
-            step: run.step,
-            internal_trace_id: run.internal_trace_id,
-            internal_span_id: run.internal_span_id,
-            updated_at: Utc::now(),
-            event_id: None,
-            error_message: Some(error_message.clone()),
-        })
-        .collect()
-}
-
 /// Insert failed runs into ClickHouse and delete their messages
 async fn handle_failed_runs(
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
-    project_id: uuid::Uuid,
-    job_id: uuid::Uuid,
     failed_runs: Vec<SignalRun>,
 ) {
     if failed_runs.is_empty() {
@@ -305,39 +298,50 @@ async fn handle_failed_runs(
     }
 
     // Delete messages for failed runs since they won't be processed further
-    let failed_run_ids: Vec<uuid::Uuid> = failed_runs.iter().map(|r| r.run_id).collect();
-    if let Err(e) = delete_signal_run_messages(clickhouse, project_id, &failed_run_ids).await {
+    let project_run_pairs: Vec<(Uuid, Uuid)> = failed_runs
+        .iter()
+        .map(|run| (run.project_id, run.run_id))
+        .collect();
+
+    if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
         log::error!(
             "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
             e
         );
     }
 
-    // Update job statistics
-    let failed_count = failed_runs.len() as i32;
-    if let Err(e) = update_signal_job_stats(&db.pool, job_id, 0, failed_count).await {
-        log::error!("Failed to update job statistics for failed batch: {}", e);
+    // Update job statistics - group by job_id since runs may belong to different jobs
+    let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
+    for run in &failed_runs {
+        if let Some(job_id) = run.job_id {
+            *failed_by_job.entry(job_id).or_insert(0) += 1;
+        }
+    }
+    for (job_id, failed_count) in failed_by_job {
+        if let Err(e) = update_signal_job_stats(&db.pool, job_id, 0, failed_count).await {
+            log::error!("Failed to update job statistics for job {}: {}", job_id, e);
+        }
     }
 }
 
 async fn process_run(
-    message: &SignalJobSubmissionBatchMessage,
-    run: &SignalRunPayload,
-    project_id: uuid::Uuid,
-    job_id: uuid::Uuid,
+    project_id: Uuid,
+    trace_id: Uuid,
+    run_id: Uuid,
+    step: usize,
+    internal_trace_id: Uuid,
+    internal_span_id: Uuid,
+    job_id: Option<Uuid>,
     prompt: &str,
     signal_name: &str,
     structured_output_schema: &serde_json::Value,
+    model: &str,
+    provider: &str,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    internal_project_id: Option<uuid::Uuid>,
-) -> Result<(InlineRequestItem, Vec<CHSignalRunMessage>), HandlerError> {
+    internal_project_id: Option<Uuid>,
+) -> Result<ProcessRunResult, HandlerError> {
     let processing_start_time = Utc::now();
-
-    let run_id = run.run_id;
-    let trace_id = run.trace_id;
-    let internal_trace_id = run.internal_trace_id;
-    let internal_span_id = run.internal_span_id;
 
     // 1. Query existing messages for this run
     let existing_messages = get_signal_run_messages(clickhouse.clone(), project_id, run_id)
@@ -384,14 +388,18 @@ async fn process_run(
             project_id,
             run_id,
             now,
-            serde_json::to_string(&system_content).unwrap_or_default(),
+            serde_json::to_string(&system_content)
+                .map_err(|e| log::error!("Failed to serialize system content: {}", e))
+                .unwrap_or_default(),
         );
 
         let user_message = CHSignalRunMessage::new(
             project_id,
             run_id,
             user_time,
-            serde_json::to_string(&user_content).unwrap_or_default(),
+            serde_json::to_string(&user_content)
+                .map_err(|e| log::error!("Failed to serialize user content: {}", e))
+                .unwrap_or_default(),
         );
 
         // For Gemini API: system instruction has role: None
@@ -410,7 +418,7 @@ async fn process_run(
         let mut system_instruction = None;
 
         for msg in existing_messages {
-            // Parse as Content object (all messages are now stored in this format)
+            // Parse as Content object (all messages are stored in this format)
             let content: Content = serde_json::from_str(&msg.message).map_err(|e| {
                 HandlerError::Permanent(anyhow::anyhow!(
                     "Failed to parse message as Content: {}",
@@ -454,8 +462,8 @@ async fn process_run(
             tools: Some(tools),
         },
         metadata: Some(serde_json::json!({
-            "run_id": run.run_id,
-            "trace_id": run.trace_id,
+            "run_id": run_id,
+            "trace_id": trace_id,
         })),
     };
 
@@ -468,9 +476,8 @@ async fn process_run(
     emit_internal_span(
         queue.clone(),
         InternalSpan {
-            name: format!("step_{}.submit_request", run.step),
+            name: format!("step_{}.submit_request", step),
             trace_id: internal_trace_id,
-            job_id,
             run_id,
             signal_name: signal_name.to_string(),
             parent_span_id: Some(internal_span_id),
@@ -479,13 +486,21 @@ async fn process_run(
             input: Some(serde_json::json!(contents_with_sys)),
             output: None,
             input_tokens: None,
+            input_cached_tokens: None,
             output_tokens: None,
-            model: message.model.clone(),
-            provider: message.provider.clone(),
+            model: model.to_string(),
+            provider: provider.to_string(),
             internal_project_id,
+            job_id,
+            error: None,
+            provider_batch_id: None,
         },
     )
     .await;
 
-    Ok((request, new_messages))
+    Ok(ProcessRunResult {
+        request,
+        new_messages,
+        request_start_time: processing_start_time,
+    })
 }

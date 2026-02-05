@@ -1,5 +1,6 @@
 "use client";
 
+import { isNil } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useRef } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
@@ -27,8 +28,8 @@ interface DateRangeFilterStore {
   setCalendarDate: (date: ReactDateRange | undefined) => void;
   setStartTime: (time: string) => void;
   setEndTime: (time: string) => void;
-  selectQuickRange: (value: string) => void;
-  applyAbsoluteRange: () => void;
+  selectQuickRange: (value: string, currentSearchParams?: string) => void;
+  applyAbsoluteRange: (currentSearchParams?: string) => void;
   getDisplayRange: () => { from: Date; to: Date };
 }
 
@@ -39,8 +40,7 @@ const createDateRangeFilterStore = (
   mode: DateRangeMode,
   onChange: ((value: DateRangeValue) => void) | undefined,
   router: ReturnType<typeof useRouter>,
-  pathname: string,
-  searchParams: ReturnType<typeof useSearchParams>
+  pathname: string
 ) => {
   let calendarDate: ReactDateRange | undefined = undefined;
   let startTime = "00:00";
@@ -80,7 +80,7 @@ const createDateRangeFilterStore = (
       return getDisplayRange({ startDate, endDate, pastHours });
     },
 
-    selectQuickRange: (rangeValue) => {
+    selectQuickRange: (rangeValue, currentSearchParams) => {
       set({
         pastHours: rangeValue,
         startDate: null,
@@ -88,8 +88,8 @@ const createDateRangeFilterStore = (
         calendarDate: undefined,
       });
 
-      if (mode === "url") {
-        const newSearchParams = new URLSearchParams(searchParams.toString());
+      if (mode === "url" && !isNil(currentSearchParams)) {
+        const newSearchParams = new URLSearchParams(currentSearchParams);
         newSearchParams.delete("startDate");
         newSearchParams.delete("endDate");
         newSearchParams.delete("groupByInterval");
@@ -101,7 +101,7 @@ const createDateRangeFilterStore = (
       onChange?.({ pastHours: rangeValue });
     },
 
-    applyAbsoluteRange: () => {
+    applyAbsoluteRange: (currentSearchParams) => {
       const { calendarDate, startTime, endTime } = get();
       if (!calendarDate?.from || !calendarDate?.to) return;
 
@@ -124,8 +124,8 @@ const createDateRangeFilterStore = (
         endDate: endDateIso,
       });
 
-      if (mode === "url") {
-        const newSearchParams = new URLSearchParams(searchParams.toString());
+      if (mode === "url" && !isNil(currentSearchParams)) {
+        const newSearchParams = new URLSearchParams(currentSearchParams);
         newSearchParams.delete("pastHours");
         newSearchParams.set("pageNumber", "0");
         newSearchParams.set("startDate", startDateIso);
@@ -187,16 +187,7 @@ export const DateRangeFilterProvider = ({
   const storeRef = useRef<StoreApi<DateRangeFilterStore>>(null);
 
   if (!storeRef.current) {
-    storeRef.current = createDateRangeFilterStore(
-      pastHours,
-      startDate,
-      endDate,
-      mode,
-      onChange,
-      router,
-      pathname,
-      searchParams
-    );
+    storeRef.current = createDateRangeFilterStore(pastHours, startDate, endDate, mode, onChange, router, pathname);
   }
 
   useEffect(() => {
@@ -222,20 +213,5 @@ export const DateRangeFilterProvider = ({
 
   return (
     <DateRangeFilterStoreContext.Provider value={storeRef.current}>{children}</DateRangeFilterStoreContext.Provider>
-  );
-};
-
-export const useDateRangeValue = () => {
-  const pastHours = useDateRangeFilterContext((state) => state.pastHours);
-  const startDate = useDateRangeFilterContext((state) => state.startDate);
-  const endDate = useDateRangeFilterContext((state) => state.endDate);
-
-  return useMemo(
-    () => ({
-      pastHours: pastHours ?? undefined,
-      startDate: startDate ?? undefined,
-      endDate: endDate ?? undefined,
-    }),
-    [pastHours, startDate, endDate]
   );
 };

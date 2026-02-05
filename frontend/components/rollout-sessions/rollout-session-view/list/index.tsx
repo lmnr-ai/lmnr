@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { compact, isEmpty, times } from "lodash";
+import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -22,18 +22,20 @@ interface ListProps {
 const List = ({ traceId, onSpanSelect }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
-  const { getListData, spans, isSpansLoading, selectedSpan, trace } = useRolloutSessionStoreContext((state) => ({
-    getListData: state.getListData,
-    spans: state.spans,
-    isSpansLoading: state.isSpansLoading,
-    selectedSpan: state.selectedSpan,
-    trace: state.trace,
-  }));
+  const { getListData, spans, isSpansLoading, selectedSpan, trace, condensedTimelineVisibleSpanIds } =
+    useRolloutSessionStoreContext((state) => ({
+      getListData: state.getListData,
+      spans: state.spans,
+      isSpansLoading: state.isSpansLoading,
+      selectedSpan: state.selectedSpan,
+      trace: state.trace,
+      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+    }));
 
   const prevVisibleIdsRef = useRef<string>("");
   const [settingsSpan, setSettingsSpan] = useState<TraceViewListSpan | null>(null);
 
-  const listSpans = useMemo(() => getListData(), [getListData, spans]);
+  const listSpans = useMemo(() => getListData(), [getListData, spans, condensedTimelineVisibleSpanIds]);
 
   const virtualizer = useVirtualizer({
     count: listSpans.length,
@@ -42,24 +44,22 @@ const List = ({ traceId, onSpanSelect }: ListProps) => {
     overscan: 20,
   });
 
+  const selectedSpanIndex = useMemo(() => {
+    if (isNil(selectedSpan)) return null;
+    const selectedIndex = listSpans.findIndex((span) => span.spanId === selectedSpan.spanId);
+    return selectedIndex;
+  }, [selectedSpan?.spanId, listSpans]);
+
+  // Scroll to selected span when selection changes
   useEffect(() => {
-    if (!selectedSpan || isSpansLoading) return;
-
-    const scrollToSelected = () => {
-      const selectedIndex = listSpans.findIndex((span) => span.spanId === selectedSpan.spanId);
-
-      if (selectedIndex !== -1) {
-        virtualizer.scrollToIndex(selectedIndex, {
-          align: "center",
-        });
-      }
-    };
-
-    const rafId = requestAnimationFrame(scrollToSelected);
-
-    return () => cancelAnimationFrame(rafId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (isNull(selectedSpanIndex) || isSpansLoading) return;
+    if (selectedSpanIndex !== -1) {
+      const rafId = requestAnimationFrame(() => {
+        virtualizer.scrollToIndex(selectedSpanIndex, { align: "start" });
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [selectedSpanIndex, virtualizer, isSpansLoading]);
 
   const items = virtualizer?.getVirtualItems() || [];
 

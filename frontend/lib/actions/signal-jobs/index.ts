@@ -93,12 +93,12 @@ export async function createSignalJob(
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-        projectId,
-        traceId: undefined,
-        searchQuery: search,
-        timeRange: getTimeRange(pastHours, startDate, endDate),
-        searchType: [] as SpanSearchType[],
-      })
+      projectId,
+      traceId: undefined,
+      searchQuery: search,
+      timeRange: getTimeRange(pastHours, startDate, endDate),
+      searchType: [] as SpanSearchType[],
+    })
     : [];
   const traceIdsFromSearch = [...new Set(spanHits.map((span) => span.trace_id))];
 

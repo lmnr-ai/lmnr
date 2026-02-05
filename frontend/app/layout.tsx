@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { PostHogProvider } from "./providers";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.lmnr.ai"),
+  metadataBase: new URL("https://laminar.sh"),
   title: "Laminar",
   keywords: [
     "laminar",
@@ -20,17 +20,27 @@ export const metadata: Metadata = {
     "label",
     "analyze",
     "ai",
+    "ai agent",
     "eval",
     "llm ops",
+    "ai ops",
     "observability",
-    "openai",
+    "tracing",
+    "ai sdk tracing",
+    "ai tracing",
     "llm",
     "llm observability",
+    "ai observability",
+    "agent observability",
+    "ai agent observability",
+    "ai agent tracing",
+    "ai agent evals",
+    "ai agent evaluation",
   ],
   openGraph: {
     type: "website",
     title: "Laminar",
-    description: "The AI engineering platform",
+    description: "Understand why your agent failed. Iterate fast to fix it.",
     siteName: "Laminar",
     images: {
       url: "/opengraph-image.png",
@@ -39,7 +49,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    description: "The AI engineering platform",
+    description: "Understand why your agent failed. Iterate fast to fix it.",
     title: "Laminar",
     images: {
       url: "/twitter-image.png",

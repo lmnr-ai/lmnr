@@ -18,7 +18,7 @@ export async function GET(
   );
 
   if (!parseResult.success) {
-    return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    return NextResponse.json([]);
   }
 
   try {

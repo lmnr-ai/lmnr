@@ -9,7 +9,10 @@ use uuid::Uuid;
 
 use crate::{
     api::v1::browser_sessions::EventBatch,
-    batch_worker::message_handler::{BatchMessageHandler, HandlerResult, MessageDelivery},
+    batch_worker::{
+        config::BatchingConfig,
+        message_handler::{BatchMessageHandler, HandlerResult, MessageDelivery},
+    },
     cache::Cache,
     ch::browser_events::{BrowserEventCHRow, insert_browser_events},
     db::DB,
@@ -22,11 +25,6 @@ use crate::{
 pub struct QueueBrowserEventMessage {
     pub batch: EventBatch,
     pub project_id: Uuid,
-}
-
-pub struct BatchingConfig {
-    pub size: usize,
-    pub flush_interval: Duration,
 }
 
 /// Handler for browser events

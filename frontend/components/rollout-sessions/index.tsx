@@ -6,7 +6,6 @@ import RolloutSessionView from "@/components/rollout-sessions/rollout-session-vi
 import RolloutSessionStoreProvider from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
 import Header from "@/components/ui/header";
-import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { type RolloutSession as RolloutSessionType, type RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
 
 interface RolloutSessionContentProps {
@@ -15,9 +14,7 @@ interface RolloutSessionContentProps {
 
 const RolloutSessionContent = ({ sessionId }: RolloutSessionContentProps) => (
   <div className="flex-1 min-h-0 flex">
-    <FiltersContextProvider>
-      <RolloutSessionView sessionId={sessionId} />
-    </FiltersContextProvider>
+    <RolloutSessionView sessionId={sessionId} />
   </div>
 );
 

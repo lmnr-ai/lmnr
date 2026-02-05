@@ -16,7 +16,6 @@ import TraceViewNavigationProvider, {
 import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import FiltersContextProvider from "@/components/ui/infinite-datatable/ui/datatable-filter/context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
 import {
@@ -396,9 +395,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
                   </Select>
                 </div>
               )}
-              <FiltersContextProvider>
-                <TraceView key={traceId} onClose={onClose} traceId={traceId} />
-              </FiltersContextProvider>
+              <TraceView key={traceId} onClose={onClose} traceId={traceId} />
             </div>
           </Resizable>
         </div>
