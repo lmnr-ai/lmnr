@@ -28,6 +28,8 @@ pub struct ParsedInlineResponse {
     pub output_tokens: Option<i32>,
     /// Finish reason if present
     pub finish_reason: Option<FinishReason>,
+    /// Finish message if present
+    pub finish_message: Option<String>,
 }
 
 /// Parse an InlineResponse into a structured format with all extracted fields.
@@ -72,6 +74,8 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
         })
         .unwrap_or((None, None));
 
+    let finish_message = candidate.and_then(|c| c.finish_message.clone());
+
     ParsedInlineResponse {
         run_id,
         trace_id,
@@ -83,6 +87,7 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
         input_tokens,
         output_tokens,
         finish_reason,
+        finish_message,
     }
 }
 

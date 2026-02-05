@@ -62,6 +62,8 @@ pub struct SignalMessage {
     pub step: usize,
     #[serde(default)]
     pub retry_count: usize,
+    #[serde(default = "chrono::Utc::now")]
+    pub request_start_time: chrono::DateTime<chrono::Utc>,
 }
 
 pub async fn push_to_submissions_queue(

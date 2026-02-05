@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use uuid::Uuid;
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
     db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
     signals::{
-        LLM_MODEL, LLM_PROVIDER, RunStatus, SignalRun, SignalWorkerConfig,
+        LLM_MODEL, LLM_PROVIDER, SignalRun, SignalWorkerConfig,
         gemini::{
             Content, GeminiClient, GenerateContentRequest, GenerationConfig, InlineRequestItem,
             Part,
@@ -32,8 +32,17 @@ use crate::{
         tools::build_tool_definitions,
         utils::{InternalSpan, emit_internal_span, extract_batch_id_from_operation},
     },
+    utils::get_unsigned_env_with_default,
     worker::{HandlerError, MessageHandler},
 };
+
+const DEFAULT_SLEEP_DURATION_FOR_DELAYED_RETRY: usize = 60;
+
+struct ProcessRunResult {
+    request: InlineRequestItem,
+    new_messages: Vec<CHSignalRunMessage>,
+    request_start_time: chrono::DateTime<Utc>,
+}
 
 pub struct SignalJobSubmissionBatchHandler {
     pub db: Arc<DB>,
@@ -120,10 +129,16 @@ async fn process(
         )
         .await
         {
-            Ok((request, new_messages)) => {
+            Ok(ProcessRunResult {
+                request,
+                new_messages,
+                request_start_time,
+            }) => {
                 requests.push(request);
                 all_new_messages.extend(new_messages);
-                successful_messages.push(message.clone());
+                let mut updated_message = message.clone();
+                updated_message.request_start_time = request_start_time;
+                successful_messages.push(updated_message);
             }
             Err(e) => {
                 log::error!(
@@ -131,21 +146,10 @@ async fn process(
                     message.run_id,
                     e
                 );
-                failed_runs.push(SignalRun {
-                    run_id: message.run_id,
-                    project_id,
-                    job_id: message.job_id,
-                    trigger_id: message.trigger_id,
-                    signal_id: signal.id,
-                    trace_id,
-                    status: RunStatus::Failed,
-                    step: message.step,
-                    internal_trace_id: message.internal_trace_id,
-                    internal_span_id: message.internal_span_id,
-                    updated_at: Utc::now(),
-                    event_id: None,
-                    error_message: Some(format!("Failed to process run: {}", e)),
-                });
+                failed_runs.push(
+                    SignalRun::from_message(message, signal.id)
+                        .failed(&format!("Failed to process run: {}", e)),
+                );
             }
         }
     }
@@ -214,10 +218,13 @@ async fn submit_batch_to_gemini(
 
             let batch_id = extract_batch_id_from_operation(&operation.name).map_err(|e| {
                 // If we can't extract batch ID, mark all runs as failed
-                let batch_failed_runs = create_failed_runs_from_messages(
-                    &messages,
-                    format!("Failed to extract batch ID: {}", e),
-                );
+                let batch_failed_runs = messages
+                    .iter()
+                    .map(|message| {
+                        SignalRun::from_message(message, message.signal.id)
+                            .failed(&format!("Failed to extract batch ID: {}", e))
+                    })
+                    .collect();
                 (
                     batch_failed_runs,
                     HandlerError::Permanent(anyhow::anyhow!("Failed to extract batch ID: {}", e)),
@@ -233,10 +240,13 @@ async fn submit_batch_to_gemini(
                 .await
                 .map_err(|e| {
                     // If we can't push to pending queue, mark all runs as failed
-                    let batch_failed_runs = create_failed_runs_from_messages(
-                        &messages,
-                        format!("Failed to push to pending queue: {}", e),
-                    );
+                    let batch_failed_runs = messages
+                        .iter()
+                        .map(|message| {
+                            SignalRun::from_message(message, message.signal.id)
+                                .failed(&format!("Failed to push to pending queue: {}", e))
+                        })
+                        .collect();
                     (batch_failed_runs, HandlerError::transient(e))
                 })?;
 
@@ -245,12 +255,22 @@ async fn submit_batch_to_gemini(
         Err(e) => {
             log::error!("[SIGNAL JOB] Failed to submit batch to Gemini: {:?}", e);
 
-            let batch_failed_runs = create_failed_runs_from_messages(
-                &messages,
-                format!("Batch submission failed: {}", e),
-            );
+            let batch_failed_runs = messages
+                .iter()
+                .map(|message| {
+                    SignalRun::from_message(message, message.signal.id)
+                        .failed(&format!("Batch submission failed: {}", e))
+                })
+                .collect();
 
             let handler_error = if e.is_retryable() {
+                if e.is_resource_exhausted() {
+                    let sleep_duration = get_unsigned_env_with_default(
+                        "SIGNAL_JOB_SLEEP_BEFORE_RETRY_SEC",
+                        DEFAULT_SLEEP_DURATION_FOR_DELAYED_RETRY,
+                    );
+                    tokio::time::sleep(Duration::from_secs(sleep_duration as u64)).await;
+                }
                 HandlerError::transient(e)
             } else {
                 HandlerError::permanent(e)
@@ -261,39 +281,12 @@ async fn submit_batch_to_gemini(
     }
 }
 
-/// Create failed SignalRun instances from SignalMessage list
-fn create_failed_runs_from_messages(
-    messages: &[SignalMessage],
-    error_message: String,
-) -> Vec<SignalRun> {
-    messages
-        .iter()
-        .map(|message| SignalRun {
-            run_id: message.run_id,
-            project_id: message.project_id,
-            job_id: message.job_id,
-            trigger_id: message.trigger_id,
-            signal_id: message.signal.id,
-            trace_id: message.trace_id,
-            status: RunStatus::Failed,
-            step: message.step,
-            internal_trace_id: message.internal_trace_id,
-            internal_span_id: message.internal_span_id,
-            updated_at: Utc::now(),
-            event_id: None,
-            error_message: Some(error_message.clone()),
-        })
-        .collect()
-}
-
 /// Insert failed runs into ClickHouse and delete their messages
 async fn handle_failed_runs(
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     failed_runs: Vec<SignalRun>,
 ) {
-    use std::collections::HashMap;
-
     if failed_runs.is_empty() {
         return;
     }
@@ -347,7 +340,7 @@ async fn process_run(
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     internal_project_id: Option<Uuid>,
-) -> Result<(InlineRequestItem, Vec<CHSignalRunMessage>), HandlerError> {
+) -> Result<ProcessRunResult, HandlerError> {
     let processing_start_time = Utc::now();
 
     // 1. Query existing messages for this run
@@ -504,5 +497,9 @@ async fn process_run(
     )
     .await;
 
-    Ok((request, new_messages))
+    Ok(ProcessRunResult {
+        request,
+        new_messages,
+        request_start_time: processing_start_time,
+    })
 }

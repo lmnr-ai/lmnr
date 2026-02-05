@@ -87,6 +87,14 @@ impl GeminiError {
             _ => false,
         }
     }
+
+    pub fn is_resource_exhausted(&self) -> bool {
+        match self {
+            GeminiError::ApiError { status, .. } => *status == GeminiErrorStatus::ResourceExhausted,
+            GeminiError::RequestError(_) => false,
+            _ => false,
+        }
+    }
 }
 
 //https://ai.google.dev/api/batch-api
@@ -425,7 +433,7 @@ pub struct Operation {
     pub response: Option<GenerateContentBatchOutput>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum GeminiFinishReason {
     FinishReasonUnspecified,
@@ -495,6 +503,13 @@ impl FinishReason {
     pub fn is_success(&self) -> bool {
         match self {
             FinishReason::ModelResponse(fr) => fr.is_success(),
+            FinishReason::Unknown(_) => false,
+        }
+    }
+
+    pub fn is_malformed_function_call(&self) -> bool {
+        match self {
+            FinishReason::ModelResponse(fr) => *fr == GeminiFinishReason::MalformedFunctionCall,
             FinishReason::Unknown(_) => false,
         }
     }

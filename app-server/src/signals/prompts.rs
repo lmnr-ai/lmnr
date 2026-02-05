@@ -1,6 +1,6 @@
 /// System prompt template for trace analysis
 /// Replace {{fullTraceData}} with the actual trace structure
-pub const SYSTEM_PROMPT: &str = r#"You are an expert in analyzing traces of LLM powered applications, such as chatbots, AI agents, etc.
+pub const SYSTEM_PROMPT: &str = "You are an expert in analyzing traces of LLM powered applications, such as chatbots, AI agents, etc.
 
 <trace>
 Below are the spans of the trace.
@@ -12,7 +12,7 @@ For non-LLM spans, input and output are truncated if they are longer than 64 cha
 You can use get_full_span_info tool to get the full span information by span id if you need more details.
 
 {{fullTraceData}}
-</trace>"#;
+</trace>";
 
 /// Identification prompt template
 /// Replace {{developer_prompt}} with the event definition prompt
@@ -60,6 +60,8 @@ Here's the developer's prompt that describes the information you need to extract
 
 REMINDER: You MUST respond with a function call only. Do not output text."#;
 
-pub const GET_FULL_SPAN_INFO_DESCRIPTION: &str = r#"Retrieves complete information (full input, output, timing, etc.) for specific spans by their IDs. Use this when you need more details about spans to make an identification decision. The compressed trace view may have truncated or omitted some data."#;
+pub const GET_FULL_SPAN_INFO_DESCRIPTION: &str = "Retrieves complete information (full input, output, timing, etc.) for specific spans by their IDs. Use this when you need more details about spans to make an identification decision. The compressed trace view may have truncated or omitted some data.";
 
-pub const SUBMIT_IDENTIFICATION_DESCRIPTION: &str = r#"REQUIRED: This is the ONLY valid way to complete your analysis - never respond with plain text. Submits the final identification result. Call this when you have determined whether the semantic event can be identified in the trace and have extracted the relevant data (if identified=true) or determined it cannot be found (if identified=false)."#;
+pub const SUBMIT_IDENTIFICATION_DESCRIPTION: &str = "REQUIRED: This is the ONLY valid way to complete your analysis - never respond with plain text. Submits the final identification result. Call this when you have determined whether the semantic event can be identified in the trace and have extracted the relevant data (if identified=true) or determined it cannot be found (if identified=false).";
+
+pub const MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE: &str = "The previous function call was malformed. Please retry calling the same function. Make sure to use the expected function call formatting.";
