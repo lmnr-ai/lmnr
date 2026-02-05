@@ -529,6 +529,40 @@ pub struct Candidate {
     pub index: Option<i32>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum GeminiModality {
+    Document,
+    Image,
+    Video,
+    Audio,
+    ModalityUnspecified,
+    #[default]
+    Text,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum Modality {
+    Gemini(GeminiModality),
+    Unknown(String),
+}
+
+impl Default for Modality {
+    fn default() -> Self {
+        Self::Gemini(GeminiModality::default())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModalityTokenCount {
+    #[serde(default)]
+    pub modality: Modality,
+    #[serde(default)]
+    pub token_count: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageMetadata {
@@ -541,7 +575,7 @@ pub struct UsageMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thoughts_token_count: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub prompt_tokens_details: Option<Vec<serde_json::Value>>,
+    pub cache_tokens_details: Option<Vec<ModalityTokenCount>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

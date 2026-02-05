@@ -486,6 +486,7 @@ async fn process_run(
             input: Some(serde_json::json!(contents_with_sys)),
             output: None,
             input_tokens: None,
+            input_cached_tokens: None,
             output_tokens: None,
             model: model.to_string(),
             provider: provider.to_string(),

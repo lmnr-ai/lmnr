@@ -24,7 +24,7 @@ use crate::{
     },
     db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
-    signals::gemini::FinishReason,
+    signals::{gemini::FinishReason, prompts::MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE},
     utils::get_unsigned_env_with_default,
     worker::{HandlerError, MessageHandler},
 };
@@ -37,7 +37,6 @@ use super::{
         utils::{ParsedInlineResponse, parse_inline_response},
     },
     postprocess::process_event_notifications_and_clustering,
-    prompts::MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE,
     push_to_signals_queue,
     queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_waiting_queue},
     spans::get_trace_spans_with_id_mapping,
@@ -771,8 +770,12 @@ async fn process_single_response(
             input: None,
             output: span_output,
             input_tokens: response.input_tokens,
+            input_cached_tokens: response.input_cached_tokens,
             output_tokens: response.output_tokens,
-            model: LLM_MODEL.clone(),
+            model: format!(
+                "{}-batch",
+                response.model_version.as_ref().unwrap_or(&LLM_MODEL)
+            ),
             provider: LLM_PROVIDER.clone(),
             internal_project_id: config.internal_project_id,
             job_id: run.job_id,
@@ -795,7 +798,6 @@ async fn process_single_response(
 
     // Check if response contains a function call or text
     if let Some(function_call) = &response.function_call {
-        // Save LLM output to new messages
         let llm_output_msg = CHSignalRunMessage::new(
             signal_message.project_id,
             run.run_id,
@@ -804,6 +806,7 @@ async fn process_single_response(
         );
         // only insert if there is a valid function call
         new_messages.push(llm_output_msg);
+        // Save LLM output to new messages
         let tool_call_start_time = chrono::Utc::now();
         let step_result =
             handle_tool_call(signal_message, &run, &function_call, clickhouse.clone()).await;
@@ -833,6 +836,7 @@ async fn process_single_response(
                 input: Some(serde_json::json!(function_call)),
                 output: Some(serde_json::json!(step_result)),
                 input_tokens: None,
+                input_cached_tokens: None,
                 output_tokens: None,
                 model: LLM_MODEL.clone(),
                 provider: LLM_PROVIDER.clone(),
@@ -908,22 +912,7 @@ async fn process_single_response(
                         new_messages.push(tool_output_msg);
                     }
                     NextStepReason::MalformedFunctionCallRetry => {
-                        // Add user message with retry guidance
-                        let guidance = MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE;
-                        let user_content = Content {
-                            role: Some("user".to_string()),
-                            parts: Some(vec![Part {
-                                text: Some(guidance.to_string()),
-                                ..Default::default()
-                            }]),
-                        };
-                        let user_msg = CHSignalRunMessage::new(
-                            signal_message.project_id,
-                            run.run_id,
-                            chrono::Utc::now(),
-                            serde_json::to_string(&user_content).unwrap_or_default(),
-                        );
-                        new_messages.push(user_msg);
+                        // Messages already added by the caller, no additional processing needed
                     }
                 }
 
@@ -946,12 +935,25 @@ async fn process_single_response(
     } else {
         if let Some(finish_reason) = &finish_reason {
             if finish_reason.is_malformed_function_call() {
+                // If step number is greater than maximum allowed, mark run as failed
+                if run.step >= config.max_allowed_steps {
+                    let error = "Maximum step count exceeded".to_string();
+                    return (
+                        StepResult::Failed {
+                            error,
+                            finish_reason: Some(finish_reason.clone()),
+                            is_processing_error: false,
+                        },
+                        new_messages,
+                    );
+                }
+
                 let finish_message = response
                     .finish_message
                     .clone()
                     .unwrap_or(serde_json::to_string(finish_reason).unwrap_or_default());
 
-                // Assistant message with malformed response
+                // 1. Assistant message with malformed response
                 let assistant_content = Content {
                     role: Some("model".to_string()),
                     parts: Some(vec![Part {
@@ -967,8 +969,24 @@ async fn process_single_response(
                 );
                 new_messages.push(assistant_msg);
 
-                // Return RequiresNextStep with MalformedFunctionCallRetry
-                // User guidance message will be added in the RequiresNextStep handler
+                // 2. User message with retry guidance
+                let guidance = MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE;
+                let user_content = Content {
+                    role: Some("user".to_string()),
+                    parts: Some(vec![Part {
+                        text: Some(guidance.to_string()),
+                        ..Default::default()
+                    }]),
+                };
+                let user_msg = CHSignalRunMessage::new(
+                    signal_message.project_id,
+                    run.run_id,
+                    chrono::Utc::now(),
+                    serde_json::to_string(&user_content).unwrap_or_default(),
+                );
+                new_messages.push(user_msg);
+
+                // 3. Return RequiresNextStep with MalformedFunctionCallRetry
                 return (
                     StepResult::RequiresNextStep {
                         reason: NextStepReason::MalformedFunctionCallRetry,
@@ -1198,6 +1216,7 @@ async fn handle_create_event(
             })),
             output: None,
             input_tokens: None,
+            input_cached_tokens: None,
             output_tokens: None,
             model: LLM_MODEL.clone(),
             provider: LLM_PROVIDER.clone(),
