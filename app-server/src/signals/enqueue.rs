@@ -97,6 +97,7 @@ async fn create_signal_run_and_message(
         job_id,
         step: 0,
         retry_count: 0,
+        request_start_time: Utc::now(),
     };
 
     (signal_run, message)

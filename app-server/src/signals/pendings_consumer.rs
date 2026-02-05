@@ -30,13 +30,14 @@ use crate::{
 };
 
 use super::{
-    LLM_MODEL, LLM_PROVIDER, RunStatus, SignalRun, SignalWorkerConfig,
+    LLM_MODEL, LLM_PROVIDER, SignalRun, SignalWorkerConfig,
     gemini::{
         Content, FunctionCall, FunctionResponse, GenerateContentBatchOutput, JobState, Part,
         client::GeminiClient,
         utils::{ParsedInlineResponse, parse_inline_response},
     },
     postprocess::process_event_notifications_and_clustering,
+    prompts::MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE,
     push_to_signals_queue,
     queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_waiting_queue},
     spans::get_trace_spans_with_id_mapping,
@@ -59,6 +60,15 @@ struct FailureMetadata {
     is_processing_error: bool,
 }
 
+/// Reason for requiring a next step in signal processing
+#[derive(Debug, Serialize)]
+enum NextStepReason {
+    /// Tool was called successfully, result needs to be fed back to LLM
+    ToolResult(serde_json::Value),
+    /// LLM made a malformed function call, retry with guidance
+    MalformedFunctionCallRetry,
+}
+
 #[derive(Debug, Serialize)]
 enum StepResult {
     CompletedNoEvent,
@@ -67,7 +77,7 @@ enum StepResult {
         summary: String,
     },
     RequiresNextStep {
-        tool_result: serde_json::Value,
+        reason: NextStepReason,
     },
     Failed {
         error: String,
@@ -344,21 +354,7 @@ async fn process_failed_batch(
     let failed_runs: Vec<SignalRun> = message
         .messages
         .iter()
-        .map(|msg| SignalRun {
-            run_id: msg.run_id,
-            project_id: msg.project_id,
-            job_id: msg.job_id,
-            trigger_id: msg.trigger_id,
-            signal_id: msg.signal.id,
-            trace_id: msg.trace_id,
-            status: RunStatus::Failed,
-            step: msg.step,
-            internal_trace_id: msg.internal_trace_id,
-            internal_span_id: msg.internal_span_id,
-            updated_at: chrono::Utc::now(),
-            event_id: None,
-            error_message: Some(error_message.clone()),
-        })
+        .map(|msg| SignalRun::from_message(msg, msg.signal.id).failed(&error_message))
         .collect();
 
     // Check if this state should be retried or permanently failed
@@ -491,25 +487,6 @@ async fn process_succeeded_batch(
         run_to_message.insert(msg.run_id, msg.clone());
     }
 
-    // Helper to build SignalRun from message
-    let build_run = |msg: &SignalMessage| -> SignalRun {
-        SignalRun {
-            run_id: msg.run_id,
-            project_id: msg.project_id,
-            job_id: msg.job_id,
-            trigger_id: msg.trigger_id,
-            signal_id: msg.signal.id,
-            trace_id: msg.trace_id,
-            status: RunStatus::Pending,
-            step: msg.step,
-            internal_trace_id: msg.internal_trace_id,
-            internal_span_id: msg.internal_span_id,
-            updated_at: chrono::Utc::now(),
-            event_id: None,
-            error_message: None,
-        }
-    };
-
     // Keep track of succeeded, failed and pending runs
     let mut succeeded_runs: Vec<SignalRun> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
@@ -539,27 +516,16 @@ async fn process_succeeded_batch(
             Some(msg) => msg,
             None => {
                 // No message found for this run_id, mark as failed
-                failed_runs.push(SignalRun {
-                    run_id,
-                    project_id: Uuid::nil(),
-                    job_id: None,
-                    trigger_id: None,
-                    signal_id: Uuid::nil(),
-                    trace_id: response.trace_id.unwrap_or_default(),
-                    status: RunStatus::Failed,
-                    step: 0,
-                    internal_trace_id: Uuid::nil(),
-                    internal_span_id: Uuid::nil(),
-                    updated_at: chrono::Utc::now(),
-                    event_id: None,
-                    error_message: Some("No message found for run_id".to_string()),
-                });
+                failed_runs.push(
+                    SignalRun::nil_with_id(run_id, response.trace_id.unwrap_or_default())
+                        .failed("No message found for run_id"),
+                );
                 log::error!("No message found for run_id {}, skipping", run_id);
                 continue;
             }
         };
 
-        let run = build_run(signal_message);
+        let run = SignalRun::from_message(signal_message, signal_message.signal.id);
 
         // Process inline response
         let (step_result, new_run_messages) = process_single_response(
@@ -591,7 +557,7 @@ async fn process_succeeded_batch(
                 );
                 failed_runs.push(run.failed(error));
             }
-            StepResult::RequiresNextStep { tool_result: _ } => {
+            StepResult::RequiresNextStep { reason: _ } => {
                 // Mark this run for next step processing
                 pending_run_ids.insert(run_id);
             }
@@ -638,7 +604,9 @@ async fn process_succeeded_batch(
 
     for (run_id, msg) in run_to_message.iter() {
         if !processed_run_ids.contains(run_id) {
-            failed_runs.push(build_run(msg).failed("No response received for run"));
+            failed_runs.push(
+                SignalRun::from_message(msg, msg.signal.id).failed("No response received for run"),
+            );
         }
     }
 
@@ -677,7 +645,7 @@ async fn process_succeeded_batch(
                     e
                 );
                 // Mark as failed so status is updated, messages are cleaned up, and job stats are updated
-                let run = build_run(msg).next_step(); // Build with incremented step
+                let run = SignalRun::from_message(msg, msg.signal.id).next_step(); // Build with incremented step
                 failed_runs.push(run.failed(format!("Failed to enqueue for next step: {}", e)));
             }
         }
@@ -799,7 +767,7 @@ async fn process_single_response(
             signal_name: signal_message.signal.name.clone(),
             parent_span_id: Some(run.internal_span_id),
             span_type: SpanType::LLM,
-            start_time: chrono::Utc::now(),
+            start_time: signal_message.request_start_time,
             input: None,
             output: span_output,
             input_tokens: response.input_tokens,
@@ -907,31 +875,57 @@ async fn process_single_response(
                     new_messages,
                 );
             }
-            StepResult::RequiresNextStep { tool_result } => {
-                // Add tool result to new messages
-                let function_response_content = Content {
-                    role: Some("user".to_string()),
-                    parts: Some(vec![Part {
-                        function_response: Some(FunctionResponse {
-                            name: function_call.name.clone(),
-                            response: tool_result.clone(),
-                            id: function_call.id.clone(),
-                        }),
-                        ..Default::default()
-                    }]),
-                };
+            StepResult::RequiresNextStep { reason } => {
+                // Handle different next step reasons
+                match &reason {
+                    NextStepReason::ToolResult(tool_result) => {
+                        // Add tool result to new messages
+                        let function_response_content = Content {
+                            role: Some("user".to_string()),
+                            parts: Some(vec![Part {
+                                function_response: Some(FunctionResponse {
+                                    name: function_call.name.clone(),
+                                    response: tool_result.clone(),
+                                    id: function_call.id.clone(),
+                                }),
+                                ..Default::default()
+                            }]),
+                        };
 
-                let tool_output_msg = CHSignalRunMessage::new(
-                    signal_message.project_id,
-                    run.run_id,
-                    chrono::Utc::now(),
-                    serde_json::to_string(&function_response_content)
-                        .map_err(|e| {
-                            log::error!("Failed to serialize function response content: {}", e)
-                        })
-                        .unwrap_or_default(),
-                );
-                new_messages.push(tool_output_msg);
+                        let tool_output_msg = CHSignalRunMessage::new(
+                            signal_message.project_id,
+                            run.run_id,
+                            chrono::Utc::now(),
+                            serde_json::to_string(&function_response_content)
+                                .map_err(|e| {
+                                    log::error!(
+                                        "Failed to serialize function response content: {}",
+                                        e
+                                    )
+                                })
+                                .unwrap_or_default(),
+                        );
+                        new_messages.push(tool_output_msg);
+                    }
+                    NextStepReason::MalformedFunctionCallRetry => {
+                        // Add user message with retry guidance
+                        let guidance = MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE;
+                        let user_content = Content {
+                            role: Some("user".to_string()),
+                            parts: Some(vec![Part {
+                                text: Some(guidance.to_string()),
+                                ..Default::default()
+                            }]),
+                        };
+                        let user_msg = CHSignalRunMessage::new(
+                            signal_message.project_id,
+                            run.run_id,
+                            chrono::Utc::now(),
+                            serde_json::to_string(&user_content).unwrap_or_default(),
+                        );
+                        new_messages.push(user_msg);
+                    }
+                }
 
                 // If step number is greater than maximum allowed, mark run as failed
                 if run.step >= config.max_allowed_steps {
@@ -946,10 +940,43 @@ async fn process_single_response(
                     );
                 }
 
-                return (StepResult::RequiresNextStep { tool_result }, new_messages);
+                return (StepResult::RequiresNextStep { reason }, new_messages);
             }
         }
     } else {
+        if let Some(finish_reason) = &finish_reason {
+            if finish_reason.is_malformed_function_call() {
+                let finish_message = response
+                    .finish_message
+                    .clone()
+                    .unwrap_or(serde_json::to_string(finish_reason).unwrap_or_default());
+
+                // Assistant message with malformed response
+                let assistant_content = Content {
+                    role: Some("model".to_string()),
+                    parts: Some(vec![Part {
+                        text: Some(finish_message),
+                        ..Default::default()
+                    }]),
+                };
+                let assistant_msg = CHSignalRunMessage::new(
+                    signal_message.project_id,
+                    run.run_id,
+                    chrono::Utc::now(),
+                    serde_json::to_string(&assistant_content).unwrap_or_default(),
+                );
+                new_messages.push(assistant_msg);
+
+                // Return RequiresNextStep with MalformedFunctionCallRetry
+                // User guidance message will be added in the RequiresNextStep handler
+                return (
+                    StepResult::RequiresNextStep {
+                        reason: NextStepReason::MalformedFunctionCallRetry,
+                    },
+                    new_messages,
+                );
+            }
+        }
         let error = format!(
             "Expected function call in LLM response, got finish reason: {:?}. Text: {}",
             finish_reason,
@@ -1018,7 +1045,9 @@ async fn handle_tool_call(
                 }
             };
 
-            return StepResult::RequiresNextStep { tool_result };
+            return StepResult::RequiresNextStep {
+                reason: NextStepReason::ToolResult(tool_result),
+            };
         }
         "submit_identification" => {
             let identified = function_call

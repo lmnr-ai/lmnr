@@ -25,6 +25,8 @@ pub use queue::{
     SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SIGNALS_EXCHANGE, SIGNALS_QUEUE, SIGNALS_ROUTING_KEY,
 };
 
+use crate::signals::queue::SignalMessage;
+
 pub static LLM_MODEL: LazyLock<String> =
     LazyLock::new(|| env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-2.5-flash".to_string()));
 pub static LLM_PROVIDER: LazyLock<String> =
@@ -111,6 +113,42 @@ impl SignalRun {
     pub fn next_step(mut self) -> Self {
         self.step += 1;
         self
+    }
+
+    pub fn from_message(message: &SignalMessage, signal_id: Uuid) -> Self {
+        Self {
+            run_id: message.run_id,
+            project_id: message.project_id,
+            job_id: message.job_id,
+            trigger_id: message.trigger_id,
+            signal_id,
+            trace_id: message.trace_id,
+            step: message.step,
+            status: RunStatus::Pending,
+            internal_trace_id: message.internal_trace_id,
+            internal_span_id: message.internal_span_id,
+            updated_at: chrono::Utc::now(),
+            event_id: None,
+            error_message: None,
+        }
+    }
+
+    pub fn nil_with_id(id: Uuid, trace_id: Uuid) -> Self {
+        Self {
+            run_id: id,
+            project_id: Uuid::nil(),
+            job_id: None,
+            trigger_id: None,
+            signal_id: Uuid::nil(),
+            trace_id,
+            step: 0,
+            status: RunStatus::Pending,
+            internal_trace_id: Uuid::nil(),
+            internal_span_id: Uuid::nil(),
+            updated_at: chrono::Utc::now(),
+            event_id: None,
+            error_message: None,
+        }
     }
 }
 
