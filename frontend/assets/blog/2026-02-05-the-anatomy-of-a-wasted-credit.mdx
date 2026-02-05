@@ -1,0 +1,73 @@
+---
+title: "The Anatomy of a Wasted Credit: Why AI App Builders Need Trajectory Analysis"
+date: "2026-02-05"
+description: "Why successful AI generations still waste credits, and how trajectory analysis exposes the hidden patterns."
+author:
+  name: Sam Komesarook
+  url: https://x.com/raymondmarkable
+tags: ["tracing", "observability", "credits", "optimization", "agents"]
+---
+
+When users of AI coding tools complain about credits, they're usually describing a symptom rather than a cause. They see "generation failed" or watch their balance drop on code that took three attempts to get right. But what's actually happening inside those generations? Where exactly do credits go when AI wastes compute?
+
+We decided to find out.
+
+## Setting Up the Investigation
+
+We started with a hypothesis: most wasted credits aren't from generations that fail visibly. They're from generations that succeed while burning compute on patterns the user never sees, like retry loops, oscillating outputs, and models violating their own instructions.
+
+To test this, we created a signal in Laminar designed to detect five specific patterns of wasted compute:
+
+1. **Retry loops** where the same or semantically equivalent code fix gets attempted 3+ times within a single session, suggesting the model is stuck in a local minimum
+2. **Oscillating outputs** where code alternates between two states, like adding then removing the same import or toggling between implementation approaches
+3. **Context window pollution** where retrieved context from RAG or file reads contains stale or contradictory information that the model tries to reconcile
+4. **Cascading errors** where a single misunderstanding in an early turn propagates through subsequent generations, visible as increasing token counts per turn
+5. **Validation-generation mismatch** where the model's self-assessment diverges from actual execution results or its own rules
+
+![Signal configuration showing prompt and output schema](/blog/2026-02-05-signal.png)
+
+We then ran the signal against traces from AI coding sessions to see what patterns emerged.
+
+## What We Found
+
+Over a three-day window, the signal flagged 14 events across the traces we analyzed. The patterns weren't subtle.
+
+![Signal events view showing detected patterns](/blog/2026-02-05-dashboard.png)
+
+### Retry Loops on Configuration Conflicts
+
+One trace showed the model repeatedly attempting to resolve ESM/CommonJS configuration conflicts across multiple turns ([trace](https://laminar.sh/shared/traces/0185dfc9-c51b-ffb0-3632-afe5ee05da3a)). It started by attempting to align `tailwind.config.js` with ESM, then went back and forth trying different approaches to make the module systems compatible.
+
+Anyone who's dealt with ESM/CommonJS interop knows this is a common pain point, but the model was essentially thrashing through solutions rather than diagnosing the root cause. Each attempt burned compute without making progress.
+
+### Oscillating File Generation
+
+In another trace, the model exhibited an oscillating outputs pattern ([trace](https://laminar.sh/shared/traces/fe196d5b-fea9-e9db-b838-29717e06a871)). After successfully creating a Next.js project and generating initial files, it began regenerating files it had already created, cycling through variations without meaningful changes between them.
+
+The model wasn't improving the code. It was churning through equivalent outputs.
+
+### Declaring Victory Prematurely
+
+The most striking pattern was a validation-generation mismatch where the model declared the application live and provided a preview URL to the user, even though the `pnpm run dev` command crucial for starting the server hadn't actually completed successfully ([trace](https://laminar.sh/shared/traces/14cc4828-c476-5bb3-a44d-3ae9e91b6112)).
+
+From the user's perspective, they received a link and assumed their app was running. From the trace, we could see the model confidently presenting a result that didn't exist yet. This kind of mismatch doesn't just waste credits; it erodes user trust when they click through to a broken preview.
+
+![Expanded payload showing validation-generation mismatch](/blog/2026-02-05-expanded-payload.png)
+
+## The Credit Math
+
+For one run, the total estimated wasted token usage was approximately 3,753 tokens (1,786 from the first attempt + 1,967 from the second attempt). This estimate includes the repeated system prompt, user prompt, and prior tool outputs that formed the context for each LLM decision. These two `runCommand` calls represented approximately 4.7 seconds of wasted execution time in the sandbox environment, contributing to overall credit consumption without achieving the desired outcome. On its own, that waste is minor, but at scale it compounds quickly.
+
+## This Was Fast to Automate
+
+This wasn't a big research project. The workflow was simple: define the [signal](https://docs.laminar.sh/tracing/events/introduction#signals) (prompt plus structured output schema), test it against a trace, then create a signal job to run it across the selected traces. Within minutes, the events and runs views filled in with the flagged cases, no extra scripts required.
+
+## Why This Matters for AI App Builders
+
+These patterns are invisible to users. They don't show up in error logs. The final output often works fine. But if you're building tools where users pay per generation, or where your costs scale with model calls, this invisible waste eats margins and frustrates users who sense something is wrong without being able to articulate it.
+
+The users complaining about credits aren't wrong. They're just seeing the bill without seeing the itemized receipt.
+
+The fix isn't better prompts. Look at the validation-generation mismatch: the model knew it needed to run the dev server before declaring success. It skipped the step anyway. More instructions wouldn't have helped.
+
+The fix is instrumenting your AI pipelines to see these patterns as they happen. You can't optimize what you can't observe. And you can't observe these failure modes without trajectory-level tracing that captures every span, every tool call, and every decision point.
