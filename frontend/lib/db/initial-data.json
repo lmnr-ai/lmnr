@@ -2901,37 +2901,11 @@
         }
       },
       {
-        "id": "7d0fa090-a4e1-4bfe-a934-877cccfcb502",
-        "created_at": "2025-11-20 11:01:09.738056+00",
-        "updated_at": "2025-11-20 11:01:09.738056+00",
-        "provider": "gateway",
-        "model": "anthropic/claude-sonnet-4-5",
-        "input_price_per_million": 3.0,
-        "output_price_per_million": 15.0,
-        "input_cached_price_per_million": 0.3,
-        "additional_prices": {
-          "input_cache_write_price_per_million": 3.75
-        }
-      },
-      {
         "id": "cad441c1-018e-4426-9da0-3174ad1b0971",
         "created_at": "2025-11-19 13:09:11.018464+00",
         "updated_at": "2025-11-19 13:09:11.018464+00",
         "provider": "gateway",
         "model": "anthropic/claude-sonnet-4-5-20250929",
-        "input_price_per_million": 3.0,
-        "output_price_per_million": 15.0,
-        "input_cached_price_per_million": 0.3,
-        "additional_prices": {
-          "input_cache_write_price_per_million": 3.75
-        }
-      },
-      {
-        "id": "9304be53-5e3f-4fb6-ba10-d2928581036c",
-        "created_at": "2025-11-28 11:16:42.737169+00",
-        "updated_at": "2025-11-28 11:16:42.737169+00",
-        "provider": "gateway",
-        "model": "anthropic/claude-sonnet-4.5",
         "input_price_per_million": 3.0,
         "output_price_per_million": 15.0,
         "input_cached_price_per_million": 0.3,
@@ -7082,17 +7056,6 @@
         "updated_at": "2025-12-18 15:05:17.363939+00",
         "provider": "gemini",
         "model": "models/gemini-3-flash",
-        "input_price_per_million": 0.5,
-        "output_price_per_million": 3.0,
-        "input_cached_price_per_million": 0.05,
-        "additional_prices": {}
-      },
-      {
-        "id": "47b2344a-76f4-40fe-83d5-5d5ff5e690b8",
-        "created_at": "2026-01-27 17:37:10.328602+00",
-        "updated_at": "2026-01-27 17:37:10.328602+00",
-        "provider": "gemini",
-        "model": "models/gemini-3-flash-preview",
         "input_price_per_million": 0.5,
         "output_price_per_million": 3.0,
         "input_cached_price_per_million": 0.05,
