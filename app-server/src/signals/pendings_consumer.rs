@@ -806,7 +806,6 @@ async fn process_single_response(
         );
         // only insert if there is a valid function call
         new_messages.push(llm_output_msg);
-        // Save LLM output to new messages
         let tool_call_start_time = chrono::Utc::now();
         let step_result =
             handle_tool_call(signal_message, &run, &function_call, clickhouse.clone()).await;
