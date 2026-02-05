@@ -57,7 +57,7 @@ const Tree = ({ traceId, onSpanSelect, isShared = false }: TreeProps) => {
       });
       return () => cancelAnimationFrame(rafId);
     }
-  }, [selectedSpanIndex, virtualizer]);
+  }, [selectedSpanIndex, virtualizer, isSpansLoading]);
 
   const items = virtualizer?.getVirtualItems() || [];
 

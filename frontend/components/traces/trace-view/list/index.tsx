@@ -61,7 +61,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
       });
       return () => cancelAnimationFrame(rafId);
     }
-  }, [selectedSpanIndex, virtualizer]);
+  }, [selectedSpanIndex, virtualizer, isSpansLoading]);
 
   const items = virtualizer?.getVirtualItems() || [];
 
