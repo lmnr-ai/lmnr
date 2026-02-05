@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { compact, isEmpty, times } from "lodash";
+import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -46,23 +46,22 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
     overscan: 20,
   });
 
+  const selectedSpanIndex = useMemo(() => {
+    if (isNil(selectedSpan)) return null;
+    const selectedIndex = listSpans.findIndex((span) => span.spanId === selectedSpan.spanId);
+    return selectedIndex;
+  }, [selectedSpan?.spanId, listSpans, isSpansLoading]);
+
+  // Scroll to selected span when selection changes
   useEffect(() => {
-    if (!selectedSpan || isSpansLoading) return;
-
-    const scrollToSelected = () => {
-      const selectedIndex = listSpans.findIndex((span) => span.spanId === selectedSpan.spanId);
-
-      if (selectedIndex !== -1) {
-        virtualizer.scrollToIndex(selectedIndex, {
-          align: "start",
-        });
-      }
-    };
-
-    const rafId = requestAnimationFrame(scrollToSelected);
-
-    return () => cancelAnimationFrame(rafId);
-  }, [selectedSpan?.spanId, listSpans, virtualizer, isSpansLoading]);
+    if (isNull(selectedSpanIndex) || isSpansLoading) return;
+    if (selectedSpanIndex !== -1) {
+      const rafId = requestAnimationFrame(() => {
+        virtualizer.scrollToIndex(selectedSpanIndex, { align: "start" });
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [selectedSpanIndex, virtualizer]);
 
   const items = virtualizer?.getVirtualItems() || [];
 
