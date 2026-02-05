@@ -50,7 +50,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
     if (isNil(selectedSpan)) return null;
     const selectedIndex = listSpans.findIndex((span) => span.spanId === selectedSpan.spanId);
     return selectedIndex;
-  }, [selectedSpan?.spanId, listSpans, isSpansLoading]);
+  }, [selectedSpan?.spanId, listSpans]);
 
   // Scroll to selected span when selection changes
   useEffect(() => {

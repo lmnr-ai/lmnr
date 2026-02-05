@@ -46,7 +46,7 @@ const Tree = ({ traceId, onSpanSelect }: TreeProps) => {
     if (isNil(selectedSpan)) return null;
     const selectedIndex = treeSpans.findIndex((item) => item.span.spanId === selectedSpan.spanId);
     return selectedIndex;
-  }, [selectedSpan?.spanId, treeSpans, isSpansLoading]);
+  }, [selectedSpan?.spanId, treeSpans]);
 
   // Scroll to selected span when selection changes
   useEffect(() => {
