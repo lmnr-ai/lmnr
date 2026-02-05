@@ -14,7 +14,7 @@ We decided to find out.
 
 ## Setting Up the Investigation
 
-We started with a hypothesis: most wasted credits aren't from generations that fail visibly. They're from generations that succeed while burning compute on patterns the user never sees, like retry loops, oscillating outputs, and models violating their own instructions.
+We started with a hypothesis: most wasted credits aren't from generations that fail visibly. They're from generations that succeed while burning compute on patterns the user never sees, like retry loops, oscillating outputs, and models violating their own instructions. The traces came from [our coding platform](https://github.com/skull8888888/vibe-coding-platform) based on the [open-source v0 stack](https://github.com/vercel/examples/tree/main/apps/vibe-coding-platform), running a standard agent configuration with the usual tool access.
 
 To test this, we created a signal in Laminar designed to detect five specific patterns of wasted compute:
 
