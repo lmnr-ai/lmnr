@@ -1,5 +1,6 @@
 "use client";
 
+import { isNil } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useRef } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
@@ -87,7 +88,7 @@ const createDateRangeFilterStore = (
         calendarDate: undefined,
       });
 
-      if (mode === "url" && currentSearchParams) {
+      if (mode === "url" && !isNil(currentSearchParams)) {
         const newSearchParams = new URLSearchParams(currentSearchParams);
         newSearchParams.delete("startDate");
         newSearchParams.delete("endDate");
@@ -123,7 +124,7 @@ const createDateRangeFilterStore = (
         endDate: endDateIso,
       });
 
-      if (mode === "url" && currentSearchParams) {
+      if (mode === "url" && !isNil(currentSearchParams)) {
         const newSearchParams = new URLSearchParams(currentSearchParams);
         newSearchParams.delete("pastHours");
         newSearchParams.set("pageNumber", "0");
