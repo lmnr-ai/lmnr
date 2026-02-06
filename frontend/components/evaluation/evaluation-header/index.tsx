@@ -127,8 +127,8 @@ const EvaluationHeader = ({
             </DeleteEvaluationDialog>
           </DropdownMenuContent>
         </DropdownMenu>
-        {typeof evaluationId === "string" && (
-          <ShareEvalButton evaluationId={evaluationId} />
+        {typeof evaluationId === "string" && typeof projectId === "string" && (
+          <ShareEvalButton evaluationId={evaluationId} projectId={projectId} />
         )}
       </div>
     </div>

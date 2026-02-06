@@ -1,37 +1,65 @@
 "use client";
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useToast } from "@/lib/hooks/use-toast";
 
 type EvalVisibility = "private" | "public";
 
 interface ShareEvalButtonProps {
   evaluationId: string;
+  projectId: string;
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const fakeUpdateVisibility = async (next: EvalVisibility): Promise<EvalVisibility> => {
-  await sleep(1500);
-  return next;
-};
-
-const ShareEvalButton = ({ evaluationId }: ShareEvalButtonProps) => {
+const ShareEvalButton = ({ evaluationId, projectId }: ShareEvalButtonProps) => {
   const url = typeof window !== "undefined" ? `${window.location.origin}/shared/evals/${evaluationId}` : "";
   const [visibility, setVisibility] = useState<EvalVisibility>("private");
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}/evaluations/${evaluationId}/visibility`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.visibility === "public" || data.visibility === "private") {
+          setVisibility(data.visibility);
+        }
+      })
+      .catch(() => {
+        // Silently fail — default to private
+      });
+  }, [projectId, evaluationId]);
 
   const handleToggleVisibility = async () => {
     const next = visibility === "public" ? "private" : "public";
     try {
       setIsLoading(true);
-      const result = await fakeUpdateVisibility(next);
-      setVisibility(result);
+      setVisibility(next); // optimistic update
+
+      const res = await fetch(`/api/projects/${projectId}/evaluations/${evaluationId}`, {
+        method: "PUT",
+        body: JSON.stringify({ visibility: next }),
+      });
+
+      if (res.ok) {
+        toast({ title: "Evaluation visibility updated." });
+      } else {
+        setVisibility(visibility); // revert
+        const text = await res.json();
+        toast({ variant: "destructive", title: "Error", description: String(text.error) });
+      }
+    } catch {
+      setVisibility(visibility); // revert
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to update evaluation visibility. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }
