@@ -1,4 +1,4 @@
-import { RefObject, useEffect, useLayoutEffect, useRef } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
 import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/trace-view-store";
 

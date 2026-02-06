@@ -2,8 +2,8 @@ import { ChevronDown, Copy, Database, Loader } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback } from "react";
 
-import CondensedTimelineControls from "@/components/traces/trace-view/header/timeline-toggle";
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import CondensedTimelineControls from "@/components/traces/trace-view/header/timeline-toggle";
 import Metadata from "@/components/traces/trace-view/metadata";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
