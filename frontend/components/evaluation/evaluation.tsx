@@ -339,7 +339,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
             )}
           </div>
           <EvaluationDatapointsTable
-            isLoading={isLoadingDatapoints}
+            isLoading={isStatsLoading || isLoadingDatapoints}
             datapointId={datapointId}
             data={tableData}
             scores={scores}
