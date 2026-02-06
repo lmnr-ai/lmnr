@@ -6,7 +6,7 @@ import { type MouseEvent, type PropsWithChildren, type ReactNode, useState } fro
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-interface CopyLinkButtonProps {
+interface CopyLinkButtonProps extends Omit<ButtonProps, "icon"> {
   text: string;
   icon?: ReactNode;
   className?: string;
@@ -23,6 +23,7 @@ export function CopyButton({
   variant = "outline",
   size = "default",
   children,
+  ...props
 }: PropsWithChildren<CopyLinkButtonProps>) {
   const [copied, setCopied] = useState(false);
 
@@ -48,6 +49,7 @@ export function CopyButton({
       className={cn("transition-all ease-in-out duration-200", className)}
       onClick={copyToClipboard}
       aria-label={copied ? "Copied to clipboard" : "Copy link to clipboard"}
+      {...props}
     >
       {copied ? (
         <Check className={cn("h-4 w-4", { "mr-2": children }, iconClassName)} />
