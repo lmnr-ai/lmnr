@@ -298,43 +298,52 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
     header: "Status",
     id: "status",
     size: 70,
+    enableSorting: false,
   },
   {
     accessorKey: "index",
     header: "Index",
     id: "index",
     size: 70,
+    enableSorting: true,
   },
   {
     id: "data",
     accessorFn: (row) => row.data,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Data",
+    enableSorting: false,
   },
   {
     id: "target",
     accessorFn: (row) => row.target,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Target",
+    enableSorting: false,
   },
   {
     id: "metadata",
     accessorFn: (row) => row.metadata,
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Metadata",
+    enableSorting: false,
   },
 ];
 
 export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
   {
     id: "duration",
+    accessorFn: (row) => calculateDuration(row.startTime, row.endTime),
     cell: flow((cellContext) => cellContext.row.original, createDurationCell),
     header: "Duration",
+    enableSorting: true,
   },
   {
     id: "cost",
+    accessorFn: (row) => calculateTotalCost(row.inputCost, row.outputCost, row.totalCost),
     cell: flow((cellContext) => cellContext.row.original, createCostCell),
     header: "Cost",
+    enableSorting: true,
   },
 ];
 
@@ -346,11 +355,13 @@ export const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompa
       (output) => (output ? JSON.stringify(output) : "-")
     ),
     header: "Output",
+    enableSorting: false,
   },
   {
     id: "duration",
     accessorFn: (row: EvaluationDatapointPreviewWithCompared) => getDurationString(row.startTime, row.endTime),
     header: "Duration",
+    enableSorting: true,
   },
   {
     id: "cost",
@@ -359,6 +370,7 @@ export const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompa
       formatCostIntl
     ),
     header: "Cost",
+    enableSorting: true,
   },
 ];
 
@@ -370,8 +382,10 @@ export const getComparedScoreColumns = (
   scores.map((name) => ({
     id: `comparedScore:${name}`,
     header: name,
+    accessorFn: (row) => row.scores?.[name] ?? null,
     ...createColumnSizeConfig(heatmapEnabled, true),
     cell: createComparisonScoreColumnCell(heatmapEnabled, scoreRanges, name),
+    enableSorting: true,
   }));
 
 export const getScoreColumns = (
@@ -382,6 +396,8 @@ export const getScoreColumns = (
   scores.map((name) => ({
     id: `score:${name}`,
     header: name,
+    accessorFn: (row) => row.scores?.[name] ?? null,
     ...createColumnSizeConfig(heatmapEnabled, false),
     cell: createScoreColumnCell(heatmapEnabled, scoreRanges, name),
+    enableSorting: true,
   }));

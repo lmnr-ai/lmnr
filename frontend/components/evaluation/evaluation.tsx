@@ -45,6 +45,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const search = searchParams.get("search");
   const filter = searchParams.getAll("filter");
   const searchIn = searchParams.getAll("searchIn");
+  const sortBy = searchParams.get("sortBy");
+  const sortDirection = searchParams.get("sortDirection");
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
   const [traceId, setTraceId] = useState<string | undefined>(undefined);
@@ -140,13 +142,20 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
 
       filter.forEach((f) => urlParams.append("filter", f));
 
+      if (sortBy) {
+        urlParams.set("sortBy", sortBy);
+      }
+      if (sortDirection) {
+        urlParams.set("sortDirection", sortDirection);
+      }
+
       const url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
       const data: EvaluationResultsInfo = await response.json();
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, params?.projectId, evaluationId, pageSize]
+    [search, searchIn, filter, params?.projectId, evaluationId, pageSize, sortBy, sortDirection]
   );
 
   // Use infinite scroll hook for main datapoints
@@ -159,7 +168,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   } = useInfiniteScroll<EvaluationDatapointPreviewWithCompared>({
     fetchFn: fetchDatapoints,
     enabled: true,
-    deps: [search, filter, searchIn, evaluationId],
+    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection],
   });
 
   // Dynamically fetch target datapoints to match main datapoints length

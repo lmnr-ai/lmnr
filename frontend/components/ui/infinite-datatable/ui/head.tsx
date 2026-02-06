@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { flexRender, type Header, type RowData } from "@tanstack/react-table";
-import { ChevronDown, EyeOff } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, EyeOff } from "lucide-react";
 import React, { type CSSProperties } from "react";
 import { useStore } from "zustand";
 
@@ -9,7 +9,13 @@ import { TableHead } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
 import { Button } from "../../button.tsx";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../dropdown-menu.tsx";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../../dropdown-menu.tsx";
 import { useDataTableStore } from "../model/datatable-store.tsx";
 
 interface DraggableTableHeaderProps<TData extends RowData> {
@@ -91,6 +97,31 @@ export function InfiniteTableHead<TData extends RowData>({
                 align="end"
                 className="relative z-50 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md"
               >
+                {header.column.getCanSort() && (
+                  <>
+                    <DropdownMenuItem
+                      className="flex w-full items-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        header.column.toggleSorting(false);
+                      }}
+                    >
+                      <ArrowUp className="size-3.5" />
+                      Sort ascending
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="flex w-full items-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        header.column.toggleSorting(true);
+                      }}
+                    >
+                      <ArrowDown className="size-3.5" />
+                      Sort descending
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem
                   className="flex w-full items-center"
                   onClick={(e) => {

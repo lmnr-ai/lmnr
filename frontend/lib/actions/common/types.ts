@@ -46,7 +46,13 @@ export const TimeRangeSchema = z.object({
   endDate: z.string().optional(),
 });
 
+export const SortSchema = z.object({
+  sortBy: z.string().optional(),
+  sortDirection: z.enum(["ASC", "DESC"]).optional(),
+});
+
 export const PaginationFiltersSchema = z.object({
   ...FiltersSchema.shape,
   ...PaginationSchema.shape,
+  ...SortSchema.shape,
 });
