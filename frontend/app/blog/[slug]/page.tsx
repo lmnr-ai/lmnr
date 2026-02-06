@@ -1,4 +1,6 @@
+import { ChevronLeft } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
 
@@ -42,10 +44,19 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
     const { data, content } = getBlogPost(params.slug);
 
     return (
-      <div className="mt-8 md:mt-16 lg:mt-32 flex justify-center flex-col items-center pb-16 px-4">
-        <BlogMeta data={data} />
-        <article className="flex flex-col z-30 md:w-[700px] lg:max-w-3xl w-full px-8 md:px-0">
-          <div className="pt-4 text-lg">
+      <div className="mt-8 md:mt-14 lg:mt-20 flex justify-center flex-col items-center pb-16 px-4">
+        <div className="w-full md:w-[700px] lg:max-w-3xl">
+          <Link
+            href="/blog"
+            className="text-sm text-secondary-foreground hover:text-primary flex items-center gap-0.5 w-fit"
+          >
+            <ChevronLeft size={16} />
+            Blog
+          </Link>
+        </div>
+        <BlogMeta data={data} className="mt-4" />
+        <article className="flex flex-col z-30 md:w-[700px] lg:max-w-3xl w-full md:px-0 sm:mt-8">
+          <div className="pt-4 text-base">
             <MDXRemote
               source={content}
               components={{
