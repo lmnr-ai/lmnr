@@ -1,0 +1,1 @@
+ALTER TABLE signal_events ADD COLUMN summary String CODEC(ZSTD(3));
