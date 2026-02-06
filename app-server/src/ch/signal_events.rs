@@ -20,6 +20,7 @@ pub struct CHSignalEvent {
     #[serde(with = "clickhouse::serde::uuid")]
     pub run_id: Uuid,
     pub name: String,
+    summary: String,
     /// JSON-serialized payload/attributes
     pub payload: String,
     /// Timestamp in nanoseconds
@@ -36,6 +37,7 @@ impl CHSignalEvent {
         name: String,
         payload: Value,
         timestamp: chrono::DateTime<chrono::Utc>,
+        summary: String,
     ) -> Self {
         Self {
             id,
@@ -46,6 +48,7 @@ impl CHSignalEvent {
             name,
             payload: payload.to_string(),
             timestamp: chrono_to_nanoseconds(timestamp),
+            summary,
         }
     }
 
