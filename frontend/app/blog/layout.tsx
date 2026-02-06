@@ -9,8 +9,12 @@ export default async function BlogLayout({ children }: PropsWithChildren) {
   const session = await getServerSession(authOptions);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <LandingHeader hasSession={session !== null && session !== undefined} isIncludePadding />
+    <div className="min-h-screen flex flex-col bg-landing-surface-800">
+      <LandingHeader
+        hasSession={session !== null && session !== undefined}
+        isIncludePadding
+        className="sm:border-none border-b border-b-landing-surface-500"
+      />
       <main className="flex-1">{children}</main>
       {/* Spacer */}
       <div className="w-full h-[160px]" />
