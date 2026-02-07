@@ -1,7 +1,7 @@
 import { type Row } from "@tanstack/react-table";
 import { Settings as SettingsIcon } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import React, { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   comparedComplementaryColumns,
@@ -50,7 +50,7 @@ const filters: ColumnFilter[] = [
   { key: "metadata", name: "Metadata", dataType: "json" },
 ];
 
-const defaultColumnOrder = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
+const baseColumnOrder = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 
 const EvaluationDatapointsTableContent = ({
   data,
@@ -64,8 +64,27 @@ const EvaluationDatapointsTableContent = ({
   fetchNextPage,
 }: EvaluationDatapointsTableProps) => {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const targetId = searchParams.get("targetId");
+  const sortBy = searchParams.get("sortBy") ?? undefined;
+  const sortDirection = (searchParams.get("sortDirection")?.toLowerCase() ?? undefined) as "asc" | "desc" | undefined;
+
+  const handleSort = useCallback(
+    (columnId: string, direction: "asc" | "desc") => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (columnId) {
+        params.set("sortBy", columnId);
+        params.set("sortDirection", direction.toUpperCase());
+      } else {
+        params.delete("sortBy");
+        params.delete("sortDirection");
+      }
+      router.push(`${pathname}?${params.toString()}`);
+    },
+    [searchParams, router, pathname]
+  );
 
   const [heatmapEnabled, setHeatmapEnabled] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -145,6 +164,9 @@ const EvaluationDatapointsTableContent = ({
         onRowClick={handleRowClick}
         getRowHref={getRowHref}
         className="flex-1"
+        sortBy={sortBy}
+        sortDirection={sortDirection}
+        onSort={handleSort}
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />
@@ -180,10 +202,24 @@ const EvaluationDatapointsTableContent = ({
   );
 };
 
-const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => (
-  <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
-    <EvaluationDatapointsTableContent {...props} />
-  </DataTableStateProvider>
-);
+const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
+  const defaultColumnOrder = useMemo(
+    () => [...baseColumnOrder, ...props.scores.flatMap((s) => [`score:${s}`, `comparedScore:${s}`])],
+    [props.scores]
+  );
+
+  // Delay mounting the store until scores are known, otherwise the store
+  // is created with an incomplete defaultColumnOrder and score columns
+  // won't be reorderable.
+  if (props.isLoading) {
+    return null;
+  }
+
+  return (
+    <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
+      <EvaluationDatapointsTableContent {...props} />
+    </DataTableStateProvider>
+  );
+};
 
 export default EvaluationDatapointsTable;

@@ -75,6 +75,8 @@ export interface BuildEvaluationDatapointsQueryOptions {
   filters: Filter[];
   limit: number;
   offset: number;
+  sortBy?: string;
+  sortDirection?: "ASC" | "DESC";
 }
 
 export interface BuildEvaluationStatisticsQueryOptions {
@@ -92,7 +94,7 @@ export interface BuildTracesForEvaluationQueryOptions {
 export const buildEvaluationDatapointsQueryWithParams = (
   options: BuildEvaluationDatapointsQueryOptions
 ): QueryResult => {
-  const { evaluationId, traceIds, filters, limit, offset } = options;
+  const { evaluationId, traceIds, filters, limit, offset, sortBy, sortDirection } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -142,16 +144,29 @@ export const buildEvaluationDatapointsQueryWithParams = (
     filters: nonScoreFilters,
     columnFilterConfig: evaluationDatapointsColumnFilterConfig,
     customConditions,
-    orderBy: [
-      {
-        column: "index",
-        direction: "ASC",
-      },
-      {
-        column: "created_at",
-        direction: "ASC",
-      },
-    ],
+    orderBy: (() => {
+      const defaultOrder = [
+        { column: "index", direction: "ASC" as const },
+        { column: "created_at", direction: "ASC" as const },
+      ];
+      if (!sortBy) return defaultOrder;
+
+      let sortColumn: string | undefined;
+      if (sortBy.startsWith("score:") || sortBy.startsWith("comparedScore:")) {
+        // Both score: and comparedScore: sort by the same underlying score column
+        const scoreName = sortBy.split(":")[1];
+        if (scoreName) {
+          sortColumn = `JSONExtractFloat(scores, '${scoreName}')`;
+        }
+      } else if (sortBy === "index") {
+        sortColumn = "index";
+      } else if (sortBy === "created_at") {
+        sortColumn = "created_at";
+      }
+
+      if (!sortColumn) return defaultOrder;
+      return [{ column: sortColumn, direction: sortDirection ?? ("ASC" as const) }];
+    })(),
     pagination: {
       limit,
       offset,

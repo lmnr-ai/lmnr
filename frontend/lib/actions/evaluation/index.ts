@@ -55,7 +55,7 @@ export const RenameEvaluationSchema = z.object({
 export const getEvaluationDatapoints = async (
   input: z.infer<typeof GetEvaluationDatapointsSchema>
 ): Promise<EvaluationResultsInfo> => {
-  const { projectId, evaluationId, pageNumber, pageSize, search, searchIn, filter: inputFilters } = input;
+  const { projectId, evaluationId, pageNumber, pageSize, search, searchIn, filter: inputFilters, sortBy, sortDirection } = input;
 
   // First, get the evaluation
   const evaluation = await db.query.evaluations.findFirst({
@@ -139,6 +139,8 @@ export const getEvaluationDatapoints = async (
     filters: datapointFilters,
     limit,
     offset,
+    sortBy,
+    sortDirection,
   });
 
   const rawResults = await executeQuery<EvaluationDatapointRow>({
@@ -198,6 +200,23 @@ export const getEvaluationDatapoints = async (
       datasetDatapointCreatedAt: row.datasetDatapointCreatedAt,
     };
   });
+
+  // Step 5b: Sort by trace-derived columns (duration, cost) that can't be sorted in ClickHouse
+  if (sortBy === "duration" || sortBy === "cost") {
+    const dir = sortDirection === "DESC" ? -1 : 1;
+    results.sort((a, b) => {
+      let aVal: number;
+      let bVal: number;
+      if (sortBy === "duration") {
+        aVal = a.startTime && a.endTime ? new Date(a.endTime).getTime() - new Date(a.startTime).getTime() : 0;
+        bVal = b.startTime && b.endTime ? new Date(b.endTime).getTime() - new Date(b.startTime).getTime() : 0;
+      } else {
+        aVal = (a.inputCost ?? 0) + (a.outputCost ?? 0) + (a.totalCost ?? 0);
+        bVal = (b.inputCost ?? 0) + (b.outputCost ?? 0) + (b.totalCost ?? 0);
+      }
+      return (aVal - bVal) * dir;
+    });
+  }
 
   // Step 6: Calculate statistics and distributions
   const allScoreNames = [...new Set(results.flatMap((result) => (result.scores ? Object.keys(result.scores) : [])))];

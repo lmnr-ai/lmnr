@@ -20,6 +20,10 @@ export interface InfiniteDataTableProps<TData extends RowData>
   fetchNextPage: () => void;
   totalItemsCount?: number;
 
+  sortBy?: string;
+  sortDirection?: "asc" | "desc";
+  onSort?: (columnId: string, direction: "asc" | "desc") => void;
+
   estimatedRowHeight?: number;
   overscan?: number;
 
