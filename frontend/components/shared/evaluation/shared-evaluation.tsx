@@ -3,14 +3,17 @@
 import { type Row } from "@tanstack/react-table";
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Resizable } from "re-resizable";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import fullLogo from "@/assets/logo/logo.svg";
 import Chart from "@/components/evaluation/chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import ScoreCard from "@/components/evaluation/score-card";
+import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
+import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,9 +33,13 @@ interface SharedEvaluationProps {
 
 function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluationProps) {
   const searchParams = useSearchParams();
+  const { push } = useRouter();
+  const pathName = usePathname();
   const filter = searchParams.getAll("filter");
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
+  const [traceId, setTraceId] = useState<string | undefined>(undefined);
+  const [datapointId, setDatapointId] = useState<string | undefined>(undefined);
 
   const pageSize = 50;
 
@@ -54,6 +61,15 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   }>(statsUrl, swrFetcher);
 
   const scores = statsData?.scores || [];
+
+  const onClose = useCallback(() => {
+    setTraceId(undefined);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("traceId");
+    params.delete("datapointId");
+    params.delete("spanId");
+    push(`${pathName}?${params}`);
+  }, [searchParams, pathName, push]);
 
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
@@ -83,13 +99,19 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     deps: [filter, evaluationId],
   });
 
-  const handleRowClick = useCallback((_row: Row<EvaluationDatapointPreviewWithCompared>) => {
-    // No inline trace panel in shared view
+  const handleRowClick = useCallback((row: Row<EvaluationDatapointPreviewWithCompared>) => {
+    setTraceId(row.original.traceId);
+    setDatapointId(row.original.id);
   }, []);
 
   const getRowHref = useCallback(
-    (row: Row<EvaluationDatapointPreviewWithCompared>) => `/shared/traces/${row.original.traceId}`,
-    []
+    (row: Row<EvaluationDatapointPreviewWithCompared>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("traceId", row.original.traceId);
+      params.set("datapointId", row.original.id);
+      return `${pathName}?${params.toString()}`;
+    },
+    [pathName, searchParams]
   );
 
   useEffect(() => {
@@ -98,8 +120,45 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     }
   }, [scores]);
 
+  // URL sync on mount
+  useEffect(() => {
+    const traceId = searchParams.get("traceId");
+    const datapointId = searchParams.get("datapointId");
+    if (traceId) {
+      setTraceId(traceId);
+    }
+    if (datapointId) {
+      setDatapointId(datapointId);
+    }
+  }, []);
+
+  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(1000);
+
+  const handleResizeStop = useCallback(
+    (_event: MouseEvent | TouchEvent, _direction: unknown, _elementRef: HTMLElement, delta: { width: number }) => {
+      setDefaultTraceViewWidth((prev) => prev + delta.width);
+    },
+    []
+  );
+
+  const ref = useRef<Resizable>(null);
+
+  useEffect(() => {
+    setDefaultTraceViewWidth(getDefaultTraceViewWidth());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (defaultTraceViewWidth > window.innerWidth - 180) {
+        const newWidth = window.innerWidth - 240;
+        setDefaultTraceViewWidth(newWidth);
+        ref?.current?.updateSize({ width: newWidth });
+      }
+    }
+  }, []);
+
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden">
+    <div className="flex flex-col h-full w-full overflow-hidden relative">
       <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
         <Link className="mr-2" href="/projects">
           <Image alt="Laminar logo" src={fullLogo} width={120} height={20} />
@@ -137,6 +196,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
         </div>
         <EvaluationDatapointsTable
           isLoading={isLoadingDatapoints}
+          datapointId={datapointId}
           data={allDatapoints}
           scores={scores}
           handleRowClick={handleRowClick}
@@ -146,6 +206,24 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
           fetchNextPage={fetchNextPage}
         />
       </div>
+      {traceId && (
+        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
+          <Resizable
+            ref={ref}
+            onResizeStop={handleResizeStop}
+            enable={{
+              left: true,
+            }}
+            defaultSize={{
+              width: defaultTraceViewWidth,
+            }}
+          >
+            <div className="w-full h-full flex flex-col">
+              <SharedEvalTraceView key={traceId} traceId={traceId} onClose={onClose} />
+            </div>
+          </Resizable>
+        </div>
+      )}
     </div>
   );
 }

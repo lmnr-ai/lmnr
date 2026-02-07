@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/lib/db/drizzle";
-import { evaluations, sharedEvals } from "@/lib/db/migrations/schema";
+import { evaluationResults, evaluations, sharedEvals, sharedTraces } from "@/lib/db/migrations/schema";
 
 export async function updateEvaluationVisibility({
   evaluationId,
@@ -21,18 +21,37 @@ export async function updateEvaluationVisibility({
     throw new Error("Evaluation not found");
   }
 
+  // Get all trace IDs for this evaluation
+  const evalResults = await db
+    .select({ traceId: evaluationResults.traceId })
+    .from(evaluationResults)
+    .where(eq(evaluationResults.evaluationId, evaluationId));
+
+  const traceIds = [...new Set(evalResults.map((r) => r.traceId))];
+
   if (visibility === "public") {
     await db
       .insert(sharedEvals)
       .values({ id: evaluationId, projectId })
       .onConflictDoNothing();
+
+    if (traceIds.length > 0) {
+      await db
+        .insert(sharedTraces)
+        .values(traceIds.map((id) => ({ id, projectId })))
+        .onConflictDoNothing();
+    }
   } else {
     await db
       .delete(sharedEvals)
       .where(eq(sharedEvals.id, evaluationId));
-  }
 
-  // TODO: make all evaluation traces public/private
+    if (traceIds.length > 0) {
+      await db
+        .delete(sharedTraces)
+        .where(inArray(sharedTraces.id, traceIds));
+    }
+  }
 }
 
 export async function isEvaluationPublic(evaluationId: string): Promise<boolean> {

@@ -1,6 +1,6 @@
 "use client";
 
-import { CirclePlay } from "lucide-react";
+import { CirclePlay, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -33,9 +33,10 @@ import { cn } from "@/lib/utils";
 interface TraceViewProps {
   trace: TraceViewTrace;
   spans: TraceViewSpan[];
+  onClose?: () => void;
 }
 
-const PureTraceView = ({ trace, spans }: TraceViewProps) => {
+export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -145,11 +146,19 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
   return (
     <ScrollContextProvider>
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
-          <Link className="mr-2" href="/projects">
-            <Image alt="Laminar logo" src={fullLogo} width={120} height={20} />
-          </Link>
-        </div>
+        {onClose ? (
+          <div className="flex flex-none items-center border-b px-2 py-1.5 gap-2">
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X size={16} />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
+            <Link className="mr-2" href="/projects">
+              <Image alt="Laminar logo" src={fullLogo} width={120} height={20} />
+            </Link>
+          </div>
+        )}
         <div className="flex h-full w-full overflow-hidden">
           <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
             <Header
