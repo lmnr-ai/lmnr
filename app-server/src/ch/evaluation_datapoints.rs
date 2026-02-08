@@ -16,6 +16,10 @@ use crate::{
 
 use super::utils::chrono_to_nanoseconds;
 
+fn default_group_id() -> String {
+    "default".to_string()
+}
+
 #[derive(Row, Serialize, Deserialize, Debug)]
 pub struct CHEvaluationDatapoint {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -28,14 +32,19 @@ pub struct CHEvaluationDatapoint {
     pub trace_id: Uuid,
     pub index: u64,
     pub created_at: i64,
+    pub updated_at: i64,
     pub data: String,
     pub target: String,
     pub metadata: String,
+    pub executor_output: String,
     #[serde(with = "clickhouse::serde::uuid")]
     pub dataset_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub dataset_datapoint_id: Uuid,
     pub dataset_datapoint_created_at: i64,
+    #[serde(default = "default_group_id")]
+    pub group_id: String,
+    pub scores: String, // Stringified JSON object from score name to float value
 }
 
 #[derive(Row, Deserialize)]
@@ -49,14 +58,18 @@ impl CHEvaluationDatapoint {
         result: EvaluationDatapointResult,
         evaluation_id: Uuid,
         project_id: Uuid,
+        group_name: &String,
     ) -> Self {
+        let now = Utc::now();
+        let now_ns = chrono_to_nanoseconds(now);
         CHEvaluationDatapoint {
             id: result.id,
             evaluation_id,
             project_id,
             trace_id: result.trace_id,
             index: result.index as u64,
-            created_at: chrono_to_nanoseconds(Utc::now()),
+            created_at: now_ns,
+            updated_at: now_ns,
             data: json_value_to_string(&result.data),
             target: json_value_to_string(&result.target),
             metadata: json_value_to_string(
@@ -78,6 +91,9 @@ impl CHEvaluationDatapoint {
                     .map(|link| link.created_at)
                     .unwrap_or_default(),
             ),
+            executor_output: json_value_to_string(&result.executor_output.unwrap_or_default()),
+            group_id: group_name.clone(),
+            scores: json_value_to_string(&serde_json::to_value(result.scores).unwrap_or_default()),
         }
     }
 }
@@ -87,6 +103,7 @@ pub async fn insert_evaluation_datapoints(
     evaluation_datapoints: Vec<EvaluationDatapointResult>,
     evaluation_id: Uuid,
     project_id: Uuid,
+    group_name: &String,
 ) -> Result<()> {
     if evaluation_datapoints.is_empty() {
         return Ok(());
@@ -95,7 +112,9 @@ pub async fn insert_evaluation_datapoints(
     // The function is called twice - on datapoint creation and on datapoint update
     // We query the existing datapoints and filter them out to avoid duplicates
     let existing_ch_datapoints = clickhouse
-        .query("SELECT id FROM evaluation_datapoints WHERE evaluation_id = ? AND project_id = ?")
+        .query(
+            "SELECT id FROM new_evaluation_datapoints WHERE evaluation_id = ? AND project_id = ?",
+        )
         .bind(evaluation_id)
         .bind(project_id)
         .fetch_all::<CHEvaluationDatapointId>()
@@ -134,7 +153,7 @@ pub async fn insert_evaluation_datapoints(
 
     // For new datapoints, we need to insert them
     let ch_insert = clickhouse
-        .insert::<CHEvaluationDatapoint>("evaluation_datapoints")
+        .insert::<CHEvaluationDatapoint>("new_evaluation_datapoints")
         .await;
     match ch_insert {
         Ok(mut ch_insert) => {
@@ -143,6 +162,7 @@ pub async fn insert_evaluation_datapoints(
                     result,
                     evaluation_id,
                     project_id,
+                    group_name,
                 );
                 ch_insert.write(&datapoint).await?;
             }
@@ -171,7 +191,7 @@ pub async fn get_evaluation_datapoint_index(
     datapoint_id: Uuid,
 ) -> Result<u64> {
     let result = clickhouse
-        .query("SELECT index FROM evaluation_datapoints WHERE evaluation_id = ? AND project_id = ? AND id = ?")
+        .query("SELECT index FROM new_evaluation_datapoints WHERE evaluation_id = ? AND project_id = ? AND id = ?")
         .bind(evaluation_id)
         .bind(project_id)
         .bind(datapoint_id)
