@@ -736,7 +736,7 @@ async fn process_single_response(
     let finish_reason = response.finish_reason.clone();
 
     let span_output = if let Some(content) = &response.content {
-        serde_json::to_value(content).ok()
+        serde_json::from_str(content).ok()
     } else if let Some(function_call) = &response.function_call {
         serde_json::to_value(function_call).ok()
     } else if let Some(finish_reason) = &response.finish_reason {
