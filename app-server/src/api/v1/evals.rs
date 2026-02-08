@@ -1,11 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
-    ch::evaluation_datapoint_outputs::{
-        CHEvaluationDatapointOutput, insert_evaluation_datapoint_outputs,
-    },
     db::{self, DB, project_api_keys::ProjectApiKey},
-    evaluations::{save_evaluation_scores, utils::EvaluationDatapointResult},
+    evaluations::{
+        EvaluationDatapointResult, insert_evaluation_datapoints, update_evaluation_datapoint,
+    },
     names::NameGenerator,
     routes::types::ResponseResult,
 };
@@ -69,12 +68,11 @@ pub async fn save_eval_datapoints(
     let req = req.into_inner();
     let project_id = project_api_key.project_id;
     let points = req.points;
-    let db = db.into_inner();
     let group_name = req.group_name.unwrap_or("default".to_string());
     let clickhouse = clickhouse.into_inner().as_ref().clone();
 
-    save_evaluation_scores(
-        db.clone(),
+    insert_evaluation_datapoints(
+        &db.pool,
         clickhouse,
         points,
         eval_id,
@@ -104,49 +102,20 @@ pub async fn update_eval_datapoint(
     let (eval_id, datapoint_id) = path.into_inner();
     let req = req.into_inner();
     let clickhouse = clickhouse.into_inner().as_ref().clone();
+    let project_id = project_api_key.project_id;
 
-    // Get evaluation info for ClickHouse
-    let group_id =
-        db::evaluations::get_evaluation_group_id(&db.pool, eval_id, project_api_key.project_id)
-            .await?;
+    // Get evaluation group_id for ClickHouse
+    let group_id = db::evaluations::get_evaluation_group_id(&db.pool, eval_id, project_id).await?;
 
-    // Update database (PostgreSQL)
-    let trace_id = db::evaluations::update_evaluation_datapoint_and_get_trace_id(
+    // Update the datapoint by merging with existing
+    update_evaluation_datapoint(
         &db.pool,
+        clickhouse,
         eval_id,
+        project_id,
         datapoint_id,
-        &req.executor_output,
-    )
-    .await?;
-
-    let index = crate::ch::evaluation_datapoints::get_evaluation_datapoint_index(
-        clickhouse.clone(),
-        eval_id,
-        project_api_key.project_id,
-        datapoint_id,
-    )
-    .await?;
-
-    insert_evaluation_datapoint_outputs(
-        clickhouse.clone(),
-        vec![CHEvaluationDatapointOutput::create(
-            datapoint_id,
-            eval_id,
-            project_api_key.project_id,
-            index,
-            &req.executor_output,
-        )],
-    )
-    .await?;
-
-    // Update ClickHouse analytics
-    crate::ch::evaluation_scores::insert_updated_evaluation_scores(
-        clickhouse.clone(),
-        project_api_key.project_id,
-        group_id,
-        eval_id,
-        datapoint_id,
-        trace_id,
+        &group_id,
+        req.executor_output,
         req.scores,
     )
     .await?;
