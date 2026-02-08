@@ -69,19 +69,6 @@ pub async fn insert_evaluation_datapoints(
         .await?;
     }
 
-    if is_shared_evaluation(pool, project_id, evaluation_id).await? {
-        insert_shared_traces(
-            pool,
-            project_id,
-            evaluation_datapoints
-                .iter()
-                .map(|dp| dp.trace_id)
-                .collect::<Vec<_>>()
-                .as_slice(),
-        )
-        .await?;
-    }
-
     // Collect all datapoint IDs for bulk query
     let datapoint_ids: Vec<Uuid> = evaluation_datapoints.iter().map(|dp| dp.id).collect();
 

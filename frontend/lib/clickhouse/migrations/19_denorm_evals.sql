@@ -18,7 +18,7 @@ CREATE TABLE new_evaluation_datapoints (
     INDEX idx_project_eval_id_datapoint_id (project_id, evaluation_id, id) TYPE bloom_filter
 )
 ENGINE = ReplacingMergeTree(updated_at)
-ORDER BY (project_id, evaluation_id, index)
+ORDER BY (project_id, evaluation_id, index, id)
 SETTINGS index_granularity = 8192;
 
 -- Move existing data, similar to the views

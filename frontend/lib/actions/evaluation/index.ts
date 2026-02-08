@@ -141,15 +141,11 @@ export const getEvaluationDatapoints = async (
     offset,
   });
 
-  console.log("mainQuery", mainQuery);
-  console.log("mainParams", mainParams);
   const rawResults = await executeQuery<EvaluationDatapointRow>({
     query: mainQuery,
     parameters: mainParams,
     projectId,
   });
-
-  console.log("rawResults", rawResults);
 
   // Step 4: Fetch full trace data for all trace_ids in the results
   const uniqueTraceIds = [...new Set(rawResults.map((item) => item.traceId).filter(Boolean))];
