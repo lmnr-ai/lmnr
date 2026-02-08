@@ -77,12 +77,12 @@ export const getEvaluationDatapoints = async (
   // Step 1: Get trace IDs from search if provided
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-        projectId,
-        traceId: undefined,
-        searchQuery: search,
-        timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
-        searchType: searchIn as SpanSearchType[],
-      })
+      projectId,
+      traceId: undefined,
+      searchQuery: search,
+      timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
+      searchType: searchIn as SpanSearchType[],
+    })
     : [];
   const searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
@@ -141,11 +141,15 @@ export const getEvaluationDatapoints = async (
     offset,
   });
 
+  console.log("mainQuery", mainQuery);
+  console.log("mainParams", mainParams);
   const rawResults = await executeQuery<EvaluationDatapointRow>({
     query: mainQuery,
     parameters: mainParams,
     projectId,
   });
+
+  console.log("rawResults", rawResults);
 
   // Step 4: Fetch full trace data for all trace_ids in the results
   const uniqueTraceIds = [...new Set(rawResults.map((item) => item.traceId).filter(Boolean))];
@@ -245,12 +249,12 @@ export const getEvaluationStatistics = async (
   // Step 1: Get trace IDs from search if provided
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-        projectId,
-        traceId: undefined,
-        searchQuery: search,
-        timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
-        searchType: searchIn as SpanSearchType[],
-      })
+      projectId,
+      traceId: undefined,
+      searchQuery: search,
+      timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
+      searchType: searchIn as SpanSearchType[],
+    })
     : [];
   const searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
