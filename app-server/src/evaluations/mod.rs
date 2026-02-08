@@ -106,6 +106,10 @@ pub async fn insert_evaluation_datapoints(
                 if update.executor_output.is_none() {
                     update.executor_output = serde_json::from_str(&existing.executor_output).ok();
                 }
+
+                if update.trace_id.is_nil() {
+                    update.trace_id = existing.trace_id;
+                }
             }
             update
         })

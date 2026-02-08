@@ -65,7 +65,23 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   // If dataPointsCount filters are present, we need to filter by evaluation IDs first
   let evaluationIdFilter: SQL | null = null;
   if (dataPointsCountFilters.length > 0) {
-    // Get counts from ClickHouse
+    // First, get all evaluation IDs that match the base filters (project, group, search, metadata)
+    const allEvaluations = await db
+      .select({ id: evaluations.id })
+      .from(evaluations)
+      .where(and(...allFilters));
+
+    const allEvaluationIds = allEvaluations.map((e) => e.id);
+
+    if (allEvaluationIds.length === 0) {
+      // No evaluations exist with the base filters
+      return {
+        items: [],
+        totalCount: 0,
+      };
+    }
+
+    // Get counts from ClickHouse for these evaluations
     const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>({
       projectId,
       query: `
@@ -73,36 +89,47 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
           evaluation_id,
           COUNT(*) as count
         FROM evaluation_datapoints
+        WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
       `,
-      parameters: { projectId },
+      parameters: { 
+        projectId,
+        evaluationIds: allEvaluationIds,
+      },
     });
 
+    // Create a count map, defaulting to 0 for evaluations not in ClickHouse results
+    const countMap = new Map<string, number>();
+    for (const evalId of allEvaluationIds) {
+      countMap.set(evalId, 0); // Default to 0
+    }
+    for (const row of datapointCounts) {
+      countMap.set(row.evaluation_id, row.count);
+    }
+
     // Filter evaluation IDs based on dataPointsCount filters
-    const matchingEvaluationIds = datapointCounts
-      .filter((row) => {
-        return dataPointsCountFilters.every((filter) => {
-          const count = row.count;
-          const value = Number(filter.value);
-          switch (filter.operator) {
-            case "eq":
-              return count === value;
-            case "ne":
-              return count !== value;
-            case "gt":
-              return count > value;
-            case "gte":
-              return count >= value;
-            case "lt":
-              return count < value;
-            case "lte":
-              return count <= value;
-            default:
-              return true;
-          }
-        });
-      })
-      .map((row) => row.evaluation_id);
+    const matchingEvaluationIds = allEvaluationIds.filter((evalId) => {
+      const count = countMap.get(evalId) || 0;
+      return dataPointsCountFilters.every((filter) => {
+        const value = Number(filter.value);
+        switch (filter.operator) {
+          case "eq":
+            return count === value;
+          case "ne":
+            return count !== value;
+          case "gt":
+            return count > value;
+          case "gte":
+            return count >= value;
+          case "lt":
+            return count < value;
+          case "lte":
+            return count <= value;
+          default:
+            return true;
+        }
+      });
+    });
 
     if (matchingEvaluationIds.length === 0) {
       // No evaluations match the filter, return empty result
