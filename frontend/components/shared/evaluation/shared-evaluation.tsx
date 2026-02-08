@@ -72,6 +72,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
+    setDatapointId(undefined);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("traceId");
     params.delete("datapointId");
