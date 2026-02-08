@@ -1,4 +1,4 @@
-import { RefObject, useCallback, useState } from "react";
+import { type RefObject, useCallback, useState } from "react";
 
 /**
  * Hook for tracking hover position and calculating time on the condensed timeline.

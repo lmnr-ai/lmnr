@@ -5,7 +5,6 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { Resizable, type ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import ClustersTable from "@/components/signal/clusters-table";
 import EventsTable from "@/components/signal/events-table";
 import SignalJobsTable from "@/components/signal/jobs-table";
 import SignalRunsTable from "@/components/signal/runs-table";

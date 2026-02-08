@@ -8,6 +8,7 @@ import {
   renameEvaluation,
   RenameEvaluationSchema,
 } from "@/lib/actions/evaluation";
+import { updateEvaluationVisibility } from "@/lib/actions/evaluation/visibility";
 
 export async function GET(
   req: NextRequest,
@@ -80,6 +81,35 @@ export async function PATCH(
     }
     return Response.json(
       { error: error instanceof Error ? error.message : "Failed to rename evaluation." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; evaluationId: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const { projectId, evaluationId } = params;
+
+  try {
+    const body = await req.json();
+    const visibility = body.visibility;
+
+    if (visibility !== "public" && visibility !== "private") {
+      return Response.json({ error: "visibility must be 'public' or 'private'" }, { status: 400 });
+    }
+
+    await updateEvaluationVisibility({ evaluationId, projectId, visibility });
+
+    return Response.json({ visibility });
+  } catch (error) {
+    if (error instanceof Error && error.message === "Evaluation not found") {
+      return Response.json({ error: "Evaluation not found" }, { status: 404 });
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to update evaluation visibility." },
       { status: 500 }
     );
   }

@@ -12,8 +12,8 @@ import {
   CloudOff,
   Frown,
   Loader2,
-  Plus,
   PlayIcon,
+  Plus,
   Shield,
   Target,
   X,
@@ -32,7 +32,7 @@ import {
   type UseFormWatch,
 } from "react-hook-form";
 
-import templates from "@/components/signals/prompts";
+import templates, { type EventTemplate } from "@/components/signals/prompts";
 import {
   getDefaultSchemaFields,
   jsonSchemaToSchemaFields,
@@ -48,12 +48,11 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Signal } from "@/lib/actions/signals";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, tryParseJson } from "@/lib/utils";
-import type { EventTemplate } from "@/components/signals/prompts";
 
 const TEMPLATE_ICONS: Record<EventTemplate["icon"], React.ComponentType<{ className?: string }>> = {
   "alert-circle": AlertCircle,
