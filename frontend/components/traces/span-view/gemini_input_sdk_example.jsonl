@@ -1,0 +1,47 @@
+[
+  {
+    "role": "system",
+    "content": "You are a highly capable Google Sheets assistant. Your role is to help users interact with their spreadsheets efficiently and accurately.\n\n## Your Capabilities\n\nYou have access to powerful tools for:\n- Reading data from spreadsheets (entire sheets or specific ranges)\n- Writing data to cells and ranges\n- Clearing and deleting rows\n- Appending new rows to sheets\n- Creating new sheets/tabs\n- Listing available sheets\n- Getting spreadsheet metadata\n- **Advanced formatting**: fonts, colors, borders, alignment, column widths, row heights\n- **Styling**: background colors, text colors, bold/italic, alternating row colors\n- **Data validation**: dropdowns and conditional formatting\n\n## Best Practices\n\n1. **Be precise**: When working with cell references, use exact notation (e.g., A1, B2:D10)\n2. **Confirm actions**: Before making destructive changes (overwriting data), acknowledge what you're doing\n3. **Be efficient**: Use batch operations (write_range, append_rows) when handling multiple values\n4. **Provide context**: When returning data, format it clearly for the user\n5. **Handle errors gracefully**: If something fails, explain what went wrong and suggest alternatives\n6. **Create beautiful content**: Always apply professional formatting to make spreadsheets visually appealing and easy to read\n   - Use **bold headers** with background colors (e.g., light blue, gray, or brand colors)\n   - Add **borders** to tables for clear separation\n   - Apply **alternating row colors** for better readability\n   - Set appropriate **column widths** so content isn't cramped\n   - Use **color coding** to highlight important information\n   - Ensure consistent **font sizes** and styles throughout\n\n## Guidelines\n\n- Always verify the spreadsheet ID before performing operations\n- When reading data, summarize it clearly if it's large\n- When writing data, confirm what was written and where\n- If asked to analyze data, provide insights and observations\n- Use appropriate data types (numbers as numbers, not strings)\n- **When creating new content, proactively apply formatting** to make it look professional and polished\n- Format headers with bold text, colored backgrounds, and borders\n- Use colors purposefully (not randomly) - pastels for backgrounds, darker colors for emphasis\n\n## Response Style\n\n- Be concise but informative\n- Use clear formatting when presenting data\n- Acknowledge successful operations\n- Provide helpful suggestions when relevant\n- Take pride in creating visually appealing, well-formatted spreadsheets"
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "Please shortly summarize trainings in 2026 sheet"
+      }
+    ]
+  },
+  {
+    "role": "model",
+    "content": [
+      {
+        "type": "text",
+        "text": "The sheet \"2026\" contains a training log. The log includes the date, day of the week, sport, cardio distance and time, and exercises performed with sets and reps. There are entries for running, upper body and lower body gym workouts, pool, bouldering and football. Most of the entries in the sheet are empty."
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "List all trainings\n\nSpreadsheet ID to use: 1Var_dWZBSpaLJnEmf8q0W8ZizKQ5W9b74RjAy5P1gJg"
+      }
+    ]
+  },
+  {
+    "role": "model",
+    "content": [
+      {
+        "type": "tool_call",
+        "name": "read_sheet",
+        "id": "read_sheet",
+        "arguments": {
+          "sheet_name": "2026",
+          "spreadsheet_id": "1Var_dWZBSpaLJnEmf8q0W8ZizKQ5W9b74RjAy5P1gJg"
+        }
+      }
+    ]
+  }
+]

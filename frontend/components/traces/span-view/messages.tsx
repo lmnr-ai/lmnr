@@ -6,6 +6,7 @@ import React, { memo, type PropsWithChildren, type Ref, useMemo, useRef } from "
 import { type z } from "zod/v4";
 
 import { MessageWrapper } from "@/components/traces/span-view/common";
+import GeminiContentParts from "@/components/traces/span-view/gemini-parts";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
+import { GeminiMessageSchema, GeminiMessagesSchema } from "@/lib/spans/types/gemini";
 
 interface MessagesProps {
   messages: any;
@@ -29,6 +31,9 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 
     const langchainMessageResult = LangChainMessageSchema.safeParse(messages);
     const langchainResult = LangChainMessagesSchema.safeParse(messages);
+
+    const geminiMessageResult = GeminiMessageSchema.safeParse(messages);
+    const geminiResult = GeminiMessagesSchema.safeParse(messages);
 
     if (openAIMessageResult.success) {
       return {
@@ -53,6 +58,17 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 
     if (langchainResult.success) {
       return { messages: langchainResult.data, type: "langchain" as const };
+    }
+
+    if (geminiMessageResult.success) {
+      return {
+        messages: [geminiMessageResult.data],
+        type: "gemini" as const,
+      };
+    }
+
+    if (geminiResult.success) {
+      return { messages: geminiResult.data, type: "gemini" as const };
     }
 
     return {
@@ -139,6 +155,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 type MessageRendererProps =
   | { type: "langchain"; messages: z.infer<typeof LangChainMessagesSchema> }
   | { type: "openai"; messages: z.infer<typeof OpenAIMessagesSchema> }
+  | { type: "gemini"; messages: z.infer<typeof GeminiMessagesSchema> }
   | { type: "generic"; messages: (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] };
 
 const MessagesRenderer = ({
@@ -172,6 +189,18 @@ const MessagesRenderer = ({
           <div key={row.key} data-index={row.index} ref={ref}>
             <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`}>
               <LangChainContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
+            </MessageWrapper>
+          </div>
+        );
+      });
+
+    case "gemini":
+      return virtualItems.map((row) => {
+        const message = messages[row.index];
+        return (
+          <div key={row.key} data-index={row.index} ref={ref}>
+            <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`}>
+              <GeminiContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
             </MessageWrapper>
           </div>
         );
