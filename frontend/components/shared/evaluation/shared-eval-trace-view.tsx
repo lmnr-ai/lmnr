@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { ChevronsRight } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PureTraceView } from "@/components/shared/traces/trace-view";
@@ -61,8 +61,8 @@ function SharedEvalTraceViewContent({ traceId, onClose }: SharedEvalTraceViewPro
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center border-b px-2 py-1.5">
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X size={16} />
+          <Button variant="ghost" className="px-0.5" onClick={onClose}>
+            <ChevronsRight className="w-5 h-5" />
           </Button>
         </div>
         <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">
@@ -76,8 +76,8 @@ function SharedEvalTraceViewContent({ traceId, onClose }: SharedEvalTraceViewPro
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center border-b px-2 py-1.5">
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X size={16} />
+          <Button variant="ghost" className="px-0.5" onClick={onClose}>
+            <ChevronsRight className="w-5 h-5" />
           </Button>
         </div>
         <div className="flex flex-col gap-2 p-4">
