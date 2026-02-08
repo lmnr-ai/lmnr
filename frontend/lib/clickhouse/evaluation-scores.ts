@@ -40,7 +40,7 @@ export const getEvaluationTimeProgression = async (
   }>();
 
   for (const dp of datapoints) {
-    const scores = JSON.parse(dp.scores) as Record<string, number | null>;
+    const scores = (dp.scores ? JSON.parse(dp.scores) : {}) as Record<string, number | null>;
 
     if (!evaluationMap.has(dp.evaluation_id)) {
       evaluationMap.set(dp.evaluation_id, {

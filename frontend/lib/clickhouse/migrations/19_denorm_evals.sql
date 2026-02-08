@@ -62,8 +62,8 @@ SELECT ed.id id,
         ed.dataset_id dataset_id,
         ed.dataset_datapoint_id dataset_datapoint_id,
         ed.dataset_datapoint_created_at dataset_datapoint_created_at,
-        es.group_id group_id,
-        es.scores scores
+        ifNull(es.group_id, 'default') group_id,
+        ifNull(es.scores, '{}') scores
     FROM evaluation_datapoints ed
     LEFT JOIN map_aggregate_evaluation_scores es
         ON ed.project_id = es.project_id
