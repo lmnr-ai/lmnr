@@ -14,6 +14,12 @@ use crate::{
 
 pub const DEFAULT_GROUP_NAME: &str = "default";
 
+/// Parse a stringified JSON value that was serialized with json_value_to_string.
+/// If parsing fails (e.g., because it's a plain string), wrap it as Value::String.
+fn parse_json_value_from_string(s: &str) -> Value {
+    serde_json::from_str(s).unwrap_or_else(|_| Value::String(s.to_string()))
+}
+
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EvaluationDatapointDatasetLink {
@@ -95,8 +101,14 @@ pub async fn insert_evaluation_datapoints(
 
                 update.scores = merged_scores;
 
+                if update.data == Value::Null
+                    || update.data == Value::Object(serde_json::Map::new())
+                {
+                    update.data = parse_json_value_from_string(&existing.data);
+                }
+
                 if update.target == Value::Null {
-                    update.target = serde_json::from_str(&existing.target).unwrap_or_default();
+                    update.target = parse_json_value_from_string(&existing.target);
                 }
 
                 if update.metadata.is_none() {
@@ -104,7 +116,7 @@ pub async fn insert_evaluation_datapoints(
                 }
 
                 if update.executor_output.is_none() {
-                    update.executor_output = serde_json::from_str(&existing.executor_output).ok();
+                    update.executor_output = Some(parse_json_value_from_string(&existing.executor_output));
                 }
 
                 if update.trace_id.is_nil() {
@@ -202,8 +214,8 @@ pub async fn update_evaluation_datapoint(
         merged_scores.insert(name, value);
     }
 
-    let data: Value = serde_json::from_str(&existing.data).unwrap_or_default();
-    let target: Value = serde_json::from_str(&existing.target).unwrap_or_default();
+    let data = parse_json_value_from_string(&existing.data);
+    let target = parse_json_value_from_string(&existing.target);
     let metadata: Option<HashMap<String, Value>> = serde_json::from_str(&existing.metadata).ok();
 
     let dataset_link = if !existing.dataset_id.is_nil() {
@@ -222,7 +234,7 @@ pub async fn update_evaluation_datapoint(
         target,
         metadata,
         executor_output: executor_output
-            .or_else(|| serde_json::from_str(&existing.executor_output).ok()),
+            .or_else(|| Some(parse_json_value_from_string(&existing.executor_output))),
         trace_id: existing.trace_id,
         index: existing.index as i32,
         scores: merged_scores,
