@@ -1,30 +1,34 @@
 import { type NextRequest } from "next/server";
-import { prettifyError } from "zod/v4";
+import { prettifyError, z } from "zod/v4";
 
-import { parseUrlParams } from "@/lib/actions/common/utils";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
+import { parseUrlParams } from "@/lib/actions/common/utils";
 import { getSharedEvaluationDatapoints } from "@/lib/actions/shared/evaluation";
 
-export async function GET(
-  req: NextRequest,
-  props: { params: Promise<{ evaluationId: string }> }
-): Promise<Response> {
+const SharedEvaluationDatapointsSchema = PaginationFiltersSchema.extend({
+  search: z.string().nullable().optional(),
+  searchIn: z.array(z.string()).default([]),
+});
+
+export async function GET(req: NextRequest, props: { params: Promise<{ evaluationId: string }> }): Promise<Response> {
   const { evaluationId } = await props.params;
 
-  const parseResult = parseUrlParams(req.nextUrl.searchParams, PaginationFiltersSchema);
+  const parseResult = parseUrlParams(req.nextUrl.searchParams, SharedEvaluationDatapointsSchema);
 
   if (!parseResult.success) {
     return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
 
   try {
-    const { pageNumber, pageSize, filter } = parseResult.data;
+    const { pageNumber, pageSize, filter, search, searchIn } = parseResult.data;
 
     const result = await getSharedEvaluationDatapoints({
       evaluationId,
       pageNumber,
       pageSize,
       filters: filter ?? [],
+      search,
+      searchIn,
     });
 
     if (!result) {

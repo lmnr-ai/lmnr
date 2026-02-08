@@ -30,27 +30,23 @@ export async function updateEvaluationVisibility({
   const traceIds = [...new Set(evalResults.map((r) => r.traceId))];
 
   if (visibility === "public") {
-    await db
-      .insert(sharedEvals)
-      .values({ id: evaluationId, projectId })
-      .onConflictDoNothing();
+    await db.transaction(async (tx) => {
+      await tx.insert(sharedEvals).values({ id: evaluationId, projectId }).onConflictDoNothing();
 
-    if (traceIds.length > 0) {
-      await db
-        .insert(sharedTraces)
-        .values(traceIds.map((id) => ({ id, projectId })))
-        .onConflictDoNothing();
-    }
+      if (traceIds.length > 0) {
+        await tx
+          .insert(sharedTraces)
+          .values(traceIds.map((id) => ({ id, projectId })))
+          .onConflictDoNothing();
+      }
+    });
   } else {
-    await db
-      .delete(sharedEvals)
-      .where(eq(sharedEvals.id, evaluationId));
-
-    if (traceIds.length > 0) {
-      await db
-        .delete(sharedTraces)
-        .where(inArray(sharedTraces.id, traceIds));
-    }
+    await db.transaction(async (tx) => {
+      await tx.delete(sharedEvals).where(eq(sharedEvals.id, evaluationId));
+      if (traceIds.length > 0) {
+        await tx.delete(sharedTraces).where(inArray(sharedTraces.id, traceIds));
+      }
+    });
   }
 }
 

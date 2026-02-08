@@ -35,7 +35,9 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const searchParams = useSearchParams();
   const { push } = useRouter();
   const pathName = usePathname();
+  const search = searchParams.get("search");
   const filter = searchParams.getAll("filter");
+  const searchIn = searchParams.getAll("searchIn");
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
   const [traceId, setTraceId] = useState<string | undefined>(undefined);
@@ -46,12 +48,18 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const statsUrl = useMemo(() => {
     let url = `/api/shared/evals/${evaluationId}/stats`;
     const urlParams = new URLSearchParams();
+    if (search) {
+      urlParams.set("search", search);
+    }
+    searchIn.forEach((value) => {
+      urlParams.append("searchIn", value);
+    });
     filter.forEach((f) => urlParams.append("filter", f));
     if (urlParams.toString()) {
       url += `?${urlParams.toString()}`;
     }
     return url;
-  }, [evaluationId, filter]);
+  }, [evaluationId, search, searchIn, filter]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: Evaluation;
@@ -76,6 +84,15 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
       const urlParams = new URLSearchParams();
       urlParams.set("pageNumber", pageNumber.toString());
       urlParams.set("pageSize", pageSize.toString());
+
+      if (search) {
+        urlParams.set("search", search);
+      }
+
+      searchIn.forEach((value) => {
+        urlParams.append("searchIn", value);
+      });
+
       filter.forEach((f) => urlParams.append("filter", f));
 
       const url = `/api/shared/evals/${evaluationId}?${urlParams.toString()}`;
@@ -84,7 +101,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
       return { items: data.results, count: 0 };
     },
-    [filter, evaluationId, pageSize]
+    [search, searchIn, filter, evaluationId, pageSize]
   );
 
   const {
@@ -96,7 +113,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   } = useInfiniteScroll<EvaluationDatapointPreviewWithCompared>({
     fetchFn: fetchDatapoints,
     enabled: true,
-    deps: [filter, evaluationId],
+    deps: [search, filter, searchIn, evaluationId],
   });
 
   const handleRowClick = useCallback((row: Row<EvaluationDatapointPreviewWithCompared>) => {

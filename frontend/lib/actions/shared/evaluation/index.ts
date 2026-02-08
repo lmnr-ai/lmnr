@@ -1,15 +1,21 @@
 import { and, eq } from "drizzle-orm";
-import { compact } from "lodash";
+import { compact, groupBy } from "lodash";
 
 import { type Filter } from "@/lib/actions/common/filters";
 import {
   buildEvaluationDatapointsQueryWithParams,
   buildEvaluationStatisticsQueryWithParams,
+  buildTracesForEvaluationQueryWithParams,
   calculateScoreDistribution,
   calculateScoreStatistics,
+  separateFilters,
 } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { getTracesByIds } from "@/lib/actions/traces";
+import { searchSpans } from "@/lib/actions/traces/search";
+import { DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
+import { type SpanSearchType } from "@/lib/clickhouse/types";
+import { type TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { evaluations, sharedEvals } from "@/lib/db/migrations/schema";
 import {
@@ -20,7 +26,6 @@ import {
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types";
-import { groupBy } from "lodash";
 
 export async function getSharedEvaluation({ evaluationId }: { evaluationId: string }) {
   const publicEval = await db.query.sharedEvals.findFirst({
@@ -47,11 +52,15 @@ export async function getSharedEvaluationDatapoints({
   pageNumber,
   pageSize,
   filters,
+  search,
+  searchIn,
 }: {
   evaluationId: string;
   pageNumber: number;
   pageSize: number;
   filters: Filter[];
+  search?: string | null;
+  searchIn?: string[];
 }): Promise<EvaluationResultsInfo | undefined> {
   const shared = await getSharedEvaluation({ evaluationId });
   if (!shared) {
@@ -61,13 +70,69 @@ export async function getSharedEvaluationDatapoints({
   const { evaluation, projectId } = shared;
   const allFilters = compact(filters);
 
-  const limit = pageSize;
-  const offset = Math.max(0, pageNumber * pageSize);
+  let limit = pageSize;
+  let offset = Math.max(0, pageNumber * pageSize);
 
+  // Separate filters into trace and datapoint filters
+  const { traceFilters, datapointFilters } = separateFilters(allFilters);
+
+  // Step 1: Get trace IDs from search if provided
+  const spanHits: { trace_id: string; span_id: string }[] = search
+    ? await searchSpans({
+        projectId,
+        traceId: undefined,
+        searchQuery: search,
+        timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
+        searchType: searchIn as SpanSearchType[],
+      })
+    : [];
+  const searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
+
+  if (search) {
+    if (searchTraceIds.length === 0) {
+      return {
+        evaluation,
+        results: [],
+      };
+    } else {
+      // no pagination for search results, use default limit
+      limit = DEFAULT_SEARCH_MAX_HITS;
+      offset = 0;
+    }
+  }
+
+  // Step 2: Apply trace-specific filters if any exist
+  let filteredTraceIds: string[] = [];
+  if (traceFilters.length > 0) {
+    const { query: tracesQuery, parameters: tracesParams } = buildTracesForEvaluationQueryWithParams({
+      evaluationId,
+      traceIds: searchTraceIds,
+      filters: traceFilters,
+    });
+
+    const traceResults = await executeQuery<{ id: string }>({
+      query: tracesQuery,
+      parameters: tracesParams,
+      projectId,
+    });
+
+    filteredTraceIds = traceResults.map((r) => r.id);
+
+    if (filteredTraceIds.length === 0) {
+      return {
+        evaluation,
+        results: [],
+      };
+    }
+  } else {
+    filteredTraceIds = searchTraceIds;
+  }
+
+  // Step 3: Query evaluation datapoints with datapoint filters and filtered trace IDs
   const { query: mainQuery, parameters: mainParams } = buildEvaluationDatapointsQueryWithParams({
     evaluationId,
-    traceIds: [],
-    filters: allFilters,
+    traceIds: filteredTraceIds,
+    filters: datapointFilters,
     limit,
     offset,
   });
@@ -133,9 +198,13 @@ export async function getSharedEvaluationDatapoints({
 export async function getSharedEvaluationStatistics({
   evaluationId,
   filters,
+  search,
+  searchIn,
 }: {
   evaluationId: string;
   filters: Filter[];
+  search?: string | null;
+  searchIn?: string[];
 }): Promise<
   | {
       evaluation: Evaluation;
@@ -153,10 +222,64 @@ export async function getSharedEvaluationStatistics({
   const { evaluation, projectId } = shared;
   const allFilters = compact(filters);
 
+  // Separate filters into trace and datapoint filters
+  const { traceFilters, datapointFilters } = separateFilters(allFilters);
+
+  // Step 1: Get trace IDs from search if provided
+  const spanHits: { trace_id: string; span_id: string }[] = search
+    ? await searchSpans({
+        projectId,
+        traceId: undefined,
+        searchQuery: search,
+        timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
+        searchType: searchIn as SpanSearchType[],
+      })
+    : [];
+  const searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
+
+  if (search && searchTraceIds.length === 0) {
+    return {
+      evaluation,
+      allStatistics: {},
+      allDistributions: {},
+      scores: [],
+    };
+  }
+
+  // Step 2: Apply trace-specific filters if any exist
+  let filteredTraceIds: string[] = [];
+  if (traceFilters.length > 0) {
+    const { query: tracesQuery, parameters: tracesParams } = buildTracesForEvaluationQueryWithParams({
+      evaluationId,
+      traceIds: searchTraceIds,
+      filters: traceFilters,
+    });
+
+    const traceResults = await executeQuery<{ id: string }>({
+      query: tracesQuery,
+      parameters: tracesParams,
+      projectId,
+    });
+
+    filteredTraceIds = traceResults.map((r) => r.id);
+
+    if (filteredTraceIds.length === 0) {
+      return {
+        evaluation,
+        allStatistics: {},
+        allDistributions: {},
+        scores: [],
+      };
+    }
+  } else {
+    filteredTraceIds = searchTraceIds;
+  }
+
+  // Step 3: Query only scores from evaluation datapoints
   const { query: statsQuery, parameters: statsParams } = buildEvaluationStatisticsQueryWithParams({
     evaluationId,
-    traceIds: [],
-    filters: allFilters,
+    traceIds: filteredTraceIds,
+    filters: datapointFilters,
   });
 
   const rawResults = await executeQuery<{ scores: string }>({
@@ -195,3 +318,21 @@ export async function getSharedEvaluationStatistics({
     scores: allScoreNames,
   };
 }
+
+const getTimeRangeForEvaluation = (evaluationCreatedAt?: string): TimeRange => {
+  if (!evaluationCreatedAt) {
+    return {
+      start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      end: new Date(),
+    };
+  }
+
+  const startTime = new Date(evaluationCreatedAt);
+  const endTime = new Date(evaluationCreatedAt);
+  endTime.setHours(endTime.getHours() + 24);
+
+  return {
+    start: startTime,
+    end: endTime,
+  };
+};
