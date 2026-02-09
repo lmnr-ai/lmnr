@@ -174,7 +174,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden relative">
-      <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
+      <div className="flex flex-none items-center border-b px-6 py-3.5 gap-2">
         <Link className="mr-2" href="/projects">
           <Image alt="Laminar logo" src={fullLogo} width={100} height={20} />
         </Link>
@@ -184,6 +184,16 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
             {statsData?.evaluation?.name || evaluationName}
           </span>
         </span>
+        <div className="flex-1" />
+        <div className="h-full items-end flex">
+          <Link
+            href="https://docs.laminar.sh/evaluations/introduction"
+            target="_blank"
+            className="text-xs text-secondary-foreground hover:underline"
+          >
+            Learn more about Laminar evals
+          </Link>
+        </div>
       </div>
       <div className="flex-1 flex flex-col gap-2 overflow-hidden p-4">
         <div className="flex flex-row space-x-4 p-4 border rounded bg-secondary">
