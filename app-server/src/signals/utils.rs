@@ -199,7 +199,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         );
     }
 
-    let db_span: Span = Span {
+    let mut db_span = Span {
         span_id,
         project_id,
         trace_id: span.trace_id,
@@ -211,15 +211,15 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         span_type: span.span_type,
         start_time: span.start_time,
         end_time: Utc::now(),
-        events: None,
+        events: vec![],
         status: Some("OK".to_string()),
         tags: None,
         input_url: None,
         output_url: None,
     };
 
-    let error_event = if let Some(error) = span.error {
-        Some(Event {
+    if let Some(error) = span.error {
+        db_span.events.push(Event {
             id: Uuid::new_v4(),
             span_id,
             project_id,
@@ -230,15 +230,10 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
             }),
             trace_id: span.trace_id,
             source: EventSource::Code,
-        })
-    } else {
-        None
-    };
+        });
+    }
 
-    let message = RabbitMqSpanMessage {
-        span: db_span,
-        events: error_event.map(|event| vec![event]).unwrap_or_default(),
-    };
+    let message = RabbitMqSpanMessage { span: db_span };
 
     if let Ok(payload) = serde_json::to_vec(&vec![message]) {
         let _ = queue

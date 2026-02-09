@@ -5,7 +5,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    db::{DB, events::Event, project_api_keys::ProjectApiKey, spans::Span},
+    db::{DB, project_api_keys::ProjectApiKey, spans::Span},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
@@ -17,7 +17,6 @@ use prost::Message;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RabbitMqSpanMessage {
     pub span: Span,
-    pub events: Vec<Event>,
 }
 
 // /v1/traces

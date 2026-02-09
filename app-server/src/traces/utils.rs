@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 
 use indexmap::IndexMap;
@@ -6,11 +7,11 @@ use serde_json::{Value, json};
 use tracing::instrument;
 use uuid::Uuid;
 
-use crate::{db::events::Event, opentelemetry_proto::opentelemetry_proto_common_v1};
+use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
 
 use crate::{
     cache::Cache,
-    db::{DB, spans::Span},
+    db::{DB, spans::Span, trace::Trace},
     language_model::costs::estimate_cost_by_provider_name,
 };
 
@@ -120,13 +121,11 @@ fn is_top_span(span: &Span, attributes: &SpanAttributes) -> bool {
     first_in_ids && first_in_path
 }
 
-pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage, events: &[Event]) -> () {
-    events.iter().for_each(|event| {
-        // Check if it's an exception event
-        if event.name == "exception" {
-            span.status = Some("error".to_string());
-        }
-    });
+pub fn prepare_span_for_recording(span: &mut Span, span_usage: &SpanUsage) {
+    // Check if any event is an exception to set span error status
+    if span.events.iter().any(|event| event.name == "exception") {
+        span.status = Some("error".to_string());
+    }
 
     if span.is_llm_span() {
         span.attributes.set_usage(&span_usage);
@@ -213,4 +212,13 @@ pub fn convert_any_value_to_json_value(
             .map(|s| serde_json::from_str::<Value>(&s).unwrap_or(serde_json::Value::String(s)))
             .unwrap_or_default(),
     }
+}
+
+/// Groups traces by their project_id.
+pub fn group_traces_by_project(traces: &[Trace]) -> HashMap<Uuid, Vec<&Trace>> {
+    let mut grouped: HashMap<Uuid, Vec<&Trace>> = HashMap::new();
+    for trace in traces {
+        grouped.entry(trace.project_id()).or_default().push(trace);
+    }
+    grouped
 }

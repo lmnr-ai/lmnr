@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::traces::spans::SpanAttributes;
+use crate::{db::events::Event, traces::spans::SpanAttributes};
 
 #[derive(Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -73,7 +73,8 @@ pub struct Span {
     pub span_type: SpanType,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
-    pub events: Option<Value>,
+    #[serde(default)]
+    pub events: Vec<Event>,
     pub status: Option<String>,
     pub tags: Option<Value>,
     pub input_url: Option<String>,
@@ -167,7 +168,7 @@ mod tests {
             span_type: SpanType::LLM,
             input: Some(json!("test input")),
             output: Some(json!("test output")),
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
@@ -389,7 +390,7 @@ mod tests {
             span_type: SpanType::LLM,
             input: Some(json!("test input")),
             output: Some(json!("test output")),
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
@@ -644,7 +645,7 @@ mod tests {
             span_type: SpanType::LLM,
             input: Some(json!("test input")),
             output: Some(json!("test output")),
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,

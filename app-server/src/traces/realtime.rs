@@ -55,22 +55,19 @@ struct RealtimeSpan {
 /// Send realtime span update events to SSE connections for specific traces
 /// lmnr.rollout.session_id
 pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
-    // All spans in a batch have the same project_id
-    let project_id = spans.first().map(|s| s.project_id).unwrap_or_default();
-
-    // Group spans by trace_id
-    let mut spans_by_trace: std::collections::HashMap<Uuid, Vec<RealtimeSpan>> =
+    // Group spans by (project_id, trace_id)
+    let mut spans_by_trace: std::collections::HashMap<(Uuid, Uuid), Vec<RealtimeSpan>> =
         std::collections::HashMap::new();
 
-    let mut spans_by_rollout_session: std::collections::HashMap<String, Vec<RealtimeSpan>> =
+    let mut spans_by_rollout_session: std::collections::HashMap<(Uuid, String), Vec<RealtimeSpan>> =
         std::collections::HashMap::new();
 
     for span in spans {
         let span_data = RealtimeSpan::from_span(span);
 
         spans_by_trace
-            .entry(span.trace_id)
-            .or_insert_with(Vec::new)
+            .entry((span.project_id, span.trace_id))
+            .or_default()
             .push(span_data.clone());
 
         if let Some(rollout_session_id) = span
@@ -80,14 +77,14 @@ pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
             .and_then(|v| v.as_str())
         {
             spans_by_rollout_session
-                .entry(rollout_session_id.to_string())
-                .or_insert_with(Vec::new)
+                .entry((span.project_id, rollout_session_id.to_string()))
+                .or_default()
                 .push(span_data);
         }
     }
 
     // Send batched span updates for each trace
-    for (trace_id, spans_data) in spans_by_trace {
+    for ((project_id, trace_id), spans_data) in spans_by_trace {
         let span_message = SseMessage {
             event_type: "span_update".to_string(),
             data: serde_json::json!({
@@ -95,12 +92,11 @@ pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
             }),
         };
 
-        // Send to specific trace subscription key
         let trace_key = format!("trace_{}", trace_id);
         send_to_key(pubsub, &project_id, &trace_key, span_message).await;
     }
 
-    for (rollout_session_id, spans_data) in spans_by_rollout_session {
+    for ((project_id, rollout_session_id), spans_data) in spans_by_rollout_session {
         let span_message = SseMessage {
             event_type: "span_update".to_string(),
             data: serde_json::json!({
@@ -119,33 +115,34 @@ pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
         return;
     }
 
-    // All traces in a batch have the same project_id
-    let project_id = traces.first().map(|t| t.project_id()).unwrap_or_default();
+    // Group traces by project_id
+    let mut traces_by_project: std::collections::HashMap<Uuid, Vec<RealtimeTrace>> =
+        std::collections::HashMap::new();
 
-    // Convert all traces to realtime format
-    let traces_data: Vec<RealtimeTrace> = traces
-        .iter()
-        .filter(|trace| {
-            // Very rudimentary filter to exclude evaluation traces
-            if let Some(top_span_name) = trace.top_span_name() {
-                if top_span_name == "evaluation" {
-                    return false;
-                }
+    for trace in traces {
+        // Very rudimentary filter to exclude evaluation traces
+        if let Some(top_span_name) = trace.top_span_name() {
+            if top_span_name == "evaluation" {
+                continue;
             }
-            true
-        })
-        .map(RealtimeTrace::from_trace)
-        .collect();
+        }
 
-    let trace_message = SseMessage {
-        event_type: "trace_update".to_string(),
-        data: serde_json::json!({
-            "traces": traces_data
-        }),
-    };
+        traces_by_project
+            .entry(trace.project_id())
+            .or_default()
+            .push(RealtimeTrace::from_trace(trace));
+    }
 
-    // Send batched traces to "traces" subscription key for traces table
-    send_to_key(pubsub, &project_id, "traces", trace_message).await;
+    for (project_id, traces_data) in traces_by_project {
+        let trace_message = SseMessage {
+            event_type: "trace_update".to_string(),
+            data: serde_json::json!({
+                "traces": traces_data
+            }),
+        };
+
+        send_to_key(pubsub, &project_id, "traces", trace_message).await;
+    }
 }
 
 impl RealtimeTrace {

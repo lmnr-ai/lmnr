@@ -1010,8 +1010,18 @@ fn main() -> anyhow::Result<()> {
             .name("consumer".to_string())
             .spawn(move || {
                 runtime_handle_for_consumer.block_on(async {
-                    // Spawn spans workers using new worker pool
+                    // Spawn spans workers using batch worker pool
                     {
+                        let size: usize = env::var("SPANS_BATCH_SIZE")
+                            .unwrap_or("256".to_string())
+                            .parse()
+                            .unwrap_or(256);
+                        let flush_interval_ms: u64 = env::var("SPANS_BATCH_FLUSH_INTERVAL_MS")
+                            .unwrap_or("1000".to_string())
+                            .parse()
+                            .unwrap_or(1000);
+                        let flush_interval = Duration::from_millis(flush_interval_ms);
+
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let queue: Arc<MessageQueue> = mq_for_consumer.clone();
@@ -1019,8 +1029,8 @@ fn main() -> anyhow::Result<()> {
                         let storage = storage_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
 
-                        worker_pool_clone.spawn(
-                            WorkerType::Spans,
+                        batch_worker_pool_clone.spawn(
+                            BatchWorkerType::Spans,
                             num_spans_workers as usize,
                             move || SpanHandler {
                                 db: db.clone(),
@@ -1029,6 +1039,10 @@ fn main() -> anyhow::Result<()> {
                                 clickhouse: clickhouse.clone(),
                                 storage: storage.clone(),
                                 pubsub: pubsub.clone(),
+                                config: BatchingConfig {
+                                    size,
+                                    flush_interval,
+                                },
                             },
                             QueueConfig {
                                 queue_name: OBSERVATIONS_QUEUE,

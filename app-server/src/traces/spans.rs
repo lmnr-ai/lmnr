@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     db::{
+        events::Event,
         spans::{Span, SpanType},
         trace::TraceType,
         utils::span_id_to_uuid,
@@ -517,6 +518,12 @@ impl Span {
             Some(span_id_to_uuid(&otel_span.parent_span_id))
         };
 
+        let events = otel_span
+            .events
+            .into_iter()
+            .map(|event| Event::from_otel(event, span_id, project_id, trace_id))
+            .collect();
+
         let attributes = otel_span
             .attributes
             .into_iter()
@@ -534,6 +541,7 @@ impl Span {
             attributes: SpanAttributes::new(attributes),
             start_time: Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64),
             end_time: Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64),
+            events,
             ..Default::default()
         };
 
@@ -1436,7 +1444,7 @@ mod tests {
             span_type: SpanType::LLM,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
@@ -1761,7 +1769,7 @@ mod tests {
             span_type: SpanType::LLM,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
@@ -2106,7 +2114,7 @@ mod tests {
             span_type: SpanType::Default,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
@@ -2252,7 +2260,7 @@ mod tests {
             span_type: SpanType::LLM,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
@@ -2724,7 +2732,7 @@ mod tests {
             span_type: SpanType::Default,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
@@ -2877,7 +2885,7 @@ mod tests {
             span_type: SpanType::LLM,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
@@ -3137,7 +3145,7 @@ mod tests {
             span_type: SpanType::LLM,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
