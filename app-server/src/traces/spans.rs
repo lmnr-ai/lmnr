@@ -919,6 +919,11 @@ impl Span {
                 .raw_attributes
                 .iter()
                 .map(|(k, v)| k.len() + estimate_json_size(v))
+                .sum::<usize>()
+            + self
+                .events
+                .iter()
+                .map(|event| event.estimate_size_bytes())
                 .sum::<usize>();
     }
 
