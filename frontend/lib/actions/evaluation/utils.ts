@@ -55,10 +55,10 @@ const evaluationDatapointsColumnFilterConfig: ColumnFilterConfig = {
 const evaluationDatapointsSelectColumns = [
   "id",
   "evaluation_id as evaluationId",
-  "data",
-  "target",
+  "substring(data, 1, 200) as data",
+  "substring(target, 1, 200) as target",
   "metadata",
-  "executor_output as executorOutput",
+  "substring(executor_output, 1, 200) as executorOutput",
   "index",
   "trace_id as traceId",
   "group_id as groupId",
