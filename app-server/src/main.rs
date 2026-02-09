@@ -1436,8 +1436,6 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 // auth on path projects/{project_id} is handled by middleware on Next.js
                                 web::scope("/api/v1/projects/{project_id}")
-                                    .service(routes::evaluations::get_evaluation_score_stats)
-                                    .service(routes::evaluations::get_evaluation_score_distribution)
                                     .service(routes::spans::create_span)
                                     .service(routes::sql::execute_sql_query)
                                     .service(routes::sql::validate_sql_query)
