@@ -98,6 +98,9 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
       const url = `/api/shared/evals/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch datapoints.");
+      }
       const data: EvaluationResultsInfo = await response.json();
 
       return { items: data.results, count: 0 };
