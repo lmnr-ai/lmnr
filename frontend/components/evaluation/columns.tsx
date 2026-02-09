@@ -355,9 +355,7 @@ export const getComplementaryColumns = (
           (row: EvaluationDatapointPreviewWithCompared) => row.executorOutput,
           (output) => (output ? JSON.stringify(output) : "-")
         ),
-    cell: disableLongTooltips
-      ? (row) => <span className="truncate">{String(row.getValue() ?? "")}</span>
-      : undefined,
+    cell: disableLongTooltips ? (row) => <span className="truncate">{String(row.getValue() ?? "")}</span> : undefined,
     header: "Output",
   },
   {
