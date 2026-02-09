@@ -136,6 +136,42 @@ export const buildEvaluationDatapointsQueryWithParams = (
     }
   });
 
+  let sortScoreName: string | undefined;
+  let needsTracesJoin = false;
+  let tracesSortColumn: string | undefined;
+
+  const defaultOrder = [
+    { column: "index", direction: "ASC" as const },
+    { column: "created_at", direction: "ASC" as const },
+  ];
+
+  let orderBy: { column: string; direction: "ASC" | "DESC" }[] = defaultOrder;
+
+  if (sortBy) {
+    let sortColumn: string | undefined;
+    if (sortBy.startsWith("score:") || sortBy.startsWith("comparedScore:")) {
+      // Both score: and comparedScore: sort by the same underlying score column
+      sortScoreName = sortBy.split(":")[1];
+      if (sortScoreName) {
+        sortColumn = `JSONExtractFloat(scores, {sortScoreName:String})`;
+      }
+    } else if (sortBy === "duration") {
+      tracesSortColumn = `(toUnixTimestamp64Milli(t.end_time) - toUnixTimestamp64Milli(t.start_time))`;
+      needsTracesJoin = true;
+    } else if (sortBy === "cost") {
+      tracesSortColumn = `if(t.total_cost > 0, greatest(t.input_cost + t.output_cost, t.total_cost), t.input_cost + t.output_cost)`;
+      needsTracesJoin = true;
+    } else if (sortBy === "index") {
+      sortColumn = "index";
+    } else if (sortBy === "created_at") {
+      sortColumn = "created_at";
+    }
+
+    if (sortColumn) {
+      orderBy = [{ column: sortColumn, direction: sortDirection ?? ("ASC" as const) }];
+    }
+  }
+
   const queryOptions: SelectQueryOptions = {
     select: {
       columns: evaluationDatapointsSelectColumns,
@@ -144,36 +180,27 @@ export const buildEvaluationDatapointsQueryWithParams = (
     filters: nonScoreFilters,
     columnFilterConfig: evaluationDatapointsColumnFilterConfig,
     customConditions,
-    orderBy: (() => {
-      const defaultOrder = [
-        { column: "index", direction: "ASC" as const },
-        { column: "created_at", direction: "ASC" as const },
-      ];
-      if (!sortBy) return defaultOrder;
-
-      let sortColumn: string | undefined;
-      if (sortBy.startsWith("score:") || sortBy.startsWith("comparedScore:")) {
-        // Both score: and comparedScore: sort by the same underlying score column
-        const scoreName = sortBy.split(":")[1];
-        if (scoreName) {
-          sortColumn = `JSONExtractFloat(scores, '${scoreName}')`;
-        }
-      } else if (sortBy === "index") {
-        sortColumn = "index";
-      } else if (sortBy === "created_at") {
-        sortColumn = "created_at";
-      }
-
-      if (!sortColumn) return defaultOrder;
-      return [{ column: sortColumn, direction: sortDirection ?? ("ASC" as const) }];
-    })(),
-    pagination: {
-      limit,
-      offset,
-    },
+    // When joining traces for sort, ORDER BY and pagination go on the outer query
+    orderBy: needsTracesJoin ? undefined : orderBy,
+    pagination: needsTracesJoin ? undefined : { limit, offset },
   };
 
-  return buildSelectQuery(queryOptions);
+  const result = buildSelectQuery(queryOptions);
+
+  if (sortScoreName) {
+    result.parameters.sortScoreName = sortScoreName;
+  }
+
+  if (needsTracesJoin && tracesSortColumn) {
+    // Wrap as subquery and JOIN traces to sort by trace-derived columns.
+    // This avoids correlated subqueries which require an experimental ClickHouse setting.
+    const direction = sortDirection ?? "ASC";
+    result.query = `SELECT sub.* FROM (${result.query}) AS sub LEFT JOIN traces AS t ON t.id = sub.traceId ORDER BY ${tracesSortColumn} ${direction} LIMIT {limit:UInt32} OFFSET {offset:UInt32}`;
+    result.parameters.limit = limit;
+    result.parameters.offset = offset;
+  }
+
+  return result;
 };
 
 // Build query for evaluation statistics (only fetches scores)

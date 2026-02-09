@@ -190,8 +190,15 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
 
     filter.forEach((f) => urlParams.append("filter", f));
 
+    if (sortBy) {
+      urlParams.set("sortBy", sortBy);
+    }
+    if (sortDirection) {
+      urlParams.set("sortDirection", sortDirection);
+    }
+
     return `/api/projects/${params?.projectId}/evaluations/${targetId}?${urlParams.toString()}`;
-  }, [targetId, allDatapoints.length, search, searchIn, filter, params?.projectId]);
+  }, [targetId, allDatapoints.length, search, searchIn, filter, params?.projectId, sortBy, sortDirection]);
 
   const { data: targetDatapointsData } = useSWR<EvaluationResultsInfo>(targetDatapointsUrl, swrFetcher);
 
@@ -348,7 +355,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
             )}
           </div>
           <EvaluationDatapointsTable
-            isLoading={isStatsLoading || isLoadingDatapoints}
+            isLoading={isStatsLoading}
             datapointId={datapointId}
             data={tableData}
             scores={scores}

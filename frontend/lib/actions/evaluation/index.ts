@@ -201,27 +201,6 @@ export const getEvaluationDatapoints = async (
     };
   });
 
-  // Step 5b: Sort by trace-derived columns (duration, cost) that can't be sorted in ClickHouse
-  if (sortBy === "duration" || sortBy === "cost") {
-    const dir = sortDirection === "DESC" ? -1 : 1;
-    results.sort((a, b) => {
-      let aVal: number;
-      let bVal: number;
-      if (sortBy === "duration") {
-        aVal = a.startTime && a.endTime ? new Date(a.endTime).getTime() - new Date(a.startTime).getTime() : 0;
-        bVal = b.startTime && b.endTime ? new Date(b.endTime).getTime() - new Date(b.startTime).getTime() : 0;
-      } else {
-        aVal = (a.totalCost ?? 0) > 0
-          ? Math.max((a.inputCost ?? 0) + (a.outputCost ?? 0), a.totalCost ?? 0)
-          : (a.inputCost ?? 0) + (a.outputCost ?? 0);
-        bVal = (b.totalCost ?? 0) > 0
-          ? Math.max((b.inputCost ?? 0) + (b.outputCost ?? 0), b.totalCost ?? 0)
-          : (b.inputCost ?? 0) + (b.outputCost ?? 0);
-      }
-      return (aVal - bVal) * dir;
-    });
-  }
-
   // Step 6: Calculate statistics and distributions
   const allScoreNames = [...new Set(results.flatMap((result) => (result.scores ? Object.keys(result.scores) : [])))];
 
