@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { flexRender, type Header, type RowData } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ChevronDown, EyeOff } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, EyeOff } from "lucide-react";
 import React, { type CSSProperties } from "react";
 import { useStore } from "zustand";
 
@@ -82,7 +82,10 @@ export function InfiniteTableHead<TData extends RowData>({
           {flexRender(header.column.columnDef.header, header.getContext())}
         </div>
         <div
-          className="opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+          className={cn(
+            "transition-opacity duration-150",
+            header.column.getIsSorted() ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          )}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
@@ -90,7 +93,13 @@ export function InfiniteTableHead<TData extends RowData>({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="w-fit cursor-pointer">
-                  <ChevronDown className="size-3" />
+                  {header.column.getIsSorted() === "asc" ? (
+                    <ArrowUp className="size-3" />
+                  ) : header.column.getIsSorted() === "desc" ? (
+                    <ArrowDown className="size-3" />
+                  ) : (
+                    <ChevronDown className="size-3" />
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -101,22 +110,40 @@ export function InfiniteTableHead<TData extends RowData>({
                   <>
                     <DropdownMenuItem
                       className="flex w-full items-center"
+                      isActive={header.column.getIsSorted() === "asc"}
                       onClick={(e) => {
                         e.stopPropagation();
-                        header.column.toggleSorting(false);
+                        if (header.column.getIsSorted() === "asc") {
+                          header.column.clearSorting();
+                        } else {
+                          header.column.toggleSorting(false);
+                        }
                       }}
                     >
-                      <ArrowUp className="size-3.5" />
+                      {header.column.getIsSorted() === "asc" ? (
+                        <Check className="size-3.5 text-primary-foreground" />
+                      ) : (
+                        <ArrowUp className="size-3.5" />
+                      )}
                       Sort ascending
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className="flex w-full items-center"
+                      isActive={header.column.getIsSorted() === "desc"}
                       onClick={(e) => {
                         e.stopPropagation();
-                        header.column.toggleSorting(true);
+                        if (header.column.getIsSorted() === "desc") {
+                          header.column.clearSorting();
+                        } else {
+                          header.column.toggleSorting(true);
+                        }
                       }}
                     >
-                      <ArrowDown className="size-3.5" />
+                      {header.column.getIsSorted() === "desc" ? (
+                        <Check className="size-3.5 text-primary-foreground" />
+                      ) : (
+                        <ArrowDown className="size-3.5" />
+                      )}
                       Sort descending
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
