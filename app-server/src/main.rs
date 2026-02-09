@@ -933,14 +933,10 @@ fn main() -> anyhow::Result<()> {
                 runtime_handle_for_consumer.block_on(async {
                     // Spawn spans workers using batch worker pool
                     {
-                        let size: usize = env::var("SPANS_BATCH_SIZE")
-                            .unwrap_or("256".to_string())
-                            .parse()
-                            .unwrap_or(256);
-                        let flush_interval_ms: u64 = env::var("SPANS_BATCH_FLUSH_INTERVAL_MS")
-                            .unwrap_or("1000".to_string())
-                            .parse()
-                            .unwrap_or(1000);
+                        let size: usize = get_unsigned_env_with_default("SPANS_BATCH_SIZE", 256);
+                        let flush_interval_ms: u64 =
+                            get_unsigned_env_with_default("SPANS_BATCH_FLUSH_INTERVAL_MS", 500)
+                                as u64;
                         let flush_interval = Duration::from_millis(flush_interval_ms);
 
                         let db = db_for_consumer.clone();

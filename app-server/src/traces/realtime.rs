@@ -1,5 +1,7 @@
 //! Realtime updates for traces and spans via SSE
 
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
@@ -56,11 +58,9 @@ struct RealtimeSpan {
 /// lmnr.rollout.session_id
 pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
     // Group spans by (project_id, trace_id)
-    let mut spans_by_trace: std::collections::HashMap<(Uuid, Uuid), Vec<RealtimeSpan>> =
-        std::collections::HashMap::new();
+    let mut spans_by_trace: HashMap<(Uuid, Uuid), Vec<RealtimeSpan>> = HashMap::new();
 
-    let mut spans_by_rollout_session: std::collections::HashMap<(Uuid, String), Vec<RealtimeSpan>> =
-        std::collections::HashMap::new();
+    let mut spans_by_rollout_session: HashMap<(Uuid, String), Vec<RealtimeSpan>> = HashMap::new();
 
     for span in spans {
         let span_data = RealtimeSpan::from_span(span);
@@ -116,8 +116,7 @@ pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
     }
 
     // Group traces by project_id
-    let mut traces_by_project: std::collections::HashMap<Uuid, Vec<RealtimeTrace>> =
-        std::collections::HashMap::new();
+    let mut traces_by_project: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
 
     for trace in traces {
         // Very rudimentary filter to exclude evaluation traces
