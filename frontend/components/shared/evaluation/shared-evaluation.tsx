@@ -236,6 +236,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
           hasMore={hasMorePages}
           isFetching={isFetchingPage}
           fetchNextPage={fetchNextPage}
+          isDisableLongTooltips
         />
       </div>
       {traceId && (

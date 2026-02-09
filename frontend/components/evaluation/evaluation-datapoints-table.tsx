@@ -6,8 +6,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   comparedComplementaryColumns,
   complementaryColumns,
-  defaultColumns,
   getComparedScoreColumns,
+  getDefaultColumns,
   getScoreColumns,
 } from "@/components/evaluation/columns";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
@@ -37,6 +37,7 @@ interface EvaluationDatapointsTableProps {
   hasMore: boolean;
   isFetching: boolean;
   fetchNextPage: () => void;
+  isDisableLongTooltips?: boolean;
 }
 
 const filters: ColumnFilter[] = [
@@ -61,6 +62,7 @@ const EvaluationDatapointsTableContent = ({
   hasMore,
   isFetching,
   fetchNextPage,
+  isDisableLongTooltips,
 }: EvaluationDatapointsTableProps) => {
   const searchParams = useSearchParams();
 
@@ -114,15 +116,16 @@ const EvaluationDatapointsTableContent = ({
   }, [data, scores, targetId]);
 
   const columns = useMemo(() => {
+    const defaultCols = getDefaultColumns(isDisableLongTooltips);
     if (targetId) {
       return [
-        ...defaultColumns,
+        ...defaultCols,
         ...comparedComplementaryColumns,
         ...getComparedScoreColumns(scores, heatmapEnabled, scoreRanges),
       ];
     }
-    return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores, heatmapEnabled, scoreRanges)];
-  }, [targetId, scores, heatmapEnabled, scoreRanges]);
+    return [...defaultCols, ...complementaryColumns, ...getScoreColumns(scores, heatmapEnabled, scoreRanges)];
+  }, [targetId, scores, heatmapEnabled, scoreRanges, isDisableLongTooltips]);
 
   return (
     <div className="flex overflow-hidden flex-1">
