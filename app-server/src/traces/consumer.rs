@@ -9,7 +9,6 @@ use futures_util::future::join_all;
 use itertools::Itertools;
 use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
-use serde_json::Value;
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -32,10 +31,8 @@ use crate::{
     db::{
         DB,
         spans::Span,
-        tags::{SpanTag, TagSource},
         trace::{Trace, upsert_trace_statistics_batch},
     },
-    evaluators::{get_evaluators_by_path, push_to_evaluators_queue},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     pubsub::PubSub,
