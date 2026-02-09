@@ -1,5 +1,4 @@
 import { eq } from "drizzle-orm";
-import { groupBy } from "lodash";
 import type z from "zod/v4";
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
@@ -21,7 +20,12 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     throw new Error("No shared trace found.");
   }
 
-  const spans = await executeQuery<Omit<TraceViewSpan, "attributes"> & { attributes: string }>({
+  const spans = await executeQuery<
+    Omit<TraceViewSpan, "attributes" | "events"> & {
+      attributes: string;
+      events: { timestamp: number; name: string; attributes: string }[];
+    }
+  >({
     query: `
       SELECT 
         span_id as spanId,
@@ -40,7 +44,8 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
         status,
         attributes,
         path,
-        model
+        model,
+        events
       FROM spans
       WHERE trace_id = {traceId: UUID}
       ORDER BY start_time ASC
@@ -55,27 +60,6 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     return [];
   }
 
-  const events = await executeQuery<{
-    id: string;
-    timestamp: string;
-    spanId: string;
-    name: string;
-    projectId: string;
-    attributes: string;
-  }>({
-    query: `
-      SELECT id, formatDateTime(timestamp , '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, span_id spanId, name, attributes
-      FROM events
-      WHERE trace_id = {traceId: UUID}
-    `,
-    parameters: {
-      traceId,
-    },
-    projectId: sharedTrace.projectId,
-  });
-
-  const spanEventsMap = groupBy(events, (event) => event.spanId);
-
   const transformedSpans = spans.map((span) => {
     const parsedAttributes = tryParseJson(span.attributes) || {};
     const cacheReadInputTokens = parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0;
@@ -86,9 +70,10 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
       attributes: parsedAttributes,
       cacheReadInputTokens,
       parentSpanId: span.parentSpanId === "00000000-0000-0000-0000-000000000000" ? undefined : span.parentSpanId,
-      events: (spanEventsMap[span.spanId] || []).map((event) => ({
-        ...event,
-        attributes: tryParseJson(event.attributes),
+      events: (span.events || []).map((event) => ({
+        timestamp: event.timestamp,
+        name: event.name,
+        attributes: tryParseJson(event.attributes) || {},
       })),
     };
   });

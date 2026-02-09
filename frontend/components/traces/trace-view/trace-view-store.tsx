@@ -12,7 +12,7 @@ import {
   transformSpansToTree,
   type TreeSpan,
 } from "@/components/traces/trace-view/trace-view-store-utils.ts";
-import { type Event } from "@/lib/events/types";
+import { type SpanEvent } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { type SpanType } from "@/lib/traces/types";
 
@@ -31,7 +31,7 @@ export type TraceViewSpan = {
   attributes: Record<string, any>;
   spanType: SpanType;
   path: string;
-  events: Event[];
+  events: SpanEvent[];
   status?: string;
   model?: string;
   pending?: boolean;

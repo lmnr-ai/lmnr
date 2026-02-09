@@ -1,7 +1,7 @@
-import { get, omit } from "lodash";
+import { get } from "lodash";
 import { CircleAlert } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
@@ -13,7 +13,6 @@ import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-s
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type Event } from "@/lib/events/types";
 import { type Span } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
@@ -38,13 +37,11 @@ const swrFetcher = async (url: string) => {
 // Inner component that has access to SpanSearchContext
 const SpanViewTabs = ({
   span,
-  cleanedEvents,
   searchRef,
   searchOpen,
   setSearchOpen,
 }: {
   span: Span;
-  cleanedEvents: any;
   searchRef: React.RefObject<HTMLInputElement | null>;
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
@@ -92,7 +89,7 @@ const SpanViewTabs = ({
             className="rounded-none border-0"
             codeEditorClassName="rounded-none border-none bg-background contain-strict"
             readOnly
-            value={JSON.stringify(cleanedEvents)}
+            value={JSON.stringify(span.events)}
             defaultMode="yaml"
             searchTerm={searchContext?.searchTerm || ""}
           />
@@ -110,12 +107,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     isLoading,
     error,
   } = useSWR<Span>(`/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`, swrFetcher);
-  const { data: events } = useSWR<Event[]>(
-    `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}/events`,
-    swrFetcher
-  );
 
-  const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const openSearch = useCallback(() => {
@@ -173,10 +165,9 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     return (
       <SpanViewStateProvider>
         <SpanSearchProvider>
-          <SpanControls events={cleanedEvents} span={span}>
+          <SpanControls span={span}>
             <SpanViewTabs
               span={span}
-              cleanedEvents={cleanedEvents}
               searchRef={searchRef}
               searchOpen={searchOpen}
               setSearchOpen={setSearchOpen}
