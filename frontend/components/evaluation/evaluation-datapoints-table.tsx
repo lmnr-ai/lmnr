@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import {
   comparedComplementaryColumns,
-  complementaryColumns,
+  getComplementaryColumns,
   getComparedScoreColumns,
   getDefaultColumns,
   getScoreColumns,
@@ -124,7 +124,7 @@ const EvaluationDatapointsTableContent = ({
         ...getComparedScoreColumns(scores, heatmapEnabled, scoreRanges),
       ];
     }
-    return [...defaultCols, ...complementaryColumns, ...getScoreColumns(scores, heatmapEnabled, scoreRanges)];
+    return [...defaultCols, ...getComplementaryColumns(isDisableLongTooltips), ...getScoreColumns(scores, heatmapEnabled, scoreRanges)];
   }, [targetId, scores, heatmapEnabled, scoreRanges, isDisableLongTooltips]);
 
   return (

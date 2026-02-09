@@ -344,13 +344,20 @@ export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewW
   },
 ];
 
-export const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
+export const getComplementaryColumns = (
+  disableLongTooltips?: boolean
+): ColumnDef<EvaluationDatapointPreviewWithCompared>[] => [
   {
     id: "output",
-    accessorFn: flow(
-      (row: EvaluationDatapointPreviewWithCompared) => row.executorOutput,
-      (output) => (output ? JSON.stringify(output) : "-")
-    ),
+    accessorFn: disableLongTooltips
+      ? (row: EvaluationDatapointPreviewWithCompared) => row.executorOutput ?? "-"
+      : flow(
+          (row: EvaluationDatapointPreviewWithCompared) => row.executorOutput,
+          (output) => (output ? JSON.stringify(output) : "-")
+        ),
+    cell: disableLongTooltips
+      ? (row) => <span className="truncate">{String(row.getValue() ?? "")}</span>
+      : undefined,
     header: "Output",
   },
   {
