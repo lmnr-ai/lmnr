@@ -223,8 +223,22 @@ async fn process_span_messages(
     // Process trace aggregations and update trace statistics
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
 
-    // Upsert trace statistics in PostgreSQL
-    match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+    // Build CHSpans with embedded events (sync, before parallel execution)
+    let ch_spans: Vec<CHSpan> = spans
+        .iter()
+        .zip(span_usage_vec.iter())
+        .filter(|(span, _)| span.should_record_to_clickhouse())
+        .map(|(span, usage)| CHSpan::from_db_span(span, usage, span.project_id))
+        .collect();
+
+    // Run trace upsert (PostgreSQL) and span insertion (ClickHouse) in parallel
+    let (trace_result, spans_result) = tokio::join!(
+        upsert_trace_statistics_batch(&db.pool, &trace_aggregations),
+        ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans),
+    );
+
+    // Handle trace upsert result
+    match trace_result {
         Ok(updated_traces) => {
             let ch_traces: Vec<CHTrace> = updated_traces
                 .iter()
@@ -262,15 +276,8 @@ async fn process_span_messages(
         }
     }
 
-    // Build CHSpans with embedded events and insert to ClickHouse
-    let ch_spans: Vec<CHSpan> = spans
-        .iter()
-        .zip(span_usage_vec.iter())
-        .filter(|(span, _)| span.should_record_to_clickhouse())
-        .map(|(span, usage)| CHSpan::from_db_span(span, usage, span.project_id))
-        .collect();
-
-    if let Err(e) = ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
+    // Handle span insertion result
+    if let Err(e) = spans_result {
         log::error!(
             "Failed to record {} spans to clickhouse: {:?}",
             ch_spans.len(),
