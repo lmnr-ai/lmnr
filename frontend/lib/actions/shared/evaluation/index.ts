@@ -135,6 +135,7 @@ export async function getSharedEvaluationDatapoints({
     filters: datapointFilters,
     limit,
     offset,
+    isTruncateLongColumns: true,
   });
 
   const rawResults = await executeQuery<EvaluationDatapointRow>({
