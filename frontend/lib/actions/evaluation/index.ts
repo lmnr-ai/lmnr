@@ -211,8 +211,12 @@ export const getEvaluationDatapoints = async (
         aVal = a.startTime && a.endTime ? new Date(a.endTime).getTime() - new Date(a.startTime).getTime() : 0;
         bVal = b.startTime && b.endTime ? new Date(b.endTime).getTime() - new Date(b.startTime).getTime() : 0;
       } else {
-        aVal = (a.inputCost ?? 0) + (a.outputCost ?? 0) + (a.totalCost ?? 0);
-        bVal = (b.inputCost ?? 0) + (b.outputCost ?? 0) + (b.totalCost ?? 0);
+        aVal = (a.totalCost ?? 0) > 0
+          ? Math.max((a.inputCost ?? 0) + (a.outputCost ?? 0), a.totalCost ?? 0)
+          : (a.inputCost ?? 0) + (a.outputCost ?? 0);
+        bVal = (b.totalCost ?? 0) > 0
+          ? Math.max((b.inputCost ?? 0) + (b.outputCost ?? 0), b.totalCost ?? 0)
+          : (b.inputCost ?? 0) + (b.outputCost ?? 0);
       }
       return (aVal - bVal) * dir;
     });
