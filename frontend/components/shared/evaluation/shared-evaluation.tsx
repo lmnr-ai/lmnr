@@ -162,16 +162,13 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const ref = useRef<Resizable>(null);
 
   useEffect(() => {
-    setDefaultTraceViewWidth(getDefaultTraceViewWidth());
-  }, []);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (defaultTraceViewWidth > window.innerWidth - 180) {
-        const newWidth = window.innerWidth - 240;
-        setDefaultTraceViewWidth(newWidth);
-        ref?.current?.updateSize({ width: newWidth });
-      }
+    const width = getDefaultTraceViewWidth();
+    if (width > window.innerWidth - 180) {
+      const newWidth = window.innerWidth - 240;
+      setDefaultTraceViewWidth(newWidth);
+      ref?.current?.updateSize({ width: newWidth });
+    } else {
+      setDefaultTraceViewWidth(width);
     }
   }, []);
 
@@ -179,10 +176,14 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     <div className="flex flex-col h-full w-full overflow-hidden relative">
       <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
         <Link className="mr-2" href="/projects">
-          <Image alt="Laminar logo" src={fullLogo} width={120} height={20} />
+          <Image alt="Laminar logo" src={fullLogo} width={100} height={20} />
         </Link>
-        <span className="text-secondary-foreground">/</span>
-        <span className="text-sm font-medium">{statsData?.evaluation?.name || evaluationName}</span>
+        <span className="flex gap-2 items-center pt-0.5">
+          <span className="text-secondary-foreground">/</span>
+          <span className="text-sm font-medium text-secondary-foreground">
+            {statsData?.evaluation?.name || evaluationName}
+          </span>
+        </span>
       </div>
       <div className="flex-1 flex flex-col gap-2 overflow-hidden p-4">
         <div className="flex flex-row space-x-4 p-4 border rounded bg-secondary">
