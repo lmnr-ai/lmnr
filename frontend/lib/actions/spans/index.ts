@@ -323,8 +323,6 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
 
   const transformedSpans = spans.map((span) => transformSpanWithEvents(span as any, parentRewiring));
 
-  console.log("transformedSpans", transformedSpans);
-
   return aggregateSpanMetrics(transformedSpans);
 }
 
