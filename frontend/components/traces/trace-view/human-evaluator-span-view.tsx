@@ -1,4 +1,4 @@
-import { get, omit } from "lodash";
+import { get } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { useMemo } from "react";
 import useSWR from "swr";
@@ -10,7 +10,6 @@ import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluatio
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type Event } from "@/lib/events/types";
 import { type Span } from "@/lib/traces/types";
 import { swrFetcher } from "@/lib/utils";
 
@@ -28,12 +27,6 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
     `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`,
     swrFetcher
   );
-  const { data: events } = useSWR<Event[]>(
-    `/api/projects/${projectId}/traces/${traceId}/spans/${spanId}/events`,
-    swrFetcher
-  );
-  const cleanedEvents = useMemo(() => events?.map((event) => omit(event, ["spanId", "projectId"])), [events]);
-
   const humanEvaluatorOptions = useMemo(() => {
     try {
       const options = get(span?.attributes, "lmnr.span.human_evaluator_options");
@@ -111,7 +104,7 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
               <ContentRenderer
                 className="border-none"
                 readOnly
-                value={JSON.stringify(cleanedEvents)}
+                value={JSON.stringify(span.events)}
                 defaultMode="yaml"
               />
             </TabsContent>

@@ -1,4 +1,4 @@
-import { compact, groupBy } from "lodash";
+import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
@@ -110,12 +110,12 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-        projectId,
-        traceId: undefined,
-        searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
-      })
+      projectId,
+      traceId: undefined,
+      searchQuery: search,
+      timeRange: getTimeRange(pastHours, startTime, endTime),
+      searchType: searchIn as SpanSearchType[],
+    })
     : [];
   const spanIds = spanHits.map((span) => span.span_id);
 
@@ -212,23 +212,6 @@ const getTraceTreeStructure = async ({
   });
 };
 
-const fetchTraceEvents = async (projectId: string, traceId: string) =>
-  executeQuery<{
-    id: string;
-    timestamp: string;
-    spanId: string;
-    name: string;
-    attributes: string;
-  }>({
-    query: `
-        SELECT id, timestamp, span_id spanId, name, attributes
-        FROM events
-        WHERE trace_id = {traceId: UUID}
-    `,
-    parameters: { traceId },
-    projectId,
-  });
-
 const fetchTraceSpans = async ({
   projectId,
   traceId,
@@ -267,6 +250,7 @@ const fetchTraceSpans = async ({
       "model",
       "status",
       "path",
+      "events",
     ],
     projectId,
     spanIds: spanIds.length > 0 ? spanIds : undefined,
@@ -277,7 +261,12 @@ const fetchTraceSpans = async ({
     orderBy,
   });
 
-  return executeQuery<Omit<TraceViewSpan, "attributes"> & { attributes: string }>({
+  return executeQuery<
+    Omit<TraceViewSpan, "attributes" | "events"> & {
+      attributes: string;
+      events: { timestamp: number; name: string; attributes: string }[];
+    }
+  >({
     query,
     parameters,
     projectId,
@@ -291,12 +280,12 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const timeRange = getOptionalTimeRange(pastHours, startDate, endDate);
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-        projectId,
-        traceId,
-        searchQuery: search,
-        ...(timeRange && { timeRange }),
-        searchType: searchIn as SpanSearchType[],
-      })
+      projectId,
+      traceId,
+      searchQuery: search,
+      ...(timeRange && { timeRange }),
+      searchType: searchIn as SpanSearchType[],
+    })
     : [];
   const spanIds = spanHits.map((span) => span.span_id);
 
@@ -306,7 +295,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
 
   const shouldApplyRewiring = search || filters.length > 0;
 
-  const [spans, events, treeStructure] = await Promise.all([
+  const [spans, treeStructure] = await Promise.all([
     fetchTraceSpans({
       projectId,
       traceId,
@@ -317,7 +306,6 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
       pastHours,
       orderBy: [{ column: "start_time", direction: "ASC" }],
     }),
-    fetchTraceEvents(projectId, traceId),
     shouldApplyRewiring ? getTraceTreeStructure({ projectId, traceId }) : Promise.resolve([]),
   ]);
 
@@ -328,13 +316,14 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const parentRewiring =
     shouldApplyRewiring && treeStructure.length > 0
       ? createParentRewiring(
-          spans.map((span) => span.spanId),
-          treeStructure
-        )
+        spans.map((span) => span.spanId),
+        treeStructure
+      )
       : new Map<string, string | undefined>();
 
-  const spanEventsMap = groupBy(events, (event) => event.spanId);
-  const transformedSpans = spans.map((span) => transformSpanWithEvents(span, spanEventsMap, parentRewiring, projectId));
+  const transformedSpans = spans.map((span) => transformSpanWithEvents(span as any, parentRewiring));
+
+  console.log("transformedSpans", transformedSpans);
 
   return aggregateSpanMetrics(transformedSpans);
 }
