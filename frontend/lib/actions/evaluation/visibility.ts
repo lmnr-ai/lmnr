@@ -1,7 +1,8 @@
 import { and, eq, inArray } from "drizzle-orm";
 
+import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { evaluationResults, evaluations, sharedEvals, sharedTraces } from "@/lib/db/migrations/schema";
+import { evaluations, sharedEvals, sharedTraces } from "@/lib/db/migrations/schema";
 
 export async function updateEvaluationVisibility({
   evaluationId,
@@ -21,13 +22,13 @@ export async function updateEvaluationVisibility({
     throw new Error("Evaluation not found");
   }
 
-  // Get all trace IDs for this evaluation
-  const evalResults = await db
-    .select({ traceId: evaluationResults.traceId })
-    .from(evaluationResults)
-    .where(eq(evaluationResults.evaluationId, evaluationId));
+  // Get all trace IDs for this evaluation from ClickHouse
+  const result = await clickhouseClient.query({
+    query: `SELECT DISTINCT trace_id FROM evaluation_datapoints WHERE evaluation_id = {evaluationId: UUID}`,
+    query_params: { evaluationId },
+  });
 
-  const traceIds = [...new Set(evalResults.map((r) => r.traceId))];
+  const traceIds = ((await result.json()).data as { trace_id: string }[]).map((r) => r.trace_id);
 
   if (visibility === "public") {
     await db.transaction(async (tx) => {
