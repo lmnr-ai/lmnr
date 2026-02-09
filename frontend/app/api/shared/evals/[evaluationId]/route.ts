@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ evaluatio
   }
 
   try {
-    const { pageNumber, pageSize, filter, search, searchIn } = parseResult.data;
+    const { pageNumber, pageSize, filter, search, searchIn, sortBy, sortDirection } = parseResult.data;
 
     const result = await getSharedEvaluationDatapoints({
       evaluationId,
@@ -29,6 +29,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ evaluatio
       filters: filter ?? [],
       search,
       searchIn,
+      sortBy,
+      sortDirection,
     });
 
     if (!result) {

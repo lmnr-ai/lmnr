@@ -38,6 +38,8 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const search = searchParams.get("search");
   const filter = searchParams.getAll("filter");
   const searchIn = searchParams.getAll("searchIn");
+  const sortBy = searchParams.get("sortBy");
+  const sortDirection = searchParams.get("sortDirection");
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
   const [traceId, setTraceId] = useState<string | undefined>(undefined);
@@ -96,6 +98,13 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
       filter.forEach((f) => urlParams.append("filter", f));
 
+      if (sortBy) {
+        urlParams.set("sortBy", sortBy);
+      }
+      if (sortDirection) {
+        urlParams.set("sortDirection", sortDirection);
+      }
+
       const url = `/api/shared/evals/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
@@ -105,7 +114,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, evaluationId, pageSize]
+    [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection]
   );
 
   const {
@@ -117,7 +126,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   } = useInfiniteScroll<EvaluationDatapointPreviewWithCompared>({
     fetchFn: fetchDatapoints,
     enabled: true,
-    deps: [search, filter, searchIn, evaluationId],
+    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection],
   });
 
   const handleRowClick = useCallback((row: Row<EvaluationDatapointPreviewWithCompared>) => {
@@ -227,7 +236,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
           )}
         </div>
         <EvaluationDatapointsTable
-          isLoading={isLoadingDatapoints}
+          isLoading={isStatsLoading}
           datapointId={datapointId}
           data={allDatapoints}
           scores={scores}

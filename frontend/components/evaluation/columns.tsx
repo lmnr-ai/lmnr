@@ -20,23 +20,13 @@ import { type ScoreRange } from "@/lib/colors";
 import { type EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
 import { getDurationString } from "@/lib/utils";
 
+import ComparisonIndicator from "./comparison-indicator";
+
 const shouldShowComparisonIndicator = (originalValue?: number, comparisonValue?: number): boolean =>
   isValidScore(originalValue) &&
   isValidScore(comparisonValue) &&
   originalValue !== comparisonValue &&
   comparisonValue !== 0;
-
-const ComparisonIndicator = ({
-  originalValue,
-  comparisonValue,
-}: {
-  originalValue: number;
-  comparisonValue: number;
-}) => (
-  <span className="text-secondary-foreground">
-    {originalValue >= comparisonValue ? "▲" : "▼"}({calculatePercentageChange(originalValue, comparisonValue)}%)
-  </span>
-);
 
 const ComparisonCell = ({
   original,
@@ -52,7 +42,7 @@ const ComparisonCell = ({
   const showComparison = shouldShowComparisonIndicator(originalValue, comparisonValue);
 
   return (
-    <div className="flex items-center space-x-2">
+    <div className="flex items-center gap-2">
       <div className="text-green-300">{comparison}</div>
       <ArrowRight className="font-bold min-w-3" size={12} />
       <div className="text-blue-300">{original}</div>

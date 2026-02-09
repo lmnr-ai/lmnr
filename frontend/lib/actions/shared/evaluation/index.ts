@@ -54,6 +54,8 @@ export async function getSharedEvaluationDatapoints({
   filters,
   search,
   searchIn,
+  sortBy,
+  sortDirection,
 }: {
   evaluationId: string;
   pageNumber: number;
@@ -61,6 +63,8 @@ export async function getSharedEvaluationDatapoints({
   filters: Filter[];
   search?: string | null;
   searchIn?: string[];
+  sortBy?: string;
+  sortDirection?: "ASC" | "DESC";
 }): Promise<EvaluationResultsInfo | undefined> {
   const shared = await getSharedEvaluation({ evaluationId });
   if (!shared) {
@@ -135,6 +139,8 @@ export async function getSharedEvaluationDatapoints({
     filters: datapointFilters,
     limit,
     offset,
+    sortBy,
+    sortDirection,
   });
 
   const rawResults = await executeQuery<EvaluationDatapointRow>({

@@ -196,15 +196,16 @@ const EvaluationDatapointsTableContent = ({
 };
 
 const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
+  const { scores, isLoading } = props;
   const defaultColumnOrder = useMemo(
-    () => [...baseColumnOrder, ...props.scores.flatMap((s) => [`score:${s}`, `comparedScore:${s}`])],
-    [props.scores]
+    () => [...baseColumnOrder, ...scores.flatMap((s) => [`score:${s}`, `comparedScore:${s}`])],
+    [scores]
   );
 
   // Delay mounting the store until scores are known, otherwise the store
   // is created with an incomplete defaultColumnOrder and score columns
   // won't be reorderable.
-  if (props.isLoading) {
+  if (isLoading) {
     return null;
   }
 

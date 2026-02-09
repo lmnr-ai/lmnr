@@ -3,8 +3,8 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import React, { memo } from "react";
 
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
-import RenameEvaluationDialog from "@/components/evaluation/rename-evaluation-dialog";
 import ShareEvalButton from "@/components/evaluation/evaluation-header/share-eval-button";
+import RenameEvaluationDialog from "@/components/evaluation/rename-evaluation-dialog";
 import { Button } from "@/components/ui/button";
 import DownloadButton from "@/components/ui/download-button";
 import {
@@ -17,15 +17,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
 import { formatTimestamp } from "@/lib/utils";
 
-const EvaluationHeader = ({
-  evaluations,
-  name,
-  urlKey,
-}: {
+interface EvaluationHeader {
   evaluations: EvaluationType[];
   name?: string;
   urlKey: string;
-}) => {
+}
+
+const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId, evaluationId } = useParams();
@@ -44,7 +42,7 @@ const EvaluationHeader = ({
 
   return (
     <div className="flex-none flex gap-2 px-4 items-center justify-between w-full">
-      <div className="flex items-center">
+      <div className="flex items-center gap-2">
         <div>
           <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
             <SelectTrigger disabled={evaluations.length <= 1} className="flex font-medium truncate">
