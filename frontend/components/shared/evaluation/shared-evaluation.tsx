@@ -176,7 +176,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   }, []);
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden relative">
+    <div className="flex flex-col h-screen w-full overflow-hidden relative">
       <div className="flex flex-none items-center border-b px-6 py-3.5 gap-2">
         <Link className="mr-2" href="/projects">
           <Image alt="Laminar logo" src={fullLogo} width={100} height={20} />
