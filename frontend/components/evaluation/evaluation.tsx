@@ -10,9 +10,6 @@ import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
-import TraceViewNavigationProvider, {
-  getTraceWithDatapointConfig,
-} from "@/components/traces/trace-view/navigation-context";
 import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -298,13 +295,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   }, []);
 
   return (
-    <TraceViewNavigationProvider<{ datapointId: string; traceId: string }>
-      config={getTraceWithDatapointConfig()}
-      onNavigate={(item) => {
-        setTraceId(item?.traceId);
-        setDatapointId(item?.datapointId);
-      }}
-    >
+    <>
       <Header
         path={[
           { name: "evaluations", href: `/project/${params.projectId}/evaluations` },
@@ -416,7 +407,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
           </Resizable>
         </div>
       )}
-    </TraceViewNavigationProvider>
+    </>
   );
 }
 

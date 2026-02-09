@@ -23,7 +23,6 @@ use clustering::queue::{
     EVENT_CLUSTERING_BATCH_ROUTING_KEY, EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE,
     EVENT_CLUSTERING_ROUTING_KEY,
 };
-use evaluators::{EVALUATORS_EXCHANGE, EVALUATORS_QUEUE, EVALUATORS_ROUTING_KEY, EvaluatorHandler};
 use features::{Feature, is_feature_enabled};
 use lapin::{
     Connection, ConnectionProperties, ExchangeKind,
@@ -102,7 +101,6 @@ mod clustering;
 mod datasets;
 mod db;
 mod evaluations;
-mod evaluators;
 mod features;
 mod instrumentation;
 mod language_model;
@@ -363,32 +361,6 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     BROWSER_SESSIONS_QUEUE,
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
-            // ==== 3.3 Evaluators message queue ====
-            channel
-                .exchange_declare(
-                    EVALUATORS_EXCHANGE,
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    EVALUATORS_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -673,8 +645,6 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE);
         // ==== 3.2 Browser events message queue ====
         queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
-        // ==== 3.3 Evaluators message queue ====
-        queue.register_queue(EVALUATORS_EXCHANGE, EVALUATORS_QUEUE);
         // ==== 3.4 Payloads message queue ====
         queue.register_queue(PAYLOADS_EXCHANGE, PAYLOADS_QUEUE);
         // ==== 3.5 Signals event message queue ====
@@ -856,42 +826,6 @@ fn main() -> anyhow::Result<()> {
         let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
         let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
 
-        // == Evaluator client ==
-        let evaluator_client = if is_feature_enabled(Feature::Evaluators) {
-            let online_evaluators_secret_key = env::var("ONLINE_EVALUATORS_SECRET_KEY")
-                .expect("ONLINE_EVALUATORS_SECRET_KEY must be set");
-            let mut headers = reqwest::header::HeaderMap::new();
-
-            headers.insert(
-                reqwest::header::AUTHORIZATION,
-                reqwest::header::HeaderValue::from_str(&format!(
-                    "Bearer {}",
-                    online_evaluators_secret_key
-                ))
-                .expect("Invalid ONLINE_EVALUATORS_SECRET_KEY format"),
-            );
-            headers.insert(
-                reqwest::header::CONTENT_TYPE,
-                reqwest::header::HeaderValue::from_static("application/json"),
-            );
-
-            Arc::new(
-                reqwest::Client::builder()
-                    .user_agent("lmnr-evaluator/1.0")
-                    .default_headers(headers)
-                    .build()
-                    .expect("Failed to create evaluator HTTP client"),
-            )
-        } else {
-            log::info!("Using mock evaluator client");
-            Arc::new(
-                reqwest::Client::builder()
-                    .user_agent("lmnr-evaluator-mock/1.0")
-                    .build()
-                    .expect("Failed to create mock evaluator HTTP client"),
-            )
-        };
-
         // == Gemini client ==
         let gemini_client = if is_feature_enabled(Feature::Signals) {
             log::info!("Initializing Gemini client for trace analysis");
@@ -910,13 +844,6 @@ fn main() -> anyhow::Result<()> {
             None
         };
 
-        let python_online_evaluator_url: String = if is_feature_enabled(Feature::Evaluators) {
-            env::var("PYTHON_ONLINE_EVALUATOR_URL")
-                .expect("PYTHON_ONLINE_EVALUATOR_URL must be set")
-        } else {
-            String::new()
-        };
-
         let num_spans_workers = env::var("NUM_SPANS_WORKERS")
             .unwrap_or(String::from("4"))
             .parse::<u8>()
@@ -931,11 +858,6 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(String::from("4"))
             .parse::<u8>()
             .unwrap_or(4);
-
-        let num_evaluators_workers = env::var("NUM_EVALUATORS_WORKERS")
-            .unwrap_or(String::from("2"))
-            .parse::<u8>()
-            .unwrap_or(2);
 
         let num_payload_workers = env::var("NUM_PAYLOAD_WORKERS")
             .unwrap_or(String::from("2"))
@@ -979,11 +901,10 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(4);
 
         log::info!(
-            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Evaluators workers: {}, Payload workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}",
+            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Payload workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}",
             num_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
-            num_evaluators_workers,
             num_payload_workers,
             num_signals_workers,
             num_notification_workers,
@@ -1010,8 +931,14 @@ fn main() -> anyhow::Result<()> {
             .name("consumer".to_string())
             .spawn(move || {
                 runtime_handle_for_consumer.block_on(async {
-                    // Spawn spans workers using new worker pool
+                    // Spawn spans workers using batch worker pool
                     {
+                        let size: usize = get_unsigned_env_with_default("SPANS_BATCH_SIZE", 256);
+                        let flush_interval_ms: u64 =
+                            get_unsigned_env_with_default("SPANS_BATCH_FLUSH_INTERVAL_MS", 500)
+                                as u64;
+                        let flush_interval = Duration::from_millis(flush_interval_ms);
+
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let queue: Arc<MessageQueue> = mq_for_consumer.clone();
@@ -1019,8 +946,8 @@ fn main() -> anyhow::Result<()> {
                         let storage = storage_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
 
-                        worker_pool_clone.spawn(
-                            WorkerType::Spans,
+                        batch_worker_pool_clone.spawn(
+                            BatchWorkerType::Spans,
                             num_spans_workers as usize,
                             move || SpanHandler {
                                 db: db.clone(),
@@ -1029,6 +956,10 @@ fn main() -> anyhow::Result<()> {
                                 clickhouse: clickhouse.clone(),
                                 storage: storage.clone(),
                                 pubsub: pubsub.clone(),
+                                config: BatchingConfig {
+                                    size,
+                                    flush_interval,
+                                },
                             },
                             QueueConfig {
                                 queue_name: OBSERVATIONS_QUEUE,
@@ -1090,29 +1021,6 @@ fn main() -> anyhow::Result<()> {
                                 queue_name: BROWSER_SESSIONS_QUEUE,
                                 exchange_name: BROWSER_SESSIONS_EXCHANGE,
                                 routing_key: BROWSER_SESSIONS_ROUTING_KEY,
-                            },
-                        );
-                    }
-
-                    // Spawn evaluators workers
-                    {
-                        let db = db_for_consumer.clone();
-                        let clickhouse = clickhouse_for_consumer.clone();
-                        let client = evaluator_client.clone();
-                        let python_url = python_online_evaluator_url.clone();
-                        worker_pool_clone.spawn(
-                            WorkerType::Evaluators,
-                            num_evaluators_workers as usize,
-                            move || EvaluatorHandler {
-                                db: db.clone(),
-                                clickhouse: clickhouse.clone(),
-                                client: client.clone(),
-                                python_online_evaluator_url: python_url.clone(),
-                            },
-                            QueueConfig {
-                                queue_name: EVALUATORS_QUEUE,
-                                exchange_name: EVALUATORS_EXCHANGE,
-                                routing_key: EVALUATORS_ROUTING_KEY,
                             },
                         );
                     }
@@ -1425,7 +1333,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
-                                    .service(api::v1::evaluators::create_evaluator_score)
                                     .service(api::v1::sql::execute_sql_query)
                                     .service(api::v1::payloads::get_payload)
                                     .service(api::v1::rollouts::stream)
@@ -1436,8 +1343,6 @@ fn main() -> anyhow::Result<()> {
                             .service(
                                 // auth on path projects/{project_id} is handled by middleware on Next.js
                                 web::scope("/api/v1/projects/{project_id}")
-                                    .service(routes::evaluations::get_evaluation_score_stats)
-                                    .service(routes::evaluations::get_evaluation_score_distribution)
                                     .service(routes::spans::create_span)
                                     .service(routes::sql::execute_sql_query)
                                     .service(routes::sql::validate_sql_query)

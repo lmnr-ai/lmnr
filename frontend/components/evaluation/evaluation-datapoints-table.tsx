@@ -11,7 +11,6 @@ import {
   getScoreColumns,
 } from "@/components/evaluation/columns";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
-import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -143,12 +142,6 @@ const EvaluationDatapointsTableContent = ({
     }
     return [...defaultColumns, ...complementaryColumns, ...getScoreColumns(scores, heatmapEnabled, scoreRanges)];
   }, [targetId, scores, heatmapEnabled, scoreRanges]);
-
-  const { setNavigationRefList } = useTraceViewNavigation<{ traceId: string; datapointId: string }>();
-
-  useEffect(() => {
-    setNavigationRefList((data ?? []).map((item) => ({ traceId: item.traceId, datapointId: item.id })));
-  }, [setNavigationRefList, data]);
 
   return (
     <div className="flex overflow-hidden flex-1">
