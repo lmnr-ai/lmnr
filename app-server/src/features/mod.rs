@@ -13,8 +13,6 @@ pub enum Feature {
     Storage,
     /// Build all containers. If false, only lite part is used: app-server, postgres, frontend
     FullBuild,
-    /// Evaluators
-    Evaluators,
     RabbitMQ,
     SqlQueryEngine,
     ClickhouseReadOnly,
@@ -36,7 +34,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 .expect("ENVIRONMENT must be set")
                 .as_str(),
         ),
-        Feature::Evaluators => env::var("ONLINE_EVALUATORS_SECRET_KEY").is_ok(),
         Feature::RabbitMQ => env::var("RABBITMQ_URL").is_ok(),
         Feature::SqlQueryEngine => env::var("QUERY_ENGINE_URL").is_ok(),
         Feature::ClickhouseReadOnly => {

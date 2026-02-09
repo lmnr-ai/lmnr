@@ -1,14 +1,11 @@
 pub mod browser_events;
 pub mod datapoints;
 pub mod evaluation_datapoints;
-pub mod evaluator_scores;
-pub mod events;
 pub mod limits;
 pub mod logs;
 pub mod signal_events;
 pub mod signal_run_messages;
 pub mod signal_runs;
 pub mod spans;
-pub mod tags;
 pub mod traces;
 pub mod utils;

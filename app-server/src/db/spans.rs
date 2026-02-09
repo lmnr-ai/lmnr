@@ -2,11 +2,20 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::traces::spans::SpanAttributes;
+use crate::{db::events::Event, traces::spans::SpanAttributes};
+
+// Temporary measure for backwards compatibility with old spans
+fn deserialize_null_as_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Default + Deserialize<'de>,
+{
+    Ok(Option::deserialize(deserializer)?.unwrap_or_default())
+}
 
 #[derive(Deserialize, Serialize, PartialEq, Clone, Debug, Default)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -73,7 +82,8 @@ pub struct Span {
     pub span_type: SpanType,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
-    pub events: Option<Value>,
+    #[serde(default, deserialize_with = "deserialize_null_as_default")]
+    pub events: Vec<Event>,
     pub status: Option<String>,
     pub tags: Option<Value>,
     pub input_url: Option<String>,
@@ -167,7 +177,7 @@ mod tests {
             span_type: SpanType::LLM,
             input: Some(json!("test input")),
             output: Some(json!("test output")),
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
@@ -389,7 +399,7 @@ mod tests {
             span_type: SpanType::LLM,
             input: Some(json!("test input")),
             output: Some(json!("test output")),
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
@@ -644,7 +654,7 @@ mod tests {
             span_type: SpanType::LLM,
             input: Some(json!("test input")),
             output: Some(json!("test output")),
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
