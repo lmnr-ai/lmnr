@@ -18,8 +18,8 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  type EvalRow,
   type Evaluation,
-  type EvaluationDatapointPreviewWithCompared,
   type EvaluationResultsInfo,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
@@ -121,24 +121,24 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     data: allDatapoints,
     hasMore: hasMorePages,
     isFetching: isFetchingPage,
-    isLoading: isLoadingDatapoints,
+    isLoading: _isLoadingDatapoints,
     fetchNextPage,
-  } = useInfiniteScroll<EvaluationDatapointPreviewWithCompared>({
+  } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
     enabled: true,
     deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection],
   });
 
-  const handleRowClick = useCallback((row: Row<EvaluationDatapointPreviewWithCompared>) => {
-    setTraceId(row.original.traceId);
-    setDatapointId(row.original.id);
+  const handleRowClick = useCallback((row: Row<EvalRow>) => {
+    setTraceId(row.original["traceId"] as string);
+    setDatapointId(row.original["id"] as string);
   }, []);
 
   const getRowHref = useCallback(
-    (row: Row<EvaluationDatapointPreviewWithCompared>) => {
+    (row: Row<EvalRow>) => {
       const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original.traceId);
-      params.set("datapointId", row.original.id);
+      params.set("traceId", row.original["traceId"] as string);
+      params.set("datapointId", row.original["id"] as string);
       return `${pathName}?${params.toString()}`;
     },
     [pathName, searchParams]

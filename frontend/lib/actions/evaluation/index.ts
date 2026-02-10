@@ -1,19 +1,19 @@
 import { and, eq } from "drizzle-orm";
-import { compact, groupBy } from "lodash";
+import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { type Filter } from "@/lib/actions/common/filters";
+import { STATIC_COLUMNS } from "@/components/evaluation/columns/index";
 import { FiltersSchema, PaginationFiltersSchema } from "@/lib/actions/common/types";
 import {
-  buildEvaluationDatapointsQueryWithParams,
-  buildEvaluationStatisticsQueryWithParams,
-  buildTracesForEvaluationQueryWithParams,
+  buildEvalQuery,
+  buildEvalStatsQuery,
+  type EvalQueryColumn,
+} from "@/lib/actions/evaluation/query-builder";
+import {
   calculateScoreDistribution,
   calculateScoreStatistics,
-  separateFilters,
 } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { getTracesByIds } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { type TimeRange } from "@/lib/clickhouse/utils";
@@ -21,8 +21,6 @@ import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 import {
   type Evaluation,
-  type EvaluationDatapointPreview,
-  type EvaluationDatapointRow,
   type EvaluationResultsInfo,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
@@ -37,6 +35,7 @@ export const GetEvaluationDatapointsSchema = PaginationFiltersSchema.extend({
   projectId: z.string(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
+  targetId: z.string().optional(),
 });
 
 export const GetEvaluationStatisticsSchema = FiltersSchema.extend({
@@ -52,12 +51,30 @@ export const RenameEvaluationSchema = z.object({
   name: z.string().min(1, "Name is required"),
 });
 
+/** Build the column list for the eval query from the static column definitions */
+function getQueryColumns(): EvalQueryColumn[] {
+  return STATIC_COLUMNS
+    .filter((c) => c.meta?.sql)
+    .map((c) => ({ id: c.id!, sql: c.meta!.sql! }));
+}
+
 export const getEvaluationDatapoints = async (
   input: z.infer<typeof GetEvaluationDatapointsSchema>
 ): Promise<EvaluationResultsInfo> => {
-  const { projectId, evaluationId, pageNumber, pageSize, search, searchIn, filter: inputFilters, sortBy, sortDirection } = input;
+  const {
+    projectId,
+    evaluationId,
+    pageNumber,
+    pageSize,
+    search,
+    searchIn,
+    filter: inputFilters,
+    sortBy,
+    sortDirection,
+    targetId,
+  } = input;
 
-  // First, get the evaluation
+  // Auth check: verify evaluation exists and belongs to project
   const evaluation = await db.query.evaluations.findFirst({
     where: and(eq(evaluations.id, evaluationId), eq(evaluations.projectId, projectId)),
   });
@@ -71,153 +88,42 @@ export const getEvaluationDatapoints = async (
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
 
-  // Separate filters into trace and datapoint filters
-  const { traceFilters, datapointFilters } = separateFilters(allFilters);
-
   // Step 1: Get trace IDs from search if provided
-  const spanHits: { trace_id: string; span_id: string }[] = search
-    ? await searchSpans({
-        projectId,
-        traceId: undefined,
-        searchQuery: search,
-        timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
-        searchType: searchIn as SpanSearchType[],
-      })
-    : [];
-  const searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
+  const searchTraceIds = await getSearchTraceIds(projectId, search, searchIn, evaluation.createdAt);
 
   if (search) {
     if (searchTraceIds.length === 0) {
-      return {
-        evaluation: evaluation as Evaluation,
-        results: [],
-        allStatistics: {},
-        allDistributions: {},
-      };
+      return { evaluation: evaluation as Evaluation, results: [] };
     } else {
-      // no pagination for search results, use default limit
       limit = DEFAULT_SEARCH_MAX_HITS;
       offset = 0;
     }
   }
 
-  // Step 2: Apply trace-specific filters if any exist
-  let filteredTraceIds: string[] = [];
-  if (traceFilters.length > 0) {
-    const { query: tracesQuery, parameters: tracesParams } = buildTracesForEvaluationQueryWithParams({
-      evaluationId,
-      traceIds: searchTraceIds, // Pass search results if any
-      filters: traceFilters,
-    });
+  // Step 2: Build and execute single JOIN query
+  const columns = getQueryColumns();
 
-    const traceResults = await executeQuery<{ id: string }>({
-      query: tracesQuery,
-      parameters: tracesParams,
-      projectId,
-    });
-
-    filteredTraceIds = traceResults.map((r) => r.id);
-
-    // If trace filters resulted in no matches, return empty
-    if (filteredTraceIds.length === 0) {
-      return {
-        evaluation: evaluation as Evaluation,
-        results: [],
-        allStatistics: {},
-        allDistributions: {},
-      };
-    }
-  } else {
-    // No trace filters, use search results if any
-    filteredTraceIds = searchTraceIds;
-  }
-
-  // Step 3: Query evaluation datapoints with datapoint filters and filtered trace IDs
-  const { query: mainQuery, parameters: mainParams } = buildEvaluationDatapointsQueryWithParams({
+  const { query, parameters } = buildEvalQuery({
     evaluationId,
-    traceIds: filteredTraceIds,
-    filters: datapointFilters,
+    columns,
+    traceIds: searchTraceIds,
+    filters: allFilters,
     limit,
     offset,
     sortBy,
     sortDirection,
-    isTruncateLongColumns: false,
+    targetId: targetId ?? undefined,
   });
 
-  const rawResults = await executeQuery<EvaluationDatapointRow>({
-    query: mainQuery,
-    parameters: mainParams,
+  const results = await executeQuery<Record<string, unknown>>({
+    query,
+    parameters,
     projectId,
-  });
-
-  // Step 4: Fetch full trace data for all trace_ids in the results
-  const uniqueTraceIds = [...new Set(rawResults.map((item) => item.traceId).filter(Boolean))];
-  const traces = uniqueTraceIds.length > 0 ? await getTracesByIds({ projectId, traceIds: uniqueTraceIds }) : [];
-
-  // Step 5: Transform and join data
-  const tracesMap = groupBy(traces, "id");
-
-  const results: EvaluationDatapointPreview[] = rawResults.map((row) => {
-    let scores: Record<string, any> | undefined;
-    try {
-      const parsed = row.scores ? JSON.parse(row.scores) : {};
-      scores = Object.keys(parsed).length > 0 ? parsed : undefined;
-    } catch (e) {
-      console.error("Error parsing scores:", e);
-      scores = undefined;
-    }
-
-    let metadata: Record<string, any> | undefined;
-    try {
-      const parsed = row.metadata ? JSON.parse(row.metadata) : {};
-      metadata = Object.keys(parsed).length > 0 ? parsed : undefined;
-    } catch (e) {
-      console.error("Error parsing metadata:", e);
-      metadata = undefined;
-    }
-
-    // Get trace data if available
-    const trace = tracesMap[row.traceId]?.[0];
-
-    return {
-      id: row.id,
-      createdAt: row.createdAt,
-      evaluationId: row.evaluationId,
-      data: row.data,
-      target: row.target,
-      executorOutput: row.executorOutput,
-      scores,
-      index: row.index,
-      traceId: row.traceId,
-      startTime: trace?.startTime ?? "",
-      endTime: trace?.endTime ?? "",
-      inputCost: trace?.inputCost ?? 0,
-      outputCost: trace?.outputCost ?? 0,
-      totalCost: trace?.totalCost ?? 0,
-      status: trace?.status ?? null,
-      metadata,
-      datasetId: row.datasetId,
-      datasetDatapointId: row.datasetDatapointId,
-      datasetDatapointCreatedAt: row.datasetDatapointCreatedAt,
-    };
-  });
-
-  // Step 6: Calculate statistics and distributions
-  const allScoreNames = [...new Set(results.flatMap((result) => (result.scores ? Object.keys(result.scores) : [])))];
-
-  const allStatistics: Record<string, EvaluationScoreStatistics> = {};
-  const allDistributions: Record<string, EvaluationScoreDistributionBucket[]> = {};
-
-  allScoreNames.forEach((scoreName) => {
-    allStatistics[scoreName] = calculateScoreStatistics(results as any, scoreName);
-    allDistributions[scoreName] = calculateScoreDistribution(results as any, scoreName);
   });
 
   return {
     evaluation: evaluation as Evaluation,
     results,
-    allStatistics,
-    allDistributions,
   };
 };
 
@@ -231,7 +137,6 @@ export const getEvaluationStatistics = async (
 }> => {
   const { projectId, evaluationId, search, searchIn, filter: inputFilters } = input;
 
-  // First, get the evaluation
   const evaluation = await db.query.evaluations.findFirst({
     where: and(eq(evaluations.id, evaluationId), eq(evaluations.projectId, projectId)),
   });
@@ -240,22 +145,10 @@ export const getEvaluationStatistics = async (
     throw new Error("Evaluation not found");
   }
 
-  const allFilters: Filter[] = compact(inputFilters);
-
-  // Separate filters into trace and datapoint filters
-  const { traceFilters, datapointFilters } = separateFilters(allFilters);
+  const allFilters = compact(inputFilters);
 
   // Step 1: Get trace IDs from search if provided
-  const spanHits: { trace_id: string; span_id: string }[] = search
-    ? await searchSpans({
-        projectId,
-        traceId: undefined,
-        searchQuery: search,
-        timeRange: getTimeRangeForEvaluation(evaluation.createdAt),
-        searchType: searchIn as SpanSearchType[],
-      })
-    : [];
-  const searchTraceIds = [...new Set(spanHits.map((span) => span.trace_id))];
+  const searchTraceIds = await getSearchTraceIds(projectId, search, searchIn, evaluation.createdAt);
 
   if (search && searchTraceIds.length === 0) {
     return {
@@ -266,40 +159,11 @@ export const getEvaluationStatistics = async (
     };
   }
 
-  // Step 2: Apply trace-specific filters if any exist
-  let filteredTraceIds: string[] = [];
-  if (traceFilters.length > 0) {
-    const { query: tracesQuery, parameters: tracesParams } = buildTracesForEvaluationQueryWithParams({
-      evaluationId,
-      traceIds: searchTraceIds,
-      filters: traceFilters,
-    });
-
-    const traceResults = await executeQuery<{ id: string }>({
-      query: tracesQuery,
-      parameters: tracesParams,
-      projectId,
-    });
-
-    filteredTraceIds = traceResults.map((r) => r.id);
-
-    if (filteredTraceIds.length === 0) {
-      return {
-        evaluation: evaluation as Evaluation,
-        allStatistics: {},
-        allDistributions: {},
-        scores: [],
-      };
-    }
-  } else {
-    filteredTraceIds = searchTraceIds;
-  }
-
-  // Step 3: Query only scores from evaluation datapoints
-  const { query: statsQuery, parameters: statsParams } = buildEvaluationStatisticsQueryWithParams({
+  // Step 2: Build and execute stats query (single JOIN, returns only scores)
+  const { query: statsQuery, parameters: statsParams } = buildEvalStatsQuery({
     evaluationId,
-    traceIds: filteredTraceIds,
-    filters: datapointFilters,
+    traceIds: searchTraceIds,
+    filters: allFilters,
   });
 
   const rawResults = await executeQuery<{ scores: string }>({
@@ -308,20 +172,18 @@ export const getEvaluationStatistics = async (
     projectId,
   });
 
-  // Step 4: Parse scores and calculate statistics
+  // Step 3: Parse scores and calculate statistics
   const parsedResults = rawResults.map((row) => {
-    let scores: Record<string, any> | undefined;
+    let scores: Record<string, unknown> | undefined;
     try {
       const parsed = row.scores ? JSON.parse(row.scores) : {};
       scores = Object.keys(parsed).length > 0 ? parsed : undefined;
-    } catch (e) {
-      console.error("Error parsing scores:", e);
+    } catch {
       scores = undefined;
     }
     return { scores };
   });
 
-  // Step 5: Calculate statistics and distributions
   const allScoreNames = [
     ...new Set(parsedResults.flatMap((result) => (result.scores ? Object.keys(result.scores) : []))),
   ];
@@ -358,9 +220,29 @@ export const renameEvaluation = async (input: z.infer<typeof RenameEvaluationSch
   return updated;
 };
 
+// -- Helpers --
+
+async function getSearchTraceIds(
+  projectId: string,
+  search: string | null | undefined,
+  searchIn: string[],
+  evaluationCreatedAt?: string,
+): Promise<string[]> {
+  if (!search) return [];
+
+  const spanHits = await searchSpans({
+    projectId,
+    traceId: undefined,
+    searchQuery: search,
+    timeRange: getTimeRangeForEvaluation(evaluationCreatedAt),
+    searchType: searchIn as SpanSearchType[],
+  });
+
+  return [...new Set(spanHits.map((span) => span.trace_id))];
+}
+
 const getTimeRangeForEvaluation = (evaluationCreatedAt?: string): TimeRange => {
   if (!evaluationCreatedAt) {
-    // Default to last 24 hours if no creation time is provided
     return {
       start: new Date(Date.now() - 24 * 60 * 60 * 1000),
       end: new Date(),
@@ -369,10 +251,7 @@ const getTimeRangeForEvaluation = (evaluationCreatedAt?: string): TimeRange => {
 
   const startTime = new Date(evaluationCreatedAt);
   const endTime = new Date(evaluationCreatedAt);
-  endTime.setHours(endTime.getHours() + 24); // Add 24 hours
+  endTime.setHours(endTime.getHours() + 24);
 
-  return {
-    start: startTime,
-    end: endTime,
-  };
+  return { start: startTime, end: endTime };
 };

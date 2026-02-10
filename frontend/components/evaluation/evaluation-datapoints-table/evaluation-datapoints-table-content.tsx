@@ -1,15 +1,15 @@
-import { type Row } from "@tanstack/react-table";
 import { Settings as SettingsIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  comparedComplementaryColumns,
-  getComparedScoreColumns,
-  getComplementaryColumns,
-  getDefaultColumns,
-  getScoreColumns,
-} from "@/components/evaluation/columns";
+  COMPARED_COST_COLUMN,
+  COMPARED_DURATION_COLUMN,
+  createComparisonScoreColumnDef,
+  createScoreColumnDef,
+  getFilterableColumns,
+  getVisibleStaticColumns,
+} from "@/components/evaluation/columns/index";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,37 +20,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Switch } from "@/components/ui/switch";
-import { type EvaluationDatapointPreview, type EvaluationDatapointPreviewWithCompared } from "@/lib/evaluation/types";
+import { type EvalRow } from "@/lib/evaluation/types";
 
-interface EvaluationDatapointsTableProps {
-  isLoading: boolean;
-  datapointId?: string;
-  data: EvaluationDatapointPreview[] | undefined;
-  scores: string[];
-  handleRowClick: (row: Row<EvaluationDatapointPreviewWithCompared>) => void;
-  getRowHref?: (row: Row<EvaluationDatapointPreviewWithCompared>) => string;
-  hasMore: boolean;
-  isFetching: boolean;
-  fetchNextPage: () => void;
-  isDisableLongTooltips?: boolean;
-}
-
-const filters: ColumnFilter[] = [
-  { key: "index", name: "Index", dataType: "number" },
-  { key: "traceId", name: "Trace ID", dataType: "string" },
-  // TODO: Add back but with a custom/calendar UI
-  // { key: "startTime", name: "Start Time", dataType: "string" },
-  { key: "duration", name: "Duration", dataType: "number" },
-  { key: "cost", name: "Cost", dataType: "number" },
-  { key: "metadata", name: "Metadata", dataType: "json" },
-];
-
-const baseColumnOrder = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
+import { type EvaluationDatapointsTableProps } from ".";
 
 const EvaluationDatapointsTableContent = ({
   data,
@@ -101,11 +76,10 @@ const EvaluationDatapointsTableContent = ({
     }
   }, [heatmapEnabled]);
 
-  const columnFilters = useMemo<ColumnFilter[]>(
-    () => [...filters, ...scores.map((score) => ({ key: `score:${score}`, name: score, dataType: "number" as const }))],
-    [scores]
-  );
+  // Derive filter definitions from column config
+  const columnFilters = useMemo(() => getFilterableColumns(scores), [scores]);
 
+  // Compute score ranges from data
   const scoreRanges = useMemo(() => {
     if (!data) return {};
 
@@ -114,10 +88,13 @@ const EvaluationDatapointsTableContent = ({
     return scores.reduce(
       (ranges, scoreName) => {
         const allValues = data
-          .flatMap((row) => [
-            row.scores?.[scoreName],
-            ...(targetId ? [(row as EvaluationDatapointPreviewWithCompared).comparedScores?.[scoreName]] : []),
-          ])
+          .flatMap((row: EvalRow) => {
+            const values = [row[`score:${scoreName}`]];
+            if (targetId) {
+              values.push(row[`compared:score:${scoreName}`]);
+            }
+            return values;
+          })
           .filter(isValidNumber);
 
         return allValues.length > 0
@@ -134,21 +111,28 @@ const EvaluationDatapointsTableContent = ({
     );
   }, [data, scores, targetId]);
 
+  // Build column defs from the column config
   const columns = useMemo(() => {
-    const defaultCols = getDefaultColumns(isDisableLongTooltips);
+    const staticCols = getVisibleStaticColumns();
+
     if (targetId) {
-      return [
-        ...defaultCols,
-        ...comparedComplementaryColumns,
-        ...getComparedScoreColumns(scores, heatmapEnabled, scoreRanges),
-      ];
+      // In comparison mode, override duration/cost with comparison renderers
+      const baseCols = staticCols.map((c) => {
+        if (c.id === "duration") return COMPARED_DURATION_COLUMN;
+        if (c.id === "cost") return COMPARED_COST_COLUMN;
+        return c;
+      });
+      const scoreCols = scores.map((name) =>
+        createComparisonScoreColumnDef(name, heatmapEnabled, scoreRanges)
+      );
+      return [...baseCols, ...scoreCols];
     }
-    return [
-      ...defaultCols,
-      ...getComplementaryColumns(isDisableLongTooltips),
-      ...getScoreColumns(scores, heatmapEnabled, scoreRanges),
-    ];
-  }, [targetId, scores, heatmapEnabled, scoreRanges, isDisableLongTooltips]);
+
+    const scoreCols = scores.map((name) =>
+      createScoreColumnDef(name, heatmapEnabled, scoreRanges)
+    );
+    return [...staticCols, ...scoreCols];
+  }, [targetId, scores, heatmapEnabled, scoreRanges]);
 
   return (
     <div className="flex overflow-hidden flex-1">
@@ -159,7 +143,7 @@ const EvaluationDatapointsTableContent = ({
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
-        getRowId={(row) => row.id}
+        getRowId={(row) => row["id"] as string}
         focusedRowId={datapointId}
         onRowClick={handleRowClick}
         getRowHref={getRowHref}
@@ -202,25 +186,4 @@ const EvaluationDatapointsTableContent = ({
   );
 };
 
-const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
-  const { scores, isLoading } = props;
-  const defaultColumnOrder = useMemo(
-    () => [...baseColumnOrder, ...scores.flatMap((s) => [`score:${s}`, `comparedScore:${s}`])],
-    [scores]
-  );
-
-  // Delay mounting the store until scores are known, otherwise the store
-  // is created with an incomplete defaultColumnOrder and score columns
-  // won't be reorderable.
-  if (isLoading) {
-    return null;
-  }
-
-  return (
-    <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
-      <EvaluationDatapointsTableContent {...props} />
-    </DataTableStateProvider>
-  );
-};
-
-export default EvaluationDatapointsTable;
+export default EvaluationDatapointsTableContent;
