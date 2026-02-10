@@ -59,6 +59,49 @@ function getContentTypeFromFilename(filename: string): string {
   return "application/octet-stream"; // safe default
 }
 
+/**
+ * Download a payload from the backend (which handles routing to S3 or data plane).
+ * This is the preferred method for fetching payloads as it supports HYBRID mode.
+ */
+export const downloadPayloadFromBackend = async (
+  projectId: string,
+  payloadId: string,
+  payloadType: string | null
+): Promise<{
+  bytes: Uint8Array;
+  headers: Headers;
+}> => {
+  const backendUrl = new URL(
+    `/api/v1/projects/${projectId}/payloads/${payloadId}`,
+    process.env.BACKEND_URL
+  );
+  if (payloadType) {
+    backendUrl.searchParams.set("payloadType", payloadType);
+  }
+
+  const response = await fetch(backendUrl.toString());
+
+  if (!response.ok) {
+    throw new Error(`Failed to download payload: ${response.status} ${response.statusText}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+
+  const headers = new Headers();
+  const contentType = response.headers.get("Content-Type");
+  const contentDisposition = response.headers.get("Content-Disposition");
+
+  if (contentType) headers.set("Content-Type", contentType);
+  if (contentDisposition) headers.set("Content-Disposition", contentDisposition);
+
+  return { bytes, headers };
+};
+
+/**
+ * @deprecated Use downloadPayloadFromBackend instead for HYBRID mode support.
+ * This function goes directly to S3 and won't work for data plane deployments.
+ */
 export const downloadS3ObjectHttp = async (
   projectId: string,
   payloadId: string,
@@ -67,34 +110,8 @@ export const downloadS3ObjectHttp = async (
   bytes: Uint8Array;
   headers: Headers;
 }> => {
-  const { bytes, contentType } = await getS3Object(projectId, payloadId);
-  const headers = new Headers();
-
-  if (payloadType === "image") {
-    headers.set("Content-Type", contentType);
-    headers.set("Content-Disposition", "inline");
-    return {
-      bytes,
-      headers,
-    };
-  } else if (payloadType === "raw") {
-    headers.set("Content-Type", contentType);
-    return {
-      bytes,
-      headers,
-    };
-  } else if (payloadId.endsWith(".pdf")) {
-    headers.set("Content-Type", "application/pdf");
-  } else {
-    headers.set("Content-Type", "application/octet-stream");
-  }
-
-  headers.set("Content-Disposition", `attachment; filename="${payloadId}"`);
-
-  return {
-    bytes,
-    headers,
-  };
+  // Use the backend for routing support
+  return downloadPayloadFromBackend(projectId, payloadId, payloadType);
 };
 export const urlToBase64 = async (url: string): Promise<string> => {
   try {
@@ -111,8 +128,9 @@ export const urlToBase64 = async (url: string): Promise<string> => {
 
     const [, projectId, payloadId] = matches;
 
-    // Get the image data directly from S3
-    const { bytes, contentType } = await getS3Object(projectId, payloadId);
+    // Get the image data from the backend (supports HYBRID mode)
+    const { bytes, headers } = await downloadPayloadFromBackend(projectId, payloadId, "image");
+    const contentType = headers.get("Content-Type") || "application/octet-stream";
 
     // Convert to base64
     const base64 = Buffer.from(bytes).toString("base64");
