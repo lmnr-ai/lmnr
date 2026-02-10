@@ -14,7 +14,7 @@ Years ago I worked at a startup called Liveable. You'd enter a zip code, tell us
 
 I genuinely thought it was one of the most useful things you could build. Everyone making a housing decision is basically doing this research manually. Clicking between Zillow and Google Maps and school rating sites and crime databases, trying to form a mental picture. Liveable was supposed to do all of that in seconds.
 
-The idea was good. The execution wasn't. Brittle pipelines, a scoring system nobody could debug, and when things broke (which was often) we had no way to figure out where or why. Bad score for a neighborhood? Could be stale crime data, wrong search radius, broken API, bad weighting. All guesswork.
+The idea was good. The technology and our execution weren't there yet. Brittle pipelines, a scoring system nobody could debug, and when things broke (which was often) we had no way to figure out where or why. Bad score for a neighborhood? Could be stale crime data, wrong search radius, broken API, bad weighting. All guesswork.
 
 The startup didn't make it. But the idea never really left my head.
 
@@ -24,7 +24,7 @@ Anthropic released the [Claude Agent SDK](https://platform.claude.com/docs/en/ag
 
 The SDK gives you everything that powers Claude Code as a programmable Python library. You define tools, hand them to Claude, and let the agent figure out how to use them. What really sold me was the subagent architecture. When the agent needs crime data, it doesn't just make an API call. It spins up a subagent with [Browser Use](https://www.browseruse.com/) that can navigate real websites, read dynamic content, extract structured data from pages that would break a simple fetch. When it needs amenity data, it calls a dedicated Google Places tool. Census data, Walk Score, housing prices, each one is its own tool. And every tool call shows up as a nested span in the trace, so you can see exactly what got delegated and what came back.
 
-The other piece is [Laminar](https://laminar.sh). I work here so I'm biased. But the integration with the Claude Agent SDK is what made this project actually work. Two lines of code and every tool call, every subagent invocation, every LLM reasoning step gets captured as a trace. More on that in a second.
+The other piece is [Laminar](https://laminar.sh). The integration with the Claude Agent SDK is what made this project actually work. Two lines of code and every tool call, every subagent invocation, every LLM reasoning step gets captured as a trace. More on that in a second.
 
 ```python
 from lmnr import Laminar, observe
