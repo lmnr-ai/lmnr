@@ -629,7 +629,11 @@ fn main() -> anyhow::Result<()> {
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
 
+            let prefetch_count =
+                get_unsigned_env_with_default("RABBITMQ_CONSUMER_PREFETCH_COUNT", 256) as u16;
+
             let rabbit_mq = mq::rabbit::RabbitMQ::new(
+                prefetch_count,
                 publisher_conn.clone(),
                 consumer_connection.clone(),
                 max_channel_pool_size,
@@ -933,7 +937,7 @@ fn main() -> anyhow::Result<()> {
                 runtime_handle_for_consumer.block_on(async {
                     // Spawn spans workers using batch worker pool
                     {
-                        let size: usize = get_unsigned_env_with_default("SPANS_BATCH_SIZE", 256);
+                        let size: usize = get_unsigned_env_with_default("SPANS_BATCH_SIZE", 128);
                         let flush_interval_ms: u64 =
                             get_unsigned_env_with_default("SPANS_BATCH_FLUSH_INTERVAL_MS", 500)
                                 as u64;

@@ -148,6 +148,9 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
 
       const url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch datapoints.");
+      }
       const data: EvaluationResultsInfo = await response.json();
 
       return { items: data.results, count: 0 };

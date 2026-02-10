@@ -18,7 +18,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { type Event } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type Span, SpanType } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
@@ -31,15 +30,14 @@ import { extractToolsFromAttributes, ToolList } from "./tool-list";
 
 interface SpanControlsProps {
   span: Span;
-  events?: Omit<Event, "projectId" | "spanId">[];
 }
 
-export function SpanControls({ children, span, events }: PropsWithChildren<SpanControlsProps>) {
+export function SpanControls({ children, span }: PropsWithChildren<SpanControlsProps>) {
   const { projectId } = useParams();
 
   const errorEventAttributes = useMemo(
-    () => events?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
-    [events]
+    () => span.events?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
+    [span.events]
   );
 
   const { toast } = useToast();

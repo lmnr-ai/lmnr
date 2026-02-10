@@ -70,13 +70,23 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
       input,
       output,
       path,
-      attributes
+      attributes,
+      events
     FROM spans
     WHERE ${whereConditions.join(" AND ")}
     LIMIT 1
   `;
 
-  const [span] = await executeQuery<Omit<Span, "attributes"> & { attributes: string }>({
+  // Events are stored as Array(Tuple(timestamp Int64, name String, attributes String)) on the
+  // spans table. ClickHouse JSON format serializes named tuples as objects and Int64 as unquoted
+  // numbers (output_format_json_quote_64bit_integers = 0), so each event arrives as
+  // { timestamp: number, name: string, attributes: string }.
+  const [span] = await executeQuery<
+    Omit<Span, "attributes" | "events"> & {
+      attributes: string;
+      events: { timestamp: number; name: string; attributes: string }[];
+    }
+  >({
     query: mainQuery,
     parameters,
     projectId,
@@ -91,6 +101,11 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     input: tryParseJson(span.input),
     output: tryParseJson(span.output),
     attributes: tryParseJson(span.attributes) || {},
+    events: (span.events || []).map((event) => ({
+      timestamp: event.timestamp,
+      name: event.name,
+      attributes: tryParseJson(event.attributes) || {},
+    })),
   };
 }
 
