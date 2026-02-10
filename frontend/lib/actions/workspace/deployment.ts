@@ -174,7 +174,7 @@ export const verifyDeployment = async (input: z.infer<typeof VerifyDeploymentSch
 
   // Make HTTP POST request to data plane
   try {
-    const response = await fetch(`${dataPlaneUrl}/api/v1/ch/read`, {
+    const response = await fetch(`${dataPlaneUrl}/v1/query`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -182,7 +182,6 @@ export const verifyDeployment = async (input: z.infer<typeof VerifyDeploymentSch
       },
       body: JSON.stringify({
         query: "SELECT COUNT(1) FROM spans LIMIT 10",
-        project_id: "00000000-0000-0000-0000-000000000000",
         parameters: {},
       }),
     });

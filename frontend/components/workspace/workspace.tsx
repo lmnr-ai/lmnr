@@ -48,8 +48,8 @@ export default function WorkspaceComponent({
         {workspaceFeatureEnabled && menu === "settings" && (
           <WorkspaceSettings workspace={workspace} isOwner={isOwner} />
         )}
-        {workspaceFeatureEnabled && workspace.tierName === "Pro" && menu === "deployment" && ( // TODO: add filter for "hybrid deployment add-on"
-          <WorkspaceDeployment />
+        {workspaceFeatureEnabled && menu === "deployment" && (
+          <WorkspaceDeployment workspace={workspace} />
         )}
       </div>
     </div>

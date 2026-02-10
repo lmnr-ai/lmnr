@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useWorkspaceMenuContext, type WorkspaceMenu } from "@/components/workspace/workspace-menu-provider.tsx";
 import { cn } from "@/lib/utils.ts";
-import { WorkspaceTier } from "@/lib/workspaces/types.ts";
+import { type WorkspaceTier } from "@/lib/workspaces/types.ts";
 
 const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
   {
@@ -34,7 +34,7 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
     icon: Users,
   },
   {
-    name: "Deployment",
+    name: "Data Residency",
     value: "deployment",
     icon: Cloud,
   },
@@ -60,7 +60,6 @@ export const WorkspaceSidebarContent = ({ isOwner, tier, workspaceFeatureEnabled
     }
 
     return menus
-      .filter((m) => tier === WorkspaceTier.PRO || m.value !== "deployment") // TODO: add filter for "hybrid deployment add-on"
       .filter((m) => isOwner || m.value !== "settings");
   }, [isOwner, workspaceFeatureEnabled, tier]);
 

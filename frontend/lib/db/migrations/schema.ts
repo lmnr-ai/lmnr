@@ -783,6 +783,19 @@ export const eventDefinitions = pgTable("event_definitions", {
 	unique("event_definitions_project_id_name_key").on(table.name, table.projectId),
 ]);
 
+export const workspaceAddons = pgTable("workspace_addons", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	workspaceId: uuid("workspace_id").notNull(),
+	addonSlug: text("addon-slug").notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.workspaceId],
+			foreignColumns: [workspaces.id],
+			name: "workspace_addons_workspace_id_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
 export const dashboardCharts = pgTable("dashboard_charts", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),

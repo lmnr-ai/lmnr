@@ -3,8 +3,8 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import React, { memo } from "react";
 
 import DeleteEvaluationDialog from "@/components/evaluation/delete-evaluation-dialog";
-import RenameEvaluationDialog from "@/components/evaluation/rename-evaluation-dialog";
 import ShareEvalButton from "@/components/evaluation/evaluation-header/share-eval-button";
+import RenameEvaluationDialog from "@/components/evaluation/rename-evaluation-dialog";
 import { Button } from "@/components/ui/button";
 import DownloadButton from "@/components/ui/download-button";
 import {

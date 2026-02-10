@@ -1,12 +1,12 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Cloud, Lock, Loader2, Server } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import useSWR from "swr";
 
-import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section.tsx";
+import { SettingsSectionHeader } from "@/components/settings/settings-section.tsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,19 +18,27 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { Label } from "@/components/ui/label.tsx";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import HybridSetup from "@/components/workspace/deployment-settings/hybrid-setup.tsx";
 import { useToast } from "@/lib/hooks/use-toast.ts";
-import { swrFetcher } from "@/lib/utils.ts";
-import { DeploymentType, WorkspaceDeploymentSettings } from "@/lib/workspaces/types.ts";
+import { cn, swrFetcher } from "@/lib/utils.ts";
+import { DeploymentType, type Workspace, WorkspaceTier, type WorkspaceDeploymentSettings } from "@/lib/workspaces/types.ts";
 
 export interface DeploymentManagementForm
   extends Pick<WorkspaceDeploymentSettings, "publicKey" | "dataPlaneUrl" | "mode"> { }
 
-const WorkspaceDeployment = () => {
+const DATA_PLANE_ADDON = "data-plane";
+
+interface WorkspaceDeploymentProps {
+  workspace: Workspace;
+}
+
+const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
+
+  const isPro = workspace.tierName === WorkspaceTier.PRO || workspace.tierName === WorkspaceTier.ENTERPRISE;
+  const hasDataPlaneAddon = workspace.addons?.includes(DATA_PLANE_ADDON) ?? false;
+  const isEnabled = isPro && hasDataPlaneAddon;
   const methods = useForm<DeploymentManagementForm>();
   const { reset, watch, setValue } = methods;
   const { toast } = useToast();
@@ -59,7 +67,6 @@ const WorkspaceDeployment = () => {
         publicKey: data.publicKey,
         dataPlaneUrl: data.dataPlaneUrl,
       });
-      // Reset verification when data changes (e.g., after save)
       setIsVerified(false);
     }
   }, [data, reset]);
@@ -72,19 +79,26 @@ const WorkspaceDeployment = () => {
     if (!isDirty) return false;
     if (isSaving) return false;
 
-    // When switching to HYBRID mode, require keys and verified URL
     if (mode === DeploymentType.HYBRID) {
       return Boolean(publicKey) && isVerified;
     }
 
-    // For CLOUD mode, just need to be dirty
     return true;
+  })();
+
+  // Explanation of what's blocking save
+  const saveBlockReason = (() => {
+    if (!isDirty || isSaving) return null;
+    if (mode === DeploymentType.HYBRID) {
+      if (!publicKey) return "Generate API keys to continue.";
+      if (!isVerified) return "Verify your deployment URL to continue.";
+    }
+    return null;
   })();
 
   const handleModeChange = useCallback(
     (newMode: DeploymentType) => {
       setValue("mode", newMode);
-      // Reset verification when mode changes
       setIsVerified(false);
     },
     [setValue]
@@ -123,7 +137,6 @@ const WorkspaceDeployment = () => {
   }, [mode, dataPlaneUrl, toast, workspaceId, mutate]);
 
   const handleSaveClick = useCallback(() => {
-    // Show confirmation dialog if mode is changing
     if (isModeChanged) {
       setShowSaveConfirmation(true);
     } else {
@@ -139,13 +152,11 @@ const WorkspaceDeployment = () => {
   if (isLoading) {
     return (
       <>
-        <SettingsSectionHeader title="Deployment" description="Choose how your application is deployed." />
-        <SettingsSection>
-          <div className="flex flex-col gap-4">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
-        </SettingsSection>
+        <SettingsSectionHeader title="Data Residency" description="Choose where your workspace data is stored and processed." />
+        <div className="flex flex-col gap-3 mt-2">
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+        </div>
       </>
     );
   }
@@ -153,14 +164,12 @@ const WorkspaceDeployment = () => {
   if (error) {
     return (
       <>
-        <SettingsSectionHeader title="Deployment" description="Choose how your application is deployed" />
-        <SettingsSection>
-          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
-            <p className="text-sm text-destructive">
-              {error instanceof Error ? error.message : "Failed to load deployment settings"}
-            </p>
-          </div>
-        </SettingsSection>
+        <SettingsSectionHeader title="Data Residency" description="Choose where your workspace data is stored and processed." />
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 mt-2">
+          <p className="text-sm text-destructive">
+            {error instanceof Error ? error.message : "Failed to load data residency settings"}
+          </p>
+        </div>
       </>
     );
   }
@@ -168,105 +177,162 @@ const WorkspaceDeployment = () => {
   return (
     <FormProvider {...methods}>
       <div className="space-y-6">
-        <SettingsSectionHeader title="Deployment" description="Choose how your application is deployed" />
+        <SettingsSectionHeader title="Data Residency" description="Choose where your workspace data is stored and processed." />
 
-        <RadioGroup value={mode} onValueChange={(value) => handleModeChange(value as DeploymentType)} disabled={isSaving}>
-          <div className="space-y-3">
-            <div className="flex items-start space-x-3 border rounded-lg p-4 cursor-pointer hover:bg-accent">
-              <RadioGroupItem value={DeploymentType.CLOUD} id="cloud" />
-              <Label htmlFor="cloud" className="flex-1 cursor-pointer">
-                <div className="font-medium flex items-center gap-2">
-                  Cloud Deployment
-                  {data?.mode === DeploymentType.CLOUD && (
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-normal">
-                      Active
-                    </span>
-                  )}
-                </div>
-                <div className="text-sm text-muted-foreground">Fully managed hosting by Laminar.</div>
-              </Label>
+        {/* Upgrade / addon gate */}
+        {!isEnabled && (
+          <div className="rounded-lg border border-border bg-muted/30 p-5 flex items-start gap-4">
+            <div className="flex items-center justify-center h-9 w-9 rounded-md bg-muted text-muted-foreground shrink-0">
+              <Lock className="h-5 w-5" />
             </div>
-
-            <div className="flex items-start space-x-3 border rounded-lg p-4 cursor-pointer hover:bg-accent">
-              <RadioGroupItem value={DeploymentType.HYBRID} id="hybrid" />
-              <Label htmlFor="hybrid" className="flex-1 cursor-pointer">
-                <div className="font-medium flex items-center gap-2">
-                  Hybrid Deployment
-                  {data?.mode === DeploymentType.HYBRID && (
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-normal">
-                      Active
-                    </span>
-                  )}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Self-host your data while we manage everything else.
-                </div>
-              </Label>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">
+                {!isPro
+                  ? "Upgrade to Pro to configure data residency"
+                  : "Add the Data Plane addon to configure data residency"}
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {!isPro
+                  ? "Data residency configuration is available on the Pro plan and above. Upgrade your workspace to choose where your data is stored."
+                  : "Your workspace is on the Pro plan, but the Data Plane addon is required to enable hybrid data residency. Contact your account manager or add it from the billing page."}
+              </p>
             </div>
           </div>
-        </RadioGroup>
+        )}
 
-        {mode === DeploymentType.HYBRID && (
+        {/* Mode selection cards */}
+        <div className={cn("grid gap-3 sm:grid-cols-2", !isEnabled && "opacity-50 pointer-events-none")}>
+          <ModeCard
+            icon={<Cloud className="h-5 w-5" />}
+            title="Cloud"
+            description="Data stored and managed by Laminar. No infrastructure to manage."
+            isSelected={mode === DeploymentType.CLOUD}
+            isActive={data?.mode === DeploymentType.CLOUD}
+            disabled={isSaving || !isEnabled}
+            onClick={() => handleModeChange(DeploymentType.CLOUD)}
+          />
+          <ModeCard
+            icon={<Server className="h-5 w-5" />}
+            title="Hybrid"
+            description="Data stored in your infrastructure. Laminar handles processing only."
+            isSelected={mode === DeploymentType.HYBRID}
+            isActive={data?.mode === DeploymentType.HYBRID}
+            disabled={isSaving || !isEnabled}
+            onClick={() => handleModeChange(DeploymentType.HYBRID)}
+          />
+        </div>
+
+        {/* Hybrid setup - shown when hybrid is selected */}
+        {mode === DeploymentType.HYBRID && isEnabled && (
           <HybridSetup isSaving={isSaving} isVerified={isVerified} onVerifiedChange={setIsVerified} />
         )}
 
-        {isDirty && (
-          <div className="pt-4 space-y-2">
-            <Button onClick={handleSaveClick} disabled={!canSave}>
-              {isSaving && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
-              Save Configuration
-            </Button>
-            {mode === DeploymentType.HYBRID && !canSave && !isSaving && (
-              <p className="text-sm text-muted-foreground">
-                {!publicKey
-                  ? "Generate API keys to enable saving."
-                  : !isVerified
-                    ? "Verify your deployment URL to enable saving."
-                    : null}
-              </p>
-            )}
+        {/* Unsaved changes bar */}
+        {isDirty && isEnabled && (
+          <div className="flex items-center justify-between rounded-lg border bg-muted/50 px-4 py-3">
+            <div className="flex flex-col gap-0.5">
+              <p className="text-sm font-medium">Unsaved changes</p>
+              {saveBlockReason && (
+                <p className="text-xs text-muted-foreground">{saveBlockReason}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={handleSaveClick} disabled={!canSave}>
+                {isSaving && <Loader2 className="animate-spin h-3.5 w-3.5 mr-1.5" />}
+                Save changes
+              </Button>
+            </div>
           </div>
         )}
       </div>
 
+      {/* Confirmation dialog for mode changes */}
       <AlertDialog open={showSaveConfirmation} onOpenChange={setShowSaveConfirmation}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Change Deployment Mode?</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              {mode === DeploymentType.HYBRID ? (
-                <>
-                  <p>
-                    Switching to <strong>Hybrid Deployment</strong> means all new data will be written to and read from
-                    your self-hosted data plane.
-                  </p>
-                  <p className="text-destructive">
-                    Warning: If your data plane is not configured properly, this may result in data loss or inability to
-                    access your traces and logs.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p>
-                    Switching to <strong>Cloud Deployment</strong> means all new data will be written to and read from
-                    Laminar&apos;s managed infrastructure.
-                  </p>
-                  <p className="text-destructive">
-                    Warning: Data stored in your self-hosted data plane will no longer be accessible through this
-                    workspace.
-                  </p>
-                </>
-              )}
+            <AlertDialogTitle>Change data residency mode?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                {mode === DeploymentType.HYBRID ? (
+                  <>
+                    <p>
+                      Switching to <strong>Hybrid</strong> means all new data will be written to
+                      and read from your self-hosted data plane.
+                    </p>
+                    <p className="text-destructive">
+                      If your data plane is not configured properly, this may result in data loss
+                      or inability to access your traces and logs.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      Switching to <strong>Cloud</strong> means all new data will be written to
+                      and read from Laminar&apos;s managed infrastructure.
+                    </p>
+                    <p className="text-destructive">
+                      Data stored in your self-hosted data plane will no longer be accessible
+                      through this workspace.
+                    </p>
+                  </>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmSave}>Save Configuration</AlertDialogAction>
+            <AlertDialogAction onClick={confirmSave}>Confirm &amp; save</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </FormProvider>
   );
 };
+
+// ── Mode selection card ─────────────────────────────────────────────────
+
+interface ModeCardProps {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  isSelected: boolean;
+  isActive: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}
+
+function ModeCard({ icon, title, description, isSelected, isActive, disabled, onClick }: ModeCardProps) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "relative flex flex-col gap-2 rounded-lg border-2 p-4 text-left transition-colors",
+        "hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "disabled:pointer-events-none disabled:opacity-50",
+        isSelected
+          ? "border-primary bg-primary/5"
+          : "border-border"
+      )}
+    >
+      {isActive && (
+        <span className="absolute top-3 right-3 text-[10px] font-medium uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+          Current
+        </span>
+      )}
+      <div className={cn(
+        "flex items-center justify-center h-9 w-9 rounded-md",
+        isSelected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+      )}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
+      </div>
+    </button>
+  );
+}
 
 export default WorkspaceDeployment;

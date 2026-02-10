@@ -5,8 +5,8 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import {
   comparedComplementaryColumns,
-  getComplementaryColumns,
   getComparedScoreColumns,
+  getComplementaryColumns,
   getDefaultColumns,
   getScoreColumns,
 } from "@/components/evaluation/columns";

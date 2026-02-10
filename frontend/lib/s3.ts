@@ -109,10 +109,10 @@ export const downloadS3ObjectHttp = async (
 ): Promise<{
   bytes: Uint8Array;
   headers: Headers;
-}> => {
+}> => 
   // Use the backend for routing support
-  return downloadPayloadFromBackend(projectId, payloadId, payloadType);
-};
+   downloadPayloadFromBackend(projectId, payloadId, payloadType)
+;
 export const urlToBase64 = async (url: string): Promise<string> => {
   try {
     // Validate URL format

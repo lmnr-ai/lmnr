@@ -38,6 +38,7 @@ export interface Workspace {
   id: string;
   name: string;
   tierName: WorkspaceTier;
+  addons: string[];
 }
 
 export interface WorkspaceWithProjects extends Workspace {
