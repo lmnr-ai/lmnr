@@ -1196,7 +1196,6 @@ async fn handle_create_event(
         signal_message.project_id,
         run.trace_id,
         signal_event,
-        summary,
     )
     .await?;
 
