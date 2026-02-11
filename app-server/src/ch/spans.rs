@@ -167,7 +167,7 @@ impl CHSpan {
             input: span_input_string,
             output: span_output_string,
             status: span.status.clone().unwrap_or(String::from("")),
-            size_bytes: span.estimate_size_bytes() as u64,
+            size_bytes: span.size_bytes as u64,
             attributes: span.attributes.to_string(),
             trace_metadata,
             trace_type: span.attributes.trace_type().unwrap_or_default().into(),
