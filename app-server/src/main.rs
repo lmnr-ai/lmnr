@@ -889,6 +889,9 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(4);
 
+        let num_data_plane_spans_workers: usize =
+            get_unsigned_env_with_default("NUM_DATA_PLANE_SPANS_WORKERS", 0);
+
         let num_spans_indexer_workers = env::var("NUM_SPANS_INDEXER_WORKERS")
             .unwrap_or(String::from("4"))
             .parse::<u8>()
@@ -941,8 +944,9 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(4);
 
         log::info!(
-            "Spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Payload workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Payload workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}",
             num_spans_workers,
+            num_data_plane_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
             num_payload_workers,
@@ -1033,7 +1037,7 @@ fn main() -> anyhow::Result<()> {
 
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::DataPlaneSpans,
-                            num_spans_workers as usize,
+                            num_data_plane_spans_workers as usize,
                             move || DataPlaneSpanHandler {
                                 db: db.clone(),
                                 cache: cache.clone(),
