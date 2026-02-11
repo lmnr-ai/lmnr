@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, type ResizeCallback } from "re-resizable";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-
+import ClustersTable from "@/components/signal/clusters-table";
 import EventsTable from "@/components/signal/events-table";
 import SignalJobsTable from "@/components/signal/jobs-table";
 import SignalRunsTable from "@/components/signal/runs-table";
@@ -131,7 +131,7 @@ function SignalContent() {
         </div>
 
         <TabsContent value="events" className="flex flex-col gap-4 px-4 pb-4 overflow-auto">
-          {/* Hide clusters for now until we migrate to mew clustering system <ClustersTable /> */}
+          <ClustersTable />
           <EventsTable />
         </TabsContent>
         <TabsContent value="triggers" className="flex flex-col gap-4 px-4 pb-4 overflow-hidden">
