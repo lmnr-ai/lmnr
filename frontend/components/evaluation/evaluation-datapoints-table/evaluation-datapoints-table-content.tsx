@@ -1,16 +1,9 @@
 import { Settings as SettingsIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
-import {
-  COMPARED_COST_COLUMN,
-  COMPARED_DURATION_COLUMN,
-  createComparisonScoreColumnDef,
-  createScoreColumnDef,
-  getFilterableColumns,
-  getVisibleStaticColumns,
-} from "@/components/evaluation/columns/index";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
+import { useEvalStore } from "@/components/evaluation/store";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -37,7 +30,6 @@ const EvaluationDatapointsTableContent = ({
   hasMore,
   isFetching,
   fetchNextPage,
-  isDisableLongTooltips,
 }: EvaluationDatapointsTableProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -46,6 +38,60 @@ const EvaluationDatapointsTableContent = ({
   const targetId = searchParams.get("targetId");
   const sortBy = searchParams.get("sortBy") ?? undefined;
   const sortDirection = (searchParams.get("sortDirection")?.toLowerCase() ?? undefined) as "asc" | "desc" | undefined;
+
+  // Store state
+  const columns = useEvalStore((s) => s.columnDefs);
+  const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
+  const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
+  const setScoreRanges = useEvalStore((s) => s.setScoreRanges);
+  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
+
+  // Rebuild columns when scores or comparison mode changes
+  useEffect(() => {
+    rebuildColumns({ scoreNames: scores, isComparison: !!targetId });
+  }, [scores, targetId, rebuildColumns]);
+
+  // Compute and set score ranges from data
+  useEffect(() => {
+    if (!data) return;
+
+    const isValidNumber = (value: unknown): value is number => typeof value === "number" && !isNaN(value);
+
+    const ranges = scores.reduce(
+      (acc, scoreName) => {
+        const allValues = data
+          .flatMap((row: EvalRow) => {
+            const values = [row[`score:${scoreName}`]];
+            if (targetId) {
+              values.push(row[`compared:score:${scoreName}`]);
+            }
+            return values;
+          })
+          .filter(isValidNumber);
+
+        return allValues.length > 0
+          ? {
+              ...acc,
+              [scoreName]: {
+                min: Math.min(...allValues),
+                max: Math.max(...allValues),
+              },
+            }
+          : acc;
+      },
+      {} as Record<string, { min: number; max: number }>
+    );
+
+    setScoreRanges(ranges);
+  }, [data, scores, targetId, setScoreRanges]);
+
+  // Rebuild columns when scoreRanges change (to update heatmap styles)
+  const scoreRanges = useEvalStore((s) => s.scoreRanges);
+  useEffect(() => {
+    if (scores.length > 0) {
+      rebuildColumns({ scoreNames: scores, isComparison: !!targetId });
+    }
+  }, [scoreRanges, scores, targetId, rebuildColumns]);
 
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
@@ -62,77 +108,23 @@ const EvaluationDatapointsTableContent = ({
     [searchParams, router, pathname]
   );
 
-  const [heatmapEnabled, setHeatmapEnabled] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("evaluation-heatmap-enabled");
-      return stored ? JSON.parse(stored) : false;
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("evaluation-heatmap-enabled", JSON.stringify(heatmapEnabled));
-    }
-  }, [heatmapEnabled]);
-
-  // Derive filter definitions from column config
-  const columnFilters = useMemo(() => getFilterableColumns(scores), [scores]);
-
-  // Compute score ranges from data
-  const scoreRanges = useMemo(() => {
-    if (!data) return {};
-
-    const isValidNumber = (value: unknown): value is number => typeof value === "number" && !isNaN(value);
-
-    return scores.reduce(
-      (ranges, scoreName) => {
-        const allValues = data
-          .flatMap((row: EvalRow) => {
-            const values = [row[`score:${scoreName}`]];
-            if (targetId) {
-              values.push(row[`compared:score:${scoreName}`]);
-            }
-            return values;
-          })
-          .filter(isValidNumber);
-
-        return allValues.length > 0
-          ? {
-              ...ranges,
-              [scoreName]: {
-                min: Math.min(...allValues),
-                max: Math.max(...allValues),
-              },
-            }
-          : ranges;
-      },
-      {} as Record<string, { min: number; max: number }>
-    );
-  }, [data, scores, targetId]);
-
-  // Build column defs from the column config
-  const columns = useMemo(() => {
-    const staticCols = getVisibleStaticColumns();
-
-    if (targetId) {
-      // In comparison mode, override duration/cost with comparison renderers
-      const baseCols = staticCols.map((c) => {
-        if (c.id === "duration") return COMPARED_DURATION_COLUMN;
-        if (c.id === "cost") return COMPARED_COST_COLUMN;
-        return c;
-      });
-      const scoreCols = scores.map((name) =>
-        createComparisonScoreColumnDef(name, heatmapEnabled, scoreRanges)
-      );
-      return [...baseCols, ...scoreCols];
-    }
-
-    const scoreCols = scores.map((name) =>
-      createScoreColumnDef(name, heatmapEnabled, scoreRanges)
-    );
-    return [...staticCols, ...scoreCols];
-  }, [targetId, scores, heatmapEnabled, scoreRanges]);
+  // Derive filter definitions from column defs in the store
+  const columnFilters = useMemo(
+    () =>
+      columns
+        .filter((c) => c.meta?.filterable)
+        .map((c) => ({
+          key: c.id!,
+          name: typeof c.header === "string" ? c.header : c.id!,
+          dataType:
+            c.meta!.dataType === "json"
+              ? ("json" as const)
+              : c.meta!.dataType === "number"
+                ? ("number" as const)
+                : ("string" as const),
+        })),
+    [columns]
+  );
 
   return (
     <div className="flex overflow-hidden flex-1">

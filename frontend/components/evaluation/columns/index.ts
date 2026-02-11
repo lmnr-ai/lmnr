@@ -1,11 +1,15 @@
 import { type ColumnDef, type RowData } from "@tanstack/react-table";
 
 import { type ScoreRanges } from "@/components/evaluation/utils";
+import { type EnrichedFilter } from "@/lib/actions/common/filters";
+import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { type EvalRow } from "@/lib/evaluation/types";
 
+import { ComparisonCostCell } from "./comparison-cost-cell";
+import { ComparisonDurationCell } from "./comparison-duration-cell";
 import { createComparisonScoreColumnCell } from "./comparison-score-cell";
-import { ComparisonCostCell, CostCell } from "./cost-cell";
-import { ComparisonDurationCell, DurationCell } from "./duration-cell";
+import { CostCell } from "./cost-cell";
+import { DurationCell } from "./duration-cell";
 import { createScoreColumnCell } from "./score-cell";
 import { StatusCell } from "./status-cell";
 
@@ -17,6 +21,9 @@ declare module "@tanstack/react-table" {
     dataType?: "string" | "number" | "json" | "datetime";
     filterable?: boolean;
     comparable?: boolean;
+    clickhouseType?: string;
+    filterSql?: string;
+    scoreName?: string;
   }
 }
 
@@ -28,14 +35,14 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["id"],
     header: "ID",
     enableSorting: false,
-    meta: { sql: "a.id", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "dp.id", dataType: "string", filterable: false, comparable: false },
   },
   {
     id: "evaluationId",
     accessorFn: (row) => row["evaluationId"],
     header: "Evaluation ID",
     enableSorting: false,
-    meta: { sql: "a.evaluation_id", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "dp.evaluation_id", dataType: "string", filterable: false, comparable: false },
   },
   {
     id: "status",
@@ -52,35 +59,42 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Index",
     size: 70,
     enableSorting: true,
-    meta: { sql: "a.index", dataType: "number", filterable: true, comparable: false },
+    meta: { sql: "dp.index", dataType: "number", filterable: true, comparable: false, clickhouseType: "Int64" },
   },
   {
     id: "data",
     accessorFn: (row) => row["data"],
     header: "Data",
     enableSorting: false,
-    meta: { sql: "substring(a.data, 1, 200)", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "substring(dp.data, 1, 200)", dataType: "string", filterable: false, comparable: false },
   },
   {
     id: "target",
     accessorFn: (row) => row["target"],
     header: "Target",
     enableSorting: false,
-    meta: { sql: "substring(a.target, 1, 200)", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "substring(dp.target, 1, 200)", dataType: "string", filterable: false, comparable: false },
   },
   {
     id: "metadata",
     accessorFn: (row) => row["metadata"],
     header: "Metadata",
     enableSorting: false,
-    meta: { sql: "a.metadata", dataType: "json", filterable: true, comparable: false },
+    meta: {
+      sql: "dp.metadata",
+      dataType: "json",
+      filterable: true,
+      comparable: false,
+      filterSql:
+        "(simpleJSONExtractString(dp.metadata, {KEY:String}) = {VAL:String} OR simpleJSONExtractRaw(dp.metadata, {KEY:String}) = {VAL:String})",
+    },
   },
   {
     id: "output",
     accessorFn: (row) => row["output"],
     header: "Output",
     enableSorting: false,
-    meta: { sql: "substring(a.executor_output, 1, 200)", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "substring(dp.executor_output, 1, 200)", dataType: "string", filterable: false, comparable: false },
   },
   {
     id: "duration",
@@ -114,7 +128,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["traceId"],
     header: "Trace ID",
     enableSorting: false,
-    meta: { sql: "a.trace_id", dataType: "string", filterable: true, comparable: true },
+    meta: { sql: "dp.trace_id", dataType: "string", filterable: true, comparable: true, clickhouseType: "UUID" },
   },
   {
     id: "startTime",
@@ -166,7 +180,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["scores"],
     header: "Scores",
     enableSorting: false,
-    meta: { sql: "a.scores", dataType: "string", filterable: false, comparable: true },
+    meta: { sql: "dp.scores", dataType: "string", filterable: false, comparable: true },
   },
   {
     id: "createdAt",
@@ -174,7 +188,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Created At",
     enableSorting: true,
     meta: {
-      sql: "formatDateTime(a.created_at, '%Y-%m-%dT%H:%i:%S.%fZ')",
+      sql: "formatDateTime(dp.created_at, '%Y-%m-%dT%H:%i:%S.%fZ')",
       dataType: "datetime",
       filterable: false,
       comparable: false,
@@ -192,7 +206,7 @@ const createColumnSizeConfig = (heatmapEnabled: boolean, isComparison: boolean =
 export function createScoreColumnDef(
   name: string,
   heatmapEnabled: boolean = false,
-  scoreRanges: ScoreRanges = {},
+  scoreRanges: ScoreRanges = {}
 ): ColumnDef<EvalRow> {
   return {
     id: `score:${name}`,
@@ -202,10 +216,11 @@ export function createScoreColumnDef(
     cell: createScoreColumnCell(heatmapEnabled, scoreRanges, name),
     enableSorting: true,
     meta: {
-      sql: `JSONExtractFloat(a.scores, '${name}')`,
+      sql: `JSONExtractFloat(dp.scores, '${name}')`,
       dataType: "number",
       filterable: true,
       comparable: true,
+      scoreName: name,
     },
   };
 }
@@ -213,7 +228,7 @@ export function createScoreColumnDef(
 export function createComparisonScoreColumnDef(
   name: string,
   heatmapEnabled: boolean = false,
-  scoreRanges: ScoreRanges = {},
+  scoreRanges: ScoreRanges = {}
 ): ColumnDef<EvalRow> {
   return {
     id: `comparedScore:${name}`,
@@ -223,10 +238,11 @@ export function createComparisonScoreColumnDef(
     cell: createComparisonScoreColumnCell(heatmapEnabled, scoreRanges, name),
     enableSorting: true,
     meta: {
-      sql: `JSONExtractFloat(a.scores, '${name}')`,
+      sql: `JSONExtractFloat(dp.scores, '${name}')`,
       dataType: "number",
       filterable: true,
       comparable: true,
+      scoreName: name,
     },
   };
 }
@@ -247,14 +263,20 @@ export const COMPARED_COST_COLUMN: ColumnDef<EvalRow> = {
 // -- Helper functions --
 
 /** IDs of columns that are visible by default in the table */
-export const VISIBLE_COLUMN_IDS = [
-  "status", "index", "data", "target", "metadata", "output", "duration", "cost",
-];
+export const VISIBLE_COLUMN_IDS = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 
 /** IDs of columns that are hidden (not shown in table but included in queries for data access) */
 export const HIDDEN_COLUMN_IDS = [
-  "id", "evaluationId", "traceId", "startTime", "endTime",
-  "inputCost", "outputCost", "totalCost", "scores", "createdAt",
+  "id",
+  "evaluationId",
+  "traceId",
+  "startTime",
+  "endTime",
+  "inputCost",
+  "outputCost",
+  "totalCost",
+  "scores",
+  "createdAt",
 ];
 
 /** Get visible static columns for rendering */
@@ -262,28 +284,52 @@ export function getVisibleStaticColumns(): ColumnDef<EvalRow>[] {
   return STATIC_COLUMNS.filter((c) => VISIBLE_COLUMN_IDS.includes(c.id!));
 }
 
-/** Get all filterable column filter definitions from the column config */
-export function getFilterableColumns(scoreNames: string[]) {
-  const filters = STATIC_COLUMNS
-    .filter((c) => c.meta?.filterable)
-    .map((c) => ({
-      key: c.id!,
-      name: typeof c.header === "string" ? c.header : c.id!,
-      dataType: c.meta!.dataType === "json" ? ("json" as const) : c.meta!.dataType === "number" ? ("number" as const) : ("string" as const),
-    }));
-
-  const scoreFilters = scoreNames.map((name) => ({
-    key: `score:${name}`,
-    name,
-    dataType: "number" as const,
-  }));
-
-  return [...filters, ...scoreFilters];
-}
 
 /** Extract { id, sql } pairs from column defs for the API request */
 export function extractQueryColumns(columns: ColumnDef<EvalRow>[]): { id: string; sql: string }[] {
-  return columns
-    .filter((c) => c.meta?.sql)
-    .map((c) => ({ id: c.id!, sql: c.meta!.sql! }));
+  return columns.filter((c) => c.meta?.sql).map((c) => ({ id: c.id!, sql: c.meta!.sql! }));
+}
+
+// -- Enrichment helpers (FE → BE payload builders) --
+
+/** Enrich a raw filter with SQL info from column meta for the BE */
+export function enrichFilter(
+  rawFilter: { column: string; operator: string; value: string | number },
+  allColumns: ColumnDef<EvalRow>[]
+): EnrichedFilter {
+  const colDef = allColumns.find((c) => c.id === rawFilter.column);
+  if (!colDef?.meta) throw new Error(`Unknown filter column: ${rawFilter.column}`);
+  return {
+    ...rawFilter,
+    filterSql: colDef.meta.filterSql ?? colDef.meta.sql!,
+    dataType: colDef.meta.dataType!,
+    clickhouseType: colDef.meta.clickhouseType,
+  };
+}
+
+/** Get the SQL expression for sorting a given column */
+export function getSortSql(sortBy: string, allColumns: ColumnDef<EvalRow>[]): string | undefined {
+  const colDef = allColumns.find((c) => c.id === sortBy);
+  return colDef?.meta?.sql;
+}
+
+/** Build the columns payload for the BE query from static + score columns */
+export function buildColumnsPayload(scores: string[]): EvalQueryColumn[] {
+  const staticCols = STATIC_COLUMNS.filter((c) => c.meta?.sql).map((c) => ({
+    id: c.id!,
+    sql: c.meta!.sql!,
+    comparable: c.meta!.comparable ?? false,
+  }));
+  const scoreCols = scores.map((name) => ({
+    id: `score:${name}`,
+    sql: `JSONExtractFloat(dp.scores, '${name}')`,
+    comparable: true,
+  }));
+  return [...staticCols, ...scoreCols];
+}
+
+/** Build all column defs (static + score) for filter enrichment lookups */
+export function buildAllColumnDefs(scores: string[]): ColumnDef<EvalRow>[] {
+  const scoreCols = scores.map((name) => createScoreColumnDef(name));
+  return [...STATIC_COLUMNS, ...scoreCols];
 }

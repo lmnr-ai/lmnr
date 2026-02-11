@@ -1,22 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { compact } from "lodash";
 
-import { STATIC_COLUMNS } from "@/components/evaluation/columns/index";
-import { type Filter } from "@/lib/actions/common/filters";
-import {
-  buildEvalQuery,
-  buildEvalStatsQuery,
-  type EvalQueryColumn,
-} from "@/lib/actions/evaluation/query-builder";
-import {
-  calculateScoreDistribution,
-  calculateScoreStatistics,
-} from "@/lib/actions/evaluation/utils";
+import { type EnrichedFilter } from "@/lib/actions/common/filters";
+import { buildEvalQuery, buildEvalStatsQuery, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
+import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
+import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { searchSpans } from "@/lib/actions/traces/search";
 import { DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
-import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { type TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { evaluations, sharedEvals } from "@/lib/db/migrations/schema";
 import {
@@ -46,12 +36,6 @@ export async function getSharedEvaluation({ evaluationId }: { evaluationId: stri
   return { evaluation: evaluation as Evaluation, projectId: publicEval.projectId };
 }
 
-function getQueryColumns(): EvalQueryColumn[] {
-  return STATIC_COLUMNS
-    .filter((c) => c.meta?.sql)
-    .map((c) => ({ id: c.id!, sql: c.meta!.sql! }));
-}
-
 export async function getSharedEvaluationDatapoints({
   evaluationId,
   pageNumber,
@@ -60,16 +44,20 @@ export async function getSharedEvaluationDatapoints({
   search,
   searchIn,
   sortBy,
+  sortSql,
   sortDirection,
+  columns,
 }: {
   evaluationId: string;
   pageNumber: number;
   pageSize: number;
-  filters: Filter[];
+  filters: EnrichedFilter[];
   search?: string | null;
   searchIn?: string[];
   sortBy?: string;
+  sortSql?: string;
   sortDirection?: "ASC" | "DESC";
+  columns: EvalQueryColumn[];
 }): Promise<EvaluationResultsInfo | undefined> {
   const shared = await getSharedEvaluation({ evaluationId });
   if (!shared) {
@@ -82,9 +70,7 @@ export async function getSharedEvaluationDatapoints({
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
 
-  const searchTraceIds = await getSearchTraceIds(
-    projectId, search, searchIn ?? [], evaluation.createdAt
-  );
+  const searchTraceIds = await getSearchTraceIds(projectId, search, searchIn ?? [], evaluation.createdAt);
 
   if (search) {
     if (searchTraceIds.length === 0) {
@@ -95,8 +81,6 @@ export async function getSharedEvaluationDatapoints({
     }
   }
 
-  const columns = getQueryColumns();
-
   const { query, parameters } = buildEvalQuery({
     evaluationId,
     columns,
@@ -105,6 +89,7 @@ export async function getSharedEvaluationDatapoints({
     limit,
     offset,
     sortBy,
+    sortSql,
     sortDirection,
   });
 
@@ -124,7 +109,7 @@ export async function getSharedEvaluationStatistics({
   searchIn,
 }: {
   evaluationId: string;
-  filters: Filter[];
+  filters: EnrichedFilter[];
   search?: string | null;
   searchIn?: string[];
 }): Promise<
@@ -144,9 +129,7 @@ export async function getSharedEvaluationStatistics({
   const { evaluation, projectId } = shared;
   const allFilters = compact(filters);
 
-  const searchTraceIds = await getSearchTraceIds(
-    projectId, search, searchIn ?? [], evaluation.createdAt
-  );
+  const searchTraceIds = await getSearchTraceIds(projectId, search, searchIn ?? [], evaluation.createdAt);
 
   if (search && searchTraceIds.length === 0) {
     return {
@@ -200,38 +183,3 @@ export async function getSharedEvaluationStatistics({
   };
 }
 
-// -- Helpers --
-
-async function getSearchTraceIds(
-  projectId: string,
-  search: string | null | undefined,
-  searchIn: string[],
-  evaluationCreatedAt?: string,
-): Promise<string[]> {
-  if (!search) return [];
-
-  const spanHits = await searchSpans({
-    projectId,
-    traceId: undefined,
-    searchQuery: search,
-    timeRange: getTimeRangeForEvaluation(evaluationCreatedAt),
-    searchType: searchIn as SpanSearchType[],
-  });
-
-  return [...new Set(spanHits.map((span) => span.trace_id))];
-}
-
-const getTimeRangeForEvaluation = (evaluationCreatedAt?: string): TimeRange => {
-  if (!evaluationCreatedAt) {
-    return {
-      start: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      end: new Date(),
-    };
-  }
-
-  const startTime = new Date(evaluationCreatedAt);
-  const endTime = new Date(evaluationCreatedAt);
-  endTime.setHours(endTime.getHours() + 24);
-
-  return { start: startTime, end: endTime };
-};

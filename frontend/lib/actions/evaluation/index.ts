@@ -2,21 +2,12 @@ import { and, eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { STATIC_COLUMNS } from "@/components/evaluation/columns/index";
-import { FiltersSchema, PaginationFiltersSchema } from "@/lib/actions/common/types";
-import {
-  buildEvalQuery,
-  buildEvalStatsQuery,
-  type EvalQueryColumn,
-} from "@/lib/actions/evaluation/query-builder";
-import {
-  calculateScoreDistribution,
-  calculateScoreStatistics,
-} from "@/lib/actions/evaluation/utils";
+import { EnrichedFilterSchema } from "@/lib/actions/common/filters";
+import { PaginationSchema, SortSchema } from "@/lib/actions/common/types";
+import { buildEvalQuery, buildEvalStatsQuery, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
+import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
+import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { searchSpans } from "@/lib/actions/traces/search";
-import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { type TimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 import {
@@ -30,15 +21,44 @@ import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
 export const EVALUATION_TRACE_VIEW_WIDTH = "evaluation-trace-view-width";
 
-export const GetEvaluationDatapointsSchema = PaginationFiltersSchema.extend({
+const EnrichedFiltersSchema = z.object({
+  filter: z
+    .array(z.string())
+    .default([])
+    .transform((filters, ctx) =>
+      filters
+        .map((filter) => {
+          try {
+            const parsed = JSON.parse(filter);
+            return EnrichedFilterSchema.parse(parsed);
+          } catch {
+            ctx.issues.push({
+              code: "custom",
+              message: `Invalid enriched filter JSON: ${filter}`,
+              input: filter,
+            });
+            return undefined;
+          }
+        })
+        .filter((f): f is NonNullable<typeof f> => f !== undefined)
+    ),
+});
+
+export const GetEvaluationDatapointsSchema = z.object({
+  ...EnrichedFiltersSchema.shape,
+  ...PaginationSchema.shape,
+  ...SortSchema.shape,
   evaluationId: z.string(),
   projectId: z.string(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
   targetId: z.string().optional(),
+  columns: z.string().optional(),
+  sortSql: z.string().optional(),
 });
 
-export const GetEvaluationStatisticsSchema = FiltersSchema.extend({
+export const GetEvaluationStatisticsSchema = z.object({
+  ...EnrichedFiltersSchema.shape,
   evaluationId: z.string(),
   projectId: z.string(),
   search: z.string().nullable().optional(),
@@ -50,13 +70,6 @@ export const RenameEvaluationSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1, "Name is required"),
 });
-
-/** Build the column list for the eval query from the static column definitions */
-function getQueryColumns(): EvalQueryColumn[] {
-  return STATIC_COLUMNS
-    .filter((c) => c.meta?.sql)
-    .map((c) => ({ id: c.id!, sql: c.meta!.sql! }));
-}
 
 export const getEvaluationDatapoints = async (
   input: z.infer<typeof GetEvaluationDatapointsSchema>
@@ -70,8 +83,10 @@ export const getEvaluationDatapoints = async (
     searchIn,
     filter: inputFilters,
     sortBy,
+    sortSql,
     sortDirection,
     targetId,
+    columns: columnsJson,
   } = input;
 
   // Auth check: verify evaluation exists and belongs to project
@@ -84,6 +99,9 @@ export const getEvaluationDatapoints = async (
   }
 
   const allFilters = compact(inputFilters);
+
+  // Parse columns from request — FE is the source of truth
+  const columns: EvalQueryColumn[] = columnsJson ? JSON.parse(columnsJson) : [];
 
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
@@ -101,8 +119,6 @@ export const getEvaluationDatapoints = async (
   }
 
   // Step 2: Build and execute single JOIN query
-  const columns = getQueryColumns();
-
   const { query, parameters } = buildEvalQuery({
     evaluationId,
     columns,
@@ -111,6 +127,7 @@ export const getEvaluationDatapoints = async (
     limit,
     offset,
     sortBy,
+    sortSql,
     sortDirection,
     targetId: targetId ?? undefined,
   });
@@ -220,38 +237,3 @@ export const renameEvaluation = async (input: z.infer<typeof RenameEvaluationSch
   return updated;
 };
 
-// -- Helpers --
-
-async function getSearchTraceIds(
-  projectId: string,
-  search: string | null | undefined,
-  searchIn: string[],
-  evaluationCreatedAt?: string,
-): Promise<string[]> {
-  if (!search) return [];
-
-  const spanHits = await searchSpans({
-    projectId,
-    traceId: undefined,
-    searchQuery: search,
-    timeRange: getTimeRangeForEvaluation(evaluationCreatedAt),
-    searchType: searchIn as SpanSearchType[],
-  });
-
-  return [...new Set(spanHits.map((span) => span.trace_id))];
-}
-
-const getTimeRangeForEvaluation = (evaluationCreatedAt?: string): TimeRange => {
-  if (!evaluationCreatedAt) {
-    return {
-      start: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      end: new Date(),
-    };
-  }
-
-  const startTime = new Date(evaluationCreatedAt);
-  const endTime = new Date(evaluationCreatedAt);
-  endTime.setHours(endTime.getHours() + 24);
-
-  return { start: startTime, end: endTime };
-};

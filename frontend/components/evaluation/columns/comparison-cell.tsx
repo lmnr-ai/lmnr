@@ -1,14 +1,12 @@
 import { ArrowRight } from "lucide-react";
 
-import {
-  calculatePercentageChange,
-  type DisplayValue,
-  isValidScore,
-} from "@/components/evaluation/utils";
+import { isValidScore } from "@/components/evaluation/utils";
 
 import ComparisonIndicator from "../comparison-indicator";
 
-const shouldShowComparisonIndicator = (originalValue?: number, comparisonValue?: number): boolean =>
+export { ChangeIndicator } from "./change-indicator";
+
+export const shouldShowComparisonIndicator = (originalValue?: number, comparisonValue?: number): boolean =>
   isValidScore(originalValue) &&
   isValidScore(comparisonValue) &&
   originalValue !== comparisonValue &&
@@ -20,8 +18,8 @@ export const ComparisonCell = ({
   originalValue,
   comparisonValue,
 }: {
-  original: DisplayValue;
-  comparison: DisplayValue;
+  original: string | number;
+  comparison: string | number;
   originalValue?: number;
   comparisonValue?: number;
 }) => {
@@ -38,20 +36,3 @@ export const ComparisonCell = ({
     </div>
   );
 };
-
-export { shouldShowComparisonIndicator };
-
-export const ChangeIndicator = ({ originalValue, comparisonValue }: { originalValue: number; comparisonValue: number }) => (
-  <div className="shrink-0 ml-1">
-    <span className="text-xs">
-      {originalValue >= comparisonValue ? (
-        <span className="text-green-300">&#x25B2;</span>
-      ) : (
-        <span className="text-destructive">&#x25BC;</span>
-      )}
-      <span className={originalValue >= comparisonValue ? "text-green-300" : "text-destructive"}>
-        ({calculatePercentageChange(originalValue, comparisonValue)}%)
-      </span>
-    </span>
-  </div>
-);

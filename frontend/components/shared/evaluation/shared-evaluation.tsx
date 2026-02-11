@@ -10,6 +10,12 @@ import useSWR from "swr";
 
 import fullLogo from "@/assets/logo/logo.svg";
 import Chart from "@/components/evaluation/chart";
+import {
+  buildAllColumnDefs,
+  buildColumnsPayload,
+  enrichFilter,
+  getSortSql,
+} from "@/components/evaluation/columns/index";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import ScoreCard from "@/components/evaluation/score-card";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
@@ -47,6 +53,25 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const pageSize = 50;
 
+  // Extract score names from filter params so stats URL doesn't depend on statsData
+  const filterScoreNames = useMemo(
+    () =>
+      filter
+        .map((f) => {
+          try {
+            const raw = JSON.parse(f);
+            if (typeof raw.column === "string" && raw.column.startsWith("score:")) {
+              return raw.column.split(":")[1] as string;
+            }
+          } catch {
+            // skip
+          }
+          return undefined;
+        })
+        .filter((n): n is string => !!n),
+    [filter]
+  );
+
   const statsUrl = useMemo(() => {
     let url = `/api/shared/evals/${evaluationId}/stats`;
     const urlParams = new URLSearchParams();
@@ -56,12 +81,21 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     searchIn.forEach((value) => {
       urlParams.append("searchIn", value);
     });
-    filter.forEach((f) => urlParams.append("filter", f));
+    const allColumnDefs = buildAllColumnDefs(filterScoreNames);
+    filter.forEach((f) => {
+      try {
+        const raw = JSON.parse(f);
+        const enriched = enrichFilter(raw, allColumnDefs);
+        urlParams.append("filter", JSON.stringify(enriched));
+      } catch {
+        // Skip invalid filters
+      }
+    });
     if (urlParams.toString()) {
       url += `?${urlParams.toString()}`;
     }
     return url;
-  }, [evaluationId, search, searchIn, filter]);
+  }, [evaluationId, search, searchIn, filter, filterScoreNames]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: Evaluation;
@@ -96,10 +130,28 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
         urlParams.append("searchIn", value);
       });
 
-      filter.forEach((f) => urlParams.append("filter", f));
+      // Enrich filters with SQL info from column meta
+      const allColumnDefs = buildAllColumnDefs(scores);
+      filter.forEach((f) => {
+        try {
+          const raw = JSON.parse(f);
+          const enriched = enrichFilter(raw, allColumnDefs);
+          urlParams.append("filter", JSON.stringify(enriched));
+        } catch {
+          // Skip invalid filters
+        }
+      });
+
+      // Send columns payload
+      const columnsPayload = buildColumnsPayload(scores);
+      urlParams.set("columns", JSON.stringify(columnsPayload));
 
       if (sortBy) {
         urlParams.set("sortBy", sortBy);
+        const sortSqlValue = getSortSql(sortBy, allColumnDefs);
+        if (sortSqlValue) {
+          urlParams.set("sortSql", sortSqlValue);
+        }
       }
       if (sortDirection) {
         urlParams.set("sortDirection", sortDirection);
@@ -114,7 +166,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection]
+    [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection, scores]
   );
 
   const {

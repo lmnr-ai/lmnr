@@ -5,10 +5,10 @@ import { type ScoreRanges } from "@/components/evaluation/utils";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import {
-  createComparisonScoreColumnDef,
-  createScoreColumnDef,
   COMPARED_COST_COLUMN,
   COMPARED_DURATION_COLUMN,
+  createComparisonScoreColumnDef,
+  createScoreColumnDef,
   getVisibleStaticColumns,
 } from "./columns/index";
 
@@ -17,35 +17,47 @@ interface EvalStoreState {
   scoreRanges: ScoreRanges;
   heatmapEnabled: boolean;
   columnDefs: ColumnDef<EvalRow>[];
-  isLoading: boolean;
   scoreNames: string[];
 
   // Actions
   setScoreRanges: (ranges: ScoreRanges) => void;
   setHeatmapEnabled: (enabled: boolean) => void;
-  setIsLoading: (loading: boolean) => void;
-  /** Rebuild columns with current score names, heatmap, scoreRanges, and comparison mode */
-  rebuildColumns: (opts: {
-    scoreNames: string[];
-    heatmapEnabled: boolean;
-    scoreRanges: ScoreRanges;
-    isComparison: boolean;
-    disableLongTooltips?: boolean;
-  }) => void;
+  rebuildColumns: (opts: { scoreNames: string[]; isComparison: boolean }) => void;
 }
 
-export const useEvalStore = create<EvalStoreState>((set) => ({
+export const useEvalStore = create<EvalStoreState>((set, get) => ({
   scoreRanges: {},
-  heatmapEnabled: false,
+  heatmapEnabled:
+    typeof window !== "undefined"
+      ? (() => {
+          try {
+            return JSON.parse(localStorage.getItem("evaluation-heatmap-enabled") ?? "false");
+          } catch {
+            return false;
+          }
+        })()
+      : false,
   columnDefs: getVisibleStaticColumns(),
-  isLoading: false,
   scoreNames: [],
 
   setScoreRanges: (ranges) => set({ scoreRanges: ranges }),
-  setHeatmapEnabled: (enabled) => set({ heatmapEnabled: enabled }),
-  setIsLoading: (loading) => set({ isLoading: loading }),
 
-  rebuildColumns: ({ scoreNames, heatmapEnabled, scoreRanges, isComparison }) => {
+  setHeatmapEnabled: (enabled) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("evaluation-heatmap-enabled", JSON.stringify(enabled));
+    }
+    set({ heatmapEnabled: enabled });
+
+    // Rebuild columns with new heatmap state
+    const { scoreNames, columnDefs } = get();
+    if (scoreNames.length > 0) {
+      const isComparison = columnDefs.some((c) => c.id?.startsWith("comparedScore:"));
+      get().rebuildColumns({ scoreNames, isComparison });
+    }
+  },
+
+  rebuildColumns: ({ scoreNames, isComparison }) => {
+    const { heatmapEnabled, scoreRanges } = get();
     const staticCols = getVisibleStaticColumns();
 
     // In comparison mode, override duration/cost with comparison renderers

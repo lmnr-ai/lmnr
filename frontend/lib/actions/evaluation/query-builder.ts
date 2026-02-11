@@ -1,23 +1,25 @@
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { type Filter } from "@/lib/actions/common/filters";
+import { type EnrichedFilter } from "@/lib/actions/common/filters";
 import { type Operator } from "@/lib/actions/common/operators";
 import { type QueryParams, type QueryResult } from "@/lib/actions/common/query-builder";
 
 // -- Types --
 
 export interface EvalQueryColumn {
-  id: string;   // "index", "duration", "score:accuracy"
-  sql: string;  // "a.index", "(toUnixTimestamp64Milli(...))"
+  id: string; // "index", "duration", "score:accuracy"
+  sql: string; // "dp.index", "(toUnixTimestamp64Milli(...))"
+  comparable?: boolean;
 }
 
 export interface EvalQueryOptions {
   evaluationId: string;
   columns: EvalQueryColumn[];
   traceIds: string[];
-  filters: Filter[];
+  filters: EnrichedFilter[];
   limit: number;
   offset: number;
   sortBy?: string;
+  sortSql?: string;
   sortDirection?: "ASC" | "DESC";
   targetId?: string;
 }
@@ -25,7 +27,7 @@ export interface EvalQueryOptions {
 export interface EvalStatsQueryOptions {
   evaluationId: string;
   traceIds: string[];
-  filters: Filter[];
+  filters: EnrichedFilter[];
 }
 
 // -- Helpers --
@@ -34,74 +36,48 @@ function backtickEscape(id: string): string {
   return `\`${id.replace(/`/g, "``")}\``;
 }
 
+const DATA_TYPE_TO_CH: Record<string, string> = {
+  string: "String",
+  number: "Float64",
+  json: "String",
+  datetime: "String",
+};
+
 function buildFilterConditions(
-  filters: Filter[],
-  columns: EvalQueryColumn[],
-  paramPrefix: string,
+  filters: EnrichedFilter[],
+  _columns: EvalQueryColumn[],
+  paramPrefix: string
 ): { conditions: string[]; params: QueryParams } {
   const conditions: string[] = [];
   const params: QueryParams = {};
-  const columnMap = new Map(columns.map((c) => [c.id, c]));
 
   filters.forEach((filter, index) => {
     const paramKey = `${paramPrefix}_${filter.column}_${index}`;
+    const chType = filter.clickhouseType ?? DATA_TYPE_TO_CH[filter.dataType] ?? "String";
 
-    // Special case: metadata key=value filter
-    if (filter.column === "metadata") {
+    if (filter.dataType === "json") {
+      // Template-based: parse key=value from filter.value, substitute into filterSql
       const [key, val] = String(filter.value).split("=", 2);
       if (key && val) {
-        conditions.push(
-          `(simpleJSONExtractString(a.metadata, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
-          ` OR simpleJSONExtractRaw(a.metadata, {${paramKey}_key:String}) = {${paramKey}_val:String})`
-        );
+        const condition = filter.filterSql
+          .replace(/\{KEY:String\}/g, `{${paramKey}_key:String}`)
+          .replace(/\{VAL:String\}/g, `{${paramKey}_val:String}`);
+        conditions.push(condition);
         params[`${paramKey}_key`] = key;
         params[`${paramKey}_val`] = val;
       }
       return;
     }
 
-    // Score filters (score:accuracy, etc.)
-    if (filter.column.startsWith("score:")) {
-      const scoreName = filter.column.split(":")[1];
-      const numValue = parseFloat(String(filter.value));
-      if (scoreName && !isNaN(numValue)) {
-        const opSymbol = OperatorLabelMap[filter.operator as Operator];
-        conditions.push(
-          `JSONExtractFloat(a.scores, {${paramKey}_name:String}) ${opSymbol} {${paramKey}_value:Float64}`
-        );
-        params[`${paramKey}_name`] = scoreName;
-        params[`${paramKey}_value`] = numValue;
-      }
-      return;
-    }
-
-    // Standard filters — resolve column SQL
-    const col = columnMap.get(filter.column);
-    if (!col) return;
-
+    // Standard filter: filterSql OP {param:chType}
     const opSymbol = OperatorLabelMap[filter.operator as Operator];
+    const isNumeric = chType === "Int64" || chType === "Float64";
+    const parsedValue = isNumeric ? (chType === "Int64" ? parseInt(String(filter.value)) : parseFloat(String(filter.value))) : String(filter.value);
 
-    // Determine ClickHouse type based on column
-    if (filter.column === "index") {
-      const numValue = parseInt(String(filter.value));
-      if (!isNaN(numValue)) {
-        conditions.push(`${col.sql} ${opSymbol} {${paramKey}:Int64}`);
-        params[paramKey] = numValue;
-      }
-    } else if (filter.column === "duration" || filter.column === "cost") {
-      const numValue = parseFloat(String(filter.value));
-      if (!isNaN(numValue)) {
-        conditions.push(`${col.sql} ${opSymbol} {${paramKey}:Float64}`);
-        params[paramKey] = numValue;
-      }
-    } else if (filter.column === "traceId") {
-      conditions.push(`${col.sql} = {${paramKey}:UUID}`);
-      params[paramKey] = String(filter.value);
-    } else {
-      // Default string filter
-      conditions.push(`${col.sql} ${opSymbol} {${paramKey}:String}`);
-      params[paramKey] = String(filter.value);
-    }
+    if (isNumeric && isNaN(parsedValue as number)) return;
+
+    conditions.push(`${filter.filterSql} ${opSymbol} {${paramKey}:${chType}}`);
+    params[paramKey] = parsedValue;
   });
 
   return { conditions, params };
@@ -110,17 +86,8 @@ function buildFilterConditions(
 // -- Main builder --
 
 export function buildEvalQuery(options: EvalQueryOptions): QueryResult {
-  const {
-    evaluationId,
-    columns,
-    traceIds,
-    filters,
-    limit,
-    offset,
-    sortBy,
-    sortDirection,
-    targetId,
-  } = options;
+  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } =
+    options;
 
   if (targetId) {
     return buildComparisonQuery(options);
@@ -134,6 +101,7 @@ export function buildEvalQuery(options: EvalQueryOptions): QueryResult {
     limit,
     offset,
     sortBy,
+    sortSql,
     sortDirection,
     evalIdParam: "evaluationId",
   });
@@ -143,26 +111,18 @@ interface SingleEvalQueryOptions {
   evaluationId: string;
   columns: EvalQueryColumn[];
   traceIds: string[];
-  filters: Filter[];
+  filters: EnrichedFilter[];
   limit?: number;
   offset?: number;
   sortBy?: string;
+  sortSql?: string;
   sortDirection?: "ASC" | "DESC";
   evalIdParam: string; // parameter name for the evaluation ID
 }
 
 function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
-  const {
-    evaluationId,
-    columns,
-    traceIds,
-    filters,
-    limit,
-    offset,
-    sortBy,
-    sortDirection,
-    evalIdParam,
-  } = options;
+  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, evalIdParam } =
+    options;
 
   const parameters: QueryParams = {};
 
@@ -171,27 +131,23 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
   const selectStr = selectClauses.join(", ");
 
   // FROM + JOIN
-  const fromStr = "evaluation_datapoints a JOIN traces t ON t.id = a.trace_id";
+  const fromStr = "evaluation_datapoints dp JOIN traces t ON t.id = dp.trace_id";
 
   // WHERE
   const whereConditions: string[] = [];
 
   // Always filter by evaluation_id
-  whereConditions.push(`a.evaluation_id = {${evalIdParam}:UUID}`);
+  whereConditions.push(`dp.evaluation_id = {${evalIdParam}:UUID}`);
   parameters[evalIdParam] = evaluationId;
 
   // Pre-filter by trace IDs (from search)
   if (traceIds.length > 0) {
-    whereConditions.push(`a.trace_id IN ({traceIds:Array(UUID)})`);
+    whereConditions.push(`dp.trace_id IN ({traceIds:Array(UUID)})`);
     parameters.traceIds = traceIds;
   }
 
   // Apply column filters
-  const { conditions: filterConditions, params: filterParams } = buildFilterConditions(
-    filters,
-    columns,
-    "f",
-  );
+  const { conditions: filterConditions, params: filterParams } = buildFilterConditions(filters, columns, "f");
   whereConditions.push(...filterConditions);
   Object.assign(parameters, filterParams);
 
@@ -200,19 +156,11 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
   // ORDER BY
   let orderByStr: string;
   if (sortBy) {
-    const sortColumn = resolveSortExpression(sortBy, columns);
+    const sortColumn = resolveSortExpression(sortBy, sortSql, columns);
     const direction = sortDirection ?? "ASC";
     orderByStr = `ORDER BY ${sortColumn} ${direction}`;
-
-    // If sorting by a score column, we need the score name param
-    if (sortBy.startsWith("score:") || sortBy.startsWith("comparedScore:")) {
-      const scoreName = sortBy.split(":")[1];
-      if (scoreName) {
-        parameters.sortScoreName = scoreName;
-      }
-    }
   } else {
-    orderByStr = "ORDER BY a.index ASC, a.created_at ASC";
+    orderByStr = "ORDER BY dp.index ASC, dp.created_at ASC";
   }
 
   // PAGINATION
@@ -223,47 +171,24 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
     parameters.offset = offset;
   }
 
-  const query = `SELECT ${selectStr} FROM ${fromStr} ${whereStr} ${orderByStr} ${paginationStr}`.trim().replace(/\s+/g, " ");
+  const query = `SELECT ${selectStr} FROM ${fromStr} ${whereStr} ${orderByStr} ${paginationStr}`
+    .trim()
+    .replace(/\s+/g, " ");
 
   return { query, parameters };
 }
 
-function resolveSortExpression(sortBy: string, columns: EvalQueryColumn[]): string {
-  // Score columns (both score: and comparedScore: sort by the same underlying expression)
-  if (sortBy.startsWith("score:") || sortBy.startsWith("comparedScore:")) {
-    const scoreName = sortBy.split(":")[1];
-    if (scoreName) {
-      return `JSONExtractFloat(a.scores, {sortScoreName:String})`;
-    }
-  }
-
-  // Look up in columns
-  const col = columns.find((c) => c.id === sortBy);
-  if (col) {
-    return col.sql;
-  }
-
-  // Fallback for known column names
-  if (sortBy === "index") return "a.index";
-  if (sortBy === "createdAt") return "a.created_at";
-
-  return "a.index";
+function resolveSortExpression(sortBy: string, sortSql?: string, columns?: EvalQueryColumn[]): string {
+  if (sortSql) return sortSql;
+  const col = columns?.find((c) => c.id === sortBy);
+  return col?.sql ?? "dp.index";
 }
 
 // -- Comparison builder --
 
 function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
-  const {
-    evaluationId,
-    columns,
-    traceIds,
-    filters,
-    limit,
-    offset,
-    sortBy,
-    sortDirection,
-    targetId,
-  } = options;
+  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } =
+    options;
 
   // Build primary subquery (with pagination)
   const primaryResult = buildSingleEvalQuery({
@@ -274,6 +199,7 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
     limit,
     offset,
     sortBy,
+    sortSql,
     sortDirection,
     evalIdParam: "evaluationId",
   });
@@ -282,8 +208,8 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
   const comparedResult = buildSingleEvalQuery({
     evaluationId: targetId!,
     columns,
-    traceIds, // Same search filter applies to both
-    filters,  // Same filters apply to both
+    traceIds,
+    filters,
     evalIdParam: "targetId",
   });
 
@@ -293,21 +219,13 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
     ...comparedResult.parameters,
   };
 
-  // Determine which columns get compared aliases
-  const comparableColumns = columns.filter((c) => {
-    // All columns that have comparable:true in the meta will be included
-    // We check by convention: certain IDs are comparable
-    const comparableIds = new Set([
-      "duration", "cost", "traceId", "startTime", "endTime",
-      "inputCost", "outputCost", "totalCost", "scores",
-    ]);
-    return comparableIds.has(c.id) || c.id.startsWith("score:");
-  });
+  // Determine which columns get compared aliases — uses comparable flag from FE column config
+  const comparableColumns = columns.filter((c) => c.comparable);
 
   // Build outer SELECT
   const primarySelect = columns.map((c) => `p.${backtickEscape(c.id)}`);
-  const comparedSelect = comparableColumns.map((c) =>
-    `c.${backtickEscape(c.id)} as ${backtickEscape(`compared:${c.id}`)}`
+  const comparedSelect = comparableColumns.map(
+    (c) => `c.${backtickEscape(c.id)} as ${backtickEscape(`compared:${c.id}`)}`
   );
 
   const outerSelect = [...primarySelect, ...comparedSelect].join(", ");
@@ -325,34 +243,22 @@ export function buildEvalStatsQuery(options: EvalStatsQueryOptions): QueryResult
 
   const whereConditions: string[] = [];
 
-  whereConditions.push(`a.evaluation_id = {evaluationId:UUID}`);
+  whereConditions.push(`dp.evaluation_id = {evaluationId:UUID}`);
   parameters.evaluationId = evaluationId;
 
   if (traceIds.length > 0) {
-    whereConditions.push(`a.trace_id IN ({traceIds:Array(UUID)})`);
+    whereConditions.push(`dp.trace_id IN ({traceIds:Array(UUID)})`);
     parameters.traceIds = traceIds;
   }
 
-  // Apply filters - need minimal column set for filter resolution
-  const statsColumns: EvalQueryColumn[] = [
-    { id: "index", sql: "a.index" },
-    { id: "duration", sql: "(toUnixTimestamp64Milli(t.end_time) - toUnixTimestamp64Milli(t.start_time))" },
-    { id: "cost", sql: "if(t.total_cost > 0, greatest(t.input_cost + t.output_cost, t.total_cost), t.input_cost + t.output_cost)" },
-    { id: "traceId", sql: "a.trace_id" },
-    { id: "metadata", sql: "a.metadata" },
-  ];
-
-  const { conditions: filterConditions, params: filterParams } = buildFilterConditions(
-    filters,
-    statsColumns,
-    "sf",
-  );
+  // Enriched filters are self-contained — no column lookup needed
+  const { conditions: filterConditions, params: filterParams } = buildFilterConditions(filters, [], "sf");
   whereConditions.push(...filterConditions);
   Object.assign(parameters, filterParams);
 
   const whereStr = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
 
-  const query = `SELECT a.scores FROM evaluation_datapoints a JOIN traces t ON t.id = a.trace_id ${whereStr}`;
+  const query = `SELECT dp.scores FROM evaluation_datapoints dp JOIN traces t ON t.id = dp.trace_id ${whereStr}`;
 
   return { query: query.trim(), parameters };
 }

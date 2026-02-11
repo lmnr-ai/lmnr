@@ -37,6 +37,8 @@ const ScoreDisplay = (range: ScoreRange, value: ScoreValue) => {
 
 export { ScoreDisplay };
 
+// TODO: one component per file, no lowercase components
+// QUESTION: maybe I'm misunderstading something but lowercase components seem wrong to me as a react veteran
 export const createScoreColumnCell = (heatmapEnabled: boolean, scoreRanges: ScoreRanges, scoreName: string) => {
   const ScoreColumnCell = ({ row }: { row: { original: EvalRow } }) => {
     const value = row.original[`score:${scoreName}`] as number | undefined;

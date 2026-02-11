@@ -7,6 +7,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import Chart from "@/components/evaluation/chart";
+import {
+  buildAllColumnDefs,
+  buildColumnsPayload,
+  enrichFilter,
+  getSortSql,
+} from "@/components/evaluation/columns/index";
 import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
@@ -16,11 +22,7 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
-import {
-  type EvalRow,
-  type Evaluation as EvaluationType,
-  type EvaluationResultsInfo,
-} from "@/lib/evaluation/types";
+import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
@@ -53,6 +55,25 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   // Pagination state
   const pageSize = 50;
 
+  // Extract score names from filter params so stats URL doesn't depend on statsData
+  const filterScoreNames = useMemo(
+    () =>
+      filter
+        .map((f) => {
+          try {
+            const raw = JSON.parse(f);
+            if (typeof raw.column === "string" && raw.column.startsWith("score:")) {
+              return raw.column.split(":")[1] as string;
+            }
+          } catch {
+            // skip
+          }
+          return undefined;
+        })
+        .filter((n): n is string => !!n),
+    [filter]
+  );
+
   // Statistics URL (fetches all stats at once)
   const statsUrl = useMemo(() => {
     let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
@@ -66,14 +87,24 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
       urlParams.append("searchIn", value);
     });
 
-    filter.forEach((f) => urlParams.append("filter", f));
+    // Enrich filters — use score names extracted from filters (not from API response)
+    const allColumnDefs = buildAllColumnDefs(filterScoreNames);
+    filter.forEach((f) => {
+      try {
+        const raw = JSON.parse(f);
+        const enriched = enrichFilter(raw, allColumnDefs);
+        urlParams.append("filter", JSON.stringify(enriched));
+      } catch {
+        // Skip invalid filters
+      }
+    });
 
     if (urlParams.toString()) {
       url += `?${urlParams.toString()}`;
     }
 
     return url;
-  }, [params?.projectId, evaluationId, search, searchIn, filter]);
+  }, [params?.projectId, evaluationId, search, searchIn, filter, filterScoreNames]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: EvaluationType;
@@ -97,14 +128,23 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
       urlParams.append("searchIn", value);
     });
 
-    filter.forEach((f) => urlParams.append("filter", f));
+    const allColumnDefs = buildAllColumnDefs(filterScoreNames);
+    filter.forEach((f) => {
+      try {
+        const raw = JSON.parse(f);
+        const enriched = enrichFilter(raw, allColumnDefs);
+        urlParams.append("filter", JSON.stringify(enriched));
+      } catch {
+        // Skip invalid filters
+      }
+    });
 
     if (urlParams.toString()) {
       url += `?${urlParams.toString()}`;
     }
 
     return url;
-  }, [params?.projectId, targetId, search, searchIn, filter]);
+  }, [params?.projectId, targetId, search, searchIn, filter, filterScoreNames]);
 
   const { data: targetStatsData } = useSWR<{
     evaluation: EvaluationType;
@@ -138,10 +178,28 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
         urlParams.append("searchIn", value);
       });
 
-      filter.forEach((f) => urlParams.append("filter", f));
+      // Enrich filters with SQL info from column meta
+      const allColumnDefs = buildAllColumnDefs(scores);
+      filter.forEach((f) => {
+        try {
+          const raw = JSON.parse(f);
+          const enriched = enrichFilter(raw, allColumnDefs);
+          urlParams.append("filter", JSON.stringify(enriched));
+        } catch {
+          // Skip invalid filters
+        }
+      });
+
+      // Send columns payload
+      const columnsPayload = buildColumnsPayload(scores);
+      urlParams.set("columns", JSON.stringify(columnsPayload));
 
       if (sortBy) {
         urlParams.set("sortBy", sortBy);
+        const sortSqlValue = getSortSql(sortBy, allColumnDefs);
+        if (sortSqlValue) {
+          urlParams.set("sortSql", sortSqlValue);
+        }
       }
       if (sortDirection) {
         urlParams.set("sortDirection", sortDirection);
@@ -161,7 +219,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, params?.projectId, evaluationId, pageSize, sortBy, sortDirection, targetId]
+    [search, searchIn, filter, params?.projectId, evaluationId, pageSize, sortBy, sortDirection, targetId, scores]
   );
 
   // Use infinite scroll hook — data is now EvalRow (Record<string, unknown>)
@@ -176,8 +234,6 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     enabled: true,
     deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection, targetId],
   });
-
-  // No more client-side merge — comparison data comes from the single query
 
   const selectedRow = useMemo<EvalRow | undefined>(
     () => allDatapoints?.find((row) => row["id"] === searchParams.get("datapointId")),
