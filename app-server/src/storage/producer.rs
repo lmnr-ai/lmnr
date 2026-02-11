@@ -7,6 +7,7 @@ use tracing::instrument;
 use crate::mq::MessageQueue;
 use crate::mq::MessageQueueTrait;
 
+use super::utils::key_to_url;
 use super::{PAYLOADS_EXCHANGE, PAYLOADS_ROUTING_KEY, QueuePayloadMessage};
 
 /// Publish a payload to the queue for async storage.
@@ -34,15 +35,4 @@ pub async fn publish_payload(
         .await?;
 
     Ok(key_to_url(key))
-}
-
-/// Convert a storage key to a URL.
-/// Key format: "project/{project_id}/{payload_id}[.ext]"
-fn key_to_url(key: &str) -> String {
-    let parts = key
-        .strip_prefix("project/")
-        .unwrap()
-        .split("/")
-        .collect::<Vec<&str>>();
-    format!("/api/projects/{}/payloads/{}", parts[0], parts[1])
 }

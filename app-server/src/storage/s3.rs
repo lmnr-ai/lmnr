@@ -4,6 +4,8 @@ use aws_sdk_s3::Client;
 use std::pin::Pin;
 use tracing::instrument;
 
+use super::utils::key_to_url;
+
 #[derive(Clone)]
 pub struct S3Storage {
     client: Client,
@@ -12,15 +14,6 @@ pub struct S3Storage {
 impl S3Storage {
     pub fn new(client: Client) -> Self {
         Self { client }
-    }
-
-    fn get_url(&self, key: &str) -> String {
-        let parts = key
-            .strip_prefix("project/")
-            .unwrap()
-            .split("/")
-            .collect::<Vec<&str>>();
-        format!("/api/projects/{}/payloads/{}", parts[0], parts[1])
     }
 }
 
@@ -40,7 +33,7 @@ impl super::StorageTrait for S3Storage {
             .send()
             .await?;
 
-        Ok(self.get_url(key))
+        Ok(key_to_url(key))
     }
 
     async fn get_stream(&self, bucket: &str, key: &str) -> Result<Self::StorageBytesStream> {

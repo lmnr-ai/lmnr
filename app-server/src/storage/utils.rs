@@ -18,3 +18,14 @@ pub fn base64_to_bytes(base64: &str) -> Result<Vec<u8>> {
         .decode(base64.as_bytes())
         .map_err(|e| e.into())
 }
+
+/// Convert a storage key to a URL.
+/// Key format: "project/{project_id}/{payload_id}[.ext]"
+pub fn key_to_url(key: &str) -> String {
+    let parts = key
+        .strip_prefix("project/")
+        .unwrap()
+        .split("/")
+        .collect::<Vec<&str>>();
+    format!("/api/projects/{}/payloads/{}", parts[0], parts[1])
+}
