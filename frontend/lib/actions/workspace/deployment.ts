@@ -67,10 +67,7 @@ export const getDeployment = async (input: z.infer<typeof GenerateDeploymentKeys
       workspaceId,
       mode: DeploymentType.CLOUD,
       publicKey: null,
-      privateKey: null,
-      privateKeyNonce: null,
       dataPlaneUrl: null,
-      dataPlaneUrlNonce: null,
     };
   }
 
@@ -87,7 +84,9 @@ export const getDeployment = async (input: z.infer<typeof GenerateDeploymentKeys
   };
 
   return {
-    ...result,
+    workspaceId: result.workspaceId,
+    mode: result.mode,
+    publicKey: result.publicKey,
     dataPlaneUrl: await decodeDataPlaneUrl(),
   };
 };

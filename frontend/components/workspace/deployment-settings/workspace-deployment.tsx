@@ -193,19 +193,19 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
               </p>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {!isPro
-                  ? "Data residency configuration is available on the Pro plan and above. Upgrade your workspace to choose where your data is stored."
-                  : "Your workspace is on the Pro plan, but the Data Plane addon is required to enable hybrid data residency. Contact your account manager or add it from the billing page."}
+                  ? "Data residency configuration is available on the Pro plan with the Data Plane addon."
+                  : "Your workspace is on the Pro plan, but the Data Plane addon is required to enable hybrid data residency."}
               </p>
             </div>
           </div>
         )}
 
         {/* Mode selection cards */}
-        <div className={cn("grid gap-3 sm:grid-cols-2", !isEnabled && "opacity-50 pointer-events-none")}>
+        <div className={cn("grid gap-3 sm:grid-cols-2", !isEnabled && "opacity-90 pointer-events-none")}>
           <ModeCard
             icon={<Cloud className="h-5 w-5" />}
             title="Cloud"
-            description="Data stored and managed by Laminar. No infrastructure to manage."
+            description="Data stored securely in Laminar cloud."
             isSelected={mode === DeploymentType.CLOUD}
             isActive={data?.mode === DeploymentType.CLOUD}
             disabled={isSaving || !isEnabled}
@@ -214,7 +214,7 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
           <ModeCard
             icon={<Server className="h-5 w-5" />}
             title="Hybrid"
-            description="Data stored in your infrastructure. Laminar handles processing only."
+            description="Data stored securely in your infrastructure. Laminar handles processing only."
             isSelected={mode === DeploymentType.HYBRID}
             isActive={data?.mode === DeploymentType.HYBRID}
             disabled={isSaving || !isEnabled}
@@ -259,20 +259,12 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
                       Switching to <strong>Hybrid</strong> means all new data will be written to
                       and read from your self-hosted data plane.
                     </p>
-                    <p className="text-destructive">
-                      If your data plane is not configured properly, this may result in data loss
-                      or inability to access your traces and logs.
-                    </p>
                   </>
                 ) : (
                   <>
                     <p>
                       Switching to <strong>Cloud</strong> means all new data will be written to
                       and read from Laminar&apos;s managed infrastructure.
-                    </p>
-                    <p className="text-destructive">
-                      Data stored in your self-hosted data plane will no longer be accessible
-                      through this workspace.
                     </p>
                   </>
                 )}
@@ -310,7 +302,7 @@ function ModeCard({ icon, title, description, isSelected, isActive, disabled, on
       className={cn(
         "relative flex flex-col gap-2 rounded-lg border-2 p-4 text-left transition-colors",
         "hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        "disabled:pointer-events-none disabled:opacity-50",
+        "disabled:pointer-events-none disabled:opacity-90",
         isSelected
           ? "border-primary bg-primary/5"
           : "border-border"
