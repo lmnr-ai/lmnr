@@ -13,7 +13,7 @@ use crate::{
 #[derive(Deserialize)]
 pub struct PayloadQuery {
     #[serde(rename = "payloadType")]
-    pub payload_type: Option<String>,
+    payload_type: Option<String>,
 }
 
 #[get("payloads/{payload_id}")]
