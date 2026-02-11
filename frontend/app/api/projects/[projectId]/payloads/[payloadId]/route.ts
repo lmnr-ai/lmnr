@@ -12,5 +12,5 @@ export async function GET(
 
   const { bytes, headers } = await downloadS3ObjectHttp(projectId, payloadId, payloadType);
 
-  return new Response(bytes.buffer as ArrayBuffer, { headers });
+  return new Response(Buffer.from(bytes), { headers });
 }
