@@ -3,10 +3,10 @@ use std::collections::HashSet;
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
-use tracing::instrument;
 use uuid::Uuid;
 
 use super::utils::chrono_to_nanoseconds;
+use super::{ClickhouseInsertable, DataPlaneBatch, Table};
 use crate::db::spans::{Span, SpanType};
 use crate::db::trace::Trace;
 use crate::traces::spans::SpanUsage;
@@ -80,6 +80,14 @@ impl CHTrace {
             has_browser_session: trace.has_browser_session().unwrap_or(false),
             span_names: trace.span_names(),
         }
+    }
+}
+
+impl ClickhouseInsertable for CHTrace {
+    const TABLE: Table = Table::Traces;
+
+    fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
+        DataPlaneBatch::Traces(items)
     }
 }
 
@@ -233,24 +241,4 @@ impl TraceAggregation {
 
         trace_aggregations.into_values().collect()
     }
-}
-
-/// Insert or update traces in ClickHouse traces_replacing table
-#[instrument(skip(client, traces))]
-pub async fn upsert_traces_batch(
-    client: clickhouse::Client,
-    traces: &[CHTrace],
-) -> Result<(), clickhouse::error::Error> {
-    if traces.is_empty() {
-        return Ok(());
-    }
-
-    let mut insert = client.insert::<CHTrace>("traces_replacing").await?;
-
-    for trace in traces {
-        insert.write(trace).await?;
-    }
-
-    insert.end().await?;
-    Ok(())
 }

@@ -94,6 +94,7 @@ pub async fn create_span(
         tags: None,
         input_url: None,
         output_url: None,
+        size_bytes: 0,
     };
 
     let rabbitmq_span_message = RabbitMqSpanMessage { span };

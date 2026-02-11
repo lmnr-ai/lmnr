@@ -54,8 +54,14 @@ pub async fn process_traces(
         }
     }
 
-    let response =
-        push_spans_to_queue(request, project_api_key.project_id, spans_message_queue).await?;
+    let response = push_spans_to_queue(
+        request,
+        project_api_key.project_id,
+        spans_message_queue,
+        db,
+        cache,
+    )
+    .await?;
     if response.partial_success.is_some() {
         return Err(anyhow::anyhow!("There has been an error during trace processing.").into());
     }

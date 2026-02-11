@@ -366,7 +366,6 @@ name = "app-server"
 version = "0.1.0"
 dependencies = [
  "actix-multipart",
- "actix-service",
  "actix-web",
  "actix-web-httpauth",
  "anyhow",
@@ -385,6 +384,7 @@ dependencies = [
  "enum_delegate",
  "enum_dispatch",
  "futures-util",
+ "hex",
  "indexmap",
  "itertools",
  "lapin",
@@ -417,7 +417,6 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
- "url",
  "uuid",
 ]
 

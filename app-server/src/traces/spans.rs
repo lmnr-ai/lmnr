@@ -23,9 +23,9 @@ use crate::{
         ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatMessageText,
         ChatMessageToolCall, InstrumentationChatMessageContentPart,
     },
-    mq::utils::mq_max_payload,
+    mq::{MessageQueue, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry_proto_trace_v1::Span as OtelSpan,
-    storage::{Storage, StorageTrait},
+    storage::producer::publish_payload,
     traces::{
         span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
         utils::{convert_any_value_to_json_value, serialize_indexmap},
@@ -806,7 +806,11 @@ impl Span {
         }
     }
 
-    pub async fn store_payloads(&mut self, project_id: &Uuid, storage: Arc<Storage>) -> Result<()> {
+    pub async fn store_payloads(
+        &mut self,
+        project_id: &Uuid,
+        queue: Arc<MessageQueue>,
+    ) -> Result<()> {
         let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
             .ok()
             .and_then(|s: String| s.parse::<usize>().ok())
@@ -823,16 +827,14 @@ impl Span {
                     if let ChatMessageContent::ContentPartList(parts) = message.content {
                         let mut new_parts = Vec::new();
                         for part in parts {
-                            let stored_part = match part
-                                .store_media(project_id, storage.clone(), &bucket)
-                                .await
-                            {
-                                Ok(stored_part) => stored_part,
-                                Err(e) => {
-                                    log::error!("Error storing media: {e}");
-                                    part
-                                }
-                            };
+                            let stored_part =
+                                match part.store_media(project_id, queue.clone(), &bucket).await {
+                                    Ok(stored_part) => stored_part,
+                                    Err(e) => {
+                                        log::error!("Error storing media: {e}");
+                                        part
+                                    }
+                                };
                             new_parts.push(stored_part);
                         }
                         message.content = ChatMessageContent::ContentPartList(new_parts);
@@ -860,7 +862,7 @@ impl Span {
                             data.len()
                         );
                     } else {
-                        let url = storage.store(&bucket, &key, data).await?;
+                        let url = publish_payload(queue.clone(), &bucket, &key, data).await?;
                         self.input_url = Some(url);
                         self.input = Some(serde_json::Value::String(preview));
                     }
@@ -887,7 +889,7 @@ impl Span {
                         data.len()
                     );
                 } else {
-                    let url = storage.store(&bucket, &key, data).await?;
+                    let url = publish_payload(queue, &bucket, &key, data).await?;
                     self.output_url = Some(url);
                     self.output = Some(serde_json::Value::String(
                         output_str.chars().take(100).collect(),
@@ -898,9 +900,8 @@ impl Span {
         Ok(())
     }
 
-    pub fn estimate_size_bytes(&self) -> usize {
-        // events size is estimated separately, so ignored here
-
+    /// This function MUST to be called right after we deserialize or create a span object.
+    pub fn estimate_size_bytes(&mut self) {
         // 16 bytes for span_id,
         // 16 bytes for trace_id,
         // 16 bytes for parent_span_id,
@@ -908,7 +909,8 @@ impl Span {
         // 8 bytes for end_time,
 
         // everything else is in attributes
-        return 16
+        // because right after creation attributes contain all span data
+        let size_bytes = 16
             + 16
             + 16
             + 8
@@ -925,6 +927,7 @@ impl Span {
                 .iter()
                 .map(|event| event.estimate_size_bytes())
                 .sum::<usize>();
+        self.size_bytes = size_bytes;
     }
 
     /// Check if the span is the wrapper of a tool call made by AI SDK on behalf
@@ -1454,6 +1457,7 @@ mod tests {
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Verify initial state
@@ -1779,6 +1783,7 @@ mod tests {
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Verify initial state
@@ -2124,6 +2129,7 @@ mod tests {
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Create child span (ai.generateText.doGenerate) - has LLM span type
@@ -2270,6 +2276,7 @@ mod tests {
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Verify initial span relationships and structure
@@ -2742,6 +2749,7 @@ mod tests {
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Create child span (ai.generateText.doGenerate) - has LLM span type
@@ -2895,6 +2903,7 @@ mod tests {
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Verify initial span relationships and structure
@@ -3155,6 +3164,7 @@ mod tests {
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Verify initial state
