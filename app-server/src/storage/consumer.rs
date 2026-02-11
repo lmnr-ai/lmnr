@@ -1,19 +1,12 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use backoff::ExponentialBackoffBuilder;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::worker::MessageHandler;
 
-use super::{Storage, StorageTrait};
+use super::{QueuePayloadMessage, Storage, StorageTrait};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct QueuePayloadMessage {
-    pub key: String,
-    pub data: Vec<u8>,
-    pub bucket: String,
-}
 /// Handler for payload storage
 pub struct PayloadHandler {
     pub storage: Arc<Storage>,

@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use enum_delegate;
+use serde::{Deserialize, Serialize};
 
 pub mod consumer;
 pub mod mock;
@@ -17,6 +18,13 @@ use s3::S3Storage;
 pub const PAYLOADS_QUEUE: &str = "payloads_queue";
 pub const PAYLOADS_EXCHANGE: &str = "payloads_exchange";
 pub const PAYLOADS_ROUTING_KEY: &str = "payloads_routing_key";
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QueuePayloadMessage {
+    pub key: String,
+    pub data: Vec<u8>,
+    pub bucket: String,
+}
 
 #[enum_delegate::implement(StorageTrait)]
 pub enum Storage {

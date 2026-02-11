@@ -1,21 +1,13 @@
 //! Payload handling for StorageService.
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::instrument;
 
 use crate::mq::MessageQueue;
 use crate::mq::MessageQueueTrait;
 
-use super::{PAYLOADS_EXCHANGE, PAYLOADS_ROUTING_KEY};
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct QueuePayloadMessage {
-    pub key: String,
-    pub data: Vec<u8>,
-    pub bucket: String,
-}
+use super::{PAYLOADS_EXCHANGE, PAYLOADS_ROUTING_KEY, QueuePayloadMessage};
 
 /// Publish a payload to the queue for async storage.
 /// Returns the URL that will be available after the payload is stored.
