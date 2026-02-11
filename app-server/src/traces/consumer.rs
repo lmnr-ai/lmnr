@@ -178,6 +178,7 @@ async fn process_span_messages(
         .into_par_iter()
         .map(|message| {
             let mut span = message.span;
+            span.estimate_size_bytes();
             span.parse_and_enrich_attributes();
             span
         })
@@ -334,7 +335,7 @@ async fn process_span_messages(
     if is_feature_enabled(Feature::UsageLimit) {
         let mut bytes_per_project: HashMap<Uuid, usize> = HashMap::new();
         for span in &spans {
-            *bytes_per_project.entry(span.project_id).or_default() += span.estimate_size_bytes();
+            *bytes_per_project.entry(span.project_id).or_default() += span.size_bytes;
         }
 
         for (project_id, bytes) in bytes_per_project {
