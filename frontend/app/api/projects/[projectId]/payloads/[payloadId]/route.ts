@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 
-import { downloadPayloadFromBackend } from "@/lib/s3";
+import { downloadS3ObjectHttp } from "@/lib/s3";
 
 export async function GET(
   req: NextRequest,
@@ -10,7 +10,7 @@ export async function GET(
   const { projectId, payloadId } = params;
   const payloadType = req.nextUrl.searchParams.get("payloadType");
 
-  const { bytes, headers } = await downloadPayloadFromBackend(projectId, payloadId, payloadType);
+  const { bytes, headers } = await downloadS3ObjectHttp(projectId, payloadId, payloadType);
 
-  return new Response(bytes.buffer as ArrayBuffer, { headers });
+  return new Response(bytes, { headers });
 }
