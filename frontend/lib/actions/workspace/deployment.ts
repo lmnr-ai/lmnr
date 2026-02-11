@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import _sodium from "libsodium-wrappers";
 import { z } from "zod/v4";
 
+import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils.ts";
 import { cache, WORKSPACE_DEPLOYMENTS_CACHE_KEY } from "@/lib/cache.ts";
 import { decryptValue, encryptValue, generateKeyPair } from "@/lib/crypto.ts";
 import { db } from "@/lib/db/drizzle.ts";
@@ -25,6 +26,8 @@ const UpdateDeploymentSchema = z.object({
 
 export const generateDeploymentKeys = async (input: z.infer<typeof GenerateDeploymentKeysSchema>) => {
   const { workspaceId } = GenerateDeploymentKeysSchema.parse(input);
+
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
   const { publicKey, privateKey } = await generateKeyPair();
 
@@ -57,6 +60,8 @@ export const generateDeploymentKeys = async (input: z.infer<typeof GenerateDeplo
 
 export const getDeployment = async (input: z.infer<typeof GenerateDeploymentKeysSchema>) => {
   const { workspaceId } = GenerateDeploymentKeysSchema.parse(input);
+
+  await checkUserWorkspaceRole({ workspaceId, roles: ["member", "admin", "owner"] });
 
   const result = await db.query.workspaceDeployments.findFirst({
     where: eq(workspaceDeployments.workspaceId, workspaceId),
@@ -93,6 +98,8 @@ export const getDeployment = async (input: z.infer<typeof GenerateDeploymentKeys
 
 export const updateDeployment = async (input: z.infer<typeof UpdateDeploymentSchema>) => {
   const { dataPlaneUrl, mode, workspaceId } = UpdateDeploymentSchema.parse(input);
+
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
   const updateData: {
     mode: string;
@@ -133,6 +140,8 @@ export const updateDeployment = async (input: z.infer<typeof UpdateDeploymentSch
 
 export const verifyDeployment = async (input: z.infer<typeof VerifyDeploymentSchema>) => {
   const { workspaceId, dataPlaneUrl } = VerifyDeploymentSchema.parse(input);
+
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
   // Fetch workspace deployment info
   const deployment = await db.query.workspaceDeployments.findFirst({
@@ -190,10 +199,10 @@ export const verifyDeployment = async (input: z.infer<typeof VerifyDeploymentSch
     }
 
     const errorText = await response.text();
-    throw new Error(`Data plane verification failed (${response.status}): ${errorText}`);
+    throw new Error(`Failed to verify data plane (${response.status}): ${errorText}`);
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to verify data plane: ${error.message}`);
+      throw error;
     }
     throw new Error("Failed to verify data plane: Unknown error");
   }
