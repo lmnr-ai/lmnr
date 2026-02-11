@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     db::{self, DB},
     mq::MessageQueue,
     query_engine::QueryEngine,
@@ -40,6 +41,8 @@ pub async fn submit_signal_job(
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
     queue: web::Data<Arc<MessageQueue>>,
+    cache: web::Data<Cache>,
+    http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
 
@@ -74,12 +77,17 @@ pub async fn submit_signal_job(
         }
     };
 
+    let db = db.into_inner();
+
     let results = sql::execute_sql_query(
         query,
         project_id,
         parameters,
         clickhouse_client,
         query_engine.into_inner().as_ref().clone(),
+        http_client.into_inner(),
+        db.clone(),
+        cache.into_inner(),
     )
     .await
     .map_err(|e: sql::SqlQueryError| {
@@ -115,7 +123,7 @@ pub async fn submit_signal_job(
     let response = enqueue_signal_job(
         project_id,
         signal,
-        db.into_inner(),
+        db,
         trace_ids,
         clickhouse.as_ref().clone(),
         queue.as_ref().clone(),

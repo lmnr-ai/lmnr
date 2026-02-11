@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use crate::{
+    cache::Cache,
     ch::spans::append_tags_to_span,
-    db::project_api_keys::ProjectApiKey,
+    db::{DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
     routes::types::ResponseResult,
     sql::{self, ClickhouseReadonlyClient},
@@ -45,6 +46,9 @@ pub async fn tag_trace(
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
+    http_client: web::Data<reqwest::Client>,
+    db: web::Data<DB>,
+    cache: web::Data<Cache>,
 ) -> ResponseResult {
     let req = req.into_inner();
     let names = match &req {
@@ -57,6 +61,8 @@ pub async fn tag_trace(
     let clickhouse_ro = clickhouse_ro.as_ref().clone().unwrap();
     let query_engine = query_engine.as_ref().clone();
     let clickhouse = clickhouse.as_ref().clone();
+    let http_client = http_client.into_inner();
+    let cache = cache.into_inner();
 
     let span_id = match &req {
         TagRequest::WithTraceId(req) => {
@@ -65,6 +71,9 @@ pub async fn tag_trace(
                 query_engine,
                 req.trace_id,
                 project_api_key.project_id,
+                http_client,
+                db.into_inner(),
+                cache,
             )
             .await?
         }

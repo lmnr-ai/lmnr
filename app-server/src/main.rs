@@ -57,8 +57,9 @@ use signals::{
 };
 use tonic::transport::Server;
 use traces::{
-    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, consumer::SpanHandler,
-    grpc_service::ProcessTracesService,
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
+    SPANS_DATA_PLANE_QUEUE, SPANS_DATA_PLANE_ROUTING_KEY, consumer::SpanHandler,
+    data_plane_consumer::DataPlaneSpanHandler, grpc_service::ProcessTracesService,
 };
 
 use cache::{Cache, in_memory::InMemoryCache, redis::RedisCache};
@@ -79,10 +80,11 @@ use std::{
     time::Duration,
 };
 use storage::{
-    PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, PAYLOADS_ROUTING_KEY, PayloadHandler, Storage,
-    mock::MockStorage,
+    CloudStorage, PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, PAYLOADS_ROUTING_KEY, PayloadHandler,
+    StorageService, mock::MockStorage,
 };
 
+use crate::ch::{cloud::CloudClickhouse, data_plane::DataPlaneClickhouse};
 use crate::features::{enable_consumer, enable_producer};
 use crate::utils::get_unsigned_env_with_default;
 use crate::worker::{QueueConfig, WorkerPool, WorkerType};
@@ -98,6 +100,7 @@ mod browser_events;
 mod cache;
 mod ch;
 mod clustering;
+mod data_plane;
 mod datasets;
 mod db;
 mod evaluations;
@@ -309,6 +312,32 @@ fn main() -> anyhow::Result<()> {
             channel
                 .queue_declare(
                     OBSERVATIONS_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
+            // ==== 3.1a Spans data plane message queue ====
+            channel
+                .exchange_declare(
+                    SPANS_DATA_PLANE_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SPANS_DATA_PLANE_QUEUE,
                     QueueDeclareOptions {
                         durable: true,
                         ..Default::default()
@@ -645,6 +674,8 @@ fn main() -> anyhow::Result<()> {
         // register queues
         // ==== 3.1 Spans message queue ====
         queue.register_queue(OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE);
+        // ==== 3.1a Spans data plane message queue ====
+        queue.register_queue(SPANS_DATA_PLANE_EXCHANGE, SPANS_DATA_PLANE_QUEUE);
         // ==== 3.1b Spans indexer message queue ====
         queue.register_queue(SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE);
         // ==== 3.2 Browser events message queue ====
@@ -711,14 +742,14 @@ fn main() -> anyhow::Result<()> {
     });
 
     // == Storage ==
-    let storage: Arc<Storage> = if is_feature_enabled(Feature::Storage) {
+    let storage: CloudStorage = if is_feature_enabled(Feature::Storage) {
         log::info!("using S3 storage");
         let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
-        let s3_storage = storage::s3::S3Storage::new(s3_client, queue.clone());
-        Arc::new(s3_storage.into())
+        let s3_storage = storage::s3::S3Storage::new(s3_client);
+        s3_storage.into()
     } else {
         log::info!("using mock storage");
-        Arc::new(MockStorage {}.into())
+        MockStorage {}.into()
     };
 
     // == Query engine ==
@@ -811,9 +842,23 @@ fn main() -> anyhow::Result<()> {
         };
 
     // == HTTP client ==
+    let http_client = reqwest::Client::new();
+
+    // == Storage Service ==
+    let storage_service = Arc::new(StorageService::new(
+        storage,
+        http_client.clone(),
+        queue.clone(),
+        db.pool.clone(),
+        cache.clone(),
+    ));
+
     let clickhouse_for_http = clickhouse.clone();
-    let storage_for_http = storage.clone();
+
+    let storage_service_for_http = storage_service.clone();
     let sse_connections_for_http = sse_connections.clone();
+    let http_client_for_http = http_client.clone();
+    let http_client_for_consumer = http_client.clone();
 
     if !enable_producer() && !enable_consumer() {
         log::error!(
@@ -925,7 +970,7 @@ fn main() -> anyhow::Result<()> {
         let cache_for_consumer = cache_for_http.clone();
         let mq_for_consumer = mq_for_http.clone();
         let clickhouse_for_consumer = clickhouse.clone();
-        let storage_for_consumer = storage.clone();
+        let storage_service_for_consumer = storage_service.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
         let worker_pool_clone = worker_pool.clone();
@@ -947,8 +992,10 @@ fn main() -> anyhow::Result<()> {
                         let cache = cache_for_consumer.clone();
                         let queue: Arc<MessageQueue> = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
-                        let storage = storage_for_consumer.clone();
+                        let storage_service = storage_service_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
+
+                        let ch_cloud = CloudClickhouse::new(clickhouse.clone());
 
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::Spans,
@@ -958,7 +1005,8 @@ fn main() -> anyhow::Result<()> {
                                 cache: cache.clone(),
                                 queue: queue.clone(),
                                 clickhouse: clickhouse.clone(),
-                                storage: storage.clone(),
+                                ch: ch_cloud.clone(),
+                                storage: storage_service.clone(),
                                 pubsub: pubsub.clone(),
                                 config: BatchingConfig {
                                     size,
@@ -969,6 +1017,52 @@ fn main() -> anyhow::Result<()> {
                                 queue_name: OBSERVATIONS_QUEUE,
                                 exchange_name: OBSERVATIONS_EXCHANGE,
                                 routing_key: OBSERVATIONS_ROUTING_KEY,
+                            },
+                        );
+                    }
+
+                    // Spawn data plane span workers using batch worker pool
+                    {
+                        let size: usize =
+                            get_unsigned_env_with_default("DATA_PLANE_SPANS_BATCH_SIZE", 256);
+                        let flush_interval_ms: u64 = get_unsigned_env_with_default(
+                            "DATA_PLANE_SPANS_BATCH_FLUSH_INTERVAL_MS",
+                            500,
+                        ) as u64;
+                        let flush_interval = Duration::from_millis(flush_interval_ms);
+
+                        let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
+                        let queue: Arc<MessageQueue> = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let storage_service = storage_service_for_consumer.clone();
+                        let pubsub = pubsub_for_consumer.clone();
+
+                        let ch_data_plane = DataPlaneClickhouse::new(
+                            http_client_for_consumer.clone(),
+                            cache_for_consumer.clone(),
+                        );
+
+                        batch_worker_pool_clone.spawn(
+                            BatchWorkerType::DataPlaneSpans,
+                            num_spans_workers as usize,
+                            move || DataPlaneSpanHandler {
+                                db: db.clone(),
+                                cache: cache.clone(),
+                                queue: queue.clone(),
+                                clickhouse: clickhouse.clone(),
+                                ch: ch_data_plane.clone(),
+                                storage: storage_service.clone(),
+                                pubsub: pubsub.clone(),
+                                config: BatchingConfig {
+                                    size,
+                                    flush_interval,
+                                },
+                            },
+                            QueueConfig {
+                                queue_name: SPANS_DATA_PLANE_QUEUE,
+                                exchange_name: SPANS_DATA_PLANE_EXCHANGE,
+                                routing_key: SPANS_DATA_PLANE_ROUTING_KEY,
                             },
                         );
                     }
@@ -1031,12 +1125,12 @@ fn main() -> anyhow::Result<()> {
 
                     // Spawn payload workers
                     {
-                        let storage = storage.clone();
+                        let storage_service = storage_service_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Payloads,
                             num_payload_workers as usize,
                             move || PayloadHandler {
-                                storage: storage.clone(),
+                                storage_service: storage_service.clone(),
                             },
                             QueueConfig {
                                 queue_name: PAYLOADS_QUEUE,
@@ -1286,11 +1380,12 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(clickhouse_for_http.clone()))
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
-                            .app_data(web::Data::new(storage_for_http.clone()))
+                            .app_data(web::Data::new(storage_service_for_http.clone()))
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
                             .app_data(web::Data::new(pubsub.clone()))
+                            .app_data(web::Data::new(http_client_for_http.clone()))
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
@@ -1353,6 +1448,7 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::sql_to_json)
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
+                                    .service(routes::payloads::get_payload)
                                     .service(routes::rollouts::run)
                                     .service(routes::rollouts::update_status)
                                     .service(routes::signals::submit_signal_job),

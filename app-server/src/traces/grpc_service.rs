@@ -69,12 +69,18 @@ impl TraceService for ProcessTracesService {
             }
         }
 
-        let response = push_spans_to_queue(request, project_id, self.queue.clone())
-            .await
-            .map_err(|e| {
-                log::error!("Failed to process traces: {:?}", e);
-                Status::internal("Failed to process traces")
-            })?;
+        let response = push_spans_to_queue(
+            request,
+            project_id,
+            self.queue.clone(),
+            self.db.clone(),
+            self.cache.clone(),
+        )
+        .await
+        .map_err(|e| {
+            log::error!("Failed to process traces: {:?}", e);
+            Status::internal("Failed to process traces")
+        })?;
 
         Ok(Response::new(response))
     }
