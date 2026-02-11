@@ -1,9 +1,9 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, z } from "zod/v4";
 
-import { EnrichedFilterSchema } from "@/lib/actions/common/filters";
 import { PaginationSchema, SortSchema } from "@/lib/actions/common/types";
 import { parseUrlParams } from "@/lib/actions/common/utils";
+import { EvalFilterSchema } from "@/lib/actions/evaluation/query-builder";
 import { getSharedEvaluationDatapoints } from "@/lib/actions/shared/evaluation";
 
 const SharedEvaluationDatapointsSchema = z.object({
@@ -16,7 +16,7 @@ const SharedEvaluationDatapointsSchema = z.object({
       filters
         .map((filter) => {
           try {
-            return EnrichedFilterSchema.parse(JSON.parse(filter));
+            return EvalFilterSchema.parse(JSON.parse(filter));
           } catch (error) {
             ctx.issues.push({ code: "custom", message: `Invalid filter: ${filter}`, input: filter });
             return undefined;

@@ -51,16 +51,6 @@ export const FilterSchemaRelaxed = z.union([
 
 export type Filter = z.infer<typeof FilterSchema>;
 
-export const EnrichedFilterSchema = z.object({
-  column: z.string(),
-  operator: z.string(),
-  value: z.union([z.string(), z.number()]),
-  filterSql: z.string(),
-  dataType: z.enum(["string", "number", "json", "datetime"]),
-  clickhouseType: z.string().optional(),
-});
-
-export type EnrichedFilter = z.infer<typeof EnrichedFilterSchema>;
 export type StringFilter = z.infer<typeof StringFilterSchema>;
 export type NumberFilter = z.infer<typeof NumberFilterSchema>;
 export type BooleanFilter = z.infer<typeof BooleanFilterSchema>;

@@ -2,9 +2,13 @@ import { and, eq } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { EnrichedFilterSchema } from "@/lib/actions/common/filters";
 import { PaginationSchema, SortSchema } from "@/lib/actions/common/types";
-import { buildEvalQuery, buildEvalStatsQuery, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
+import {
+  buildEvalQuery,
+  buildEvalStatsQuery,
+  EvalFilterSchema,
+  type EvalQueryColumn,
+} from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -21,7 +25,7 @@ import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
 export const EVALUATION_TRACE_VIEW_WIDTH = "evaluation-trace-view-width";
 
-const EnrichedFiltersSchema = z.object({
+const EvalFiltersSchema = z.object({
   filter: z
     .array(z.string())
     .default([])
@@ -30,11 +34,11 @@ const EnrichedFiltersSchema = z.object({
         .map((filter) => {
           try {
             const parsed = JSON.parse(filter);
-            return EnrichedFilterSchema.parse(parsed);
+            return EvalFilterSchema.parse(parsed);
           } catch {
             ctx.issues.push({
               code: "custom",
-              message: `Invalid enriched filter JSON: ${filter}`,
+              message: `Invalid filter JSON: ${filter}`,
               input: filter,
             });
             return undefined;
@@ -45,7 +49,7 @@ const EnrichedFiltersSchema = z.object({
 });
 
 export const GetEvaluationDatapointsSchema = z.object({
-  ...EnrichedFiltersSchema.shape,
+  ...EvalFiltersSchema.shape,
   ...PaginationSchema.shape,
   ...SortSchema.shape,
   evaluationId: z.string(),
@@ -58,11 +62,12 @@ export const GetEvaluationDatapointsSchema = z.object({
 });
 
 export const GetEvaluationStatisticsSchema = z.object({
-  ...EnrichedFiltersSchema.shape,
+  ...EvalFiltersSchema.shape,
   evaluationId: z.string(),
   projectId: z.string(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
+  columns: z.string().optional(),
 });
 
 export const RenameEvaluationSchema = z.object({
@@ -152,7 +157,7 @@ export const getEvaluationStatistics = async (
   allDistributions: Record<string, EvaluationScoreDistributionBucket[]>;
   scores: string[];
 }> => {
-  const { projectId, evaluationId, search, searchIn, filter: inputFilters } = input;
+  const { projectId, evaluationId, search, searchIn, filter: inputFilters, columns: columnsJson } = input;
 
   const evaluation = await db.query.evaluations.findFirst({
     where: and(eq(evaluations.id, evaluationId), eq(evaluations.projectId, projectId)),
@@ -163,6 +168,7 @@ export const getEvaluationStatistics = async (
   }
 
   const allFilters = compact(inputFilters);
+  const columns: EvalQueryColumn[] = columnsJson ? JSON.parse(columnsJson) : [];
 
   // Step 1: Get trace IDs from search if provided
   const searchTraceIds = await getSearchTraceIds(projectId, search, searchIn, evaluation.createdAt);
@@ -181,6 +187,7 @@ export const getEvaluationStatistics = async (
     evaluationId,
     traceIds: searchTraceIds,
     filters: allFilters,
+    columns,
   });
 
   const rawResults = await executeQuery<{ scores: string }>({
@@ -236,4 +243,3 @@ export const renameEvaluation = async (input: z.infer<typeof RenameEvaluationSch
 
   return updated;
 };
-

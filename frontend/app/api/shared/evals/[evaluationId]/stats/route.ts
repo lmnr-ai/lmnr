@@ -1,8 +1,8 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, z } from "zod/v4";
 
-import { EnrichedFilterSchema } from "@/lib/actions/common/filters";
 import { parseUrlParams } from "@/lib/actions/common/utils";
+import { EvalFilterSchema } from "@/lib/actions/evaluation/query-builder";
 import { getSharedEvaluationStatistics } from "@/lib/actions/shared/evaluation";
 
 const SharedEvaluationStatisticsSchema = z.object({
@@ -13,7 +13,7 @@ const SharedEvaluationStatisticsSchema = z.object({
       filters
         .map((filter) => {
           try {
-            return EnrichedFilterSchema.parse(JSON.parse(filter));
+            return EvalFilterSchema.parse(JSON.parse(filter));
           } catch (error) {
             ctx.issues.push({ code: "custom", message: `Invalid filter: ${filter}`, input: filter });
             return undefined;
@@ -23,6 +23,7 @@ const SharedEvaluationStatisticsSchema = z.object({
     ),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
+  columns: z.string().optional(),
 });
 
 export async function GET(req: NextRequest, props: { params: Promise<{ evaluationId: string }> }): Promise<Response> {
@@ -35,13 +36,15 @@ export async function GET(req: NextRequest, props: { params: Promise<{ evaluatio
   }
 
   try {
-    const { filter, search, searchIn } = parseResult.data;
+    const { filter, search, searchIn, columns: columnsJson } = parseResult.data;
+    const columns = columnsJson ? JSON.parse(columnsJson) : undefined;
 
     const result = await getSharedEvaluationStatistics({
       evaluationId,
       filters: filter ?? [],
       search,
       searchIn,
+      columns,
     });
 
     if (!result) {

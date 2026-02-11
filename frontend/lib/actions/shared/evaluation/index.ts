@@ -1,8 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { compact } from "lodash";
 
-import { type EnrichedFilter } from "@/lib/actions/common/filters";
-import { buildEvalQuery, buildEvalStatsQuery, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
+import { type EvalFilter, buildEvalQuery, buildEvalStatsQuery, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { getSearchTraceIds } from "@/lib/actions/evaluation/search";
 import { calculateScoreDistribution, calculateScoreStatistics } from "@/lib/actions/evaluation/utils";
 import { executeQuery } from "@/lib/actions/sql";
@@ -51,7 +50,7 @@ export async function getSharedEvaluationDatapoints({
   evaluationId: string;
   pageNumber: number;
   pageSize: number;
-  filters: EnrichedFilter[];
+  filters: EvalFilter[];
   search?: string | null;
   searchIn?: string[];
   sortBy?: string;
@@ -107,11 +106,13 @@ export async function getSharedEvaluationStatistics({
   filters,
   search,
   searchIn,
+  columns,
 }: {
   evaluationId: string;
-  filters: EnrichedFilter[];
+  filters: EvalFilter[];
   search?: string | null;
   searchIn?: string[];
+  columns?: EvalQueryColumn[];
 }): Promise<
   | {
       evaluation: Evaluation;
@@ -144,6 +145,7 @@ export async function getSharedEvaluationStatistics({
     evaluationId,
     traceIds: searchTraceIds,
     filters: allFilters,
+    columns,
   });
 
   const rawResults = await executeQuery<{ scores: string }>({
@@ -182,4 +184,3 @@ export async function getSharedEvaluationStatistics({
     scores: allScoreNames,
   };
 }
-

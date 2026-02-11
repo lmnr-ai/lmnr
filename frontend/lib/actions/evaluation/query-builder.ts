@@ -1,7 +1,7 @@
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { type EnrichedFilter } from "@/lib/actions/common/filters";
 import { type Operator } from "@/lib/actions/common/operators";
 import { type QueryParams, type QueryResult } from "@/lib/actions/common/query-builder";
+import { z } from "zod/v4";
 
 // -- Types --
 
@@ -9,13 +9,23 @@ export interface EvalQueryColumn {
   id: string; // "index", "duration", "score:accuracy"
   sql: string; // "dp.index", "(toUnixTimestamp64Milli(...))"
   comparable?: boolean;
+  filterSql?: string; // WHERE clause SQL (defaults to sql). Template for JSON filters.
+  dbType?: string; // DB type for casting: "String", "Float64", "Int64", "UUID"
 }
+
+export const EvalFilterSchema = z.object({
+  column: z.string(),
+  operator: z.string(),
+  value: z.union([z.string(), z.number()]),
+});
+
+export type EvalFilter = z.infer<typeof EvalFilterSchema>;
 
 export interface EvalQueryOptions {
   evaluationId: string;
   columns: EvalQueryColumn[];
   traceIds: string[];
-  filters: EnrichedFilter[];
+  filters: EvalFilter[];
   limit: number;
   offset: number;
   sortBy?: string;
@@ -27,7 +37,8 @@ export interface EvalQueryOptions {
 export interface EvalStatsQueryOptions {
   evaluationId: string;
   traceIds: string[];
-  filters: EnrichedFilter[];
+  filters: EvalFilter[];
+  columns?: EvalQueryColumn[];
 }
 
 // -- Helpers --
@@ -36,30 +47,27 @@ function backtickEscape(id: string): string {
   return `\`${id.replace(/`/g, "``")}\``;
 }
 
-const DATA_TYPE_TO_CH: Record<string, string> = {
-  string: "String",
-  number: "Float64",
-  json: "String",
-  datetime: "String",
-};
-
 function buildFilterConditions(
-  filters: EnrichedFilter[],
-  _columns: EvalQueryColumn[],
+  filters: EvalFilter[],
+  columns: EvalQueryColumn[],
   paramPrefix: string
 ): { conditions: string[]; params: QueryParams } {
   const conditions: string[] = [];
   const params: QueryParams = {};
 
   filters.forEach((filter, index) => {
-    const paramKey = `${paramPrefix}_${filter.column}_${index}`;
-    const chType = filter.clickhouseType ?? DATA_TYPE_TO_CH[filter.dataType] ?? "String";
+    const col = columns.find((c) => c.id === filter.column);
+    if (!col) return; // unknown column, skip
 
-    if (filter.dataType === "json") {
-      // Template-based: parse key=value from filter.value, substitute into filterSql
+    const filterSql = col.filterSql ?? col.sql;
+    const dbType = col.dbType ?? "String";
+    const paramKey = `${paramPrefix}_${filter.column}_${index}`;
+
+    // JSON template filter (e.g. metadata)
+    if (filterSql.includes("{KEY:")) {
       const [key, val] = String(filter.value).split("=", 2);
       if (key && val) {
-        const condition = filter.filterSql
+        const condition = filterSql
           .replace(/\{KEY:String\}/g, `{${paramKey}_key:String}`)
           .replace(/\{VAL:String\}/g, `{${paramKey}_val:String}`);
         conditions.push(condition);
@@ -69,14 +77,15 @@ function buildFilterConditions(
       return;
     }
 
-    // Standard filter: filterSql OP {param:chType}
+    // Standard filter
     const opSymbol = OperatorLabelMap[filter.operator as Operator];
-    const isNumeric = chType === "Int64" || chType === "Float64";
-    const parsedValue = isNumeric ? (chType === "Int64" ? parseInt(String(filter.value)) : parseFloat(String(filter.value))) : String(filter.value);
-
+    const isNumeric = dbType === "Int64" || dbType === "Float64";
+    const parsedValue = isNumeric
+      ? (dbType === "Int64" ? parseInt(String(filter.value)) : parseFloat(String(filter.value)))
+      : String(filter.value);
     if (isNumeric && isNaN(parsedValue as number)) return;
 
-    conditions.push(`${filter.filterSql} ${opSymbol} {${paramKey}:${chType}}`);
+    conditions.push(`${filterSql} ${opSymbol} {${paramKey}:${dbType}}`);
     params[paramKey] = parsedValue;
   });
 
@@ -111,7 +120,7 @@ interface SingleEvalQueryOptions {
   evaluationId: string;
   columns: EvalQueryColumn[];
   traceIds: string[];
-  filters: EnrichedFilter[];
+  filters: EvalFilter[];
   limit?: number;
   offset?: number;
   sortBy?: string;
@@ -238,7 +247,7 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
 // -- Stats query builder --
 
 export function buildEvalStatsQuery(options: EvalStatsQueryOptions): QueryResult {
-  const { evaluationId, traceIds, filters } = options;
+  const { evaluationId, traceIds, filters, columns } = options;
   const parameters: QueryParams = {};
 
   const whereConditions: string[] = [];
@@ -251,8 +260,8 @@ export function buildEvalStatsQuery(options: EvalStatsQueryOptions): QueryResult
     parameters.traceIds = traceIds;
   }
 
-  // Enriched filters are self-contained — no column lookup needed
-  const { conditions: filterConditions, params: filterParams } = buildFilterConditions(filters, [], "sf");
+  // Resolve filter SQL from columns array
+  const { conditions: filterConditions, params: filterParams } = buildFilterConditions(filters, columns ?? [], "sf");
   whereConditions.push(...filterConditions);
   Object.assign(parameters, filterParams);
 

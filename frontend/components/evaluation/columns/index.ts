@@ -1,7 +1,6 @@
 import { type ColumnDef, type RowData } from "@tanstack/react-table";
 
 import { type ScoreRanges } from "@/components/evaluation/utils";
-import { type EnrichedFilter } from "@/lib/actions/common/filters";
 import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -21,7 +20,7 @@ declare module "@tanstack/react-table" {
     dataType?: "string" | "number" | "json" | "datetime";
     filterable?: boolean;
     comparable?: boolean;
-    clickhouseType?: string;
+    dbType?: string;
     filterSql?: string;
     scoreName?: string;
   }
@@ -59,7 +58,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Index",
     size: 70,
     enableSorting: true,
-    meta: { sql: "dp.index", dataType: "number", filterable: true, comparable: false, clickhouseType: "Int64" },
+    meta: { sql: "dp.index", dataType: "number", filterable: true, comparable: false, dbType: "Int64" },
   },
   {
     id: "data",
@@ -128,7 +127,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["traceId"],
     header: "Trace ID",
     enableSorting: false,
-    meta: { sql: "dp.trace_id", dataType: "string", filterable: true, comparable: true, clickhouseType: "UUID" },
+    meta: { sql: "dp.trace_id", dataType: "string", filterable: true, comparable: true, dbType: "UUID" },
   },
   {
     id: "startTime",
@@ -284,52 +283,51 @@ export function getVisibleStaticColumns(): ColumnDef<EvalRow>[] {
   return STATIC_COLUMNS.filter((c) => VISIBLE_COLUMN_IDS.includes(c.id!));
 }
 
+// -- FE → BE payload builders --
 
-/** Extract { id, sql } pairs from column defs for the API request */
-export function extractQueryColumns(columns: ColumnDef<EvalRow>[]): { id: string; sql: string }[] {
-  return columns.filter((c) => c.meta?.sql).map((c) => ({ id: c.id!, sql: c.meta!.sql! }));
-}
-
-// -- Enrichment helpers (FE → BE payload builders) --
-
-/** Enrich a raw filter with SQL info from column meta for the BE */
-export function enrichFilter(
-  rawFilter: { column: string; operator: string; value: string | number },
-  allColumns: ColumnDef<EvalRow>[]
-): EnrichedFilter {
-  const colDef = allColumns.find((c) => c.id === rawFilter.column);
-  if (!colDef?.meta) throw new Error(`Unknown filter column: ${rawFilter.column}`);
-  return {
-    ...rawFilter,
-    filterSql: colDef.meta.filterSql ?? colDef.meta.sql!,
-    dataType: colDef.meta.dataType!,
-    clickhouseType: colDef.meta.clickhouseType,
-  };
-}
-
-/** Get the SQL expression for sorting a given column */
-export function getSortSql(sortBy: string, allColumns: ColumnDef<EvalRow>[]): string | undefined {
-  const colDef = allColumns.find((c) => c.id === sortBy);
-  return colDef?.meta?.sql;
-}
-
-/** Build the columns payload for the BE query from static + score columns */
+/** Build the full columns payload for the BE query (SELECT + filter resolution) */
 export function buildColumnsPayload(scores: string[]): EvalQueryColumn[] {
   const staticCols = STATIC_COLUMNS.filter((c) => c.meta?.sql).map((c) => ({
     id: c.id!,
     sql: c.meta!.sql!,
     comparable: c.meta!.comparable ?? false,
+    ...(c.meta!.filterSql && { filterSql: c.meta!.filterSql }),
+    ...(c.meta!.dbType && { dbType: c.meta!.dbType }),
   }));
   const scoreCols = scores.map((name) => ({
     id: `score:${name}`,
     sql: `JSONExtractFloat(dp.scores, '${name}')`,
     comparable: true,
+    dbType: "Float64",
   }));
   return [...staticCols, ...scoreCols];
 }
 
-/** Build all column defs (static + score) for filter enrichment lookups */
-export function buildAllColumnDefs(scores: string[]): ColumnDef<EvalRow>[] {
-  const scoreCols = scores.map((name) => createScoreColumnDef(name));
-  return [...STATIC_COLUMNS, ...scoreCols];
+/** Build minimal columns for filter resolution (used by stats queries) */
+export function buildFilterColumns(
+  rawFilters: { column: string }[]
+): EvalQueryColumn[] {
+  const ids = [...new Set(rawFilters.map((f) => f.column))];
+  return ids.map((id) => {
+    if (id.startsWith("score:")) {
+      const name = id.slice("score:".length);
+      return { id, sql: `JSONExtractFloat(dp.scores, '${name}')`, dbType: "Float64" };
+    }
+    const col = STATIC_COLUMNS.find((c) => c.id === id);
+    if (!col?.meta) throw new Error(`Unknown filter column: ${id}`);
+    return {
+      id: col.id!,
+      sql: col.meta.sql!,
+      ...(col.meta.filterSql && { filterSql: col.meta.filterSql }),
+      ...(col.meta.dbType && { dbType: col.meta.dbType }),
+    };
+  });
+}
+
+/** Get the SQL expression for sorting a given column (self-sufficient — no allColumns param) */
+export function getSortSql(sortBy: string): string | undefined {
+  if (sortBy.startsWith("score:")) {
+    return `JSONExtractFloat(dp.scores, '${sortBy.slice("score:".length)}')`;
+  }
+  return STATIC_COLUMNS.find((c) => c.id === sortBy)?.meta?.sql;
 }

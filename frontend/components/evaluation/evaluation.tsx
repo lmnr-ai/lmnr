@@ -7,16 +7,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import Chart from "@/components/evaluation/chart";
-import {
-  buildAllColumnDefs,
-  buildColumnsPayload,
-  enrichFilter,
-  getSortSql,
-} from "@/components/evaluation/columns/index";
 import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
+import { useEvalStore } from "@/components/evaluation/store";
 import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -55,56 +50,17 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   // Pagination state
   const pageSize = 50;
 
-  // Extract score names from filter params so stats URL doesn't depend on statsData
-  const filterScoreNames = useMemo(
-    () =>
-      filter
-        .map((f) => {
-          try {
-            const raw = JSON.parse(f);
-            if (typeof raw.column === "string" && raw.column.startsWith("score:")) {
-              return raw.column.split(":")[1] as string;
-            }
-          } catch {
-            // skip
-          }
-          return undefined;
-        })
-        .filter((n): n is string => !!n),
-    [filter]
-  );
+  // Store actions
+  const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
+  const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
 
   // Statistics URL (fetches all stats at once)
   const statsUrl = useMemo(() => {
-    let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
-    const urlParams = new URLSearchParams();
-
-    if (search) {
-      urlParams.set("search", search);
-    }
-
-    searchIn.forEach((value) => {
-      urlParams.append("searchIn", value);
-    });
-
-    // Enrich filters — use score names extracted from filters (not from API response)
-    const allColumnDefs = buildAllColumnDefs(filterScoreNames);
-    filter.forEach((f) => {
-      try {
-        const raw = JSON.parse(f);
-        const enriched = enrichFilter(raw, allColumnDefs);
-        urlParams.append("filter", JSON.stringify(enriched));
-      } catch {
-        // Skip invalid filters
-      }
-    });
-
-    if (urlParams.toString()) {
-      url += `?${urlParams.toString()}`;
-    }
-
-    return url;
-  }, [params?.projectId, evaluationId, search, searchIn, filter, filterScoreNames]);
+    const base = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
+    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const qs = urlParams.toString();
+    return qs ? `${base}?${qs}` : base;
+  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: EvaluationType;
@@ -116,35 +72,11 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   // Target statistics URL (if comparing)
   const targetStatsUrl = useMemo(() => {
     if (!targetId) return null;
-
-    let url = `/api/projects/${params?.projectId}/evaluations/${targetId}/stats`;
-    const urlParams = new URLSearchParams();
-
-    if (search) {
-      urlParams.set("search", search);
-    }
-
-    searchIn.forEach((value) => {
-      urlParams.append("searchIn", value);
-    });
-
-    const allColumnDefs = buildAllColumnDefs(filterScoreNames);
-    filter.forEach((f) => {
-      try {
-        const raw = JSON.parse(f);
-        const enriched = enrichFilter(raw, allColumnDefs);
-        urlParams.append("filter", JSON.stringify(enriched));
-      } catch {
-        // Skip invalid filters
-      }
-    });
-
-    if (urlParams.toString()) {
-      url += `?${urlParams.toString()}`;
-    }
-
-    return url;
-  }, [params?.projectId, targetId, search, searchIn, filter, filterScoreNames]);
+    const base = `/api/projects/${params?.projectId}/evaluations/${targetId}/stats`;
+    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const qs = urlParams.toString();
+    return qs ? `${base}?${qs}` : base;
+  }, [params?.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const { data: targetStatsData } = useSWR<{
     evaluation: EvaluationType;
@@ -166,49 +98,16 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   // Fetch function for datapoints — single query handles comparison via targetId
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
-      const urlParams = new URLSearchParams();
-      urlParams.set("pageNumber", pageNumber.toString());
-      urlParams.set("pageSize", pageSize.toString());
-
-      if (search) {
-        urlParams.set("search", search);
-      }
-
-      searchIn.forEach((value) => {
-        urlParams.append("searchIn", value);
+      const urlParams = buildFetchParams({
+        search,
+        searchIn,
+        filter,
+        sortBy,
+        sortDirection,
+        targetId,
+        pageNumber,
+        pageSize,
       });
-
-      // Enrich filters with SQL info from column meta
-      const allColumnDefs = buildAllColumnDefs(scores);
-      filter.forEach((f) => {
-        try {
-          const raw = JSON.parse(f);
-          const enriched = enrichFilter(raw, allColumnDefs);
-          urlParams.append("filter", JSON.stringify(enriched));
-        } catch {
-          // Skip invalid filters
-        }
-      });
-
-      // Send columns payload
-      const columnsPayload = buildColumnsPayload(scores);
-      urlParams.set("columns", JSON.stringify(columnsPayload));
-
-      if (sortBy) {
-        urlParams.set("sortBy", sortBy);
-        const sortSqlValue = getSortSql(sortBy, allColumnDefs);
-        if (sortSqlValue) {
-          urlParams.set("sortSql", sortSqlValue);
-        }
-      }
-      if (sortDirection) {
-        urlParams.set("sortDirection", sortDirection);
-      }
-
-      // Pass targetId so the backend does the comparison JOIN
-      if (targetId) {
-        urlParams.set("targetId", targetId);
-      }
 
       const url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
@@ -219,7 +118,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, params?.projectId, evaluationId, pageSize, sortBy, sortDirection, targetId, scores]
+    [search, searchIn, filter, params?.projectId, evaluationId, pageSize, sortBy, sortDirection, targetId, buildFetchParams]
   );
 
   // Use infinite scroll hook — data is now EvalRow (Record<string, unknown>)

@@ -16,7 +16,6 @@ export interface EvaluationDatapointsTableProps {
   hasMore: boolean;
   isFetching: boolean;
   fetchNextPage: () => void;
-  isDisableLongTooltips?: boolean;
 }
 
 const baseColumnOrder = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
