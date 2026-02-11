@@ -1,29 +1,22 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use backoff::ExponentialBackoffBuilder;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use uuid::Uuid;
 
 use crate::worker::MessageHandler;
 
-use super::{QueuePayloadMessage, StorageService};
+use super::{Storage, StorageTrait};
 
-/// Extract project_id from a storage key.
-/// Key format: "project/{project_id}/{payload_id}[.ext]"
-fn extract_project_id_from_key(key: &str) -> Result<Uuid> {
-    let project_id_str = key
-        .strip_prefix("project/")
-        .ok_or_else(|| anyhow::anyhow!("Invalid key format: missing 'project/' prefix"))?
-        .split('/')
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("Invalid key format: missing project_id"))?;
-
-    Uuid::parse_str(project_id_str).map_err(|e| anyhow::anyhow!("Invalid project_id in key: {}", e))
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QueuePayloadMessage {
+    pub key: String,
+    pub data: Vec<u8>,
+    pub bucket: String,
 }
-
 /// Handler for payload storage
 pub struct PayloadHandler {
-    pub storage_service: Arc<StorageService>,
+    pub storage: Arc<Storage>,
 }
 
 #[async_trait]
@@ -31,16 +24,9 @@ impl MessageHandler for PayloadHandler {
     type Message = QueuePayloadMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), crate::worker::HandlerError> {
-        let project_id = extract_project_id_from_key(&message.key)?;
-
         let store_payload = || async {
-            self.storage_service
-                .store(
-                    project_id,
-                    &message.bucket,
-                    &message.key,
-                    message.data.clone(),
-                )
+            self.storage
+                .store(&message.bucket, &message.key, message.data.clone())
                 .await
                 .map_err(|e| {
                     log::error!("Failed attempt to store payload. Will retry: {:?}", e);
@@ -64,4 +50,3 @@ impl MessageHandler for PayloadHandler {
         Ok(())
     }
 }
-

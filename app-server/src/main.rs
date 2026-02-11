@@ -80,8 +80,8 @@ use std::{
     time::Duration,
 };
 use storage::{
-    CloudStorage, PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, PAYLOADS_ROUTING_KEY, PayloadHandler,
-    StorageService, mock::MockStorage,
+    PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, PAYLOADS_ROUTING_KEY, PayloadHandler, Storage,
+    mock::MockStorage,
 };
 
 use crate::ch::{cloud::CloudClickhouse, data_plane::DataPlaneClickhouse};
@@ -742,14 +742,14 @@ fn main() -> anyhow::Result<()> {
     });
 
     // == Storage ==
-    let storage: CloudStorage = if is_feature_enabled(Feature::Storage) {
+    let storage: Arc<Storage> = if is_feature_enabled(Feature::Storage) {
         log::info!("using S3 storage");
         let s3_client = aws_sdk_s3::Client::new(&aws_sdk_config);
         let s3_storage = storage::s3::S3Storage::new(s3_client);
-        s3_storage.into()
+        Arc::new(s3_storage.into())
     } else {
         log::info!("using mock storage");
-        MockStorage {}.into()
+        Arc::new(MockStorage {}.into())
     };
 
     // == Query engine ==
@@ -844,18 +844,9 @@ fn main() -> anyhow::Result<()> {
     // == HTTP client ==
     let http_client = reqwest::Client::new();
 
-    // == Storage Service ==
-    let storage_service = Arc::new(StorageService::new(
-        storage,
-        http_client.clone(),
-        queue.clone(),
-        db.pool.clone(),
-        cache.clone(),
-    ));
-
     let clickhouse_for_http = clickhouse.clone();
 
-    let storage_service_for_http = storage_service.clone();
+    let storage_for_http = storage.clone();
     let sse_connections_for_http = sse_connections.clone();
     let http_client_for_http = http_client.clone();
     let http_client_for_consumer = http_client.clone();
@@ -970,7 +961,7 @@ fn main() -> anyhow::Result<()> {
         let cache_for_consumer = cache_for_http.clone();
         let mq_for_consumer = mq_for_http.clone();
         let clickhouse_for_consumer = clickhouse.clone();
-        let storage_service_for_consumer = storage_service.clone();
+        let storage_for_consumer = storage.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
         let worker_pool_clone = worker_pool.clone();
@@ -992,7 +983,6 @@ fn main() -> anyhow::Result<()> {
                         let cache = cache_for_consumer.clone();
                         let queue: Arc<MessageQueue> = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
-                        let storage_service = storage_service_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
 
                         let ch_cloud = CloudClickhouse::new(clickhouse.clone());
@@ -1006,7 +996,6 @@ fn main() -> anyhow::Result<()> {
                                 queue: queue.clone(),
                                 clickhouse: clickhouse.clone(),
                                 ch: ch_cloud.clone(),
-                                storage: storage_service.clone(),
                                 pubsub: pubsub.clone(),
                                 config: BatchingConfig {
                                     size,
@@ -1035,7 +1024,6 @@ fn main() -> anyhow::Result<()> {
                         let cache = cache_for_consumer.clone();
                         let queue: Arc<MessageQueue> = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
-                        let storage_service = storage_service_for_consumer.clone();
                         let pubsub = pubsub_for_consumer.clone();
 
                         let ch_data_plane = DataPlaneClickhouse::new(
@@ -1052,7 +1040,6 @@ fn main() -> anyhow::Result<()> {
                                 queue: queue.clone(),
                                 clickhouse: clickhouse.clone(),
                                 ch: ch_data_plane.clone(),
-                                storage: storage_service.clone(),
                                 pubsub: pubsub.clone(),
                                 config: BatchingConfig {
                                     size,
@@ -1125,12 +1112,12 @@ fn main() -> anyhow::Result<()> {
 
                     // Spawn payload workers
                     {
-                        let storage_service = storage_service_for_consumer.clone();
+                        let storage = storage_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Payloads,
                             num_payload_workers as usize,
                             move || PayloadHandler {
-                                storage_service: storage_service.clone(),
+                                storage: storage.clone(),
                             },
                             QueueConfig {
                                 queue_name: PAYLOADS_QUEUE,
@@ -1380,7 +1367,7 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(clickhouse_for_http.clone()))
                             .app_data(web::Data::new(clickhouse_readonly_client.clone()))
                             .app_data(web::Data::new(name_generator.clone()))
-                            .app_data(web::Data::new(storage_service_for_http.clone()))
+                            .app_data(web::Data::new(storage_for_http.clone()))
                             .app_data(web::Data::new(query_engine.clone()))
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
@@ -1448,7 +1435,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::sql::sql_to_json)
                                     .service(routes::sql::json_to_sql)
                                     .service(routes::spans::search_spans)
-                                    .service(routes::payloads::get_payload)
                                     .service(routes::rollouts::run)
                                     .service(routes::rollouts::update_status)
                                     .service(routes::signals::submit_signal_job),

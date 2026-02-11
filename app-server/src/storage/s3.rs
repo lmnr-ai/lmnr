@@ -4,8 +4,6 @@ use aws_sdk_s3::Client;
 use std::pin::Pin;
 use tracing::instrument;
 
-use crate::db::workspaces::WorkspaceDeployment;
-
 #[derive(Clone)]
 pub struct S3Storage {
     client: Client,
@@ -31,14 +29,8 @@ impl super::StorageTrait for S3Storage {
     type StorageBytesStream =
         Pin<Box<dyn futures_util::stream::Stream<Item = bytes::Bytes> + Send + 'static>>;
 
-    #[instrument(skip(self, data, _config))]
-    async fn store(
-        &self,
-        bucket: &str,
-        key: &str,
-        data: Vec<u8>,
-        _config: Option<&WorkspaceDeployment>,
-    ) -> Result<String> {
+    #[instrument(skip(self, data))]
+    async fn store(&self, bucket: &str, key: &str, data: Vec<u8>) -> Result<String> {
         // Direct storage method used by the payload worker
         self.client
             .put_object()
@@ -51,12 +43,7 @@ impl super::StorageTrait for S3Storage {
         Ok(self.get_url(key))
     }
 
-    async fn get_stream(
-        &self,
-        bucket: &str,
-        key: &str,
-        _config: Option<&WorkspaceDeployment>,
-    ) -> Result<Self::StorageBytesStream> {
+    async fn get_stream(&self, bucket: &str, key: &str) -> Result<Self::StorageBytesStream> {
         let response = self
             .client
             .get_object()
@@ -74,12 +61,7 @@ impl super::StorageTrait for S3Storage {
         )))
     }
 
-    async fn get_size(
-        &self,
-        bucket: &str,
-        key: &str,
-        _config: Option<&WorkspaceDeployment>,
-    ) -> Result<u64> {
+    async fn get_size(&self, bucket: &str, key: &str) -> Result<u64> {
         let response = self
             .client
             .head_object()

@@ -23,9 +23,9 @@ use crate::{
         ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatMessageText,
         ChatMessageToolCall, InstrumentationChatMessageContentPart,
     },
-    mq::utils::mq_max_payload,
+    mq::{MessageQueue, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry_proto_trace_v1::Span as OtelSpan,
-    storage::StorageService,
+    storage::producer::publish_payload,
     traces::{
         span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
         utils::{convert_any_value_to_json_value, serialize_indexmap},
@@ -809,7 +809,7 @@ impl Span {
     pub async fn store_payloads(
         &mut self,
         project_id: &Uuid,
-        storage: Arc<StorageService>,
+        queue: Arc<MessageQueue>,
     ) -> Result<()> {
         let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
             .ok()
@@ -827,16 +827,14 @@ impl Span {
                     if let ChatMessageContent::ContentPartList(parts) = message.content {
                         let mut new_parts = Vec::new();
                         for part in parts {
-                            let stored_part = match part
-                                .store_media(project_id, storage.clone(), &bucket)
-                                .await
-                            {
-                                Ok(stored_part) => stored_part,
-                                Err(e) => {
-                                    log::error!("Error storing media: {e}");
-                                    part
-                                }
-                            };
+                            let stored_part =
+                                match part.store_media(project_id, queue.clone(), &bucket).await {
+                                    Ok(stored_part) => stored_part,
+                                    Err(e) => {
+                                        log::error!("Error storing media: {e}");
+                                        part
+                                    }
+                                };
                             new_parts.push(stored_part);
                         }
                         message.content = ChatMessageContent::ContentPartList(new_parts);
@@ -864,7 +862,7 @@ impl Span {
                             data.len()
                         );
                     } else {
-                        let url = storage.publish_payload(&bucket, &key, data).await?;
+                        let url = publish_payload(queue.clone(), &bucket, &key, data).await?;
                         self.input_url = Some(url);
                         self.input = Some(serde_json::Value::String(preview));
                     }
@@ -891,7 +889,7 @@ impl Span {
                         data.len()
                     );
                 } else {
-                    let url = storage.publish_payload(&bucket, &key, data).await?;
+                    let url = publish_payload(queue, &bucket, &key, data).await?;
                     self.output_url = Some(url);
                     self.output = Some(serde_json::Value::String(
                         output_str.chars().take(100).collect(),

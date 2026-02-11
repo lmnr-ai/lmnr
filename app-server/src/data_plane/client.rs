@@ -62,21 +62,4 @@ impl DataPlaneClient {
             .await
             .map_err(|e| anyhow!(e))
     }
-
-    pub async fn get(
-        &self,
-        path: &str,
-        query_params: &[(&str, &str)],
-    ) -> Result<reqwest::Response> {
-        let (base_url, auth_token) = self.resolve_url_and_token().await?;
-        let url = format!("{base_url}/{path}");
-
-        self.http_client
-            .get(url)
-            .query(query_params)
-            .header("Authorization", format!("Bearer {}", auth_token))
-            .send()
-            .await
-            .map_err(|e| anyhow!(e))
-    }
 }

@@ -18,7 +18,6 @@ use crate::{
     db::DB,
     mq::MessageQueue,
     pubsub::PubSub,
-    storage::StorageService,
     worker::HandlerError,
 };
 
@@ -32,7 +31,6 @@ pub struct DataPlaneSpanHandler {
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client, // TODO: remove once all writes are implemented
     pub ch: DataPlaneClickhouse,
-    pub storage: Arc<StorageService>,
     pub pubsub: Arc<PubSub>,
     pub config: BatchingConfig,
 }
@@ -146,17 +144,15 @@ impl DataPlaneSpanHandler {
             return Ok(());
         }
 
-        let config =
-            get_workspace_deployment(&self.db.pool, self.cache.clone(), project_id)
-                .await
-                .map_err(HandlerError::transient)?;
+        let config = get_workspace_deployment(&self.db.pool, self.cache.clone(), project_id)
+            .await
+            .map_err(HandlerError::transient)?;
 
         process_span_messages(
             messages,
             self.db.clone(),
             self.clickhouse.clone(),
             self.cache.clone(),
-            self.storage.clone(),
             self.queue.clone(),
             self.pubsub.clone(),
             self.ch.clone(),

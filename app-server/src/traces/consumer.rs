@@ -16,7 +16,6 @@ use crate::{
     db::DB,
     mq::MessageQueue,
     pubsub::PubSub,
-    storage::StorageService,
     worker::HandlerError,
 };
 
@@ -30,7 +29,6 @@ pub struct SpanHandler {
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client, // TODO: remove once all writes are implemented
     pub ch: CloudClickhouse,
-    pub storage: Arc<StorageService>,
     pub pubsub: Arc<PubSub>,
     pub config: BatchingConfig,
 }
@@ -123,7 +121,6 @@ impl SpanHandler {
             self.db.clone(),
             self.clickhouse.clone(),
             self.cache.clone(),
-            self.storage.clone(),
             self.queue.clone(),
             self.pubsub.clone(),
             self.ch.clone(),

@@ -8,7 +8,11 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{mq::utils::mq_max_payload, storage::StorageService, utils::is_url};
+use crate::{
+    mq::{MessageQueue, utils::mq_max_payload},
+    storage::producer::publish_payload,
+    utils::is_url,
+};
 
 static DATA_URL_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^data:((?:application|image)/[a-zA-Z-]+);base64,.*$").unwrap());
@@ -431,7 +435,7 @@ impl ChatMessageContentPart {
     pub async fn store_media(
         &self,
         project_id: &Uuid,
-        storage: Arc<StorageService>,
+        queue: Arc<MessageQueue>,
         bucket: &str,
     ) -> Result<ChatMessageContentPart> {
         match self {
@@ -457,7 +461,7 @@ impl ChatMessageContentPart {
                         // Leave intact in case of error
                         return Ok(self.clone());
                     }
-                    let url = storage.publish_payload(bucket, &key, data).await?;
+                    let url = publish_payload(queue, bucket, &key, data).await?;
                     Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                         url,
                         detail: Some(format!("media_type:{};base64", media_type)),
@@ -481,7 +485,7 @@ impl ChatMessageContentPart {
                     // Leave intact in case of error
                     return Ok(self.clone());
                 }
-                let url = storage.publish_payload(bucket, &key, data).await?;
+                let url = publish_payload(queue, bucket, &key, data).await?;
                 Ok(ChatMessageContentPart::DocumentUrl(
                     ChatMessageDocumentUrl {
                         media_type: document.source.media_type.clone(),
@@ -502,7 +506,7 @@ impl ChatMessageContentPart {
                         // Leave intact in case of error
                         return Ok(self.clone());
                     }
-                    let url = storage.publish_payload(bucket, &key, data).await?;
+                    let url = publish_payload(queue, bucket, &key, data).await?;
                     Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                         url,
                         detail: image_url.detail.clone(),
@@ -523,9 +527,7 @@ impl ChatMessageContentPart {
                     // Leave intact in case of error
                     return Ok(self.clone());
                 }
-                let url = storage
-                    .publish_payload(bucket, &key, image.image.clone())
-                    .await?;
+                let url = publish_payload(queue, bucket, &key, image.image.clone()).await?;
                 Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
                     url,
                     detail: image

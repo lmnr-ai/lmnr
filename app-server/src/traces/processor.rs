@@ -33,7 +33,6 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
-    storage::StorageService,
     traces::{
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
@@ -45,13 +44,12 @@ use crate::{
 
 const SIGNAL_TRIGGER_LOCK_TTL_SECONDS: u64 = 3600; // 1 hour
 
-#[instrument(skip(messages, db, clickhouse, cache, storage, queue, pubsub, ch, config))]
+#[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, config))]
 pub async fn process_span_messages(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
-    storage: Arc<StorageService>,
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
     ch: impl ClickhouseTrait,
@@ -69,14 +67,15 @@ pub async fn process_span_messages(
         .collect();
 
     // Store payloads in parallel if enabled
-    if is_feature_enabled(Feature::Storage) {
+    // Only for cloud deployments (config is None)
+    if is_feature_enabled(Feature::Storage) && config.is_none() {
         let storage_futures = spans
             .iter_mut()
             .map(|span| {
                 let project_id: Uuid = span.project_id;
-                let storage_clone = storage.clone();
+                let queue_clone = queue.clone();
                 async move {
-                    if let Err(e) = span.store_payloads(&project_id, storage_clone).await {
+                    if let Err(e) = span.store_payloads(&project_id, queue_clone).await {
                         log::error!(
                             "Failed to store input images. span_id [{}], project_id [{}]: {:?}",
                             span.span_id,
