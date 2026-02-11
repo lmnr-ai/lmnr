@@ -16,9 +16,22 @@ pub fn setup_tracing(enable_otel: bool) {
         EnvFilter::new("info")
     };
 
+    // Capture log events in Sentry when SENTRY_DSN is configured.
+    // error-level logs become Sentry events; warn-level become breadcrumbs.
+    let sentry_layer = std::env::var("SENTRY_DSN").is_ok().then(|| {
+        sentry::integrations::tracing::layer().event_filter(|metadata| {
+            match *metadata.level() {
+                tracing::Level::ERROR => sentry::integrations::tracing::EventFilter::Event,
+                tracing::Level::WARN => sentry::integrations::tracing::EventFilter::Breadcrumb,
+                _ => sentry::integrations::tracing::EventFilter::Ignore,
+            }
+        })
+    });
+
     let registry = tracing_subscriber::registry()
         .with(env_filter)
-        .with(tracing_subscriber::fmt::layer());
+        .with(tracing_subscriber::fmt::layer())
+        .with(sentry_layer);
 
     if enable_otel {
         let mut provider_builder = SdkTracerProvider::builder();

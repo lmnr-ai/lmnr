@@ -24,6 +24,7 @@ dotenv = "0.15"
 enum_delegate = "0.2.0"
 enum_dispatch = "0.3.13"
 futures-util = "0.3"
+http = "1"
 indexmap = {version = "2.13.0", features = ["serde"]}
 itertools = "0.14.0"
 lapin = "3.7"
@@ -40,7 +41,7 @@ regex = "1.12.2"
 reqwest = {version = "0.12.22", features = ["json"]}
 rustls = {version = "0.23", features = ["ring"]}
 # Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.46.0, opentelemetry = 0.29
-sentry = {version = "0.46.0", features = ["opentelemetry"]}
+sentry = {version = "0.46.0", features = ["opentelemetry", "tracing"]}
 serde = "1.0"
 serde_json = {version = "1.0.149", features = ["preserve_order"]}
 serde_yaml = "0.9"
@@ -51,6 +52,7 @@ thiserror = "2"
 tikv-jemallocator = "0.6.0"
 tokio = {version = "1.49", features = ["macros", "rt-multi-thread"]}
 tokio-stream = {version = "0.1", features = ["net"]}
+tower = {version = "0.5", default-features = false}
 tonic = {version = "0.14", features = ["gzip"]}
 tonic-prost = "0.14"
 tracing = {version = "0.1.41", features = ["attributes"]}

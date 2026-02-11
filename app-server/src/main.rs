@@ -55,6 +55,7 @@ use signals::{
     pendings_consumer::SignalJobPendingBatchHandler,
     submissions_consumer::SignalJobSubmissionBatchHandler,
 };
+use grpc_monitoring::GrpcMonitoringLayer;
 use tonic::transport::Server;
 use traces::{
     OBSERVATIONS_EXCHANGE, OBSERVATIONS_QUEUE, OBSERVATIONS_ROUTING_KEY, consumer::SpanHandler,
@@ -102,6 +103,7 @@ mod datasets;
 mod db;
 mod evaluations;
 mod features;
+mod grpc_monitoring;
 mod instrumentation;
 mod language_model;
 mod logs;
@@ -155,10 +157,6 @@ fn main() -> anyhow::Result<()> {
             environment: Some(Cow::Owned(
                 env::var("ENVIRONMENT").unwrap_or("development".to_string()),
             )),
-            before_send: Some(Arc::new(|_| {
-                // We don't want Sentry to record events. We only use it for OTel tracing.
-                None
-            })),
             ..Default::default()
         },
     ));
@@ -1389,6 +1387,7 @@ fn main() -> anyhow::Result<()> {
                     );
 
                     Server::builder()
+                        .layer(GrpcMonitoringLayer)
                         .add_service(
                             TraceServiceServer::new(process_traces_service)
                                 .accept_compressed(tonic::codec::CompressionEncoding::Gzip)
