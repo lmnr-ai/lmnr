@@ -20,6 +20,7 @@ pub mod spans;
 pub mod stats;
 pub mod trace;
 pub mod utils;
+pub mod workspaces;
 
 #[derive(Clone, Debug)]
 pub struct DB {
