@@ -5,6 +5,7 @@ import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-p
 import { type WorkspaceStats } from "@/lib/usage/types";
 import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
+import WorkspaceDeployment from "./deployment-settings/workspace-deployment.tsx";
 import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";
@@ -46,6 +47,9 @@ export default function WorkspaceComponent({
         )}
         {workspaceFeatureEnabled && menu === "settings" && (
           <WorkspaceSettings workspace={workspace} isOwner={isOwner} />
+        )}
+        {workspaceFeatureEnabled && menu === "deployment" && (
+          <WorkspaceDeployment workspace={workspace} />
         )}
       </div>
     </div>

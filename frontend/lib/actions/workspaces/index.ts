@@ -1,12 +1,12 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { createProject } from "@/lib/actions/projects";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
-import { WorkspaceTier } from "@/lib/workspaces/types";
+import { membersOfWorkspaces, subscriptionTiers, workspaceAddons, workspaces } from "@/lib/db/migrations/schema";
+import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1, "Workspace name is required"),
@@ -68,7 +68,7 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
   };
 };
 
-export const getWorkspaces = async () => {
+export const getWorkspaces = async (): Promise<Workspace[]> => {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
@@ -87,5 +87,26 @@ export const getWorkspaces = async () => {
     .where(eq(membersOfWorkspaces.userId, session?.user?.id))
     .orderBy(desc(workspaces.createdAt));
 
-  return results;
+  if (results.length === 0) {
+    return [];
+  }
+
+  const addons = await db
+    .select({ workspaceId: workspaceAddons.workspaceId, addonSlug: workspaceAddons.addonSlug })
+    .from(workspaceAddons)
+    .where(inArray(workspaceAddons.workspaceId, results.map((r) => r.id)));
+
+  const addonsByWorkspace = new Map<string, string[]>();
+  for (const addon of addons) {
+    const existing = addonsByWorkspace.get(addon.workspaceId) ?? [];
+    existing.push(addon.addonSlug);
+    addonsByWorkspace.set(addon.workspaceId, existing);
+  }
+
+  return results.map((r) => ({
+    id: r.id,
+    name: r.name,
+    tierName: r.tierName as WorkspaceTier,
+    addons: addonsByWorkspace.get(r.id) ?? [],
+  }));
 };
