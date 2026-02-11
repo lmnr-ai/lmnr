@@ -1,5 +1,5 @@
 import { type tagClasses, type traces } from "../db/migrations/schema";
-import { type Event } from "../events/types";
+import { type SpanEvent } from "../events/types";
 
 export type TagClass = typeof tagClasses.$inferSelect;
 
@@ -51,7 +51,7 @@ export type Span = {
   inputPreview: string;
   outputPreview: string;
   spanType: SpanType;
-  events: Event[];
+  events: SpanEvent[];
   path: string;
   model?: string;
   pending?: boolean;

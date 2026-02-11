@@ -41,7 +41,7 @@ export default async function BlogsPage() {
               />
             )}
             <CardHeader>
-              <CardTitle className="font-title text-2xl text-white">{post.data.title}</CardTitle>
+              <CardTitle className="font-space-grotesk text-2xl text-white">{post.data.title}</CardTitle>
             </CardHeader>
             <CardContent className="flex grow"></CardContent>
             <CardFooter className="flex align-bottom">

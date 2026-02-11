@@ -9,7 +9,6 @@ import CondensedTimeline from "@/components/rollout-sessions/rollout-session-vie
 import Header from "@/components/rollout-sessions/rollout-session-view/header";
 import List from "@/components/rollout-sessions/rollout-session-view/list";
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
-import { TraceStatsShields } from "@/components/traces/stats-shields";
 import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/session-player";
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import { SessionTerminatedOverlay } from "@/components/rollout-sessions/rollout-session-view/terminated-overlay.tsx";
@@ -20,6 +19,7 @@ import {
 } from "@/components/rollout-sessions/rollout-session-view/utils.ts";
 import ViewDropdown from "@/components/rollout-sessions/rollout-session-view/view-dropdown";
 import { SpanView } from "@/components/traces/span-view";
+import { TraceStatsShields } from "@/components/traces/stats-shields";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";

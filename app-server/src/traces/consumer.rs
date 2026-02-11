@@ -1,19 +1,24 @@
 //! This module reads spans from RabbitMQ and processes them: writes to DB
 //! and clickhouse, and quickwit
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use futures_util::future::join_all;
 use itertools::Itertools;
 use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
-use serde_json::Value;
 use tracing::instrument;
 use uuid::Uuid;
 
 use super::trigger::get_signal_triggers_cached;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
+    batch_worker::{
+        config::BatchingConfig,
+        message_handler::{BatchMessageHandler, HandlerResult, MessageDelivery},
+    },
     cache::{
         Cache, CacheTrait, autocomplete::populate_autocomplete_cache,
         keys::SIGNAL_TRIGGER_LOCK_CACHE_KEY,
@@ -25,12 +30,9 @@ use crate::{
     },
     db::{
         DB,
-        events::Event,
         spans::Span,
-        tags::{SpanTag, TagSource},
         trace::{Trace, upsert_trace_statistics_batch},
     },
-    evaluators::{get_evaluators_by_path, push_to_evaluators_queue},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     pubsub::PubSub,
@@ -40,19 +42,21 @@ use crate::{
     },
     storage::Storage,
     traces::{
-        IngestedBytes,
-        events::record_span_events,
         limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
         realtime::{send_span_updates, send_trace_updates},
-        utils::{get_llm_usage_for_span, prepare_span_for_recording},
+        utils::{get_llm_usage_for_span, group_traces_by_project, prepare_span_for_recording},
     },
-    worker::{HandlerError, MessageHandler},
+    worker::HandlerError,
 };
 
 const SIGNAL_TRIGGER_LOCK_TTL_SECONDS: u64 = 3600; // 1 hour
 
-/// Handler for span processing
+/// Handler for span processing with batch accumulation.
+///
+/// Accumulates span messages from multiple queue deliveries and flushes them
+/// together when the batch size threshold is reached or the flush interval fires.
+/// This mirrors the batching pattern used by `BrowserEventHandler`.
 pub struct SpanHandler {
     pub db: Arc<DB>,
     pub cache: Arc<Cache>,
@@ -60,14 +64,93 @@ pub struct SpanHandler {
     pub clickhouse: clickhouse::Client,
     pub storage: Arc<Storage>,
     pub pubsub: Arc<PubSub>,
+    pub config: BatchingConfig,
 }
 
 #[async_trait]
-impl MessageHandler for SpanHandler {
+impl BatchMessageHandler for SpanHandler {
     type Message = Vec<RabbitMqSpanMessage>;
+    type State = Vec<MessageDelivery<Vec<RabbitMqSpanMessage>>>;
 
-    async fn handle(&self, messages: Self::Message) -> Result<(), HandlerError> {
-        process_spans_and_events_batch(
+    fn interval(&self) -> Duration {
+        self.config.flush_interval
+    }
+
+    fn initial_state(&self) -> Self::State {
+        Vec::new()
+    }
+
+    async fn handle_message(
+        &self,
+        delivery: MessageDelivery<Self::Message>,
+        state: &mut Self::State,
+    ) -> HandlerResult<Self::Message> {
+        // Skip empty batches
+        if delivery.message.is_empty() {
+            return HandlerResult::ack(vec![delivery]);
+        }
+
+        // Add delivery to the batch
+        state.push(delivery);
+
+        // Check if we've reached the batch size threshold (count total spans across deliveries)
+        let total_spans: usize = state.iter().map(|d| d.message.len()).sum();
+        log::debug!(
+            "Spans batch size: {}, total spans accumulated: {}",
+            self.config.size,
+            total_spans
+        );
+
+        if total_spans >= self.config.size {
+            return self.flush_batch(state).await;
+        }
+
+        HandlerResult::empty()
+    }
+
+    async fn handle_interval(&self, state: &mut Self::State) -> HandlerResult<Self::Message> {
+        if !state.is_empty() {
+            return self.flush_batch(state).await;
+        }
+
+        HandlerResult::empty()
+    }
+}
+
+impl SpanHandler {
+    /// Flushes accumulated deliveries: processes all spans and inserts them into ClickHouse.
+    /// Returns a HandlerResult with all deliveries to ack on success, or requeue/reject on failure.
+    async fn flush_batch(
+        &self,
+        state: &mut Vec<MessageDelivery<Vec<RabbitMqSpanMessage>>>,
+    ) -> HandlerResult<Vec<RabbitMqSpanMessage>> {
+        log::debug!("Flushing spans batch");
+
+        // Take ownership of deliveries and reset state
+        let deliveries_to_flush = std::mem::take(state);
+
+        match self.flush_batch_inner(&deliveries_to_flush).await {
+            Ok(()) => HandlerResult::ack(deliveries_to_flush),
+            Err(HandlerError::Transient(_)) => HandlerResult::requeue(deliveries_to_flush),
+            Err(HandlerError::Permanent(_)) => HandlerResult::reject(deliveries_to_flush),
+        }
+    }
+
+    async fn flush_batch_inner(
+        &self,
+        deliveries_to_flush: &[MessageDelivery<Vec<RabbitMqSpanMessage>>],
+    ) -> Result<(), HandlerError> {
+        // Flatten all deliveries into a single list of span messages
+        let messages: Vec<RabbitMqSpanMessage> = deliveries_to_flush
+            .iter()
+            .flat_map(|delivery| delivery.message.iter().cloned())
+            .collect();
+
+        if messages.is_empty() {
+            return Ok(());
+        }
+
+        process_span_messages(
             messages,
             self.db.clone(),
             self.clickhouse.clone(),
@@ -81,7 +164,7 @@ impl MessageHandler for SpanHandler {
 }
 
 #[instrument(skip(messages, db, clickhouse, cache, storage, queue, pubsub))]
-async fn process_spans_and_events_batch(
+async fn process_span_messages(
     messages: Vec<RabbitMqSpanMessage>,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
@@ -90,38 +173,20 @@ async fn process_spans_and_events_batch(
     queue: Arc<MessageQueue>,
     pubsub: Arc<PubSub>,
 ) -> Result<(), HandlerError> {
-    let mut all_spans = Vec::new();
-    let mut all_events = Vec::new();
-    let mut spans_ingested_bytes = Vec::new();
-
-    // Process all spans in parallel (heavy processing)
-    let processing_results: Vec<_> = messages
+    // Parsing and enriching attributes for all spans in parallel (heavy CPU work)
+    let mut spans: Vec<Span> = messages
         .into_par_iter()
         .map(|message| {
             let mut span = message.span;
-
-            // Make sure we count the sizes before any processing
-            let span_bytes = span.estimate_size_bytes();
-
-            let ingested_bytes = IngestedBytes { span_bytes };
-
-            // Parse and enrich span attributes for input/output extraction
+            span.estimate_size_bytes();
             span.parse_and_enrich_attributes();
-
-            (span, message.events, ingested_bytes)
+            span
         })
         .collect();
 
-    // Collect results from parallel processing
-    for (span, events, ingested_bytes) in processing_results {
-        spans_ingested_bytes.push(ingested_bytes.clone());
-        all_spans.push(span);
-        all_events.extend(events.into_iter());
-    }
-
     // Store payloads in parallel if enabled
     if is_feature_enabled(Feature::Storage) {
-        let storage_futures = all_spans
+        let storage_futures = spans
             .iter_mut()
             .map(|span| {
                 let project_id = span.project_id;
@@ -142,95 +207,18 @@ async fn process_spans_and_events_batch(
         join_all(storage_futures).with_current_context().await;
     }
 
-    // Process spans and events in batches
-    process_batch(
-        all_spans,
-        spans_ingested_bytes,
-        all_events,
-        db,
-        clickhouse,
-        cache,
-        queue,
-        pubsub,
-    )
-    .with_current_context()
-    .await
-}
-
-struct StrippedSpan {
-    span_id: Uuid,
-    project_id: Uuid,
-    tags: Vec<String>,
-    path: Vec<String>,
-    output: Option<Value>,
-}
-
-#[instrument(skip(
-    spans,
-    spans_ingested_bytes,
-    events,
-    db,
-    clickhouse,
-    cache,
-    queue,
-    pubsub
-))]
-async fn process_batch(
-    mut spans: Vec<Span>,
-    spans_ingested_bytes: Vec<IngestedBytes>,
-    events: Vec<Event>,
-    db: Arc<DB>,
-    clickhouse: clickhouse::Client,
-    cache: Arc<Cache>,
-    queue: Arc<MessageQueue>,
-    pubsub: Arc<PubSub>,
-) -> Result<(), HandlerError> {
-    let mut span_usage_vec = Vec::new();
-    let mut all_events = Vec::new();
-
-    // we get project id from the first span in the batch
-    // because all spans in the batch have the same project id
-    // batching is happening on the Otel SpanProcessor level
-    // project_id can never be None, because batch is never empty
-    // but we do unwrap_or_default to avoid Option<Uuid> in the rest of the code
-    let project_id = spans.first().map(|s| s.project_id).unwrap_or_default();
+    // Enrich spans with usage info
+    let mut span_usage_vec = Vec::with_capacity(spans.len());
 
     for span in &mut spans {
         let span_usage =
             get_llm_usage_for_span(&mut span.attributes, db.clone(), cache.clone(), &span.name)
                 .await;
 
-        // Filter events for this span
-        let span_events: Vec<Event> = events
-            .iter()
-            .filter(|e| e.span_id == span.span_id)
-            .cloned()
-            .collect();
-
-        // Apply event filtering logic
-        let mut has_seen_first_token = false;
-        let filtered_events: Vec<Event> = span_events
-            .into_iter()
-            .sorted_by(|a, b| a.timestamp.cmp(&b.timestamp))
-            .filter(|event| {
-                if event.name == "llm.content.completion.chunk" {
-                    if !has_seen_first_token {
-                        has_seen_first_token = true;
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    true
-                }
-            })
-            .collect();
-
-        prepare_span_for_recording(span, &span_usage, &filtered_events);
+        prepare_span_for_recording(span, &span_usage);
         convert_span_to_provider_format(span);
 
         span_usage_vec.push(span_usage);
-        all_events.extend(filtered_events);
     }
 
     // Process trace aggregations and update trace statistics
@@ -239,7 +227,6 @@ async fn process_batch(
     // Upsert trace statistics in PostgreSQL
     match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
         Ok(updated_traces) => {
-            // Convert to ClickHouse traces and upsert
             let ch_traces: Vec<CHTrace> = updated_traces
                 .iter()
                 .map(|trace| CHTrace::from_db_trace(trace))
@@ -253,203 +240,117 @@ async fn process_batch(
                 );
             }
 
-            // Send trace_update events for realtime updates
             send_trace_updates(&updated_traces, &pubsub).await;
 
-            // Check for trace filter conditions and push matching traces to signals queue
             if is_feature_enabled(Feature::Signals) {
-                check_and_push_signals(
-                    project_id,
-                    &updated_traces,
-                    &spans,
-                    db.clone(),
-                    cache.clone(),
-                    clickhouse.clone(),
-                    queue.clone(),
-                )
-                .await;
+                let traces_by_project = group_traces_by_project(&updated_traces);
+                for (project_id, project_traces) in &traces_by_project {
+                    check_and_push_signals(
+                        *project_id,
+                        project_traces,
+                        &spans,
+                        db.clone(),
+                        cache.clone(),
+                        clickhouse.clone(),
+                        queue.clone(),
+                    )
+                    .await;
+                }
             }
         }
         Err(e) => {
-            log::error!(
-                "Failed to upsert trace statistics to PostgreSQL. project_id: [{}], error: [{:?}]",
-                project_id,
-                e
-            );
+            log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
         }
     }
 
-    // Filter out spans that should not be recorded to clickhouse
+    // Build CHSpans with embedded events and insert to ClickHouse
     let ch_spans: Vec<CHSpan> = spans
         .iter()
         .zip(span_usage_vec.iter())
-        .zip(spans_ingested_bytes.iter())
-        .filter(|((span, _), _)| span.should_record_to_clickhouse())
-        .map(|((span, span_usage), ingested_bytes)| {
-            CHSpan::from_db_span(
-                &span,
-                &span_usage,
-                span.project_id,
-                ingested_bytes.span_bytes,
-            )
-        })
+        .filter(|(span, _)| span.should_record_to_clickhouse())
+        .map(|(span, usage)| CHSpan::from_db_span(span, usage, span.project_id))
         .collect();
 
-    // Record spans to clickhouse
     if let Err(e) = ch::spans::insert_spans_batch(clickhouse.clone(), &ch_spans).await {
         log::error!(
             "Failed to record {} spans to clickhouse: {:?}",
             ch_spans.len(),
             e
         );
-        // We don't want to drop spans if we can't insert them to Clickhouse
-        // most likely it's a transient Clickhouse issue, so we want to requeue the message
         return Err(HandlerError::transient(anyhow::anyhow!(
             "Failed to insert spans to Clickhouse: {:?}",
             e
         )));
     }
 
-    // Temporary solution to filter out spans before sending realtime span updates
-    let spans: Vec<Span> = spans
-        .into_iter()
+    // Send realtime span updates
+    let recordable: Vec<&Span> = spans
+        .iter()
         .filter(|span| span.should_record_to_clickhouse())
         .collect();
 
-    // Send realtime span updates directly to SSE connections after successful ClickHouse writes
-    send_span_updates(&spans, &pubsub).await;
+    let spans_for_realtime: Vec<Span> = recordable.iter().map(|s| (*s).clone()).collect();
+    send_span_updates(&spans_for_realtime, &pubsub).await;
 
     // Index spans and events in Quickwit
-    let quickwit_spans: Vec<QuickwitIndexedSpan> = spans.iter().map(|span| span.into()).collect();
-    let quickwit_events: Vec<QuickwitIndexedEvent> =
-        all_events.iter().map(|event| event.into()).collect();
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable.iter().map(|s| (*s).into()).collect();
+    let quickwit_events: Vec<QuickwitIndexedEvent> = recordable
+        .iter()
+        .flat_map(|s| s.events.iter().map(|e| e.into()))
+        .collect();
 
-    let spans_count = quickwit_spans.len();
-    let events_count = quickwit_events.len();
-    if spans_count > 0 {
+    if !quickwit_spans.is_empty() {
         if let Err(e) =
             publish_for_indexing(&IndexerQueuePayload::Spans(quickwit_spans), queue.clone()).await
         {
-            log::error!(
-                "Failed to publish {} spans for Quickwit indexing: {:?}",
-                spans_count,
-                e
-            );
+            log::error!("Failed to publish spans for Quickwit indexing: {:?}", e);
         }
     }
-    if events_count > 0 {
+    if !quickwit_events.is_empty() {
         if let Err(e) =
             publish_for_indexing(&IndexerQueuePayload::Events(quickwit_events), queue.clone()).await
         {
-            log::error!(
-                "Failed to publish {} events for Quickwit indexing: {:?}",
-                events_count,
-                e
-            );
+            log::error!("Failed to publish events for Quickwit indexing: {:?}", e);
         }
     }
 
-    // Populate autocomplete cache
-    populate_autocomplete_cache(project_id, &spans, cache.clone(), clickhouse.clone()).await;
-
-    // Both `spans` and `span_and_metadata_vec` are consumed when building `stripped_spans`
-    let stripped_spans = spans
-        .into_iter()
-        .map(|span| StrippedSpan {
-            span_id: span.span_id,
-            project_id: span.project_id,
-            tags: span.attributes.tags(),
-            path: span.attributes.path().unwrap_or_default(),
-            output: span.output,
-        })
-        .collect::<Vec<_>>();
-
-    let total_events_ingested_bytes =
-        match record_span_events(clickhouse.clone(), &all_events).await {
-            Ok(bytes) => bytes,
-            Err(e) => {
-                log::error!("Failed to record events: {:?}", e);
-                0
-            }
-        };
-
-    let total_ingested_bytes = spans_ingested_bytes
-        .iter()
-        .map(|b| b.span_bytes)
-        .sum::<usize>()
-        + total_events_ingested_bytes;
-
-    if is_feature_enabled(Feature::UsageLimit) {
-        if let Err(e) = update_workspace_limit_exceeded_by_project_id(
-            db.clone(),
-            clickhouse.clone(),
+    // Populate autocomplete cache per project
+    let project_ids: Vec<Uuid> = spans.iter().map(|s| s.project_id).unique().collect();
+    for project_id in &project_ids {
+        let project_spans: Vec<Span> = spans
+            .iter()
+            .filter(|s| s.project_id == *project_id)
+            .cloned()
+            .collect();
+        populate_autocomplete_cache(
+            *project_id,
+            &project_spans,
             cache.clone(),
-            project_id,
-            total_ingested_bytes,
+            clickhouse.clone(),
         )
-        .await
-        {
-            log::error!(
-                "Failed to update workspace limit exceeded for project [{}]: {:?}",
+        .await;
+    }
+
+    // Update usage limits per project
+    if is_feature_enabled(Feature::UsageLimit) {
+        let mut bytes_per_project: HashMap<Uuid, usize> = HashMap::new();
+        for span in &spans {
+            *bytes_per_project.entry(span.project_id).or_default() += span.size_bytes;
+        }
+
+        for (project_id, bytes) in bytes_per_project {
+            if let Err(e) = update_workspace_limit_exceeded_by_project_id(
+                db.clone(),
+                clickhouse.clone(),
+                cache.clone(),
                 project_id,
-                e
-            );
-        }
-    }
-
-    // Collect all tags from all spans for batch insertion
-    let tags_batch: Vec<SpanTag> = stripped_spans
-        .iter()
-        .flat_map(|span| {
-            span.tags.iter().map(move |tag| {
-                SpanTag::new(span.project_id, tag.clone(), TagSource::CODE, span.span_id)
-            })
-        })
-        .collect();
-
-    // Record all tags in a single batch
-    if !tags_batch.is_empty() {
-        if let Err(e) = crate::ch::tags::insert_tags_batch(clickhouse.clone(), &tags_batch).await {
-            log::error!(
-                "Failed to record tags to DB for batch of {} tags: {:?}",
-                tags_batch.len(),
-                e
-            );
-        }
-    }
-
-    for span in stripped_spans {
-        // Push to evaluators queue - get evaluators for this span
-        match get_evaluators_by_path(&db, cache.clone(), span.project_id, span.path).await {
-            Ok(evaluators) => {
-                if !evaluators.is_empty() {
-                    let span_output = span.output.clone().unwrap_or(Value::Null);
-
-                    for evaluator in evaluators {
-                        if let Err(e) = push_to_evaluators_queue(
-                            span.span_id,
-                            span.project_id,
-                            evaluator.id,
-                            span_output.clone(),
-                            queue.clone(),
-                        )
-                        .await
-                        {
-                            log::error!(
-                                "Failed to push to evaluators queue. span_id [{}], project_id [{}]: {:?}",
-                                span.span_id,
-                                span.project_id,
-                                e
-                            );
-                        }
-                    }
-                }
-            }
-            Err(e) => {
+                bytes,
+            )
+            .await
+            {
                 log::error!(
-                    "Failed to get evaluators by path. span_id [{}], project_id [{}]: {:?}",
-                    span.span_id,
-                    span.project_id,
+                    "Failed to update workspace limit exceeded for project [{}]: {:?}",
+                    project_id,
                     e
                 );
             }
@@ -461,7 +362,7 @@ async fn process_batch(
 
 async fn check_and_push_signals(
     project_id: Uuid,
-    traces: &[Trace],
+    traces: &[&Trace],
     spans: &[Span],
     db: Arc<DB>,
     cache: Arc<Cache>,

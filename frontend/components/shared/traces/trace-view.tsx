@@ -33,9 +33,10 @@ import { cn } from "@/lib/utils";
 interface TraceViewProps {
   trace: TraceViewTrace;
   spans: TraceViewSpan[];
+  onClose?: () => void;
 }
 
-const PureTraceView = ({ trace, spans }: TraceViewProps) => {
+export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
@@ -54,7 +55,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     hasBrowserSession,
     setHasBrowserSession,
     condensedTimelineEnabled,
-    setCondensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
   } = useTraceViewStoreContext((state) => ({
     tab: state.tab,
@@ -70,7 +70,6 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
     hasBrowserSession: state.hasBrowserSession,
     setHasBrowserSession: state.setHasBrowserSession,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
-    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
   }));
 
@@ -145,17 +144,16 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
   return (
     <ScrollContextProvider>
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
-          <Link className="mr-2" href="/projects">
-            <Image alt="Laminar logo" src={fullLogo} width={120} height={20} />
-          </Link>
-        </div>
+        {!onClose && (
+          <div className="flex flex-none items-center border-b px-4 py-3.5 gap-2">
+            <Link className="mr-2" href="/projects">
+              <Image alt="Laminar logo" src={fullLogo} width={120} height={20} />
+            </Link>
+          </div>
+        )}
         <div className="flex h-full w-full overflow-hidden">
           <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-            <Header
-              condensedTimelineEnabled={condensedTimelineEnabled}
-              setCondensedTimelineEnabled={setCondensedTimelineEnabled}
-            />
+            <Header onClose={onClose} />
             <ResizablePanelGroup id="shared-trace-panels" orientation="vertical">
               {condensedTimelineEnabled && (
                 <>
@@ -170,8 +168,11 @@ const PureTraceView = ({ trace, spans }: TraceViewProps) => {
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
                 <div
                   className={cn(
-                    "flex items-center gap-2 py-2 border-b box-border transition-[padding] duration-200",
-                    condensedTimelineEnabled ? "pl-2 pr-2" : "pl-2 pr-[96px]"
+                    "flex items-center gap-2 pb-2  border-b box-border transition-[padding] duration-200",
+                    condensedTimelineEnabled ? "pl-2 pr-2" : "pl-2 pr-[96px]",
+                    {
+                      "pt-2": !onClose || condensedTimelineEnabled,
+                    }
                   )}
                 >
                   <div className="flex items-center justify-between w-full">

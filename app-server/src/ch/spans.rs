@@ -105,15 +105,13 @@ pub struct CHSpan {
     pub trace_type: u8,
     #[serde(default)]
     pub tags_array: Vec<String>,
+    /// Span events stored as Array(Tuple(timestamp Int64, name String, attributes String))
+    #[serde(default)]
+    pub events: Vec<(i64, String, String)>,
 }
 
 impl CHSpan {
-    pub fn from_db_span(
-        span: &Span,
-        usage: &SpanUsage,
-        project_id: Uuid,
-        size_bytes: usize,
-    ) -> Self {
+    pub fn from_db_span(span: &Span, usage: &SpanUsage, project_id: Uuid) -> Self {
         let session_id = span.attributes.session_id();
         let user_id = span.attributes.user_id();
         let path = span.attributes.flat_path();
@@ -169,11 +167,22 @@ impl CHSpan {
             input: span_input_string,
             output: span_output_string,
             status: span.status.clone().unwrap_or(String::from("")),
-            size_bytes: size_bytes as u64,
+            size_bytes: span.size_bytes as u64,
             attributes: span.attributes.to_string(),
             trace_metadata,
             trace_type: span.attributes.trace_type().unwrap_or_default().into(),
             tags_array: span.attributes.tags(),
+            events: span
+                .events
+                .iter()
+                .map(|e| {
+                    (
+                        chrono_to_nanoseconds(e.timestamp),
+                        e.name.clone(),
+                        e.attributes.to_string(),
+                    )
+                })
+                .collect(),
         }
     }
 }

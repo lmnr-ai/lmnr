@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::{
-    ch::{spans::append_tags_to_span, tags::insert_tag},
-    db::{project_api_keys::ProjectApiKey, tags::TagSource},
+    ch::spans::append_tags_to_span,
+    db::project_api_keys::ProjectApiKey,
     query_engine::QueryEngine,
     routes::types::ResponseResult,
     sql::{self, ClickhouseReadonlyClient},
@@ -86,21 +86,6 @@ pub async fn tag_trace(
         return Ok(HttpResponse::NotFound().body("No matching spans found"));
     };
 
-    let futures = names
-        .iter()
-        .map(|name| {
-            insert_tag(
-                clickhouse.clone(),
-                project_api_key.project_id,
-                name.clone(),
-                TagSource::CODE,
-                span_id,
-            )
-        })
-        .collect::<Vec<_>>();
-
-    let tag_ids = futures_util::future::try_join_all(futures).await?;
-
     append_tags_to_span(
         clickhouse.clone(),
         span_id,
@@ -109,15 +94,5 @@ pub async fn tag_trace(
     )
     .await?;
 
-    let response = tag_ids
-        .iter()
-        .map(|id| {
-            serde_json::json!({
-                "id": id,
-                "spanId": span_id,
-            })
-        })
-        .collect::<Vec<_>>();
-
-    Ok(HttpResponse::Ok().json(response))
+    Ok(HttpResponse::Ok().finish())
 }

@@ -14,11 +14,11 @@ import {
 } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
 import { useHoverNeedle } from "@/components/traces/trace-view/condensed-timeline/use-hover-needle";
 import { useScrollToSpan } from "@/components/traces/trace-view/condensed-timeline/use-scroll-to-span";
+import { useWheelZoom } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/trace-view-store-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-import { useWheelZoom } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
 import ZoomControls from "./zoom-controls";
 
 function CondensedTimeline() {

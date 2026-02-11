@@ -14,7 +14,6 @@ import ContentRenderer from "@/components/ui/content-renderer";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { type Event } from "@/lib/events/types";
 import { type Span } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
@@ -26,20 +25,10 @@ interface SpanViewProps {
 
 export function SpanView({ spanId, traceId }: SpanViewProps) {
   const { data: span, isLoading } = useSWR<Span>(`/api/shared/traces/${traceId}/spans/${spanId}`, swrFetcher);
-  const { data: events = [] } = useSWR<Event[]>(`/api/shared/traces/${traceId}/spans/${spanId}/events`, swrFetcher);
-
-  const cleanedEvents = useMemo(
-    () =>
-      events?.map((event) => {
-        const { spanId, projectId, ...rest } = event;
-        return rest;
-      }),
-    [events]
-  );
 
   const errorEventAttributes = useMemo(
-    () => cleanedEvents?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
-    [cleanedEvents]
+    () => span?.events?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
+    [span?.events]
   );
 
   if (isLoading || !span) {
@@ -121,7 +110,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
               className="rounded-none border-0"
               codeEditorClassName="rounded-none border-none bg-background contain-strict"
               readOnly
-              value={JSON.stringify(cleanedEvents)}
+              value={JSON.stringify(span.events)}
               defaultMode="yaml"
             />
           </TabsContent>

@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     db::{
+        events::Event,
         spans::{Span, SpanType},
         trace::TraceType,
         utils::span_id_to_uuid,
@@ -517,6 +518,12 @@ impl Span {
             Some(span_id_to_uuid(&otel_span.parent_span_id))
         };
 
+        let events = otel_span
+            .events
+            .into_iter()
+            .map(|event| Event::from_otel(event, span_id, project_id, trace_id))
+            .collect();
+
         let attributes = otel_span
             .attributes
             .into_iter()
@@ -534,6 +541,7 @@ impl Span {
             attributes: SpanAttributes::new(attributes),
             start_time: Utc.timestamp_nanos(otel_span.start_time_unix_nano as i64),
             end_time: Utc.timestamp_nanos(otel_span.end_time_unix_nano as i64),
+            events,
             ..Default::default()
         };
 
@@ -890,9 +898,8 @@ impl Span {
         Ok(())
     }
 
-    pub fn estimate_size_bytes(&self) -> usize {
-        // events size is estimated separately, so ignored here
-
+    /// This function MUST to be called right after we deserialize or create a span object.
+    pub fn estimate_size_bytes(&mut self) {
         // 16 bytes for span_id,
         // 16 bytes for trace_id,
         // 16 bytes for parent_span_id,
@@ -900,7 +907,8 @@ impl Span {
         // 8 bytes for end_time,
 
         // everything else is in attributes
-        return 16
+        // because right after creation attributes contain all span data
+        let size_bytes = 16
             + 16
             + 16
             + 8
@@ -911,7 +919,13 @@ impl Span {
                 .raw_attributes
                 .iter()
                 .map(|(k, v)| k.len() + estimate_json_size(v))
+                .sum::<usize>()
+            + self
+                .events
+                .iter()
+                .map(|event| event.estimate_size_bytes())
                 .sum::<usize>();
+        self.size_bytes = size_bytes;
     }
 
     /// Check if the span is the wrapper of a tool call made by AI SDK on behalf
@@ -1436,11 +1450,12 @@ mod tests {
             span_type: SpanType::LLM,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Verify initial state
@@ -1761,11 +1776,12 @@ mod tests {
             span_type: SpanType::LLM,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Verify initial state
@@ -2106,11 +2122,12 @@ mod tests {
             span_type: SpanType::Default,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Create child span (ai.generateText.doGenerate) - has LLM span type
@@ -2252,11 +2269,12 @@ mod tests {
             span_type: SpanType::LLM,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Verify initial span relationships and structure
@@ -2724,11 +2742,12 @@ mod tests {
             span_type: SpanType::Default,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Create child span (ai.generateText.doGenerate) - has LLM span type
@@ -2877,11 +2896,12 @@ mod tests {
             span_type: SpanType::LLM,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Verify initial span relationships and structure
@@ -3137,11 +3157,12 @@ mod tests {
             span_type: SpanType::LLM,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         // Verify initial state
