@@ -20,11 +20,11 @@ pub struct CHSignalEvent {
     #[serde(with = "clickhouse::serde::uuid")]
     pub run_id: Uuid,
     pub name: String,
-    pub summary: String,
     /// JSON-serialized payload/attributes
     pub payload: String,
     /// Timestamp in nanoseconds
     pub timestamp: i64,
+    pub summary: String,
 }
 
 impl CHSignalEvent {
