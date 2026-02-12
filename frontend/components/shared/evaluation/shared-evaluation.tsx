@@ -49,6 +49,8 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const pageSize = 50;
 
   // Store actions
+  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
+  const columnDefs = useEvalStore((s) => s.columnDefs);
   const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
   const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
 
@@ -66,7 +68,18 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     scores: string[];
   }>(statsUrl, swrFetcher);
 
-  const scores = statsData?.scores || [];
+  const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
+
+  // Rebuild column defs when scores change.
+  useEffect(() => {
+    rebuildColumns(scores);
+  }, [scores, rebuildColumns]);
+
+  // SQL strings from column defs — only changes when columns structurally change.
+  const columnSqls = useMemo(
+    () => columnDefs.map((c) => c.meta?.sql).filter(Boolean),
+    [columnDefs]
+  );
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
@@ -110,8 +123,8 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     fetchNextPage,
   } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
-    enabled: true,
-    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection],
+    enabled: !isStatsLoading,
+    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection, columnSqls],
   });
 
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
