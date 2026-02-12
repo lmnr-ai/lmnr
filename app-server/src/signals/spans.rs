@@ -9,6 +9,7 @@ use super::utils::try_parse_json;
 
 const TRUNCATE_THRESHOLD: usize = 64;
 const PREVIEW_LENGTH: usize = 24;
+const BASE64_IMAGE_PLACEHOLDER: &str = "[base64 image omitted]";
 
 /// Raw span from ClickHouse with exception data
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
@@ -85,6 +86,30 @@ fn truncate_value(value: &Value) -> Value {
     Value::String(format!("{}...({} chars omitted)...{}", start, omitted, end))
 }
 
+/// Replace base64 image data within a JSON value with a placeholder.
+///
+/// Detects data URLs of the form `data:image/...;base64,...` anywhere in the JSON tree.
+fn replace_base64_images(value: &Value) -> Value {
+    match value {
+        Value::String(s) => {
+            if let Some(idx) = s.find("base64,") {
+                let prefix = &s[..idx + "base64,".len()];
+                if prefix.starts_with("data:image") {
+                    return Value::String(BASE64_IMAGE_PLACEHOLDER.to_string());
+                }
+            }
+            value.clone()
+        }
+        Value::Array(arr) => Value::Array(arr.iter().map(replace_base64_images).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), replace_base64_images(v)))
+                .collect(),
+        ),
+        _ => value.clone(),
+    }
+}
+
 /// Compress span content based on type and occurrence
 pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<CompressedSpan> {
     // Build span UUID to sequential ID mapping (1-indexed)
@@ -114,8 +139,8 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
             };
 
             let (input, output) = if is_llm {
-                let input_data = try_parse_json(&ch_span.input);
-                let output_data = try_parse_json(&ch_span.output);
+                let input_data = replace_base64_images(&try_parse_json(&ch_span.input));
+                let output_data = replace_base64_images(&try_parse_json(&ch_span.output));
 
                 if seen_llm_paths.contains(&path) {
                     // Subsequent LLM span at same path: only output
