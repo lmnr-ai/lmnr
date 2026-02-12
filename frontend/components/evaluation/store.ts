@@ -29,11 +29,6 @@ function toColumnsPayload(columnDefs: ColumnDef<EvalRow>[]): EvalQueryColumn[] {
     }));
 }
 
-/** Filter to only visible (non-hidden) columns */
-export function getVisibleColumns(columns: ColumnDef<EvalRow>[]): ColumnDef<EvalRow>[] {
-  return columns.filter((c) => !c.meta?.hidden);
-}
-
 interface EvalStoreState {
   // Data
   scoreRanges: ScoreRanges;
@@ -49,6 +44,10 @@ interface EvalStoreState {
   buildStatsParams: (raw: RawUrlParams) => URLSearchParams;
   buildFetchParams: (raw: RawUrlParams & { pageNumber: number; pageSize: number }) => URLSearchParams;
 }
+
+/** Selector: visible columns, excluding output in comparison mode */
+export const selectVisibleColumns = (s: EvalStoreState): ColumnDef<EvalRow>[] =>
+  s.columnDefs.filter((c) => !c.meta?.hidden && !(s.isComparison && c.id === "output"));
 
 export const useEvalStore = create<EvalStoreState>()(
   persist(

@@ -36,7 +36,7 @@ declare module "@tanstack/react-table" {
     // to look up the correct value (`row["score:<name>"]`) and its comparison
     // counterpart, and to resolve score ranges for heatmap coloring.
     scoreName?: string;
-    // When true, the column is excluded from the rendered table (`getVisibleColumns`)
+    // When true, the column is excluded from the rendered table (`selectVisibleColumns`)
     // but still sent to the backend — useful for columns like `traceId` or `createdAt`
     // that drive sorting/filtering/row interactions without being user-visible.
     hidden?: boolean;

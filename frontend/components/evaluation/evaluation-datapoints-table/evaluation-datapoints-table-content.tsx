@@ -1,10 +1,10 @@
 import { Settings as SettingsIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 
-import { getVisibleColumns } from "@/components/evaluation/store";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
-import { useEvalStore } from "@/components/evaluation/store";
+import { selectVisibleColumns, useEvalStore } from "@/components/evaluation/store";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -95,8 +95,8 @@ const EvaluationDatapointsTableContent = ({
     [searchParams, router, pathname]
   );
 
-  // Filter out hidden columns for rendering
-  const visibleColumns = useMemo(() => getVisibleColumns(columns), [columns]);
+  // Visible columns (hidden + output-in-comparison filtered out)
+  const visibleColumns = useEvalStore(useShallow(selectVisibleColumns));
 
   // Derive filter definitions from column defs in the store
   const columnFilters = useMemo(
