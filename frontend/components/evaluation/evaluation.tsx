@@ -50,7 +50,9 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   // Pagination state
   const pageSize = 50;
 
-  // Store actions
+  // Store
+  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
+  const columnDefs = useEvalStore((s) => s.columnDefs);
   const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
   const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
 
@@ -87,6 +89,20 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
 
   const scores = statsData?.scores || [];
 
+  // Rebuild column defs when scores or comparison mode changes.
+  // This must run before useInfiniteScroll's effect (declaration order).
+  useEffect(() => {
+    rebuildColumns({ scoreNames: scores, isComparison: !!targetId });
+  }, [scores, targetId, rebuildColumns]);
+
+  // SQL strings from column defs — only changes when columns structurally change.
+  // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
+  // produce the same string → no spurious re-fetch.
+  const columnSqls = useMemo(
+    () => columnDefs.map((c) => c.meta?.sql).filter(Boolean),
+    [columnDefs]
+  );
+
   const onClose = useCallback(() => {
     setTraceId(undefined);
     const params = new URLSearchParams(searchParams.toString());
@@ -118,7 +134,18 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, params?.projectId, evaluationId, pageSize, sortBy, sortDirection, targetId, buildFetchParams]
+    [
+      search,
+      searchIn,
+      filter,
+      params?.projectId,
+      evaluationId,
+      pageSize,
+      sortBy,
+      sortDirection,
+      targetId,
+      buildFetchParams,
+    ]
   );
 
   // Use infinite scroll hook — data is now EvalRow (Record<string, unknown>)
@@ -130,8 +157,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     fetchNextPage,
   } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
-    enabled: true,
-    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection, targetId],
+    enabled: !isStatsLoading,
+    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection, targetId, columnSqls],
   });
 
   const selectedRow = useMemo<EvalRow | undefined>(

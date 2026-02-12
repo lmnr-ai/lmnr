@@ -1,11 +1,11 @@
 import { ArrowRight } from "lucide-react";
 
+import { useEvalStore } from "@/components/evaluation/store";
 import {
   calculatePercentageChange,
   type DisplayValue,
   formatScoreValue,
   isValidScore,
-  type ScoreRanges,
   type ScoreValue,
   shouldShowHeatmap,
 } from "@/components/evaluation/utils";
@@ -29,8 +29,6 @@ const ComparisonScoreValue = ({
 
   return ScoreDisplay(range, value);
 };
-
-// TODO: one component per file please
 
 const HeatmapComparisonCell = ({
   original,
@@ -82,8 +80,13 @@ const HeatmapComparisonCell = ({
   );
 };
 
-// TODO: no lowercase components
-const createStandardScoreComparison = (original: ScoreValue, comparison: ScoreValue) => {
+const StandardScoreComparison = ({
+  original,
+  comparison,
+}: {
+  original: ScoreValue;
+  comparison: ScoreValue;
+}) => {
   const showComparison = shouldShowComparisonIndicator(original, comparison);
 
   return (
@@ -104,13 +107,10 @@ const createStandardScoreComparison = (original: ScoreValue, comparison: ScoreVa
   );
 };
 
-// TODO: no lowercase components
-export const createComparisonScoreColumnCell = (
-  heatmapEnabled: boolean,
-  scoreRanges: ScoreRanges,
-  scoreName: string
-) => {
+export const createComparisonScoreColumnCell = (scoreName: string) => {
   const ComparisonScoreColumnCell = ({ row }: { row: { original: EvalRow } }) => {
+    const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
+    const scoreRanges = useEvalStore((s) => s.scoreRanges);
     const original = row.original[`score:${scoreName}`] as number | undefined;
     const comparison = row.original[`compared:score:${scoreName}`] as number | undefined;
     const range = scoreRanges[scoreName];
@@ -127,7 +127,7 @@ export const createComparisonScoreColumnCell = (
       );
     }
 
-    return createStandardScoreComparison(original, comparison);
+    return <StandardScoreComparison original={original} comparison={comparison} />;
   };
 
   ComparisonScoreColumnCell.displayName = `ComparisonScoreColumnCell_${scoreName}`;

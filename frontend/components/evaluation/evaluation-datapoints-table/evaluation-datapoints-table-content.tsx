@@ -2,6 +2,7 @@ import { Settings as SettingsIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 
+import { getVisibleColumns } from "@/components/evaluation/columns";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
 import { useEvalStore } from "@/components/evaluation/store";
 import { Button } from "@/components/ui/button";
@@ -44,12 +45,6 @@ const EvaluationDatapointsTableContent = ({
   const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
   const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
   const setScoreRanges = useEvalStore((s) => s.setScoreRanges);
-  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
-
-  // Rebuild columns when scores or comparison mode changes
-  useEffect(() => {
-    rebuildColumns({ scoreNames: scores, isComparison: !!targetId });
-  }, [scores, targetId, rebuildColumns]);
 
   // Compute and set score ranges from data
   useEffect(() => {
@@ -85,14 +80,6 @@ const EvaluationDatapointsTableContent = ({
     setScoreRanges(ranges);
   }, [data, scores, targetId, setScoreRanges]);
 
-  // Rebuild columns when scoreRanges change (to update heatmap styles)
-  const scoreRanges = useEvalStore((s) => s.scoreRanges);
-  useEffect(() => {
-    if (scores.length > 0) {
-      rebuildColumns({ scoreNames: scores, isComparison: !!targetId });
-    }
-  }, [scoreRanges, scores, targetId, rebuildColumns]);
-
   const handleSort = useCallback(
     (columnId: string, direction: "asc" | "desc") => {
       const params = new URLSearchParams(searchParams.toString());
@@ -107,6 +94,9 @@ const EvaluationDatapointsTableContent = ({
     },
     [searchParams, router, pathname]
   );
+
+  // Filter out hidden columns for rendering
+  const visibleColumns = useMemo(() => getVisibleColumns(columns), [columns]);
 
   // Derive filter definitions from column defs in the store
   const columnFilters = useMemo(
@@ -129,7 +119,7 @@ const EvaluationDatapointsTableContent = ({
   return (
     <div className="flex overflow-hidden flex-1">
       <InfiniteDataTable
-        columns={columns}
+        columns={visibleColumns}
         data={data ?? []}
         hasMore={!searchParams.get("search") && hasMore}
         isFetching={isFetching}
@@ -147,7 +137,7 @@ const EvaluationDatapointsTableContent = ({
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />
           <ColumnsMenu
-            columnLabels={columns.map((column) => ({
+            columnLabels={visibleColumns.map((column) => ({
               id: column.id!,
               label: typeof column.header === "string" ? column.header : column.id!,
             }))}

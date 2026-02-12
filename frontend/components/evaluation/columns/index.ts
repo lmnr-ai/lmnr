@@ -1,7 +1,5 @@
 import { type ColumnDef, type RowData } from "@tanstack/react-table";
 
-import { type ScoreRanges } from "@/components/evaluation/utils";
-import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { ComparisonCostCell } from "./comparison-cost-cell";
@@ -23,6 +21,7 @@ declare module "@tanstack/react-table" {
     dbType?: string;
     filterSql?: string;
     scoreName?: string;
+    hidden?: boolean;
   }
 }
 
@@ -34,14 +33,14 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["id"],
     header: "ID",
     enableSorting: false,
-    meta: { sql: "dp.id", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "dp.id", dataType: "string", filterable: false, comparable: false, hidden: true },
   },
   {
     id: "evaluationId",
     accessorFn: (row) => row["evaluationId"],
     header: "Evaluation ID",
     enableSorting: false,
-    meta: { sql: "dp.evaluation_id", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "dp.evaluation_id", dataType: "string", filterable: false, comparable: false, hidden: true },
   },
   {
     id: "status",
@@ -127,7 +126,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["traceId"],
     header: "Trace ID",
     enableSorting: false,
-    meta: { sql: "dp.trace_id", dataType: "string", filterable: true, comparable: true, dbType: "UUID" },
+    meta: { sql: "dp.trace_id", dataType: "string", filterable: true, comparable: true, dbType: "UUID", hidden: true },
   },
   {
     id: "startTime",
@@ -139,6 +138,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
       dataType: "datetime",
       filterable: false,
       comparable: true,
+      hidden: true,
     },
   },
   {
@@ -151,6 +151,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
       dataType: "datetime",
       filterable: false,
       comparable: true,
+      hidden: true,
     },
   },
   {
@@ -158,28 +159,28 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["inputCost"],
     header: "Input Cost",
     enableSorting: false,
-    meta: { sql: "t.input_cost", dataType: "number", filterable: false, comparable: true },
+    meta: { sql: "t.input_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "outputCost",
     accessorFn: (row) => row["outputCost"],
     header: "Output Cost",
     enableSorting: false,
-    meta: { sql: "t.output_cost", dataType: "number", filterable: false, comparable: true },
+    meta: { sql: "t.output_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "totalCost",
     accessorFn: (row) => row["totalCost"],
     header: "Total Cost",
     enableSorting: false,
-    meta: { sql: "t.total_cost", dataType: "number", filterable: false, comparable: true },
+    meta: { sql: "t.total_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "scores",
     accessorFn: (row) => row["scores"],
     header: "Scores",
     enableSorting: false,
-    meta: { sql: "dp.scores", dataType: "string", filterable: false, comparable: true },
+    meta: { sql: "dp.scores", dataType: "string", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "createdAt",
@@ -191,28 +192,20 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
       dataType: "datetime",
       filterable: false,
       comparable: false,
+      hidden: true,
     },
   },
 ];
 
 // -- Score column factory --
 
-const createColumnSizeConfig = (heatmapEnabled: boolean, isComparison: boolean = false) => ({
-  size: heatmapEnabled ? (isComparison ? 140 : 100) : undefined,
-  minSize: heatmapEnabled ? (isComparison ? 140 : 100) : isComparison ? 80 : 60,
-});
-
-export function createScoreColumnDef(
-  name: string,
-  heatmapEnabled: boolean = false,
-  scoreRanges: ScoreRanges = {}
-): ColumnDef<EvalRow> {
+export function createScoreColumnDef(name: string): ColumnDef<EvalRow> {
   return {
     id: `score:${name}`,
     header: name,
     accessorFn: (row) => row[`score:${name}`] ?? null,
-    ...createColumnSizeConfig(heatmapEnabled, false),
-    cell: createScoreColumnCell(heatmapEnabled, scoreRanges, name),
+    minSize: 60,
+    cell: createScoreColumnCell(name),
     enableSorting: true,
     meta: {
       sql: `JSONExtractFloat(dp.scores, '${name}')`,
@@ -224,17 +217,13 @@ export function createScoreColumnDef(
   };
 }
 
-export function createComparisonScoreColumnDef(
-  name: string,
-  heatmapEnabled: boolean = false,
-  scoreRanges: ScoreRanges = {}
-): ColumnDef<EvalRow> {
+export function createComparisonScoreColumnDef(name: string): ColumnDef<EvalRow> {
   return {
     id: `comparedScore:${name}`,
     header: name,
     accessorFn: (row) => row[`score:${name}`] ?? null,
-    ...createColumnSizeConfig(heatmapEnabled, true),
-    cell: createComparisonScoreColumnCell(heatmapEnabled, scoreRanges, name),
+    minSize: 80,
+    cell: createComparisonScoreColumnCell(name),
     enableSorting: true,
     meta: {
       sql: `JSONExtractFloat(dp.scores, '${name}')`,
@@ -261,70 +250,12 @@ export const COMPARED_COST_COLUMN: ColumnDef<EvalRow> = {
 
 // -- Helper functions --
 
-/** IDs of columns that are visible by default in the table */
-export const VISIBLE_COLUMN_IDS = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
-
-/** IDs of columns that are hidden (not shown in table but included in queries for data access) */
-export const HIDDEN_COLUMN_IDS = [
-  "id",
-  "evaluationId",
-  "traceId",
-  "startTime",
-  "endTime",
-  "inputCost",
-  "outputCost",
-  "totalCost",
-  "scores",
-  "createdAt",
-];
-
-/** Get visible static columns for rendering */
-export function getVisibleStaticColumns(): ColumnDef<EvalRow>[] {
-  return STATIC_COLUMNS.filter((c) => VISIBLE_COLUMN_IDS.includes(c.id!));
+/** Filter to only visible (non-hidden) columns */
+export function getVisibleColumns(columns: ColumnDef<EvalRow>[]): ColumnDef<EvalRow>[] {
+  return columns.filter((c) => !c.meta?.hidden);
 }
 
-// -- FE → BE payload builders --
-
-/** Build the full columns payload for the BE query (SELECT + filter resolution) */
-export function buildColumnsPayload(scores: string[]): EvalQueryColumn[] {
-  const staticCols = STATIC_COLUMNS.filter((c) => c.meta?.sql).map((c) => ({
-    id: c.id!,
-    sql: c.meta!.sql!,
-    comparable: c.meta!.comparable ?? false,
-    ...(c.meta!.filterSql && { filterSql: c.meta!.filterSql }),
-    ...(c.meta!.dbType && { dbType: c.meta!.dbType }),
-  }));
-  const scoreCols = scores.map((name) => ({
-    id: `score:${name}`,
-    sql: `JSONExtractFloat(dp.scores, '${name}')`,
-    comparable: true,
-    dbType: "Float64",
-  }));
-  return [...staticCols, ...scoreCols];
-}
-
-/** Build minimal columns for filter resolution (used by stats queries) */
-export function buildFilterColumns(
-  rawFilters: { column: string }[]
-): EvalQueryColumn[] {
-  const ids = [...new Set(rawFilters.map((f) => f.column))];
-  return ids.map((id) => {
-    if (id.startsWith("score:")) {
-      const name = id.slice("score:".length);
-      return { id, sql: `JSONExtractFloat(dp.scores, '${name}')`, dbType: "Float64" };
-    }
-    const col = STATIC_COLUMNS.find((c) => c.id === id);
-    if (!col?.meta) throw new Error(`Unknown filter column: ${id}`);
-    return {
-      id: col.id!,
-      sql: col.meta.sql!,
-      ...(col.meta.filterSql && { filterSql: col.meta.filterSql }),
-      ...(col.meta.dbType && { dbType: col.meta.dbType }),
-    };
-  });
-}
-
-/** Get the SQL expression for sorting a given column (self-sufficient — no allColumns param) */
+/** Get the SQL expression for sorting a given column */
 export function getSortSql(sortBy: string): string | undefined {
   if (sortBy.startsWith("score:")) {
     return `JSONExtractFloat(dp.scores, '${sortBy.slice("score:".length)}')`;

@@ -2,17 +2,16 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { create } from "zustand";
 
 import { type ScoreRanges } from "@/components/evaluation/utils";
+import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import {
-  buildColumnsPayload,
-  buildFilterColumns,
   COMPARED_COST_COLUMN,
   COMPARED_DURATION_COLUMN,
   createComparisonScoreColumnDef,
   createScoreColumnDef,
   getSortSql,
-  getVisibleStaticColumns,
+  STATIC_COLUMNS,
 } from "./columns/index";
 
 interface RawUrlParams {
@@ -24,12 +23,23 @@ interface RawUrlParams {
   targetId?: string | null;
 }
 
+function toColumnsPayload(columnDefs: ColumnDef<EvalRow>[]): EvalQueryColumn[] {
+  return columnDefs
+    .filter((c) => c.meta?.sql)
+    .map((c) => ({
+      id: c.id!,
+      sql: c.meta!.sql!,
+      comparable: c.meta!.comparable ?? false,
+      ...(c.meta!.filterSql && { filterSql: c.meta!.filterSql }),
+      ...(c.meta!.dbType && { dbType: c.meta!.dbType }),
+    }));
+}
+
 interface EvalStoreState {
   // Data
   scoreRanges: ScoreRanges;
   heatmapEnabled: boolean;
   columnDefs: ColumnDef<EvalRow>[];
-  scoreNames: string[];
 
   // Actions
   setScoreRanges: (ranges: ScoreRanges) => void;
@@ -51,8 +61,7 @@ export const useEvalStore = create<EvalStoreState>((set, get) => ({
           }
         })()
       : false,
-  columnDefs: getVisibleStaticColumns(),
-  scoreNames: [],
+  columnDefs: [...STATIC_COLUMNS],
 
   setScoreRanges: (ranges) => set({ scoreRanges: ranges }),
 
@@ -61,58 +70,54 @@ export const useEvalStore = create<EvalStoreState>((set, get) => ({
       localStorage.setItem("evaluation-heatmap-enabled", JSON.stringify(enabled));
     }
     set({ heatmapEnabled: enabled });
-
-    // Rebuild columns with new heatmap state
-    const { scoreNames, columnDefs } = get();
-    if (scoreNames.length > 0) {
-      const isComparison = columnDefs.some((c) => c.id?.startsWith("comparedScore:"));
-      get().rebuildColumns({ scoreNames, isComparison });
-    }
   },
 
   rebuildColumns: ({ scoreNames, isComparison }) => {
-    const { heatmapEnabled, scoreRanges } = get();
-    const staticCols = getVisibleStaticColumns();
-
     // In comparison mode, override duration/cost with comparison renderers
     const baseCols = isComparison
-      ? staticCols.map((c) => {
+      ? STATIC_COLUMNS.map((c) => {
           if (c.id === "duration") return COMPARED_DURATION_COLUMN;
           if (c.id === "cost") return COMPARED_COST_COLUMN;
           return c;
         })
-      : staticCols;
+      : [...STATIC_COLUMNS];
 
     // Add score columns
     const scoreCols = isComparison
-      ? scoreNames.map((name) => createComparisonScoreColumnDef(name, heatmapEnabled, scoreRanges))
-      : scoreNames.map((name) => createScoreColumnDef(name, heatmapEnabled, scoreRanges));
+      ? scoreNames.map((name) => createComparisonScoreColumnDef(name))
+      : scoreNames.map((name) => createScoreColumnDef(name));
 
-    set({
-      columnDefs: [...baseCols, ...scoreCols],
-      scoreNames,
-    });
+    set({ columnDefs: [...baseCols, ...scoreCols] });
   },
 
   buildStatsParams: (raw) => {
+    const { columnDefs } = get();
     const urlParams = new URLSearchParams();
     if (raw.search) urlParams.set("search", raw.search);
     raw.searchIn.forEach((v) => urlParams.append("searchIn", v));
     raw.filter.forEach((f) => urlParams.append("filter", f));
 
-    // Build filter-relevant columns for filter resolution
+    // Only send columns referenced by active filters (optimization for URL length)
     const parsedFilters = raw.filter
-      .map((f) => { try { return JSON.parse(f); } catch { return null; } })
-      .filter(Boolean);
+      .map((f) => {
+        try {
+          return JSON.parse(f);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean) as { column: string }[];
     if (parsedFilters.length > 0) {
-      urlParams.set("columns", JSON.stringify(buildFilterColumns(parsedFilters)));
+      const filterIds = new Set(parsedFilters.map((f) => f.column));
+      const filterCols = columnDefs.filter((c) => filterIds.has(c.id!));
+      urlParams.set("columns", JSON.stringify(toColumnsPayload(filterCols)));
     }
 
     return urlParams;
   },
 
   buildFetchParams: (raw) => {
-    const { scoreNames } = get();
+    const { columnDefs } = get();
     const urlParams = new URLSearchParams();
     urlParams.set("pageNumber", raw.pageNumber.toString());
     urlParams.set("pageSize", raw.pageSize.toString());
@@ -120,8 +125,8 @@ export const useEvalStore = create<EvalStoreState>((set, get) => ({
     raw.searchIn.forEach((v) => urlParams.append("searchIn", v));
     raw.filter.forEach((f) => urlParams.append("filter", f));
 
-    // Full columns payload (for SELECT + filter resolution)
-    urlParams.set("columns", JSON.stringify(buildColumnsPayload(scoreNames)));
+    // Full columns payload derived directly from column defs
+    urlParams.set("columns", JSON.stringify(toColumnsPayload(columnDefs)));
 
     // Sort
     if (raw.sortBy) {

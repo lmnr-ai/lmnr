@@ -1,8 +1,8 @@
+import { useEvalStore } from "@/components/evaluation/store";
 import {
   createHeatmapStyle,
   formatScoreValue,
   isValidScore,
-  type ScoreRanges,
   type ScoreValue,
 } from "@/components/evaluation/utils";
 import { type ScoreRange } from "@/lib/colors";
@@ -37,10 +37,12 @@ const ScoreDisplay = (range: ScoreRange, value: ScoreValue) => {
 
 export { ScoreDisplay };
 
-// TODO: one component per file, no lowercase components
-// QUESTION: maybe I'm misunderstading something but lowercase components seem wrong to me as a react veteran
-export const createScoreColumnCell = (heatmapEnabled: boolean, scoreRanges: ScoreRanges, scoreName: string) => {
+const HeatmapScoreCell = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => ScoreDisplay(range, value);
+
+export const createScoreColumnCell = (scoreName: string) => {
   const ScoreColumnCell = ({ row }: { row: { original: EvalRow } }) => {
+    const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
+    const scoreRanges = useEvalStore((s) => s.scoreRanges);
     const value = row.original[`score:${scoreName}`] as number | undefined;
     const range = scoreRanges[scoreName];
 
@@ -54,5 +56,3 @@ export const createScoreColumnCell = (heatmapEnabled: boolean, scoreRanges: Scor
   ScoreColumnCell.displayName = `ScoreColumnCell_${scoreName}`;
   return ScoreColumnCell;
 };
-
-const HeatmapScoreCell = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => ScoreDisplay(range, value);
