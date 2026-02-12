@@ -1,7 +1,8 @@
+import { z } from "zod/v4";
+
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Operator } from "@/lib/actions/common/operators";
 import { type QueryParams, type QueryResult } from "@/lib/actions/common/query-builder";
-import { z } from "zod/v4";
 
 // -- Types --
 
@@ -81,7 +82,9 @@ function buildFilterConditions(
     const opSymbol = OperatorLabelMap[filter.operator as Operator];
     const isNumeric = dbType === "Int64" || dbType === "Float64";
     const parsedValue = isNumeric
-      ? (dbType === "Int64" ? parseInt(String(filter.value)) : parseFloat(String(filter.value)))
+      ? dbType === "Int64"
+        ? parseInt(String(filter.value))
+        : parseFloat(String(filter.value))
       : String(filter.value);
     if (isNumeric && isNaN(parsedValue as number)) return;
 
@@ -95,8 +98,7 @@ function buildFilterConditions(
 // -- Main builder --
 
 export function buildEvalQuery(options: EvalQueryOptions): QueryResult {
-  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } =
-    options;
+  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } = options;
 
   if (targetId) {
     return buildComparisonQuery(options);
@@ -173,14 +175,19 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
   }
 
   // PAGINATION
-  let paginationStr = "";
-  if (limit != null && offset != null) {
-    paginationStr = `LIMIT {limit:UInt32} OFFSET {offset:UInt32}`;
+  let limitString = "";
+  if (limit != null) {
+    limitString = `LIMIT {limit:UInt32}`;
     parameters.limit = limit;
+  }
+
+  let offsetString = "";
+  if (offset != null) {
+    offsetString = `OFFSET {offset:UInt32}`;
     parameters.offset = offset;
   }
 
-  const query = `SELECT ${selectStr} FROM ${fromStr} ${whereStr} ${orderByStr} ${paginationStr}`
+  const query = `SELECT ${selectStr} FROM ${fromStr} ${whereStr} ${orderByStr} ${limitString} ${offsetString}`
     .trim()
     .replace(/\s+/g, " ");
 
@@ -196,8 +203,7 @@ function resolveSortExpression(sortBy: string, sortSql?: string, columns?: EvalQ
 // -- Comparison builder --
 
 function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
-  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } =
-    options;
+  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } = options;
 
   // Build primary subquery (with pagination)
   const primaryResult = buildSingleEvalQuery({

@@ -76,10 +76,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   }, [scores, rebuildColumns]);
 
   // SQL strings from column defs — only changes when columns structurally change.
-  const columnSqls = useMemo(
-    () => columnDefs.map((c) => c.meta?.sql).filter(Boolean),
-    [columnDefs]
-  );
+  const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
@@ -119,7 +116,6 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     data: allDatapoints,
     hasMore: hasMorePages,
     isFetching: isFetchingPage,
-    isLoading: _isLoadingDatapoints,
     fetchNextPage,
   } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,

@@ -230,7 +230,7 @@ export function createScoreColumnDef(name: string): ColumnDef<EvalRow> {
     cell: createScoreColumnCell(name),
     enableSorting: true,
     meta: {
-      sql: `JSONExtractFloat(dp.scores, '${name}')`,
+      sql: `simpleJSONExtractFloat(dp.scores, '${name}')`,
       dataType: "number",
       filterable: true,
       comparable: true,
