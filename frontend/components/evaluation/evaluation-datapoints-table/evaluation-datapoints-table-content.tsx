@@ -2,7 +2,7 @@ import { Settings as SettingsIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 
-import { getVisibleColumns } from "@/components/evaluation/columns";
+import { getVisibleColumns } from "@/components/evaluation/store";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
 import { useEvalStore } from "@/components/evaluation/store";
 import { Button } from "@/components/ui/button";

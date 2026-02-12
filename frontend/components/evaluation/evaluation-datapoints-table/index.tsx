@@ -23,7 +23,7 @@ const baseColumnOrder = ["status", "index", "data", "target", "metadata", "outpu
 const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
   const { scores, isLoading } = props;
   const defaultColumnOrder = useMemo(
-    () => [...baseColumnOrder, ...scores.flatMap((s) => [`score:${s}`, `comparedScore:${s}`])],
+    () => [...baseColumnOrder, ...scores.map((s) => `score:${s}`)],
     [scores]
   );
 

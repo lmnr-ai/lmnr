@@ -52,6 +52,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
 
   // Store
   const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
+  const setIsComparison = useEvalStore((s) => s.setIsComparison);
   const columnDefs = useEvalStore((s) => s.columnDefs);
   const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
   const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
@@ -87,13 +88,18 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     scores: string[];
   }>(targetStatsUrl, swrFetcher);
 
-  const scores = statsData?.scores || [];
+  const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
 
-  // Rebuild column defs when scores or comparison mode changes.
+  // Sync comparison state from URL
+  useEffect(() => {
+    setIsComparison(!!targetId);
+  }, [targetId, setIsComparison]);
+
+  // Rebuild column defs when scores change.
   // This must run before useInfiniteScroll's effect (declaration order).
   useEffect(() => {
-    rebuildColumns({ scoreNames: scores, isComparison: !!targetId });
-  }, [scores, targetId, rebuildColumns]);
+    rebuildColumns(scores);
+  }, [scores, rebuildColumns]);
 
   // SQL strings from column defs — only changes when columns structurally change.
   // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings

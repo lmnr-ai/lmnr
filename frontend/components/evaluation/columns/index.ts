@@ -2,10 +2,8 @@ import { type ColumnDef, type RowData } from "@tanstack/react-table";
 
 import { type EvalRow } from "@/lib/evaluation/types";
 
-import { ComparisonCostCell } from "./comparison-cost-cell";
-import { ComparisonDurationCell } from "./comparison-duration-cell";
-import { createComparisonScoreColumnCell } from "./comparison-score-cell";
 import { CostCell } from "./cost-cell";
+import { DataCell } from "./data-cell";
 import { DurationCell } from "./duration-cell";
 import { createScoreColumnCell } from "./score-cell";
 import { StatusCell } from "./status-cell";
@@ -62,6 +60,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
   {
     id: "data",
     accessorFn: (row) => row["data"],
+    cell: DataCell,
     header: "Data",
     enableSorting: false,
     meta: { sql: "substring(dp.data, 1, 200)", dataType: "string", filterable: false, comparable: false },
@@ -69,6 +68,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
   {
     id: "target",
     accessorFn: (row) => row["target"],
+    cell: DataCell,
     header: "Target",
     enableSorting: false,
     meta: { sql: "substring(dp.target, 1, 200)", dataType: "string", filterable: false, comparable: false },
@@ -76,6 +76,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
   {
     id: "metadata",
     accessorFn: (row) => row["metadata"],
+    cell: DataCell,
     header: "Metadata",
     enableSorting: false,
     meta: {
@@ -90,6 +91,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
   {
     id: "output",
     accessorFn: (row) => row["output"],
+    cell: DataCell,
     header: "Output",
     enableSorting: false,
     meta: { sql: "substring(dp.executor_output, 1, 200)", dataType: "string", filterable: false, comparable: false },
@@ -215,50 +217,4 @@ export function createScoreColumnDef(name: string): ColumnDef<EvalRow> {
       scoreName: name,
     },
   };
-}
-
-export function createComparisonScoreColumnDef(name: string): ColumnDef<EvalRow> {
-  return {
-    id: `comparedScore:${name}`,
-    header: name,
-    accessorFn: (row) => row[`score:${name}`] ?? null,
-    minSize: 80,
-    cell: createComparisonScoreColumnCell(name),
-    enableSorting: true,
-    meta: {
-      sql: `JSONExtractFloat(dp.scores, '${name}')`,
-      dataType: "number",
-      filterable: true,
-      comparable: true,
-      scoreName: name,
-    },
-  };
-}
-
-// -- Comparison column overrides --
-// When in comparison mode, duration and cost columns use comparison renderers
-
-export const COMPARED_DURATION_COLUMN: ColumnDef<EvalRow> = {
-  ...STATIC_COLUMNS.find((c) => c.id === "duration")!,
-  cell: ComparisonDurationCell,
-};
-
-export const COMPARED_COST_COLUMN: ColumnDef<EvalRow> = {
-  ...STATIC_COLUMNS.find((c) => c.id === "cost")!,
-  cell: ComparisonCostCell,
-};
-
-// -- Helper functions --
-
-/** Filter to only visible (non-hidden) columns */
-export function getVisibleColumns(columns: ColumnDef<EvalRow>[]): ColumnDef<EvalRow>[] {
-  return columns.filter((c) => !c.meta?.hidden);
-}
-
-/** Get the SQL expression for sorting a given column */
-export function getSortSql(sortBy: string): string | undefined {
-  if (sortBy.startsWith("score:")) {
-    return `JSONExtractFloat(dp.scores, '${sortBy.slice("score:".length)}')`;
-  }
-  return STATIC_COLUMNS.find((c) => c.id === sortBy)?.meta?.sql;
 }
