@@ -42,7 +42,6 @@ const ScoreDisplay = (range: ScoreRange, value: ScoreValue) => {
   );
 };
 
-export { ScoreDisplay };
 
 const HeatmapScoreCell = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => ScoreDisplay(range, value);
 
