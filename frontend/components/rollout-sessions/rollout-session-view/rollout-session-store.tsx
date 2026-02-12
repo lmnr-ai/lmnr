@@ -57,6 +57,7 @@ interface RolloutSessionStoreState {
   browserSession: boolean;
   langGraph: boolean;
   sessionTime?: number;
+  sessionStartTime?: number;
   tab: "tree" | "reader";
   sidebarWidth: number;
   hasBrowserSession: boolean;
@@ -95,6 +96,7 @@ interface RolloutSessionStoreActions {
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
   setSessionTime: (time?: number) => void;
+  setSessionStartTime: (time?: number) => void;
   setTab: (tab: RolloutSessionStoreState["tab"]) => void;
   setSidebarWidth: (width: number) => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
@@ -317,6 +319,7 @@ const createRolloutSessionStore = ({
           }
         },
         setSessionTime: (sessionTime) => set({ sessionTime }),
+        setSessionStartTime: (sessionStartTime) => set({ sessionStartTime }),
         setIsTraceLoading: (isTraceLoading) => set({ isTraceLoading }),
         setIsSpansLoading: (isSpansLoading) => set({ isSpansLoading }),
         setLangGraph: (langGraph: boolean) => set({ langGraph }),
