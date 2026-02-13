@@ -106,7 +106,14 @@ export const getEvaluationDatapoints = async (
   const allFilters = compact(inputFilters);
 
   // Parse columns from request — FE is the source of truth
-  const columns: EvalQueryColumn[] = columnsJson ? JSON.parse(columnsJson) : [];
+  let columns: EvalQueryColumn[] = [];
+  if (columnsJson) {
+    try {
+      columns = JSON.parse(columnsJson);
+    } catch {
+      columns = [];
+    }
+  }
 
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
@@ -168,7 +175,14 @@ export const getEvaluationStatistics = async (
   }
 
   const allFilters = compact(inputFilters);
-  const columns: EvalQueryColumn[] = columnsJson ? JSON.parse(columnsJson) : [];
+  let columns: EvalQueryColumn[] = [];
+  if (columnsJson) {
+    try {
+      columns = JSON.parse(columnsJson);
+    } catch {
+      columns = [];
+    }
+  }
 
   // Step 1: Get trace IDs from search if provided
   const searchTraceIds = await getSearchTraceIds(projectId, search, searchIn, evaluation.createdAt);

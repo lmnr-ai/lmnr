@@ -1,14 +1,14 @@
 import { z } from "zod/v4";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { type Operator } from "@/lib/actions/common/operators";
+import { Operator } from "@/lib/actions/common/operators";
 import { type QueryParams, type QueryResult } from "@/lib/actions/common/query-builder";
 
 // -- Types --
 
 export interface EvalQueryColumn {
   id: string; // "index", "duration", "score:accuracy"
-  sql: string; // "dp.index", "(toUnixTimestamp64Milli(...))"
+  sql: string; // "`index`", "duration", "(toUnixTimestamp64Milli(...))"
   comparable?: boolean;
   filterSql?: string; // WHERE clause SQL (defaults to sql). Template for JSON filters.
   dbType?: string; // DB type for casting: "String", "Float64", "Int64", "UUID"
@@ -16,7 +16,7 @@ export interface EvalQueryColumn {
 
 export const EvalFilterSchema = z.object({
   column: z.string(),
-  operator: z.string(),
+  operator: z.nativeEnum(Operator),
   value: z.union([z.string(), z.number()]),
 });
 
@@ -141,19 +141,19 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
   const selectClauses = columns.map((c) => `${c.sql} as ${backtickEscape(c.id)}`);
   const selectStr = selectClauses.join(", ");
 
-  // FROM + JOIN
-  const fromStr = "evaluation_datapoints dp JOIN traces t ON t.id = dp.trace_id";
+  // FROM (new_evaluation_datapoints view already joins traces + spans)
+  const fromStr = "new_evaluation_datapoints";
 
   // WHERE
   const whereConditions: string[] = [];
 
   // Always filter by evaluation_id
-  whereConditions.push(`dp.evaluation_id = {${evalIdParam}:UUID}`);
+  whereConditions.push(`evaluation_id = {${evalIdParam}:UUID}`);
   parameters[evalIdParam] = evaluationId;
 
   // Pre-filter by trace IDs (from search)
   if (traceIds.length > 0) {
-    whereConditions.push(`dp.trace_id IN ({traceIds:Array(UUID)})`);
+    whereConditions.push(`trace_id IN ({traceIds:Array(UUID)})`);
     parameters.traceIds = traceIds;
   }
 
@@ -171,7 +171,7 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
     const direction = sortDirection ?? "ASC";
     orderByStr = `ORDER BY ${sortColumn} ${direction}`;
   } else {
-    orderByStr = "ORDER BY dp.index ASC, dp.created_at ASC";
+    orderByStr = "ORDER BY `index` ASC, created_at ASC";
   }
 
   // PAGINATION
@@ -197,7 +197,7 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
 function resolveSortExpression(sortBy: string, sortSql?: string, columns?: EvalQueryColumn[]): string {
   if (sortSql) return sortSql;
   const col = columns?.find((c) => c.id === sortBy);
-  return col?.sql ?? "dp.index";
+  return col?.sql ?? "`index`";
 }
 
 // -- Comparison builder --
@@ -259,11 +259,11 @@ export function buildEvalStatsQuery(options: EvalStatsQueryOptions): QueryResult
 
   const whereConditions: string[] = [];
 
-  whereConditions.push(`dp.evaluation_id = {evaluationId:UUID}`);
+  whereConditions.push(`evaluation_id = {evaluationId:UUID}`);
   parameters.evaluationId = evaluationId;
 
   if (traceIds.length > 0) {
-    whereConditions.push(`dp.trace_id IN ({traceIds:Array(UUID)})`);
+    whereConditions.push(`trace_id IN ({traceIds:Array(UUID)})`);
     parameters.traceIds = traceIds;
   }
 
@@ -274,7 +274,7 @@ export function buildEvalStatsQuery(options: EvalStatsQueryOptions): QueryResult
 
   const whereStr = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
 
-  const query = `SELECT dp.scores FROM evaluation_datapoints dp JOIN traces t ON t.id = dp.trace_id ${whereStr}`;
+  const query = `SELECT scores FROM new_evaluation_datapoints ${whereStr}`;
 
   return { query: query.trim(), parameters };
 }

@@ -85,6 +85,18 @@ class TableRegistry:
         # the latest version of each datapoint
         self.tables['dataset_datapoint_versions'] = TableSchema('dataset_datapoint_versions', dataset_datapoints_columns, 'created_at')
         self.tables['evaluation_datapoints'] = TableSchema('evaluation_datapoints', evaluation_datapoints_columns, 'created_at')
+
+        new_evaluation_datapoints_columns = {
+            "id", "evaluation_id", "data", "target", "metadata",
+            "executor_output", "index", "trace_id", "group_id", "scores",
+            "updated_at", "created_at", "dataset_id", "dataset_datapoint_id",
+            "dataset_datapoint_created_at",
+            "duration", "input_cost", "output_cost", "total_cost",
+            "start_time", "end_time", "input_tokens", "output_tokens",
+            "total_tokens", "trace_status", "trace_metadata", "trace_tags",
+            "trace_spans",
+        }
+        self.tables['new_evaluation_datapoints'] = TableSchema('new_evaluation_datapoints', new_evaluation_datapoints_columns, 'created_at')
         self.tables['events'] = TableSchema('events', events_columns, 'timestamp')
         self.tables['tags'] = TableSchema('tags', tags_columns, 'created_at')
         self.tables['signal_runs'] = TableSchema('signal_runs', signal_runs_columns, 'updated_at')

@@ -3,7 +3,7 @@ import { prettifyError, z } from "zod/v4";
 
 import { PaginationSchema, SortSchema } from "@/lib/actions/common/types";
 import { parseUrlParams } from "@/lib/actions/common/utils";
-import { EvalFilterSchema } from "@/lib/actions/evaluation/query-builder";
+import { EvalFilterSchema, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { getSharedEvaluationDatapoints } from "@/lib/actions/shared/evaluation";
 
 const SharedEvaluationDatapointsSchema = z.object({
@@ -43,7 +43,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ evaluatio
     const { pageNumber, pageSize, filter, search, searchIn, sortBy, sortSql, sortDirection, columns: columnsJson } =
       parseResult.data;
 
-    const columns = columnsJson ? JSON.parse(columnsJson) : [];
+    let columns: EvalQueryColumn[] = [];
+    if (columnsJson) {
+      try {
+        columns = JSON.parse(columnsJson);
+      } catch {
+        columns = [];
+      }
+    }
 
     const result = await getSharedEvaluationDatapoints({
       evaluationId,
