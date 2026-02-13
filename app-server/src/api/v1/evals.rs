@@ -89,6 +89,7 @@ pub async fn save_eval_datapoints(
 pub struct UpdateEvalDatapointRequest {
     pub executor_output: Option<Value>,
     pub scores: HashMap<String, Option<f64>>,
+    pub trace_id: Option<Uuid>,
 }
 
 #[post("/evals/{eval_id}/datapoints/{datapoint_id}")]
@@ -117,6 +118,7 @@ pub async fn update_eval_datapoint(
         &group_id,
         req.executor_output,
         req.scores,
+        req.trace_id,
     )
     .await?;
 

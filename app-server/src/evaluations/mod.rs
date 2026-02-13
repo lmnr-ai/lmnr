@@ -116,7 +116,8 @@ pub async fn insert_evaluation_datapoints(
                 }
 
                 if update.executor_output.is_none() {
-                    update.executor_output = Some(parse_json_value_from_string(&existing.executor_output));
+                    update.executor_output =
+                        Some(parse_json_value_from_string(&existing.executor_output));
                 }
 
                 if update.trace_id.is_nil() {
@@ -190,6 +191,7 @@ pub async fn update_evaluation_datapoint(
     group_id: &String,
     executor_output: Option<Value>,
     scores: HashMap<String, Option<f64>>,
+    trace_id: Option<Uuid>,
 ) -> Result<()> {
     // Get the existing datapoint
     let existing_map = get_existing_datapoints(
@@ -235,7 +237,7 @@ pub async fn update_evaluation_datapoint(
         metadata,
         executor_output: executor_output
             .or_else(|| Some(parse_json_value_from_string(&existing.executor_output))),
-        trace_id: existing.trace_id,
+        trace_id: trace_id.unwrap_or(existing.trace_id),
         index: existing.index as i32,
         scores: merged_scores,
         dataset_link,
