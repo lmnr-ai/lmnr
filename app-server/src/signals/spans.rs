@@ -10,6 +10,8 @@ use super::utils::try_parse_json;
 const TRUNCATE_THRESHOLD: usize = 64;
 const PREVIEW_LENGTH: usize = 24;
 const BASE64_IMAGE_PLACEHOLDER: &str = "[base64 image omitted]";
+/// Max chars to keep for LLM span inputs (~1K tokens).
+const LLM_INPUT_MAX_CHARS: usize = 3000;
 
 /// Raw span from ClickHouse with exception data
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
@@ -86,6 +88,19 @@ fn truncate_value(value: &Value) -> Value {
     Value::String(format!("{}...({} chars omitted)...{}", start, omitted, end))
 }
 
+/// Truncate an LLM input value to LLM_INPUT_MAX_CHARS.
+/// Keeps the first N chars of the serialized JSON and appends a truncation notice.
+fn truncate_llm_input(value: &Value) -> Value {
+    let serialized = serde_json::to_string(value).unwrap_or_default();
+    let char_count = serialized.chars().count();
+    if char_count <= LLM_INPUT_MAX_CHARS {
+        return value.clone();
+    }
+    let truncated: String = serialized.chars().take(LLM_INPUT_MAX_CHARS).collect();
+    let omitted = char_count - LLM_INPUT_MAX_CHARS;
+    Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
+}
+
 /// Replace base64 image data within a JSON value with a placeholder.
 ///
 /// Detects data URLs of the form `data:image/...;base64,...` anywhere in the JSON tree.
@@ -139,14 +154,16 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
             };
 
             let (input, output) = if is_llm {
-                let input_data = replace_base64_images(&try_parse_json(&ch_span.input));
+                let input_data = truncate_llm_input(
+                    &replace_base64_images(&try_parse_json(&ch_span.input)),
+                );
                 let output_data = replace_base64_images(&try_parse_json(&ch_span.output));
 
                 if seen_llm_paths.contains(&path) {
                     // Subsequent LLM span at same path: only output
                     (None, Some(output_data))
                 } else {
-                    // First LLM span at this path: include full input and output
+                    // First LLM span at this path: include truncated input and full output
                     seen_llm_paths.insert(path.clone());
                     (Some(input_data), Some(output_data))
                 }
