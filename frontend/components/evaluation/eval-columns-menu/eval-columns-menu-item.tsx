@@ -3,7 +3,6 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripHorizontal, Trash2 } from "lucide-react";
 import React from "react";
 
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
 import { Switch } from "@/components/ui/switch.tsx";
 import { cn } from "@/lib/utils.ts";
 
@@ -33,14 +32,20 @@ export const EvalColumnsMenuItem = ({
     transition,
   };
   return (
-    <DropdownMenuItem style={style} className={cn("flex items-center gap-4", isLocked && "hidden")}>
+    <div
+      style={style}
+      className={cn(
+        "relative flex cursor-default select-none items-center gap-4 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground",
+        isLocked && "hidden"
+      )}
+    >
       <div className="flex items-center gap-2">
         <div
           ref={setNodeRef}
           {...(!isLocked && { ...attributes, ...listeners })}
           className={cn("cursor-grab", isLocked && "cursor-not-allowed opacity-50")}
         >
-          <GripHorizontal />
+          <GripHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
         </div>
         <span className={isLocked ? "text-muted-foreground mr-4" : ""}>{label}</span>
       </div>
@@ -65,6 +70,6 @@ export const EvalColumnsMenuItem = ({
           onClick={(e) => e.stopPropagation()}
         />
       </div>
-    </DropdownMenuItem>
+    </div>
   );
 };
