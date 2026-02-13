@@ -47,6 +47,7 @@ interface EvalStoreState {
   setIsComparison: (value: boolean) => void;
   rebuildColumns: (scoreNames: string[]) => void;
   addCustomColumn: (column: CustomColumn) => void;
+  updateCustomColumn: (oldName: string, column: CustomColumn) => void;
   removeCustomColumn: (name: string) => void;
   buildStatsParams: (raw: RawUrlParams) => URLSearchParams;
   buildFetchParams: (raw: RawUrlParams & { pageNumber: number; pageSize: number }) => URLSearchParams;
@@ -86,6 +87,7 @@ export const useEvalStore = create<EvalStoreState>()(
             dataType: cc.dataType,
             filterable: true,
             comparable: false,
+            isCustom: true,
           },
         }));
         set({ columnDefs: [...STATIC_COLUMNS, ...scoreCols, ...customCols], lastScoreNames: scoreNames });
@@ -95,6 +97,12 @@ export const useEvalStore = create<EvalStoreState>()(
         const { customColumns } = get();
         if (customColumns.some((cc) => cc.name === column.name)) return;
         set({ customColumns: [...customColumns, column] });
+        get().rebuildColumns(get().lastScoreNames);
+      },
+
+      updateCustomColumn: (oldName, column) => {
+        const { customColumns } = get();
+        set({ customColumns: customColumns.map((cc) => (cc.name === oldName ? column : cc)) });
         get().rebuildColumns(get().lastScoreNames);
       },
 

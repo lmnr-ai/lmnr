@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripHorizontal, Trash2 } from "lucide-react";
+import { GripHorizontal, Pencil, Trash2 } from "lucide-react";
 import React from "react";
 
 import { Switch } from "@/components/ui/switch.tsx";
@@ -13,6 +13,7 @@ interface EvalColumnsMenuItemProps {
   isLocked: boolean;
   onToggleVisibility: (columnId: string) => void;
   onDelete?: () => void;
+  onEdit?: () => void;
 }
 
 export const EvalColumnsMenuItem = ({
@@ -22,6 +23,7 @@ export const EvalColumnsMenuItem = ({
   isLocked,
   onToggleVisibility,
   onDelete,
+  onEdit,
 }: EvalColumnsMenuItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id,
@@ -51,6 +53,17 @@ export const EvalColumnsMenuItem = ({
       </div>
 
       <div className="ml-auto flex items-center gap-2">
+        {onEdit && (
+          <button
+            className="text-muted-foreground hover:text-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
         {onDelete && (
           <button
             className="text-muted-foreground hover:text-destructive"

@@ -7,7 +7,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { motion } from "framer-motion";
-import { ChevronRight, ListRestart } from "lucide-react";
+import { ListRestart, Plus } from "lucide-react";
 import React from "react";
 
 import { EvalColumnsMenuItem } from "./eval-columns-menu-item";
@@ -21,6 +21,7 @@ interface ColumnsListPanelProps {
   onToggleVisibility: (columnId: string) => void;
   onReset: () => void;
   onCustomColumnClick: () => void;
+  onEditColumn?: (columnId: string) => void;
 }
 
 export const ColumnsListPanel = ({
@@ -32,6 +33,7 @@ export const ColumnsListPanel = ({
   onToggleVisibility,
   onReset,
   onCustomColumnClick,
+  onEditColumn,
 }: ColumnsListPanelProps) => {
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -79,6 +81,7 @@ export const ColumnsListPanel = ({
                   isLocked={lockedColumns.includes(columnId)}
                   onToggleVisibility={onToggleVisibility}
                   onDelete={labelEntry?.onDelete}
+                  onEdit={columnId.startsWith("custom:") && onEditColumn ? () => onEditColumn(columnId) : undefined}
                 />
               );
             })}
@@ -93,11 +96,11 @@ export const ColumnsListPanel = ({
           Reset columns
         </div>
         <div
-          className="relative flex cursor-default select-none items-center justify-between rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+          className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
           onClick={onCustomColumnClick}
         >
-          <span>Custom column</span>
-          <ChevronRight className="w-3.5 h-3.5 text-secondary-foreground" />
+          <Plus className="w-3.5 h-3.5 text-secondary-foreground mr-2" />
+          Custom column...
         </div>
       </div>
     </motion.div>

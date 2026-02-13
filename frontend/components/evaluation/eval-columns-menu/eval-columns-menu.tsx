@@ -29,9 +29,11 @@ export default function EvalColumnsMenu({ lockedColumns = [], columnLabels = [] 
   );
 
   const addCustomColumn = useEvalStore((s) => s.addCustomColumn);
+  const updateCustomColumn = useEvalStore((s) => s.updateCustomColumn);
 
   const [isOpen, setIsOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<"list" | "form">("list");
+  const [editingColumn, setEditingColumn] = useState<CustomColumn | null>(null);
 
   function handleToggleVisibility(columnId: string) {
     if (lockedColumns.includes(columnId)) return;
@@ -42,8 +44,25 @@ export default function EvalColumnsMenu({ lockedColumns = [], columnLabels = [] 
     });
   }
 
-  const handleAddColumn = (column: CustomColumn) => {
-    addCustomColumn(column);
+  const handleEditColumn = (columnId: string) => {
+    const col = useEvalStore.getState().columnDefs.find((c) => c.id === columnId);
+    if (col?.meta?.isCustom) {
+      setEditingColumn({
+        name: col.header as string,
+        sql: col.meta.sql!,
+        dataType: col.meta.dataType as "string" | "number",
+      });
+      setActivePanel("form");
+    }
+  };
+
+  const handleSave = (column: CustomColumn) => {
+    if (editingColumn) {
+      updateCustomColumn(editingColumn.name, column);
+    } else {
+      addCustomColumn(column);
+    }
+    setEditingColumn(null);
     setActivePanel("list");
   };
 
@@ -51,6 +70,7 @@ export default function EvalColumnsMenu({ lockedColumns = [], columnLabels = [] 
     setIsOpen(open);
     if (!open) {
       setActivePanel("list");
+      setEditingColumn(null);
     }
   };
 
@@ -83,10 +103,16 @@ export default function EvalColumnsMenu({ lockedColumns = [], columnLabels = [] 
               onReorder={setColumnOrder}
               onToggleVisibility={handleToggleVisibility}
               onReset={resetColumns}
-              onCustomColumnClick={() => setActivePanel("form")}
+              onCustomColumnClick={() => { setEditingColumn(null); setActivePanel("form"); }}
+              onEditColumn={handleEditColumn}
             />
           ) : (
-            <CustomColumnPanel onBack={() => setActivePanel("list")} onAdd={handleAddColumn} />
+            <CustomColumnPanel
+              key={editingColumn?.name ?? "__new__"}
+              onBack={() => { setEditingColumn(null); setActivePanel("list"); }}
+              onSave={handleSave}
+              editingColumn={editingColumn ?? undefined}
+            />
           )}
         </AnimatePresence>
       </PopoverContent>

@@ -5,26 +5,29 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { type CustomColumn, useEvalStore } from "@/components/evaluation/store";
-import { extensions, theme } from "@/components/sql/utils";
+import { theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+import { expressionExtensions } from "./expression-extensions";
+
 interface CustomColumnPanelProps {
   onBack: () => void;
-  onAdd: (column: CustomColumn) => void;
+  onSave: (column: CustomColumn) => void;
+  editingColumn?: CustomColumn;
 }
 
-export const CustomColumnPanel = ({ onBack, onAdd }: CustomColumnPanelProps) => {
+export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColumnPanelProps) => {
   const { projectId, evaluationId } = useParams();
-  const [name, setName] = useState("");
-  const [sql, setSql] = useState("");
-  const [dataType, setDataType] = useState<"string" | "number">("string");
+  const [name, setName] = useState(editingColumn?.name ?? "");
+  const [sql, setSql] = useState(editingColumn?.sql ?? "");
+  const [dataType, setDataType] = useState<"string" | "number">(editingColumn?.dataType ?? "string");
   const [error, setError] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
     setError(null);
 
     const trimmedName = name.trim();
@@ -32,19 +35,19 @@ export const CustomColumnPanel = ({ onBack, onAdd }: CustomColumnPanelProps) => 
 
     if (!trimmedName || !trimmedSql) return;
 
-    // Check for duplicate names
-    const existingColumns = useEvalStore.getState().customColumns;
-    if (existingColumns.some((cc) => cc.name === trimmedName)) {
+    // Check for duplicate names (skip the current name when editing)
+    const cols = useEvalStore.getState().columnDefs;
+    if (cols.some((c) => c.meta?.isCustom && (c.header as string) === trimmedName && trimmedName !== editingColumn?.name)) {
       setError(`A column named "${trimmedName}" already exists.`);
       return;
     }
 
-    const normalizedSql = trimmedSql.replace(/\btraces\./g, "t.").replace(/\bevaluation_datapoints\./g, "dp.");
+    const normalizedSql = trimmedSql;
 
     // Test the query via the client-side API route
     setIsTesting(true);
     try {
-      const testQuery = `SELECT ${normalizedSql} as \`test\` FROM evaluation_datapoints dp JOIN traces t ON t.id = dp.trace_id WHERE dp.evaluation_id = {evaluationId:UUID} LIMIT 1`;
+      const testQuery = `SELECT ${normalizedSql} as \`test\` FROM new_evaluation_datapoints WHERE evaluation_id = {evaluationId:UUID} LIMIT 1`;
       const response = await fetch(`/api/projects/${projectId}/sql`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,7 +68,7 @@ export const CustomColumnPanel = ({ onBack, onAdd }: CustomColumnPanelProps) => 
         throw new Error(errorMsg);
       }
 
-      onAdd({ name: trimmedName, sql: normalizedSql, dataType });
+      onSave({ name: trimmedName, sql: normalizedSql, dataType });
     } catch (e: any) {
       setError(e?.message || "Invalid SQL expression.");
     } finally {
@@ -93,7 +96,7 @@ export const CustomColumnPanel = ({ onBack, onAdd }: CustomColumnPanelProps) => 
             <Label className="text-xs">Name</Label>
             <Input
               autoFocus
-              placeholder="e.g. Input Cost"
+              placeholder="e.g. Span Count"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="h-8 text-sm"
@@ -113,10 +116,10 @@ export const CustomColumnPanel = ({ onBack, onAdd }: CustomColumnPanelProps) => 
             </div>
             <div className="h-[80px] border rounded-md overflow-hidden">
               <CodeMirror
-                placeholder="e.g. t.input_cost"
+                placeholder="e.g. arrayCount(x -> 1, trace_spans)"
                 theme={theme}
                 className="size-full"
-                extensions={extensions}
+                extensions={expressionExtensions}
                 value={sql}
                 onChange={setSql}
               />
@@ -135,9 +138,9 @@ export const CustomColumnPanel = ({ onBack, onAdd }: CustomColumnPanelProps) => 
             </Select>
           </div>
           {error && <p className="text-xs text-destructive break-words">{error}</p>}
-          <Button className="w-full" onClick={handleAdd} disabled={!name.trim() || !sql.trim() || isTesting}>
+          <Button className="w-full" onClick={handleSave} disabled={!name.trim() || !sql.trim() || isTesting}>
             {isTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
-            Add
+            {editingColumn ? "Save" : "Add"}
           </Button>
         </div>
       </div>

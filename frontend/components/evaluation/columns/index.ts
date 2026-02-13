@@ -40,6 +40,9 @@ declare module "@tanstack/react-table" {
     // but still sent to the backend — useful for columns like `traceId` or `createdAt`
     // that drive sorting/filtering/row interactions without being user-visible.
     hidden?: boolean;
+    // Marks dynamically-created custom columns so components can identify them
+    // from columnDefs without reaching into the separate `customColumns` array.
+    isCustom?: boolean;
   }
 }
 
@@ -51,14 +54,14 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["id"],
     header: "ID",
     enableSorting: false,
-    meta: { sql: "dp.id", dataType: "string", filterable: false, comparable: false, hidden: true },
+    meta: { sql: "id", dataType: "string", filterable: false, comparable: false, hidden: true },
   },
   {
     id: "evaluationId",
     accessorFn: (row) => row["evaluationId"],
     header: "Evaluation ID",
     enableSorting: false,
-    meta: { sql: "dp.evaluation_id", dataType: "string", filterable: false, comparable: false, hidden: true },
+    meta: { sql: "evaluation_id", dataType: "string", filterable: false, comparable: false, hidden: true },
   },
   {
     id: "status",
@@ -67,7 +70,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Status",
     size: 70,
     enableSorting: false,
-    meta: { sql: "t.status", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "trace_status", dataType: "string", filterable: false, comparable: false },
   },
   {
     id: "index",
@@ -75,7 +78,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Index",
     size: 70,
     enableSorting: true,
-    meta: { sql: "dp.index", dataType: "number", filterable: true, comparable: false, dbType: "Int64" },
+    meta: { sql: "`index`", dataType: "number", filterable: true, comparable: false, dbType: "Int64" },
   },
   {
     id: "data",
@@ -83,7 +86,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     cell: DataCell,
     header: "Data",
     enableSorting: false,
-    meta: { sql: "substring(dp.data, 1, 200)", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "substring(data, 1, 200)", dataType: "string", filterable: false, comparable: false },
   },
   {
     id: "target",
@@ -91,7 +94,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     cell: DataCell,
     header: "Target",
     enableSorting: false,
-    meta: { sql: "substring(dp.target, 1, 200)", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "substring(target, 1, 200)", dataType: "string", filterable: false, comparable: false },
   },
   {
     id: "metadata",
@@ -100,12 +103,12 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Metadata",
     enableSorting: false,
     meta: {
-      sql: "dp.metadata",
+      sql: "metadata",
       dataType: "json",
       filterable: true,
       comparable: false,
       filterSql:
-        "(simpleJSONExtractString(dp.metadata, {KEY:String}) = {VAL:String} OR simpleJSONExtractRaw(dp.metadata, {KEY:String}) = {VAL:String})",
+        "(simpleJSONExtractString(metadata, {KEY:String}) = {VAL:String} OR simpleJSONExtractRaw(metadata, {KEY:String}) = {VAL:String})",
     },
   },
   {
@@ -114,7 +117,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     cell: DataCell,
     header: "Output",
     enableSorting: false,
-    meta: { sql: "substring(dp.executor_output, 1, 200)", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "substring(executor_output, 1, 200)", dataType: "string", filterable: false, comparable: false },
   },
   {
     id: "duration",
@@ -123,7 +126,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Duration",
     enableSorting: true,
     meta: {
-      sql: "(t.end_time - t.start_time)",
+      sql: "duration",
       dataType: "number",
       filterable: true,
       comparable: true,
@@ -137,7 +140,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Cost",
     enableSorting: true,
     meta: {
-      sql: "if(t.total_cost > 0, greatest(t.input_cost + t.output_cost, t.total_cost), t.input_cost + t.output_cost)",
+      sql: "if(total_cost > 0, greatest(input_cost + output_cost, total_cost), input_cost + output_cost)",
       dataType: "number",
       filterable: true,
       comparable: true,
@@ -149,7 +152,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["traceId"],
     header: "Trace ID",
     enableSorting: false,
-    meta: { sql: "dp.trace_id", dataType: "string", filterable: true, comparable: true, dbType: "UUID", hidden: true },
+    meta: { sql: "trace_id", dataType: "string", filterable: true, comparable: true, dbType: "UUID", hidden: true },
   },
   {
     id: "startTime",
@@ -157,7 +160,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Start Time",
     enableSorting: false,
     meta: {
-      sql: "formatDateTime(t.start_time, '%Y-%m-%dT%H:%i:%S.%fZ')",
+      sql: "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ')",
       dataType: "datetime",
       filterable: false,
       comparable: true,
@@ -170,7 +173,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "End Time",
     enableSorting: false,
     meta: {
-      sql: "formatDateTime(t.end_time, '%Y-%m-%dT%H:%i:%S.%fZ')",
+      sql: "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ')",
       dataType: "datetime",
       filterable: false,
       comparable: true,
@@ -182,28 +185,28 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     accessorFn: (row) => row["inputCost"],
     header: "Input Cost",
     enableSorting: false,
-    meta: { sql: "t.input_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
+    meta: { sql: "input_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "outputCost",
     accessorFn: (row) => row["outputCost"],
     header: "Output Cost",
     enableSorting: false,
-    meta: { sql: "t.output_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
+    meta: { sql: "output_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "totalCost",
     accessorFn: (row) => row["totalCost"],
     header: "Total Cost",
     enableSorting: false,
-    meta: { sql: "t.total_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
+    meta: { sql: "total_cost", dataType: "number", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "scores",
     accessorFn: (row) => row["scores"],
     header: "Scores",
     enableSorting: false,
-    meta: { sql: "dp.scores", dataType: "string", filterable: false, comparable: true, hidden: true },
+    meta: { sql: "scores", dataType: "string", filterable: false, comparable: true, hidden: true },
   },
   {
     id: "createdAt",
@@ -211,7 +214,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Created At",
     enableSorting: true,
     meta: {
-      sql: "formatDateTime(dp.created_at, '%Y-%m-%dT%H:%i:%S.%fZ')",
+      sql: "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ')",
       dataType: "datetime",
       filterable: false,
       comparable: false,
@@ -231,7 +234,7 @@ export function createScoreColumnDef(name: string): ColumnDef<EvalRow> {
     cell: createScoreColumnCell(name),
     enableSorting: true,
     meta: {
-      sql: `simpleJSONExtractFloat(dp.scores, '${name.replace(/'/g, "\\'")}')`,
+      sql: `simpleJSONExtractFloat(scores, '${name.replace(/'/g, "\\'")}')`,
       dataType: "number",
       filterable: true,
       comparable: true,
