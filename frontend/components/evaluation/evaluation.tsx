@@ -53,6 +53,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   // Store
   const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
   const setIsComparison = useEvalStore((s) => s.setIsComparison);
+  const setIsShared = useEvalStore((s) => s.setIsShared);
   const columnDefs = useEvalStore((s) => s.columnDefs);
   const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
   const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
@@ -94,6 +95,11 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   useEffect(() => {
     setIsComparison(!!targetId);
   }, [targetId, setIsComparison]);
+
+  // Reset shared state — authenticated evals are not shared.
+  useEffect(() => {
+    setIsShared(false);
+  }, [setIsShared]);
 
   const customColumns = useEvalStore((s) => s.customColumns);
 

@@ -37,6 +37,7 @@ interface EvalStoreState {
   scoreRanges: ScoreRanges;
   heatmapEnabled: boolean;
   isComparison: boolean;
+  isShared: boolean;
   columnDefs: ColumnDef<EvalRow>[];
   customColumns: CustomColumn[];
   lastScoreNames: string[];
@@ -45,6 +46,7 @@ interface EvalStoreState {
   setScoreRanges: (ranges: ScoreRanges) => void;
   setHeatmapEnabled: (enabled: boolean) => void;
   setIsComparison: (value: boolean) => void;
+  setIsShared: (value: boolean) => void;
   rebuildColumns: (scoreNames: string[]) => void;
   addCustomColumn: (column: CustomColumn) => void;
   updateCustomColumn: (oldName: string, column: CustomColumn) => void;
@@ -63,6 +65,7 @@ export const useEvalStore = create<EvalStoreState>()(
       scoreRanges: {},
       heatmapEnabled: false,
       isComparison: false,
+      isShared: false,
       columnDefs: [],
       customColumns: [],
       lastScoreNames: [],
@@ -72,6 +75,8 @@ export const useEvalStore = create<EvalStoreState>()(
       setHeatmapEnabled: (enabled) => set({ heatmapEnabled: enabled }),
 
       setIsComparison: (value) => set({ isComparison: value }),
+
+      setIsShared: (value) => set({ isShared: value }),
 
       rebuildColumns: (scoreNames) => {
         const { customColumns } = get();

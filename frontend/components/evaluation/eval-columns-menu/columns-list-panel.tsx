@@ -10,6 +10,8 @@ import { motion } from "framer-motion";
 import { ListRestart, Plus } from "lucide-react";
 import React from "react";
 
+import { useEvalStore } from "@/components/evaluation/store";
+
 import { EvalColumnsMenuItem } from "./eval-columns-menu-item";
 
 interface ColumnsListPanelProps {
@@ -35,6 +37,7 @@ export const ColumnsListPanel = ({
   onCustomColumnClick,
   onEditColumn,
 }: ColumnsListPanelProps) => {
+  const isShared = useEvalStore((s) => s.isShared);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -95,13 +98,15 @@ export const ColumnsListPanel = ({
           <ListRestart className="w-3.5 h-3.5 text-secondary-foreground mr-2" />
           Reset columns
         </div>
-        <div
-          className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-          onClick={onCustomColumnClick}
-        >
-          <Plus className="w-3.5 h-3.5 text-secondary-foreground mr-2" />
-          Custom column...
-        </div>
+        {!isShared && (
+          <div
+            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            onClick={onCustomColumnClick}
+          >
+            <Plus className="w-3.5 h-3.5 text-secondary-foreground mr-2" />
+            Custom column...
+          </div>
+        )}
       </div>
     </motion.div>
   );

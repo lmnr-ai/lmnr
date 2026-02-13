@@ -54,11 +54,13 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
   const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
   const setIsComparison = useEvalStore((s) => s.setIsComparison);
+  const setIsShared = useEvalStore((s) => s.setIsShared);
 
   // Shared evals never have comparison mode — reset in case it persists from a previous page.
   useEffect(() => {
     setIsComparison(false);
-  }, [setIsComparison]);
+    setIsShared(true);
+  }, [setIsComparison, setIsShared]);
 
   const statsUrl = useMemo(() => {
     const base = `/api/shared/evals/${evaluationId}/stats`;
