@@ -216,6 +216,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         tags: None,
         input_url: None,
         output_url: None,
+        size_bytes: 0,
     };
 
     if let Some(error) = span.error {

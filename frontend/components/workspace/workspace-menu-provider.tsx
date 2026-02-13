@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
 
-export type WorkspaceMenu = "projects" | "usage" | "team" | "settings";
+export type WorkspaceMenu = "projects" | "usage" | "team" | "deployment" | "settings";
 type WorkspaceMenuContextType = {
   menu: WorkspaceMenu;
   setMenu: (menu: WorkspaceMenu) => void;

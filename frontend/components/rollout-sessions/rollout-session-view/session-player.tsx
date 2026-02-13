@@ -36,9 +36,10 @@ const speedOptions = [1, 2, 4, 8, 16];
 
 const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }: SessionPlayerProps) => {
   const { projectId } = useParams();
-  const { setSessionTime, sessionTime } = useRolloutSessionStoreContext((state) => ({
+  const { setSessionTime, sessionTime, setSessionStartTime } = useRolloutSessionStoreContext((state) => ({
     setSessionTime: state.setSessionTime,
     sessionTime: state.sessionTime,
+    setSessionStartTime: state.setSessionStartTime,
   }));
 
   const playerContainerRef = useRef<HTMLDivElement>(null);
@@ -132,6 +133,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
         setEvents(result.events);
         setUrlChanges(result.urlChanges);
         setDuration(result.duration);
+        setSessionStartTime(result.startTime);
         if (result.urlChanges.length > 0) {
           setCurrentUrl(result.urlChanges[0].url);
         }
@@ -149,8 +151,9 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
 
   useEffect(() => {
     if (playerRef.current && sessionTime !== undefined) {
+      // Skip goto if this update came from the player itself (avoid feedback loop)
+      if (Math.abs(sessionTime - lastPlayerTime.current) < 0.05) return;
       playerRef.current.goto(sessionTime * 1000);
-      lastPlayerTime.current = sessionTime;
     }
   }, [sessionTime]);
 
@@ -183,6 +186,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
 
       playerRef.current.addEventListener("ui-update-current-time", (event: any) => {
         const timeInSeconds = event.payload / 1000;
+        lastPlayerTime.current = timeInSeconds;
         setSessionTime(timeInSeconds);
         updateCurrentUrl(eventStartTime + event.payload);
       });

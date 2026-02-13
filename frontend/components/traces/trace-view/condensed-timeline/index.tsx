@@ -32,6 +32,7 @@ function CondensedTimeline() {
     condensedTimelineZoom,
     setCondensedTimelineZoom,
     sessionTime,
+    sessionStartTime,
     browserSession,
   } = useTraceViewStoreContext((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
@@ -45,11 +46,13 @@ function CondensedTimeline() {
     condensedTimelineZoom: state.condensedTimelineZoom,
     setCondensedTimelineZoom: state.setCondensedTimelineZoom,
     sessionTime: state.sessionTime,
+    sessionStartTime: state.sessionStartTime,
     browserSession: state.browserSession,
   }));
 
   const {
     spans: condensedSpans,
+    startTime: spanTimelineStartMs,
     totalDurationMs,
     totalRows,
   } = useMemo(() => getCondensedTimelineData(), [getCondensedTimelineData, storeSpans]);
@@ -131,7 +134,7 @@ function CondensedTimeline() {
           {browserSession && sessionTime !== undefined && totalDurationMs > 0 && (
             <div
               className="absolute inset-y-0 pointer-events-none z-[33]"
-              style={{ left: `${((sessionTime * 1000) / totalDurationMs) * 100}%` }}
+              style={{ left: `${((sessionTime * 1000 + (sessionStartTime ?? spanTimelineStartMs) - spanTimelineStartMs) / totalDurationMs) * 100}%` }}
             >
               <div className="absolute top-0 h-6 flex items-center -translate-x-1/2 z-[34]">
                 <div className="size-5 bg-landing-text-500 text-primary-foreground rounded-full flex items-center justify-center">

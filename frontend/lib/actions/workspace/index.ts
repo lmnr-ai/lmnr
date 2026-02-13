@@ -15,7 +15,7 @@ import {
 } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, projects, subscriptionTiers, users, workspaces } from "@/lib/db/migrations/schema";
+import { membersOfWorkspaces, projects, subscriptionTiers, users, workspaceAddons, workspaces } from "@/lib/db/migrations/schema";
 import { type Workspace, type WorkspaceTier, type WorkspaceUsage, type WorkspaceUser } from "@/lib/workspaces/types";
 
 const LAST_WORKSPACE_ID = "last-workspace-id";
@@ -108,10 +108,16 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
     throw new Error("Workspace not found");
   }
 
+  const addons = await db
+    .select({ addonSlug: workspaceAddons.addonSlug })
+    .from(workspaceAddons)
+    .where(eq(workspaceAddons.workspaceId, workspaceId));
+
   return {
     id: workspace[0].id,
     name: workspace[0].name,
     tierName: workspace[0].tierName as WorkspaceTier,
+    addons: addons.map((a) => a.addonSlug),
   };
 };
 
@@ -145,7 +151,16 @@ export const getWorkspaceInfo = async (workspaceId: string): Promise<Workspace> 
     .where(eq(workspaces.id, workspaceId))
     .limit(1);
 
-  return workspace as Workspace;
+  const addons = await db
+    .select({ addonSlug: workspaceAddons.addonSlug })
+    .from(workspaceAddons)
+    .where(eq(workspaceAddons.workspaceId, workspaceId));
+
+  return {
+    ...workspace,
+    tierName: workspace.tierName as WorkspaceTier,
+    addons: addons.map((a) => a.addonSlug),
+  };
 };
 
 export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {

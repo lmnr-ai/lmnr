@@ -88,6 +88,8 @@ pub struct Span {
     pub tags: Option<Value>,
     pub input_url: Option<String>,
     pub output_url: Option<String>,
+    #[serde(default)]
+    pub size_bytes: usize,
 }
 
 impl Span {
@@ -182,6 +184,7 @@ mod tests {
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         let span_attributes = span.attributes.to_value();
@@ -404,6 +407,7 @@ mod tests {
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         let span_attributes = span.attributes.to_value();
@@ -659,6 +663,7 @@ mod tests {
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         let span_attributes = span.attributes.to_value();

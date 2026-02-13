@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { datasets, datasetParquets, projects, agentSessions, agentChats, users, signals, userUsage, tracesAgentMessages, evaluators, evaluatorSpanPaths, evaluatorScores, slackIntegrations, workspaces, workspaceInvitations, renderTemplates, tracesAgentChats, labelingQueues, labelingQueueItems, agentMessages, summaryTriggerSpans, sharedEvals, apiKeys, evaluationResults, evaluationScores, subscriptionTiers, providerApiKeys, userSubscriptionInfo, sharedTraces, datasetExportJobs, tracesSummaries, slackChannelToEvents, datasetDatapoints, evaluations, projectApiKeys, membersOfWorkspaces, workspaceUsage, sqlTemplates, eventClusterConfigs, playgrounds, signalJobs, eventDefinitions, dashboardCharts, sharedPayloads, projectSettings, eventClusters, rolloutSessions, signalTriggers, tagClasses, semanticEventDefinitions, semanticEventTriggerSpans, clusters, spans, traces } from "./schema";
+import { datasets, datasetParquets, projects, agentSessions, agentChats, users, signals, userUsage, tracesAgentMessages, evaluators, evaluatorSpanPaths, evaluatorScores, slackIntegrations, workspaces, workspaceInvitations, renderTemplates, tracesAgentChats, labelingQueues, labelingQueueItems, agentMessages, summaryTriggerSpans, sharedEvals, apiKeys, evaluationResults, evaluationScores, subscriptionTiers, providerApiKeys, userSubscriptionInfo, sharedTraces, datasetExportJobs, tracesSummaries, slackChannelToEvents, datasetDatapoints, evaluations, projectApiKeys, membersOfWorkspaces, workspaceUsage, sqlTemplates, eventClusterConfigs, playgrounds, signalJobs, eventDefinitions, workspaceAddons, dashboardCharts, sharedPayloads, projectSettings, eventClusters, rolloutSessions, signalTriggers, tagClasses, semanticEventDefinitions, semanticEventTriggerSpans, clusters, spans, traces } from "./schema";
 
 export const datasetParquetsRelations = relations(datasetParquets, ({one}) => ({
 	dataset: one(datasets, {
@@ -160,6 +160,7 @@ export const workspacesRelations = relations(workspaces, ({one, many}) => ({
 	projects: many(projects),
 	membersOfWorkspaces: many(membersOfWorkspaces),
 	workspaceUsages: many(workspaceUsage),
+	workspaceAddons: many(workspaceAddons),
 }));
 
 export const renderTemplatesRelations = relations(renderTemplates, ({one}) => ({
@@ -360,6 +361,13 @@ export const eventDefinitionsRelations = relations(eventDefinitions, ({one}) => 
 	project: one(projects, {
 		fields: [eventDefinitions.projectId],
 		references: [projects.id]
+	}),
+}));
+
+export const workspaceAddonsRelations = relations(workspaceAddons, ({one}) => ({
+	workspace: one(workspaces, {
+		fields: [workspaceAddons.workspaceId],
+		references: [workspaces.id]
 	}),
 }));
 

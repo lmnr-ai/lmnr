@@ -1,7 +1,6 @@
 use anyhow::Result;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
-use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -13,7 +12,7 @@ use crate::{
     utils::sanitize_string,
 };
 
-use super::utils::chrono_to_nanoseconds;
+use super::{ClickhouseInsertable, DataPlaneBatch, Table, utils::chrono_to_nanoseconds};
 
 /// for inserting into clickhouse
 ///
@@ -65,7 +64,7 @@ impl Into<u8> for TraceType {
     }
 }
 
-#[derive(Row, Serialize, Deserialize, Debug)]
+#[derive(Row, Serialize, Deserialize, Debug, Clone)]
 pub struct CHSpan {
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
@@ -167,7 +166,7 @@ impl CHSpan {
             input: span_input_string,
             output: span_output_string,
             status: span.status.clone().unwrap_or(String::from("")),
-            size_bytes: span.estimate_size_bytes() as u64,
+            size_bytes: span.size_bytes as u64,
             attributes: span.attributes.to_string(),
             trace_metadata,
             trace_type: span.attributes.trace_type().unwrap_or_default().into(),
@@ -187,38 +186,11 @@ impl CHSpan {
     }
 }
 
-#[instrument(skip(clickhouse, spans))]
-pub async fn insert_spans_batch(clickhouse: clickhouse::Client, spans: &[CHSpan]) -> Result<()> {
-    if spans.is_empty() {
-        return Ok(());
-    }
+impl ClickhouseInsertable for CHSpan {
+    const TABLE: Table = Table::Spans;
 
-    let ch_insert = clickhouse.insert::<CHSpan>("spans").await;
-    match ch_insert {
-        Ok(mut ch_insert) => {
-            // Write all spans to the batch
-            for span in spans {
-                ch_insert.write(span).await?;
-            }
-
-            // End the batch insertion
-            let ch_insert_end_res = ch_insert.end().await;
-            match ch_insert_end_res {
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    return Err(anyhow::anyhow!(
-                        "Clickhouse batch span insertion failed: {:?}",
-                        e
-                    ));
-                }
-            }
-        }
-        Err(e) => {
-            return Err(anyhow::anyhow!(
-                "Failed to insert spans batch into Clickhouse: {:?}",
-                e
-            ));
-        }
+    fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
+        DataPlaneBatch::Spans(items)
     }
 }
 

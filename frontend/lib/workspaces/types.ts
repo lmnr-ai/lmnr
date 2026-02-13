@@ -14,16 +14,31 @@ export interface WorkspaceUser {
   createdAt: string;
 }
 
+export enum DeploymentType {
+  CLOUD = "CLOUD",
+  HYBRID = "HYBRID",
+}
+
+export interface WorkspaceDeploymentSettings {
+  workspaceId: string;
+  mode: DeploymentType;
+  privateKey?: string;
+  publicKey?: string;
+  dataPlaneUrl?: string;
+}
+
 export enum WorkspaceTier {
   FREE = "Free",
   PRO = "Pro",
   HOBBY = "Hobby",
+  ENTERPRISE = "Enterprise",
 }
 
 export interface Workspace {
   id: string;
   name: string;
   tierName: WorkspaceTier;
+  addons: string[];
 }
 
 export interface WorkspaceWithProjects extends Workspace {

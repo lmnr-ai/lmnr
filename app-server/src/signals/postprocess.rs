@@ -23,7 +23,6 @@ pub async fn process_event_notifications_and_clustering(
     project_id: Uuid,
     trace_id: Uuid,
     signal_event: CHSignalEvent,
-    summary: String,
 ) -> anyhow::Result<()> {
     let event_name = signal_event.name().to_string();
     let attributes = signal_event.payload_value().unwrap_or_default();
@@ -65,7 +64,7 @@ pub async fn process_event_notifications_and_clustering(
     if is_feature_enabled(Feature::Clustering) {
         // Check for event clustering configuration
         if let Err(e) =
-            push_to_event_clustering_queue(project_id, signal_event, summary, queue.clone()).await
+            push_to_event_clustering_queue(project_id, signal_event, queue.clone()).await
         {
             log::error!(
                 "Failed to push to event clustering queue for event {}: {:?}",
