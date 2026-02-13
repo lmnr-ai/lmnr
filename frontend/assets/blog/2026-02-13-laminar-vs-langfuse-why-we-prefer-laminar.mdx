@@ -8,9 +8,11 @@ author:
 tags: ["laminar", "langfuse", "comparison", "observability", "agents", "tracing"]
 ---
 
-If you are evaluating LLM observability today, you are almost certainly comparing **Laminar** and **Langfuse**. Both are strong open-source platforms. Both cover tracing, evals, and datasets. Both have a polished UI. But for teams building **production-grade AI agents**, we believe Laminar is the better long-term foundation.
+If you are evaluating LLM observability today, you are almost certainly comparing **Laminar** and **Langfuse**. Both are strong open-source platforms. Both cover tracing, evals, and datasets. Both have a polished UI. But for teams building **production-grade AI agents**, we believe Laminar is the clear, long-term foundation.
 
-This is not a neutral comparison. It is honest and practical, but it is biased toward Laminar because our priorities are built around agent reliability, real-time debugging, and deep data access. If prompt management is your core workflow, Langfuse may be a better fit. If **observability and debugging are the center of your stack**, Laminar wins.
+This is not a neutral comparison. It is honest and practical, and it is biased toward Laminar because our priorities are built around agent reliability, real-time debugging, and deep data access. If prompt management is your core workflow, Langfuse may be a fit. If **observability and debugging are the center of your stack**, Laminar wins.
+
+The shift is structural. Early in the agent era, most systems were effectively single LLM calls with some prompt iteration. The bottleneck was prompt optimization. Today’s agents are multi-step, tool-heavy, and long-running. They spawn subagents, call external systems, and generate complex trace trees. The question is no longer “which prompt worked,” it is “what actually happened across the whole run.” Laminar is purpose-built for that world.
 
 ## Quick Take
 
@@ -59,9 +61,9 @@ If your agents are already in production, Laminar’s bias aligns with your day-
 
 ## Observability Depth: Laminar Goes Further
 
-Langfuse does a solid job capturing prompts, responses, token usage, and latency. It is a reliable tracing tool.
+Langfuse does a solid job capturing prompts, responses, token usage, and latency. It is a reliable tracing tool for earlier-stage workflows and prompt-centric iteration.
 
-Laminar goes further:
+Laminar goes further because it is designed for complex, multi-step agents:
 
 - **Real-time trace viewing** for long-running agents
 - **Full-text search over spans**, making it easy to find specific errors or outputs across massive datasets
@@ -83,6 +85,18 @@ Laminar includes a **built-in SQL editor** that gives direct access to traces, s
 Langfuse has a strong API, but the workflow still depends on programmatic access. Laminar’s SQL-first approach makes **analysis immediate and interactive**, which is exactly what you want when your agent fails at 2 a.m.
 
 ![SQL editor placeholder](/blog/2026-02-13-sql-editor.png)
+
+## Signals: Ask New Questions of Old Traces
+
+Agents are messy. The failure pattern you care about today might not even exist in your dashboards. Laminar’s **Signals** let you define a question once (prompt + schema), then run it across both new and historical traces.
+
+That means you can:
+
+- Detect specific failure modes as they happen (and alert on them)
+- Backfill months of traces to validate a hypothesis
+- Turn production trace history into labeled datasets without writing scripts
+
+Langfuse is strong on prompt management, but Signals are built for **agent debugging at scale**: they sit directly on top of traces and make the system queryable in human terms.
 
 ## UX: Trace-First vs Prompt-First
 
@@ -134,6 +148,12 @@ Laminar treats datasets, annotation, and evals as **extensions of observability*
 
 Langfuse has a strong eval story, but its workflow is more strongly tied to prompt iteration and versioning. That’s valuable, but it is not always the fastest path from “we saw a failure” to “we fixed the system.”
 
+## Pricing Model: Units vs Data Size
+
+Langfuse Cloud pricing is based on **billable units** (their definition: `Units = Traces + Observations + Scores`). That means lots of small spans/observations can add up quickly even if each one is tiny.
+
+Laminar prices by **data size ingested (GB)**. For agent systems with many small spans, size‑based pricing tracks the actual payload rather than the count, which tends to be more predictable at scale.
+
 ## Architecture: Designed for Speed
 
 Laminar’s stack is tuned for high-throughput agent observability:
@@ -154,18 +174,18 @@ Our bias is clear: if we care about **real-time trace visibility and low-latency
 
 Use **Langfuse** if:
 
-- Your workflow is prompt-centric
+- You are mostly tracking **single LLM calls** or short, prompt‑centric flows
 - You need built-in prompt versioning and caching
 - You are earlier in the product lifecycle and iterating on prompt quality
 
 Choose **Laminar** if:
 
-- You are operating multi-step agents in production
+- You are operating multi-step agents in production (or getting there fast)
 - You need real-time trace visibility
 - You want SQL-native access to telemetry
 - You care about speed and debugging depth at scale
 
-That second list describes the problems we are solving every day. That is why we built Laminar, and why we believe it is the better platform for serious production agent work.
+That second list is the world we live in. It is why we built Laminar, and why we believe it is the better platform for serious production agent work.
 
 ## Try Laminar
 
