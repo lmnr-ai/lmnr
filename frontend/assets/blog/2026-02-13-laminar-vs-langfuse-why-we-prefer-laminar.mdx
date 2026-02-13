@@ -1,0 +1,174 @@
+---
+title: "Laminar vs Langfuse"
+date: "2026-02-13"
+description: "A candid comparison of Laminar and Langfuse across observability depth, UX, data access, and architecture, with a clear bias toward Laminar."
+author:
+  name: Sam Komesarook
+  url: https://x.com/komesarook
+tags: ["laminar", "langfuse", "comparison", "observability", "agents", "tracing"]
+---
+
+If you are evaluating LLM observability today, you are almost certainly comparing **Laminar** and **Langfuse**. Both are strong open-source platforms. Both cover tracing, evals, and datasets. Both have a polished UI. But for teams building **production-grade AI agents**, we believe Laminar is the better long-term foundation.
+
+This is not a neutral comparison. It is honest and practical, but it is biased toward Laminar because our priorities are built around agent reliability, real-time debugging, and deep data access. If prompt management is your core workflow, Langfuse may be a better fit. If **observability and debugging are the center of your stack**, Laminar wins.
+
+## Quick Take
+
+Laminar and Langfuse overlap on feature checklists. The difference shows up in **what they optimize for**.
+
+- **Laminar** is optimized for **real-time agent observability**: fast ingestion, deep trace exploration, full-text search, SQL-native access, and debugging workflows that scale.
+- **Langfuse** is optimized for the **prompt lifecycle**: prompt management, versioning, and evaluation workflows tightly coupled to prompt iteration.
+
+If your agents are already in production, Laminar’s bias aligns with your day-to-day reality.
+
+![Laminar trace viewer placeholder](/blog/2026-02-13-laminar-trace-viewer.png)
+
+<div className="overflow-x-auto">
+  <table className="w-full text-left border-separate border-spacing-x-6 border-spacing-y-2">
+    <thead className="text-sm">
+      <tr>
+        <th className="px-2 py-1 font-medium whitespace-nowrap"></th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Laminar</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Langfuse</th>
+      </tr>
+    </thead>
+    <tbody className="font-light">
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Primary bias</td>
+        <td className="px-2 py-1">Real-time agent observability</td>
+        <td className="px-2 py-1">Prompt lifecycle management</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Trace depth</td>
+        <td className="px-2 py-1">Tree/timeline explorer for complex agents</td>
+        <td className="px-2 py-1">Structured logs and observation model</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Data access</td>
+        <td className="px-2 py-1">SQL-native editor in product</td>
+        <td className="px-2 py-1">API/SDK-centric access</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Best fit</td>
+        <td className="px-2 py-1">Production agents with complex traces</td>
+        <td className="px-2 py-1">Prompt-iteration-heavy teams</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+## Observability Depth: Laminar Goes Further
+
+Langfuse does a solid job capturing prompts, responses, token usage, and latency. It is a reliable tracing tool.
+
+Laminar goes further:
+
+- **Real-time trace viewing** for long-running agents
+- **Full-text search over spans**, making it easy to find specific errors or outputs across massive datasets
+- **A trace viewer built for complex agent trees**, not just single prompt/response pairs
+- **OTel-native ingestion**, which fits naturally into modern observability pipelines
+
+If you are debugging multi-step agents that call tools, spawn subagents, and run for minutes, **trace depth and real-time visibility are not optional**. They are your core workflow. Laminar is built for that.
+
+![Trace tree placeholder](/blog/2026-02-13-trace-tree.png)
+
+## Data Access: SQL-Native and Built In
+
+Laminar includes a **built-in SQL editor** that gives direct access to traces, spans, events, tags, and datasets. This changes the development loop:
+
+- You can answer “why did this fail?” with one query.
+- You can build custom metrics without waiting for product features.
+- You can generate datasets directly from production traces.
+
+Langfuse has a strong API, but the workflow still depends on programmatic access. Laminar’s SQL-first approach makes **analysis immediate and interactive**, which is exactly what you want when your agent fails at 2 a.m.
+
+![SQL editor placeholder](/blog/2026-02-13-sql-editor.png)
+
+## UX: Trace-First vs Prompt-First
+
+Langfuse’s UX is polished, especially around prompt workflows and evaluation.
+
+Laminar’s UX is optimized for **trace navigation** and **debugging at scale**:
+
+- Multi-view trace exploration (tree/timeline/reader)
+- Fast traversal across large traces
+- Clear cost and token visibility at the span level
+- Replay workflows tied directly to trace data
+
+In practice, this means Laminar is the faster tool when you are trying to understand what an agent actually did and why it failed.
+
+<div className="overflow-x-auto">
+  <table className="w-full text-left border-separate border-spacing-x-6 border-spacing-y-2">
+    <thead className="text-sm">
+      <tr>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">UX Area</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Laminar</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Langfuse</th>
+      </tr>
+    </thead>
+    <tbody className="font-light">
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Trace navigation</td>
+        <td className="px-2 py-1">Tree/timeline/reader with fast traversal</td>
+        <td className="px-2 py-1">Trace detail with observation structure</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Debug speed</td>
+        <td className="px-2 py-1">Optimized for large, nested traces</td>
+        <td className="px-2 py-1">Best when tied to prompt iteration</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Replay workflow</td>
+        <td className="px-2 py-1">Replay from spans inside traces</td>
+        <td className="px-2 py-1">Playground from trace context</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+## Evaluations and Datasets: Both Strong, Laminar More Integrated
+
+Both platforms support evaluation workflows and datasets. The difference is how they integrate with production debugging.
+
+Laminar treats datasets, annotation, and evals as **extensions of observability** rather than a separate workflow. You can go from a failed trace to a curated dataset and then back into evals without switching contexts.
+
+Langfuse has a strong eval story, but its workflow is more strongly tied to prompt iteration and versioning. That’s valuable, but it is not always the fastest path from “we saw a failure” to “we fixed the system.”
+
+## Architecture: Designed for Speed
+
+Laminar’s stack is tuned for high-throughput agent observability:
+
+- **Rust backend**
+- **gRPC ingestion**
+- **ClickHouse for analytics**
+- **Postgres for transactional state**
+- **RabbitMQ for async processing**
+
+Langfuse uses a solid web + worker architecture with Postgres, ClickHouse, Redis, and S3-compatible storage. It is a great setup for batch processing and prompt workflows.
+
+Our bias is clear: if we care about **real-time trace visibility and low-latency ingestion**, Laminar’s architecture is the better fit.
+
+![Architecture placeholder](/blog/2026-02-13-architecture.png)
+
+## The Practical Choice
+
+Use **Langfuse** if:
+
+- Your workflow is prompt-centric
+- You need built-in prompt versioning and caching
+- You are earlier in the product lifecycle and iterating on prompt quality
+
+Choose **Laminar** if:
+
+- You are operating multi-step agents in production
+- You need real-time trace visibility
+- You want SQL-native access to telemetry
+- You care about speed and debugging depth at scale
+
+That second list describes the problems we are solving every day. That is why we built Laminar, and why we believe it is the better platform for serious production agent work.
+
+## Try Laminar
+
+If you want to see Laminar in action, start by tracing a single agent workflow. It takes minutes to set up, and the moment you open your first trace tree, the difference becomes obvious.
+
+If you are evaluating observability platforms right now, we would love to help you compare against your exact use case. Reach out and we will show you what Laminar looks like on real production data.
