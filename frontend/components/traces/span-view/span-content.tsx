@@ -5,7 +5,7 @@ import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast.ts";
-import { GeminiMessageSchema, GeminiMessagesSchema } from "@/lib/spans/types/gemini";
+import { GeminiInputSchema, GeminiOutputSchema } from "@/lib/spans/types/gemini";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 import { type Span, SpanType } from "@/lib/traces/types";
@@ -80,16 +80,13 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
     const openAIMessagesResult = OpenAIMessagesSchema.safeParse(normalizedData);
     const langchainMessageResult = LangChainMessageSchema.safeParse(normalizedData);
     const langchainMessagesResult = LangChainMessagesSchema.safeParse(normalizedData);
-    const geminiMessageResult = GeminiMessageSchema.safeParse(normalizedData);
-    const geminiMessagesResult = GeminiMessagesSchema.safeParse(normalizedData);
-
     return (
       openAIMessageResult.success ||
       openAIMessagesResult.success ||
       langchainMessageResult.success ||
       langchainMessagesResult.success ||
-      geminiMessageResult.success ||
-      geminiMessagesResult.success
+      GeminiOutputSchema.safeParse(normalizedData).success ||
+      GeminiInputSchema.safeParse(normalizedData).success
     );
   }, [normalizedData]);
 

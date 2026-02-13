@@ -15,7 +15,11 @@ import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
-import { GeminiMessageSchema, GeminiMessagesSchema } from "@/lib/spans/types/gemini";
+import {
+  type GeminiContentsSchema,
+  parseGeminiInput,
+  parseGeminiOutput,
+} from "@/lib/spans/types/gemini";
 
 interface MessagesProps {
   messages: any;
@@ -31,9 +35,6 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 
     const langchainMessageResult = LangChainMessageSchema.safeParse(messages);
     const langchainResult = LangChainMessagesSchema.safeParse(messages);
-
-    const geminiMessageResult = GeminiMessageSchema.safeParse(messages);
-    const geminiResult = GeminiMessagesSchema.safeParse(messages);
 
     if (openAIMessageResult.success) {
       return {
@@ -60,15 +61,14 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
       return { messages: langchainResult.data, type: "langchain" as const };
     }
 
-    if (geminiMessageResult.success) {
-      return {
-        messages: [geminiMessageResult.data],
-        type: "gemini" as const,
-      };
+    const geminiOutput = parseGeminiOutput(messages);
+    if (geminiOutput) {
+      return { messages: geminiOutput, type: "gemini" as const };
     }
 
-    if (geminiResult.success) {
-      return { messages: geminiResult.data, type: "gemini" as const };
+    const geminiInput = parseGeminiInput(messages);
+    if (geminiInput) {
+      return { messages: geminiInput, type: "gemini" as const };
     }
 
     return {
@@ -155,7 +155,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 type MessageRendererProps =
   | { type: "langchain"; messages: z.infer<typeof LangChainMessagesSchema> }
   | { type: "openai"; messages: z.infer<typeof OpenAIMessagesSchema> }
-  | { type: "gemini"; messages: z.infer<typeof GeminiMessagesSchema> }
+  | { type: "gemini"; messages: z.infer<typeof GeminiContentsSchema> }
   | { type: "generic"; messages: (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] };
 
 const MessagesRenderer = ({

@@ -84,18 +84,59 @@ export const GeminiPartSchema = z.union([
 // We include "system" here because our internal tracing pipeline synthesizes a system
 // message for display purposes. System instructions are actually sent via a separate
 // `system_instruction` field on GenerateContentRequest.
-export const GeminiMessageSchema = z.object({
+export const GeminiContentSchema = z.object({
   role: z.enum(["user", "model", "system"]).optional(),
   parts: z.array(GeminiPartSchema),
 });
 
-export const GeminiMessagesSchema = z.array(GeminiMessageSchema);
+export const GeminiContentsSchema = z.array(GeminiContentSchema);
+
+
+/** Candidate Schema (output format) **/
+
+// A Candidate wraps a Content with generation metadata.
+// See: https://ai.google.dev/api/generate-content#v1beta.Candidate
+export const GeminiCandidateSchema = z
+  .object({
+    content: GeminiContentSchema,
+    finish_reason: z.string().optional(),
+    avg_logprobs: z.number().optional(),
+    index: z.number().optional(),
+  })
+  .passthrough(); // preserve any extra metadata we don't explicitly model
+
+export const GeminiCandidatesSchema = z.array(GeminiCandidateSchema);
+
+/** High-level input / output schemas **/
+
+// Input is always Content(s)
+export const GeminiInputSchema = z.union([GeminiContentSchema, GeminiContentsSchema]);
+
+// Output is always Candidate(s)
+export const GeminiOutputSchema = z.union([GeminiCandidateSchema, GeminiCandidatesSchema]);
+
+/** Parse helpers — validate + normalise into a Contents array **/
+
+/** Try to parse `data` as Gemini input (Content or Content[]). Returns null on mismatch. */
+export const parseGeminiInput = (data: unknown): z.infer<typeof GeminiContentsSchema> | null => {
+  const result = GeminiInputSchema.safeParse(data);
+  if (!result.success) return null;
+  return Array.isArray(result.data) ? result.data : [result.data];
+};
+
+/** Try to parse `data` as Gemini output (Candidate or Candidate[]). Returns null on mismatch. */
+export const parseGeminiOutput = (data: unknown): z.infer<typeof GeminiContentsSchema> | null => {
+  const result = GeminiOutputSchema.safeParse(data);
+  if (!result.success) return null;
+  const candidates = Array.isArray(result.data) ? result.data : [result.data];
+  return candidates.map((c) => c.content);
+};
 
 
 /** Conversion Functions **/
 
 export const convertGeminiToPlaygroundMessages = async (
-  messages: z.infer<typeof GeminiMessagesSchema>
+  messages: z.infer<typeof GeminiContentsSchema>
 ): Promise<Message[]> => {
   const store = new Map<string, string>();
 

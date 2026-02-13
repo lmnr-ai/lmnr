@@ -8,8 +8,8 @@ import {
 } from "@/lib/spans/types/langchain";
 import {
   convertGeminiToPlaygroundMessages,
-  GeminiMessageSchema,
-  GeminiMessagesSchema,
+  parseGeminiInput,
+  parseGeminiOutput,
 } from "@/lib/spans/types/gemini";
 import {
   convertOpenAIToPlaygroundMessages,
@@ -73,15 +73,14 @@ export const convertSpanToPlayground = async (messages: any): Promise<Message[]>
     return await convertLangChainToPlaygroundMessages(langChainMessagesResult.data);
   }
 
-  const geminiMessageResult = GeminiMessageSchema.safeParse(messages);
-  const geminiMessagesResult = GeminiMessagesSchema.safeParse(messages);
-
-  if (geminiMessageResult.success) {
-    return await convertGeminiToPlaygroundMessages([geminiMessageResult.data]);
+  const geminiOutput = parseGeminiOutput(messages);
+  if (geminiOutput) {
+    return await convertGeminiToPlaygroundMessages(geminiOutput);
   }
 
-  if (geminiMessagesResult.success) {
-    return await convertGeminiToPlaygroundMessages(geminiMessagesResult.data);
+  const geminiInput = parseGeminiInput(messages);
+  if (geminiInput) {
+    return await convertGeminiToPlaygroundMessages(geminiInput);
   }
 
   return await convertToPlaygroundMessages(messages);

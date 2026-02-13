@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import { type z } from "zod/v4";
 
 import {
-    type GeminiMessageSchema,
+    type GeminiContentSchema,
     type GeminiPartSchema,
 } from "@/lib/spans/types/gemini";
 
@@ -100,7 +100,7 @@ const PureGeminiContentParts = ({
     parentIndex,
     presetKey,
 }: {
-    message: z.infer<typeof GeminiMessageSchema>;
+    message: z.infer<typeof GeminiContentSchema>;
     parentIndex: number;
     presetKey: string;
 }) => (
