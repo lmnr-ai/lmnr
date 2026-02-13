@@ -27,6 +27,8 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
   const [error, setError] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
+  if (!projectId) return null;
+
   const handleSave = async () => {
     setError(null);
 

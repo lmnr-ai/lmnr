@@ -161,7 +161,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     data: allDatapoints,
     hasMore: hasMorePages,
     isFetching: isFetchingPage,
-    isLoading: _isLoadingDatapoints,
+    isLoading: isLoadingDatapoints,
     fetchNextPage,
   } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
@@ -292,7 +292,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
             )}
           </div>
           <EvaluationDatapointsTable
-            isLoading={isStatsLoading}
+            isLoading={isStatsLoading || isLoadingDatapoints}
             datapointId={datapointId}
             data={allDatapoints}
             scores={scores}

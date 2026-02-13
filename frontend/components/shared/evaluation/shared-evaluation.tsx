@@ -122,6 +122,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     data: allDatapoints,
     hasMore: hasMorePages,
     isFetching: isFetchingPage,
+    isLoading: isLoadingDatapoints,
     fetchNextPage,
   } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
@@ -236,7 +237,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
           )}
         </div>
         <EvaluationDatapointsTable
-          isLoading={isStatsLoading}
+          isLoading={isStatsLoading || isLoadingDatapoints}
           datapointId={datapointId}
           data={allDatapoints}
           scores={scores}
