@@ -30,7 +30,7 @@ pub struct ProjectId(pub Uuid);
 /// Parameters for the SQL query tool.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct QuerySqlParams {
-    /// ClickHouse SQL query. Must be SELECT only. Tables: spans, traces. Join: spans.trace_id = traces.id
+    /// ClickHouse SQL query. Must be SELECT only. Tables: spans, traces, events, signal_events, signal_runs, logs, tags, evaluation_datapoints, dataset_datapoints. Join: spans.trace_id = traces.id
     pub query: String,
     /// Query parameters for {name:Type} placeholders, e.g., {trace_id:UUID}
     #[serde(default)]
@@ -73,16 +73,33 @@ impl LaminarMcpServer {
     /// Execute a SQL query against Laminar trace data. Returns results as JSON array.
     /// Queries are automatically scoped to your project. Only SELECT queries allowed.
     ///
-    /// Available tables and key columns:
-    /// - spans: span_id, trace_id, name, span_type (0=DEFAULT, 1=LLM, 6=TOOL), start_time, end_time, input, output, status, parent_span_id, model, provider, input_tokens, output_tokens, total_tokens, total_cost, path
-    /// - traces: id, start_time, end_time, duration, total_tokens, total_cost, session_id, user_id, status, tags, top_span_name, num_spans, span_names
+    /// Available tables and their columns:
     ///
-    /// Join: spans.trace_id = traces.id
+    /// spans: span_id (UUID), name (String), span_type (String), start_time (DateTime64), end_time (DateTime64), duration (Float64), input_cost (Float64), output_cost (Float64), total_cost (Float64), input_tokens (Int64), output_tokens (Int64), total_tokens (Int64), request_model (String), response_model (String), model (String), trace_id (UUID), provider (String), path (String), input (String), output (String), status (String), parent_span_id (UUID), attributes (String), tags (Array(String))
+    ///
+    /// traces: id (UUID), start_time (DateTime64), end_time (DateTime64), input_tokens (Int64), output_tokens (Int64), total_tokens (Int64), input_cost (Float64), output_cost (Float64), total_cost (Float64), duration (Float64), metadata (String), session_id (String), user_id (String), status (String), top_span_id (UUID), top_span_name (String), top_span_type (String), trace_type (String), tags (Array(String)), has_browser_session (Bool)
+    ///
+    /// events: id (UUID), span_id (UUID), name (String), timestamp (DateTime64), attributes (String), user_id (String), session_id (String), trace_id (UUID), source (String)
+    ///
+    /// signal_events: id (UUID), signal_id (UUID), trace_id (UUID), run_id (UUID), name (String), payload (String), timestamp (DateTime64)
+    ///
+    /// signal_runs: signal_id (UUID), job_id (UUID), trigger_id (UUID), run_id (UUID), trace_id (UUID), status (String), event_id (UUID), updated_at (DateTime64)
+    ///
+    /// logs: log_id (UUID), time (DateTime64), observed_time (DateTime64), severity_number (UInt8), severity_text (String), body (String), attributes (String), trace_id (UUID), span_id (UUID), flags (UInt32), event_name (String)
+    ///
+    /// tags: id (UUID), span_id (UUID), name (String), created_at (DateTime64), source (String)
+    ///
+    /// evaluation_datapoints: id (UUID), evaluation_id (UUID), data (String), target (String), metadata (String), executor_output (String), index (UInt64), trace_id (UUID), group_id (String), scores (String), created_at (DateTime64), dataset_id (UUID), dataset_datapoint_id (UUID), dataset_datapoint_created_at (DateTime64)
+    ///
+    /// dataset_datapoints: id (UUID), created_at (DateTime64), dataset_id (UUID), data (String), target (String), metadata (String)
+    ///
+    /// Joins: spans.trace_id = traces.id, events.trace_id = traces.id, logs.trace_id = traces.id
     ///
     /// Example queries:
     /// - Recent traces: SELECT id, start_time, total_cost FROM traces ORDER BY start_time DESC LIMIT 10
-    /// - LLM spans: SELECT name, model, input, output FROM spans WHERE span_type = 1
+    /// - LLM spans: SELECT name, model, input, output FROM spans WHERE span_type = 'LLM'
     /// - Errors: SELECT trace_id, name, status FROM spans WHERE status != 'success'
+    /// - Logs: SELECT time, severity_text, body FROM logs ORDER BY time DESC LIMIT 20
     #[tool(name = "query_laminar_sql")]
     async fn query_laminar_sql(
         &self,
