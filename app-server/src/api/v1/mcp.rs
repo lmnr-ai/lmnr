@@ -14,7 +14,8 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
-    db::project_api_keys::ProjectApiKey,
+    cache::Cache,
+    db::{DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
     signals::spans::get_trace_structure_as_string,
     sql::{self, ClickhouseReadonlyClient},
@@ -53,6 +54,9 @@ pub struct LaminarMcpServer {
     clickhouse: clickhouse::Client,
     clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
     query_engine: Arc<QueryEngine>,
+    http_client: Arc<reqwest::Client>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
     tool_router: ToolRouter<LaminarMcpServer>,
 }
 
@@ -62,11 +66,17 @@ impl LaminarMcpServer {
         clickhouse: clickhouse::Client,
         clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
         query_engine: Arc<QueryEngine>,
+        http_client: Arc<reqwest::Client>,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
     ) -> Self {
         Self {
             clickhouse,
             clickhouse_ro,
             query_engine,
+            http_client,
+            db,
+            cache,
             tool_router: Self::tool_router(),
         }
     }
@@ -116,6 +126,9 @@ impl LaminarMcpServer {
             params.parameters,
             ro_client,
             self.query_engine.clone(),
+            self.http_client.clone(),
+            self.db.clone(),
+            self.cache.clone(),
         )
         .await
         {
@@ -188,17 +201,26 @@ pub fn build_mcp_service(
     clickhouse: clickhouse::Client,
     clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
     query_engine: Arc<QueryEngine>,
+    http_client: Arc<reqwest::Client>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
 ) -> StreamableHttpService<LaminarMcpServer, LocalSessionManager> {
     StreamableHttpService::builder()
         .service_factory({
             let clickhouse = clickhouse.clone();
             let clickhouse_ro = clickhouse_ro.clone();
             let query_engine = query_engine.clone();
+            let http_client = http_client.clone();
+            let db = db.clone();
+            let cache = cache.clone();
             Arc::new(move || {
                 Ok(LaminarMcpServer::new(
                     clickhouse.clone(),
                     clickhouse_ro.clone(),
                     query_engine.clone(),
+                    http_client.clone(),
+                    db.clone(),
+                    cache.clone(),
                 ))
             })
         })

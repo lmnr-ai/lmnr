@@ -1352,6 +1352,9 @@ fn main() -> anyhow::Result<()> {
                         clickhouse_for_http.clone(),
                         clickhouse_readonly_client.clone(),
                         query_engine.clone(),
+                        Arc::new(http_client_for_http.clone()),
+                        db_for_http.clone(),
+                        cache_for_http.clone(),
                     );
 
                     log::info!("Spinning up full HTTP server");
