@@ -62,7 +62,8 @@ function buildFilterConditions(
 
     const filterSql = col.filterSql ?? col.sql;
     const dbType = col.dbType ?? "String";
-    const paramKey = `${paramPrefix}_${filter.column}_${index}`;
+    const safeColumn = filter.column.replace(/[^a-zA-Z0-9_]/g, "_");
+    const paramKey = `${paramPrefix}_${safeColumn}_${index}`;
 
     // JSON template filter (e.g. metadata)
     if (filterSql.includes("{KEY:")) {
