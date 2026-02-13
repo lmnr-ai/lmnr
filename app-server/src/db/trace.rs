@@ -357,3 +357,21 @@ pub async fn insert_shared_traces(
 
     Ok(())
 }
+
+pub async fn delete_shared_traces(
+    pool: &PgPool,
+    project_id: Uuid,
+    trace_ids: &[Uuid],
+) -> Result<()> {
+    if trace_ids.is_empty() {
+        return Ok(());
+    }
+
+    sqlx::query("DELETE FROM shared_traces WHERE project_id = $1 AND id = ANY($2)")
+        .bind(project_id)
+        .bind(trace_ids)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
