@@ -137,6 +137,9 @@ impl LaminarMcpServer {
     /// - Duration and timing for each span
     /// - Full input/output for LLM spans (truncated for others)
     /// - Exception details if any spans failed
+    ///
+    /// If you need full information that is truncated, you should use query_laminar_sql tool to query spans that you're interested in.
+    ///
     #[tool(name = "get_trace_context")]
     async fn get_trace_context(
         &self,
@@ -152,10 +155,7 @@ impl LaminarMcpServer {
         match get_trace_structure_as_string(self.clickhouse.clone(), project_id, params.trace_id)
             .await
         {
-            Ok(trace_str) => {
-                println!("trace_str: {}", trace_str);
-                Ok(CallToolResult::success(vec![Content::text(trace_str)]))
-            }
+            Ok(trace_str) => Ok(CallToolResult::success(vec![Content::text(trace_str)])),
             Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
                 "Failed to retrieve trace: {}",
                 e
