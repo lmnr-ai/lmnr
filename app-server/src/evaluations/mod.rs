@@ -207,7 +207,13 @@ pub async fn update_evaluation_datapoint(
         .ok_or(anyhow::anyhow!("Evaluation datapoint not found"))?;
 
     if is_shared_evaluation(pool, project_id, evaluation_id).await? {
-        insert_shared_traces(pool, project_id, &[existing.trace_id]).await?;
+        let mut trace_ids = vec![existing.trace_id];
+        if let Some(new_trace_id) = trace_id {
+            if new_trace_id != existing.trace_id {
+                trace_ids.push(new_trace_id);
+            }
+        }
+        insert_shared_traces(pool, project_id, &trace_ids).await?;
     }
 
     let mut merged_scores: HashMap<String, Option<f64>> =
