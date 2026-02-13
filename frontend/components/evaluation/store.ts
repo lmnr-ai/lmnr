@@ -6,7 +6,10 @@ import { type ScoreRanges } from "@/components/evaluation/utils";
 import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { type EvalRow } from "@/lib/evaluation/types";
 
+import { DataCell } from "./columns/data-cell";
 import { createScoreColumnDef, STATIC_COLUMNS } from "./columns/index";
+
+export type CustomColumn = { name: string; sql: string; dataType: "string" | "number" };
 
 interface RawUrlParams {
   search: string | null;
@@ -35,12 +38,16 @@ interface EvalStoreState {
   heatmapEnabled: boolean;
   isComparison: boolean;
   columnDefs: ColumnDef<EvalRow>[];
+  customColumns: CustomColumn[];
+  lastScoreNames: string[];
 
   // Actions
   setScoreRanges: (ranges: ScoreRanges) => void;
   setHeatmapEnabled: (enabled: boolean) => void;
   setIsComparison: (value: boolean) => void;
   rebuildColumns: (scoreNames: string[]) => void;
+  addCustomColumn: (column: CustomColumn) => void;
+  removeCustomColumn: (name: string) => void;
   buildStatsParams: (raw: RawUrlParams) => URLSearchParams;
   buildFetchParams: (raw: RawUrlParams & { pageNumber: number; pageSize: number }) => URLSearchParams;
 }
@@ -56,6 +63,8 @@ export const useEvalStore = create<EvalStoreState>()(
       heatmapEnabled: false,
       isComparison: false,
       columnDefs: [],
+      customColumns: [],
+      lastScoreNames: [],
 
       setScoreRanges: (ranges) => set({ scoreRanges: ranges }),
 
@@ -64,8 +73,35 @@ export const useEvalStore = create<EvalStoreState>()(
       setIsComparison: (value) => set({ isComparison: value }),
 
       rebuildColumns: (scoreNames) => {
+        const { customColumns } = get();
         const scoreCols = scoreNames.map((name) => createScoreColumnDef(name));
-        set({ columnDefs: [...STATIC_COLUMNS, ...scoreCols] });
+        const customCols: ColumnDef<EvalRow>[] = customColumns.map((cc) => ({
+          id: `custom:${cc.name}`,
+          accessorFn: (row) => row[`custom:${cc.name}`],
+          cell: DataCell,
+          header: cc.name,
+          enableSorting: true,
+          meta: {
+            sql: cc.sql,
+            dataType: cc.dataType,
+            filterable: true,
+            comparable: false,
+          },
+        }));
+        set({ columnDefs: [...STATIC_COLUMNS, ...scoreCols, ...customCols], lastScoreNames: scoreNames });
+      },
+
+      addCustomColumn: (column) => {
+        const { customColumns } = get();
+        if (customColumns.some((cc) => cc.name === column.name)) return;
+        set({ customColumns: [...customColumns, column] });
+        get().rebuildColumns(get().lastScoreNames);
+      },
+
+      removeCustomColumn: (name) => {
+        const { customColumns } = get();
+        set({ customColumns: customColumns.filter((cc) => cc.name !== name) });
+        get().rebuildColumns(get().lastScoreNames);
       },
 
       buildStatsParams: (raw) => {
@@ -120,7 +156,7 @@ export const useEvalStore = create<EvalStoreState>()(
     }),
     {
       name: "evaluation-heatmap-enabled",
-      partialize: (state) => ({ heatmapEnabled: state.heatmapEnabled }),
+      partialize: (state) => ({ heatmapEnabled: state.heatmapEnabled, customColumns: state.customColumns }),
     }
   )
 );

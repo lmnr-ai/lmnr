@@ -95,11 +95,13 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     setIsComparison(!!targetId);
   }, [targetId, setIsComparison]);
 
-  // Rebuild column defs when scores change.
+  const customColumns = useEvalStore((s) => s.customColumns);
+
+  // Rebuild column defs when scores or custom columns change.
   // This must run before useInfiniteScroll's effect (declaration order).
   useEffect(() => {
     rebuildColumns(scores);
-  }, [scores, rebuildColumns]);
+  }, [scores, customColumns, rebuildColumns]);
 
   // SQL strings from column defs — only changes when columns structurally change.
   // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
