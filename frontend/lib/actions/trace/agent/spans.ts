@@ -63,6 +63,10 @@ function replaceBase64Images(value: unknown): unknown {
  * Serializes to JSON, keeps first N chars, appends truncation notice.
  */
 function truncateLlmInput(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
   const serialized = typeof value === "string" ? value : JSON.stringify(value);
   if (serialized.length <= LLM_INPUT_MAX_CHARS) {
     return value;
