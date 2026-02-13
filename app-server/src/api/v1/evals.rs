@@ -89,6 +89,7 @@ pub async fn save_eval_datapoints(
 pub struct UpdateEvalDatapointRequest {
     pub executor_output: Option<Value>,
     pub scores: HashMap<String, Option<f64>>,
+    #[serde(default)]
     pub trace_id: Option<Uuid>,
 }
 
