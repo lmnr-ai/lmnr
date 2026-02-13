@@ -1347,6 +1347,13 @@ fn main() -> anyhow::Result<()> {
                     // == Name generator ==
                     let name_generator = Arc::new(NameGenerator::new());
 
+                    // == MCP service (must be created outside HttpServer::new to share session state) ==
+                    let mcp_service = api::v1::mcp::build_mcp_service(
+                        clickhouse_for_http.clone(),
+                        clickhouse_readonly_client.clone(),
+                        query_engine.clone(),
+                    );
+
                     log::info!("Spinning up full HTTP server");
                     HttpServer::new(move || {
                         let project_auth = HttpAuthentication::bearer(auth::project_validator);
@@ -1412,6 +1419,11 @@ fn main() -> anyhow::Result<()> {
                                 web::scope("/v1/tag")
                                     .wrap(project_auth.clone())
                                     .service(api::v1::tag::tag_trace),
+                            )
+                            .service(
+                                web::scope("/v1/mcp")
+                                    .wrap(project_auth.clone())
+                                    .service(mcp_service.clone().scope()),
                             )
                             .service(
                                 web::scope("/v1")

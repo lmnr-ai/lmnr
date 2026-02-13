@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::DateTime;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9,6 +10,9 @@ use super::utils::try_parse_json;
 
 const TRUNCATE_THRESHOLD: usize = 64;
 const PREVIEW_LENGTH: usize = 24;
+const BASE64_IMAGE_PLACEHOLDER: &str = "[base64 image omitted]";
+/// Max chars to keep for LLM span inputs (~1K tokens).
+const LLM_INPUT_MAX_CHARS: usize = 3000;
 
 /// Raw span from ClickHouse with exception data
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
@@ -38,8 +42,7 @@ pub struct CompressedSpan {
     pub path: String,
     #[serde(rename = "type")]
     pub span_type: String,
-    pub start: i64,
-    pub end: i64,
+    pub start: String,
     pub duration: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<Value>,
@@ -51,6 +54,15 @@ pub struct CompressedSpan {
     pub parent: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exception: Option<Value>,
+}
+
+/// Format a nanosecond timestamp as a human-readable UTC string.
+fn format_ns_timestamp(ns: i64) -> String {
+    let secs = ns / 1_000_000_000;
+    let nanos = (ns % 1_000_000_000) as u32;
+    DateTime::from_timestamp(secs, nanos)
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+        .unwrap_or_else(|| ns.to_string())
 }
 
 /// Get span type string
@@ -85,6 +97,43 @@ fn truncate_value(value: &Value) -> Value {
     Value::String(format!("{}...({} chars omitted)...{}", start, omitted, end))
 }
 
+/// Truncate an LLM input value to LLM_INPUT_MAX_CHARS.
+/// Keeps the first N chars of the serialized JSON and appends a truncation notice.
+fn truncate_llm_input(value: &Value) -> Value {
+    let serialized = serde_json::to_string(value).unwrap_or_default();
+    let char_count = serialized.chars().count();
+    if char_count <= LLM_INPUT_MAX_CHARS {
+        return value.clone();
+    }
+    let truncated: String = serialized.chars().take(LLM_INPUT_MAX_CHARS).collect();
+    let omitted = char_count - LLM_INPUT_MAX_CHARS;
+    Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
+}
+
+/// Replace base64 image data within a JSON value with a placeholder.
+///
+/// Detects data URLs of the form `data:image/...;base64,...` anywhere in the JSON tree.
+fn replace_base64_images(value: &Value) -> Value {
+    match value {
+        Value::String(s) => {
+            if let Some(idx) = s.find("base64,") {
+                let prefix = &s[..idx + "base64,".len()];
+                if prefix.starts_with("data:image") {
+                    return Value::String(BASE64_IMAGE_PLACEHOLDER.to_string());
+                }
+            }
+            value.clone()
+        }
+        Value::Array(arr) => Value::Array(arr.iter().map(replace_base64_images).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), replace_base64_images(v)))
+                .collect(),
+        ),
+        _ => value.clone(),
+    }
+}
+
 /// Compress span content based on type and occurrence
 pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<CompressedSpan> {
     // Build span UUID to sequential ID mapping (1-indexed)
@@ -114,14 +163,15 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
             };
 
             let (input, output) = if is_llm {
-                let input_data = try_parse_json(&ch_span.input);
-                let output_data = try_parse_json(&ch_span.output);
+                let input_data =
+                    truncate_llm_input(&replace_base64_images(&try_parse_json(&ch_span.input)));
+                let output_data = replace_base64_images(&try_parse_json(&ch_span.output));
 
                 if seen_llm_paths.contains(&path) {
                     // Subsequent LLM span at same path: only output
                     (None, Some(output_data))
                 } else {
-                    // First LLM span at this path: include full input and output
+                    // First LLM span at this path: include truncated input and full output
                     seen_llm_paths.insert(path.clone());
                     (Some(input_data), Some(output_data))
                 }
@@ -163,8 +213,7 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
                 name: ch_span.name.clone(),
                 path: path.clone(),
                 span_type: get_span_type(ch_span.span_type).to_string(),
-                start: ch_span.start_time,
-                end: ch_span.end_time,
+                start: format_ns_timestamp(ch_span.start_time),
                 duration: duration_secs,
                 input,
                 output,
@@ -266,6 +315,13 @@ pub async fn get_trace_structure_as_string(
 ) -> Result<String> {
     // Fetch raw spans
     let ch_spans = get_trace_spans(clickhouse, project_id, trace_id).await?;
+
+    if ch_spans.is_empty() {
+        return Ok(format!(
+            "No spans found for trace {}. Either the trace does not exist in this project or there are no spans in the trace.",
+            trace_id
+        ));
+    }
 
     // Compress spans
     let compressed_spans = compress_span_content(&ch_spans);

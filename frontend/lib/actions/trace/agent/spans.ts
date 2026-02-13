@@ -6,6 +6,9 @@ import { tryParseJson } from "@/lib/utils";
 
 const TRUNCATE_THRESHOLD = 64;
 const PREVIEW_LENGTH = 24;
+const BASE64_IMAGE_PLACEHOLDER = "[base64 image omitted]";
+/** Max chars to keep for LLM span inputs (~1K tokens). */
+const LLM_INPUT_MAX_CHARS = 3000;
 
 /**
  * Truncates a value if its string representation exceeds TRUNCATE_THRESHOLD.
@@ -26,6 +29,51 @@ function truncateValue(value: unknown): unknown {
   const end = valueStr.slice(-PREVIEW_LENGTH);
   const omitted = valueStr.length - PREVIEW_LENGTH * 2;
   return `${start}...(${omitted} chars omitted)...${end}`;
+}
+
+/**
+ * Recursively replace data:image base64 URLs with a placeholder.
+ */
+function replaceBase64Images(value: unknown): unknown {
+  if (typeof value === "string") {
+    const idx = value.indexOf("base64,");
+    if (idx !== -1) {
+      const prefix = value.slice(0, idx + "base64,".length);
+      if (prefix.startsWith("data:image")) {
+        return BASE64_IMAGE_PLACEHOLDER;
+      }
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(replaceBase64Images);
+  }
+  if (value !== null && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = replaceBase64Images(v);
+    }
+    return result;
+  }
+  return value;
+}
+
+/**
+ * Truncate an LLM input to LLM_INPUT_MAX_CHARS.
+ * Serializes to JSON, keeps first N chars, appends truncation notice.
+ */
+function truncateLlmInput(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  const serialized = typeof value === "string" ? value : JSON.stringify(value);
+  if (serialized.length <= LLM_INPUT_MAX_CHARS) {
+    return value;
+  }
+  const truncated = serialized.slice(0, LLM_INPUT_MAX_CHARS);
+  const omitted = serialized.length - LLM_INPUT_MAX_CHARS;
+  return `${truncated}... (${omitted} chars truncated)`;
 }
 
 // Lightweight span info for skeleton view (no input/output)
@@ -162,6 +210,12 @@ function calculateDuration(start: string, end: string): number {
   return (new Date(end).getTime() - new Date(start).getTime()) / 1000;
 }
 
+/** Format a ClickHouse DateTime64 string to a readable UTC string. */
+function formatUtcTimestamp(chTimestamp: string): string {
+  const d = new Date(chTimestamp + "Z"); // CH returns UTC without the Z suffix
+  return d.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
+}
+
 function spanInfosToSkeletonString(spanInfos: SpanInfo[], spanIdToSeqId: Record<string, number>): string {
   let result = "legend: span_name (id, parent_id, type)\n";
   for (let i = 0; i < spanInfos.length; i++) {
@@ -178,6 +232,7 @@ interface DetailedSpanView {
   name: string;
   path: string;
   type: string;
+  start: string;
   duration: number;
   parent: number | null;
   status?: string;
@@ -226,6 +281,7 @@ export const getTraceStructureAsString = async (projectId: string, traceId: stri
       name: info.name,
       path: info.path,
       type: info.type.toLowerCase(),
+      start: formatUtcTimestamp(info.start),
       duration: calculateDuration(info.start, info.end),
       parent: parentSeqId,
     };
@@ -239,11 +295,15 @@ export const getTraceStructureAsString = async (projectId: string, traceId: stri
     // Only include input for first occurrence at each path
     if (!seenPaths.has(info.path)) {
       seenPaths.add(info.path);
-      // Truncate tool span input, keep full LLM input
-      spanView.input = isTool ? truncateValue(span.input) : span.input;
+      // Truncate tool span input; strip base64 images and truncate LLM input
+      spanView.input = isTool
+        ? truncateValue(span.input)
+        : truncateLlmInput(replaceBase64Images(span.input));
     }
-    // Truncate tool span output, keep full LLM output
-    spanView.output = isTool ? truncateValue(span.output) : span.output;
+    // Truncate tool span output; strip base64 images from LLM output
+    spanView.output = isTool
+      ? truncateValue(span.output)
+      : replaceBase64Images(span.output);
 
     if (span.exception) {
       spanView.exception = span.exception;
