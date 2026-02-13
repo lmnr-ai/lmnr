@@ -123,10 +123,11 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Duration",
     enableSorting: true,
     meta: {
-      sql: "(toUnixTimestamp64Milli(t.end_time) - toUnixTimestamp64Milli(t.start_time))",
+      sql: "(t.end_time - t.start_time)",
       dataType: "number",
       filterable: true,
       comparable: true,
+      dbType: "Float64",
     },
   },
   {
@@ -230,7 +231,7 @@ export function createScoreColumnDef(name: string): ColumnDef<EvalRow> {
     cell: createScoreColumnCell(name),
     enableSorting: true,
     meta: {
-      sql: `simpleJSONExtractFloat(dp.scores, '${name}')`,
+      sql: `simpleJSONExtractFloat(dp.scores, '${name.replace(/'/g, "\\'")}')`,
       dataType: "number",
       filterable: true,
       comparable: true,

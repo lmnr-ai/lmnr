@@ -219,7 +219,8 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
     evalIdParam: "evaluationId",
   });
 
-  // Build comparison subquery (no pagination - need all rows for LEFT JOIN matching)
+  // Comparison subquery must fetch all rows (unpaginated) because the two evaluations
+  // may have different indices/sizes — we need the full set for LEFT JOIN matching.
   const comparedResult = buildSingleEvalQuery({
     evaluationId: targetId!,
     columns,
