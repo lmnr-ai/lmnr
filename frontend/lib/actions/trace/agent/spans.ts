@@ -206,6 +206,12 @@ function calculateDuration(start: string, end: string): number {
   return (new Date(end).getTime() - new Date(start).getTime()) / 1000;
 }
 
+/** Format a ClickHouse DateTime64 string to a readable UTC string. */
+function formatUtcTimestamp(chTimestamp: string): string {
+  const d = new Date(chTimestamp + "Z"); // CH returns UTC without the Z suffix
+  return d.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
+}
+
 function spanInfosToSkeletonString(spanInfos: SpanInfo[], spanIdToSeqId: Record<string, number>): string {
   let result = "legend: span_name (id, parent_id, type)\n";
   for (let i = 0; i < spanInfos.length; i++) {
@@ -222,6 +228,7 @@ interface DetailedSpanView {
   name: string;
   path: string;
   type: string;
+  start: string;
   duration: number;
   parent: number | null;
   status?: string;
@@ -270,6 +277,7 @@ export const getTraceStructureAsString = async (projectId: string, traceId: stri
       name: info.name,
       path: info.path,
       type: info.type.toLowerCase(),
+      start: formatUtcTimestamp(info.start),
       duration: calculateDuration(info.start, info.end),
       parent: parentSeqId,
     };

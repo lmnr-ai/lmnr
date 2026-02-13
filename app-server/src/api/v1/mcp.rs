@@ -1,13 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
+use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::*,
-    schemars, service::RequestContext,
+    schemars,
+    service::RequestContext,
     tool, tool_handler, tool_router,
 };
-use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp_actix_web::transport::StreamableHttpService;
 use serde_json::Value;
 use uuid::Uuid;
@@ -70,36 +71,29 @@ impl LaminarMcpServer {
         }
     }
 
-    /// Execute a SQL query against Laminar trace data. Returns results as JSON array.
+    /// Execute a SQL query (Full support of ClickHouse syntax) against Laminar trace data. Returns results as JSON array.
     /// Queries are automatically scoped to your project. Only SELECT queries allowed.
     ///
     /// Available tables and their columns:
     ///
-    /// spans: span_id (UUID), name (String), span_type (String), start_time (DateTime64), end_time (DateTime64), duration (Float64), input_cost (Float64), output_cost (Float64), total_cost (Float64), input_tokens (Int64), output_tokens (Int64), total_tokens (Int64), request_model (String), response_model (String), model (String), trace_id (UUID), provider (String), path (String), input (String), output (String), status (String), parent_span_id (UUID), attributes (String), tags (Array(String))
+    /// spans: span_id (UUID), name (String), span_type (String, options: DEFAULT, LLM, TOOL), start_time (DateTime64), end_time (DateTime64), duration (Float64), input_cost (Float64), output_cost (Float64), total_cost (Float64), input_tokens (Int64), output_tokens (Int64), total_tokens (Int64), request_model (String), response_model (String), model (String), trace_id (UUID), provider (String), path (String), input (String), output (String), status (String), parent_span_id (UUID), attributes (String), tags (Array(String))
     ///
     /// traces: id (UUID), start_time (DateTime64), end_time (DateTime64), input_tokens (Int64), output_tokens (Int64), total_tokens (Int64), input_cost (Float64), output_cost (Float64), total_cost (Float64), duration (Float64), metadata (String), session_id (String), user_id (String), status (String), top_span_id (UUID), top_span_name (String), top_span_type (String), trace_type (String), tags (Array(String)), has_browser_session (Bool)
-    ///
-    /// events: id (UUID), span_id (UUID), name (String), timestamp (DateTime64), attributes (String), user_id (String), session_id (String), trace_id (UUID), source (String)
     ///
     /// signal_events: id (UUID), signal_id (UUID), trace_id (UUID), run_id (UUID), name (String), payload (String), timestamp (DateTime64)
     ///
     /// signal_runs: signal_id (UUID), job_id (UUID), trigger_id (UUID), run_id (UUID), trace_id (UUID), status (String), event_id (UUID), updated_at (DateTime64)
     ///
-    /// logs: log_id (UUID), time (DateTime64), observed_time (DateTime64), severity_number (UInt8), severity_text (String), body (String), attributes (String), trace_id (UUID), span_id (UUID), flags (UInt32), event_name (String)
-    ///
-    /// tags: id (UUID), span_id (UUID), name (String), created_at (DateTime64), source (String)
-    ///
     /// evaluation_datapoints: id (UUID), evaluation_id (UUID), data (String), target (String), metadata (String), executor_output (String), index (UInt64), trace_id (UUID), group_id (String), scores (String), created_at (DateTime64), dataset_id (UUID), dataset_datapoint_id (UUID), dataset_datapoint_created_at (DateTime64)
     ///
     /// dataset_datapoints: id (UUID), created_at (DateTime64), dataset_id (UUID), data (String), target (String), metadata (String)
     ///
-    /// Joins: spans.trace_id = traces.id, events.trace_id = traces.id, logs.trace_id = traces.id
+    /// Joins: spans.trace_id = traces.id, events.trace_id = traces.id
     ///
     /// Example queries:
     /// - Recent traces: SELECT id, start_time, total_cost FROM traces ORDER BY start_time DESC LIMIT 10
     /// - LLM spans: SELECT name, model, input, output FROM spans WHERE span_type = 'LLM'
-    /// - Errors: SELECT trace_id, name, status FROM spans WHERE status != 'success'
-    /// - Logs: SELECT time, severity_text, body FROM logs ORDER BY time DESC LIMIT 20
+    /// - Errors: SELECT trace_id, name, status FROM spans WHERE status == 'error'
     #[tool(name = "query_laminar_sql")]
     async fn query_laminar_sql(
         &self,
@@ -112,12 +106,9 @@ impl LaminarMcpServer {
             .ok_or_else(|| McpError::internal_error("Missing project context", None))?
             .0;
 
-        let ro_client = self
-            .clickhouse_ro
-            .clone()
-            .ok_or_else(|| {
-                McpError::internal_error("ClickHouse read-only client not configured", None)
-            })?;
+        let ro_client = self.clickhouse_ro.clone().ok_or_else(|| {
+            McpError::internal_error("ClickHouse read-only client not configured", None)
+        })?;
 
         match sql::execute_sql_query(
             params.query,
@@ -158,14 +149,13 @@ impl LaminarMcpServer {
             .ok_or_else(|| McpError::internal_error("Missing project context", None))?
             .0;
 
-        match get_trace_structure_as_string(
-            self.clickhouse.clone(),
-            project_id,
-            params.trace_id,
-        )
-        .await
+        match get_trace_structure_as_string(self.clickhouse.clone(), project_id, params.trace_id)
+            .await
         {
-            Ok(trace_str) => Ok(CallToolResult::success(vec![Content::text(trace_str)])),
+            Ok(trace_str) => {
+                println!("trace_str: {}", trace_str);
+                Ok(CallToolResult::success(vec![Content::text(trace_str)]))
+            }
             Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
                 "Failed to retrieve trace: {}",
                 e
