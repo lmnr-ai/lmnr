@@ -18,7 +18,7 @@
 - [x] Evals. [Docs](https://docs.laminar.sh/evaluations/introduction)
     - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
     - [x] UI for visualizing evals and comparing results.
-- [x] AI monitoring. [Docs](https://docs.laminar.sh/tracing/events/semantic-events)
+- [x] AI monitoring. [Docs](https://docs.laminar.sh/signals)
     - [x] Define events with natural language descriptions to track issues, logical errors, and custom behavior of your agent.
 - [x] SQL access to all data. [Docs](https://docs.laminar.sh/platform/sql-editor)
     - [x] Query traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries. Available via API.
