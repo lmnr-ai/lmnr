@@ -9,7 +9,10 @@ use uuid::Uuid;
 
 use crate::{
     ch::evaluation_datapoints::CHEvaluationDatapoint,
-    db::{evaluations::is_shared_evaluation, trace::insert_shared_traces},
+    db::{
+        evaluations::is_shared_evaluation,
+        trace::{delete_shared_traces, insert_shared_traces},
+    },
 };
 
 pub const DEFAULT_GROUP_NAME: &str = "default";
@@ -207,13 +210,15 @@ pub async fn update_evaluation_datapoint(
         .ok_or(anyhow::anyhow!("Evaluation datapoint not found"))?;
 
     if is_shared_evaluation(pool, project_id, evaluation_id).await? {
-        let mut trace_ids = vec![existing.trace_id];
         if let Some(new_trace_id) = trace_id {
             if new_trace_id != existing.trace_id {
-                trace_ids.push(new_trace_id);
+                delete_shared_traces(pool, project_id, &[existing.trace_id]).await?;
+                insert_shared_traces(pool, project_id, &[new_trace_id]).await?;
             }
+        } else {
+            // Safety: re-mark existing trace as shared in case it wasn't during creation
+            insert_shared_traces(pool, project_id, &[existing.trace_id]).await?;
         }
-        insert_shared_traces(pool, project_id, &trace_ids).await?;
     }
 
     let mut merged_scores: HashMap<String, Option<f64>> =
