@@ -64,6 +64,11 @@ export async function getSharedEvaluationDatapoints({
   }
 
   const { evaluation, projectId } = shared;
+
+  if (columns.length === 0) {
+    return { evaluation, results: [] };
+  }
+
   const allFilters = compact(filters);
 
   let limit = pageSize;

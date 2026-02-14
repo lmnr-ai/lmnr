@@ -101,6 +101,10 @@ function buildFilterConditions(
 export function buildEvalQuery(options: EvalQueryOptions): QueryResult {
   const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } = options;
 
+  if (columns.length === 0) {
+    throw new Error("columns must not be empty");
+  }
+
   if (targetId) {
     return buildComparisonQuery(options);
   }

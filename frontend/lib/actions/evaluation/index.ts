@@ -115,6 +115,10 @@ export const getEvaluationDatapoints = async (
     }
   }
 
+  if (columns.length === 0) {
+    return { evaluation: evaluation as Evaluation, results: [] };
+  }
+
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
 
