@@ -79,9 +79,12 @@ export const useEvalStore = create<EvalStoreState>()(
       setIsShared: (value) => set({ isShared: value }),
 
       rebuildColumns: (scoreNames) => {
-        const { customColumns } = get();
+        const { customColumns, isShared } = get();
         const scoreCols = scoreNames.map((name) => createScoreColumnDef(name));
-        const customCols: ColumnDef<EvalRow>[] = customColumns.map((cc) => ({
+
+        // Don't include custom columns in shared evaluations to prevent
+        // browser-persisted custom SQL from being executed
+        const customCols: ColumnDef<EvalRow>[] = isShared ? [] : customColumns.map((cc) => ({
           id: `custom:${cc.name}`,
           accessorFn: (row) => row[`custom:${cc.name}`],
           cell: DataCell,
