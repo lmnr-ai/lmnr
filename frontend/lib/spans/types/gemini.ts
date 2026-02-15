@@ -138,8 +138,6 @@ export const parseGeminiOutput = (data: unknown): z.infer<typeof GeminiContentsS
 export const convertGeminiToPlaygroundMessages = async (
   messages: z.infer<typeof GeminiContentsSchema>
 ): Promise<Message[]> => {
-  const store = new Map<string, string>();
-
   return Promise.all(
     map(messages, async (message): Promise<Message> => {
       const content: Message["content"] = [];
@@ -182,18 +180,17 @@ export const convertGeminiToPlaygroundMessages = async (
             content.push({ type: "text", text: `[File: ${part.fileData.fileUri}]` });
           }
         } else if ("functionCall" in part) {
-          store.set(part.functionCall.name, part.functionCall.name);
           content.push({
             type: "tool-call",
-            toolCallId: part.functionCall.name,
+            toolCallId: part.functionCall.id ?? part.functionCall.name,
             toolName: part.functionCall.name,
             input: { type: "json", value: JSON.stringify(part.functionCall.args ?? {}) },
           });
         } else if ("functionResponse" in part) {
           content.push({
             type: "tool-result",
-            toolCallId: part.functionResponse.name,
-            toolName: store.get(part.functionResponse.name) || part.functionResponse.name,
+            toolCallId: part.functionResponse.id ?? part.functionResponse.name,
+            toolName: part.functionResponse.name,
             output: { type: "json", value: JSON.stringify(part.functionResponse.response) },
           });
         } else if ("executableCode" in part) {
