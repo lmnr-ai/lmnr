@@ -146,9 +146,6 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
   const selectClauses = columns.map((c) => `${c.sql} as ${backtickEscape(c.id)}`);
   const selectStr = selectClauses.join(", ");
 
-  // FROM (new_evaluation_datapoints view already joins traces + spans)
-  const fromStr = "new_evaluation_datapoints";
-
   // WHERE
   const whereConditions: string[] = [];
 
@@ -192,9 +189,10 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
     parameters.offset = offset;
   }
 
-  const query = `SELECT ${selectStr} FROM ${fromStr} ${whereStr} ${orderByStr} ${limitString} ${offsetString}`
-    .trim()
-    .replace(/\s+/g, " ");
+  const query =
+    `SELECT ${selectStr} FROM evaluation_datapoints ${whereStr} ${orderByStr} ${limitString} ${offsetString}`
+      .trim()
+      .replace(/\s+/g, " ");
 
   return { query, parameters };
 }
@@ -279,7 +277,7 @@ export function buildEvalStatsQuery(options: EvalStatsQueryOptions): QueryResult
 
   const whereStr = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
 
-  const query = `SELECT scores FROM new_evaluation_datapoints ${whereStr}`;
+  const query = `SELECT scores FROM evaluation_datapoints ${whereStr}`;
 
   return { query: query.trim(), parameters };
 }
