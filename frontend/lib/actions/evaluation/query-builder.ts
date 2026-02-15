@@ -134,12 +134,14 @@ interface SingleEvalQueryOptions {
   sortSql?: string;
   sortDirection?: "ASC" | "DESC";
   evalIdParam: string; // parameter name for the evaluation ID
+  paramPrefix?: string; // prefix for all parameter names to avoid collisions
 }
 
 function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
   const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, evalIdParam } =
     options;
 
+  const prefix = options.paramPrefix || "";
   const parameters: QueryParams = {};
 
   // SELECT
@@ -155,12 +157,14 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
 
   // Pre-filter by trace IDs (from search)
   if (traceIds.length > 0) {
-    whereConditions.push(`trace_id IN ({traceIds:Array(UUID)})`);
-    parameters.traceIds = traceIds;
+    const traceIdsKey = `${prefix}traceIds`;
+    whereConditions.push(`trace_id IN ({${traceIdsKey}:Array(UUID)})`);
+    parameters[traceIdsKey] = traceIds;
   }
 
   // Apply column filters
-  const { conditions: filterConditions, params: filterParams } = buildFilterConditions(filters, columns, "f");
+  const filterPrefix = `${prefix}f`;
+  const { conditions: filterConditions, params: filterParams } = buildFilterConditions(filters, columns, filterPrefix);
   whereConditions.push(...filterConditions);
   Object.assign(parameters, filterParams);
 
@@ -220,6 +224,7 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
     sortSql,
     sortDirection,
     evalIdParam: "evaluationId",
+    paramPrefix: "p_",
   });
 
   // Comparison subquery must fetch all rows (unpaginated) because the two evaluations
@@ -230,9 +235,10 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
     traceIds,
     filters,
     evalIdParam: "targetId",
+    paramPrefix: "c_",
   });
 
-  // Merge parameters (they share filter params since both use the same prefix)
+  // Merge parameters (no collisions due to unique prefixes: p_ and c_)
   const parameters: QueryParams = {
     ...primaryResult.parameters,
     ...comparedResult.parameters,
@@ -250,7 +256,7 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
   const outerSelect = [...primarySelect, ...comparedSelect].join(", ");
 
   let orderByStr: string;
-  if (sortBy) {
+  if (sortBy && columns.find((c) => c.id === sortBy)) {
     const sortColumn = backtickEscape(sortBy);
     const direction = sortDirection ?? "ASC";
     orderByStr = `ORDER BY p.${sortColumn} ${direction}`;

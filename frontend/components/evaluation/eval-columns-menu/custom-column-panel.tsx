@@ -39,7 +39,9 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
 
     // Check for duplicate names (skip the current name when editing)
     const cols = useEvalStore.getState().columnDefs;
-    if (cols.some((c) => c.meta?.isCustom && (c.header as string) === trimmedName && trimmedName !== editingColumn?.name)) {
+    if (
+      cols.some((c) => c.meta?.isCustom && (c.header as string) === trimmedName && trimmedName !== editingColumn?.name)
+    ) {
       setError(`A column named "${trimmedName}" already exists.`);
       return;
     }
@@ -49,7 +51,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
     // Test the query via the client-side API route
     setIsTesting(true);
     try {
-      const testQuery = `SELECT ${normalizedSql} as \`test\` FROM new_evaluation_datapoints WHERE evaluation_id = {evaluationId:UUID} LIMIT 1`;
+      const testQuery = `SELECT ${normalizedSql} as \`test\` FROM evaluation_datapoints WHERE evaluation_id = {evaluationId:UUID} LIMIT 1`;
       const response = await fetch(`/api/projects/${projectId}/sql`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

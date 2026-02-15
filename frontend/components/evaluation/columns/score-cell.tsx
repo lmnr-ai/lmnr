@@ -42,19 +42,11 @@ const ScoreDisplay = (range: ScoreRange, value: ScoreValue) => {
   );
 };
 
-
 const HeatmapScoreCell = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => ScoreDisplay(range, value);
 
 // -- Comparison sub-components (absorbed from comparison-score-cell.tsx) --
 
-const ComparisonScoreValue = ({
-  value,
-  range,
-}: {
-  value: ScoreValue;
-  displayValue: DisplayValue;
-  range: ScoreRange;
-}) => {
+const ComparisonScoreValue = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => {
   if (!isValidScore(value)) {
     return <span className="text-gray-500 text-center block text-xs">-</span>;
   }
@@ -98,11 +90,11 @@ const HeatmapComparisonCell = ({
   return (
     <div className="flex items-center space-x-1 w-full min-w-0">
       <div className="flex-1 min-w-fit">
-        <ComparisonScoreValue value={comparisonValue} displayValue={comparison} range={range} />
+        <ComparisonScoreValue value={comparisonValue} range={range} />
       </div>
       <ArrowRight className="font-bold text-gray-400 shrink-0" size={8} />
       <div className="flex-1 min-w-fit">
-        <ComparisonScoreValue value={originalValue} displayValue={original} range={range} />
+        <ComparisonScoreValue value={originalValue} range={range} />
       </div>
       {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
         <ChangeIndicator originalValue={originalValue} comparisonValue={comparisonValue} />
@@ -111,13 +103,7 @@ const HeatmapComparisonCell = ({
   );
 };
 
-const StandardScoreComparison = ({
-  original,
-  comparison,
-}: {
-  original: ScoreValue;
-  comparison: ScoreValue;
-}) => {
+const StandardScoreComparison = ({ original, comparison }: { original: ScoreValue; comparison: ScoreValue }) => {
   const showComparison = shouldShowComparisonIndicator(original, comparison);
 
   return (
