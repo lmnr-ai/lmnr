@@ -40,7 +40,7 @@ use super::{
     push_to_signals_queue,
     queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_waiting_queue},
     spans::get_trace_spans_with_id_mapping,
-    tools::get_full_span_info,
+    tools::get_full_spans,
     utils::{
         InternalSpan, emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links,
     },
@@ -1027,7 +1027,7 @@ async fn handle_tool_call(
     );
 
     match function_call.name.as_str() {
-        "get_full_span_info" => {
+        "get_full_spans" => {
             // Extract span_ids from args
             let span_ids: Vec<usize> = function_call
                 .args
@@ -1043,14 +1043,14 @@ async fn handle_tool_call(
 
             if span_ids.is_empty() {
                 return StepResult::Failed {
-                    error: "get_full_span_info called with no span_ids".to_string(),
+                    error: "get_full_spans called with no span_ids".to_string(),
                     finish_reason: None,
                     is_processing_error: true,
                 };
             }
 
             // Execute the tool
-            let tool_result = match get_full_span_info(
+            let tool_result = match get_full_spans(
                 clickhouse,
                 signal_message.project_id,
                 run.trace_id,
@@ -1096,18 +1096,14 @@ async fn handle_tool_call(
 
             if identified {
                 let attrs = attributes.unwrap_or_default();
-                if let Some(summary) = summary {
-                    return StepResult::CompletedWithEvent {
-                        attributes: attrs,
-                        summary: summary,
-                    };
-                } else {
-                    return StepResult::Failed {
-                        error: "submit_identification called with no summary".to_string(),
-                        finish_reason: None,
-                        is_processing_error: true,
-                    };
-                }
+                let summary = summary.unwrap_or_else(|| {
+                    log::warn!("[SIGNAL JOB] submit_identification called with no summary, defaulting to empty string");
+                    String::new()
+                });
+                return StepResult::CompletedWithEvent {
+                    attributes: attrs,
+                    summary,
+                };
             }
 
             return StepResult::CompletedNoEvent;

@@ -8,7 +8,7 @@ use super::utils::{nanoseconds_to_iso, try_parse_json};
 use crate::signals::gemini::{FunctionDeclaration, Tool};
 use crate::signals::prompts::{GET_FULL_SPAN_INFO_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION};
 
-/// Full span info returned by get_full_span_info tool
+/// Full span info returned by get_full_spans tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpanInfo {
     pub id: usize,
@@ -40,7 +40,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
 
     let function_declarations = vec![
         FunctionDeclaration {
-            name: "get_full_span_info".to_string(),
+            name: "get_full_spans".to_string(),
             description: GET_FULL_SPAN_INFO_DESCRIPTION.to_string(),
             parameters: serde_json::json!({
                 "type": "object",
@@ -48,7 +48,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
                     "span_ids": {
                         "type": "array",
                         "items": {"type": "integer"},
-                        "description": "List of span IDs (sequential integers starting from 1) to fetch full information for."
+                        "description": "REQUIRED. List of span IDs (sequential integers starting from 1) to fetch full information for. You MUST always provide this argument."
                     }
                 },
                 "required": ["span_ids"]
@@ -62,17 +62,17 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
                 "properties": {
                     "identified": {
                         "type": "boolean",
-                        "description": "Whether the information described by the developer's prompt can be extracted from or identified in the trace."
+                        "description": "REQUIRED. Whether the information described by the developer's prompt can be extracted from or identified in the trace. You MUST always include this argument."
                     },
                     "data": {
                         "type": "object",
-                        "description": "Data that was extracted from / identified in the trace. If 'identified' flag is false, you can omit this field or provide an empty object.",
+                        "description": "The data extracted from / identified in the trace. REQUIRED when identified=true — provide an object matching the developer's schema. When identified=false, you can omit this field or provide an empty object.",
                         "properties": properties,
                         "required": required
                     },
                     "_summary":  {
                         "type": "string",
-                        "description": "If identified flag is true, this field should contain a short summary of the identification result. This will be used for clustering of an event."
+                        "description": "REQUIRED when identified=true. A short summary of the identification result, used for clustering of events. You MUST provide this field whenever identified=true."
                     }
                 },
                 "required": ["identified"]
@@ -95,7 +95,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
 ///
 /// # Returns
 /// List of SpanInfo containing full span information including complete input/output
-pub async fn get_full_span_info(
+pub async fn get_full_spans(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
     trace_id: Uuid,
