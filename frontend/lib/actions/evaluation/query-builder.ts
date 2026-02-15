@@ -249,7 +249,16 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
 
   const outerSelect = [...primarySelect, ...comparedSelect].join(", ");
 
-  const query = `SELECT ${outerSelect} FROM (${primaryResult.query}) AS p LEFT JOIN (${comparedResult.query}) AS c ON p.\`index\` = c.\`index\``;
+  let orderByStr: string;
+  if (sortBy) {
+    const sortColumn = backtickEscape(sortBy);
+    const direction = sortDirection ?? "ASC";
+    orderByStr = `ORDER BY p.${sortColumn} ${direction}`;
+  } else {
+    orderByStr = "ORDER BY p.`index` ASC, p.`createdAt` ASC";
+  }
+
+  const query = `SELECT ${outerSelect} FROM (${primaryResult.query}) AS p LEFT JOIN (${comparedResult.query}) AS c ON p.\`index\` = c.\`index\` ${orderByStr}`;
 
   return { query, parameters };
 }
