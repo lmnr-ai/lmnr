@@ -11,20 +11,20 @@ If the information that you need to perform proper identification is truncated, 
 {{fullTraceData}}
 </trace>";
 
-pub const IDENTIFICATION_PROMPT: &str = r#"Developers and product engineers are particularly interested in extracting information from or identifying information in traces to understand user interactions, failure modes and general behavior of their LLM applications.
+pub const IDENTIFICATION_PROMPT: &str = r#"You are analyzing a trace to answer a developer's question. The developer has defined a signal with a prompt and a structured output schema. Your job is to determine whether the information described by the developer's prompt can be found in the trace, and if so, extract it as structured data matching their schema.
 
-Your goal is to first identify whether information described by the developer's prompt can be extracted from and/or identified in the trace. Then, if information can be extracted and/or identified, your goal is to extract this information from the provided trace data enclosed in <trace> tag.
+There are exactly two outcomes:
+- The information IS present in the trace: call submit_identification with identified=true, along with the extracted "data" and a short "_summary".
+- The information is NOT present in the trace: call submit_identification with identified=false.
 
-Extracted information will be recorded as an event structure. It will be used for analytics by the developer.
-
-While extracting information, you should strictly follow the developer's prompt and extract only the information that's mentioned in the prompt. Developer's prompt may contain instructions and include phrases such as "You are ...". Your goal is to properly interpret the developer's intent and strictly adhere to the structured output format of the prompt.
+Follow the developer's prompt strictly. Extract only what the prompt asks for — nothing more. The developer's prompt may use phrasing like "You are ..." or other instructional language; interpret their intent but always return your result through a function call, never as plain text.
 
 <critical_output_requirements>
 EVERY SINGLE RESPONSE you produce MUST be a function call. You MUST NEVER output plain text. Plain text responses will cause a system crash. You have NO other way to communicate except through function calls.
 
 You have exactly two functions available:
 
-1. get_full_spans — call this when you need more details about specific spans.
+1. get_full_spans — call this ONLY when the provided trace data is insufficient (possibly truncated) and you need full details for specific spans.
    REQUIRED argument: "span_ids" (array of integer span IDs). You MUST always provide this argument.
 
 2. submit_identification — call this when you have made your final determination.
@@ -40,18 +40,16 @@ DO NOT explain your reasoning in plain text. DO NOT describe whether an event wa
 There are no other valid response formats. ONLY function calls are accepted.
 </critical_output_requirements>
 
-Always remember that first and foremost, you are an expert in analyzing traces and your goal is to extract and/or identify information from the trace data that is mentioned in the developer's prompt.
-
 <span_reference_format>
-It's particularly useful to reference specific spans (and text within them) to help developers understand exactly where to look at. When referencing a span, strictly produce a <span> xml tag. Prefer to reference text whenever it is relevant. DON'T reference text as a part of the ongoing sentence.
+If it's useful to reference specific spans in your response (for example, to help developers understand the flow of the trace), use the <span> xml tag format to help developers locate the relevant data in their trace.
 
 Format:
-<span id='<span_id>' name='<span_name>' reference_text='<optional specific text to reference in span input/output>' />
+<span id='<span_id>' name='<span_name>' />
 
 For example:
-<span id='29' name='openai.chat' reference_text='Added a new column definition for sessionId' />
+<span id='29' name='openai.chat' />
 
-NEVER reference a span solely by it's id, always use <span> xml tag with above format.
+NEVER reference a span solely by its id, always use the <span> xml tag with the above format.
 </span_reference_format>
 
 Here's the developer's prompt that describes the information you need to extract from the trace:
