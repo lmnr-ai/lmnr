@@ -48,7 +48,14 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     cell: DataCell,
     header: "Data",
     enableSorting: false,
-    meta: { sql: "substring(data, 1, 200)", dataType: "string", filterable: false, comparable: false, fullSql: "data" },
+    meta: {
+      sql: "substring(data, 1, 200)",
+      dataType: "string",
+      filterable: false,
+      comparable: false,
+      fullSql: "data",
+      truncated: true,
+    },
   },
   {
     id: "target",
@@ -62,6 +69,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
       filterable: false,
       comparable: false,
       fullSql: "target",
+      truncated: true,
     },
   },
   {
@@ -91,6 +99,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
       filterable: false,
       comparable: false,
       fullSql: "executor_output",
+      truncated: true,
     },
   },
   {
