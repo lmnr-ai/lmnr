@@ -1425,6 +1425,33 @@ fn main() -> anyhow::Result<()> {
                             )
                             .service(
                                 web::scope("/v1/mcp")
+                                    .wrap_fn(|mut req, srv| {
+                                        use actix_web::http::header::{ACCEPT, HeaderValue};
+
+                                        let needs_accept_fix = match req
+                                            .headers()
+                                            .get(ACCEPT)
+                                            .and_then(|value| value.to_str().ok())
+                                        {
+                                            Some(value) => {
+                                                !value.contains("application/json")
+                                                    || !value.contains("text/event-stream")
+                                            }
+                                            None => true,
+                                        };
+
+                                        if needs_accept_fix {
+                                            req.headers_mut().insert(
+                                                ACCEPT,
+                                                HeaderValue::from_static(
+                                                    "application/json, text/event-stream",
+                                                ),
+                                            );
+                                        }
+
+                                        let fut = srv.call(req);
+                                        async move { fut.await }
+                                    })
                                     .wrap(project_auth.clone())
                                     .service(mcp_service.clone().scope()),
                             )
