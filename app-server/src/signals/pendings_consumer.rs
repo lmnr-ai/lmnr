@@ -1027,7 +1027,7 @@ async fn handle_tool_call(
     );
 
     match function_call.name.as_str() {
-        "get_full_spans" => {
+        "get_full_spans" | "get_full_span_info" => {
             // Extract span_ids from args
             let span_ids: Vec<String> = function_call
                 .args
@@ -1085,7 +1085,9 @@ async fn handle_tool_call(
             let summary: Option<String> = function_call
                 .args
                 .as_ref()
-                .and_then(|args| args.get("_summary"))
+                .and_then(|args: &serde_json::Value| {
+                    args.get("summary").or_else(|| args.get("_summary"))
+                })
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
 
@@ -1133,12 +1135,8 @@ async fn handle_create_event(
     let create_event_start_time = chrono::Utc::now();
 
     // Get trace spans
-    let ch_spans = get_trace_spans(
-        clickhouse.clone(),
-        signal_message.project_id,
-        run.trace_id,
-    )
-    .await?;
+    let ch_spans =
+        get_trace_spans(clickhouse.clone(), signal_message.project_id, run.trace_id).await?;
 
     if ch_spans.is_empty() {
         anyhow::bail!("No spans found for trace {}", run.trace_id);

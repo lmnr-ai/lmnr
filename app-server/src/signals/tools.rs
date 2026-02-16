@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use super::spans::{get_span_type, get_trace_spans, span_short_id};
+use super::spans::{
+    get_span_type, get_trace_spans, replace_base64_images, span_short_id, strip_signature_fields,
+};
 use super::utils::{nanoseconds_to_iso, try_parse_json};
 use crate::signals::gemini::{FunctionDeclaration, Tool};
 use crate::signals::prompts::{GET_FULL_SPAN_INFO_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION};
@@ -70,7 +72,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
                         "properties": properties,
                         "required": required
                     },
-                    "_summary":  {
+                    "summary":  {
                         "type": "string",
                         "description": "REQUIRED when identified=true. A short summary of the identification result, used for clustering of events. You MUST provide this field whenever identified=true."
                     }
@@ -115,8 +117,7 @@ pub async fn get_full_spans(
         return Ok(vec![]);
     }
 
-    let requested: std::collections::HashSet<&str> =
-        span_ids.iter().map(|s| s.as_str()).collect();
+    let requested: std::collections::HashSet<&str> = span_ids.iter().map(|s| s.as_str()).collect();
 
     let result_spans: Vec<SpanInfo> = ch_spans
         .iter()
@@ -141,8 +142,12 @@ pub async fn get_full_spans(
                 start: nanoseconds_to_iso(ch_span.start_time),
                 end: nanoseconds_to_iso(ch_span.end_time),
                 status: ch_span.status.clone(),
-                input: try_parse_json(&ch_span.input),
-                output: try_parse_json(&ch_span.output),
+                input: strip_signature_fields(&replace_base64_images(&try_parse_json(
+                    &ch_span.input,
+                ))),
+                output: strip_signature_fields(&replace_base64_images(&try_parse_json(
+                    &ch_span.output,
+                ))),
                 parent,
                 exception,
             }

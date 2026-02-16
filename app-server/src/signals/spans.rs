@@ -134,7 +134,7 @@ fn truncate_message_strings(message: &Value) -> Value {
 /// Replace base64 image data within a JSON value with a placeholder.
 ///
 /// Detects data URLs of the form `data:image/...;base64,...` anywhere in the JSON tree.
-fn replace_base64_images(value: &Value) -> Value {
+pub fn replace_base64_images(value: &Value) -> Value {
     match value {
         Value::String(s) => {
             if let Some(idx) = s.find("base64,") {
@@ -155,9 +155,9 @@ fn replace_base64_images(value: &Value) -> Value {
     }
 }
 
-/// Remove `signature` and `thought_signature` fields from LLM span inputs.
+/// Remove `signature` and `thought_signature` fields from LLM span inputs and outputs.
 /// These fields contain large hash values that waste context and provide no analytical value.
-fn strip_signature_fields(value: &Value) -> Value {
+pub fn strip_signature_fields(value: &Value) -> Value {
     match value {
         Value::Object(map) => Value::Object(
             map.iter()
