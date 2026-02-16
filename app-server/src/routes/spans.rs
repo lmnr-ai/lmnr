@@ -153,6 +153,77 @@ pub struct QuickwitResponse {
     pub hits: Vec<QuickwitHit>,
 }
 
+pub async fn execute_quickwit_search(
+    quickwit: &QuickwitClient,
+    project_id: Uuid,
+    query: &str,
+    search_in: Option<Vec<String>>,
+    trace_id: Option<String>,
+    start_time: Option<DateTime<Utc>>,
+    end_time: Option<DateTime<Utc>>,
+    limit: usize,
+    offset: usize,
+) -> anyhow::Result<Vec<QuickwitHit>> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let escaped_query = escape_quickwit_query(trimmed);
+
+    let mut query_parts = vec![
+        format!("project_id:{}", project_id),
+        format!("({})", escaped_query),
+    ];
+
+    let mut sort_by = "_score,start_time";
+
+    if let Some(trace_id) = trace_id {
+        query_parts.push(format!("trace_id:{}", trace_id));
+        sort_by = "start_time";
+    }
+
+    let query_string = query_parts.join(" AND ");
+
+    let search_fields = match search_in {
+        Some(fields) if !fields.is_empty() => {
+            let valid: Vec<&str> = QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS
+                .iter()
+                .filter(|&&f| fields.iter().any(|requested| requested == f))
+                .cloned()
+                .collect();
+
+            if valid.is_empty() {
+                QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
+            } else {
+                valid
+            }
+        }
+        _ => QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec(),
+    };
+
+    let mut search_body = json!({
+        "query": query_string,
+        "sort_by": sort_by,
+        "search_field": search_fields.join(","),
+        "max_hits": if limit != 0 { limit } else { DEFAULT_SEARCH_MAX_HITS },
+    });
+
+    if let Some(start) = start_time {
+        search_body["start_timestamp"] = serde_json::Value::Number(start.timestamp().into());
+    }
+    if let Some(end) = end_time {
+        search_body["end_timestamp"] = serde_json::Value::Number(end.timestamp().into());
+    }
+    if offset != 0 {
+        search_body["start_offset"] = serde_json::Value::Number(offset.into());
+    }
+
+    let response_value = quickwit.search_spans(search_body).await?;
+    let quickwit_response: QuickwitResponse = serde_json::from_value(response_value)?;
+    Ok(quickwit_response.hits)
+}
+
 #[post("spans/search")]
 pub async fn search_spans(
     project_id: web::Path<Uuid>,
@@ -162,15 +233,6 @@ pub async fn search_spans(
     let project_id = project_id.into_inner();
     let request = request.into_inner();
 
-    let trimmed_query = request.search_query.trim();
-    if trimmed_query.is_empty() {
-        return Ok(HttpResponse::Ok().json(Vec::<String>::new()));
-    }
-
-    // Escape characters reserved by quickwit
-    let escaped_query = escape_quickwit_query(trimmed_query);
-
-    // If Quickwit is not available, return empty results (graceful degradation)
     let quickwit_client = match quickwit_client.as_ref() {
         Some(client) => client,
         None => {
@@ -179,82 +241,22 @@ pub async fn search_spans(
         }
     };
 
-    let mut query_parts = vec![
-        format!("project_id:{}", project_id),
-        format!("({})", escaped_query),
-    ];
+    let hits = execute_quickwit_search(
+        quickwit_client,
+        project_id,
+        &request.search_query,
+        request.search_in,
+        request.trace_id,
+        request.start_time,
+        request.end_time,
+        request.limit,
+        request.offset,
+    )
+    .await
+    .map_err(|e| {
+        log::error!("Quickwit search error: {:?}", e);
+        Error::InternalAnyhowError(anyhow::anyhow!("Failed to search spans"))
+    })?;
 
-    let mut sort_by = "_score,start_time"; // default sort for scores and timestamp in quickwit is desc!
-
-    if let Some(trace_id) = request.trace_id {
-        query_parts.push(format!("trace_id:{}", trace_id));
-        sort_by = "start_time"; // sort by timestamp (desc) inside a single trace
-    }
-
-    let query_string = query_parts.join(" AND ");
-
-    let mut search_body = json!({
-        "query": query_string,
-        "sort_by": sort_by,
-    });
-
-    // Handle search fields
-    let search_fields = if let Some(search_in) = request.search_in {
-        if search_in.is_empty() {
-            QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
-        } else {
-            let valid_fields: Vec<&str> = QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS
-                .iter()
-                .filter(|&&f| search_in.iter().any(|requested| requested == f))
-                .cloned()
-                .collect();
-
-            if valid_fields.is_empty() {
-                QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
-            } else {
-                valid_fields
-            }
-        }
-    } else {
-        QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
-    };
-
-    // Quickwit expects search_field as a comma-separated string, not an array
-    let search_field_str = search_fields.join(",");
-    search_body["search_field"] = serde_json::Value::String(search_field_str);
-
-    // Handle timestamps
-    if let Some(start) = request.start_time {
-        search_body["start_timestamp"] = serde_json::Value::Number(start.timestamp().into());
-    }
-    if let Some(end) = request.end_time {
-        search_body["end_timestamp"] = serde_json::Value::Number(end.timestamp().into());
-    }
-
-    // Handle pagination
-    if request.limit != 0 {
-        search_body["max_hits"] = serde_json::Value::Number(request.limit.into())
-    } else {
-        search_body["max_hits"] = serde_json::Value::Number(DEFAULT_SEARCH_MAX_HITS.into());
-    }
-
-    if request.offset != 0 {
-        search_body["start_offset"] = serde_json::Value::Number(request.offset.into());
-    }
-
-    let response_value = quickwit_client
-        .search_spans(search_body)
-        .await
-        .map_err(|e| {
-            log::error!("Quickwit search error: {:?}", e);
-            Error::InternalAnyhowError(anyhow::anyhow!("Failed to search spans"))
-        })?;
-
-    let quickwit_response: QuickwitResponse =
-        serde_json::from_value(response_value).map_err(|e| {
-            Error::InternalAnyhowError(anyhow::anyhow!("Failed to parse Quickwit response: {}", e))
-        })?;
-
-    let hits = quickwit_response.hits;
     Ok(HttpResponse::Ok().json(hits))
 }

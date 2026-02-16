@@ -14,9 +14,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::quickwit::client::QuickwitClient;
-use crate::routes::spans::{
-    QuickwitResponse, QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS, escape_quickwit_query,
-};
+use crate::routes::spans::execute_quickwit_search;
 use crate::{
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
@@ -214,56 +212,24 @@ impl LaminarMcpServer {
             )
         })?;
 
-        let trimmed = params.query.trim();
-        if trimmed.is_empty() {
-            return Ok(CallToolResult::success(vec![Content::text("[]")]));
-        }
-
-        let escaped_query = escape_quickwit_query(trimmed);
-
-        let query_string = format!("project_id:{} AND ({})", project_id, escaped_query);
-
-        let search_fields = match &params.search_in {
-            Some(fields) if !fields.is_empty() => {
-                let valid: Vec<&str> = QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS
-                    .iter()
-                    .filter(|&&f| fields.iter().any(|r| r == f))
-                    .cloned()
-                    .collect();
-
-                if valid.is_empty() {
-                    QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
-                } else {
-                    valid
-                }
-            }
-            _ => QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec(),
-        };
-
         let limit = params.limit.unwrap_or(50);
 
-        let search_body = serde_json::json!({
-            "query": query_string,
-            "sort_by": "_score,start_time",
-            "search_field": search_fields.join(","),
-            "max_hits": limit,
-        });
-
-        let response_value = quickwit
-            .search_spans(search_body)
-            .await
-            .map_err(|e| McpError::internal_error(format!("Search failed: {}", e), None))?;
-
-        let quickwit_response: QuickwitResponse =
-            serde_json::from_value(response_value).map_err(|e| {
-                McpError::internal_error(
-                    format!("Failed to parse search response: {}", e),
-                    None,
-                )
-            })?;
+        let hits = execute_quickwit_search(
+            quickwit,
+            project_id,
+            &params.query,
+            params.search_in,
+            None,
+            None,
+            None,
+            limit,
+            0,
+        )
+        .await
+        .map_err(|e| McpError::internal_error(format!("Search failed: {}", e), None))?;
 
         Ok(CallToolResult::success(vec![Content::text(
-            serde_json::to_string_pretty(&quickwit_response.hits).unwrap_or_default(),
+            serde_json::to_string_pretty(&hits).unwrap_or_default(),
         )]))
     }
 }
