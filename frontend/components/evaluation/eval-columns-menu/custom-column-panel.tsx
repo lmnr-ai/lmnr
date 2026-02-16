@@ -108,7 +108,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
           </div>
           <div className="grid gap-1.5">
             <div className="flex items-center justify-between">
-              <Label className="text-xs">SQL expression</Label>
+              <Label className="text-xs">Column SQL expression</Label>
               <a
                 href="https://docs.laminar.sh/platform/sql-editor#table-schemas"
                 target="_blank"
@@ -128,6 +128,9 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
                 onChange={setSql}
               />
             </div>
+            <p className="text-xs text-muted-foreground">
+              {"Expression is added as a column: SELECT <expr> FROM evaluation_datapoints"}
+            </p>
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs">Data type</Label>
