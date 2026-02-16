@@ -401,7 +401,7 @@ export default function CreateSignalJob({ traceId }: { traceId?: string }) {
   }));
 
   useEffect(() => {
-    if (traceId) setTraceId(traceId);
+    setTraceId(traceId ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
