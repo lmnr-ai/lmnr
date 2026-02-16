@@ -61,7 +61,7 @@ function parseSystemMessageFromInput(input: string): string | null {
     // Schema validation failed, try next format
   }
 
-  // Gemini native format (parts-based with role: "system")
+  // Gemini
   const geminiContents = parseGeminiInput(parsed);
   if (geminiContents) {
     const text = extractGeminiSystemMessage(geminiContents);
