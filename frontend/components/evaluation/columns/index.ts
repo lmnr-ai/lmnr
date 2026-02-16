@@ -144,6 +144,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
       dataType: "number",
       filterable: true,
       comparable: true,
+      dbType: "Float64",
     },
   },
   // Hidden columns - needed for row interactions and comparison data
