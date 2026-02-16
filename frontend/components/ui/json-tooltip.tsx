@@ -15,58 +15,88 @@ interface JsonTooltipProps {
   onOpen?: () => Promise<unknown>;
 }
 
+const breakStyle = { wordBreak: "break-all" as const, overflowWrap: "anywhere" as const };
+
 const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
-  <div className="text-xs font-mono text-secondary-foreground max-h-96 p-2">
+  <div className="text-xs font-mono text-secondary-foreground max-h-96 p-2" style={breakStyle}>
     <div>{"{"}</div>
-    <div className="pl-4 flex flex-col gap-0.5">
+    <div className="pl-4 flex flex-col gap-0.5" style={breakStyle}>
       {Object.entries(data).map(([key, value], index, array) => (
-        <div key={key}>
-          <span className="text-primary">&quot;{key}&quot;: </span>
+        <div key={key} style={breakStyle}>
+          <span className="text-primary" style={breakStyle}>
+            &quot;{key}&quot;:{" "}
+          </span>
           {typeof value === "string" ? (
-            <Streamdown
-              mode="static"
-              parseIncompleteMarkdown={false}
-              isAnimating={false}
-              className="inline break-all"
-              rehypePlugins={[defaultRehypePlugins.harden]}
-              components={{
-                p: ({ children, className, ...props }) => (
-                  <span {...props} className={cn(className, "text-xs break-all inline")}>
-                    {children}
-                  </span>
-                ),
-                a: ({ children, className, href, ...props }) => (
-                  <a
-                    {...props}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={cn(className, "text-primary/80 underline break-all")}
-                  >
-                    {children}
-                  </a>
-                ),
-                code: ({ children, className, ...props }) => (
-                  <code {...props} className={cn(className, "text-xs font-mono bg-muted px-1 rounded break-all")}>
-                    {children}
-                  </code>
-                ),
-                strong: ({ children, className, ...props }) => (
-                  <strong {...props} className={cn(className, "font-semibold break-all")}>
-                    {children}
-                  </strong>
-                ),
-                em: ({ children, className, ...props }) => (
-                  <em {...props} className={cn(className, "italic break-all")}>
-                    {children}
-                  </em>
-                ),
-              }}
-            >
-              {value}
-            </Streamdown>
+            <span className="inline" style={breakStyle}>
+              <Streamdown
+                mode="static"
+                parseIncompleteMarkdown={false}
+                isAnimating={false}
+                className="inline"
+                rehypePlugins={[defaultRehypePlugins.harden]}
+                components={{
+                  p: ({ children, className, ...props }) => (
+                    <span {...props} className={cn(className, "text-xs inline")} style={breakStyle}>
+                      {children}
+                    </span>
+                  ),
+                  a: ({ children, className, href, ...props }) => (
+                    <a
+                      {...props}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(className, "text-primary/80 underline")}
+                      style={breakStyle}
+                    >
+                      {children}
+                    </a>
+                  ),
+                  code: ({ children, className, ...props }) => (
+                    <code
+                      {...props}
+                      className={cn(className, "text-xs font-mono bg-muted px-1 rounded")}
+                      style={breakStyle}
+                    >
+                      {children}
+                    </code>
+                  ),
+                  pre: ({ children, className, ...props }) => (
+                    <pre
+                      {...props}
+                      className={cn(className, "text-xs font-mono whitespace-pre-wrap")}
+                      style={breakStyle}
+                    >
+                      {children}
+                    </pre>
+                  ),
+                  strong: ({ children, className, ...props }) => (
+                    <strong {...props} className={cn(className, "font-semibold")} style={breakStyle}>
+                      {children}
+                    </strong>
+                  ),
+                  em: ({ children, className, ...props }) => (
+                    <em {...props} className={cn(className, "italic")} style={breakStyle}>
+                      {children}
+                    </em>
+                  ),
+                  span: ({ children, className, ...props }) => (
+                    <span {...props} className={className} style={breakStyle}>
+                      {children}
+                    </span>
+                  ),
+                  div: ({ children, className, ...props }) => (
+                    <div {...props} className={className} style={breakStyle}>
+                      {children}
+                    </div>
+                  ),
+                }}
+              >
+                {value}
+              </Streamdown>
+            </span>
           ) : (
-            <span className="wrap-break-word overflow-wrap-anywhere">{JSON.stringify(value)}</span>
+            <span style={breakStyle}>{JSON.stringify(value)}</span>
           )}
           {index < array.length - 1 && <span>,</span>}
         </div>
@@ -178,7 +208,7 @@ const JsonTooltip = ({ data, columnSize, className, onOpen }: JsonTooltipProps) 
                   {isObject ? (
                     <ObjectWithMarkdown data={tooltipData as Record<string, any>} />
                   ) : (
-                    <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96 whitespace-pre-wrap wrap-anywhere">
+                    <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96 whitespace-pre-wrap break-all">
                       {jsonString}
                     </div>
                   )}
