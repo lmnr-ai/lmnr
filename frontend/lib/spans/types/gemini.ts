@@ -68,15 +68,44 @@ export const GeminiCodeExecutionResultPartSchema = GeminiPartMetadataSchema.exte
   }),
 });
 
-export const GeminiPartSchema = z.union([
-  GeminiTextPartSchema,
-  GeminiInlineDataPartSchema,
-  GeminiFileDataPartSchema,
-  GeminiFunctionCallPartSchema,
-  GeminiFunctionResponsePartSchema,
-  GeminiExecutableCodePartSchema,
-  GeminiCodeExecutionResultPartSchema,
-]);
+// The Gemini API docs use camelCase but the Python SDK emits snake_case.
+// Normalise part keys before validation so schemas stay in one convention.
+const snakeToCamel = (s: string) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+
+// Only normalise nested keys for structural objects, not user data (args, response).
+const NORMALIZE_NESTED = new Set(["inlineData", "fileData", "videoMetadata"]);
+
+const normalizePartKeys = (part: unknown): unknown => {
+  if (typeof part !== "object" || part === null || Array.isArray(part)) return part;
+  const obj = part as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const mapped = snakeToCamel(key);
+    if (NORMALIZE_NESTED.has(mapped) && typeof value === "object" && value !== null && !Array.isArray(value)) {
+      const nested: Record<string, unknown> = {};
+      for (const [nk, nv] of Object.entries(value as Record<string, unknown>)) {
+        nested[snakeToCamel(nk)] = nv;
+      }
+      out[mapped] = nested;
+    } else {
+      out[mapped] = value;
+    }
+  }
+  return out;
+};
+
+export const GeminiPartSchema = z.preprocess(
+  normalizePartKeys,
+  z.union([
+    GeminiTextPartSchema,
+    GeminiInlineDataPartSchema,
+    GeminiFileDataPartSchema,
+    GeminiFunctionCallPartSchema,
+    GeminiFunctionResponsePartSchema,
+    GeminiExecutableCodePartSchema,
+    GeminiCodeExecutionResultPartSchema,
+  ])
+);
 
 /** Message Schemas **/
 
