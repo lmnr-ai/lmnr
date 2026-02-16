@@ -136,6 +136,18 @@ export const GeminiCandidateSchema = z
 
 export const GeminiCandidatesSchema = z.array(GeminiCandidateSchema);
 
+/** Helpers **/
+
+/** Find the system message in a Contents array and return its text. */
+export const extractGeminiSystemMessage = (
+  messages: z.infer<typeof GeminiContentsSchema>
+): string | null => {
+  const system = messages.find((m) => m.role === "system");
+  if (!system) return null;
+  const textPart = system.parts.find((p) => "text" in p);
+  return textPart && "text" in textPart ? textPart.text : null;
+};
+
 /** High-level input / output schemas **/
 
 // Input is always Content(s)
