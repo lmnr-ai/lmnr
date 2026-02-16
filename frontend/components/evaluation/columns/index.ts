@@ -43,6 +43,9 @@ declare module "@tanstack/react-table" {
     // Marks dynamically-created custom columns so components can identify them
     // from columnDefs without reaching into the separate `customColumns` array.
     isCustom?: boolean;
+    // The untruncated SQL expression for columns whose SELECT uses substring().
+    // Used by DataCell to fetch the full value on hover.
+    fullSql?: string;
   }
 }
 
@@ -86,7 +89,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     cell: DataCell,
     header: "Data",
     enableSorting: false,
-    meta: { sql: "substring(data, 1, 200)", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "substring(data, 1, 200)", dataType: "string", filterable: false, comparable: false, fullSql: "data" },
   },
   {
     id: "target",
@@ -94,7 +97,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     cell: DataCell,
     header: "Target",
     enableSorting: false,
-    meta: { sql: "substring(target, 1, 200)", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "substring(target, 1, 200)", dataType: "string", filterable: false, comparable: false, fullSql: "target" },
   },
   {
     id: "metadata",
@@ -117,7 +120,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     cell: DataCell,
     header: "Output",
     enableSorting: false,
-    meta: { sql: "substring(executor_output, 1, 200)", dataType: "string", filterable: false, comparable: false },
+    meta: { sql: "substring(executor_output, 1, 200)", dataType: "string", filterable: false, comparable: false, fullSql: "executor_output" },
   },
   {
     id: "duration",

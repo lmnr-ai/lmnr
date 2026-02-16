@@ -1,5 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { memo, useMemo } from "react";
+import { Loader2 } from "lucide-react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { CopyButton } from "@/components/ui/copy-button.tsx";
@@ -11,6 +12,7 @@ interface JsonTooltipProps {
   data: Record<string, unknown> | unknown | string | null;
   columnSize?: number;
   className?: string;
+  onOpen?: () => Promise<unknown>;
 }
 
 const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
@@ -74,7 +76,11 @@ const ObjectWithMarkdown = ({ data }: { data: Record<string, any> }) => (
   </div>
 );
 
-const JsonTooltip = ({ data, columnSize, className }: JsonTooltipProps) => {
+const JsonTooltip = ({ data, columnSize, className, onOpen }: JsonTooltipProps) => {
+  const [fullData, setFullData] = useState<unknown>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
+  const fetchedRef = useRef(false);
+
   const parsedData = useMemo(() => {
     if (data == null) return null;
 
@@ -89,6 +95,33 @@ const JsonTooltip = ({ data, columnSize, className }: JsonTooltipProps) => {
     return data;
   }, [data]);
 
+  const resolvedData = useMemo(() => {
+    if (fullData === undefined) return parsedData;
+    if (fullData == null) return parsedData;
+    if (typeof fullData === "string") {
+      try {
+        return JSON.parse(fullData);
+      } catch {
+        return fullData;
+      }
+    }
+    return fullData;
+  }, [fullData, parsedData]);
+
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open && onOpen && !fetchedRef.current) {
+        fetchedRef.current = true;
+        setIsLoading(true);
+        onOpen()
+          .then((value) => setFullData(value))
+          .catch(() => {})
+          .finally(() => setIsLoading(false));
+      }
+    },
+    [onOpen]
+  );
+
   if (
     parsedData == null ||
     parsedData === "" ||
@@ -97,20 +130,21 @@ const JsonTooltip = ({ data, columnSize, className }: JsonTooltipProps) => {
     return <span className="text-muted-foreground">-</span>;
   }
 
-  const jsonString = JSON.stringify(parsedData, null, 2);
   const displayValue = JSON.stringify(parsedData, null, 2);
-  const isObject = typeof parsedData === "object" && parsedData !== null && !Array.isArray(parsedData);
+  const tooltipData = resolvedData;
+  const jsonString = JSON.stringify(tooltipData, null, 2);
+  const isObject = typeof tooltipData === "object" && tooltipData !== null && !Array.isArray(tooltipData);
 
   return (
     <TooltipProvider delayDuration={100}>
-      <Tooltip>
+      <Tooltip onOpenChange={handleOpenChange}>
         <TooltipTrigger asChild className="relative p-0">
           <pre
             style={{
               ...(columnSize
                 ? {
-                  width: columnSize - 32,
-                }
+                    width: columnSize - 32,
+                  }
                 : {}),
             }}
             className={cn("font-mono text-secondary-foreground overflow-hidden text-xs truncate", className)}
@@ -126,23 +160,31 @@ const JsonTooltip = ({ data, columnSize, className }: JsonTooltipProps) => {
             onMouseDown={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <CopyButton
-              size="icon"
-              variant="ghost"
-              className="size-3.5 absolute right-2 top-2 bg-secondary z-10"
-              iconClassName="size-3.5 text-secondary-foreground"
-              text={jsonString}
-            />
+            {isLoading ? (
+              <div className="flex items-center justify-center p-4">
+                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <CopyButton
+                  size="icon"
+                  variant="ghost"
+                  className="size-3.5 absolute right-2 top-2 bg-secondary z-10"
+                  iconClassName="size-3.5 text-secondary-foreground"
+                  text={jsonString}
+                />
 
-            <ScrollArea className="max-w-96">
-              {isObject ? (
-                <ObjectWithMarkdown data={parsedData as Record<string, any>} />
-              ) : (
-                <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96 whitespace-pre-wrap wrap-anywhere">
-                  {jsonString}
-                </div>
-              )}
-            </ScrollArea>
+                <ScrollArea className="max-w-96">
+                  {isObject ? (
+                    <ObjectWithMarkdown data={tooltipData as Record<string, any>} />
+                  ) : (
+                    <div className="text-xs font-mono text-secondary-foreground p-2 max-h-96 whitespace-pre-wrap wrap-anywhere">
+                      {jsonString}
+                    </div>
+                  )}
+                </ScrollArea>
+              </>
+            )}
           </TooltipContent>
         </TooltipPortal>
       </Tooltip>

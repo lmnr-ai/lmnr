@@ -246,6 +246,49 @@ export const getEvaluationStatistics = async (
   };
 };
 
+export const GetEvaluationCellValueSchema = z.object({
+  evaluationId: z.string(),
+  projectId: z.string(),
+  datapointId: z.string(),
+  column: z.string(), // JSON-encoded { id, sql } where sql is the fullSql expression
+});
+
+export const getEvaluationCellValue = async (
+  input: z.infer<typeof GetEvaluationCellValueSchema>
+): Promise<unknown> => {
+  const { projectId, evaluationId, datapointId, column: columnJson } = input;
+
+  const evaluation = await db.query.evaluations.findFirst({
+    where: and(eq(evaluations.id, evaluationId), eq(evaluations.projectId, projectId)),
+  });
+
+  if (!evaluation) {
+    throw new Error("Evaluation not found");
+  }
+
+  let col: EvalQueryColumn;
+  try {
+    col = JSON.parse(columnJson);
+  } catch {
+    throw new Error("Invalid column JSON");
+  }
+
+  const query = `SELECT ${col.sql} as ${col.id} FROM evaluation_datapoints WHERE evaluation_id = {evaluation_id:String} AND id = {datapoint_id:String} LIMIT 1`;
+  const parameters = { evaluation_id: evaluationId, datapoint_id: datapointId };
+
+  const results = await executeQuery<Record<string, unknown>>({
+    query,
+    parameters,
+    projectId,
+  });
+
+  if (results.length === 0) {
+    return null;
+  }
+
+  return results[0][col.id] ?? null;
+};
+
 export const renameEvaluation = async (input: z.infer<typeof RenameEvaluationSchema>) => {
   const { evaluationId, projectId, name } = RenameEvaluationSchema.parse(input);
 
