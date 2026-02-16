@@ -17,15 +17,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { type Evaluation as EvaluationType } from "@/lib/evaluation/types";
 import { formatTimestamp } from "@/lib/utils";
 
-const EvaluationHeader = ({
-  evaluations,
-  name,
-  urlKey,
-}: {
+interface EvaluationHeader {
   evaluations: EvaluationType[];
   name?: string;
   urlKey: string;
-}) => {
+}
+
+const EvaluationHeader = ({ evaluations, name, urlKey }: EvaluationHeader) => {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId, evaluationId } = useParams();
@@ -44,7 +42,7 @@ const EvaluationHeader = ({
 
   return (
     <div className="flex-none flex gap-2 px-4 items-center justify-between w-full">
-      <div className="flex items-center">
+      <div className="flex items-center gap-2">
         <div>
           <Select key={targetId} value={targetId ?? undefined} onValueChange={handleChange}>
             <SelectTrigger disabled={evaluations.length <= 1} className="flex font-medium truncate">

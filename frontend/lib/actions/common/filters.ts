@@ -50,6 +50,7 @@ export const FilterSchemaRelaxed = z.union([
 ]);
 
 export type Filter = z.infer<typeof FilterSchema>;
+
 export type StringFilter = z.infer<typeof StringFilterSchema>;
 export type NumberFilter = z.infer<typeof NumberFilterSchema>;
 export type BooleanFilter = z.infer<typeof BooleanFilterSchema>;

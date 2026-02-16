@@ -261,22 +261,39 @@ const clickhouseFunctions = {
   ],
   // JSON functions
   json: [
-    { name: "JSONExtract", description: "Extracts value from JSON" },
+    // JSONExtract functions (simdjson-based, for complex JSON parsing)
+    { name: "JSONExtract", description: "Extracts value from JSON with specified ClickHouse type" },
     { name: "JSONExtractString", description: "Extracts string from JSON" },
-    { name: "JSONExtractInt", description: "Extracts integer from JSON" },
-    { name: "JSONExtractFloat", description: "Extracts float from JSON" },
+    { name: "JSONExtractInt", description: "Extracts Int64 from JSON" },
+    { name: "JSONExtractUInt", description: "Extracts UInt64 from JSON" },
+    { name: "JSONExtractFloat", description: "Extracts Float64 from JSON" },
     { name: "JSONExtractBool", description: "Extracts boolean from JSON" },
-    { name: "JSONExtractArrayRaw", description: "Extracts array as raw strings" },
+    { name: "JSONExtractArrayRaw", description: "Extracts array elements as unparsed strings" },
+    { name: "JSONExtractKeysAndValues", description: "Extracts key-value pairs from JSON object" },
+    { name: "JSONExtractKeysAndValuesRaw", description: "Extracts key-value pairs as raw strings" },
     { name: "JSONExtractKeys", description: "Extracts keys from JSON object" },
+    { name: "JSONExtractRaw", description: "Extracts part of JSON as unparsed string" },
     { name: "JSONHas", description: "Checks if JSON path exists" },
     { name: "JSONLength", description: "Returns length of JSON array or object" },
     { name: "JSONType", description: "Returns type of JSON value" },
-    { name: "JSONExtractRaw", description: "Extracts raw JSON string" },
-    { name: "visitParamExtractString", description: "Extracts string from visit parameters" },
-    { name: "visitParamExtractInt", description: "Extracts integer from visit parameters" },
-    { name: "visitParamExtractFloat", description: "Extracts float from visit parameters" },
-    { name: "visitParamExtractBool", description: "Extracts boolean from visit parameters" },
-    { name: "visitParamHas", description: "Checks if visit parameter exists" },
+    { name: "isValidJSON", description: "Checks if string is valid JSON" },
+    { name: "toJSONString", description: "Serializes value to JSON string" },
+    // simpleJSON functions (fast, simplified JSON parsing)
+    { name: "simpleJSONHas", description: "Checks if field exists in simplified JSON" },
+    { name: "simpleJSONExtractString", description: "Extracts string from simplified JSON field" },
+    { name: "simpleJSONExtractInt", description: "Extracts Int64 from simplified JSON field" },
+    { name: "simpleJSONExtractUInt", description: "Extracts UInt64 from simplified JSON field" },
+    { name: "simpleJSONExtractFloat", description: "Extracts Float64 from simplified JSON field" },
+    { name: "simpleJSONExtractBool", description: "Extracts boolean from simplified JSON field" },
+    { name: "simpleJSONExtractRaw", description: "Extracts raw value from simplified JSON field" },
+    // visitParam functions (aliases for simpleJSON)
+    { name: "visitParamHas", description: "Alias for simpleJSONHas" },
+    { name: "visitParamExtractString", description: "Alias for simpleJSONExtractString" },
+    { name: "visitParamExtractInt", description: "Alias for simpleJSONExtractInt" },
+    { name: "visitParamExtractUInt", description: "Alias for simpleJSONExtractUInt" },
+    { name: "visitParamExtractFloat", description: "Alias for simpleJSONExtractFloat" },
+    { name: "visitParamExtractBool", description: "Alias for simpleJSONExtractBool" },
+    { name: "visitParamExtractRaw", description: "Alias for simpleJSONExtractRaw" },
   ],
   // Window functions
   window: [
@@ -329,4 +346,3 @@ const ClickHouseDialect = SQLDialect.define({
 });
 
 export { ClickHouseDialect, clickhouseFunctions };
-

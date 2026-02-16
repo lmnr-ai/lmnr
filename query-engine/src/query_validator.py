@@ -5,6 +5,7 @@ This module provides secure query validation and rewriting for a multi-tenant Cl
 using virtual views (table functions) approach. It replaces table references with their corresponding
 _v0 view functions that handle project-level filtering automatically.
 """
+
 import sqlglot
 
 from dataclasses import dataclass
@@ -12,9 +13,11 @@ from dataclasses import dataclass
 
 VIEW_VERSION = "v0"
 
+
 @dataclass
 class TableSchema:
     """Defines the schema for an allowed table"""
+
     name: str
     allowed_columns: set[str]
     time_column: str | None = None
@@ -34,62 +37,191 @@ class TableRegistry:
     def _setup_default_tables(self):
         """setup default tables"""
         spans_columns = {
-            'span_id', 'status', 'name', 'path', 'parent_span_id', 'span_type',
-            'start_time', 'end_time', 'duration', 'input', 'output', 'request_model',
-            'response_model', 'model', 'provider', 'input_tokens', 'output_tokens',
-            'total_tokens', 'input_cost', 'output_cost', 'total_cost', 'attributes',
-            'trace_id', 'tags'
+            "span_id",
+            "status",
+            "name",
+            "path",
+            "parent_span_id",
+            "span_type",
+            "start_time",
+            "end_time",
+            "duration",
+            "input",
+            "output",
+            "request_model",
+            "response_model",
+            "model",
+            "provider",
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "input_cost",
+            "output_cost",
+            "total_cost",
+            "attributes",
+            "trace_id",
+            "tags",
         }
 
         traces_columns = {
-            'id', 'trace_type', 'metadata', 'start_time', 'end_time',
-            'duration', 'input_tokens', 'output_tokens', 'total_tokens',
-            'input_cost', 'output_cost', 'total_cost', 'status', 'user_id',
-            'session_id', 'top_span_id', 'top_span_name', 'top_span_type', 'tags', 'span_names'
+            "id",
+            "trace_type",
+            "metadata",
+            "start_time",
+            "end_time",
+            "duration",
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "input_cost",
+            "output_cost",
+            "total_cost",
+            "status",
+            "user_id",
+            "session_id",
+            "top_span_id",
+            "top_span_name",
+            "top_span_type",
+            "tags",
+            "span_names",
         }
 
         dataset_datapoints_columns = {
-            "id", "created_at", "dataset_id", "data", "target", "metadata",
+            "id",
+            "created_at",
+            "dataset_id",
+            "data",
+            "target",
+            "metadata",
         }
 
         evaluation_datapoints_columns = {
-            "id", "evaluation_id", "trace_id", "created_at", "data", "target",
-            "metadata", "executor_output", "index", "group_id", "scores",
+            "id",
+            "evaluation_id",
+            "trace_id",
+            "created_at",
+            "data",
+            "target",
+            "metadata",
+            "executor_output",
+            "index",
+            "group_id",
+            "scores",
         }
 
         events_columns = {
-            "id", "span_id", "name", "timestamp", "attributes", "trace_id",
-            "user_id", "session_id",
+            "id",
+            "span_id",
+            "name",
+            "timestamp",
+            "attributes",
+            "trace_id",
+            "user_id",
+            "session_id",
         }
 
         tags_columns = {
-            "id", "span_id", "name", "created_at", "source",
+            "id",
+            "span_id",
+            "name",
+            "created_at",
+            "source",
         }
 
         signal_runs_columns = {
-            "project_id", "signal_id", "job_id", "trigger_id", "trace_id","run_id", "status", "event_id", "updated_at",
+            "project_id",
+            "signal_id",
+            "job_id",
+            "trigger_id",
+            "trace_id",
+            "run_id",
+            "status",
+            "event_id",
+            "updated_at",
         }
 
         signal_events_columns = {
-            "id", "project_id", "signal_id", "trace_id", "run_id", "name", "payload", "timestamp",
+            "id",
+            "project_id",
+            "signal_id",
+            "trace_id",
+            "run_id",
+            "name",
+            "payload",
+            "timestamp",
         }
 
         logs_columns = {
-            "log_id", "project_id", "time", "observed_time", "severity_number", "severity_text", "body", "attributes", "trace_id", "span_id", "flags", "event_name",
+            "log_id",
+            "project_id",
+            "time",
+            "observed_time",
+            "severity_number",
+            "severity_text",
+            "body",
+            "attributes",
+            "trace_id",
+            "span_id",
+            "flags",
+            "event_name",
         }
 
-        self.tables['spans'] = TableSchema('spans', spans_columns, 'start_time')
-        self.tables['traces'] = TableSchema('traces', traces_columns, 'start_time')
-        self.tables['dataset_datapoints'] = TableSchema('dataset_datapoints', dataset_datapoints_columns, 'created_at')
+        self.tables["spans"] = TableSchema("spans", spans_columns, "start_time")
+        self.tables["traces"] = TableSchema("traces", traces_columns, "start_time")
+        self.tables["dataset_datapoints"] = TableSchema(
+            "dataset_datapoints", dataset_datapoints_columns, "created_at"
+        )
         # same as dataset_datapoints, but dataset_datapoints_v0 view only exposes
         # the latest version of each datapoint
-        self.tables['dataset_datapoint_versions'] = TableSchema('dataset_datapoint_versions', dataset_datapoints_columns, 'created_at')
-        self.tables['evaluation_datapoints'] = TableSchema('evaluation_datapoints', evaluation_datapoints_columns, 'created_at')
-        self.tables['events'] = TableSchema('events', events_columns, 'timestamp')
-        self.tables['tags'] = TableSchema('tags', tags_columns, 'created_at')
-        self.tables['signal_runs'] = TableSchema('signal_runs', signal_runs_columns, 'updated_at')
-        self.tables['signal_events'] = TableSchema('signal_events', signal_events_columns, 'timestamp')
-        self.tables['logs'] = TableSchema('logs', logs_columns, 'time')
+        self.tables["dataset_datapoint_versions"] = TableSchema(
+            "dataset_datapoint_versions", dataset_datapoints_columns, "created_at"
+        )
+        self.tables["evaluation_datapoints"] = TableSchema(
+            "evaluation_datapoints", evaluation_datapoints_columns, "created_at"
+        )
+
+        evaluation_datapoints_columns = {
+            "id",
+            "evaluation_id",
+            "data",
+            "target",
+            "metadata",
+            "executor_output",
+            "index",
+            "trace_id",
+            "group_id",
+            "scores",
+            "updated_at",
+            "created_at",
+            "dataset_id",
+            "dataset_datapoint_id",
+            "dataset_datapoint_created_at",
+            "duration",
+            "input_cost",
+            "output_cost",
+            "total_cost",
+            "start_time",
+            "end_time",
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "trace_status",
+            "trace_metadata",
+            "trace_tags",
+            "trace_spans",
+        }
+        self.tables["evaluation_datapoints"] = TableSchema(
+            "evaluation_datapoints", evaluation_datapoints_columns, "created_at"
+        )
+        self.tables["events"] = TableSchema("events", events_columns, "timestamp")
+        self.tables["tags"] = TableSchema("tags", tags_columns, "created_at")
+        self.tables["signal_runs"] = TableSchema(
+            "signal_runs", signal_runs_columns, "updated_at"
+        )
+        self.tables["signal_events"] = TableSchema(
+            "signal_events", signal_events_columns, "timestamp"
+        )
+        self.tables["logs"] = TableSchema("logs", logs_columns, "time")
 
     def is_table_allowed(self, table_name: str) -> bool:
         """Check if a table is allowed"""
@@ -106,6 +238,7 @@ class TableRegistry:
 
 class QueryValidationError(Exception):
     """Exception raised when query validation fails"""
+
     pass
 
 
@@ -114,7 +247,6 @@ class QueryValidator:
 
     def __init__(self, table_registry: TableRegistry | None = None):
         self.table_registry = table_registry or TableRegistry()
-
 
     def validate_and_secure_query(self, sql_query: str, project_id: str) -> str:
         """
@@ -159,8 +291,12 @@ class QueryValidator:
             raise QueryValidationError("Only SELECT statements are allowed")
 
         # Check for any write operations
-        for node in query.find_all(sqlglot.exp.Update, sqlglot.exp.Insert, sqlglot.exp.Delete):
-            raise QueryValidationError(f"{type(node).__name__} statements are not allowed")
+        for node in query.find_all(
+            sqlglot.exp.Update, sqlglot.exp.Insert, sqlglot.exp.Delete
+        ):
+            raise QueryValidationError(
+                f"{type(node).__name__} statements are not allowed"
+            )
 
     def _validate_tables_and_columns(self, query: sqlglot.exp.Expression):
         """Validate that all tables and columns are allowed"""
@@ -179,14 +315,16 @@ class QueryValidator:
         for column in query.find_all(sqlglot.exp.Column):
             self._validate_column_access(query, column)
 
-    def _validate_column_access(self, query: sqlglot.exp.Expression, column: sqlglot.exp.Column):
+    def _validate_column_access(
+        self, query: sqlglot.exp.Expression, column: sqlglot.exp.Column
+    ):
         """Validate that a column access is allowed"""
         column_name = column.this.name if column.this else None
         if not column_name:
             return
 
         # project_id is never allowed in user queries
-        if column_name.lower() == 'project_id':
+        if column_name.lower() == "project_id":
             raise QueryValidationError("Column 'project_id' does not exist")
 
         # If column has a table qualifier, validate it
@@ -196,7 +334,9 @@ class QueryValidator:
             if schema and not schema.is_column_allowed(column_name):
                 raise QueryValidationError(f"Column '{column_name}' does not exist")
 
-    def _is_cte_reference(self, query: sqlglot.exp.Expression, table: sqlglot.exp.Table) -> bool:
+    def _is_cte_reference(
+        self, query: sqlglot.exp.Expression, table: sqlglot.exp.Table
+    ) -> bool:
         """Check if a table reference is actually a CTE"""
         if not query.args.get("with"):
             return False
@@ -204,7 +344,9 @@ class QueryValidator:
         cte_names = {cte.alias.lower() for cte in query.args["with"].expressions}
         return table.name.lower() in cte_names
 
-    def _replace_tables_with_views(self, query: sqlglot.exp.Expression, project_id: str) -> sqlglot.exp.Expression:
+    def _replace_tables_with_views(
+        self, query: sqlglot.exp.Expression, project_id: str
+    ) -> sqlglot.exp.Expression:
         """Replace table references with their corresponding view functions"""
         query = query.copy()
 
@@ -225,7 +367,13 @@ class QueryValidator:
 
         return query
 
-    def _replace_table_with_view_function(self, table: sqlglot.exp.Table, table_name: str, project_id: str, query: sqlglot.exp.Expression):
+    def _replace_table_with_view_function(
+        self,
+        table: sqlglot.exp.Table,
+        table_name: str,
+        project_id: str,
+        query: sqlglot.exp.Expression,
+    ):
         """Replace a single table with its view function"""
         view_name = f"{table_name}_{VIEW_VERSION}"
 
@@ -233,27 +381,45 @@ class QueryValidator:
             # Traces view requires project_id, start_time, and end_time
             # Find the query context that contains this table
             containing_query = self._find_containing_query_for_table(table, query)
-            start_time, end_time = self._extract_time_filters_for_traces(containing_query)
+            start_time, end_time = self._extract_time_filters_for_traces(
+                containing_query
+            )
 
             # Create function call with parameters
             args = [
-                sqlglot.exp.EQ(this=sqlglot.exp.to_identifier("project_id"), expression=sqlglot.exp.Literal.string(project_id)),
-                sqlglot.exp.EQ(this=sqlglot.exp.to_identifier("start_time"), expression=start_time),
-                sqlglot.exp.EQ(this=sqlglot.exp.to_identifier("end_time"), expression=end_time)
+                sqlglot.exp.EQ(
+                    this=sqlglot.exp.to_identifier("project_id"),
+                    expression=sqlglot.exp.Literal.string(project_id),
+                ),
+                sqlglot.exp.EQ(
+                    this=sqlglot.exp.to_identifier("start_time"), expression=start_time
+                ),
+                sqlglot.exp.EQ(
+                    this=sqlglot.exp.to_identifier("end_time"), expression=end_time
+                ),
             ]
 
             function_call = sqlglot.exp.Anonymous(this=view_name, expressions=args)
-            table.replace(sqlglot.exp.Table(this=function_call, alias=table.alias or table_name))
+            table.replace(
+                sqlglot.exp.Table(this=function_call, alias=table.alias or table_name)
+            )
         else:
             # Other views only require project_id
             args = [
-                sqlglot.exp.EQ(this=sqlglot.exp.to_identifier("project_id"), expression=sqlglot.exp.Literal.string(project_id))
+                sqlglot.exp.EQ(
+                    this=sqlglot.exp.to_identifier("project_id"),
+                    expression=sqlglot.exp.Literal.string(project_id),
+                )
             ]
 
             function_call = sqlglot.exp.Anonymous(this=view_name, expressions=args)
-            table.replace(sqlglot.exp.Table(this=function_call, alias=table.alias or table_name))
+            table.replace(
+                sqlglot.exp.Table(this=function_call, alias=table.alias or table_name)
+            )
 
-    def _find_containing_query_for_table(self, table: sqlglot.exp.Table, query: sqlglot.exp.Expression) -> sqlglot.exp.Expression:
+    def _find_containing_query_for_table(
+        self, table: sqlglot.exp.Table, query: sqlglot.exp.Expression
+    ) -> sqlglot.exp.Expression:
         """Find the specific query context (main query or CTE) that contains the given table"""
         # First, check CTEs (they are more specific than main query)
         with_clause = query.args.get("with")
@@ -276,23 +442,38 @@ class QueryValidator:
         # Fallback to main query if not found (shouldn't happen)
         return query
 
-    def _extract_time_filters_for_traces(self, query: sqlglot.exp.Expression) -> tuple[sqlglot.exp.Expression, sqlglot.exp.Expression]:
+    def _extract_time_filters_for_traces(
+        self, query: sqlglot.exp.Expression
+    ) -> tuple[sqlglot.exp.Expression, sqlglot.exp.Expression]:
         """Extract start_time and end_time filters for traces view"""
-        start_time = sqlglot.exp.Literal.string("1970-01-01 00:00:00")  # Unix epoch start
-        end_time = sqlglot.exp.Literal.string("2099-12-31 23:59:59")    # Far future default
+        start_time = sqlglot.exp.Literal.string(
+            "1970-01-01 00:00:00"
+        )  # Unix epoch start
+        end_time = sqlglot.exp.Literal.string(
+            "2099-12-31 23:59:59"
+        )  # Far future default
 
         # Look for time filters in WHERE clause
         where_clause = query.args.get("where")
         if not where_clause:
             return start_time, end_time
 
-        for condition in where_clause.find_all(sqlglot.exp.GT, sqlglot.exp.GTE, sqlglot.exp.EQ, sqlglot.exp.LT, sqlglot.exp.LTE, sqlglot.exp.Between):
+        for condition in where_clause.find_all(
+            sqlglot.exp.GT,
+            sqlglot.exp.GTE,
+            sqlglot.exp.EQ,
+            sqlglot.exp.LT,
+            sqlglot.exp.LTE,
+            sqlglot.exp.Between,
+        ):
             if isinstance(condition.this, sqlglot.exp.Column):
                 if isinstance(condition, sqlglot.exp.Between):
                     column_name = condition.this.this.name.lower()
 
                     # Check if this condition is on traces table or unqualified
-                    table_name = condition.this.table.lower() if condition.this.table else None
+                    table_name = (
+                        condition.this.table.lower() if condition.this.table else None
+                    )
                     if table_name and table_name != "traces":
                         continue
 
@@ -306,7 +487,9 @@ class QueryValidator:
                 else:
                     column_name = condition.left.this.name.lower()
 
-                    table_name = condition.left.table.lower() if condition.left.table else None
+                    table_name = (
+                        condition.left.table.lower() if condition.left.table else None
+                    )
                     if table_name and table_name != "traces":
                         continue
 
@@ -324,11 +507,13 @@ class QueryValidator:
 
         return start_time, end_time
 
-    def _strip_settings_clause(self, query: sqlglot.exp.Expression) -> sqlglot.exp.Expression:
-         """Strip SETTINGS clause from query"""
-         query = query.copy()
-         query.args.pop('settings', None)
-         return query
+    def _strip_settings_clause(
+        self, query: sqlglot.exp.Expression
+    ) -> sqlglot.exp.Expression:
+        """Strip SETTINGS clause from query"""
+        query = query.copy()
+        query.args.pop("settings", None)
+        return query
 
 
 # Default instance for easy importing
