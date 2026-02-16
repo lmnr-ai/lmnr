@@ -26,8 +26,28 @@ import {
 } from "@/components/ui/content-renderer/lang-clickhouse.ts";
 import { defaultThemeSettings } from "@/components/ui/content-renderer/utils";
 
+// Types for schema configuration
+export interface ColumnSchema {
+  name: string;
+  type: string;
+  description: string;
+}
+
+export interface TableSchema {
+  description: string;
+  columns: ColumnSchema[];
+}
+
+export interface SQLSchemaConfig {
+  // Tables to include in autocomplete/validation
+  // If undefined, all tables are available
+  tables?: string[];
+  // Custom table schemas (for dynamic/custom tables)
+  customTables?: Record<string, TableSchema>;
+}
+
 // Table schemas with descriptions - single source of truth for table metadata
-const tableSchemas = {
+export const tableSchemas: Record<string, TableSchema> = {
   spans: {
     description: "Individual spans within traces, containing timing, tokens, costs, and LLM-specific data",
     columns: [
@@ -227,27 +247,12 @@ const tableSchemas = {
   },
 };
 
-const enumValues = {
+export const enumValues: Record<string, string[]> = {
   trace_type: ["DEFAULT", "EVALUATION", "PLAYGROUND"],
   span_type: ["DEFAULT", "LLM", "EXECUTOR", "EVALUATOR", "EVALUATION", "TOOL"],
 };
 
-const sqlSchema: SQLNamespace = Object.fromEntries(
-  Object.entries(tableSchemas).map(([tableName, tableData]) => [
-    tableName,
-    tableData.columns.map((col) =>
-      col.name !== "*"
-        ? {
-            label: col.name,
-            type: "property",
-            detail: col.type,
-            info: col.description,
-          }
-        : col.name
-    ),
-  ])
-);
-
+// Helper functions for completion
 const matchesSearch = (text: string, search: string): boolean => text.toLowerCase().includes(search);
 const startsWithSearch = (text: string, search: string): boolean => text.toLowerCase().startsWith(search.toLowerCase());
 const createOption = (label: string, type: string, info: string, apply?: string) => ({
@@ -306,55 +311,6 @@ const sortByRelevance = (options: any[], searchTerm: string) =>
     return a.label.localeCompare(b.label);
   });
 
-const generateTableCompletions = (searchTerm: string) =>
-  Object.entries(tableSchemas)
-    .filter(([tableName]) => startsWithSearch(tableName, searchTerm))
-    .map(([tableName, tableData]) => ({
-      label: tableName,
-      type: "type",
-      detail: "table",
-      info: tableData.description,
-      boost: 2,
-    }));
-
-const generateAllColumnCompletions = (searchTerm: string) => {
-  const columnMap = new Map<string, { tables: string[]; type: string; description: string }>();
-
-  Object.entries(tableSchemas).forEach(([tableName, tableData]) => {
-    tableData.columns
-      .filter((col) => col.name !== "*" && startsWithSearch(col.name, searchTerm))
-      .forEach((col) => {
-        if (!columnMap.has(col.name)) {
-          columnMap.set(col.name, {
-            tables: [tableName],
-            type: col.type,
-            description: col.description,
-          });
-        } else {
-          // Column exists in multiple tables
-          const existing = columnMap.get(col.name)!;
-          if (!existing.tables.includes(tableName)) {
-            existing.tables.push(tableName);
-          }
-        }
-      });
-  });
-
-  const allColumns: any[] = [];
-  columnMap.forEach((data, columnName) => {
-    const tableList = data.tables.join(", ");
-    allColumns.push({
-      label: columnName,
-      type: "property",
-      detail: data.type,
-      info: `Found in: ${tableList}\n${data.description}`,
-      boost: -1,
-    });
-  });
-
-  return allColumns;
-};
-
 const generateCompletions = (textBefore: string, searchTerm: string) => {
   if (isInEnumContext(textBefore)) {
     const enumType = getEnumType(textBefore);
@@ -366,15 +322,6 @@ const generateCompletions = (textBefore: string, searchTerm: string) => {
   return generateCustomCompletions(searchTerm);
 };
 
-const sqlConfig: SQLConfig = {
-  dialect: ClickHouseDialect,
-  schema: sqlSchema,
-  upperCaseKeywords: true,
-};
-
-const sqlSchemaCompletions = schemaCompletionSource(sqlConfig);
-const sqlKeywordCompletions = keywordCompletionSource(ClickHouseDialect, true);
-
 /**
  * Checks if the position is inside a string literal
  */
@@ -384,79 +331,197 @@ function isInsideString(context: CompletionContext): boolean {
   return node.name === "String" || node.name === "QuotedString" || node.name === "Literal";
 }
 
-const combinedCompletionSource = (
-  context: CompletionContext
-): CompletionResult | Promise<CompletionResult | null> | null => {
-  // Don't show completions inside strings
-  if (isInsideString(context)) {
-    return null;
-  }
+/**
+ * Resolves the effective table schemas based on the schema config.
+ * If no config is provided, returns all default table schemas.
+ * If tables filter is provided, only includes those tables.
+ * Custom tables are merged in addition to filtered default tables.
+ */
+export function resolveTableSchemas(config?: SQLSchemaConfig): Record<string, TableSchema> {
+  let effectiveSchemas: Record<string, TableSchema> = {};
 
-  const word = context.matchBefore(/\w*/);
-  if (!word || (word.from === word.to && !context.explicit)) {
-    return null;
-  }
-
-  const textBefore = context.state.doc.sliceString(0, context.pos);
-  const searchTerm = word.text.toLowerCase();
-
-  const sqlCompletions = sqlSchemaCompletions(context);
-  const keywordCompletions = sqlKeywordCompletions(context);
-
-  const customOptions = generateCompletions(textBefore, searchTerm);
-  const sortedCustomOptions = sortByRelevance(customOptions, searchTerm);
-
-  const tableCompletions = generateTableCompletions(searchTerm);
-  const columnCompletions = generateAllColumnCompletions(searchTerm);
-
-  // Filter out table/column completions from sqlSchemaCompletions since we provide our own with descriptions
-  const filterSchemaCompletions = (options: readonly { label?: string }[]) =>
-    options.filter((opt) => {
-      const label = opt.label?.toLowerCase();
-      // Keep only non-table/column completions
-      return !Object.keys(tableSchemas).includes(label ?? "") && !knownIdentifiers.has(label ?? "");
-    });
-
-  // Helper to combine all options
-  const buildResult = (
-    schemaOpts: readonly { label?: string }[] | null,
-    keywordOpts: readonly { label?: string }[] | null,
-    validFor?: CompletionResult["validFor"]
-  ): CompletionResult | null => {
-    const filteredSchema = filterSchemaCompletions(schemaOpts || []);
-    const allOptions = [
-      ...tableCompletions,
-      ...columnCompletions,
-      ...sortedCustomOptions.slice(0, 50),
-      ...(keywordOpts || []),
-      ...filteredSchema,
-    ];
-
-    if (allOptions.length > 0) {
-      return {
-        from: word.from,
-        options: allOptions,
-        validFor,
-      };
+  if (config?.tables) {
+    // Filter to only specified tables
+    for (const tableName of config.tables) {
+      if (tableSchemas[tableName]) {
+        effectiveSchemas[tableName] = tableSchemas[tableName];
+      }
     }
-    return null;
+  } else {
+    // Use all default tables
+    effectiveSchemas = { ...tableSchemas };
+  }
+
+  // Merge custom tables
+  if (config?.customTables) {
+    effectiveSchemas = { ...effectiveSchemas, ...config.customTables };
+  }
+
+  return effectiveSchemas;
+}
+
+/**
+ * Creates a completion source function scoped to the given table schemas
+ */
+function createScopedCompletionSource(scopedSchemas: Record<string, TableSchema>, knownIds: Set<string>) {
+  const sqlSchema: SQLNamespace = Object.fromEntries(
+    Object.entries(scopedSchemas).map(([tableName, tableData]) => [
+      tableName,
+      tableData.columns.map((col) =>
+        col.name !== "*"
+          ? {
+              label: col.name,
+              type: "property",
+              detail: col.type,
+              info: col.description,
+            }
+          : col.name
+      ),
+    ])
+  );
+
+  const sqlConfig: SQLConfig = {
+    dialect: ClickHouseDialect,
+    schema: sqlSchema,
+    upperCaseKeywords: true,
   };
 
-  // Handle async/sync combinations
-  const schemaIsPromise = sqlCompletions instanceof Promise;
-  const keywordsIsPromise = keywordCompletions instanceof Promise;
+  const sqlSchemaCompletions = schemaCompletionSource(sqlConfig);
+  const sqlKeywordCompletions = keywordCompletionSource(ClickHouseDialect, true);
 
-  if (schemaIsPromise || keywordsIsPromise) {
-    return Promise.all([
-      schemaIsPromise ? sqlCompletions : Promise.resolve(sqlCompletions),
-      keywordsIsPromise ? keywordCompletions : Promise.resolve(keywordCompletions),
-    ]).then(([schemaResolved, keywordsResolved]) =>
-      buildResult(schemaResolved?.options || null, keywordsResolved?.options || null, schemaResolved?.validFor)
-    );
-  } else {
-    return buildResult(sqlCompletions?.options || null, keywordCompletions?.options || null, sqlCompletions?.validFor);
-  }
-};
+  const generateTableCompletions = (searchTerm: string) =>
+    Object.entries(scopedSchemas)
+      .filter(([tableName]) => startsWithSearch(tableName, searchTerm))
+      .map(([tableName, tableData]) => ({
+        label: tableName,
+        type: "type",
+        detail: "table",
+        info: tableData.description,
+        boost: 2,
+      }));
+
+  const generateAllColumnCompletions = (searchTerm: string) => {
+    const columnMap = new Map<string, { tables: string[]; type: string; description: string }>();
+
+    Object.entries(scopedSchemas).forEach(([tableName, tableData]) => {
+      tableData.columns
+        .filter((col) => col.name !== "*" && startsWithSearch(col.name, searchTerm))
+        .forEach((col) => {
+          if (!columnMap.has(col.name)) {
+            columnMap.set(col.name, {
+              tables: [tableName],
+              type: col.type,
+              description: col.description,
+            });
+          } else {
+            const existing = columnMap.get(col.name)!;
+            if (!existing.tables.includes(tableName)) {
+              existing.tables.push(tableName);
+            }
+          }
+        });
+    });
+
+    const allColumns: any[] = [];
+    columnMap.forEach((data, columnName) => {
+      const tableList = data.tables.join(", ");
+      allColumns.push({
+        label: columnName,
+        type: "property",
+        detail: data.type,
+        info: `Found in: ${tableList}\n${data.description}`,
+        boost: -1,
+      });
+    });
+
+    return allColumns;
+  };
+
+  return (context: CompletionContext): CompletionResult | Promise<CompletionResult | null> | null => {
+    if (isInsideString(context)) {
+      return null;
+    }
+
+    const word = context.matchBefore(/\w*/);
+    if (!word || (word.from === word.to && !context.explicit)) {
+      return null;
+    }
+
+    const textBefore = context.state.doc.sliceString(0, context.pos);
+    const searchTerm = word.text.toLowerCase();
+
+    const sqlCompletions = sqlSchemaCompletions(context);
+    const keywordCompletions = sqlKeywordCompletions(context);
+
+    const customOptions = generateCompletions(textBefore, searchTerm);
+    const sortedCustomOptions = sortByRelevance(customOptions, searchTerm);
+
+    const tableCompletions = generateTableCompletions(searchTerm);
+    const columnCompletions = generateAllColumnCompletions(searchTerm);
+
+    const filterSchemaCompletions = (options: readonly { label?: string }[]) =>
+      options.filter((opt) => {
+        const label = opt.label?.toLowerCase();
+        return !Object.keys(scopedSchemas).includes(label ?? "") && !knownIds.has(label ?? "");
+      });
+
+    const buildResult = (
+      schemaOpts: readonly { label?: string }[] | null,
+      keywordOpts: readonly { label?: string }[] | null,
+      validFor?: CompletionResult["validFor"]
+    ): CompletionResult | null => {
+      const filteredSchema = filterSchemaCompletions(schemaOpts || []);
+      const allOptions = [
+        ...tableCompletions,
+        ...columnCompletions,
+        ...sortedCustomOptions.slice(0, 50),
+        ...(keywordOpts || []),
+        ...filteredSchema,
+      ];
+
+      if (allOptions.length > 0) {
+        return {
+          from: word.from,
+          options: allOptions,
+          validFor,
+        };
+      }
+      return null;
+    };
+
+    const schemaIsPromise = sqlCompletions instanceof Promise;
+    const keywordsIsPromise = keywordCompletions instanceof Promise;
+
+    if (schemaIsPromise || keywordsIsPromise) {
+      return Promise.all([
+        schemaIsPromise ? sqlCompletions : Promise.resolve(sqlCompletions),
+        keywordsIsPromise ? keywordCompletions : Promise.resolve(keywordCompletions),
+      ]).then(([schemaResolved, keywordsResolved]) =>
+        buildResult(schemaResolved?.options || null, keywordsResolved?.options || null, schemaResolved?.validFor)
+      );
+    } else {
+      return buildResult(
+        sqlCompletions?.options || null,
+        keywordCompletions?.options || null,
+        sqlCompletions?.validFor
+      );
+    }
+  };
+}
+
+/**
+ * Computes the set of known identifiers (table names and column names) from schemas
+ */
+function computeKnownIdentifiers(schemas: Record<string, TableSchema>): Set<string> {
+  const identifiers = new Set<string>();
+  Object.entries(schemas).forEach(([tableName, tableData]) => {
+    identifiers.add(tableName.toLowerCase());
+    tableData.columns.forEach((col) => {
+      identifiers.add(col.name.toLowerCase());
+    });
+  });
+  return identifiers;
+}
 
 const sqlSyntaxHighlightStyle: CreateThemeOptions["styles"] = [
   // Keywords (SELECT, FROM, WHERE, etc.)
@@ -498,18 +563,6 @@ export const theme = createTheme({
   settings: defaultThemeSettings,
   styles: sqlSyntaxHighlightStyle,
 });
-
-// Pre-compute known identifiers set (tables and columns) - computed once at module load
-const knownIdentifiers = new Set<string>();
-Object.entries(tableSchemas).forEach(([tableName, tableData]) => {
-  knownIdentifiers.add(tableName.toLowerCase());
-  tableData.columns.forEach((col) => {
-    knownIdentifiers.add(col.name.toLowerCase());
-  });
-});
-
-// Create the identifier highlighter with our schema's known identifiers
-const identifierHighlighter = createIdentifierHighlighter(knownIdentifiers);
 
 // Editor base styles
 const editorBaseStyles = {
@@ -725,34 +778,48 @@ const signatureHelpStyles = {
 };
 
 // Combined editor theme
-const editorTheme = EditorView.theme({
+export const editorTheme = EditorView.theme({
   ...editorBaseStyles,
   ...syntaxHighlightStyles,
   ...autocompleteStyles,
   ...signatureHelpStyles,
 });
 
-export const extensions = [
-  editorTheme,
-  search(),
-  highlightSelectionMatches(),
-  EditorView.lineWrapping,
-  sql({
-    dialect: ClickHouseDialect,
-    upperCaseKeywords: true,
-  }),
-  Prec.highest(identifierHighlighter),
-  autocompletion({
-    override: [combinedCompletionSource],
-  }),
-  ...signatureHelp,
-  Prec.highest(
-    keymap.of([
-      ...completionKeymap,
-      {
-        key: "Mod-Enter",
-        run: () => true,
-      },
-    ])
-  ),
-];
+/**
+ * Creates CodeMirror extensions for the SQL editor with optional scoped schema configuration.
+ * @param config - Optional schema configuration to scope autocomplete to specific tables
+ * @returns Array of CodeMirror extensions
+ */
+export function createExtensions(config?: SQLSchemaConfig) {
+  const scopedSchemas = resolveTableSchemas(config);
+  const knownIdentifiers = computeKnownIdentifiers(scopedSchemas);
+  const identifierHighlighter = createIdentifierHighlighter(knownIdentifiers);
+  const completionSource = createScopedCompletionSource(scopedSchemas, knownIdentifiers);
+
+  return [
+    editorTheme,
+    search(),
+    highlightSelectionMatches(),
+    EditorView.lineWrapping,
+    sql({
+      dialect: ClickHouseDialect,
+      upperCaseKeywords: true,
+    }),
+    Prec.highest(identifierHighlighter),
+    autocompletion({
+      override: [completionSource],
+    }),
+    ...signatureHelp,
+    Prec.highest(
+      keymap.of([
+        ...completionKeymap,
+        {
+          key: "Mod-Enter",
+          run: () => true,
+        },
+      ])
+    ),
+  ];
+}
+
+export const extensions = createExtensions();

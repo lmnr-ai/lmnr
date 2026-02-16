@@ -1,6 +1,5 @@
 "use client";
 
-import CodeMirror from "@uiw/react-codemirror";
 import { debounce } from "lodash";
 import { Plus, SquareTerminal } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -8,16 +7,16 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useSWRConfig } from "swr";
 import { v4 } from "uuid";
 
+import SQLEditor from "@/components/sql/sql-editor";
 import { type SQLTemplate, useSqlEditorStore } from "@/components/sql/sql-editor-store";
-import { extensions, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/use-toast";
 
-interface SQLEditorProps {
+interface TemplateEditorProps {
   className?: string;
 }
 
-export default function SQLEditor({ className }: SQLEditorProps) {
+export default function TemplateEditor({ className }: TemplateEditorProps) {
   const { projectId, id } = useParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -114,15 +113,12 @@ export default function SQLEditor({ className }: SQLEditorProps) {
   return (
     <div className="flex border rounded bg-secondary overflow-auto w-full h-full">
       {template ? (
-        <CodeMirror
-          placeholder="Enter your SQL query..."
-          theme={theme}
-          className="size-full"
-          extensions={extensions}
+        <SQLEditor
+          value={template?.query ?? ""}
+          onChange={handleQueryChange}
           editable
           autoFocus
-          value={template?.query}
-          onChange={handleQueryChange}
+          projectId={projectId as string}
         />
       ) : (
         <div className="flex items-center justify-center w-full h-full">
