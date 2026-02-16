@@ -1,9 +1,11 @@
 import { type Row } from "@tanstack/react-table";
 import { useMemo } from "react";
 
+import { useEvalStore } from "@/components/evaluation/store";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { type EvalRow } from "@/lib/evaluation/types";
 
+import EvalTableSkeleton from "./eval-table-skeleton";
 import EvaluationDatapointsTableContent from "./evaluation-datapoints-table-content";
 
 export interface EvaluationDatapointsTableProps {
@@ -22,16 +24,21 @@ const baseColumnOrder = ["status", "index", "data", "target", "metadata", "outpu
 
 const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
   const { scores, isLoading } = props;
+  const customColumns = useEvalStore((s) => s.customColumns);
   const defaultColumnOrder = useMemo(
-    () => [...baseColumnOrder, ...scores.map((s) => `score:${s}`)],
-    [scores]
+    () => [
+      ...baseColumnOrder,
+      ...scores.map((s) => `score:${s}`),
+      ...customColumns.map((cc) => `custom:${cc.name}`),
+    ],
+    [scores, customColumns]
   );
 
   // Delay mounting the store until scores are known, otherwise the store
   // is created with an incomplete defaultColumnOrder and score columns
   // won't be reorderable.
   if (isLoading) {
-    return null;
+    return <EvalTableSkeleton />;
   }
 
   return (
