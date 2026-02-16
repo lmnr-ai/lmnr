@@ -202,6 +202,10 @@ impl LaminarMcpServer {
         context: RequestContext<RoleServer>,
         Parameters(params): Parameters<SearchSpansParams>,
     ) -> Result<CallToolResult, McpError> {
+        if params.query.trim().is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text("[]")]));
+        }
+
         let project_id = context
             .extensions
             .get::<ProjectId>()
