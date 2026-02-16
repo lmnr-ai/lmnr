@@ -3,8 +3,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::ch::spans::CHSpan;
+
 use super::spans::{
-    get_span_type, get_trace_spans, replace_base64_images, span_short_id, strip_signature_fields,
+    extract_exception_from_events, get_span_type, replace_base64_images, span_short_id,
+    strip_signature_fields,
 };
 use super::utils::{nanoseconds_to_iso, try_parse_json};
 use crate::signals::gemini::{FunctionDeclaration, Tool};
@@ -50,7 +53,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
                     "span_ids": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "REQUIRED. List of span IDs (4-character hex strings, e.g. 'a1b2') to fetch full information for. You MUST always provide this argument."
+                        "description": "REQUIRED. List of span IDs (6-character hex strings, e.g. 'a1b2c3') to fetch full information for. You MUST always provide this argument."
                     }
                 },
                 "required": ["span_ids"]
@@ -87,13 +90,14 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
     }
 }
 
-/// Fetches full span information for specific span IDs (last 4 hex chars of UUID).
+/// Fetches full span information for specific span IDs (last 6 hex chars of UUID).
+/// Queries ClickHouse directly with a suffix filter instead of fetching all spans.
 ///
 /// # Arguments
 /// * `clickhouse` - ClickHouse database client
 /// * `project_id` - Project identifier
 /// * `trace_id` - Trace identifier
-/// * `span_ids` - List of span short IDs (4-char hex suffixes) to fetch full info for
+/// * `span_ids` - List of span short IDs (6-char hex suffixes) to fetch full info for
 ///
 /// # Returns
 /// List of SpanInfo containing full span information including complete input/output
@@ -110,18 +114,39 @@ pub async fn get_full_spans(
     );
     log::debug!("Fetching full info for spans: {:?}", span_ids);
 
-    let ch_spans = get_trace_spans(clickhouse, project_id, trace_id).await?;
+    // Validate and collect hex suffixes for the SQL IN clause
+    let hex_literals: Vec<String> = span_ids
+        .iter()
+        .filter(|id| id.chars().all(|c| c.is_ascii_hexdigit()))
+        .map(|id| format!("'{}'", id.to_lowercase()))
+        .collect();
 
-    if ch_spans.is_empty() {
-        log::warn!("No spans found for trace {}", trace_id);
+    if hex_literals.is_empty() {
         return Ok(vec![]);
     }
 
-    let requested: std::collections::HashSet<&str> = span_ids.iter().map(|s| s.as_str()).collect();
+    let in_clause = hex_literals.join(", ");
+
+    let query = format!(
+        r#"
+        SELECT *
+        FROM spans
+        WHERE trace_id = ? AND project_id = ?
+          AND lower(right(hex(span_id), 6)) IN ({})
+        ORDER BY start_time ASC
+        "#,
+        in_clause
+    );
+
+    let ch_spans = clickhouse
+        .query(&query)
+        .bind(trace_id)
+        .bind(project_id)
+        .fetch_all::<CHSpan>()
+        .await?;
 
     let result_spans: Vec<SpanInfo> = ch_spans
         .iter()
-        .filter(|ch_span| requested.contains(span_short_id(&ch_span.span_id).as_str()))
         .map(|ch_span| {
             let parent = if ch_span.parent_span_id != Uuid::nil() {
                 Some(span_short_id(&ch_span.parent_span_id))
@@ -129,11 +154,7 @@ pub async fn get_full_spans(
                 None
             };
 
-            let exception = if ch_span.exception.is_empty() {
-                None
-            } else {
-                Some(try_parse_json(&ch_span.exception)).filter(|v| !v.is_null())
-            };
+            let exception = extract_exception_from_events(&ch_span.events);
 
             SpanInfo {
                 id: span_short_id(&ch_span.span_id),

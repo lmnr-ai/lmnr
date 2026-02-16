@@ -1,10 +1,11 @@
 use anyhow::Result;
 use chrono::DateTime;
-use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
+
+use crate::ch::spans::CHSpan;
 
 use super::utils::try_parse_json;
 
@@ -12,26 +13,6 @@ const TRUNCATE_THRESHOLD: usize = 1024;
 const BASE64_IMAGE_PLACEHOLDER: &str = "[base64 image omitted]";
 /// Max chars to keep per message in LLM span inputs (~1K tokens).
 const LLM_MESSAGE_MAX_CHARS: usize = 3000;
-
-/// Raw span from ClickHouse with exception data
-#[derive(Row, Serialize, Deserialize, Debug, Clone)]
-pub struct CHSpanWithException {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub span_id: Uuid,
-    pub name: String,
-    pub span_type: u8,
-    pub path: String,
-    /// Start time in nanoseconds
-    pub start_time: i64,
-    /// End time in nanoseconds
-    pub end_time: i64,
-    pub input: String,
-    pub output: String,
-    pub status: String,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub parent_span_id: Uuid,
-    pub exception: String,
-}
 
 /// Compressed span identified by the last 4 hex chars of its UUID
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -55,10 +36,12 @@ pub struct CompressedSpan {
     pub exception: Option<Value>,
 }
 
-/// Extract the last 4 hex characters of a UUID as a short identifier.
+const SPAN_SHORT_ID_LEN: usize = 6;
+
+/// Extract the last 6 hex characters of a UUID as a short identifier.
 pub fn span_short_id(uuid: &Uuid) -> String {
     let s = uuid.to_string().replace('-', "");
-    s[s.len() - 4..].to_string()
+    s[s.len() - SPAN_SHORT_ID_LEN..].to_string()
 }
 
 /// Format a nanosecond timestamp as a human-readable UTC string.
@@ -170,10 +153,20 @@ pub fn strip_signature_fields(value: &Value) -> Value {
     }
 }
 
+/// Extract exception attributes from span events.
+/// Events are stored as `(timestamp, name, attributes)` tuples; we look for `name == "exception"`.
+pub fn extract_exception_from_events(events: &[(i64, String, String)]) -> Option<Value> {
+    events
+        .iter()
+        .find(|(_, name, _)| name == "exception")
+        .map(|(_, _, attrs)| try_parse_json(attrs))
+        .filter(|v| !v.is_null())
+}
+
 /// Compress span content based on type and occurrence.
 /// Spans are identified by the last 4 hex chars of their UUID, which is stable
 /// across iterations regardless of span arrival order.
-pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<CompressedSpan> {
+pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
     // Build span UUID to short ID mapping
     let span_uuid_to_short: HashMap<Uuid, String> = ch_spans
         .iter()
@@ -239,11 +232,7 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
                 (input_opt, output_opt)
             };
 
-            let exception = if !ch_span.exception.is_empty() && ch_span.exception != "<null>" {
-                Some(try_parse_json(&ch_span.exception))
-            } else {
-                None
-            };
+            let exception = extract_exception_from_events(&ch_span.events);
 
             CompressedSpan {
                 id: span_short_id(&ch_span.span_id),
@@ -284,40 +273,18 @@ pub async fn get_trace_spans(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
     trace_id: Uuid,
-) -> Result<Vec<CHSpanWithException>> {
+) -> Result<Vec<CHSpan>> {
     let query = r#"
-        SELECT
-            s.span_id,
-            s.name,
-            s.span_type,
-            s.path,
-            s.start_time,
-            s.end_time,
-            s.input,
-            s.output,
-            s.status,
-            s.parent_span_id,
-            COALESCE(e.exception, '') as exception
-        FROM spans s
-        LEFT JOIN (
-            SELECT 
-                span_id,
-                any(attributes) as exception
-            FROM events
-            WHERE project_id = ? AND trace_id = ? AND name = 'exception'
-            GROUP BY span_id
-        ) e ON s.span_id = e.span_id
-        WHERE s.trace_id = ? AND s.project_id = ?
-        ORDER BY s.start_time ASC
+        SELECT * FROM spans
+        WHERE project_id = ? AND trace_id = ?
+        ORDER BY start_time ASC
     "#;
 
     let spans = clickhouse
         .query(query)
         .bind(project_id)
         .bind(trace_id)
-        .bind(trace_id)
-        .bind(project_id)
-        .fetch_all::<CHSpanWithException>()
+        .fetch_all::<CHSpan>()
         .await?;
 
     Ok(spans)
