@@ -1,356 +1,27 @@
 import { SQLDialect } from "@codemirror/lang-sql";
-import { StateField, StateEffect, type EditorState } from "@codemirror/state";
-import { showTooltip, type EditorView } from "@codemirror/view";
-import type { Tooltip as TooltipType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
-import { getFunctionSignature, type FunctionSignature, clickhouseFunctionSignatures } from "./clickhouse-signatures";
+import { type EditorState, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import {
+  Decoration,
+  type DecorationSet,
+  type EditorView,
+  showTooltip,
+  type Tooltip as TooltipType,
+  ViewPlugin,
+} from "@codemirror/view";
 
-const clickhouseFunctions = {
-  // String functions
-  string: [
-    { name: "concat", description: "Concatenates strings" },
-    { name: "substring", description: "Returns substring from position for specified length" },
-    { name: "lower", description: "Converts string to lowercase" },
-    { name: "upper", description: "Converts string to uppercase" },
-    { name: "trim", description: "Removes leading and trailing whitespace" },
-    { name: "ltrim", description: "Removes leading whitespace" },
-    { name: "rtrim", description: "Removes trailing whitespace" },
-    { name: "length", description: "Returns length of string" },
-    { name: "lengthUTF8", description: "Returns length of UTF-8 string in Unicode code points" },
-    { name: "replace", description: "Replaces all occurrences of substring" },
-    { name: "replaceOne", description: "Replaces first occurrence of substring" },
-    { name: "replaceRegexpOne", description: "Replaces first match of regexp pattern" },
-    { name: "replaceRegexpAll", description: "Replaces all matches of regexp pattern" },
-    { name: "splitByChar", description: "Splits string by character into array" },
-    { name: "splitByString", description: "Splits string by substring into array" },
-    { name: "position", description: "Returns position of substring" },
-    { name: "positionCaseInsensitive", description: "Case-insensitive position search" },
-    { name: "match", description: "Checks if string matches regexp pattern" },
-    { name: "extract", description: "Extracts substring using regexp pattern" },
-    { name: "extractAll", description: "Extracts all substrings matching regexp pattern" },
-    { name: "like", description: "Pattern matching with wildcards" },
-    { name: "notLike", description: "Negated pattern matching" },
-    { name: "startsWith", description: "Checks if string starts with prefix" },
-    { name: "endsWith", description: "Checks if string ends with suffix" },
-    { name: "format", description: "Formats string with arguments" },
-    { name: "formatRow", description: "Formats row according to format" },
-    { name: "reverse", description: "Reverses string" },
-    { name: "repeat", description: "Repeats string n times" },
-    { name: "empty", description: "Checks if string is empty" },
-    { name: "notEmpty", description: "Checks if string is not empty" },
-    { name: "lcase", description: "Alias for lower" },
-    { name: "ucase", description: "Alias for upper" },
-  ],
-  // Date and time functions
-  datetime: [
-    { name: "now", description: "Returns current date and time" },
-    { name: "today", description: "Returns current date" },
-    { name: "yesterday", description: "Returns yesterday's date" },
-    { name: "toDate", description: "Converts value to Date" },
-    { name: "toDateTime", description: "Converts value to DateTime" },
-    { name: "toDateTime64", description: "Converts value to DateTime64 with precision" },
-    { name: "toUnixTimestamp", description: "Converts DateTime to Unix timestamp" },
-    { name: "toStartOfYear", description: "Rounds down to start of year" },
-    { name: "toStartOfQuarter", description: "Rounds down to start of quarter" },
-    { name: "toStartOfMonth", description: "Rounds down to start of month" },
-    { name: "toStartOfWeek", description: "Rounds down to start of week" },
-    { name: "toStartOfDay", description: "Rounds down to start of day" },
-    { name: "toStartOfHour", description: "Rounds down to start of hour" },
-    { name: "toStartOfMinute", description: "Rounds down to start of minute" },
-    { name: "toStartOfSecond", description: "Rounds down to start of second" },
-    { name: "toStartOfFiveMinutes", description: "Rounds down to start of five-minute interval" },
-    { name: "toStartOfTenMinutes", description: "Rounds down to start of ten-minute interval" },
-    { name: "toStartOfFifteenMinutes", description: "Rounds down to start of fifteen-minute interval" },
-    { name: "toStartOfInterval", description: "Rounds down to start of interval" },
-    { name: "toYear", description: "Extracts year from date" },
-    { name: "toQuarter", description: "Extracts quarter from date" },
-    { name: "toMonth", description: "Extracts month from date" },
-    { name: "toDayOfYear", description: "Extracts day of year from date" },
-    { name: "toDayOfMonth", description: "Extracts day of month from date" },
-    { name: "toDayOfWeek", description: "Extracts day of week from date" },
-    { name: "toHour", description: "Extracts hour from datetime" },
-    { name: "toMinute", description: "Extracts minute from datetime" },
-    { name: "toSecond", description: "Extracts second from datetime" },
-    { name: "toMonday", description: "Rounds down to nearest Monday" },
-    { name: "formatDateTime", description: "Formats datetime according to format string" },
-    { name: "parseDateTimeBestEffort", description: "Parses datetime string in various formats" },
-    { name: "parseDateTimeBestEffortOrNull", description: "Parses datetime or returns NULL" },
-    { name: "parseDateTime64BestEffort", description: "Parses datetime with subsecond precision" },
-    { name: "dateDiff", description: "Calculates difference between two dates" },
-    { name: "dateAdd", description: "Adds interval to date" },
-    { name: "dateSub", description: "Subtracts interval from date" },
-    { name: "addYears", description: "Adds years to date" },
-    { name: "addMonths", description: "Adds months to date" },
-    { name: "addWeeks", description: "Adds weeks to date" },
-    { name: "addDays", description: "Adds days to date" },
-    { name: "addHours", description: "Adds hours to datetime" },
-    { name: "addMinutes", description: "Adds minutes to datetime" },
-    { name: "addSeconds", description: "Adds seconds to datetime" },
-    { name: "subtractYears", description: "Subtracts years from date" },
-    { name: "subtractMonths", description: "Subtracts months from date" },
-    { name: "subtractWeeks", description: "Subtracts weeks from date" },
-    { name: "subtractDays", description: "Subtracts days from date" },
-    { name: "subtractHours", description: "Subtracts hours from datetime" },
-    { name: "subtractMinutes", description: "Subtracts minutes from datetime" },
-    { name: "subtractSeconds", description: "Subtracts seconds from datetime" },
-    { name: "timeSlot", description: "Rounds time down to 30-minute interval" },
-    { name: "toYYYYMM", description: "Converts date to YYYYMM format" },
-    { name: "toYYYYMMDD", description: "Converts date to YYYYMMDD format" },
-    { name: "toYYYYMMDDhhmmss", description: "Converts datetime to YYYYMMDDhhmmss format" },
-  ],
-  // Aggregation functions
-  aggregation: [
-    { name: "count", description: "Counts number of rows" },
-    { name: "sum", description: "Calculates sum of values" },
-    { name: "avg", description: "Calculates average of values" },
-    { name: "min", description: "Returns minimum value" },
-    { name: "max", description: "Returns maximum value" },
-    { name: "any", description: "Returns any value from group" },
-    { name: "anyLast", description: "Returns last value from group" },
-    { name: "anyHeavy", description: "Returns frequently occurring value" },
-    { name: "groupArray", description: "Creates array of values" },
-    { name: "groupArraySample", description: "Creates array with sampling" },
-    { name: "groupUniqArray", description: "Creates array of unique values" },
-    { name: "groupArrayInsertAt", description: "Inserts values at positions in array" },
-    { name: "groupArrayMovingSum", description: "Calculates moving sum" },
-    { name: "groupArrayMovingAvg", description: "Calculates moving average" },
-    { name: "groupBitAnd", description: "Bitwise AND of values" },
-    { name: "groupBitOr", description: "Bitwise OR of values" },
-    { name: "groupBitXor", description: "Bitwise XOR of values" },
-    { name: "groupBitmap", description: "Bitmap from values" },
-    { name: "groupBitmapAnd", description: "Bitmap AND operation" },
-    { name: "groupBitmapOr", description: "Bitmap OR operation" },
-    { name: "groupBitmapXor", description: "Bitmap XOR operation" },
-    { name: "uniq", description: "Counts unique values approximately" },
-    { name: "uniqExact", description: "Counts unique values exactly" },
-    { name: "uniqCombined", description: "Counts unique values with combined algorithm" },
-    { name: "uniqHLL12", description: "Counts unique values with HyperLogLog" },
-    { name: "uniqTheta", description: "Counts unique values with Theta Sketch" },
-    { name: "quantile", description: "Calculates quantile approximately" },
-    { name: "quantiles", description: "Calculates multiple quantiles" },
-    { name: "quantileExact", description: "Calculates quantile exactly" },
-    { name: "quantileTiming", description: "Calculates quantile for timing data" },
-    { name: "quantileDeterministic", description: "Calculates quantile deterministically" },
-    { name: "median", description: "Calculates median value" },
-    { name: "varSamp", description: "Calculates sample variance" },
-    { name: "varPop", description: "Calculates population variance" },
-    { name: "stddevSamp", description: "Calculates sample standard deviation" },
-    { name: "stddevPop", description: "Calculates population standard deviation" },
-    { name: "covarSamp", description: "Calculates sample covariance" },
-    { name: "covarPop", description: "Calculates population covariance" },
-    { name: "corr", description: "Calculates correlation coefficient" },
-    { name: "topK", description: "Returns top K frequent values" },
-    { name: "topKWeighted", description: "Returns top K values by weight" },
-  ],
-  // Math functions
-  math: [
-    { name: "abs", description: "Returns absolute value" },
-    { name: "round", description: "Rounds to nearest integer or decimal places" },
-    { name: "floor", description: "Rounds down to nearest integer" },
-    { name: "ceil", description: "Rounds up to nearest integer" },
-    { name: "ceiling", description: "Alias for ceil" },
-    { name: "trunc", description: "Truncates to integer" },
-    { name: "truncate", description: "Alias for trunc" },
-    { name: "sqrt", description: "Calculates square root" },
-    { name: "cbrt", description: "Calculates cube root" },
-    { name: "pow", description: "Raises to power" },
-    { name: "power", description: "Alias for pow" },
-    { name: "exp", description: "Calculates e^x" },
-    { name: "log", description: "Calculates natural logarithm" },
-    { name: "ln", description: "Alias for log" },
-    { name: "log2", description: "Calculates base-2 logarithm" },
-    { name: "log10", description: "Calculates base-10 logarithm" },
-    { name: "sin", description: "Calculates sine" },
-    { name: "cos", description: "Calculates cosine" },
-    { name: "tan", description: "Calculates tangent" },
-    { name: "asin", description: "Calculates arcsine" },
-    { name: "acos", description: "Calculates arccosine" },
-    { name: "atan", description: "Calculates arctangent" },
-    { name: "sign", description: "Returns sign of number (-1, 0, 1)" },
-    { name: "mod", description: "Calculates remainder of division" },
-    { name: "modulo", description: "Alias for mod" },
-    { name: "greatest", description: "Returns maximum of values" },
-    { name: "least", description: "Returns minimum of values" },
-    { name: "e", description: "Returns Euler's number" },
-    { name: "pi", description: "Returns pi constant" },
-    { name: "rand", description: "Generates random UInt32 number" },
-    { name: "randConstant", description: "Generates constant random number" },
-    { name: "rand64", description: "Generates random UInt64 number" },
-  ],
-  // Array functions
-  array: [
-    { name: "array", description: "Creates array from arguments" },
-    { name: "arrayJoin", description: "Unnests array into rows" },
-    { name: "arrayMap", description: "Applies lambda function to array" },
-    { name: "arrayFilter", description: "Filters array by lambda predicate" },
-    { name: "arrayReduce", description: "Reduces array using aggregate function" },
-    { name: "arrayExists", description: "Checks if any element satisfies predicate" },
-    { name: "arrayAll", description: "Checks if all elements satisfy predicate" },
-    { name: "arrayFirst", description: "Returns first element satisfying predicate" },
-    { name: "arrayFirstIndex", description: "Returns index of first matching element" },
-    { name: "arrayCount", description: "Counts elements satisfying predicate" },
-    { name: "arraySum", description: "Calculates sum of array elements" },
-    { name: "arrayAvg", description: "Calculates average of array elements" },
-    { name: "arrayMin", description: "Returns minimum array element" },
-    { name: "arrayMax", description: "Returns maximum array element" },
-    { name: "arrayElement", description: "Returns element at index" },
-    { name: "arrayConcat", description: "Concatenates arrays" },
-    { name: "arraySlice", description: "Returns array slice" },
-    { name: "arrayPushBack", description: "Appends element to array" },
-    { name: "arrayPushFront", description: "Prepends element to array" },
-    { name: "arrayPopBack", description: "Removes last element from array" },
-    { name: "arrayPopFront", description: "Removes first element from array" },
-    { name: "arrayResize", description: "Resizes array to specified length" },
-    { name: "arrayReverse", description: "Reverses array" },
-    { name: "arrayFlatten", description: "Flattens nested arrays" },
-    { name: "arraySort", description: "Sorts array" },
-    { name: "arrayReverseSort", description: "Sorts array in reverse order" },
-    { name: "arrayUniq", description: "Counts unique elements in array" },
-    { name: "arrayDistinct", description: "Returns array of unique elements" },
-    { name: "arrayEnumerate", description: "Returns array of indices" },
-    { name: "arrayIntersect", description: "Returns intersection of arrays" },
-    { name: "arrayDifference", description: "Calculates difference between adjacent elements" },
-    { name: "arrayCompact", description: "Removes consecutive duplicate elements" },
-    { name: "arrayZip", description: "Combines arrays into tuples" },
-    { name: "range", description: "Creates array of numbers in range" },
-    { name: "has", description: "Checks if array contains element" },
-    { name: "hasAll", description: "Checks if array contains all elements" },
-    { name: "hasAny", description: "Checks if array contains any element" },
-    { name: "indexOf", description: "Returns index of element in array" },
-    { name: "countEqual", description: "Counts occurrences of element" },
-    { name: "arrayEnumerateUniq", description: "Enumerates unique elements" },
-    { name: "arrayEnumerateDense", description: "Enumerates elements densely" },
-  ],
-  // Tuple functions
-  tuple: [
-    { name: "tuple", description: "Creates a tuple by grouping input arguments" },
-    { name: "tupleElement", description: "Extracts an element from a tuple by index or name" },
-    { name: "untuple", description: "Performs syntactic substitution of tuple elements" },
-    { name: "tupleNames", description: "Converts a tuple into an array of column names" },
-    { name: "tupleToNameValuePairs", description: "Converts a tuple to an array of (name, value) pairs" },
-    { name: "tuplePlus", description: "Calculates the sum of corresponding elements of two tuples" },
-    { name: "tupleMinus", description: "Calculates the difference between corresponding elements of two tuples" },
-    { name: "tupleMultiply", description: "Calculates the multiplication of corresponding elements of two tuples" },
-    { name: "tupleDivide", description: "Calculates the division of corresponding elements of two tuples" },
-    { name: "tupleNegate", description: "Calculates the negation of the tuple elements" },
-    { name: "tupleMultiplyByNumber", description: "Multiplies all tuple elements by a number" },
-    { name: "tupleDivideByNumber", description: "Divides all tuple elements by a number" },
-    { name: "tupleIntDiv", description: "Performs integer division with tuples of numerators and denominators" },
-    { name: "tupleIntDivByNumber", description: "Performs integer division of a tuple by a number" },
-    { name: "tupleIntDivOrZero", description: "Integer division of tuples, returns 0 for division by zero" },
-    { name: "tupleIntDivOrZeroByNumber", description: "Integer division of tuple by number, returns 0 for division by zero" },
-    { name: "tupleModulo", description: "Returns remainders of division operations of two tuples" },
-    { name: "tupleModuloByNumber", description: "Returns remainders of division of tuple by number" },
-    { name: "tupleConcat", description: "Combines tuples passed as arguments" },
-    { name: "tupleHammingDistance", description: "Returns the Hamming Distance between two tuples of the same size" },
-    { name: "flattenTuple", description: "Flattens a named and nested tuple" },
-    { name: "vectorSum", description: "Alias for tuplePlus" },
-    { name: "vectorDifference", description: "Alias for tupleMinus" },
-  ],
-  // Conditional functions
-  conditional: [
-    { name: "if", description: "Returns value based on condition" },
-    { name: "multiIf", description: "Chain multiple conditions" },
-    { name: "case", description: "CASE expression" },
-    { name: "coalesce", description: "Returns first non-null value" },
-    { name: "ifNull", description: "Returns alternative if null" },
-    { name: "nullIf", description: "Returns null if values are equal" },
-    { name: "assumeNotNull", description: "Converts Nullable type to non-Nullable" },
-    { name: "toNullable", description: "Converts type to Nullable" },
-  ],
-  // Type conversion functions
-  conversion: [
-    { name: "toString", description: "Converts value to String" },
-    { name: "toInt8", description: "Converts to Int8" },
-    { name: "toInt16", description: "Converts to Int16" },
-    { name: "toInt32", description: "Converts to Int32" },
-    { name: "toInt64", description: "Converts to Int64" },
-    { name: "toInt128", description: "Converts to Int128" },
-    { name: "toInt256", description: "Converts to Int256" },
-    { name: "toUInt8", description: "Converts to UInt8" },
-    { name: "toUInt16", description: "Converts to UInt16" },
-    { name: "toUInt32", description: "Converts to UInt32" },
-    { name: "toUInt64", description: "Converts to UInt64" },
-    { name: "toUInt128", description: "Converts to UInt128" },
-    { name: "toUInt256", description: "Converts to UInt256" },
-    { name: "toFloat32", description: "Converts to Float32" },
-    { name: "toFloat64", description: "Converts to Float64" },
-    { name: "toDecimal32", description: "Converts to Decimal32" },
-    { name: "toDecimal64", description: "Converts to Decimal64" },
-    { name: "toDecimal128", description: "Converts to Decimal128" },
-    { name: "toDecimal256", description: "Converts to Decimal256" },
-    { name: "cast", description: "Casts value to specified type" },
-    { name: "toStringOrNull", description: "Converts to String or returns NULL" },
-    { name: "toInt32OrNull", description: "Converts to Int32 or returns NULL" },
-    { name: "toInt64OrNull", description: "Converts to Int64 or returns NULL" },
-    { name: "toFloat32OrNull", description: "Converts to Float32 or returns NULL" },
-    { name: "toFloat64OrNull", description: "Converts to Float64 or returns NULL" },
-    { name: "toDateOrNull", description: "Converts to Date or returns NULL" },
-    { name: "toDateTimeOrNull", description: "Converts to DateTime or returns NULL" },
-    { name: "accurateCast", description: "Casts with overflow check" },
-    { name: "accurateCastOrNull", description: "Casts with overflow check or returns NULL" },
-  ],
-  // JSON functions
-  json: [
-    { name: "JSONExtract", description: "Extracts value from JSON" },
-    { name: "JSONExtractString", description: "Extracts string from JSON" },
-    { name: "JSONExtractInt", description: "Extracts integer from JSON" },
-    { name: "JSONExtractFloat", description: "Extracts float from JSON" },
-    { name: "JSONExtractBool", description: "Extracts boolean from JSON" },
-    { name: "JSONExtractArrayRaw", description: "Extracts array as raw strings" },
-    { name: "JSONExtractKeys", description: "Extracts keys from JSON object" },
-    { name: "JSONHas", description: "Checks if JSON path exists" },
-    { name: "JSONLength", description: "Returns length of JSON array or object" },
-    { name: "JSONType", description: "Returns type of JSON value" },
-    { name: "JSONExtractRaw", description: "Extracts raw JSON string" },
-    { name: "simpleJSONExtractString", description: "Extract string from JSON by key (w/ simplifying assumptions)" },
-    { name: "visitParamExtractString", description: "Extract string from JSON by key (w/ simplifying assumptions)" },
-    { name: "simpleJSONExtractInt", description: "Extract integer from JSON by key (w/ simplifying assumptions)" },
-    { name: "visitParamExtractInt", description: "Extract integer from JSON by key (w/ simplifying assumptions)" },
-    { name: "simpleJSONExtractFloat", description: "Extract float from JSON by key (w/ simplifying assumptions)" },
-    { name: "visitParamExtractFloat", description: "Extract float from JSON by key (w/ simplifying assumptions)" },
-    { name: "simpleJSONExtractBool", description: "Extract boolean from JSON by key (w/ simplifying assumptions)" },
-    { name: "visitParamExtractBool", description: "Extract boolean from JSON by key (w/ simplifying assumptions)" },
-    { name: "simpleJSONExtractRaw", description: "Extract raw JSON string by key (w/ simplifying assumptions)" },
-    { name: "visitParamExtractRaw", description: "Extract raw JSON string by key (w/ simplifying assumptions)" },
-    { name: "simpleJSONHas", description: "Checks if key exists in JSON (w/ simplifying assumptions)" },
-    { name: "visitParamHas", description: "Checks if key exists in JSON (w/ simplifying assumptions)" },
-  ],
-  // Window functions
-  window: [
-    { name: "row_number", description: "Sequential row number within partition" },
-    { name: "rank", description: "Rank with gaps" },
-    { name: "dense_rank", description: "Rank without gaps" },
-    { name: "lag", description: "Accesses previous row value" },
-    { name: "lead", description: "Accesses next row value" },
-    { name: "first_value", description: "Returns first value in window" },
-    { name: "last_value", description: "Returns last value in window" },
-  ],
-  // Other functions
-  other: [
-    { name: "isNull", description: "Checks if value is NULL" },
-    { name: "isNotNull", description: "Checks if value is not NULL" },
-    { name: "isNaN", description: "Checks if value is NaN" },
-    { name: "isFinite", description: "Checks if value is finite" },
-    { name: "isInfinite", description: "Checks if value is infinite" },
-    { name: "distinct", description: "Removes duplicates" },
-    { name: "groupConcat", description: "Concatenates strings with separator" },
-    { name: "neighbor", description: "Returns value from neighbor row" },
-    { name: "runningDifference", description: "Calculates difference with previous row" },
-    { name: "runningAccumulate", description: "Accumulates aggregate state" },
-    { name: "generateUUIDv4", description: "Generates random UUID version 4" },
-    { name: "cityHash64", description: "Calculates CityHash64" },
-    { name: "MD5", description: "Calculates MD5 hash" },
-    { name: "SHA1", description: "Calculates SHA1 hash" },
-    { name: "SHA256", description: "Calculates SHA256 hash" },
-    { name: "geoDistance", description: "Calculates geographic distance" },
-  ],
-};
+import { clickhouseFunctionSignatures, type FunctionSignature, getFunctionSignature } from "./clickhouse-signatures";
 
-const clickhouseFunctionNames = Object.values(clickhouseFunctions)
-  .flat()
-  .map((fn) => fn.name)
-  .join(" ");
+// Derive simple function list from signatures (single source of truth)
+const clickhouseFunctions = Object.values(clickhouseFunctionSignatures).map((sig) => ({
+  name: sig.name,
+  description: sig.description,
+}));
+
+// Pre-compute function names set for O(1) lookup (computed once at module load)
+const clickhouseFunctionNamesSet = new Set(clickhouseFunctions.map((fn) => fn.name.toLowerCase()));
+
+const clickhouseFunctionNames = clickhouseFunctions.map((fn) => fn.name).join(" ");
 
 const ClickHouseDialect = SQLDialect.define({
   builtin: clickhouseFunctionNames,
@@ -365,7 +36,84 @@ const ClickHouseDialect = SQLDialect.define({
   hashComments: false,
 });
 
+// Pre-created decoration marks (reused for performance)
+const functionDecoration = Decoration.mark({ class: "cm-sql-function" });
+const knownIdentifierDecoration = Decoration.mark({ class: "cm-sql-known-identifier" });
+const unknownIdentifierDecoration = Decoration.mark({ class: "cm-sql-unknown-identifier" });
 
+/**
+ * Creates a syntax highlighter for ClickHouse identifiers.
+ * Accepts a set of known identifiers (tables/columns) to highlight differently.
+ */
+function createIdentifierHighlighter(knownIdentifiers: Set<string>) {
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+
+      constructor(view: EditorView) {
+        this.decorations = this.buildDecorations(view);
+      }
+
+      update(update: { view: EditorView; docChanged: boolean; viewportChanged: boolean }) {
+        // Only rebuild if document changed or viewport changed significantly
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = this.buildDecorations(update.view);
+        }
+      }
+
+      buildDecorations(view: EditorView): DecorationSet {
+        const builder = new RangeSetBuilder<Decoration>();
+        const doc = view.state.doc;
+        const tree = syntaxTree(view.state);
+
+        // Only process visible ranges for better performance
+        const { from, to } = view.viewport;
+        const ranges: Array<{ from: number; to: number; decoration: Decoration }> = [];
+
+        tree.iterate({
+          from,
+          to,
+          enter: (node) => {
+            // Look for identifiers
+            if (node.name === "Identifier" || node.name === "VariableName" || node.name === "Name") {
+              const text = doc.sliceString(node.from, node.to);
+              const lowerText = text.toLowerCase();
+              const nextChar = doc.sliceString(node.to, node.to + 1);
+
+              let decoration: Decoration;
+
+              // Check if it's a function call (followed by '(')
+              if (nextChar === "(" && clickhouseFunctionNamesSet.has(lowerText)) {
+                decoration = functionDecoration;
+              }
+              // Check if it's a known table/column
+              else if (knownIdentifiers.has(lowerText)) {
+                decoration = knownIdentifierDecoration;
+              }
+              // Unknown identifier
+              else {
+                decoration = unknownIdentifierDecoration;
+              }
+
+              ranges.push({ from: node.from, to: node.to, decoration });
+            }
+          },
+        });
+
+        // Sort ranges by position and add them to the builder
+        ranges.sort((a, b) => a.from - b.from);
+        for (const { from, to, decoration } of ranges) {
+          builder.add(from, to, decoration);
+        }
+
+        return builder.finish();
+      }
+    },
+    {
+      decorations: (v) => v.decorations,
+    }
+  );
+}
 
 // Signature Help Implementation
 
@@ -588,4 +336,10 @@ const signatureTooltipField = StateField.define<FunctionCallContext | null>({
 
 const signatureHelp = [signatureTooltipField];
 
-export { ClickHouseDialect, clickhouseFunctions, signatureHelp };
+export {
+  ClickHouseDialect,
+  clickhouseFunctionNamesSet,
+  clickhouseFunctions,
+  createIdentifierHighlighter,
+  signatureHelp,
+};

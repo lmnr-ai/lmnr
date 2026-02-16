@@ -214,7 +214,7 @@ export default function EditorPanel() {
         <SQLEditor />
       </ResizablePanel>
       <ResizableHandle className="z-30 bg-transparent transition-colors duration-200" withHandle />
-      <ResizablePanel className="flex flex-col h-full mt-2" defaultSize={60} minSize={20}>
+      <ResizablePanel className="flex flex-col w-full mt-2" defaultSize={60} minSize={20}>
         <Tabs className="flex flex-col h-full overflow-hidden" defaultValue="table">
           <div className="flex items-center h-fit">
             <TabsList className="text-xs">

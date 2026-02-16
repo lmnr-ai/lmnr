@@ -4,167 +4,227 @@ import {
   completionKeymap,
   type CompletionResult,
 } from "@codemirror/autocomplete";
-import { schemaCompletionSource, sql, type SQLConfig, type SQLNamespace } from "@codemirror/lang-sql";
-import { highlightSelectionMatches, search } from "@codemirror/search";
-import { Prec, RangeSetBuilder } from "@codemirror/state";
-import { EditorView, keymap, Decoration, ViewPlugin, type DecorationSet } from "@codemirror/view";
-import { createTheme, type CreateThemeOptions } from "@uiw/codemirror-themes";
+import {
+  keywordCompletionSource,
+  schemaCompletionSource,
+  sql,
+  type SQLConfig,
+  type SQLNamespace,
+} from "@codemirror/lang-sql";
 import { syntaxTree } from "@codemirror/language";
+import { highlightSelectionMatches, search } from "@codemirror/search";
+import { Prec } from "@codemirror/state";
+import { EditorView, keymap } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
-import type { EditorView as EditorViewType } from "@codemirror/view";
+import { createTheme, type CreateThemeOptions } from "@uiw/codemirror-themes";
 
-import { ClickHouseDialect, clickhouseFunctions, signatureHelp } from "@/components/ui/content-renderer/lang-clickhouse.ts";
-import { defaultThemeSettings, githubDarkStyle } from "@/components/ui/content-renderer/utils";
+import {
+  ClickHouseDialect,
+  clickhouseFunctions,
+  createIdentifierHighlighter,
+  signatureHelp,
+} from "@/components/ui/content-renderer/lang-clickhouse.ts";
+import { defaultThemeSettings } from "@/components/ui/content-renderer/utils";
 
+// Table schemas with descriptions - single source of truth for table metadata
 const tableSchemas = {
-  spans: [
-    { name: "span_id", type: "UUID", description: "Unique identifier for the span" },
-    { name: "status", type: "String", description: "Status of the span" },
-    { name: "name", type: "String", description: "Name of the span" },
-    { name: "path", type: "String", description: "Hierarchical path of the span (e.g., 'outer.inner')" },
-    { name: "parent_span_id", type: "UUID", description: "ID of the parent span" },
-    {
-      name: "span_type",
-      type: "span_type",
-      description: "Stringified enum value of the span type (DEFAULT, LLM, EXECUTOR, EVALUATOR, EVALUATION, TOOL)",
-    },
-    { name: "start_time", type: "DateTime64(9, 'UTC')", description: "When the span started" },
-    { name: "end_time", type: "DateTime64(9, 'UTC')", description: "When the span ended" },
-    { name: "duration", type: "Float64", description: "Duration in seconds (end_time - start_time)" },
-    { name: "input", type: "String", description: "Input data for the span as a stringified JSON" },
-    { name: "output", type: "String", description: "Output data from the span as a stringified JSON" },
-    { name: "request_model", type: "String", description: "LLM model specified in the request" },
-    { name: "response_model", type: "String", description: "LLM model returned in the response" },
-    { name: "model", type: "String", description: "LLM model used. Is a coalesce of request_model and response_model" },
-    { name: "provider", type: "String", description: "LLM provider, e.g. openai, anthropic, etc." },
-    { name: "input_tokens", type: "UInt64", description: "Number of input tokens" },
-    { name: "output_tokens", type: "UInt64", description: "Number of output tokens" },
-    { name: "total_tokens", type: "UInt64", description: "Total tokens used" },
-    { name: "input_cost", type: "Float64", description: "Cost for input tokens" },
-    { name: "output_cost", type: "Float64", description: "Cost for output tokens" },
-    { name: "total_cost", type: "Float64", description: "Total cost of the span" },
-    { name: "attributes", type: "String", description: "Span attributes as stringified JSON" },
-    { name: "trace_id", type: "UUID", description: "ID of the trace" },
-    {
-      name: "tags",
-      type: "Array(String)",
-      description: "Tags associated with the span as an array of strings",
-    },
-    {
-      name: "events",
-      type: "Array(Tuple(timestamp Int64, name String, attributes String))",
-      description: "Events associated with the span",
-    },
-  ],
-  traces: [
-    // Core columns
-    { name: "id", type: "UUID", description: "Unique identifier for the trace" },
-    {
-      name: "trace_type",
-      type: "trace_type",
-      description: "Stringified enum value of the trace type (DEFAULT, EVALUATION, PLAYGROUND)",
-    },
-    { name: "metadata", type: "String", description: "Trace metadata as stringified JSON" },
-    { name: "start_time", type: "DateTime64(9, 'UTC')", description: "When the trace started" },
-    { name: "end_time", type: "DateTime64(9, 'UTC')", description: "When the trace ended" },
-    { name: "duration", type: "Float64", description: "Duration in seconds (end_time - start_time)" },
-    { name: "input_tokens", type: "Int64", description: "Number of input tokens" },
-    { name: "output_tokens", type: "Int64", description: "Number of output tokens" },
-    { name: "total_tokens", type: "Int64", description: "Total tokens used" },
-    { name: "input_cost", type: "Float64", description: "Cost for input tokens" },
-    { name: "output_cost", type: "Float64", description: "Cost for output tokens" },
-    { name: "total_cost", type: "Float64", description: "Total cost of the span" },
-    { name: "status", type: "String", description: "Status of the trace" },
-    { name: "user_id", type: "String", description: "User ID sent with the trace" },
-    { name: "session_id", type: "String", description: "Session identifier" },
-    { name: "top_span_id", type: "UUID", description: "ID of the top-level span" },
-    { name: "top_span_name", type: "String", description: "Name of the top-level span" },
-    { name: "top_span_type", type: "span_type", description: "Type of the top-level span" },
-    { name: "tags", type: "Array(String)", description: "Tags associated with the trace" },
-    { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
-  ],
-  dataset_datapoints: [
-    { name: "id", type: "UUID", description: "Unique identifier for the dataset datapoint" },
-    { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the dataset datapoint was created" },
-    { name: "dataset_id", type: "UUID", description: "Unique identifier for the dataset" },
-    { name: "data", type: "String", description: "Input data for the dataset datapoint" },
-    { name: "target", type: "String", description: "Target/expected output" },
-    { name: "metadata", type: "String", description: "Additional metadata" },
-  ],
-  dataset_datapoint_versions: [
-    { name: "id", type: "UUID", description: "Unique identifier for the dataset datapoint" },
-    { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the dataset datapoint version was created" },
-    { name: "dataset_id", type: "UUID", description: "Unique identifier for the dataset" },
-    { name: "data", type: "String", description: "Input data for the dataset datapoint" },
-    { name: "target", type: "String", description: "Target/expected output" },
-    { name: "metadata", type: "String", description: "Additional metadata" },
-  ],
-  evaluation_datapoints: [
-    { name: "id", type: "UUID", description: "Unique identifier for the evaluation datapoint" },
-    { name: "evaluation_id", type: "UUID", description: "Unique identifier for the evaluation" },
-    { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
-    { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the evaluation datapoint was created" },
-    { name: "data", type: "String", description: "Input data for the evaluation datapoint" },
-    { name: "target", type: "String", description: "Target/expected output" },
-    { name: "metadata", type: "String", description: "Additional metadata as stringified JSON" },
-    { name: "executor_output", type: "String", description: "Output from the executor" },
-    { name: "index", type: "UInt64", description: "Index of the evaluation datapoint within the evaluation" },
-    { name: "group_id", type: "String", description: "Group identifier of the evaluation run" },
-    {
-      name: "scores",
-      type: "String",
-      description: "Scores for the evaluation datapoint as a stringified JSON object from score name to value",
-    },
-    { name: "dataset_id", type: "UUID", description: "Unique identifier for the dataset. Nil if the evaluation datapoint is not linked to a dataset" },
-    { name: "dataset_datapoint_id", type: "UUID", description: "Unique identifier for the dataset datapoint. Nil if the evaluation datapoint is not linked to a dataset datapoint" },
-    { name: "dataset_datapoint_created_at", type: "DateTime64(9, 'UTC')", description: "When the dataset datapoint was created. Unix epoch if the evaluation datapoint is not linked to a dataset datapoint" },
-    { name: "duration", type: "Float64", description: "Duration in seconds from associated trace" },
-    { name: "input_cost", type: "Float64", description: "Cost for input tokens from associated trace" },
-    { name: "output_cost", type: "Float64", description: "Cost for output tokens from associated trace" },
-    { name: "total_cost", type: "Float64", description: "Total cost from associated trace" },
-    { name: "start_time", type: "DateTime64(9, 'UTC')", description: "When the trace started" },
-    { name: "end_time", type: "DateTime64(9, 'UTC')", description: "When the trace ended" },
-    { name: "input_tokens", type: "Int64", description: "Number of input tokens from associated trace" },
-    { name: "output_tokens", type: "Int64", description: "Number of output tokens from associated trace" },
-    { name: "total_tokens", type: "Int64", description: "Total tokens used from associated trace" },
-    { name: "trace_status", type: "String", description: "Status of the associated trace" },
-    { name: "trace_metadata", type: "String", description: "Metadata from the associated trace as stringified JSON" },
-    { name: "trace_tags", type: "Array(String)", description: "Tags from the associated trace" },
-    { name: "trace_spans", type: "Array(Tuple(name String, duration Float64, type String))", description: "Spans from the associated trace" },
-  ],
-  signal_runs: [
-    { name: "signal_id", type: "UUID", description: "Unique identifier for the signal" },
-    { name: "job_id", type: "UUID", description: "Unique identifier for the job" },
-    { name: "trigger_id", type: "UUID", description: "Unique identifier for the trigger" },
-    { name: "run_id", type: "UUID", description: "Unique identifier for the run" },
-    { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
-    { name: "status", type: "String", description: "Status of the signal run (PENDING, COMPLETED, FAILED, UNKNOWN)" },
-    { name: "event_id", type: "UUID", description: "Unique identifier for the event" },
-    { name: "error_message", type: "String", description: "Error message if the run failed" },
-    { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the signal run was last updated" },
-  ],
-  signal_events: [
-    { name: "id", type: "UUID", description: "Unique identifier for the signal event" },
-    { name: "signal_id", type: "UUID", description: "Unique identifier for the signal" },
-    { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
-    { name: "run_id", type: "UUID", description: "Unique identifier for the run" },
-    { name: "name", type: "String", description: "Name of the signal event" },
-    { name: "payload", type: "String", description: "Payload of the signal event as stringified JSON" },
-    { name: "timestamp", type: "DateTime64(9, 'UTC')", description: "When the signal event occurred" },
-  ],
-  logs: [
-    { name: "log_id", type: "UUID", description: "Unique identifier for the log" },
-    { name: "time", type: "DateTime64(9, 'UTC')", description: "When the log occurred" },
-    { name: "observed_time", type: "DateTime64(9, 'UTC')", description: "When the log was observed" },
-    { name: "severity_number", type: "UInt8", description: "Severity number of the log" },
-    { name: "severity_text", type: "String", description: "Severity text of the log" },
-    { name: "body", type: "String", description: "Body of the log" },
-    { name: "attributes", type: "String", description: "Attributes of the log as stringified JSON" },
-    { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
-    { name: "span_id", type: "UUID", description: "Unique identifier for the span" },
-    { name: "flags", type: "UInt32", description: "Flags for the log" },
-    { name: "event_name", type: "String", description: "Event name of the log" },
-  ],
+  spans: {
+    description: "Individual spans within traces, containing timing, tokens, costs, and LLM-specific data",
+    columns: [
+      { name: "span_id", type: "UUID", description: "Unique identifier for the span" },
+      { name: "status", type: "String", description: "Status of the span" },
+      { name: "name", type: "String", description: "Name of the span" },
+      { name: "path", type: "String", description: "Hierarchical path of the span (e.g., 'outer.inner')" },
+      { name: "parent_span_id", type: "UUID", description: "ID of the parent span" },
+      {
+        name: "span_type",
+        type: "span_type",
+        description: "Stringified enum value of the span type (DEFAULT, LLM, EXECUTOR, EVALUATOR, EVALUATION, TOOL)",
+      },
+      { name: "start_time", type: "DateTime64(9, 'UTC')", description: "When the span started" },
+      { name: "end_time", type: "DateTime64(9, 'UTC')", description: "When the span ended" },
+      { name: "duration", type: "Float64", description: "Duration in seconds (end_time - start_time)" },
+      { name: "input", type: "String", description: "Input data for the span as a stringified JSON" },
+      { name: "output", type: "String", description: "Output data from the span as a stringified JSON" },
+      { name: "request_model", type: "String", description: "LLM model specified in the request" },
+      { name: "response_model", type: "String", description: "LLM model returned in the response" },
+      {
+        name: "model",
+        type: "String",
+        description: "LLM model used. Is a coalesce of request_model and response_model",
+      },
+      { name: "provider", type: "String", description: "LLM provider, e.g. openai, anthropic, etc." },
+      { name: "input_tokens", type: "UInt64", description: "Number of input tokens" },
+      { name: "output_tokens", type: "UInt64", description: "Number of output tokens" },
+      { name: "total_tokens", type: "UInt64", description: "Total tokens used" },
+      { name: "input_cost", type: "Float64", description: "Cost for input tokens" },
+      { name: "output_cost", type: "Float64", description: "Cost for output tokens" },
+      { name: "total_cost", type: "Float64", description: "Total cost of the span" },
+      { name: "attributes", type: "String", description: "Span attributes as stringified JSON" },
+      { name: "trace_id", type: "UUID", description: "ID of the trace" },
+      {
+        name: "tags",
+        type: "Array(String)",
+        description: "Tags associated with the span as an array of strings",
+      },
+      {
+        name: "events",
+        type: "Array(Tuple(timestamp Int64, name String, attributes String))",
+        description: "Events associated with the span",
+      },
+    ],
+  },
+  traces: {
+    description: "Top-level trace records aggregating span data with session and user context",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the trace" },
+      {
+        name: "trace_type",
+        type: "trace_type",
+        description: "Stringified enum value of the trace type (DEFAULT, EVALUATION, PLAYGROUND)",
+      },
+      { name: "metadata", type: "String", description: "Trace metadata as stringified JSON" },
+      { name: "start_time", type: "DateTime64(9, 'UTC')", description: "When the trace started" },
+      { name: "end_time", type: "DateTime64(9, 'UTC')", description: "When the trace ended" },
+      { name: "duration", type: "Float64", description: "Duration in seconds (end_time - start_time)" },
+      { name: "input_tokens", type: "Int64", description: "Number of input tokens" },
+      { name: "output_tokens", type: "Int64", description: "Number of output tokens" },
+      { name: "total_tokens", type: "Int64", description: "Total tokens used" },
+      { name: "input_cost", type: "Float64", description: "Cost for input tokens" },
+      { name: "output_cost", type: "Float64", description: "Cost for output tokens" },
+      { name: "total_cost", type: "Float64", description: "Total cost of the span" },
+      { name: "status", type: "String", description: "Status of the trace" },
+      { name: "user_id", type: "String", description: "User ID sent with the trace" },
+      { name: "session_id", type: "String", description: "Session identifier" },
+      { name: "top_span_id", type: "UUID", description: "ID of the top-level span" },
+      { name: "top_span_name", type: "String", description: "Name of the top-level span" },
+      { name: "top_span_type", type: "span_type", description: "Type of the top-level span" },
+      { name: "tags", type: "Array(String)", description: "Tags associated with the trace" },
+      { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
+    ],
+  },
+  dataset_datapoints: {
+    description: "Data points in datasets with input data, targets, and metadata",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the dataset datapoint" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the dataset datapoint was created" },
+      { name: "dataset_id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "data", type: "String", description: "Input data for the dataset datapoint" },
+      { name: "target", type: "String", description: "Target/expected output" },
+      { name: "metadata", type: "String", description: "Additional metadata" },
+    ],
+  },
+  dataset_datapoint_versions: {
+    description: "Versioned snapshots of dataset datapoints",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the dataset datapoint" },
+      {
+        name: "created_at",
+        type: "DateTime64(9, 'UTC')",
+        description: "When the dataset datapoint version was created",
+      },
+      { name: "dataset_id", type: "UUID", description: "Unique identifier for the dataset" },
+      { name: "data", type: "String", description: "Input data for the dataset datapoint" },
+      { name: "target", type: "String", description: "Target/expected output" },
+      { name: "metadata", type: "String", description: "Additional metadata" },
+    ],
+  },
+  evaluation_datapoints: {
+    description: "Results from evaluations including scores, executor output, and trace data",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the evaluation datapoint" },
+      { name: "evaluation_id", type: "UUID", description: "Unique identifier for the evaluation" },
+      { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
+      { name: "created_at", type: "DateTime64(9, 'UTC')", description: "When the evaluation datapoint was created" },
+      { name: "data", type: "String", description: "Input data for the evaluation datapoint" },
+      { name: "target", type: "String", description: "Target/expected output" },
+      { name: "metadata", type: "String", description: "Additional metadata as stringified JSON" },
+      { name: "executor_output", type: "String", description: "Output from the executor" },
+      { name: "index", type: "UInt64", description: "Index of the evaluation datapoint within the evaluation" },
+      { name: "group_id", type: "String", description: "Group identifier of the evaluation run" },
+      {
+        name: "scores",
+        type: "String",
+        description: "Scores for the evaluation datapoint as a stringified JSON object from score name to value",
+      },
+      {
+        name: "dataset_id",
+        type: "UUID",
+        description: "Unique identifier for the dataset. Nil if the evaluation datapoint is not linked to a dataset",
+      },
+      {
+        name: "dataset_datapoint_id",
+        type: "UUID",
+        description:
+          "Unique identifier for the dataset datapoint. Nil if the evaluation datapoint is not linked to a dataset datapoint",
+      },
+      {
+        name: "dataset_datapoint_created_at",
+        type: "DateTime64(9, 'UTC')",
+        description:
+          "When the dataset datapoint was created. Unix epoch if the evaluation datapoint is not linked to a dataset datapoint",
+      },
+      { name: "duration", type: "Float64", description: "Duration in seconds from associated trace" },
+      { name: "input_cost", type: "Float64", description: "Cost for input tokens from associated trace" },
+      { name: "output_cost", type: "Float64", description: "Cost for output tokens from associated trace" },
+      { name: "total_cost", type: "Float64", description: "Total cost from associated trace" },
+      { name: "start_time", type: "DateTime64(9, 'UTC')", description: "When the trace started" },
+      { name: "end_time", type: "DateTime64(9, 'UTC')", description: "When the trace ended" },
+      { name: "input_tokens", type: "Int64", description: "Number of input tokens from associated trace" },
+      { name: "output_tokens", type: "Int64", description: "Number of output tokens from associated trace" },
+      { name: "total_tokens", type: "Int64", description: "Total tokens used from associated trace" },
+      { name: "trace_status", type: "String", description: "Status of the associated trace" },
+      { name: "trace_metadata", type: "String", description: "Metadata from the associated trace as stringified JSON" },
+      { name: "trace_tags", type: "Array(String)", description: "Tags from the associated trace" },
+      {
+        name: "trace_spans",
+        type: "Array(Tuple(name String, duration Float64, type String))",
+        description: "Spans from the associated trace",
+      },
+    ],
+  },
+  signal_runs: {
+    description: "Execution records for signals with status and error information",
+    columns: [
+      { name: "signal_id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "job_id", type: "UUID", description: "Unique identifier for the job" },
+      { name: "trigger_id", type: "UUID", description: "Unique identifier for the trigger" },
+      { name: "run_id", type: "UUID", description: "Unique identifier for the run" },
+      { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
+      { name: "status", type: "String", description: "Status of the signal run (PENDING, COMPLETED, FAILED, UNKNOWN)" },
+      { name: "event_id", type: "UUID", description: "Unique identifier for the event" },
+      { name: "error_message", type: "String", description: "Error message if the run failed" },
+      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the signal run was last updated" },
+    ],
+  },
+  signal_events: {
+    description: "Events emitted by signals during execution",
+    columns: [
+      { name: "id", type: "UUID", description: "Unique identifier for the signal event" },
+      { name: "signal_id", type: "UUID", description: "Unique identifier for the signal" },
+      { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
+      { name: "run_id", type: "UUID", description: "Unique identifier for the run" },
+      { name: "name", type: "String", description: "Name of the signal event" },
+      { name: "payload", type: "String", description: "Payload of the signal event as stringified JSON" },
+      { name: "timestamp", type: "DateTime64(9, 'UTC')", description: "When the signal event occurred" },
+    ],
+  },
+  logs: {
+    description: "Log entries with severity, body, and trace correlation",
+    columns: [
+      { name: "log_id", type: "UUID", description: "Unique identifier for the log" },
+      { name: "time", type: "DateTime64(9, 'UTC')", description: "When the log occurred" },
+      { name: "observed_time", type: "DateTime64(9, 'UTC')", description: "When the log was observed" },
+      { name: "severity_number", type: "UInt8", description: "Severity number of the log" },
+      { name: "severity_text", type: "String", description: "Severity text of the log" },
+      { name: "body", type: "String", description: "Body of the log" },
+      { name: "attributes", type: "String", description: "Attributes of the log as stringified JSON" },
+      { name: "trace_id", type: "UUID", description: "Unique identifier for the trace" },
+      { name: "span_id", type: "UUID", description: "Unique identifier for the span" },
+      { name: "flags", type: "UInt32", description: "Flags for the log" },
+      { name: "event_name", type: "String", description: "Event name of the log" },
+    ],
+  },
 };
 
 const enumValues = {
@@ -173,16 +233,16 @@ const enumValues = {
 };
 
 const sqlSchema: SQLNamespace = Object.fromEntries(
-  Object.entries(tableSchemas).map(([tableName, columns]) => [
+  Object.entries(tableSchemas).map(([tableName, tableData]) => [
     tableName,
-    columns.map((col) =>
+    tableData.columns.map((col) =>
       col.name !== "*"
         ? {
-          label: col.name,
-          type: "property",
-          detail: col.type,
-          info: col.description,
-        }
+            label: col.name,
+            type: "property",
+            detail: col.type,
+            info: col.description,
+          }
         : col.name
     ),
   ])
@@ -196,8 +256,7 @@ const createOption = (label: string, type: string, info: string, apply?: string)
   info,
   apply: apply || label,
 });
-const isInEnumContext = (textBefore: string): boolean =>
-  /\b(span_type|trace_type)\s*=\s*[^=\n]*$/.test(textBefore);
+const isInEnumContext = (textBefore: string): boolean => /\b(span_type|trace_type)\s*=\s*[^=\n]*$/.test(textBefore);
 const getEnumType = (textBefore: string): string | null => {
   const match = textBefore.match(/\b(span_type|trace_type)(?=\s*=)/);
   return match ? match[1] : null;
@@ -220,8 +279,7 @@ const generateEnumValueCompletions = (searchTerm: string) =>
   );
 
 const generateClickhouseFunctionCompletions = (searchTerm: string) =>
-  Object.values(clickhouseFunctions)
-    .flat()
+  clickhouseFunctions
     .filter((fn) => matchesSearch(fn.name, searchTerm))
     .map((fn) => createOption(fn.name, "function", `ClickHouse function: ${fn.description}`));
 
@@ -248,11 +306,22 @@ const sortByRelevance = (options: any[], searchTerm: string) =>
     return a.label.localeCompare(b.label);
   });
 
+const generateTableCompletions = (searchTerm: string) =>
+  Object.entries(tableSchemas)
+    .filter(([tableName]) => startsWithSearch(tableName, searchTerm))
+    .map(([tableName, tableData]) => ({
+      label: tableName,
+      type: "type",
+      detail: "table",
+      info: tableData.description,
+      boost: 2,
+    }));
+
 const generateAllColumnCompletions = (searchTerm: string) => {
   const columnMap = new Map<string, { tables: string[]; type: string; description: string }>();
 
-  Object.entries(tableSchemas).forEach(([tableName, columns]) => {
-    columns
+  Object.entries(tableSchemas).forEach(([tableName, tableData]) => {
+    tableData.columns
       .filter((col) => col.name !== "*" && startsWithSearch(col.name, searchTerm))
       .forEach((col) => {
         if (!columnMap.has(col.name)) {
@@ -278,7 +347,7 @@ const generateAllColumnCompletions = (searchTerm: string) => {
       label: columnName,
       type: "property",
       detail: data.type,
-      info: `Found in: ${tableList}\n${data.type} - ${data.description}`,
+      info: `Found in: ${tableList}\n${data.description}`,
       boost: -1,
     });
   });
@@ -304,6 +373,7 @@ const sqlConfig: SQLConfig = {
 };
 
 const sqlSchemaCompletions = schemaCompletionSource(sqlConfig);
+const sqlKeywordCompletions = keywordCompletionSource(ClickHouseDialect, true);
 
 /**
  * Checks if the position is inside a string literal
@@ -331,38 +401,61 @@ const combinedCompletionSource = (
   const searchTerm = word.text.toLowerCase();
 
   const sqlCompletions = sqlSchemaCompletions(context);
+  const keywordCompletions = sqlKeywordCompletions(context);
 
   const customOptions = generateCompletions(textBefore, searchTerm);
   const sortedCustomOptions = sortByRelevance(customOptions, searchTerm);
 
+  const tableCompletions = generateTableCompletions(searchTerm);
   const columnCompletions = generateAllColumnCompletions(searchTerm);
 
-  if (sqlCompletions instanceof Promise) {
-    return sqlCompletions.then((resolved) => {
-      const allOptions = [...(resolved?.options || []), ...sortedCustomOptions.slice(0, 50), ...columnCompletions];
-
-      if (allOptions.length > 0) {
-        return {
-          from: word.from,
-          options: allOptions,
-          validFor: resolved?.validFor,
-        };
-      }
-      return null;
+  // Filter out table/column completions from sqlSchemaCompletions since we provide our own with descriptions
+  const filterSchemaCompletions = (options: readonly { label?: string }[]) =>
+    options.filter((opt) => {
+      const label = opt.label?.toLowerCase();
+      // Keep only non-table/column completions
+      return !Object.keys(tableSchemas).includes(label ?? "") && !knownIdentifiers.has(label ?? "");
     });
-  } else {
-    const allOptions = [...(sqlCompletions?.options || []), ...sortedCustomOptions.slice(0, 50), ...columnCompletions];
+
+  // Helper to combine all options
+  const buildResult = (
+    schemaOpts: readonly { label?: string }[] | null,
+    keywordOpts: readonly { label?: string }[] | null,
+    validFor?: CompletionResult["validFor"]
+  ): CompletionResult | null => {
+    const filteredSchema = filterSchemaCompletions(schemaOpts || []);
+    const allOptions = [
+      ...tableCompletions,
+      ...columnCompletions,
+      ...sortedCustomOptions.slice(0, 50),
+      ...(keywordOpts || []),
+      ...filteredSchema,
+    ];
 
     if (allOptions.length > 0) {
       return {
         from: word.from,
         options: allOptions,
-        validFor: sqlCompletions?.validFor,
+        validFor,
       };
     }
-  }
+    return null;
+  };
 
-  return null;
+  // Handle async/sync combinations
+  const schemaIsPromise = sqlCompletions instanceof Promise;
+  const keywordsIsPromise = keywordCompletions instanceof Promise;
+
+  if (schemaIsPromise || keywordsIsPromise) {
+    return Promise.all([
+      schemaIsPromise ? sqlCompletions : Promise.resolve(sqlCompletions),
+      keywordsIsPromise ? keywordCompletions : Promise.resolve(keywordCompletions),
+    ]).then(([schemaResolved, keywordsResolved]) =>
+      buildResult(schemaResolved?.options || null, keywordsResolved?.options || null, schemaResolved?.validFor)
+    );
+  } else {
+    return buildResult(sqlCompletions?.options || null, keywordCompletions?.options || null, sqlCompletions?.validFor);
+  }
 };
 
 const sqlSyntaxHighlightStyle: CreateThemeOptions["styles"] = [
@@ -406,211 +499,241 @@ export const theme = createTheme({
   styles: sqlSyntaxHighlightStyle,
 });
 
-// Custom highlighter for ClickHouse functions vs identifiers
-const functionHighlighter = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
+// Pre-compute known identifiers set (tables and columns) - computed once at module load
+const knownIdentifiers = new Set<string>();
+Object.entries(tableSchemas).forEach(([tableName, tableData]) => {
+  knownIdentifiers.add(tableName.toLowerCase());
+  tableData.columns.forEach((col) => {
+    knownIdentifiers.add(col.name.toLowerCase());
+  });
+});
 
-    constructor(view: EditorViewType) {
-      this.decorations = this.buildDecorations(view);
-    }
+// Create the identifier highlighter with our schema's known identifiers
+const identifierHighlighter = createIdentifierHighlighter(knownIdentifiers);
 
-    update(update: { view: EditorViewType; docChanged: boolean; viewportChanged: boolean }) {
-      if (update.docChanged || update.viewportChanged) {
-        this.decorations = this.buildDecorations(update.view);
-      }
-    }
-
-    buildDecorations(view: EditorViewType): DecorationSet {
-      const builder = new RangeSetBuilder<Decoration>();
-      const doc = view.state.doc;
-      const tree = syntaxTree(view.state);
-
-      // Get all ClickHouse function names
-      const functionNames = new Set(
-        Object.values(clickhouseFunctions)
-          .flat()
-          .map((fn) => fn.name.toLowerCase())
-      );
-
-      // Get all known table and column names
-      const knownIdentifiers = new Set<string>();
-      Object.entries(tableSchemas).forEach(([tableName, columns]) => {
-        knownIdentifiers.add(tableName.toLowerCase());
-        columns.forEach((col) => {
-          knownIdentifiers.add(col.name.toLowerCase());
-        });
-      });
-
-      console.log("[FunctionHighlight] Building decorations, functions:", functionNames.size, "known identifiers:", knownIdentifiers.size);
-
-      const ranges: Array<{ from: number; to: number; decoration: Decoration }> = [];
-
-      tree.iterate({
-        enter: (node) => {
-          // Look for identifiers (names)
-          if (node.name === "Identifier" || node.name === "VariableName" || node.name === "Name") {
-            const text = doc.sliceString(node.from, node.to);
-            const nextChar = doc.sliceString(node.to, node.to + 1);
-
-            console.log("[FunctionHighlight] Found node:", node.name, "text:", text, "nextChar:", nextChar);
-
-            let decoration: Decoration | null = null;
-
-            // Check if it's a function call (followed by '(')
-            if (nextChar === "(" && functionNames.has(text.toLowerCase())) {
-              console.log("[FunctionHighlight] Marking as function:", text);
-              decoration = Decoration.mark({
-                class: "cm-sql-function",
-                attributes: { style: "color: #DCDCAA !important;" },
-              });
-            }
-            // Check if it's a known table/column
-            else if (knownIdentifiers.has(text.toLowerCase())) {
-              console.log("[FunctionHighlight] Marking as known identifier:", text);
-              decoration = Decoration.mark({
-                class: "cm-sql-known-identifier",
-                attributes: { style: "color: #9CDCFE !important;" },
-              });
-            }
-            // Unknown identifier - mark as such
-            else {
-              console.log("[FunctionHighlight] Marking as unknown identifier:", text);
-              decoration = Decoration.mark({
-                class: "cm-sql-unknown-identifier",
-                attributes: { style: "color: #D4D4D4 !important;" },
-              });
-            }
-
-            if (decoration) {
-              ranges.push({ from: node.from, to: node.to, decoration });
-            }
-          }
-        },
-      });
-
-      // Sort ranges by position and add them to the builder
-      ranges.sort((a, b) => a.from - b.from);
-      ranges.forEach(({ from, to, decoration }) => {
-        builder.add(from, to, decoration);
-      });
-
-      console.log("[FunctionHighlight] Created", ranges.length, "decorations");
-      return builder.finish();
-    }
+// Editor base styles
+const editorBaseStyles = {
+  "&.cm-focused": {
+    outline: "none !important",
   },
-  {
-    decorations: (v) => v.decorations,
-  }
-);
+  "&": {
+    fontSize: "0.875rem !important",
+  },
+  "&.cm-editor": {
+    height: "100%",
+    width: "100%",
+    position: "relative",
+  },
+  ".cm-searchMatch": {
+    backgroundColor: "hsl(var(--primary) / 0.3)",
+    border: "1px solid hsl(var(--primary))",
+    borderRadius: "3px",
+  },
+  ".cm-searchMatch-selected": {
+    backgroundColor: "hsl(var(--primary))",
+    color: "hsl(var(--primary-foreground))",
+    fontWeight: "600",
+  },
+};
+
+// Syntax highlighting styles for SQL identifiers
+const syntaxHighlightStyles = {
+  ".cm-content .cm-sql-function": {
+    color: "#DCDCAA",
+  },
+  ".cm-line .cm-sql-function": {
+    color: "#DCDCAA",
+  },
+  ".cm-content .cm-sql-known-identifier": {
+    color: "#9CDCFE",
+  },
+  ".cm-line .cm-sql-known-identifier": {
+    color: "#9CDCFE",
+  },
+  ".cm-content .cm-sql-unknown-identifier": {
+    color: "#D4D4D4",
+  },
+  ".cm-line .cm-sql-unknown-identifier": {
+    color: "#D4D4D4",
+  },
+};
+
+// Autocomplete dropdown styles
+const autocompleteStyles = {
+  ".cm-tooltip.cm-tooltip-autocomplete": {
+    background: "hsl(var(--background))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: "6px",
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+    // Note: don't use overflow:hidden here as it clips the info panel
+  },
+  ".cm-tooltip-autocomplete ul": {
+    fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
+    fontSize: "13px",
+  },
+  ".cm-tooltip-autocomplete ul li": {
+    padding: "2px 6px !important",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  },
+  ".cm-tooltip-autocomplete ul li[aria-selected]": {
+    background: "hsl(var(--accent))",
+    color: "hsl(var(--accent-foreground))",
+  },
+  ".cm-completionIcon": {
+    width: "14px",
+    height: "14px",
+    padding: "0 !important",
+    marginRight: "2px",
+    opacity: "1",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ".cm-completionIcon-function": {
+    color: "#DCDCAA",
+  },
+  ".cm-completionIcon-function::after": {
+    content: "'ƒ'",
+    fontWeight: "600",
+    fontSize: "13px",
+  },
+  ".cm-completionIcon-property": {
+    color: "#9CDCFE",
+  },
+  ".cm-completionIcon-property::after": {
+    content: "'◇'",
+    fontSize: "11px",
+  },
+  ".cm-completionIcon-keyword": {
+    color: "#C586C0",
+  },
+  ".cm-completionIcon-keyword::after": {
+    content: "'⊞'",
+    fontSize: "11px",
+  },
+  ".cm-completionIcon-enum": {
+    color: "#4EC9B0",
+  },
+  ".cm-completionIcon-enum::after": {
+    content: "'◆'",
+    fontSize: "11px",
+  },
+  ".cm-completionIcon-type": {
+    color: "#4EC9B0",
+  },
+  ".cm-completionIcon-type::after": {
+    content: "'T'",
+    fontWeight: "600",
+    fontSize: "11px",
+  },
+  ".cm-completionLabel": {
+    color: "hsl(var(--foreground))",
+  },
+  ".cm-completionMatchedText": {
+    color: "hsl(var(--primary))",
+    fontWeight: "600",
+    textDecoration: "none",
+  },
+  ".cm-completionDetail": {
+    color: "hsl(var(--muted-foreground))",
+    fontStyle: "normal",
+    marginLeft: "auto",
+    fontSize: "11px",
+  },
+  ".cm-tooltip.cm-completionInfo": {
+    background: "hsl(var(--background))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: "6px",
+    padding: "6px 10px",
+    maxWidth: "400px",
+    fontSize: "12px",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    color: "hsl(var(--muted-foreground))",
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+    whiteSpace: "pre-wrap",
+    lineHeight: "1.4",
+  },
+};
+
+// Signature help tooltip styles
+const signatureHelpStyles = {
+  ".cm-tooltip .signature-help": {
+    padding: "6px 10px",
+    background: "hsl(var(--background))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: "6px",
+    fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
+    fontSize: "13px",
+    maxWidth: "600px",
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+  },
+  ".signature-help": {
+    padding: "6px 10px !important",
+    background: "hsl(var(--background))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: "6px",
+    fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
+    fontSize: "13px",
+    maxWidth: "600px",
+    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+  },
+  ".signature-help .signature-function-name": {
+    color: "hsl(var(--primary))",
+    fontWeight: "600",
+  },
+  ".signature-help .signature-param": {
+    color: "hsl(var(--foreground))",
+  },
+  ".signature-help .signature-param-current": {
+    color: "hsl(var(--primary))",
+    fontWeight: "700",
+    background: "hsl(var(--primary) / 0.1)",
+    padding: "1px 3px",
+    borderRadius: "3px",
+  },
+  ".signature-help .signature-return-type": {
+    color: "hsl(var(--muted-foreground))",
+    fontSize: "12px",
+    marginLeft: "6px",
+  },
+  ".signature-help .signature-description": {
+    marginTop: "6px",
+    paddingTop: "6px",
+    borderTop: "1px solid hsl(var(--border))",
+    color: "hsl(var(--muted-foreground))",
+    fontSize: "12px",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  },
+  ".signature-help .signature-param-details": {
+    marginTop: "6px",
+    paddingTop: "6px",
+    borderTop: "1px solid hsl(var(--border))",
+    fontSize: "12px",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  },
+  ".signature-help .signature-param-type": {
+    color: "hsl(var(--muted-foreground))",
+    fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
+    marginLeft: "4px",
+  },
+  ".signature-help .signature-param-details div": {
+    marginTop: "3px",
+    color: "hsl(var(--muted-foreground))",
+  },
+};
+
+// Combined editor theme
+const editorTheme = EditorView.theme({
+  ...editorBaseStyles,
+  ...syntaxHighlightStyles,
+  ...autocompleteStyles,
+  ...signatureHelpStyles,
+});
 
 export const extensions = [
-  EditorView.theme({
-    "&.cm-focused": {
-      outline: "none !important",
-    },
-    "&": {
-      fontSize: "0.875rem !important",
-    },
-    "&.cm-editor": {
-      height: "100%",
-      width: "100%",
-      position: "relative",
-    },
-    ".cm-searchMatch": {
-      backgroundColor: "hsl(var(--primary) / 0.3)",
-      border: "1px solid hsl(var(--primary))",
-      borderRadius: "3px",
-    },
-    ".cm-searchMatch-selected": {
-      backgroundColor: "hsl(var(--primary))",
-      color: "hsl(var(--primary-foreground))",
-      fontWeight: "600",
-    },
-    // Custom syntax highlighting classes with high specificity
-    ".cm-content .cm-sql-function": {
-      color: "#DCDCAA", // ClickHouse functions in yellow
-    },
-    ".cm-line .cm-sql-function": {
-      color: "#DCDCAA",
-    },
-    ".cm-content .cm-sql-known-identifier": {
-      color: "#9CDCFE", // Known tables/columns in light blue
-    },
-    ".cm-line .cm-sql-known-identifier": {
-      color: "#9CDCFE",
-    },
-    ".cm-content .cm-sql-unknown-identifier": {
-      color: "#D4D4D4", // Unknown identifiers in white/gray
-    },
-    ".cm-line .cm-sql-unknown-identifier": {
-      color: "#D4D4D4",
-    },
-    // Signature help tooltip styles
-    ".cm-tooltip .signature-help": {
-      padding: "8px 12px",
-      background: "hsl(var(--background))",
-      border: "1px solid hsl(var(--border))",
-      borderRadius: "6px",
-      fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
-      fontSize: "13px",
-      maxWidth: "600px",
-      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-    },
-    ".signature-help": {
-      padding: "8px 12px !important",
-      background: "hsl(var(--background))",
-      border: "1px solid hsl(var(--border))",
-      borderRadius: "6px",
-      fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
-      fontSize: "13px",
-      maxWidth: "600px",
-      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-    },
-    ".signature-help .signature-function-name": {
-      color: "hsl(var(--primary))",
-      fontWeight: "600",
-    },
-    ".signature-help .signature-param": {
-      color: "hsl(var(--foreground))",
-    },
-    ".signature-help .signature-param-current": {
-      color: "hsl(var(--primary))",
-      fontWeight: "700",
-      background: "hsl(var(--primary) / 0.1)",
-      padding: "2px 4px",
-      borderRadius: "3px",
-    },
-    ".signature-help .signature-return-type": {
-      color: "hsl(var(--muted-foreground))",
-      fontSize: "12px",
-      marginLeft: "8px",
-    },
-    ".signature-help .signature-description": {
-      marginTop: "8px",
-      paddingTop: "8px",
-      borderTop: "1px solid hsl(var(--border))",
-      color: "hsl(var(--muted-foreground))",
-      fontSize: "12px",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    },
-    ".signature-help .signature-param-details": {
-      marginTop: "8px",
-      paddingTop: "8px",
-      borderTop: "1px solid hsl(var(--border))",
-      fontSize: "12px",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    },
-    ".signature-help .signature-param-type": {
-      color: "hsl(var(--muted-foreground))",
-      fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', monospace",
-      marginLeft: "4px",
-    },
-    ".signature-help .signature-param-details div": {
-      marginTop: "4px",
-      color: "hsl(var(--muted-foreground))",
-    },
-  }),
+  editorTheme,
   search(),
   highlightSelectionMatches(),
   EditorView.lineWrapping,
@@ -618,11 +741,10 @@ export const extensions = [
     dialect: ClickHouseDialect,
     upperCaseKeywords: true,
   }),
-  ClickHouseDialect.language.data.of({
-    autocomplete: combinedCompletionSource,
+  Prec.highest(identifierHighlighter),
+  autocompletion({
+    override: [combinedCompletionSource],
   }),
-  Prec.highest(functionHighlighter),
-  autocompletion(),
   ...signatureHelp,
   Prec.highest(
     keymap.of([
