@@ -34,10 +34,10 @@ pub struct CHSpanWithException {
     pub exception: String,
 }
 
-/// Compressed span with sequential ID
+/// Compressed span identified by the last 4 hex chars of its UUID
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CompressedSpan {
-    pub id: usize,
+    pub id: String,
     pub name: String,
     pub path: String,
     #[serde(rename = "type")]
@@ -51,9 +51,15 @@ pub struct CompressedSpan {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent: Option<usize>,
+    pub parent: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exception: Option<Value>,
+}
+
+/// Extract the last 4 hex characters of a UUID as a short identifier.
+pub fn span_short_id(uuid: &Uuid) -> String {
+    let s = uuid.to_string().replace('-', "");
+    s[s.len() - 4..].to_string()
 }
 
 /// Format a nanosecond timestamp as a human-readable UTC string.
@@ -175,13 +181,14 @@ fn strip_signature_fields(value: &Value) -> Value {
     }
 }
 
-/// Compress span content based on type and occurrence
+/// Compress span content based on type and occurrence.
+/// Spans are identified by the last 4 hex chars of their UUID, which is stable
+/// across iterations regardless of span arrival order.
 pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<CompressedSpan> {
-    // Build span UUID to sequential ID mapping (1-indexed)
-    let span_uuid_to_id: HashMap<Uuid, usize> = ch_spans
+    // Build span UUID to short ID mapping
+    let span_uuid_to_short: HashMap<Uuid, String> = ch_spans
         .iter()
-        .enumerate()
-        .map(|(i, span)| (span.span_id, i + 1))
+        .map(|span| (span.span_id, span_short_id(&span.span_id)))
         .collect();
 
     // Track which LLM paths we've already seen
@@ -189,19 +196,20 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
 
     ch_spans
         .iter()
-        .enumerate()
-        .map(|(i, ch_span)| {
+        .map(|ch_span| {
             let is_llm = ch_span.span_type == 1;
             let path = ch_span.path.clone();
             let duration_ns = ch_span.end_time - ch_span.start_time;
             let duration_secs = duration_ns as f64 / 1_000_000_000.0;
 
-            let parent = if ch_span.parent_span_id.is_nil() || ch_span.parent_span_id == Uuid::nil()
-            {
-                None
-            } else {
-                span_uuid_to_id.get(&ch_span.parent_span_id).copied()
-            };
+            let parent =
+                if ch_span.parent_span_id.is_nil() || ch_span.parent_span_id == Uuid::nil() {
+                    None
+                } else {
+                    span_uuid_to_short
+                        .get(&ch_span.parent_span_id)
+                        .cloned()
+                };
 
             let (input, output) = if is_llm {
                 let input_data = truncate_llm_input(&strip_signature_fields(
@@ -251,7 +259,7 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
             };
 
             CompressedSpan {
-                id: i + 1,
+                id: span_short_id(&ch_span.span_id),
                 name: ch_span.name.clone(),
                 path: path.clone(),
                 span_type: get_span_type(ch_span.span_type).to_string(),
@@ -277,8 +285,8 @@ pub fn spans_to_skeleton_string(spans: &[CompressedSpan]) -> String {
     for span in spans {
         let parent_str = span
             .parent
-            .map(|p| p.to_string())
-            .unwrap_or_else(|| "None".to_string());
+            .as_deref()
+            .unwrap_or("None");
         skeleton.push_str(&format!(
             "- {} ({}, {}, {})\n",
             span.name, span.id, parent_str, span.span_type
@@ -329,24 +337,6 @@ pub async fn get_trace_spans(
         .await?;
 
     Ok(spans)
-}
-
-/// Query trace spans from ClickHouse with exception events and build UUID to sequential ID mapping.
-pub async fn get_trace_spans_with_id_mapping(
-    clickhouse: clickhouse::Client,
-    project_id: Uuid,
-    trace_id: Uuid,
-) -> Result<(Vec<CHSpanWithException>, HashMap<Uuid, usize>)> {
-    let spans = get_trace_spans(clickhouse, project_id, trace_id).await?;
-
-    // Build mapping: UUID -> sequential ID (1-indexed)
-    let uuid_to_seq: HashMap<Uuid, usize> = spans
-        .iter()
-        .enumerate()
-        .map(|(idx, span)| (span.span_id, idx + 1))
-        .collect();
-
-    Ok((spans, uuid_to_seq))
 }
 
 /// Get trace structure as a formatted string with skeleton and YAML

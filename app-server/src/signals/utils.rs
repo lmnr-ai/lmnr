@@ -69,14 +69,14 @@ pub fn extract_batch_id_from_operation(operation_name: &str) -> Result<String> {
 }
 
 /// Replaces `<span>` XML tags with markdown URLs in a JSON value.
-/// Converts sequential span IDs to real UUIDs using span_ids_map.
+/// Converts short span IDs (last 4 hex chars of UUID) to full UUIDs using span_ids_map.
 ///
-/// Format: `<span id='1' name='openai.chat' reference_text='...' />`
+/// Format: `<span id='a1b2' name='openai.chat' reference_text='...' />`
 /// Becomes: `[openai.chat](https://www.lmnr.ai/project/{project_id}/traces/{trace_id}?spanId={uuid})`
 ///
 /// # Arguments
 /// * `attributes` - JSON value that may contain span tags in its string values
-/// * `span_ids_map` - Maps sequential IDs (1, 2, 3...) to real span UUIDs
+/// * `span_ids_map` - Maps short IDs (4-char hex suffixes) to full span UUIDs
 /// * `project_id` - Project UUID
 /// * `trace_id` - Trace UUID
 ///
@@ -84,7 +84,7 @@ pub fn extract_batch_id_from_operation(operation_name: &str) -> Result<String> {
 /// JSON value with span tags replaced by markdown links
 pub fn replace_span_tags_with_links(
     attributes: Value,
-    span_ids_map: &HashMap<usize, Uuid>,
+    span_ids_map: &HashMap<String, Uuid>,
     project_id: Uuid,
     trace_id: Uuid,
 ) -> Result<Value> {
@@ -92,19 +92,19 @@ pub fn replace_span_tags_with_links(
     let json_str = serde_json::to_string(&attributes)?;
 
     // Pattern to match <span id='...' name='...' ... />
-    let pattern = Regex::new(r#"<span\s+id=['"]([\d]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#)?;
+    let pattern =
+        Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#)?;
 
     // Replace all span tags
     let replaced_str = pattern.replace_all(&json_str, |caps: &regex::Captures| {
-        let seq_id_str = &caps[1];
+        let short_id = &caps[1];
         let span_name = &caps[2];
 
-        // Parse sequential ID and look up real UUID
-        let seq_id: usize = seq_id_str.parse().unwrap_or(0);
+        // Look up the full UUID from the short ID
         let real_span_id = span_ids_map
-            .get(&seq_id)
+            .get(short_id)
             .map(|uuid| uuid.to_string())
-            .unwrap_or_else(|| seq_id_str.to_string());
+            .unwrap_or_else(|| short_id.to_string());
 
         format!(
             "[{}](https://www.lmnr.ai/project/{}/traces/{}?spanId={})",

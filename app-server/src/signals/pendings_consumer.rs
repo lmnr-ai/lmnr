@@ -39,7 +39,7 @@ use super::{
     postprocess::process_event_notifications_and_clustering,
     push_to_signals_queue,
     queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_waiting_queue},
-    spans::get_trace_spans_with_id_mapping,
+    spans::{get_trace_spans, span_short_id},
     tools::get_full_spans,
     utils::{
         InternalSpan, emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links,
@@ -1029,14 +1029,14 @@ async fn handle_tool_call(
     match function_call.name.as_str() {
         "get_full_spans" => {
             // Extract span_ids from args
-            let span_ids: Vec<usize> = function_call
+            let span_ids: Vec<String> = function_call
                 .args
                 .as_ref()
                 .and_then(|args| args.get("span_ids"))
                 .and_then(|v| v.as_array())
                 .map(|arr| {
                     arr.iter()
-                        .filter_map(|v| v.as_u64().map(|n| n as usize))
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
                         .collect()
                 })
                 .unwrap_or_default();
@@ -1133,7 +1133,7 @@ async fn handle_create_event(
     let create_event_start_time = chrono::Utc::now();
 
     // Get trace spans
-    let (ch_spans, uuid_to_seq) = get_trace_spans_with_id_mapping(
+    let ch_spans = get_trace_spans(
         clickhouse.clone(),
         signal_message.project_id,
         run.trace_id,
@@ -1148,15 +1148,15 @@ async fn handle_create_event(
     let root_span = &ch_spans[0];
     let timestamp = nanoseconds_to_datetime(root_span.end_time);
 
-    // Replace span tags with markdown links
-    let seq_to_uuid: HashMap<usize, Uuid> = uuid_to_seq
+    // Build short ID -> full UUID mapping for replacing span tags with links
+    let short_to_uuid: HashMap<String, Uuid> = ch_spans
         .iter()
-        .map(|(uuid, seq)| (*seq, *uuid))
+        .map(|span| (span_short_id(&span.span_id), span.span_id))
         .collect();
 
     let attrs = replace_span_tags_with_links(
         attributes,
-        &seq_to_uuid,
+        &short_to_uuid,
         signal_message.project_id,
         run.trace_id,
     )?;
