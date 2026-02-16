@@ -84,20 +84,22 @@ export const useEvalStore = create<EvalStoreState>()(
 
         // Don't include custom columns in shared evaluations to prevent
         // browser-persisted custom SQL from being executed
-        const customCols: ColumnDef<EvalRow>[] = isShared ? [] : customColumns.map((cc) => ({
-          id: `custom:${cc.name}`,
-          accessorFn: (row) => row[`custom:${cc.name}`],
-          cell: DataCell,
-          header: cc.name,
-          enableSorting: true,
-          meta: {
-            sql: cc.sql,
-            dataType: cc.dataType,
-            filterable: true,
-            comparable: false,
-            isCustom: true,
-          },
-        }));
+        const customCols: ColumnDef<EvalRow>[] = isShared
+          ? []
+          : customColumns.map((cc) => ({
+              id: `custom:${cc.name}`,
+              accessorFn: (row) => row[`custom:${cc.name}`],
+              cell: DataCell,
+              header: cc.name,
+              enableSorting: true,
+              meta: {
+                sql: cc.sql,
+                dataType: cc.dataType,
+                filterable: true,
+                comparable: true,
+                isCustom: true,
+              },
+            }));
         set({ columnDefs: [...STATIC_COLUMNS, ...scoreCols, ...customCols], lastScoreNames: scoreNames });
       },
 
