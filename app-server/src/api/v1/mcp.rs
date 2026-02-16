@@ -13,6 +13,10 @@ use rmcp_actix_web::transport::StreamableHttpService;
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::quickwit::client::QuickwitClient;
+use crate::routes::spans::{
+    QuickwitResponse, QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS, escape_quickwit_query,
+};
 use crate::{
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
@@ -47,12 +51,24 @@ pub struct GetTraceContextParams {
     pub trace_id: Uuid,
 }
 
+/// Parameters for the trace context tool.
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSpansParams {
+    pub query: String,
+    #[serde(default)]
+    pub search_in: Option<Vec<String>>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
 // ============ MCP Server ============
 
 #[derive(Clone)]
 pub struct LaminarMcpServer {
     clickhouse: clickhouse::Client,
     clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
+    quickwit: Option<QuickwitClient>,
     query_engine: Arc<QueryEngine>,
     http_client: Arc<reqwest::Client>,
     db: Arc<DB>,
@@ -65,6 +81,7 @@ impl LaminarMcpServer {
     pub fn new(
         clickhouse: clickhouse::Client,
         clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
+        quickwit: Option<QuickwitClient>,
         query_engine: Arc<QueryEngine>,
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
@@ -73,6 +90,7 @@ impl LaminarMcpServer {
         Self {
             clickhouse,
             clickhouse_ro,
+            quickwit,
             query_engine,
             http_client,
             db,
@@ -175,6 +193,79 @@ impl LaminarMcpServer {
             ))])),
         }
     }
+
+    /// Full-text search across span inputs, outputs, and attributes.
+    #[tool(name = "search_spans")]
+    async fn search_spans(
+        &self,
+        context: RequestContext<RoleServer>,
+        Parameters(params): Parameters<SearchSpansParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let project_id = context
+            .extensions
+            .get::<ProjectId>()
+            .ok_or_else(|| McpError::internal_error("Missing project context", None))?
+            .0;
+
+        let quickwit = self.quickwit.as_ref().ok_or_else(|| {
+            McpError::internal_error(
+                "Full-text search is not available (Quickwit not configured)",
+                None,
+            )
+        })?;
+
+        let trimmed = params.query.trim();
+        if trimmed.is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text("[]")]));
+        }
+
+        let escaped_query = escape_quickwit_query(trimmed);
+
+        let query_string = format!("project_id:{} AND ({})", project_id, escaped_query);
+
+        let search_fields = match &params.search_in {
+            Some(fields) if !fields.is_empty() => {
+                let valid: Vec<&str> = QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS
+                    .iter()
+                    .filter(|&&f| fields.iter().any(|r| r == f))
+                    .cloned()
+                    .collect();
+
+                if valid.is_empty() {
+                    QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
+                } else {
+                    valid
+                }
+            }
+            _ => QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec(),
+        };
+
+        let limit = params.limit.unwrap_or(50);
+
+        let search_body = serde_json::json!({
+            "query": query_string,
+            "sort_by": "_score,start_time",
+            "search_field": search_fields.join(","),
+            "max_hits": limit,
+        });
+
+        let response_value = quickwit
+            .search_spans(search_body)
+            .await
+            .map_err(|e| McpError::internal_error(format!("Search failed: {}", e), None))?;
+
+        let quickwit_response: QuickwitResponse =
+            serde_json::from_value(response_value).map_err(|e| {
+                McpError::internal_error(
+                    format!("Failed to parse search response: {}", e),
+                    None,
+                )
+            })?;
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&quickwit_response.hits).unwrap_or_default(),
+        )]))
+    }
 }
 
 #[tool_handler]
@@ -200,6 +291,7 @@ impl ServerHandler for LaminarMcpServer {
 pub fn build_mcp_service(
     clickhouse: clickhouse::Client,
     clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
+    quickwit: Option<QuickwitClient>,
     query_engine: Arc<QueryEngine>,
     http_client: Arc<reqwest::Client>,
     db: Arc<DB>,
@@ -209,6 +301,7 @@ pub fn build_mcp_service(
         .service_factory({
             let clickhouse = clickhouse.clone();
             let clickhouse_ro = clickhouse_ro.clone();
+            let quickwit = quickwit.clone();
             let query_engine = query_engine.clone();
             let http_client = http_client.clone();
             let db = db.clone();
@@ -217,6 +310,7 @@ pub fn build_mcp_service(
                 Ok(LaminarMcpServer::new(
                     clickhouse.clone(),
                     clickhouse_ro.clone(),
+                    quickwit.clone(),
                     query_engine.clone(),
                     http_client.clone(),
                     db.clone(),

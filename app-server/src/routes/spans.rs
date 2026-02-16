@@ -31,7 +31,7 @@ const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
 ];
 
 /// Escape special characters for Quickwit query syntax
-fn escape_quickwit_query(query: &str) -> String {
+pub fn escape_quickwit_query(query: &str) -> String {
     query
         .chars()
         .flat_map(|c| {
@@ -140,17 +140,17 @@ pub struct SearchSpansRequest {
     pub offset: usize,
 }
 
-const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 3] = ["input", "output", "attributes"];
+pub const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 3] = ["input", "output", "attributes"];
 
 #[derive(Serialize, Deserialize)]
-struct QuickwitHit {
-    trace_id: String,
-    span_id: String,
+pub struct QuickwitHit {
+    pub trace_id: String,
+    pub span_id: String,
 }
 
 #[derive(Serialize, Deserialize)]
-struct QuickwitResponse {
-    hits: Vec<QuickwitHit>,
+pub struct QuickwitResponse {
+    pub hits: Vec<QuickwitHit>,
 }
 
 #[post("spans/search")]
