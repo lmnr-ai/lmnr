@@ -51,23 +51,6 @@ const evaluationDatapointsColumnFilterConfig: ColumnFilterConfig = {
   ]),
 };
 
-// Evaluation datapoints view column mapping
-const evaluationDatapointsSelectColumns = [
-  "id",
-  "evaluation_id as evaluationId",
-  "data",
-  "target",
-  "metadata",
-  "executor_output as executorOutput",
-  "index",
-  "trace_id as traceId",
-  "group_id as groupId",
-  "scores",
-  "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt",
-  "dataset_id as datasetId",
-  "dataset_datapoint_id as datasetDatapointId",
-  "formatDateTime(dataset_datapoint_created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as datasetDatapointCreatedAt",
-];
 
 export interface BuildEvaluationDatapointsQueryOptions {
   evaluationId: string;
@@ -75,6 +58,26 @@ export interface BuildEvaluationDatapointsQueryOptions {
   filters: Filter[];
   limit: number;
   offset: number;
+  isTruncateLongColumns?: boolean;
+}
+
+function getEvaluationDatapointsSelectColumns(isTruncateLongColumns?: boolean): string[] {
+  return [
+    "id",
+    "evaluation_id as evaluationId",
+    isTruncateLongColumns ? "substring(data, 1, 200) as data" : "data",
+    isTruncateLongColumns ? "substring(target, 1, 200) as target" : "target",
+    "metadata",
+    isTruncateLongColumns ? "substring(executor_output, 1, 200) as executorOutput" : "executor_output as executorOutput",
+    "index",
+    "trace_id as traceId",
+    "group_id as groupId",
+    "scores",
+    "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt",
+    "dataset_id as datasetId",
+    "dataset_datapoint_id as datasetDatapointId",
+    "formatDateTime(dataset_datapoint_created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as datasetDatapointCreatedAt",
+  ];
 }
 
 export interface BuildEvaluationStatisticsQueryOptions {
@@ -92,17 +95,17 @@ export interface BuildTracesForEvaluationQueryOptions {
 export const buildEvaluationDatapointsQueryWithParams = (
   options: BuildEvaluationDatapointsQueryOptions
 ): QueryResult => {
-  const { evaluationId, traceIds, filters, limit, offset } = options;
+  const { evaluationId, traceIds, filters, limit, offset, isTruncateLongColumns } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: `evaluation_id = {evaluationId:UUID}`,
-      params: { evaluationId },
-    },
-  ];
+      {
+        condition: `evaluation_id = {evaluationId:UUID}`,
+        params: { evaluationId },
+      },
+    ];
 
   if (traceIds.length > 0) {
     customConditions.push({
@@ -136,7 +139,7 @@ export const buildEvaluationDatapointsQueryWithParams = (
 
   const queryOptions: SelectQueryOptions = {
     select: {
-      columns: evaluationDatapointsSelectColumns,
+      columns: getEvaluationDatapointsSelectColumns(isTruncateLongColumns),
       table: "evaluation_datapoints",
     },
     filters: nonScoreFilters,
@@ -171,11 +174,11 @@ export const buildEvaluationStatisticsQueryWithParams = (
     condition: string;
     params: QueryParams;
   }> = [
-    {
-      condition: `evaluation_id = {evaluationId:UUID}`,
-      params: { evaluationId },
-    },
-  ];
+      {
+        condition: `evaluation_id = {evaluationId:UUID}`,
+        params: { evaluationId },
+      },
+    ];
 
   if (traceIds.length > 0) {
     customConditions.push({

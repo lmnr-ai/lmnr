@@ -5,7 +5,6 @@ use sqlx::PgPool;
 
 pub mod datasets;
 pub mod evaluations;
-pub mod evaluators;
 pub mod events;
 pub mod labeling_queues;
 pub mod prices;
@@ -19,9 +18,9 @@ pub mod slack_channel_to_events;
 pub mod slack_integrations;
 pub mod spans;
 pub mod stats;
-pub mod tags;
 pub mod trace;
 pub mod utils;
+pub mod workspaces;
 
 #[derive(Clone, Debug)]
 pub struct DB {

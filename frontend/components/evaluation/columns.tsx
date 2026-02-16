@@ -283,7 +283,9 @@ const createColumnSizeConfig = (heatmapEnabled: boolean, isComparison: boolean =
   minSize: heatmapEnabled ? (isComparison ? 140 : 100) : isComparison ? 80 : 60,
 });
 
-export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
+export const getDefaultColumns = (
+  disableLongTooltips?: boolean
+): ColumnDef<EvaluationDatapointPreviewWithCompared>[] => [
   {
     cell: (row) => (
       <div className="flex h-full justify-center items-center w-10">
@@ -308,13 +310,17 @@ export const defaultColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[]
   {
     id: "data",
     accessorFn: (row) => row.data,
-    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    cell: disableLongTooltips
+      ? (row) => <span className="truncate">{String(row.getValue() ?? "")}</span>
+      : (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Data",
   },
   {
     id: "target",
     accessorFn: (row) => row.target,
-    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    cell: disableLongTooltips
+      ? (row) => <span className="truncate">{String(row.getValue() ?? "")}</span>
+      : (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     header: "Target",
   },
   {
@@ -338,13 +344,18 @@ export const comparedComplementaryColumns: ColumnDef<EvaluationDatapointPreviewW
   },
 ];
 
-export const complementaryColumns: ColumnDef<EvaluationDatapointPreviewWithCompared>[] = [
+export const getComplementaryColumns = (
+  disableLongTooltips?: boolean
+): ColumnDef<EvaluationDatapointPreviewWithCompared>[] => [
   {
     id: "output",
-    accessorFn: flow(
-      (row: EvaluationDatapointPreviewWithCompared) => row.executorOutput,
-      (output) => (output ? JSON.stringify(output) : "-")
-    ),
+    accessorFn: disableLongTooltips
+      ? (row: EvaluationDatapointPreviewWithCompared) => row.executorOutput ?? "-"
+      : flow(
+          (row: EvaluationDatapointPreviewWithCompared) => row.executorOutput,
+          (output) => (output ? JSON.stringify(output) : "-")
+        ),
+    cell: disableLongTooltips ? (row) => <span className="truncate">{String(row.getValue() ?? "")}</span> : undefined,
     header: "Output",
   },
   {

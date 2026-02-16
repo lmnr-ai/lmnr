@@ -360,7 +360,7 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
     spansWithPosition.push({
       span,
       left,
-      width: Math.max(width, 0.5), // Minimum width for visibility
+      width,
       originalDepth: depthMap.get(span.spanId) ?? 0,
       startMs: spanStartMs,
       endMs: spanEndMs,

@@ -8,6 +8,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     ch::datapoints::{self as ch_datapoints},
     datasets::datapoints::{CHQueryEngineDatapoint, Datapoint},
     db::{self, DB, project_api_keys::ProjectApiKey},
@@ -57,6 +58,8 @@ async fn get_datapoints(
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
     project_api_key: ProjectApiKey,
+    http_client: web::Data<reqwest::Client>,
+    cache: web::Data<Cache>,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
     let db = db.into_inner();
@@ -69,6 +72,8 @@ async fn get_datapoints(
     };
     let query_engine = query_engine.into_inner().as_ref().clone();
     let query = params.into_inner();
+    let http_client = http_client.into_inner();
+    let cache = cache.into_inner();
 
     let dataset_id = match query.dataset {
         DatasetIdentifier::Name(name) => {
@@ -114,6 +119,9 @@ async fn get_datapoints(
         parameters.clone(),
         clickhouse_ro.clone(),
         query_engine.clone(),
+        http_client.clone(),
+        db.clone(),
+        cache.clone(),
     )
     .await?;
 
@@ -131,6 +139,9 @@ async fn get_datapoints(
         )]),
         clickhouse_ro,
         query_engine,
+        http_client.clone(),
+        db.clone(),
+        cache.clone(),
     )
     .await?;
 

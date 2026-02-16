@@ -336,3 +336,42 @@ pub async fn upsert_trace_statistics_batch(
 
     Ok(traces)
 }
+
+pub async fn insert_shared_traces(
+    pool: &PgPool,
+    project_id: Uuid,
+    trace_ids: &[Uuid],
+) -> Result<()> {
+    if trace_ids.is_empty() {
+        return Ok(());
+    }
+
+    sqlx::query(
+        "INSERT INTO shared_traces (project_id, id) SELECT $1, id FROM UNNEST($2::uuid[]) AS t(id)
+        ON CONFLICT (id) DO UPDATE SET project_id = $1",
+    )
+    .bind(project_id)
+    .bind(trace_ids)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn delete_shared_traces(
+    pool: &PgPool,
+    project_id: Uuid,
+    trace_ids: &[Uuid],
+) -> Result<()> {
+    if trace_ids.is_empty() {
+        return Ok(());
+    }
+
+    sqlx::query("DELETE FROM shared_traces WHERE project_id = $1 AND id = ANY($2)")
+        .bind(project_id)
+        .bind(trace_ids)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}

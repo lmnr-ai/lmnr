@@ -1,7 +1,6 @@
 use anyhow::Result;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
-use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -13,7 +12,7 @@ use crate::{
     utils::sanitize_string,
 };
 
-use super::utils::chrono_to_nanoseconds;
+use super::{ClickhouseInsertable, DataPlaneBatch, Table, utils::chrono_to_nanoseconds};
 
 /// for inserting into clickhouse
 ///
@@ -65,55 +64,55 @@ impl Into<u8> for TraceType {
     }
 }
 
-#[derive(Row, Serialize, Deserialize, Debug)]
+/// Field order matches the ClickHouse `spans` table column order so that
+/// `SELECT *` deserializes correctly.
+#[derive(Row, Serialize, Deserialize, Debug, Clone)]
 pub struct CHSpan {
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub parent_span_id: Uuid,
     pub name: String,
     pub span_type: u8,
     /// Start time in nanoseconds
     pub start_time: i64,
     /// End time in nanoseconds
     pub end_time: i64,
-    pub input_tokens: i64,
-    pub output_tokens: i64,
-    pub total_tokens: i64,
     pub input_cost: f64,
     pub output_cost: f64,
     pub total_cost: f64,
     pub model: String,
-    pub request_model: String,
-    pub response_model: String,
     pub session_id: String,
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub trace_id: Uuid,
     pub provider: String,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
     pub user_id: String,
-    // Default value is <null>  backwards compatibility or if path attribute is not present
+    // Default value is <null> for backwards compatibility or if path attribute is not present
     pub path: String,
     pub input: String,
     pub output: String,
-    pub status: String,
     #[serde(default)]
     pub size_bytes: u64,
+    pub status: String,
     pub attributes: String,
+    pub request_model: String,
+    pub response_model: String,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub parent_span_id: Uuid,
     pub trace_metadata: String,
     pub trace_type: u8,
     #[serde(default)]
     pub tags_array: Vec<String>,
+    /// Span events stored as Array(Tuple(timestamp Int64, name String, attributes String))
+    #[serde(default)]
+    pub events: Vec<(i64, String, String)>,
 }
 
 impl CHSpan {
-    pub fn from_db_span(
-        span: &Span,
-        usage: &SpanUsage,
-        project_id: Uuid,
-        size_bytes: usize,
-    ) -> Self {
+    pub fn from_db_span(span: &Span, usage: &SpanUsage, project_id: Uuid) -> Self {
         let session_id = span.attributes.session_id();
         let user_id = span.attributes.user_id();
         let path = span.attributes.flat_path();
@@ -169,47 +168,31 @@ impl CHSpan {
             input: span_input_string,
             output: span_output_string,
             status: span.status.clone().unwrap_or(String::from("")),
-            size_bytes: size_bytes as u64,
+            size_bytes: span.size_bytes as u64,
             attributes: span.attributes.to_string(),
             trace_metadata,
             trace_type: span.attributes.trace_type().unwrap_or_default().into(),
             tags_array: span.attributes.tags(),
+            events: span
+                .events
+                .iter()
+                .map(|e| {
+                    (
+                        chrono_to_nanoseconds(e.timestamp),
+                        e.name.clone(),
+                        e.attributes.to_string(),
+                    )
+                })
+                .collect(),
         }
     }
 }
 
-#[instrument(skip(clickhouse, spans))]
-pub async fn insert_spans_batch(clickhouse: clickhouse::Client, spans: &[CHSpan]) -> Result<()> {
-    if spans.is_empty() {
-        return Ok(());
-    }
+impl ClickhouseInsertable for CHSpan {
+    const TABLE: Table = Table::Spans;
 
-    let ch_insert = clickhouse.insert::<CHSpan>("spans").await;
-    match ch_insert {
-        Ok(mut ch_insert) => {
-            // Write all spans to the batch
-            for span in spans {
-                ch_insert.write(span).await?;
-            }
-
-            // End the batch insertion
-            let ch_insert_end_res = ch_insert.end().await;
-            match ch_insert_end_res {
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    return Err(anyhow::anyhow!(
-                        "Clickhouse batch span insertion failed: {:?}",
-                        e
-                    ));
-                }
-            }
-        }
-        Err(e) => {
-            return Err(anyhow::anyhow!(
-                "Failed to insert spans batch into Clickhouse: {:?}",
-                e
-            ));
-        }
+    fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
+        DataPlaneBatch::Spans(items)
     }
 }
 

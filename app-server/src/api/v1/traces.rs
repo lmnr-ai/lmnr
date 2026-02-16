@@ -5,7 +5,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    db::{DB, events::Event, project_api_keys::ProjectApiKey, spans::Span},
+    db::{DB, project_api_keys::ProjectApiKey, spans::Span},
     features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
@@ -17,7 +17,6 @@ use prost::Message;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RabbitMqSpanMessage {
     pub span: Span,
-    pub events: Vec<Event>,
 }
 
 // /v1/traces
@@ -55,8 +54,14 @@ pub async fn process_traces(
         }
     }
 
-    let response =
-        push_spans_to_queue(request, project_api_key.project_id, spans_message_queue).await?;
+    let response = push_spans_to_queue(
+        request,
+        project_api_key.project_id,
+        spans_message_queue,
+        db,
+        cache,
+    )
+    .await?;
     if response.partial_success.is_some() {
         return Err(anyhow::anyhow!("There has been an error during trace processing.").into());
     }

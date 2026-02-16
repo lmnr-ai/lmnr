@@ -12,7 +12,7 @@ import {
   transformSpansToTree,
   type TreeSpan,
 } from "@/components/traces/trace-view/trace-view-store-utils.ts";
-import { type Event } from "@/lib/events/types";
+import { type SpanEvent } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { type SpanType } from "@/lib/traces/types";
 
@@ -31,7 +31,7 @@ export type TraceViewSpan = {
   attributes: Record<string, any>;
   spanType: SpanType;
   path: string;
-  events: Event[];
+  events: SpanEvent[];
   status?: string;
   model?: string;
   pending?: boolean;
@@ -99,6 +99,7 @@ interface TraceViewStoreState {
   browserSession: boolean;
   langGraph: boolean;
   sessionTime?: number;
+  sessionStartTime?: number;
   tab: "tree" | "reader";
   treeWidth: number;
   hasBrowserSession: boolean;
@@ -124,6 +125,7 @@ interface TraceViewStoreActions {
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
   setSessionTime: (time?: number) => void;
+  setSessionStartTime: (time?: number) => void;
   setTab: (tab: TraceViewStoreState["tab"]) => void;
   setTreeWidth: (width: number) => void;
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
@@ -281,6 +283,7 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
           }
         },
         setSessionTime: (sessionTime) => set({ sessionTime }),
+        setSessionStartTime: (sessionStartTime) => set({ sessionStartTime }),
         setIsTraceLoading: (isTraceLoading) => set({ isTraceLoading }),
         setIsSpansLoading: (isSpansLoading) => set({ isSpansLoading }),
         setLangGraph: (langGraph: boolean) => set({ langGraph }),

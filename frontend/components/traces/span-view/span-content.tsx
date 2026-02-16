@@ -5,6 +5,7 @@ import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast.ts";
+import { GeminiInputSchema, GeminiOutputSchema } from "@/lib/spans/types/gemini";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 import { type Span, SpanType } from "@/lib/traces/types";
@@ -57,23 +58,37 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
   const spanPathString = spanPathArray.join(".");
   const presetKey = `${type}-${spanPathString}`;
 
+  // Normalize spanData: unwrap double-serialized strings (e.g. Gemini output is stored
+  // as serde_json::to_string → serde_json::to_value, resulting in Value::String("..."))
+  const normalizedData = useMemo(() => {
+    if (typeof spanData === "string") {
+      try {
+        return JSON.parse(spanData);
+      } catch {
+        return spanData;
+      }
+    }
+    return spanData;
+  }, [spanData]);
+
   // Check if data should be rendered as messages
   const shouldRenderAsMessages = useMemo(() => {
-    if (!spanData) return false;
+    if (!normalizedData) return false;
 
-    // Try to parse as OpenAI or LangChain messages
-    const openAIMessageResult = OpenAIMessageSchema.safeParse(spanData);
-    const openAIMessagesResult = OpenAIMessagesSchema.safeParse(spanData);
-    const langchainMessageResult = LangChainMessageSchema.safeParse(spanData);
-    const langchainMessagesResult = LangChainMessagesSchema.safeParse(spanData);
-
+    // Try to parse as OpenAI, LangChain, or Gemini messages
+    const openAIMessageResult = OpenAIMessageSchema.safeParse(normalizedData);
+    const openAIMessagesResult = OpenAIMessagesSchema.safeParse(normalizedData);
+    const langchainMessageResult = LangChainMessageSchema.safeParse(normalizedData);
+    const langchainMessagesResult = LangChainMessagesSchema.safeParse(normalizedData);
     return (
       openAIMessageResult.success ||
       openAIMessagesResult.success ||
       langchainMessageResult.success ||
-      langchainMessagesResult.success
+      langchainMessagesResult.success ||
+      GeminiOutputSchema.safeParse(normalizedData).success ||
+      GeminiInputSchema.safeParse(normalizedData).success
     );
-  }, [spanData]);
+  }, [normalizedData]);
 
   const searchContext = useSpanSearchContext();
 
@@ -94,7 +109,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
         className="rounded border-0"
         readOnly
         codeEditorClassName="rounded-none border-none bg-background"
-        value={JSON.stringify(spanData)}
+        value={JSON.stringify(normalizedData)}
         defaultMode="messages"
         modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
         presetKey={presetKey}
@@ -109,7 +124,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
       className="rounded-none border-none bg-background"
       readOnly
       modes={["JSON", "YAML", "TEXT", "CUSTOM", "MESSAGES"]}
-      value={JSON.stringify(spanData)}
+      value={JSON.stringify(normalizedData)}
       presetKey={presetKey}
       defaultMode={span.spanType === SpanType.LLM ? "messages" : "json"}
       searchTerm={searchContext?.searchTerm || ""}

@@ -126,16 +126,16 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     condition: string;
     params: QueryParams;
   }> = [
-    ...additionalConditions,
-    ...(spanIds?.length > 0
-      ? [
+      ...additionalConditions,
+      ...(spanIds?.length > 0
+        ? [
           {
             condition: `span_id IN ({spanIds:Array(UUID)})`,
             params: { spanIds },
           },
         ]
-      : []),
-  ];
+        : []),
+    ];
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -159,11 +159,11 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     ],
     ...(!isNil(limit) &&
       !isNil(offset) && {
-        pagination: {
-          limit,
-          offset,
-        },
-      }),
+      pagination: {
+        limit,
+        offset,
+      },
+    }),
   };
 
   return buildSelectQuery(queryOptions);
@@ -178,16 +178,16 @@ export const buildSpansCountQueryWithParams = (
     condition: string;
     params: QueryParams;
   }> = [
-    ...additionalConditions,
-    ...(spanIds?.length > 0
-      ? [
+      ...additionalConditions,
+      ...(spanIds?.length > 0
+        ? [
           {
             condition: `span_id IN ({spanIds:Array(UUID)})`,
             params: { spanIds },
           },
         ]
-      : []),
-  ];
+        : []),
+    ];
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -246,7 +246,7 @@ export const createParentRewiring = (
 };
 
 const applyParentRewiring = (
-  span: Omit<TraceViewSpan, "attributes"> & { attributes: string },
+  span: { spanId: string; parentSpanId?: string },
   parentRewiring: Map<string, string | undefined>
 ): string | undefined => {
   if (parentRewiring.has(span.spanId)) {
@@ -256,10 +256,11 @@ const applyParentRewiring = (
   return span.parentSpanId === "00000000-0000-0000-0000-000000000000" ? undefined : span.parentSpanId;
 };
 export const transformSpanWithEvents = (
-  span: Omit<TraceViewSpan, "attributes"> & { attributes: string },
-  spanEventsMap: Record<string, any[]>,
+  span: Omit<TraceViewSpan, "attributes" | "events"> & {
+    attributes: string;
+    events?: { timestamp: number; name: string; attributes: string }[];
+  },
   parentRewiring: Map<string, string | undefined>,
-  projectId: string
 ): TraceViewSpan => {
   const parsedAttributes = tryParseJson(span.attributes) || {};
   const cacheReadInputTokens = parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0;
@@ -270,9 +271,10 @@ export const transformSpanWithEvents = (
     cacheReadInputTokens,
     parentSpanId: applyParentRewiring(span, parentRewiring),
     name: span.name,
-    events: (spanEventsMap[span.spanId] || []).map((event) => ({
-      ...event,
-      projectId,
+    events: (span.events || []).map((event) => ({
+      timestamp: event.timestamp,
+      name: event.name,
+      attributes: tryParseJson(event.attributes) || {},
     })),
     collapsed: false,
   };

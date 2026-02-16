@@ -139,6 +139,7 @@ export const getEvaluationDatapoints = async (
     filters: datapointFilters,
     limit,
     offset,
+    isTruncateLongColumns: false,
   });
 
   const rawResults = await executeQuery<EvaluationDatapointRow>({

@@ -11,6 +11,8 @@ pub enum BatchWorkerType {
     ClusteringBatching,
     BrowserEvents,
     SignalsBatching,
+    Spans,
+    DataPlaneSpans,
 }
 
 impl std::fmt::Display for BatchWorkerType {
@@ -19,6 +21,8 @@ impl std::fmt::Display for BatchWorkerType {
             BatchWorkerType::ClusteringBatching => write!(f, "clustering_batch"),
             BatchWorkerType::BrowserEvents => write!(f, "browser_events"),
             BatchWorkerType::SignalsBatching => write!(f, "signals_batch"),
+            BatchWorkerType::Spans => write!(f, "spans"),
+            BatchWorkerType::DataPlaneSpans => write!(f, "data_plane_spans"),
         }
     }
 }

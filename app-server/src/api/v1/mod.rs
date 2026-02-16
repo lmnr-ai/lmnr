@@ -1,9 +1,9 @@
 pub mod browser_sessions;
 pub mod datasets;
 pub mod evals;
-pub mod evaluators;
 pub mod labeling_queues;
 pub mod logs;
+pub mod mcp;
 pub mod metrics;
 pub mod payloads;
 pub mod rollouts;

@@ -150,7 +150,7 @@ const ThreeCategories = ({ className }: Props) => (
                   Ask a question: <span className="text-primary-foreground/80">"Did the agent get stuck in a loop?"</span>. Laminar extracts structured answers from every trace automatically.
                 </p>
               </div>
-              <DocsButton href="https://docs.laminar.sh/tracing/events/semantic-events" />
+              <DocsButton href="https://docs.laminar.sh/signals" />
             </div>
           </div>
           <div

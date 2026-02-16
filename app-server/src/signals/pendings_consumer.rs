@@ -39,8 +39,8 @@ use super::{
     postprocess::process_event_notifications_and_clustering,
     push_to_signals_queue,
     queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_waiting_queue},
-    spans::get_trace_spans_with_id_mapping,
-    tools::get_full_span_info,
+    spans::{get_trace_spans, span_short_id},
+    tools::get_full_spans,
     utils::{
         InternalSpan, emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links,
     },
@@ -736,7 +736,7 @@ async fn process_single_response(
     let finish_reason = response.finish_reason.clone();
 
     let span_output = if let Some(content) = &response.content {
-        serde_json::to_value(content).ok()
+        Some(serde_json::from_str(content).unwrap_or(serde_json::Value::String(content.clone())))
     } else if let Some(function_call) = &response.function_call {
         serde_json::to_value(function_call).ok()
     } else if let Some(finish_reason) = &response.finish_reason {
@@ -1027,30 +1027,31 @@ async fn handle_tool_call(
     );
 
     match function_call.name.as_str() {
-        "get_full_span_info" => {
+        "get_full_spans" | "get_full_span_info" => {
             // Extract span_ids from args
-            let span_ids: Vec<usize> = function_call
+            let span_ids: Vec<String> = function_call
                 .args
                 .as_ref()
                 .and_then(|args| args.get("span_ids"))
                 .and_then(|v| v.as_array())
                 .map(|arr| {
                     arr.iter()
-                        .filter_map(|v| v.as_u64().map(|n| n as usize))
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
                         .collect()
                 })
                 .unwrap_or_default();
 
             if span_ids.is_empty() {
                 return StepResult::Failed {
-                    error: "get_full_span_info called with no span_ids".to_string(),
+                    error: "get_full_spans called with no span_ids or with invalid span_ids"
+                        .to_string(),
                     finish_reason: None,
                     is_processing_error: true,
                 };
             }
 
             // Execute the tool
-            let tool_result = match get_full_span_info(
+            let tool_result = match get_full_spans(
                 clickhouse,
                 signal_message.project_id,
                 run.trace_id,
@@ -1085,7 +1086,9 @@ async fn handle_tool_call(
             let summary: Option<String> = function_call
                 .args
                 .as_ref()
-                .and_then(|args| args.get("_summary"))
+                .and_then(|args: &serde_json::Value| {
+                    args.get("summary").or_else(|| args.get("_summary"))
+                })
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
 
@@ -1096,18 +1099,14 @@ async fn handle_tool_call(
 
             if identified {
                 let attrs = attributes.unwrap_or_default();
-                if let Some(summary) = summary {
-                    return StepResult::CompletedWithEvent {
-                        attributes: attrs,
-                        summary: summary,
-                    };
-                } else {
-                    return StepResult::Failed {
-                        error: "submit_identification called with no summary".to_string(),
-                        finish_reason: None,
-                        is_processing_error: true,
-                    };
-                }
+                let summary = summary.unwrap_or_else(|| {
+                    log::warn!("[SIGNAL JOB] submit_identification called with no summary, defaulting to empty string");
+                    String::new()
+                });
+                return StepResult::CompletedWithEvent {
+                    attributes: attrs,
+                    summary,
+                };
             }
 
             return StepResult::CompletedNoEvent;
@@ -1137,12 +1136,8 @@ async fn handle_create_event(
     let create_event_start_time = chrono::Utc::now();
 
     // Get trace spans
-    let (ch_spans, uuid_to_seq) = get_trace_spans_with_id_mapping(
-        clickhouse.clone(),
-        signal_message.project_id,
-        run.trace_id,
-    )
-    .await?;
+    let ch_spans =
+        get_trace_spans(clickhouse.clone(), signal_message.project_id, run.trace_id).await?;
 
     if ch_spans.is_empty() {
         anyhow::bail!("No spans found for trace {}", run.trace_id);
@@ -1152,15 +1147,15 @@ async fn handle_create_event(
     let root_span = &ch_spans[0];
     let timestamp = nanoseconds_to_datetime(root_span.end_time);
 
-    // Replace span tags with markdown links
-    let seq_to_uuid: HashMap<usize, Uuid> = uuid_to_seq
+    // Build short ID -> full UUID mapping for replacing span tags with links
+    let short_to_uuid: HashMap<String, Uuid> = ch_spans
         .iter()
-        .map(|(uuid, seq)| (*seq, *uuid))
+        .map(|span| (span_short_id(&span.span_id), span.span_id))
         .collect();
 
     let attrs = replace_span_tags_with_links(
         attributes,
-        &seq_to_uuid,
+        &short_to_uuid,
         signal_message.project_id,
         run.trace_id,
     )?;
@@ -1176,6 +1171,7 @@ async fn handle_create_event(
         signal_message.signal.name.clone(),
         attrs.clone(),
         timestamp,
+        summary.clone(),
     );
 
     // Insert into ClickHouse signal_events table
@@ -1195,7 +1191,6 @@ async fn handle_create_event(
         signal_message.project_id,
         run.trace_id,
         signal_event,
-        summary,
     )
     .await?;
 
