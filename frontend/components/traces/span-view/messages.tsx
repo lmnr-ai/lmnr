@@ -6,6 +6,7 @@ import React, { memo, type PropsWithChildren, type Ref, useMemo, useRef } from "
 import { type z } from "zod/v4";
 
 import { MessageWrapper } from "@/components/traces/span-view/common";
+import GeminiContentParts from "@/components/traces/span-view/gemini-parts";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
@@ -14,6 +15,11 @@ import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
+import {
+  type GeminiContentsSchema,
+  parseGeminiInput,
+  parseGeminiOutput,
+} from "@/lib/spans/types/gemini";
 
 interface MessagesProps {
   messages: any;
@@ -53,6 +59,16 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 
     if (langchainResult.success) {
       return { messages: langchainResult.data, type: "langchain" as const };
+    }
+
+    const geminiOutput = parseGeminiOutput(messages);
+    if (geminiOutput) {
+      return { messages: geminiOutput, type: "gemini" as const };
+    }
+
+    const geminiInput = parseGeminiInput(messages);
+    if (geminiInput) {
+      return { messages: geminiInput, type: "gemini" as const };
     }
 
     return {
@@ -139,6 +155,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 type MessageRendererProps =
   | { type: "langchain"; messages: z.infer<typeof LangChainMessagesSchema> }
   | { type: "openai"; messages: z.infer<typeof OpenAIMessagesSchema> }
+  | { type: "gemini"; messages: z.infer<typeof GeminiContentsSchema> }
   | { type: "generic"; messages: (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] };
 
 const MessagesRenderer = ({
@@ -172,6 +189,18 @@ const MessagesRenderer = ({
           <div key={row.key} data-index={row.index} ref={ref}>
             <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`}>
               <LangChainContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
+            </MessageWrapper>
+          </div>
+        );
+      });
+
+    case "gemini":
+      return virtualItems.map((row) => {
+        const message = messages[row.index];
+        return (
+          <div key={row.key} data-index={row.index} ref={ref}>
+            <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`}>
+              <GeminiContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
             </MessageWrapper>
           </div>
         );

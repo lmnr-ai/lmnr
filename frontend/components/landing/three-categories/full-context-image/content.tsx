@@ -101,7 +101,7 @@ const TRACE_DATA: MockSpan[] = [
     type: "TOOL",
     depth: 2,
     branchMask: [true, false],
-    content: "writing to pricing_summary.md",
+    content: "writing to pricingsummary.md",
   },
 
   // Step 7: Sixth agent step
