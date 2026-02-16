@@ -273,7 +273,7 @@ export const getEvaluationCellValue = async (
     throw new Error("Invalid column JSON");
   }
 
-  const query = `SELECT ${col.sql} as ${col.id} FROM evaluation_datapoints WHERE evaluation_id = {evaluation_id:String} AND id = {datapoint_id:String} LIMIT 1`;
+  const query = `SELECT ${col.sql} as ${col.id} FROM evaluation_datapoints WHERE evaluation_id = {evaluation_id:UUID} AND id = {datapoint_id:UUID} LIMIT 1`;
   const parameters = { evaluation_id: evaluationId, datapoint_id: datapointId };
 
   const results = await executeQuery<Record<string, unknown>>({
