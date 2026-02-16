@@ -64,42 +64,44 @@ impl Into<u8> for TraceType {
     }
 }
 
+/// Field order matches the ClickHouse `spans` table column order so that
+/// `SELECT *` deserializes correctly.
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
 pub struct CHSpan {
     #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub parent_span_id: Uuid,
     pub name: String,
     pub span_type: u8,
     /// Start time in nanoseconds
     pub start_time: i64,
     /// End time in nanoseconds
     pub end_time: i64,
-    pub input_tokens: i64,
-    pub output_tokens: i64,
-    pub total_tokens: i64,
     pub input_cost: f64,
     pub output_cost: f64,
     pub total_cost: f64,
     pub model: String,
-    pub request_model: String,
-    pub response_model: String,
     pub session_id: String,
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub trace_id: Uuid,
     pub provider: String,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
     pub user_id: String,
-    // Default value is <null>  backwards compatibility or if path attribute is not present
+    // Default value is <null> for backwards compatibility or if path attribute is not present
     pub path: String,
     pub input: String,
     pub output: String,
-    pub status: String,
     #[serde(default)]
     pub size_bytes: u64,
+    pub status: String,
     pub attributes: String,
+    pub request_model: String,
+    pub response_model: String,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub parent_span_id: Uuid,
     pub trace_metadata: String,
     pub trace_type: u8,
     #[serde(default)]

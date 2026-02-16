@@ -268,7 +268,7 @@ pub fn spans_to_skeleton_string(spans: &[CompressedSpan]) -> String {
     skeleton
 }
 
-/// Query trace spans from ClickHouse with exception events
+/// Query trace spans from ClickHouse
 pub async fn get_trace_spans(
     clickhouse: clickhouse::Client,
     project_id: Uuid,

@@ -128,13 +128,7 @@ pub async fn get_full_spans(
     let in_clause = hex_literals.join(", ");
 
     let query = format!(
-        r#"
-        SELECT *
-        FROM spans
-        WHERE trace_id = ? AND project_id = ?
-          AND lower(right(hex(span_id), 6)) IN ({})
-        ORDER BY start_time ASC
-        "#,
+        "SELECT * FROM spans WHERE trace_id = ? AND project_id = ? AND lower(right(hex(span_id), 6)) IN ({}) ORDER BY start_time ASC",
         in_clause
     );
 

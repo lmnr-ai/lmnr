@@ -1043,7 +1043,8 @@ async fn handle_tool_call(
 
             if span_ids.is_empty() {
                 return StepResult::Failed {
-                    error: "get_full_spans called with no span_ids".to_string(),
+                    error: "get_full_spans called with no span_ids or with invalid span_ids"
+                        .to_string(),
                     finish_reason: None,
                     is_processing_error: true,
                 };
