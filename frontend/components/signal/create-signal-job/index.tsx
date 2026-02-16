@@ -9,9 +9,7 @@ import AdvancedSearch from "@/components/common/advanced-search";
 import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
 import SelectionBanner from "@/components/signal/create-signal-job/selection-banner.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
-import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
 import TraceView from "@/components/traces/trace-view";
-import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import {
   columns,
@@ -402,25 +400,14 @@ export default function CreateSignalJob({ traceId }: { traceId?: string }) {
     setTraceId: state.setTraceId,
   }));
 
-  const handleNavigate = useCallback(
-    (item: EventNavigationItem | null) => {
-      if (item) {
-        setTraceId(item.traceId);
-      }
-    },
-    [setTraceId]
-  );
-
   useEffect(() => {
     if (traceId) setTraceId(traceId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <TraceViewNavigationProvider<EventNavigationItem> config={getEventsConfig()} onNavigate={handleNavigate}>
-      <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}>
-        <CreateSignalJobContent />
-      </DataTableStateProvider>
-    </TraceViewNavigationProvider>
+    <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}>
+      <CreateSignalJobContent />
+    </DataTableStateProvider>
   );
 }
