@@ -787,7 +787,7 @@ export const workspaceAddons = pgTable("workspace_addons", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	workspaceId: uuid("workspace_id").notNull(),
-	addonSlug: text("addon-slug").notNull(),
+	addonSlug: text("addon_slug").notNull(),
 }, (table) => [
 	foreignKey({
 			columns: [table.workspaceId],

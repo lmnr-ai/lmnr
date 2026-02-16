@@ -1,4 +1,9 @@
 import { SQLDialect } from "@codemirror/lang-sql";
+import { StateField, StateEffect, type EditorState } from "@codemirror/state";
+import { showTooltip, type EditorView } from "@codemirror/view";
+import type { Tooltip as TooltipType } from "@codemirror/view";
+import { syntaxTree } from "@codemirror/language";
+import { getFunctionSignature, type FunctionSignature, clickhouseFunctionSignatures } from "./clickhouse-signatures";
 
 const clickhouseFunctions = {
   // String functions
@@ -216,6 +221,32 @@ const clickhouseFunctions = {
     { name: "arrayEnumerateUniq", description: "Enumerates unique elements" },
     { name: "arrayEnumerateDense", description: "Enumerates elements densely" },
   ],
+  // Tuple functions
+  tuple: [
+    { name: "tuple", description: "Creates a tuple by grouping input arguments" },
+    { name: "tupleElement", description: "Extracts an element from a tuple by index or name" },
+    { name: "untuple", description: "Performs syntactic substitution of tuple elements" },
+    { name: "tupleNames", description: "Converts a tuple into an array of column names" },
+    { name: "tupleToNameValuePairs", description: "Converts a tuple to an array of (name, value) pairs" },
+    { name: "tuplePlus", description: "Calculates the sum of corresponding elements of two tuples" },
+    { name: "tupleMinus", description: "Calculates the difference between corresponding elements of two tuples" },
+    { name: "tupleMultiply", description: "Calculates the multiplication of corresponding elements of two tuples" },
+    { name: "tupleDivide", description: "Calculates the division of corresponding elements of two tuples" },
+    { name: "tupleNegate", description: "Calculates the negation of the tuple elements" },
+    { name: "tupleMultiplyByNumber", description: "Multiplies all tuple elements by a number" },
+    { name: "tupleDivideByNumber", description: "Divides all tuple elements by a number" },
+    { name: "tupleIntDiv", description: "Performs integer division with tuples of numerators and denominators" },
+    { name: "tupleIntDivByNumber", description: "Performs integer division of a tuple by a number" },
+    { name: "tupleIntDivOrZero", description: "Integer division of tuples, returns 0 for division by zero" },
+    { name: "tupleIntDivOrZeroByNumber", description: "Integer division of tuple by number, returns 0 for division by zero" },
+    { name: "tupleModulo", description: "Returns remainders of division operations of two tuples" },
+    { name: "tupleModuloByNumber", description: "Returns remainders of division of tuple by number" },
+    { name: "tupleConcat", description: "Combines tuples passed as arguments" },
+    { name: "tupleHammingDistance", description: "Returns the Hamming Distance between two tuples of the same size" },
+    { name: "flattenTuple", description: "Flattens a named and nested tuple" },
+    { name: "vectorSum", description: "Alias for tuplePlus" },
+    { name: "vectorDifference", description: "Alias for tupleMinus" },
+  ],
   // Conditional functions
   conditional: [
     { name: "if", description: "Returns value based on condition" },
@@ -272,18 +303,24 @@ const clickhouseFunctions = {
     { name: "JSONLength", description: "Returns length of JSON array or object" },
     { name: "JSONType", description: "Returns type of JSON value" },
     { name: "JSONExtractRaw", description: "Extracts raw JSON string" },
-    { name: "visitParamExtractString", description: "Extracts string from visit parameters" },
-    { name: "visitParamExtractInt", description: "Extracts integer from visit parameters" },
-    { name: "visitParamExtractFloat", description: "Extracts float from visit parameters" },
-    { name: "visitParamExtractBool", description: "Extracts boolean from visit parameters" },
-    { name: "visitParamHas", description: "Checks if visit parameter exists" },
+    { name: "simpleJSONExtractString", description: "Extract string from JSON by key (w/ simplifying assumptions)" },
+    { name: "visitParamExtractString", description: "Extract string from JSON by key (w/ simplifying assumptions)" },
+    { name: "simpleJSONExtractInt", description: "Extract integer from JSON by key (w/ simplifying assumptions)" },
+    { name: "visitParamExtractInt", description: "Extract integer from JSON by key (w/ simplifying assumptions)" },
+    { name: "simpleJSONExtractFloat", description: "Extract float from JSON by key (w/ simplifying assumptions)" },
+    { name: "visitParamExtractFloat", description: "Extract float from JSON by key (w/ simplifying assumptions)" },
+    { name: "simpleJSONExtractBool", description: "Extract boolean from JSON by key (w/ simplifying assumptions)" },
+    { name: "visitParamExtractBool", description: "Extract boolean from JSON by key (w/ simplifying assumptions)" },
+    { name: "simpleJSONExtractRaw", description: "Extract raw JSON string by key (w/ simplifying assumptions)" },
+    { name: "visitParamExtractRaw", description: "Extract raw JSON string by key (w/ simplifying assumptions)" },
+    { name: "simpleJSONHas", description: "Checks if key exists in JSON (w/ simplifying assumptions)" },
+    { name: "visitParamHas", description: "Checks if key exists in JSON (w/ simplifying assumptions)" },
   ],
   // Window functions
   window: [
     { name: "row_number", description: "Sequential row number within partition" },
     { name: "rank", description: "Rank with gaps" },
     { name: "dense_rank", description: "Rank without gaps" },
-    { name: "ntile", description: "Divides rows into specified buckets" },
     { name: "lag", description: "Accesses previous row value" },
     { name: "lead", description: "Accesses next row value" },
     { name: "first_value", description: "Returns first value in window" },
@@ -328,5 +365,227 @@ const ClickHouseDialect = SQLDialect.define({
   hashComments: false,
 });
 
-export { ClickHouseDialect, clickhouseFunctions };
 
+
+// Signature Help Implementation
+
+interface FunctionCallContext {
+  functionName: string;
+  parameterIndex: number;
+  start: number;
+  end: number;
+}
+
+/**
+ * Checks if the position is inside a string literal
+ */
+function isInsideString(state: EditorState, pos: number): boolean {
+  const tree = syntaxTree(state);
+  const node = tree.resolveInner(pos, -1);
+
+  const isString = node.name === "String" || node.name === "QuotedString" || node.name === "Literal";
+
+  return isString;
+}
+
+/**
+ * Finds the function call context at the cursor position
+ */
+function getFunctionCallContext(state: EditorState, pos: number): FunctionCallContext | null {
+  // Don't show signature help inside strings
+  if (isInsideString(state, pos)) {
+    return null;
+  }
+
+  const doc = state.doc;
+  const text = doc.sliceString(Math.max(0, pos - 500), pos);
+
+  // Find the last opening parenthesis
+  let parenDepth = 0;
+  let lastOpenParen = -1;
+  let commaCount = 0;
+
+  for (let i = text.length - 1; i >= 0; i--) {
+    const char = text[i];
+
+    if (char === ")") {
+      parenDepth++;
+    } else if (char === "(") {
+      if (parenDepth === 0) {
+        lastOpenParen = i;
+        break;
+      }
+      parenDepth--;
+    } else if (char === "," && parenDepth === 0) {
+      commaCount++;
+    }
+  }
+
+  if (lastOpenParen === -1) {
+    return null;
+  }
+
+  // Find function name before the opening paren
+  const beforeParen = text.slice(0, lastOpenParen).trimEnd();
+  const functionNameMatch = beforeParen.match(/(\w+)\s*$/);
+
+  if (!functionNameMatch) {
+    return null;
+  }
+
+  const functionName = functionNameMatch[1];
+
+  // Calculate the absolute position of the function name start
+  const textOffset = Math.max(0, pos - 500);
+  const functionNameStartInText = beforeParen.length - functionNameMatch[1].length;
+  const functionStart = textOffset + functionNameStartInText;
+
+  // The opening paren position in absolute terms
+  const openParenPos = textOffset + lastOpenParen;
+
+  return {
+    functionName,
+    parameterIndex: commaCount,
+    start: functionStart,
+    end: pos,
+  };
+}
+
+/**
+ * Formats a function signature with the current parameter highlighted
+ */
+function formatSignature(sig: FunctionSignature, currentParam: number): HTMLElement {
+  const container = document.createElement("div");
+  container.className = "signature-help";
+
+  // Function name and opening paren
+  const nameSpan = document.createElement("span");
+  nameSpan.className = "signature-function-name";
+  nameSpan.textContent = sig.name;
+  container.appendChild(nameSpan);
+
+  const openParen = document.createElement("span");
+  openParen.textContent = "(";
+  container.appendChild(openParen);
+
+  // Parameters
+  sig.parameters.forEach((param, index) => {
+    if (index > 0) {
+      const comma = document.createElement("span");
+      comma.textContent = ", ";
+      container.appendChild(comma);
+    }
+
+    const paramSpan = document.createElement("span");
+    paramSpan.className = index === currentParam ? "signature-param-current" : "signature-param";
+
+    const paramText = param.optional ? `[${param.name}]` : param.name;
+    paramSpan.textContent = paramText;
+
+    container.appendChild(paramSpan);
+  });
+
+  const closeParen = document.createElement("span");
+  closeParen.textContent = ")";
+  container.appendChild(closeParen);
+
+  // Return type
+  const returnType = document.createElement("span");
+  returnType.className = "signature-return-type";
+  returnType.textContent = ` → ${sig.returnType}`;
+  container.appendChild(returnType);
+
+  // Description
+  const desc = document.createElement("div");
+  desc.className = "signature-description";
+  desc.textContent = sig.description;
+  container.appendChild(desc);
+
+  // Current parameter details
+  if (currentParam < sig.parameters.length) {
+    const currentParamInfo = sig.parameters[currentParam];
+    const paramDetails = document.createElement("div");
+    paramDetails.className = "signature-param-details";
+
+    const paramName = document.createElement("strong");
+    paramName.textContent = currentParamInfo.name;
+    paramDetails.appendChild(paramName);
+
+    const paramType = document.createElement("span");
+    paramType.className = "signature-param-type";
+    paramType.textContent = `: ${currentParamInfo.type}`;
+    paramDetails.appendChild(paramType);
+
+    const paramDesc = document.createElement("div");
+    paramDesc.textContent = currentParamInfo.description;
+    paramDetails.appendChild(paramDesc);
+
+    container.appendChild(paramDetails);
+  }
+
+  return container;
+}
+
+/**
+ * Creates the signature help tooltip that updates as you type
+ */
+const setSignatureTooltip = StateEffect.define<FunctionCallContext | null>();
+
+const signatureTooltipField = StateField.define<FunctionCallContext | null>({
+  create(state) {
+    const pos = state.selection.main.head;
+    const context = getFunctionCallContext(state, pos);
+    return context;
+  },
+  update(value, tr) {
+    // Check for explicit effects
+    for (const effect of tr.effects) {
+      if (effect.is(setSignatureTooltip)) {
+        return effect.value;
+      }
+    }
+
+    // Auto-update on cursor position change or document change
+    if (tr.selection || tr.docChanged) {
+      const pos = tr.state.selection.main.head;
+      const context = getFunctionCallContext(tr.state, pos);
+
+      return context;
+    }
+
+    return value;
+  },
+  provide: (field) =>
+    showTooltip.from(field, (context) => {
+      if (!context) {
+        return null;
+      }
+
+      const signature = getFunctionSignature(context.functionName);
+      if (!signature) {
+        return null;
+      }
+
+      // Validate positions
+      if (context.start < 0 || context.end < 0 || context.start > context.end) {
+        return null;
+      }
+
+      const tooltip: TooltipType = {
+        pos: context.end,
+        above: true,
+        strictSide: false,
+        arrow: true,
+        create: (view) => {
+          const dom = formatSignature(signature, context.parameterIndex);
+          return { dom };
+        },
+      };
+
+      return tooltip;
+    }),
+});
+
+const signatureHelp = [signatureTooltipField];
+
+export { ClickHouseDialect, clickhouseFunctions, signatureHelp };
