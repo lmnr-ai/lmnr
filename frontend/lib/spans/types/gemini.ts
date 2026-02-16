@@ -144,8 +144,8 @@ export const extractGeminiSystemMessage = (
 ): string | null => {
   const system = messages.find((m) => m.role === "system");
   if (!system) return null;
-  const textPart = system.parts.find((p) => "text" in p);
-  return textPart && "text" in textPart ? textPart.text : null;
+  const texts = system.parts.filter((p) => "text" in p).map((p) => (p as { text: string }).text);
+  return texts.length > 0 ? texts.join("\n") : null;
 };
 
 /** High-level input / output schemas **/
