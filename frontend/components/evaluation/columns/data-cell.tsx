@@ -8,9 +8,15 @@ import { type EvalRow } from "@/lib/evaluation/types";
 export const DataCell = ({ getValue, column, row }: CellContext<EvalRow, unknown>) => {
   const { projectId } = useParams();
   const fullSql = column.columnDef.meta?.fullSql;
+  const isTruncatedColumn = column.columnDef.meta?.truncated === true;
   const datapointId = row.original["id"] as string | undefined;
   const evaluationId = row.original["evaluationId"] as string | undefined;
-  const canFetch = !!(fullSql && datapointId && evaluationId && projectId);
+
+  const value = getValue();
+  const valueStr = typeof value === "string" ? value : JSON.stringify(value);
+  const isDataTruncated = isTruncatedColumn && valueStr?.length === 200;
+
+  const canFetch = !!(isDataTruncated && fullSql && datapointId && evaluationId && projectId);
 
   const onFetchFull = useCallback(async () => {
     if (!canFetch) return null;

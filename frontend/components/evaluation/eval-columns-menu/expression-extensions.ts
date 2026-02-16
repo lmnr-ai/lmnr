@@ -1,7 +1,12 @@
-import { autocompletion, type CompletionContext, completionKeymap, type CompletionResult } from "@codemirror/autocomplete";
+import {
+  autocompletion,
+  type CompletionContext,
+  completionKeymap,
+  type CompletionResult,
+} from "@codemirror/autocomplete";
 import { sql } from "@codemirror/lang-sql";
 import { Prec } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorView, keymap, tooltips } from "@codemirror/view";
 
 import { ClickHouseDialect, clickhouseFunctions } from "@/components/ui/content-renderer/lang-clickhouse";
 
@@ -80,6 +85,9 @@ export const expressionExtensions = [
     "&.cm-editor": { height: "100%", width: "100%", position: "relative" },
   }),
   EditorView.lineWrapping,
+  tooltips({
+    parent: typeof document !== "undefined" ? document.body : undefined,
+  }),
   sql({ dialect: ClickHouseDialect, upperCaseKeywords: true }),
   ClickHouseDialect.language.data.of({ autocomplete: expressionCompletionSource }),
   autocompletion(),

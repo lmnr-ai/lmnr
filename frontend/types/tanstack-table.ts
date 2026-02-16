@@ -38,5 +38,7 @@ declare module "@tanstack/react-table" {
     // The untruncated SQL expression for columns whose SELECT uses substring().
     // Used by DataCell to fetch the full value on hover.
     fullSql?: string;
+    // When true, indicates that the column value may be truncated (e.g. via substring).
+    truncated?: boolean;
   }
 }
