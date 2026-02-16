@@ -142,6 +142,8 @@ export const convertGeminiToPlaygroundMessages = async (
     map(messages, async (message): Promise<Message> => {
       const content: Message["content"] = [];
 
+      // Gemini parts use field-presence discrimination (no "type" key).
+      // Unrecognised variants are skipped.
       for (const part of message.parts) {
         if ("text" in part) {
           content.push({ type: "text", text: part.text });

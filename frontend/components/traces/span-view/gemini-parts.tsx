@@ -25,6 +25,8 @@ const GeminiPartRenderer = ({
     messageIndex: number;
     contentPartIndex: number;
 }) => {
+    // Gemini parts use field-presence discrimination (no "type" key).
+    // Unrecognised variants fall through to null.
     if ("text" in part) {
         return (
             <TextContentPart
