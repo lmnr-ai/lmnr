@@ -1,43 +1,23 @@
 use anyhow::Result;
 use chrono::DateTime;
-use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
+use crate::ch::spans::CHSpan;
+
 use super::utils::try_parse_json;
 
-const TRUNCATE_THRESHOLD: usize = 64;
-const PREVIEW_LENGTH: usize = 24;
+const TRUNCATE_THRESHOLD: usize = 1024;
 const BASE64_IMAGE_PLACEHOLDER: &str = "[base64 image omitted]";
-/// Max chars to keep for LLM span inputs (~1K tokens).
-const LLM_INPUT_MAX_CHARS: usize = 3000;
+/// Max chars to keep per message in LLM span inputs (~1K tokens).
+const LLM_MESSAGE_MAX_CHARS: usize = 3000;
 
-/// Raw span from ClickHouse with exception data
-#[derive(Row, Serialize, Deserialize, Debug, Clone)]
-pub struct CHSpanWithException {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub span_id: Uuid,
-    pub name: String,
-    pub span_type: u8,
-    pub path: String,
-    /// Start time in nanoseconds
-    pub start_time: i64,
-    /// End time in nanoseconds
-    pub end_time: i64,
-    pub input: String,
-    pub output: String,
-    pub status: String,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub parent_span_id: Uuid,
-    pub exception: String,
-}
-
-/// Compressed span with sequential ID
+/// Compressed span identified by the last 4 hex chars of its UUID
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CompressedSpan {
-    pub id: usize,
+    pub id: String,
     pub name: String,
     pub path: String,
     #[serde(rename = "type")]
@@ -51,9 +31,17 @@ pub struct CompressedSpan {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent: Option<usize>,
+    pub parent: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exception: Option<Value>,
+}
+
+const SPAN_SHORT_ID_LEN: usize = 6;
+
+/// Extract the last 6 hex characters of a UUID as a short identifier.
+pub fn span_short_id(uuid: &Uuid) -> String {
+    let s = uuid.to_string().replace('-', "");
+    s[s.len() - SPAN_SHORT_ID_LEN..].to_string()
 }
 
 /// Format a nanosecond timestamp as a human-readable UTC string.
@@ -86,34 +74,50 @@ fn truncate_value(value: &Value) -> Value {
         return value.clone();
     }
 
-    // Use character-based slicing to avoid splitting multi-byte UTF-8 characters
-    let start: String = value_str.chars().take(PREVIEW_LENGTH).collect();
-    let end: String = value_str
-        .chars()
-        .skip(char_count.saturating_sub(PREVIEW_LENGTH))
-        .collect();
-    let omitted = char_count.saturating_sub(PREVIEW_LENGTH * 2);
-
-    Value::String(format!("{}...({} chars omitted)...{}", start, omitted, end))
+    let truncated: String = value_str.chars().take(TRUNCATE_THRESHOLD).collect();
+    let omitted = char_count - TRUNCATE_THRESHOLD;
+    Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
 }
 
-/// Truncate an LLM input value to LLM_INPUT_MAX_CHARS.
-/// Keeps the first N chars of the serialized JSON and appends a truncation notice.
+/// Truncate LLM input messages. If the input is an array of messages, each message's
+/// string fields are individually capped at LLM_MESSAGE_MAX_CHARS so that no single
+/// large message causes later messages to be lost.
 fn truncate_llm_input(value: &Value) -> Value {
-    let serialized = serde_json::to_string(value).unwrap_or_default();
-    let char_count = serialized.chars().count();
-    if char_count <= LLM_INPUT_MAX_CHARS {
-        return value.clone();
+    match value {
+        Value::Array(messages) => {
+            Value::Array(messages.iter().map(truncate_message_strings).collect())
+        }
+        _ => value.clone(),
     }
-    let truncated: String = serialized.chars().take(LLM_INPUT_MAX_CHARS).collect();
-    let omitted = char_count - LLM_INPUT_MAX_CHARS;
-    Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
+}
+
+/// Truncate any string field in a message object that exceeds LLM_MESSAGE_MAX_CHARS.
+/// Non-string fields and short strings are left untouched.
+fn truncate_message_strings(message: &Value) -> Value {
+    match message {
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| {
+                    let truncated = match v {
+                        Value::String(s) if s.chars().count() > LLM_MESSAGE_MAX_CHARS => {
+                            let truncated: String = s.chars().take(LLM_MESSAGE_MAX_CHARS).collect();
+                            let omitted = s.chars().count() - LLM_MESSAGE_MAX_CHARS;
+                            Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
+                        }
+                        other => other.clone(),
+                    };
+                    (k.clone(), truncated)
+                })
+                .collect(),
+        ),
+        _ => message.clone(),
+    }
 }
 
 /// Replace base64 image data within a JSON value with a placeholder.
 ///
 /// Detects data URLs of the form `data:image/...;base64,...` anywhere in the JSON tree.
-fn replace_base64_images(value: &Value) -> Value {
+pub fn replace_base64_images(value: &Value) -> Value {
     match value {
         Value::String(s) => {
             if let Some(idx) = s.find("base64,") {
@@ -134,13 +138,39 @@ fn replace_base64_images(value: &Value) -> Value {
     }
 }
 
-/// Compress span content based on type and occurrence
-pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<CompressedSpan> {
-    // Build span UUID to sequential ID mapping (1-indexed)
-    let span_uuid_to_id: HashMap<Uuid, usize> = ch_spans
+/// Remove `signature` and `thought_signature` fields from LLM span inputs and outputs.
+/// These fields contain large hash values that waste context and provide no analytical value.
+pub fn strip_signature_fields(value: &Value) -> Value {
+    match value {
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .filter(|(k, _)| k.as_str() != "signature" && k.as_str() != "thought_signature")
+                .map(|(k, v)| (k.clone(), strip_signature_fields(v)))
+                .collect(),
+        ),
+        Value::Array(arr) => Value::Array(arr.iter().map(strip_signature_fields).collect()),
+        _ => value.clone(),
+    }
+}
+
+/// Extract exception attributes from span events.
+/// Events are stored as `(timestamp, name, attributes)` tuples; we look for `name == "exception"`.
+pub fn extract_exception_from_events(events: &[(i64, String, String)]) -> Option<Value> {
+    events
         .iter()
-        .enumerate()
-        .map(|(i, span)| (span.span_id, i + 1))
+        .find(|(_, name, _)| name == "exception")
+        .map(|(_, _, attrs)| try_parse_json(attrs))
+        .filter(|v| !v.is_null())
+}
+
+/// Compress span content based on type and occurrence.
+/// Spans are identified by the last 4 hex chars of their UUID, which is stable
+/// across iterations regardless of span arrival order.
+pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
+    // Build span UUID to short ID mapping
+    let span_uuid_to_short: HashMap<Uuid, String> = ch_spans
+        .iter()
+        .map(|span| (span.span_id, span_short_id(&span.span_id)))
         .collect();
 
     // Track which LLM paths we've already seen
@@ -148,8 +178,7 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
 
     ch_spans
         .iter()
-        .enumerate()
-        .map(|(i, ch_span)| {
+        .map(|ch_span| {
             let is_llm = ch_span.span_type == 1;
             let path = ch_span.path.clone();
             let duration_ns = ch_span.end_time - ch_span.start_time;
@@ -159,13 +188,14 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
             {
                 None
             } else {
-                span_uuid_to_id.get(&ch_span.parent_span_id).copied()
+                span_uuid_to_short.get(&ch_span.parent_span_id).cloned()
             };
 
             let (input, output) = if is_llm {
-                let input_data =
-                    truncate_llm_input(&replace_base64_images(&try_parse_json(&ch_span.input)));
-                let output_data = replace_base64_images(&try_parse_json(&ch_span.output));
+                let input_data = truncate_llm_input(&strip_signature_fields(
+                    &replace_base64_images(&try_parse_json(&ch_span.input)),
+                ));
+                let output_data = strip_signature_fields(&try_parse_json(&ch_span.output));
 
                 if seen_llm_paths.contains(&path) {
                     // Subsequent LLM span at same path: only output
@@ -202,14 +232,10 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
                 (input_opt, output_opt)
             };
 
-            let exception = if !ch_span.exception.is_empty() && ch_span.exception != "<null>" {
-                Some(try_parse_json(&ch_span.exception))
-            } else {
-                None
-            };
+            let exception = extract_exception_from_events(&ch_span.events);
 
             CompressedSpan {
-                id: i + 1,
+                id: span_short_id(&ch_span.span_id),
                 name: ch_span.name.clone(),
                 path: path.clone(),
                 span_type: get_span_type(ch_span.span_type).to_string(),
@@ -233,10 +259,7 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
 pub fn spans_to_skeleton_string(spans: &[CompressedSpan]) -> String {
     let mut skeleton = String::from("legend: span_name (id, parent_id, type)\n");
     for span in spans {
-        let parent_str = span
-            .parent
-            .map(|p| p.to_string())
-            .unwrap_or_else(|| "None".to_string());
+        let parent_str = span.parent.as_deref().unwrap_or("None");
         skeleton.push_str(&format!(
             "- {} ({}, {}, {})\n",
             span.name, span.id, parent_str, span.span_type
@@ -245,66 +268,26 @@ pub fn spans_to_skeleton_string(spans: &[CompressedSpan]) -> String {
     skeleton
 }
 
-/// Query trace spans from ClickHouse with exception events
+/// Query trace spans from ClickHouse
 pub async fn get_trace_spans(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
     trace_id: Uuid,
-) -> Result<Vec<CHSpanWithException>> {
+) -> Result<Vec<CHSpan>> {
     let query = r#"
-        SELECT
-            s.span_id,
-            s.name,
-            s.span_type,
-            s.path,
-            s.start_time,
-            s.end_time,
-            s.input,
-            s.output,
-            s.status,
-            s.parent_span_id,
-            COALESCE(e.exception, '') as exception
-        FROM spans s
-        LEFT JOIN (
-            SELECT 
-                span_id,
-                any(attributes) as exception
-            FROM events
-            WHERE project_id = ? AND trace_id = ? AND name = 'exception'
-            GROUP BY span_id
-        ) e ON s.span_id = e.span_id
-        WHERE s.trace_id = ? AND s.project_id = ?
-        ORDER BY s.start_time ASC
+        SELECT * FROM spans
+        WHERE project_id = ? AND trace_id = ?
+        ORDER BY start_time ASC
     "#;
 
     let spans = clickhouse
         .query(query)
         .bind(project_id)
         .bind(trace_id)
-        .bind(trace_id)
-        .bind(project_id)
-        .fetch_all::<CHSpanWithException>()
+        .fetch_all::<CHSpan>()
         .await?;
 
     Ok(spans)
-}
-
-/// Query trace spans from ClickHouse with exception events and build UUID to sequential ID mapping.
-pub async fn get_trace_spans_with_id_mapping(
-    clickhouse: clickhouse::Client,
-    project_id: Uuid,
-    trace_id: Uuid,
-) -> Result<(Vec<CHSpanWithException>, HashMap<Uuid, usize>)> {
-    let spans = get_trace_spans(clickhouse, project_id, trace_id).await?;
-
-    // Build mapping: UUID -> sequential ID (1-indexed)
-    let uuid_to_seq: HashMap<Uuid, usize> = spans
-        .iter()
-        .enumerate()
-        .map(|(idx, span)| (span.span_id, idx + 1))
-        .collect();
-
-    Ok((spans, uuid_to_seq))
 }
 
 /// Get trace structure as a formatted string with skeleton and YAML

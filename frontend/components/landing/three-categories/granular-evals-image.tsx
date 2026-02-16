@@ -279,7 +279,7 @@ const GranularEvalsImage = ({ className }: Props) => {
                 <div className="bg-[rgba(196,148,52,0.3)] flex items-center p-1 rounded">
                   <Bolt className="w-3 h-3 text-landing-text-300" />
                 </div>
-                <p className="text-landing-text-300 text-xs">writing to pricing_summary.md</p>
+                <p className="text-landing-text-300 text-xs">writing to pricingsummary.md</p>
               </div>
             </div>
           </div>
