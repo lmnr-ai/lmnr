@@ -143,9 +143,9 @@ pub struct SearchSpansRequest {
 pub const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 3] = ["input", "output", "attributes"];
 
 #[derive(Serialize, Deserialize)]
-struct QuickwitHit {
-    trace_id: String,
-    span_id: String,
+pub struct QuickwitHit {
+    pub trace_id: String,
+    pub span_id: String,
 }
 
 #[derive(Serialize, Deserialize)]
