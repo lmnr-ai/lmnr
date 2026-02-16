@@ -7,14 +7,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { createExtensions, type SQLSchemaConfig, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea.tsx";
 
 export interface SQLEditorProps {
@@ -104,16 +97,11 @@ export default function SQLEditor({
 
       {projectId && editable && (
         <motion.button
-          className="absolute bottom-2 right-2 z-10 flex items-center h-7 rounded-full bg-primary/90 text-primary-foreground/90 hover:bg-primary border border-white/25 shadow-md overflow-hidden disabled:opacity-50 disabled:pointer-events-none text-xs font-medium"
+          className="absolute bottom-2 right-2 z-10 flex items-center h-7 px-1.5 rounded-full bg-primary/90 text-primary-foreground/90 hover:bg-primary border border-white/25 shadow-md overflow-hidden disabled:opacity-50 disabled:pointer-events-none text-xs font-medium"
           disabled={isAiLoading}
           onClick={() => setIsAiDialogOpen(true)}
-          initial={false}
-          whileHover="hovered"
-          variants={{
-            hovered: { paddingLeft: 8, paddingRight: 10 },
-          }}
-          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          style={{ paddingLeft: 6, paddingRight: 6 }}
+          initial="idle"
+          whileHover="hover"
         >
           {isAiLoading ? (
             <Loader2 className="size-4 shrink-0 animate-spin" />
@@ -121,13 +109,12 @@ export default function SQLEditor({
             <Sparkles className="size-4 shrink-0" />
           )}
           <motion.span
-            className="whitespace-nowrap text-xs font-medium"
+            className="overflow-hidden whitespace-nowrap text-xs font-medium"
             variants={{
-              hovered: { width: "auto", opacity: 1, marginLeft: 6 },
+              idle: { width: 0, opacity: 0, marginLeft: 0 },
+              hover: { width: "auto", opacity: 1, marginLeft: 6 },
             }}
-            initial={{ width: 0, opacity: 0, marginLeft: 0 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            style={{ overflow: "hidden" }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
           >
             Ask AI
           </motion.span>
@@ -137,10 +124,10 @@ export default function SQLEditor({
       <Dialog open={isAiDialogOpen} onOpenChange={setIsAiDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Generate SQL with AI</DialogTitle>
-            <DialogDescription>
-              Describe the query you want and AI will generate ClickHouse SQL for you.
-            </DialogDescription>
+            <DialogTitle className="flex gap-2 items-center">
+              <Sparkles className="size-4 shrink-0" />
+              Generate SQL with AI
+            </DialogTitle>
           </DialogHeader>
           <Textarea
             ref={inputRef}
@@ -148,7 +135,6 @@ export default function SQLEditor({
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
             onKeyDown={handleKeyDown}
-            rows={1}
             autoFocus
           />
           <DialogFooter>
@@ -156,7 +142,6 @@ export default function SQLEditor({
               Cancel
             </Button>
             <Button onClick={handleAiGenerate} disabled={!aiPrompt.trim()}>
-              <Sparkles className="size-3.5 mr-1" />
               Generate
             </Button>
           </DialogFooter>

@@ -157,7 +157,7 @@ export default function EditorPanel() {
   }, [projectId, template?.query, toast, getFormattedParameters]);
 
   useHotkeys("meta+enter,ctrl+enter", executeQuery, {
-    enableOnFormTags: ["input", "textarea"],
+    enableOnFormTags: ["input"],
     enableOnContentEditable: true,
   });
 
