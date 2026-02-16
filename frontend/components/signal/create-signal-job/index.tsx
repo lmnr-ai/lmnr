@@ -2,12 +2,17 @@
 
 import type { Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useState } from "react";
+import { Resizable, type ResizeCallback } from "re-resizable";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
 import SelectionBanner from "@/components/signal/create-signal-job/selection-banner.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
+import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
+import TraceView from "@/components/traces/trace-view";
+import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
+import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import {
   columns,
   defaultTracesColumnOrder,
@@ -22,6 +27,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import type { Filter } from "@/lib/actions/common/filters.ts";
+import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import type { TraceRow } from "@/lib/traces/types.ts";
 
@@ -33,6 +39,7 @@ const CreateSignalJobContent = () => {
   const router = useRouter();
   const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
+  const ref = useRef<Resizable>(null);
 
   const signal = useSignalStoreContext((state) => state.signal);
   const { rowSelection, onRowSelectionChange } = useSelection();
@@ -53,7 +60,38 @@ const CreateSignalJobContent = () => {
   const [traceCount, setTraceCount] = useState(0);
   const [selectionMode, setSelectionMode] = useState<"none" | "page" | "all">("none");
 
-  const setTraceId = useSignalStoreContext((state) => state.setTraceId);
+  const { traceId, spanId, setTraceId, setSpanId, initialTraceViewWidth } = useSignalStoreContext((state) => ({
+    traceId: state.traceId,
+    spanId: state.spanId,
+    setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
+    initialTraceViewWidth: state.initialTraceViewWidth,
+  }));
+
+  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
+
+  useEffect(() => {
+    if (!initialTraceViewWidth) {
+      setDefaultTraceViewWidth(getDefaultTraceViewWidth());
+    }
+  }, [initialTraceViewWidth]);
+
+  const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
+    const newWidth = defaultTraceViewWidth + delta.width;
+    setDefaultTraceViewWidth(newWidth);
+    setEventsTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (defaultTraceViewWidth > window.innerWidth - 180) {
+        const newWidth = window.innerWidth - 240;
+        setDefaultTraceViewWidth(newWidth);
+        setEventsTraceViewWidthCookie(newWidth);
+        ref?.current?.updateSize({ width: newWidth });
+      }
+    }
+  }, [defaultTraceViewWidth]);
 
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
@@ -182,62 +220,59 @@ const CreateSignalJobContent = () => {
     setConfirmDialogOpen(true);
   }, []);
 
-  const handleCreateSignalJob = useCallback(
-    async () => {
-      try {
-        setIsCreating(true);
-        const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
-        const selectedCount = selectionMode === "all" ? traceCount : (selectedTraceIds?.length ?? 0);
+  const handleCreateSignalJob = useCallback(async () => {
+    try {
+      setIsCreating(true);
+      const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
+      const selectedCount = selectionMode === "all" ? traceCount : (selectedTraceIds?.length ?? 0);
 
-        const response = await fetch(`/api/projects/${projectId}/signals/${signal.id}/jobs`, {
-          method: "POST",
-          body: JSON.stringify({
-            // Zod expects filters to be stringified
-            filter: filters.filters.map((filter) => JSON.stringify(filter)),
-            search: filters.search || undefined,
-            pastHours: dateRange.pastHours,
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            traceIds: selectedTraceIds,
-          }),
-        });
+      const response = await fetch(`/api/projects/${projectId}/signals/${signal.id}/jobs`, {
+        method: "POST",
+        body: JSON.stringify({
+          // Zod expects filters to be stringified
+          filter: filters.filters.map((filter) => JSON.stringify(filter)),
+          search: filters.search || undefined,
+          pastHours: dateRange.pastHours,
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          traceIds: selectedTraceIds,
+        }),
+      });
 
-        if (!response.ok) {
-          throw new Error("Failed to create signal job");
-        }
-
-        setConfirmDialogOpen(false);
-        router.push(`/project/${projectId}/signals/${signal.id}?tab=jobs`);
-        toast({
-          title: "Signal job created",
-          description: `Job for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to create signal job. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsCreating(false);
+      if (!response.ok) {
+        throw new Error("Failed to create signal job");
       }
-    },
-    [
-      selectionMode,
-      rowSelection,
-      traceCount,
-      projectId,
-      signal.id,
-      signal.name,
-      filters.filters,
-      filters.search,
-      dateRange.pastHours,
-      dateRange.startDate,
-      dateRange.endDate,
-      router,
-      toast,
-    ]
-  );
+
+      setConfirmDialogOpen(false);
+      router.push(`/project/${projectId}/signals/${signal.id}?tab=jobs`);
+      toast({
+        title: "Signal job created",
+        description: `Job for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create signal job. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  }, [
+    selectionMode,
+    rowSelection,
+    traceCount,
+    projectId,
+    signal.id,
+    signal.name,
+    filters.filters,
+    filters.search,
+    dateRange.pastHours,
+    dateRange.startDate,
+    dateRange.endDate,
+    router,
+    toast,
+  ]);
 
   const traceIdFromUrl = searchParams.get("traceId");
 
@@ -330,14 +365,62 @@ const CreateSignalJobContent = () => {
           />
         </InfiniteDataTable>
       </div>
+      {traceId && (
+        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-60 flex pointer-events-auto">
+          <Resizable
+            ref={ref}
+            onResizeStop={handleResizeStop}
+            enable={{
+              left: true,
+            }}
+            defaultSize={{
+              width: defaultTraceViewWidth,
+            }}
+          >
+            <TraceView
+              spanId={spanId || undefined}
+              key={traceId}
+              onClose={() => {
+                const params = new URLSearchParams(searchParams);
+                params.delete("traceId");
+                params.delete("spanId");
+                router.push(`${pathName}?${params.toString()}`);
+                setTraceId(null);
+                setSpanId(null);
+              }}
+              traceId={traceId}
+            />
+          </Resizable>
+        </div>
+      )}
     </>
   );
 };
 
-export default function CreateSignalJob() {
+export default function CreateSignalJob({ traceId }: { traceId?: string }) {
+  const { setTraceId } = useSignalStoreContext((state) => ({
+    setTraceId: state.setTraceId,
+  }));
+
+  const handleNavigate = useCallback(
+    (item: EventNavigationItem | null) => {
+      if (item) {
+        setTraceId(item.traceId);
+      }
+    },
+    [setTraceId]
+  );
+
+  useEffect(() => {
+    if (traceId) setTraceId(traceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}>
-      <CreateSignalJobContent />
-    </DataTableStateProvider>
+    <TraceViewNavigationProvider<EventNavigationItem> config={getEventsConfig()} onNavigate={handleNavigate}>
+      <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}>
+        <CreateSignalJobContent />
+      </DataTableStateProvider>
+    </TraceViewNavigationProvider>
   );
 }
