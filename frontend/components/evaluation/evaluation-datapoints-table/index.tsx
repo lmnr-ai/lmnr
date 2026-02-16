@@ -26,11 +26,7 @@ const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
   const { scores, isLoading } = props;
   const customColumns = useEvalStore((s) => s.customColumns);
   const defaultColumnOrder = useMemo(
-    () => [
-      ...baseColumnOrder,
-      ...scores.map((s) => `score:${s}`),
-      ...customColumns.map((cc) => `custom:${cc.name}`),
-    ],
+    () => [...baseColumnOrder, ...scores.map((s) => `score:${s}`), ...customColumns.map((cc) => `custom:${cc.name}`)],
     [scores, customColumns]
   );
 

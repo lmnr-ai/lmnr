@@ -223,6 +223,7 @@ export function createScoreColumnDef(name: string): ColumnDef<EvalRow> {
       filterable: true,
       comparable: true,
       scoreName: name,
+      dbType: "Float64",
     },
   };
 }
