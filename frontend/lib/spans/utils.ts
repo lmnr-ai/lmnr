@@ -7,6 +7,11 @@ import {
   LangChainMessagesSchema,
 } from "@/lib/spans/types/langchain";
 import {
+  convertGeminiToPlaygroundMessages,
+  parseGeminiInput,
+  parseGeminiOutput,
+} from "@/lib/spans/types/gemini";
+import {
   convertOpenAIToPlaygroundMessages,
   downloadOpenAIImages,
   OpenAIMessageSchema,
@@ -66,6 +71,16 @@ export const convertSpanToPlayground = async (messages: any): Promise<Message[]>
 
   if (langChainMessagesResult.success) {
     return await convertLangChainToPlaygroundMessages(langChainMessagesResult.data);
+  }
+
+  const geminiOutput = parseGeminiOutput(messages);
+  if (geminiOutput) {
+    return await convertGeminiToPlaygroundMessages(geminiOutput);
+  }
+
+  const geminiInput = parseGeminiInput(messages);
+  if (geminiInput) {
+    return await convertGeminiToPlaygroundMessages(geminiInput);
   }
 
   return await convertToPlaygroundMessages(messages);
