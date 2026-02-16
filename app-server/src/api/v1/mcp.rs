@@ -215,7 +215,10 @@ impl LaminarMcpServer {
             )
         })?;
 
-        let limit = params.limit.unwrap_or(50).min(MCP_SEARCH_MAX_HITS);
+        let limit = match params.limit {
+            Some(l) if l > 0 => l.min(MCP_SEARCH_MAX_HITS),
+            _ => 50,
+        };
 
         let hits = execute_quickwit_search(
             quickwit,
