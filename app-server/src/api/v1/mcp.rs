@@ -49,6 +49,8 @@ pub struct GetTraceContextParams {
     pub trace_id: Uuid,
 }
 
+const MCP_SEARCH_MAX_HITS: usize = 200;
+
 /// Parameters for the trace context tool.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -56,6 +58,7 @@ pub struct SearchSpansParams {
     pub query: String,
     #[serde(default)]
     pub search_in: Option<Vec<String>>,
+    /// Maximum number of results to return (default: 50, max: 200).
     #[serde(default)]
     pub limit: Option<usize>,
 }
@@ -212,7 +215,7 @@ impl LaminarMcpServer {
             )
         })?;
 
-        let limit = params.limit.unwrap_or(50);
+        let limit = params.limit.unwrap_or(50).min(MCP_SEARCH_MAX_HITS);
 
         let hits = execute_quickwit_search(
             quickwit,
