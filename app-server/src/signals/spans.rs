@@ -11,8 +11,8 @@ use super::utils::try_parse_json;
 const TRUNCATE_THRESHOLD: usize = 64;
 const PREVIEW_LENGTH: usize = 24;
 const BASE64_IMAGE_PLACEHOLDER: &str = "[base64 image omitted]";
-/// Max chars to keep for LLM span inputs (~1K tokens).
-const LLM_INPUT_MAX_CHARS: usize = 3000;
+/// Max chars to keep per message in LLM span inputs (~1K tokens).
+const LLM_MESSAGE_MAX_CHARS: usize = 3000;
 
 /// Raw span from ClickHouse with exception data
 #[derive(Row, Serialize, Deserialize, Debug, Clone)]
@@ -97,17 +97,43 @@ fn truncate_value(value: &Value) -> Value {
     Value::String(format!("{}...({} chars omitted)...{}", start, omitted, end))
 }
 
-/// Truncate an LLM input value to LLM_INPUT_MAX_CHARS.
-/// Keeps the first N chars of the serialized JSON and appends a truncation notice.
+/// Truncate LLM input messages. If the input is an array of messages, each message's
+/// string fields are individually capped at LLM_MESSAGE_MAX_CHARS so that no single
+/// large message causes later messages to be lost.
 fn truncate_llm_input(value: &Value) -> Value {
-    let serialized = serde_json::to_string(value).unwrap_or_default();
-    let char_count = serialized.chars().count();
-    if char_count <= LLM_INPUT_MAX_CHARS {
-        return value.clone();
+    match value {
+        Value::Array(messages) => {
+            Value::Array(messages.iter().map(truncate_message_strings).collect())
+        }
+        _ => value.clone(),
     }
-    let truncated: String = serialized.chars().take(LLM_INPUT_MAX_CHARS).collect();
-    let omitted = char_count - LLM_INPUT_MAX_CHARS;
-    Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
+}
+
+/// Truncate any string field in a message object that exceeds LLM_MESSAGE_MAX_CHARS.
+/// Non-string fields and short strings are left untouched.
+fn truncate_message_strings(message: &Value) -> Value {
+    match message {
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| {
+                    let truncated = match v {
+                        Value::String(s) if s.chars().count() > LLM_MESSAGE_MAX_CHARS => {
+                            let truncated: String =
+                                s.chars().take(LLM_MESSAGE_MAX_CHARS).collect();
+                            let omitted = s.chars().count() - LLM_MESSAGE_MAX_CHARS;
+                            Value::String(format!(
+                                "{}... ({} chars truncated)",
+                                truncated, omitted
+                            ))
+                        }
+                        other => other.clone(),
+                    };
+                    (k.clone(), truncated)
+                })
+                .collect(),
+        ),
+        _ => message.clone(),
+    }
 }
 
 /// Replace base64 image data within a JSON value with a placeholder.
@@ -130,6 +156,21 @@ fn replace_base64_images(value: &Value) -> Value {
                 .map(|(k, v)| (k.clone(), replace_base64_images(v)))
                 .collect(),
         ),
+        _ => value.clone(),
+    }
+}
+
+/// Remove `signature` and `thought_signature` fields from LLM span inputs.
+/// These fields contain large hash values that waste context and provide no analytical value.
+fn strip_signature_fields(value: &Value) -> Value {
+    match value {
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .filter(|(k, _)| k.as_str() != "signature" && k.as_str() != "thought_signature")
+                .map(|(k, v)| (k.clone(), strip_signature_fields(v)))
+                .collect(),
+        ),
+        Value::Array(arr) => Value::Array(arr.iter().map(strip_signature_fields).collect()),
         _ => value.clone(),
     }
 }
@@ -163,9 +204,10 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
             };
 
             let (input, output) = if is_llm {
-                let input_data =
-                    truncate_llm_input(&replace_base64_images(&try_parse_json(&ch_span.input)));
-                let output_data = replace_base64_images(&try_parse_json(&ch_span.output));
+                let input_data = truncate_llm_input(&strip_signature_fields(
+                    &replace_base64_images(&try_parse_json(&ch_span.input)),
+                ));
+                let output_data = strip_signature_fields(&try_parse_json(&ch_span.output));
 
                 if seen_llm_paths.contains(&path) {
                     // Subsequent LLM span at same path: only output
