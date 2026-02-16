@@ -66,7 +66,6 @@ const DeleteSignalsSchema = z.object({
 
 const GetLastEventSchema = z.object({
   projectId: z.string(),
-  name: z.string(),
   signalId: z.string(),
 });
 
@@ -320,24 +319,22 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
 export { executeSignal } from "./execute";
 
 export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) => {
-  const { projectId, name, signalId } = GetLastEventSchema.parse(input);
+  const { projectId, signalId } = GetLastEventSchema.parse(input);
 
   const query = `
       SELECT
           id,
-          formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, 
-      name
+          formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp
       FROM signal_events
-      WHERE signal_id = {signalId: UUID} AND name = {name: String}
+      WHERE signal_id = {signalId: UUID}
       ORDER BY timestamp DESC
       LIMIT 1
   `;
 
-  const [result] = await executeQuery<{ name: string; id: string; timestamp: string }>({
+  const [result] = await executeQuery<{ id: string; timestamp: string }>({
     projectId,
     query,
     parameters: {
-      name,
       projectId,
       signalId,
     },

@@ -94,7 +94,9 @@ function PureEventsTable() {
 
         urlParams.set("eventSource", "SEMANTIC");
 
-        const response = await fetch(`/api/projects/${params.projectId}/events/${signal.name}?${urlParams.toString()}`);
+        const response = await fetch(
+          `/api/projects/${params.projectId}/signals/${signal.id}/events?${urlParams.toString()}`
+        );
 
         if (!response.ok) {
           throw new Error("Failed to fetch events");
@@ -110,7 +112,7 @@ function PureEventsTable() {
       }
       return { items: [], count: 0 };
     },
-    [pastHours, startDate, endDate, filter, signal.id, signal.name, params.projectId, toast]
+    [pastHours, startDate, endDate, filter, signal.id, params.projectId, toast]
   );
 
   const getRowHref = useCallback(
@@ -140,7 +142,7 @@ function PureEventsTable() {
   );
 
   const statsUrl = useTimeSeriesStatsUrl({
-    baseUrl: `/api/projects/${params.projectId}/events/${signal.name}/stats`,
+    baseUrl: `/api/projects/${params.projectId}/signals/${signal.id}/events/stats`,
     chartContainerWidth,
     pastHours,
     startDate,
@@ -162,7 +164,7 @@ function PureEventsTable() {
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
     enabled: !!(pastHours || (startDate && endDate)),
-    deps: [params.projectId, signal.name, pastHours, startDate, endDate, filter],
+    deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter],
   });
 
   const focusedRowId = useMemo(() => {

@@ -5,13 +5,11 @@ export type SpanEvent = {
   attributes: Record<string, any>;
 };
 
-
 // Event from signals (`signal_events` table)
 export type EventRow = {
   id: string;
   signalId: string;
   traceId: string;
-  name: string;
   payload: string;
   timestamp: string;
 };

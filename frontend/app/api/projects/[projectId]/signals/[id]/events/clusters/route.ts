@@ -5,10 +5,15 @@ import { getEventClusters } from "@/lib/actions/clusters";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string; name: string }> }
+  { params }: { params: Promise<{ projectId: string; id: string }> }
 ): Promise<NextResponse> {
   try {
-    const { projectId, name: eventName } = await params;
+    const { projectId } = await params;
+    const eventName = req.nextUrl.searchParams.get("eventName");
+
+    if (!eventName) {
+      return NextResponse.json({ error: "eventName is required" }, { status: 400 });
+    }
 
     const result = await getEventClusters({
       projectId,

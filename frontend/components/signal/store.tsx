@@ -27,7 +27,6 @@ export type SignalState = {
   triggersFilters: Filter[];
   initialTraceViewWidth?: number;
   lastEvent?: {
-    name: string;
     id: string;
     timestamp: string;
   };
@@ -50,7 +49,6 @@ export interface EventsProps {
   traceId?: string | null;
   spanId?: string | null;
   lastEvent?: {
-    name: string;
     id: string;
     timestamp: string;
   };
@@ -101,7 +99,9 @@ export const createSignalStore = (initProps: EventsProps) =>
       set({ events: undefined });
 
       try {
-        const response = await fetch(`/api/projects/${signal.projectId}/events/${signal.name}?${params.toString()}`);
+        const response = await fetch(
+          `/api/projects/${signal.projectId}/signals/${signal.id}/events?${params.toString()}`
+        );
         if (!response.ok) throw new Error("Failed to fetch events");
         const data: { items: EventRow[]; count: number } = await response.json();
         set({

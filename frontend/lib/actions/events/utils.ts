@@ -52,12 +52,11 @@ const eventsSelectColumns = [
   "signal_id signalId",
   "trace_id traceId",
   "formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp",
-  "name",
   "payload",
 ];
 
 export interface BuildEventsQueryOptions {
-  eventName: string;
+  signalId: string;
   filters: Filter[];
   limit: number;
   offset: number;
@@ -67,15 +66,15 @@ export interface BuildEventsQueryOptions {
 }
 
 export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): QueryResult => {
-  const { eventName, filters, limit, offset, startTime, endTime, pastHours } = options;
+  const { signalId, filters, limit, offset, startTime, endTime, pastHours } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
   }> = [
     {
-      condition: "name = {eventName:String}",
-      params: { eventName },
+      condition: "signal_id = {signalId:UUID}",
+      params: { signalId },
     },
   ];
 
@@ -111,15 +110,15 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
 export const buildEventsCountQueryWithParams = (
   options: Omit<BuildEventsQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { eventName, filters, startTime, endTime, pastHours } = options;
+  const { signalId, filters, startTime, endTime, pastHours } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
   }> = [
     {
-      condition: "name = {eventName:String}",
-      params: { eventName },
+      condition: "signal_id = {signalId:UUID}",
+      params: { signalId },
     },
   ];
 
@@ -145,13 +144,13 @@ export const buildEventsCountQueryWithParams = (
 export interface ResolveClusterFiltersOptions {
   filters: Filter[];
   projectId: string;
-  eventName?: string;
+  signalId?: string;
 }
 
 export async function resolveClusterFilters({
   filters,
   projectId,
-  eventName,
+  signalId,
 }: ResolveClusterFiltersOptions): Promise<Filter[]> {
   const hasClusterFilter = filters.some((f) => f.column === "cluster");
   if (!hasClusterFilter) {
@@ -159,8 +158,8 @@ export async function resolveClusterFilters({
   }
 
   const conditions = [eq(eventClusters.projectId, projectId)];
-  if (eventName) {
-    conditions.push(eq(eventClusters.eventName, eventName));
+  if (signalId) {
+    conditions.push(eq(eventClusters.eventName, signalId));
   }
 
   const clustersList = await db

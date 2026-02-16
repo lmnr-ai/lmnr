@@ -6,14 +6,14 @@ import { getEventStats, GetEventStatsSchema } from "@/lib/actions/events/stats";
 
 export async function GET(
   req: NextRequest,
-  props: { params: Promise<{ projectId: string; name: string }> }
+  props: { params: Promise<{ projectId: string; id: string }> }
 ): Promise<Response> {
   const params = await props.params;
-  const { projectId, name } = params;
+  const { projectId, id: signalId } = params;
 
   const parseResult = parseUrlParams(
     req.nextUrl.searchParams,
-    GetEventStatsSchema.omit({ projectId: true, eventName: true })
+    GetEventStatsSchema.omit({ projectId: true, signalId: true })
   );
 
   if (!parseResult.success) {
@@ -21,7 +21,7 @@ export async function GET(
   }
 
   try {
-    const result = await getEventStats({ ...parseResult.data, projectId, eventName: name });
+    const result = await getEventStats({ ...parseResult.data, projectId, signalId });
     return Response.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
