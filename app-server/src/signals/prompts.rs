@@ -5,7 +5,9 @@ Below are the spans of the trace.
 
 For LLM spans, only the first occurrence at each path includes full prompt. Subsequent LLM spans at the same path only show output.
 
-For non-LLM spans, input and output are truncated if they are longer than 64 characters.
+LLM input messages that are too long are truncated to 3000 characters.
+
+Tool spans input and output are truncated if they are longer than 1024 characters.
 
 If the information that you need to perform proper identification is truncated, you should use `get_full_spans` tool to get the full span information by span id if you need more details. However, if you have enough information to perform proper identification, you should not call this tool.
 {{fullTraceData}}

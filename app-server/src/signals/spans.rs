@@ -8,8 +8,7 @@ use uuid::Uuid;
 
 use super::utils::try_parse_json;
 
-const TRUNCATE_THRESHOLD: usize = 64;
-const PREVIEW_LENGTH: usize = 24;
+const TRUNCATE_THRESHOLD: usize = 1024;
 const BASE64_IMAGE_PLACEHOLDER: &str = "[base64 image omitted]";
 /// Max chars to keep per message in LLM span inputs (~1K tokens).
 const LLM_MESSAGE_MAX_CHARS: usize = 3000;
@@ -92,15 +91,9 @@ fn truncate_value(value: &Value) -> Value {
         return value.clone();
     }
 
-    // Use character-based slicing to avoid splitting multi-byte UTF-8 characters
-    let start: String = value_str.chars().take(PREVIEW_LENGTH).collect();
-    let end: String = value_str
-        .chars()
-        .skip(char_count.saturating_sub(PREVIEW_LENGTH))
-        .collect();
-    let omitted = char_count.saturating_sub(PREVIEW_LENGTH * 2);
-
-    Value::String(format!("{}...({} chars omitted)...{}", start, omitted, end))
+    let truncated: String = value_str.chars().take(TRUNCATE_THRESHOLD).collect();
+    let omitted = char_count - TRUNCATE_THRESHOLD;
+    Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
 }
 
 /// Truncate LLM input messages. If the input is an array of messages, each message's
@@ -124,13 +117,9 @@ fn truncate_message_strings(message: &Value) -> Value {
                 .map(|(k, v)| {
                     let truncated = match v {
                         Value::String(s) if s.chars().count() > LLM_MESSAGE_MAX_CHARS => {
-                            let truncated: String =
-                                s.chars().take(LLM_MESSAGE_MAX_CHARS).collect();
+                            let truncated: String = s.chars().take(LLM_MESSAGE_MAX_CHARS).collect();
                             let omitted = s.chars().count() - LLM_MESSAGE_MAX_CHARS;
-                            Value::String(format!(
-                                "{}... ({} chars truncated)",
-                                truncated, omitted
-                            ))
+                            Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
                         }
                         other => other.clone(),
                     };
@@ -202,14 +191,12 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
             let duration_ns = ch_span.end_time - ch_span.start_time;
             let duration_secs = duration_ns as f64 / 1_000_000_000.0;
 
-            let parent =
-                if ch_span.parent_span_id.is_nil() || ch_span.parent_span_id == Uuid::nil() {
-                    None
-                } else {
-                    span_uuid_to_short
-                        .get(&ch_span.parent_span_id)
-                        .cloned()
-                };
+            let parent = if ch_span.parent_span_id.is_nil() || ch_span.parent_span_id == Uuid::nil()
+            {
+                None
+            } else {
+                span_uuid_to_short.get(&ch_span.parent_span_id).cloned()
+            };
 
             let (input, output) = if is_llm {
                 let input_data = truncate_llm_input(&strip_signature_fields(
@@ -283,10 +270,7 @@ pub fn compress_span_content(ch_spans: &[CHSpanWithException]) -> Vec<Compressed
 pub fn spans_to_skeleton_string(spans: &[CompressedSpan]) -> String {
     let mut skeleton = String::from("legend: span_name (id, parent_id, type)\n");
     for span in spans {
-        let parent_str = span
-            .parent
-            .as_deref()
-            .unwrap_or("None");
+        let parent_str = span.parent.as_deref().unwrap_or("None");
         skeleton.push_str(&format!(
             "- {} ({}, {}, {})\n",
             span.name, span.id, parent_str, span.span_type
