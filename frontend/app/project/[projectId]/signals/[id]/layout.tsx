@@ -15,7 +15,7 @@ const Layout = async (props: PropsWithChildren<{ params: Promise<{ projectId: st
     return notFound();
   }
 
-  const lastEvent = await getLastEvent({ projectId, name: signal.name, signalId: signal.id });
+  const lastEvent = await getLastEvent({ projectId, signalId: signal.id });
 
   const cookieStore = await cookies();
   const traceViewWidthCookie = cookieStore.get(EVENTS_TRACE_VIEW_WIDTH);

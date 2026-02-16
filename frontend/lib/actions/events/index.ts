@@ -10,18 +10,18 @@ import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./u
 export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.string(),
-  eventName: z.string(),
+  signalId: z.string(),
 });
 
 export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginatedSchema>) {
-  const { projectId, eventName, pageSize, pageNumber, pastHours, startDate, endDate, filter } = input;
+  const { projectId, signalId, pageSize, pageNumber, pastHours, startDate, endDate, filter } = input;
 
   const filters = compact(filter);
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
   const { query: mainQuery, parameters: mainParams } = buildEventsQueryWithParams({
-    eventName,
+    signalId,
     filters,
     limit,
     offset,
@@ -31,7 +31,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
   });
 
   const { query: countQuery, parameters: countParams } = buildEventsCountQueryWithParams({
-    eventName,
+    signalId,
     filters,
     startTime: startDate,
     endTime: endDate,
