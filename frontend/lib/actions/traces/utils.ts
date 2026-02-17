@@ -2,10 +2,10 @@ import { scaleUtc } from "d3-scale";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
+  createArrayColumnFilter,
   createCustomFilter,
   createNumberFilter,
   createStringFilter,
@@ -60,19 +60,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
       ),
     ],
     ["trace_type", createStringFilter],
-    [
-      "tags",
-      createCustomFilter(
-        (filter, paramKey) => {
-          if (filter.operator === Operator.Eq) {
-            return `has(tags, {${paramKey}:String})`;
-          } else {
-            return `NOT has(tags, {${paramKey}:String})`;
-          }
-        },
-        (filter, paramKey) => ({ [paramKey]: filter.value })
-      ),
-    ],
+    ["tags", createArrayColumnFilter("String")],
     ["total_cost", createNumberFilter("Float64")],
     ["input_cost", createNumberFilter("Float64")],
     ["output_cost", createNumberFilter("Float64")],
@@ -107,18 +95,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
     ],
     ["top_span_type", createStringFilter],
     ["top_span_name", createStringFilter],
-    [
-      "span_names",
-      createCustomFilter(
-        (filter, paramKey) => {
-          if (filter.operator === Operator.Includes) {
-            return `has(span_names, {${paramKey}:String})`;
-          }
-          return "";
-        },
-        (filter, paramKey) => ({ [paramKey]: filter.value })
-      ),
-    ],
+    ["span_names", createArrayColumnFilter("String")],
   ]),
 };
 

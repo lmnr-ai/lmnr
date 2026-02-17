@@ -3,34 +3,25 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type Ref, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 
-import FilterSelect, {
-  type FilterSelectOption,
-} from "@/components/common/advanced-search/components/filter-select.tsx";
+import TagInput from "@/components/common/advanced-search/components/tag-input";
 
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
 import { type FocusableRef, type FocusMode } from "../types";
 
-interface BooleanValueInputProps {
+interface ArrayValueInputProps {
   tagId: string;
+  suggestions: string[];
   focused: boolean;
   mode: FocusMode;
   ref?: Ref<FocusableRef>;
 }
 
-const booleanOptions: FilterSelectOption[] = [
-  { value: "true", label: "true" },
-  { value: "false", label: "false" },
-];
-
-const selectTriggerClassName = "h-6 w-fit min-w-10 max-w-52 px-2 bg-transparent text-primary text-xs";
-
-const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps) => {
+const ArrayValueInput = ({ tagId, suggestions, focused, mode, ref }: ArrayValueInputProps) => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const tags = useAdvancedSearchContext((state) => state.tags);
-
   const { updateTagValue, submit } = useAdvancedSearchContext((state) => ({
     updateTagValue: state.updateTagValue,
     submit: state.submit,
@@ -40,38 +31,48 @@ const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps
   const { navigateWithinTag } = useAdvancedSearchNavigation();
 
   const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
-
-  const selectRef = useRef<FocusableRef>(null);
+  const tagInputRef = useRef<FocusableRef>(null);
 
   useImperativeHandle(ref, () => ({
-    focus: () => selectRef.current?.focus(),
+    focus: () => tagInputRef.current?.focus(),
   }));
 
   const handleChange = useCallback(
-    (newValue: string) => {
-      updateTagValue(tagId, newValue);
-      submit(router, pathname, searchParams);
-      mainInputRef.current?.focus();
+    (newValues: string[]) => {
+      updateTagValue(tagId, newValues);
     },
-    [updateTagValue, tagId, submit, router, pathname, searchParams, mainInputRef]
+    [tagId, updateTagValue]
   );
+
+  const handleComplete = useCallback(() => {
+    submit(router, pathname, searchParams);
+    mainInputRef.current?.focus();
+  }, [submit, router, pathname, searchParams, mainInputRef]);
+
+  const handleBlur = useCallback(() => {
+    if (mode === "edit") {
+      queueMicrotask(() => {
+        submit(router, pathname, searchParams);
+      });
+    }
+  }, [submit, mode, router, pathname, searchParams]);
 
   if (!tag) return null;
 
   return (
-    <FilterSelect
-      ref={selectRef}
-      value={Array.isArray(tag.value) ? (tag.value[0] ?? "") : tag.value}
-      options={booleanOptions}
-      onValueChange={handleChange}
+    <TagInput
+      ref={tagInputRef}
+      values={Array.isArray(tag?.value) ? tag.value : []}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onComplete={handleComplete}
+      suggestions={suggestions}
       open={mode === "edit" && focused}
-      onOpenChange={() => {}}
       onNavigateLeft={() => navigateWithinTag(tagId, "left")}
       onNavigateRight={() => navigateWithinTag(tagId, "right")}
-      placeholder="Select..."
-      triggerClassName={selectTriggerClassName}
+      placeholder="..."
     />
   );
 };
 
-export default BooleanValueInput;
+export default ArrayValueInput;

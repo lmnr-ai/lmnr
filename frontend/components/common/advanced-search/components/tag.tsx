@@ -83,11 +83,17 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
   }));
 
   const filteredValueSuggestions = useMemo(() => {
-    if (dataType !== "string" || !AUTOCOMPLETE_FIELDS[resource]?.includes(tag.field)) return [];
+    if ((dataType !== "string" && dataType !== "array") || !AUTOCOMPLETE_FIELDS[resource]?.includes(tag.field))
+      return [];
 
     const preloadedValues = autocompleteData.get(tag.field) || [];
 
-    if (!tag.value) {
+    // For array type, don't filter here - TagInput handles filtering internally
+    if (dataType === "array") {
+      return preloadedValues;
+    }
+
+    if (!tag.value || Array.isArray(tag.value)) {
       return preloadedValues;
     }
 

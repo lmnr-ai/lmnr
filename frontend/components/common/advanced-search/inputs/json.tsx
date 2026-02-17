@@ -55,8 +55,9 @@ const JsonValueInput = ({ tagId, mode, ref }: JsonValueInputProps) => {
 
   const [jsonKey, jsonValue] = useMemo(() => {
     if (!tag) return ["", ""];
-    const idx = tag.value.indexOf("=");
-    return idx === -1 ? [tag.value, ""] : [tag.value.substring(0, idx), tag.value.substring(idx + 1)];
+    const value = Array.isArray(tag.value) ? tag.value.join(",") : tag.value;
+    const idx = value.indexOf("=");
+    return idx === -1 ? [value, ""] : [value.substring(0, idx), value.substring(idx + 1)];
   }, [tag]);
 
   const keyAutosizeRef = useSizeInput(jsonKey);

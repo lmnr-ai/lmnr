@@ -37,32 +37,50 @@ const FilterPopover = ({
   filters,
   children,
 }: PropsWithChildren<FilterUIProps>) => {
-  const [filter, setFilter] = useState<Filter>({ operator: Operator.Eq, column: "", value: "" });
+  // Internal filter state - value is string during editing, converted to proper type on apply
+  const [filter, setFilter] = useState<{ column: string; operator: Operator; value: string }>({
+    operator: Operator.Eq,
+    column: "",
+    value: "",
+  });
 
   const handleApplyFilters = useCallback(
-    (filter: Filter) => {
-      if (!filters.some((f) => isEqual(f, filter))) {
-        onAddFilter(filter);
+    (filter: { column: string; operator: Operator; value: string | number | string[] }) => {
+      const column = find(columns, ["key", filter.column]);
+      const dataType = column?.dataType || "string";
+
+      const filterValue = dataType === "array" && typeof filter.value === "string" ? [filter.value] : filter.value;
+
+      const filterToAdd = { ...filter, value: filterValue } as Filter;
+      if (!filters.some((f) => isEqual(f, filterToAdd))) {
+        onAddFilter(filterToAdd);
       }
     },
-    [filters, onAddFilter]
+    [columns, filters, onAddFilter]
   );
 
-  const handleValueChange = useCallback(({ field, value }: { field: keyof Filter; value: string }) => {
-    if (field === "column") {
-      setFilter((prev) => ({
-        ...prev,
-        value: "",
-        operator: Operator.Eq,
-        [field]: value,
-      }));
-    } else {
-      setFilter((prev) => ({
-        ...prev,
-        [field]: value,
-      }));
-    }
-  }, []);
+  const handleValueChange = useCallback(
+    ({ field, value }: { field: "column" | "operator" | "value"; value: string }) => {
+      if (field === "column") {
+        const column = find(columns, ["key", value]);
+        const dataType = column?.dataType || "string";
+        const defaultOperator = dataTypeOperationsMap[dataType]?.[0]?.key ?? Operator.Eq;
+
+        setFilter((prev) => ({
+          ...prev,
+          value: "",
+          operator: defaultOperator,
+          [field]: value,
+        }));
+      } else {
+        setFilter((prev) => ({
+          ...prev,
+          [field]: value,
+        }));
+      }
+    },
+    [columns]
+  );
 
   useEffect(() => {
     const firstColumn = head(columns);
@@ -168,9 +186,9 @@ const FilterPopover = ({
 };
 
 interface FilterInputsProps {
-  filter: Filter;
+  filter: { column: string; operator: Operator; value: string };
   columns: ColumnFilter[];
-  onValueChange: ({ field, value }: { field: keyof Filter; value: string }) => void;
+  onValueChange: ({ field, value }: { field: "column" | "operator" | "value"; value: string }) => void;
 }
 
 const FilterInputs = ({ filter, columns, onValueChange }: FilterInputsProps) => {

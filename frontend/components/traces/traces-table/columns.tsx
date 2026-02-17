@@ -304,7 +304,7 @@ export const filters: ColumnFilter[] = [
   },
   {
     name: "Tags",
-    dataType: "string",
+    dataType: "array",
     key: "tags",
   },
   {

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 import { useAdvancedSearchContext } from "../store";
 import { type ColumnFilter, type FocusableRef, type FocusMode } from "../types";
+import ArrayValueInput from "./array";
 import BooleanValueInput from "./boolean";
 import EnumValueInput from "./enum";
 import JsonValueInput from "./json";
@@ -52,6 +53,9 @@ const ValueInput = ({ tagId, columnFilter, suggestions, focused, mode, ref }: Va
 
       case "json":
         return <JsonValueInput ref={ref} tagId={tagId} mode={mode} />;
+
+      case "array":
+        return <ArrayValueInput ref={ref} tagId={tagId} suggestions={suggestions} focused={focused} mode={mode} />;
 
       default: // string
         return <StringValueInput ref={ref} tagId={tagId} suggestions={suggestions} focused={focused} mode={mode} />;

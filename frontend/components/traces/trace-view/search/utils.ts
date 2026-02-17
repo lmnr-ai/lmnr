@@ -25,6 +25,6 @@ export const extractSpanSuggestions = (spans: TraceViewSpan[]): AutocompleteSugg
   return [
     ...Array.from(nameSet, (name) => ({ field: "name", value: name })),
     ...Array.from(modelSet, (model) => ({ field: "model", value: model })),
-    ...Array.from(tagsSet, (tag) => ({ field: "tag", value: tag })),
+    ...Array.from(tagsSet, (tag) => ({ field: "tags", value: tag })),
   ];
 };

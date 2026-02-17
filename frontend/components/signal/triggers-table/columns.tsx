@@ -9,10 +9,11 @@ import { type Trigger } from "@/lib/actions/signal-triggers";
 
 export type TriggerRow = Trigger;
 
-const formatFilter = (filter: { column: string; operator: string; value: string | number }): string => {
+const formatFilter = (filter: { column: string; operator: string; value: string | number | string[] }): string => {
   const columnName = getColumnName(filter.column);
   const operatorLabel = getOperatorLabel(filter.column, filter.operator);
-  return `${columnName} ${operatorLabel} ${filter.value}`;
+  const valueStr = Array.isArray(filter.value) ? filter.value.join(", ") : filter.value;
+  return `${columnName} ${operatorLabel} ${valueStr}`;
 };
 
 export const getTriggersTableColumns = (): ColumnDef<TriggerRow>[] => [
