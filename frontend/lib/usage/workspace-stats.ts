@@ -1,4 +1,4 @@
-import { count, eq, sql } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { db } from "@/lib/db/drizzle";
@@ -20,10 +20,8 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
   const limitsRows = await db
     .select({
       tierName: subscriptionTiers.name,
-      seatsIncludedInTier: subscriptionTiers.membersPerWorkspace,
-      membersLimit: sql<number>`${subscriptionTiers.membersPerWorkspace} + ${workspaces.additionalSeats}`,
-      storageLimit: subscriptionTiers.storageMib,
       bytesLimit: subscriptionTiers.bytesIngested,
+      signalRunsLimit: subscriptionTiers.signalRuns,
     })
     .from(workspaces)
     .innerJoin(subscriptionTiers, eq(subscriptionTiers.id, workspaces.tierId))
@@ -47,13 +45,15 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
 
   return {
     tierName: limits.tierName,
-    seatsIncludedInTier: Number(limits.seatsIncludedInTier),
-    members: Number(members),
-    membersLimit: Number(limits.membersLimit),
     resetTime: usage.resetTime.toISOString(),
     gbUsedThisMonth,
     gbLimit,
     gbOverLimit,
     gbOverLimitCost,
+    // TODO: Implement signal runs usage
+    signalRunsUsedThisMonth: 0,
+    signalRunsLimit: limits.signalRunsLimit,
+    signalRunsOverLimit: 0,
+    signalRunsOverLimitCost: 0,
   };
 }

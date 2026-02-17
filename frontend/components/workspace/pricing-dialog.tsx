@@ -1,12 +1,13 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { TIER_CONFIG } from "@/lib/checkout/constants";
 
 import PricingCard from "../landing/pricing/pricing-card";
 
 const TIER_LINKS = {
-  hobby: "/checkout?type=workspace&lookupKey=hobby_monthly_2025_04",
-  pro: "/checkout?type=workspace&lookupKey=pro_monthly_2025_04",
+  hobby: `/checkout?lookupKey=${TIER_CONFIG.hobby.lookupKey}`,
+  pro: `/checkout?lookupKey=${TIER_CONFIG.pro.lookupKey}`,
 };
 
 interface PricingDialogProps {
@@ -18,7 +19,9 @@ interface PricingDialogProps {
 const isTierPaid = (tier: string) => tier.toLowerCase().trim() !== "free";
 
 export default function PricingDialog({ workspaceTier, workspaceId, workspaceName }: PricingDialogProps) {
-  const addWorkspaceToLink = (link: string) => `${link}&workspaceId=${workspaceId}&workspaceName=${workspaceName}`;
+  const addWorkspaceToLink = (link: string) =>
+    `${link}&workspaceId=${workspaceId}&workspaceName=${encodeURIComponent(workspaceName)}`;
+  const billingLink = `/checkout/portal?workspaceId=${workspaceId}&workspaceName=${encodeURIComponent(workspaceName)}`;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -43,13 +46,22 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
           className="text-secondary-foreground"
           title="Hobby"
           price="$25 / month"
-          features={["2GB data / month included", "30 day data retention", "2 team members", "Priority email support"]}
-          subfeatures={["then $2 per 1GB of additional data", null, null, null]}
+          features={[
+            "3GB data / month included",
+            "1,000 signal runs / month",
+            "30 day data retention",
+            "Priority email support",
+          ]}
+          subfeatures={["then $2 per 1GB of additional data", "then $2 per 100 signal runs", null, null]}
         />
         <div className="mt-4">
-          <Link href={workspaceTier === "hobby" ? "/checkout/portal" : addWorkspaceToLink(TIER_LINKS.hobby)}>
+          <Link href={isTierPaid(workspaceTier) ? billingLink : addWorkspaceToLink(TIER_LINKS.hobby)}>
             <Button variant="secondary" className="w-full h-10">
-              {workspaceTier === "hobby" ? "Manage billing" : "Upgrade to Hobby"}
+              {workspaceTier === "hobby"
+                ? "Manage billing"
+                : isTierPaid(workspaceTier)
+                  ? "Manage billing"
+                  : "Upgrade to Hobby"}
             </Button>
           </Link>
         </div>
@@ -59,31 +71,25 @@ export default function PricingDialog({ workspaceTier, workspaceId, workspaceNam
         <PricingCard
           className="text-white z-20"
           title="Pro"
-          price="$50 / month"
+          price="$150 / month"
           features={[
-            "5GB data / month included",
+            "10GB data / month included",
+            "10,000 signal runs / month",
             "90 day data retention",
-            "3 team members included",
             "Private Slack channel",
           ]}
-          subfeatures={["then $2 per 1GB of additional data", null, "then $25 per additional team member", null]}
+          subfeatures={["then $1.50 per 1GB of additional data", "then $1.50 per 100 signal runs", null, null]}
         />
         <div className="mt-4 z-20">
           <Link
-            href={isTierPaid(workspaceTier) ? "/checkout/portal" : addWorkspaceToLink(TIER_LINKS.pro)}
+            href={isTierPaid(workspaceTier) ? billingLink : addWorkspaceToLink(TIER_LINKS.pro)}
             className="w-full z-20"
           >
             <Button
               className="h-10 text-base bg-white/90 border-none text-primary hover:bg-white/70 w-full"
               variant="outline"
             >
-              {isTierPaid(workspaceTier)
-                ? workspaceTier === "pro"
-                  ? "Manage billing"
-                  : workspaceTier === "hobby"
-                    ? "Upgrade to Pro"
-                    : "Upgrade to Pro"
-                : "Upgrade to Pro"}
+              {isTierPaid(workspaceTier) ? "Manage billing" : "Upgrade to Pro"}
             </Button>
           </Link>
         </div>

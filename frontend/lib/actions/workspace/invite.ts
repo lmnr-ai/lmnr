@@ -1,10 +1,10 @@
-import { count, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { z } from "zod/v4";
 
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
+import { workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
 import { sendInvitationEmail } from "@/lib/emails/utils";
 
 const InviteUserSchema = z.object({
@@ -19,22 +19,10 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
 
   const workspace = await db.query.workspaces.findFirst({
     where: eq(workspaces.id, workspaceId),
-    with: {
-      subscriptionTier: true,
-    },
   });
 
   if (!workspace) {
     throw new Error("Workspace not found");
-  }
-
-  const membersOfWorkspace = await db
-    .select({ count: count() })
-    .from(membersOfWorkspaces)
-    .where(eq(membersOfWorkspaces.workspaceId, workspaceId));
-
-  if (membersOfWorkspace[0].count >= workspace.additionalSeats + workspace.subscriptionTier.membersPerWorkspace) {
-    throw new Error("Workspace is full");
   }
 
   const [{ id }] = await db

@@ -5,26 +5,20 @@ import { getServerSession } from "next-auth";
 import Stripe from "stripe";
 
 import { authOptions } from "@/lib/auth";
+import { getUserSubscriptionInfo, type PaidTier, TIER_CONFIG } from "@/lib/checkout/utils";
+import { db } from "@/lib/db/drizzle";
+import { users, userSubscriptionInfo } from "@/lib/db/migrations/schema";
 
 export const metadata: Metadata = {
   title: "Checkout - Laminar",
   description: "Complete your Laminar subscription.",
 };
-import { getIdFromStripeObject, getUserSubscriptionInfo } from "@/lib/checkout/utils";
-import { db } from "@/lib/db/drizzle";
-import { users, userSubscriptionInfo } from "@/lib/db/migrations/schema";
-
-const bytesOverageLookupKeyEnding = "_monthly_2025_06_overage_bytes";
-const stepsOverageLookupKeyEnding = "_monthly_2025_06_overage_steps";
 
 export default async function CheckoutPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
-  const typeParam = searchParams?.type ?? ("workspace" as "workspace" | "user");
-  const lookupKey =
-    (searchParams?.lookupKey as string) ??
-    (typeParam === "workspace" ? "hobby_monthly_2025_04" : "index_pro_monthly_2025_04");
+  const lookupKey = (searchParams?.lookupKey as string) ?? TIER_CONFIG.hobby.lookupKey;
   const workspaceId = searchParams?.workspaceId as string | undefined;
   const workspaceName = searchParams?.workspaceName as string | undefined;
 
@@ -42,7 +36,7 @@ export default async function CheckoutPage(props: {
   const s = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
   const customerId =
-    existingStripeCustomer?.stripeCustomerId ??
+    existingStripeCustomer?.stripeCustomerId ||
     (
       await s.customers.create({
         email: userSession!.user.email!,
@@ -62,7 +56,6 @@ export default async function CheckoutPage(props: {
   }
 
   if (!existingStripeCustomer?.stripeCustomerId) {
-    // update the user's stripe customer id to then be able to manage their subscription
     await db
       .insert(userSubscriptionInfo)
       .values({
@@ -77,34 +70,34 @@ export default async function CheckoutPage(props: {
       });
   }
 
+  // Resolve the tier config from the lookup key to get the matching overage price keys
+  const tierEntry = Object.entries(TIER_CONFIG).find(([, config]) => config.lookupKey === lookupKey);
+  const tier = tierEntry ? (tierEntry[0] as PaidTier) : null;
+  const tierConfig = tier ? TIER_CONFIG[tier] : null;
+
+  // Fetch all prices in one call: the flat price + both overage prices
+  const allLookupKeys = [
+    lookupKey,
+    ...(tierConfig ? [tierConfig.overageBytesLookupKey, tierConfig.overageSignalRunsLookupKey] : []),
+  ];
+
   const prices = await s.prices.list({
-    lookup_keys: [lookupKey],
-    expand: ["data.product"],
+    lookup_keys: allLookupKeys,
   });
 
-  const product = prices.data[0].product;
+  const flatPrice = prices.data.find((p) => p.lookup_key === lookupKey);
+  const bytesOveragePrice = tierConfig
+    ? prices.data.find((p) => p.lookup_key === tierConfig.overageBytesLookupKey)
+    : undefined;
+  const signalRunsOveragePrice = tierConfig
+    ? prices.data.find((p) => p.lookup_key === tierConfig.overageSignalRunsLookupKey)
+    : undefined;
 
-  const productPrices = await s.prices.list({
-    product: getIdFromStripeObject(product),
-  });
-
-  const bytesOveragePrice = productPrices.data.find((p) => p.lookup_key?.endsWith(bytesOverageLookupKeyEnding));
-  const stepsOveragePrice = productPrices.data.find((p) => p.lookup_key?.endsWith(stepsOverageLookupKeyEnding));
-
-  const metadata =
-    typeParam === "workspace"
-      ? {
-        workspaceId: workspaceId!,
-        workspaceName: workspaceName!,
-        userId: userId!,
-        type: "workspace",
-      }
-      : {
-        userId: userId!,
-        workspaceId: null,
-        workspaceName: null,
-        type: "user",
-      };
+  const subscriptionMetadata = {
+    workspaceId: workspaceId!,
+    workspaceName: workspaceName!,
+    type: "workspace",
+  };
 
   const urlEncodedWorkspaceName = encodeURIComponent(workspaceName ?? "");
 
@@ -116,27 +109,15 @@ export default async function CheckoutPage(props: {
     customer: customerId,
     line_items: [
       {
-        price: prices.data.find((p) => p.lookup_key === lookupKey)?.id,
+        price: flatPrice?.id,
         quantity: 1,
       },
-      ...(bytesOveragePrice
-        ? [
-          {
-            price: bytesOveragePrice?.id,
-          },
-        ]
-        : []),
-      ...(stepsOveragePrice
-        ? [
-          {
-            price: stepsOveragePrice?.id,
-          },
-        ]
-        : []),
+      ...(bytesOveragePrice ? [{ price: bytesOveragePrice.id }] : []),
+      ...(signalRunsOveragePrice ? [{ price: signalRunsOveragePrice.id }] : []),
     ],
     mode: "subscription",
     subscription_data: {
-      metadata,
+      metadata: subscriptionMetadata,
     },
     success_url: successUrl,
     cancel_url: cancelUrl,

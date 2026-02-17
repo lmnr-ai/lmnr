@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 
 import { type ItemDescription } from "../checkout/utils";
+import PaymentFailedEmail from "./payment-failed-email";
 import SubscriptionUpdatedEmail from "./subscription-updated-email";
 import WelcomeEmail from "./welcome-email";
 import WorkspaceInviteEmail from "./workspace-invite";
@@ -40,7 +41,29 @@ export async function sendOnPaymentReceivedEmail(email: string, itemDescriptions
     react: component,
   });
 
-  if (error) console.log(error);
+  if (error) console.error(error);
+}
+
+export async function sendOnPaymentFailedEmail(email: string, itemDescriptions: ItemDescription[], date: string) {
+  const from = "Laminar team <founders@lmnr.ai>";
+  const subject =
+    itemDescriptions.length === 1
+      ? `Laminar: Payment for ${itemDescriptions[0].shortDescription ?? itemDescriptions[0].productDescription} failed.`
+      : "Laminar: Payment failed.";
+  const component = PaymentFailedEmail({
+    itemDescriptions,
+    date,
+    billedTo: email,
+  });
+
+  const { data, error } = await RESEND.emails.send({
+    from,
+    to: [email],
+    subject,
+    react: component,
+  });
+
+  if (error) console.error(error);
 }
 
 export async function sendInvitationEmail(email: string, workspaceName: string, inviteLink: string) {

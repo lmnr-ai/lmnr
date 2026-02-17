@@ -4,7 +4,6 @@ import { z } from "zod/v4";
 import { type Message } from "@/lib/playground/types";
 import { isStorageUrl, urlToBase64 } from "@/lib/s3";
 
-
 /** Part Schemas **/
 
 // Common optional fields that can appear on any part
@@ -120,7 +119,6 @@ export const GeminiContentSchema = z.object({
 
 export const GeminiContentsSchema = z.array(GeminiContentSchema);
 
-
 /** Candidate Schema (output format) **/
 
 // A Candidate wraps a Content with generation metadata.
@@ -161,13 +159,12 @@ export const parseGeminiOutput = (data: unknown): z.infer<typeof GeminiContentsS
   return candidates.map((c) => c.content);
 };
 
-
 /** Conversion Functions **/
 
 export const convertGeminiToPlaygroundMessages = async (
   messages: z.infer<typeof GeminiContentsSchema>
-): Promise<Message[]> => {
-  return Promise.all(
+): Promise<Message[]> =>
+  Promise.all(
     map(messages, async (message): Promise<Message> => {
       const content: Message["content"] = [];
 
@@ -188,9 +185,7 @@ export const convertGeminiToPlaygroundMessages = async (
             }
             content.push({
               type: "image",
-              image: imageData.startsWith("data:")
-                ? imageData
-                : `data:${part.inlineData.mimeType};base64,${imageData}`,
+              image: imageData.startsWith("data:") ? imageData : `data:${part.inlineData.mimeType};base64,${imageData}`,
             });
           } else {
             content.push({
@@ -250,4 +245,3 @@ export const convertGeminiToPlaygroundMessages = async (
       return { role, content };
     })
   );
-};

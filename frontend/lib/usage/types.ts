@@ -1,15 +1,16 @@
 export type WorkspaceStats = {
   tierName: string;
-  seatsIncludedInTier: number;
-  members: number;
-  membersLimit: number;
   resetTime: string;
   // GB usage fields
   gbUsedThisMonth: number;
   gbLimit: number;
   gbOverLimit: number;
   gbOverLimitCost: number;
-  // storageLimit: number; // in MiB
+  // Signal runs usage fields
+  signalRunsUsedThisMonth: number;
+  signalRunsLimit: number;
+  signalRunsOverLimit: number;
+  signalRunsOverLimitCost: number;
 };
 
 export type StorageStats = {

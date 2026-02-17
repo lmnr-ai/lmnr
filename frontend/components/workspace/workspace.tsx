@@ -2,6 +2,7 @@
 
 import Projects from "@/components/projects/projects.tsx";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
+import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/checkout/actions";
 import { type WorkspaceStats } from "@/lib/usage/types";
 import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
@@ -16,7 +17,8 @@ interface WorkspaceProps {
   workspaceStats: WorkspaceStats;
   isOwner: boolean;
   currentUserRole: WorkspaceRole;
-  workspaceFeatureEnabled: boolean;
+  subscription: SubscriptionDetails | null;
+  upcomingInvoice: UpcomingInvoiceInfo | null;
 }
 
 export default function WorkspaceComponent({
@@ -25,7 +27,8 @@ export default function WorkspaceComponent({
   workspaceStats,
   isOwner,
   currentUserRole,
-  workspaceFeatureEnabled,
+  subscription,
+  upcomingInvoice,
 }: WorkspaceProps) {
   const { menu } = useWorkspaceMenuContext();
 
@@ -33,24 +36,25 @@ export default function WorkspaceComponent({
     <div className="flex-1 overflow-y-auto">
       <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">
         {menu === "projects" && <Projects workspaceId={workspace.id} />}
-        {workspaceFeatureEnabled && menu === "team" && (
+        {menu === "team" && (
           <WorkspaceUsers
             invitations={invitations}
             workspace={workspace}
-            workspaceStats={workspaceStats}
             isOwner={isOwner}
             currentUserRole={currentUserRole}
           />
         )}
-        {workspaceFeatureEnabled && menu === "usage" && (
-          <WorkspaceUsage workspace={workspace} workspaceStats={workspaceStats} isOwner={isOwner} />
+        {menu === "usage" && (
+          <WorkspaceUsage
+            workspace={workspace}
+            workspaceStats={workspaceStats}
+            isOwner={isOwner}
+            subscription={subscription}
+            upcomingInvoice={upcomingInvoice}
+          />
         )}
-        {workspaceFeatureEnabled && menu === "settings" && (
-          <WorkspaceSettings workspace={workspace} isOwner={isOwner} />
-        )}
-        {workspaceFeatureEnabled && menu === "deployment" && (
-          <WorkspaceDeployment workspace={workspace} />
-        )}
+        {menu === "settings" && <WorkspaceSettings workspace={workspace} isOwner={isOwner} />}
+        {menu === "deployment" && <WorkspaceDeployment workspace={workspace} />}
       </div>
     </div>
   );

@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::sql::{ClickhouseReadonlyClient, SqlQueryError};
 
 const DEFAULT_SQL_QUERY_MAX_EXECUTION_TIME: &str = "120";
-const DEFAULT_SQL_QUERY_MAX_RESULT_BYTES: &str = "536870912"; // 512MB
+const DEFAULT_SQL_QUERY_MAX_RESULT_BYTES: &str = "536870912"; // 512MiB
 
 #[derive(Deserialize)]
 pub struct ClickhouseBadResponseError {

@@ -15,7 +15,15 @@ import {
 } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, projects, subscriptionTiers, users, workspaceAddons, workspaces } from "@/lib/db/migrations/schema";
+import {
+  membersOfWorkspaces,
+  projects,
+  subscriptionTiers,
+  users,
+  workspaceAddons,
+  workspaces,
+} from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { type Workspace, type WorkspaceTier, type WorkspaceUsage, type WorkspaceUser } from "@/lib/workspaces/types";
 
 const LAST_WORKSPACE_ID = "last-workspace-id";
@@ -108,16 +116,22 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
     throw new Error("Workspace not found");
   }
 
-  const addons = await db
-    .select({ addonSlug: workspaceAddons.addonSlug })
-    .from(workspaceAddons)
-    .where(eq(workspaceAddons.workspaceId, workspaceId));
+  let addons: string[] = [];
+
+  if (isFeatureEnabled(Feature.ADDONS)) {
+    const addonDefinitions = await db
+      .select({ addonSlug: workspaceAddons.addonSlug })
+      .from(workspaceAddons)
+      .where(eq(workspaceAddons.workspaceId, workspaceId));
+
+    addons = addonDefinitions.map((a) => a.addonSlug);
+  }
 
   return {
     id: workspace[0].id,
     name: workspace[0].name,
     tierName: workspace[0].tierName as WorkspaceTier,
-    addons: addons.map((a) => a.addonSlug),
+    addons,
   };
 };
 
@@ -151,15 +165,21 @@ export const getWorkspaceInfo = async (workspaceId: string): Promise<Workspace> 
     .where(eq(workspaces.id, workspaceId))
     .limit(1);
 
-  const addons = await db
-    .select({ addonSlug: workspaceAddons.addonSlug })
-    .from(workspaceAddons)
-    .where(eq(workspaceAddons.workspaceId, workspaceId));
+  let addons: string[] = [];
+
+  if (isFeatureEnabled(Feature.ADDONS)) {
+    const addonDefinitions = await db
+      .select({ addonSlug: workspaceAddons.addonSlug })
+      .from(workspaceAddons)
+      .where(eq(workspaceAddons.workspaceId, workspaceId));
+
+    addons = addonDefinitions.map((a) => a.addonSlug);
+  }
 
   return {
     ...workspace,
     tierName: workspace.tierName as WorkspaceTier,
-    addons: addons.map((a) => a.addonSlug),
+    addons,
   };
 };
 

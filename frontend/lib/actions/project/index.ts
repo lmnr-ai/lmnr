@@ -210,7 +210,6 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
   const tierResult = await db
     .select({
       name: subscriptionTiers.name,
-      stepsLimit: subscriptionTiers.steps,
       bytesLimit: subscriptionTiers.bytesIngested,
     })
     .from(subscriptionTiers)

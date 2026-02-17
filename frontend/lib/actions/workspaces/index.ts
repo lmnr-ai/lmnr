@@ -6,6 +6,7 @@ import { createProject } from "@/lib/actions/projects";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, subscriptionTiers, workspaceAddons, workspaces } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 export const CreateWorkspaceSchema = z.object({
@@ -91,10 +92,19 @@ export const getWorkspaces = async (): Promise<Workspace[]> => {
     return [];
   }
 
-  const addons = await db
-    .select({ workspaceId: workspaceAddons.workspaceId, addonSlug: workspaceAddons.addonSlug })
-    .from(workspaceAddons)
-    .where(inArray(workspaceAddons.workspaceId, results.map((r) => r.id)));
+  let addons: { workspaceId: string; addonSlug: string }[] = [];
+
+  if (isFeatureEnabled(Feature.ADDONS)) {
+    addons = await db
+      .select({ workspaceId: workspaceAddons.workspaceId, addonSlug: workspaceAddons.addonSlug })
+      .from(workspaceAddons)
+      .where(
+        inArray(
+          workspaceAddons.workspaceId,
+          results.map((r) => r.id)
+        )
+      );
+  }
 
   const addonsByWorkspace = new Map<string, string[]>();
   for (const addon of addons) {

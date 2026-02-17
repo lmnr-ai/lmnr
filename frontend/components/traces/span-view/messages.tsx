@@ -13,13 +13,9 @@ import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
+import { type GeminiContentsSchema, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
-import {
-  type GeminiContentsSchema,
-  parseGeminiInput,
-  parseGeminiOutput,
-} from "@/lib/spans/types/gemini";
 
 interface MessagesProps {
   messages: any;

@@ -1,6 +1,7 @@
 "use client";
 
-import { Cloud, Lock, Loader2, Server } from "lucide-react";
+import { Cloud, Loader2, Lock, Server } from "lucide-react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
@@ -22,11 +23,14 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import HybridSetup from "@/components/workspace/deployment-settings/hybrid-setup.tsx";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
-import { DeploymentType, type Workspace, WorkspaceTier, type WorkspaceDeploymentSettings } from "@/lib/workspaces/types.ts";
+import {
+  DeploymentType,
+  type Workspace,
+  type WorkspaceDeploymentSettings,
+  WorkspaceTier,
+} from "@/lib/workspaces/types.ts";
 
-export interface DeploymentManagementForm
-  extends Pick<WorkspaceDeploymentSettings, "publicKey" | "dataPlaneUrl" | "mode"> { }
-
+export type DeploymentManagementForm = Pick<WorkspaceDeploymentSettings, "publicKey" | "dataPlaneUrl" | "mode">;
 const DATA_PLANE_ADDON = "data-plane";
 
 interface WorkspaceDeploymentProps {
@@ -152,7 +156,10 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
   if (isLoading) {
     return (
       <>
-        <SettingsSectionHeader title="Data Residency" description="Choose where your workspace data is stored and processed." />
+        <SettingsSectionHeader
+          title="Data Residency"
+          description="Choose where your workspace data is stored and processed."
+        />
         <div className="flex flex-col gap-3 mt-2">
           <Skeleton className="h-24 w-full rounded-lg" />
           <Skeleton className="h-24 w-full rounded-lg" />
@@ -164,7 +171,10 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
   if (error) {
     return (
       <>
-        <SettingsSectionHeader title="Data Residency" description="Choose where your workspace data is stored and processed." />
+        <SettingsSectionHeader
+          title="Data Residency"
+          description="Choose where your workspace data is stored and processed."
+        />
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 mt-2">
           <p className="text-sm text-destructive">
             {error instanceof Error ? error.message : "Failed to load data residency settings"}
@@ -177,7 +187,10 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
   return (
     <FormProvider {...methods}>
       <div className="space-y-6">
-        <SettingsSectionHeader title="Data Residency" description="Choose where your workspace data is stored and processed." />
+        <SettingsSectionHeader
+          title="Data Residency"
+          description="Choose where your workspace data is stored and processed."
+        />
 
         {/* Upgrade / addon gate */}
         {!isEnabled && (
@@ -185,17 +198,24 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
             <div className="flex items-center justify-center h-9 w-9 rounded-md bg-muted text-muted-foreground shrink-0">
               <Lock className="h-5 w-5" />
             </div>
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium">
-                {!isPro
-                  ? "Upgrade to Pro to configure data residency"
-                  : "Add the Data Plane addon to configure data residency"}
-              </p>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {!isPro
-                  ? "Data residency configuration is available on the Pro plan with the Data Plane addon."
-                  : "Your workspace is on the Pro plan, but the Data Plane addon is required to enable hybrid data residency."}
-              </p>
+            <div className="space-y-3 flex-1">
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">
+                  {!isPro
+                    ? "Upgrade to Pro to configure data residency"
+                    : "Add the Data Plane addon to configure data residency"}
+                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {!isPro
+                    ? "Data residency configuration is available on the Pro plan with the Data Plane addon."
+                    : "Your workspace is on the Pro plan, but the Data Plane addon is required to enable hybrid data residency."}
+                </p>
+              </div>
+              <Link href={`/workspace/${workspaceId}?menu=usage`}>
+                <Button variant="outline" size="sm">
+                  {!isPro ? "View pricing" : "Go to billing settings"}
+                </Button>
+              </Link>
             </div>
           </div>
         )}
@@ -232,9 +252,7 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
           <div className="flex items-center justify-between rounded-lg border bg-muted/50 px-4 py-3">
             <div className="flex flex-col gap-0.5">
               <p className="text-sm font-medium">Unsaved changes</p>
-              {saveBlockReason && (
-                <p className="text-xs text-muted-foreground">{saveBlockReason}</p>
-              )}
+              {saveBlockReason && <p className="text-xs text-muted-foreground">{saveBlockReason}</p>}
             </div>
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={handleSaveClick} disabled={!canSave}>
@@ -256,15 +274,15 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
                 {mode === DeploymentType.HYBRID ? (
                   <>
                     <p>
-                      Switching to <strong>Hybrid</strong> means all new data will be written to
-                      and read from your self-hosted data plane.
+                      Switching to <strong>Hybrid</strong> means all new data will be written to and read from your
+                      self-hosted data plane.
                     </p>
                   </>
                 ) : (
                   <>
                     <p>
-                      Switching to <strong>Cloud</strong> means all new data will be written to
-                      and read from Laminar&apos;s managed infrastructure.
+                      Switching to <strong>Cloud</strong> means all new data will be written to and read from
+                      Laminar&apos;s managed infrastructure.
                     </p>
                   </>
                 )}
@@ -303,9 +321,7 @@ function ModeCard({ icon, title, description, isSelected, isActive, disabled, on
         "relative flex flex-col gap-2 rounded-lg border-2 p-4 text-left transition-colors",
         "hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "disabled:pointer-events-none disabled:opacity-90",
-        isSelected
-          ? "border-primary bg-primary/5"
-          : "border-border"
+        isSelected ? "border-primary bg-primary/5" : "border-border"
       )}
     >
       {isActive && (
@@ -313,10 +329,12 @@ function ModeCard({ icon, title, description, isSelected, isActive, disabled, on
           Current
         </span>
       )}
-      <div className={cn(
-        "flex items-center justify-center h-9 w-9 rounded-md",
-        isSelected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-      )}>
+      <div
+        className={cn(
+          "flex items-center justify-center h-9 w-9 rounded-md",
+          isSelected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+        )}
+      >
         {icon}
       </div>
       <div>

@@ -1,8 +1,10 @@
 import { memo } from "react";
 import { PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
 
+import BillingPage from "@/components/billing/billing-page";
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { ChartContainer } from "@/components/ui/chart";
+import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/checkout/actions";
 import { type WorkspaceStats } from "@/lib/usage/types";
 import { cn } from "@/lib/utils";
 import { type Workspace } from "@/lib/workspaces/types";
@@ -15,24 +17,38 @@ interface WorkspaceUsageProps {
   workspace: Workspace;
   workspaceStats: WorkspaceStats;
   isOwner: boolean;
+  subscription: SubscriptionDetails | null;
+  upcomingInvoice: UpcomingInvoiceInfo | null;
 }
 
 const TIER_USAGE_HINTS = {
   free: {
     data: "1GB",
+    signalRuns: "N/A",
     isOverageAllowed: false,
+    overageDataPrice: 0,
   },
   hobby: {
-    data: "2GB",
+    data: "3GB",
+    signalRuns: "1,000",
     isOverageAllowed: true,
+    overageDataPrice: 2,
   },
   pro: {
-    data: "5GB",
+    data: "10GB",
+    signalRuns: "10,000",
     isOverageAllowed: true,
+    overageDataPrice: 1.5,
   },
 };
 
-export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: WorkspaceUsageProps) {
+export default function WorkspaceUsage({
+  workspace,
+  workspaceStats,
+  isOwner,
+  subscription,
+  upcomingInvoice,
+}: WorkspaceUsageProps) {
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
   const gbLimit = workspaceStats?.gbLimit ?? 1;
   const resetTime = workspaceStats.resetTime;
@@ -44,20 +60,23 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
   });
 
   const formatGB = (gb: number) => {
-    if (gb < 0.001) {
+    if (gb < 0.01) {
       return `${(gb * 1024).toFixed(2)} MB`;
     }
     return `${gb.toFixed(2)} GB`;
   };
 
   const tierHintInfo = TIER_USAGE_HINTS[workspaceStats.tierName.toLowerCase().trim() as keyof typeof TIER_USAGE_HINTS];
-  const tierHint = `${workspaceStats.tierName} tier comes with ${tierHintInfo?.data ?? "unlimited"} data per month.`;
+  const tierHint = `${workspaceStats.tierName} tier comes with ${tierHintInfo?.data ?? "unlimited"} data and ${tierHintInfo?.signalRuns ?? "unlimited"} signal runs per month.`;
 
   const tierHintOverages =
-    "If you exceed this limit, " +
+    "If you exceed these limits, " +
     (tierHintInfo?.isOverageAllowed
-      ? "you will be charged $2 per GB for additional data."
+      ? `you will be charged $${tierHintInfo?.overageDataPrice ?? 2} per GB for additional data.`
       : "you won't be able to send any more data during current billing cycle.");
+
+  const isFree = workspaceStats.tierName.toLowerCase().trim() === "free";
+  const hasDataplaneAddon = workspace.addons.includes("data-plane");
 
   return (
     <>
@@ -83,14 +102,15 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
             </span>
           </div>
         </div>
-        {isOwner && (
+        {/* Only show upgrade button for free tier */}
+        {isOwner && isFree && (
           <Dialog>
             <DialogTrigger asChild>
               <Button className="w-fit" variant="default">
-                {workspaceStats.tierName.toLowerCase().trim() === "free" ? "Upgrade" : "Manage billing"}
+                Upgrade
               </Button>
             </DialogTrigger>
-            <DialogTitle className="sr-only">Manage billing</DialogTitle>
+            <DialogTitle className="sr-only">Upgrade</DialogTitle>
             <DialogContent className="max-w-[90vw] p-0 border-none">
               <PricingDialog
                 workspaceTier={workspaceStats.tierName.toLowerCase().trim()}
@@ -124,6 +144,17 @@ export default function WorkspaceUsage({ workspace, workspaceStats, isOwner }: W
           </div>
         </div>
       </SettingsSection>
+
+      {/* Embed billing management for paid tiers */}
+      {!isFree && isOwner && subscription && (
+        <BillingPage
+          workspaceId={workspace.id}
+          workspaceName={workspace.name}
+          subscription={subscription}
+          upcomingInvoice={upcomingInvoice}
+          hasDataplaneAddon={hasDataplaneAddon}
+        />
+      )}
     </>
   );
 }

@@ -8,9 +8,9 @@ import WorkspaceComponent from "@/components/workspace/workspace";
 import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
 import { getWorkspace } from "@/lib/actions/workspace";
 import { authOptions } from "@/lib/auth";
+import { getSubscriptionDetails, getUpcomingInvoice } from "@/lib/checkout/actions";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
-import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { getWorkspaceStats } from "@/lib/usage/workspace-stats";
 
 export default async function WorkspacePage(props: { params: Promise<{ workspaceId: string }> }) {
@@ -45,13 +45,28 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     where: eq(workspaceInvitations.workspaceId, params.workspaceId),
   });
 
-  const workspaceFeatureEnabled = isFeatureEnabled(Feature.WORKSPACE);
+  // Fetch subscription details for paid tiers
+  const isPaidTier = workspace.tierName !== "Free";
+  let subscription = null;
+  let upcomingInvoice = null;
+
+  if (isPaidTier && (isOwner || ["admin", "owner"].includes(currentUserRole))) {
+    try {
+      [subscription, upcomingInvoice] = await Promise.all([
+        getSubscriptionDetails(params.workspaceId),
+        getUpcomingInvoice(params.workspaceId),
+      ]);
+    } catch (error) {
+      // If fetching subscription details fails, continue without them
+      console.error("Error fetching subscription details:", error);
+    }
+  }
 
   return (
     <WorkspaceMenuProvider>
       <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
         <SidebarProvider className="bg-sidebar">
-          <WorkspaceSidebar isOwner={isOwner} workspace={workspace} workspaceFeatureEnabled={workspaceFeatureEnabled} />
+          <WorkspaceSidebar isOwner={isOwner} workspace={workspace} />
           <SidebarInset className="flex flex-col flex-1 md:rounded-tl-lg border h-full overflow-hidden">
             <WorkspaceComponent
               invitations={invitations}
@@ -59,7 +74,8 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
               workspaceStats={stats}
               isOwner={isOwner}
               currentUserRole={currentUserRole}
-              workspaceFeatureEnabled={workspaceFeatureEnabled}
+              subscription={subscription}
+              upcomingInvoice={upcomingInvoice}
             />
           </SidebarInset>
         </SidebarProvider>

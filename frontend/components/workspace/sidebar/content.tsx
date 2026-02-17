@@ -47,21 +47,13 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
 
 interface WorkspaceSidebarContentProps {
   isOwner: boolean;
-  workspaceFeatureEnabled: boolean;
   tier: WorkspaceTier;
 }
 
-export const WorkspaceSidebarContent = ({ isOwner, tier, workspaceFeatureEnabled }: WorkspaceSidebarContentProps) => {
+export const WorkspaceSidebarContent = ({ isOwner, tier }: WorkspaceSidebarContentProps) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
   const pathName = usePathname();
-  const sidebarMenus = useMemo(() => {
-    if (!workspaceFeatureEnabled) {
-      return menus.filter((m) => m.value === "projects");
-    }
-
-    return menus
-      .filter((m) => isOwner || m.value !== "settings");
-  }, [isOwner, workspaceFeatureEnabled, tier]);
+  const sidebarMenus = useMemo(() => menus.filter((m) => isOwner || m.value !== "settings"), [isOwner]);
 
   return (
     <SidebarContent>
