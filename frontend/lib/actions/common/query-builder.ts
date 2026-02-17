@@ -181,7 +181,7 @@ const createArrayColumnFilter =
 
     if (values.length === 0) {
       return {
-        condition: "",
+        condition: null,
         params: {},
       };
     }

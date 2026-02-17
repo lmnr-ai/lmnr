@@ -76,8 +76,12 @@ const TagInput = ({
   const showDropdown = open && filteredSuggestions.length > 0;
 
   useEffect(() => {
-    setHighlightedIndex(showDropdown ? 0 : -1);
-  }, [showDropdown]);
+    if (!showDropdown) {
+      setHighlightedIndex(-1);
+    } else {
+      setHighlightedIndex((prev) => (prev < 0 ? 0 : Math.min(prev, filteredSuggestions.length - 1)));
+    }
+  }, [showDropdown, filteredSuggestions.length]);
 
   useEffect(() => {
     if (!showDropdown || highlightedIndex < 0) return;
