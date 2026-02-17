@@ -5,7 +5,7 @@ import { showTooltip, type Tooltip as TooltipType } from "@codemirror/view";
 import { getFunctionSignature } from "./function-signatures";
 import type { FunctionCallContext, FunctionSignature } from "./types";
 
-function isInsideString(state: EditorState, pos: number): boolean {
+export function isInsideString(state: EditorState, pos: number): boolean {
   const tree = syntaxTree(state);
   const node = tree.resolveInner(pos, -1);
   return node.name === "String" || node.name === "QuotedString" || node.name === "Literal";

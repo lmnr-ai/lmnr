@@ -7,8 +7,6 @@ import { type CustomColumn, useEvalStore } from "@/components/evaluation/store";
 import SQLEditor from "@/components/sql/sql-editor.tsx";
 import type { SQLSchemaConfig } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
-
-const EVAL_DATAPOINTS_SCHEMA: SQLSchemaConfig = { tables: ["evaluation_datapoints"] };
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,6 +16,8 @@ interface CustomColumnPanelProps {
   onSave: (column: CustomColumn) => void;
   editingColumn?: CustomColumn;
 }
+
+const EVAL_DATAPOINTS_SCHEMA: SQLSchemaConfig = { tables: ["evaluation_datapoints"] };
 
 export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColumnPanelProps) => {
   const { projectId, evaluationId } = useParams();

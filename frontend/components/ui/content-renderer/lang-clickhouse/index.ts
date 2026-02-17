@@ -5,6 +5,6 @@ export {
   clickhouseFunctionSignatures,
   getFunctionSignature,
 } from "./function-signatures";
-export { setSignatureTooltip, signatureHelp } from "./signature-help";
+export { isInsideString, setSignatureTooltip, signatureHelp } from "./signature-help";
 export { createIdentifierHighlighter } from "./syntax-highlighter";
 export type { FunctionCallContext, FunctionParameter, FunctionSignature } from "./types";

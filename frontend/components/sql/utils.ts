@@ -11,7 +11,6 @@ import {
   type SQLConfig,
   type SQLNamespace,
 } from "@codemirror/lang-sql";
-import { syntaxTree } from "@codemirror/language";
 import { highlightSelectionMatches, search } from "@codemirror/search";
 import { Prec } from "@codemirror/state";
 import { EditorView, keymap, tooltips } from "@codemirror/view";
@@ -22,6 +21,7 @@ import {
   ClickHouseDialect,
   clickhouseFunctions,
   createIdentifierHighlighter,
+  isInsideString,
   signatureHelp,
 } from "@/components/ui/content-renderer/lang-clickhouse";
 import { defaultThemeSettings } from "@/components/ui/content-renderer/utils";
@@ -324,15 +324,6 @@ const generateCompletions = (textBefore: string, searchTerm: string) => {
 };
 
 /**
- * Checks if the position is inside a string literal
- */
-function isInsideString(context: CompletionContext): boolean {
-  const tree = syntaxTree(context.state);
-  const node = tree.resolveInner(context.pos, -1);
-  return node.name === "String" || node.name === "QuotedString" || node.name === "Literal";
-}
-
-/**
  * Resolves the effective table schemas based on the schema config.
  * If no config is provided, returns all default table schemas.
  * If tables filter is provided, only includes those tables.
@@ -439,7 +430,7 @@ function createScopedCompletionSource(scopedSchemas: Record<string, TableSchema>
   };
 
   return (context: CompletionContext): CompletionResult | Promise<CompletionResult | null> | null => {
-    if (isInsideString(context)) {
+    if (isInsideString(context.state, context.pos)) {
       return null;
     }
 
