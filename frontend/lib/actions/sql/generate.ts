@@ -1,4 +1,5 @@
 import { google } from "@ai-sdk/google";
+import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { generateObject } from "ai";
 import { z } from "zod";
 
@@ -14,12 +15,17 @@ const GenerationResultSchema = z.object({
 export async function generateSql(prompt: string, mode?: GenerationMode): Promise<GenerationResult> {
   const prompts = getGenerationPrompts(mode);
 
-  const { object } = await generateObject({
-    model: google("gemini-2.0-flash"),
+
+  const { object } = await observe({ name: "generateSql" }, async () => await generateObject({
+    model: google("gemini-3-flash-preview"),
     schema: GenerationResultSchema,
     system: prompts.system,
     prompt: prompts.user(prompt),
-  });
+    experimental_telemetry: {
+      isEnabled: true,
+      tracer: getTracer(),
+    },
+  }));
 
   if (object.success && object.result) {
     return { success: true, result: object.result };
