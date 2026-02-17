@@ -253,9 +253,7 @@ export const GetEvaluationCellValueSchema = z.object({
   column: z.string(), // JSON-encoded { id, sql } where sql is the fullSql expression
 });
 
-export const getEvaluationCellValue = async (
-  input: z.infer<typeof GetEvaluationCellValueSchema>
-): Promise<unknown> => {
+export const getEvaluationCellValue = async (input: z.infer<typeof GetEvaluationCellValueSchema>): Promise<unknown> => {
   const { projectId, evaluationId, datapointId, column: columnJson } = input;
 
   const evaluation = await db.query.evaluations.findFirst({

@@ -37,22 +37,22 @@ export const EvalColumnsMenuItem = ({
     <div
       style={style}
       className={cn(
-        "relative flex cursor-default select-none items-center gap-4 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground",
+        "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground w-full",
         isLocked && "hidden"
       )}
     >
-      <div className="flex items-center gap-2">
-        <div
-          ref={setNodeRef}
-          {...(!isLocked && { ...attributes, ...listeners })}
-          className={cn("cursor-grab", isLocked && "cursor-not-allowed opacity-50")}
-        >
-          <GripHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
-        </div>
-        <span className={isLocked ? "text-muted-foreground mr-4" : ""}>{label}</span>
+      <div
+        ref={setNodeRef}
+        {...(!isLocked && { ...attributes, ...listeners })}
+        className={cn("cursor-grab flex-shrink-0", isLocked && "cursor-not-allowed opacity-50")}
+      >
+        <GripHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
       </div>
+      <span className={cn("truncate max-w-[120px]", isLocked && "text-muted-foreground")} title={label}>
+        {label}
+      </span>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
         {onEdit && (
           <button
             className="text-muted-foreground hover:text-foreground"

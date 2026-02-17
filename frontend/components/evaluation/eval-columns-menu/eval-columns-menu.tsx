@@ -4,8 +4,8 @@ import { useStore } from "zustand";
 
 import { type CustomColumn, useEvalStore } from "@/components/evaluation/store";
 import { Button } from "@/components/ui/button.tsx";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 
 import { ColumnsListPanel } from "./columns-list-panel";
 import { CustomColumnPanel } from "./custom-column-panel";
@@ -103,13 +103,19 @@ export default function EvalColumnsMenu({ lockedColumns = [], columnLabels = [] 
               onReorder={setColumnOrder}
               onToggleVisibility={handleToggleVisibility}
               onReset={resetColumns}
-              onCustomColumnClick={() => { setEditingColumn(null); setActivePanel("form"); }}
+              onCustomColumnClick={() => {
+                setEditingColumn(null);
+                setActivePanel("form");
+              }}
               onEditColumn={handleEditColumn}
             />
           ) : (
             <CustomColumnPanel
               key={editingColumn?.name ?? "__new__"}
-              onBack={() => { setEditingColumn(null); setActivePanel("list"); }}
+              onBack={() => {
+                setEditingColumn(null);
+                setActivePanel("list");
+              }}
               onSave={handleSave}
               editingColumn={editingColumn ?? undefined}
             />

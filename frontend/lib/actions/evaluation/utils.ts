@@ -1,7 +1,4 @@
-import {
-  type EvaluationScoreDistributionBucket,
-  type EvaluationScoreStatistics,
-} from "@/lib/evaluation/types";
+import { type EvaluationScoreDistributionBucket, type EvaluationScoreStatistics } from "@/lib/evaluation/types";
 
 // Constants for distribution calculation
 const DEFAULT_LOWER_BOUND = 0.0;
