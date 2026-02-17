@@ -31,6 +31,12 @@ export const JsonFilterSchema = BaseFilterSchema.extend({
 
 export const ArrayFilterSchema = z.object({
   column: z.string(),
+  value: z.array(z.string().min(1)),
+  operator: z.enum(ARRAY_OPERATORS),
+});
+
+const ArrayFilterSchemaRelaxed = z.object({
+  column: z.string(),
   value: z.array(z.string()),
   operator: z.enum(ARRAY_OPERATORS),
 });
@@ -42,12 +48,6 @@ export const FilterSchema = z.union([
   JsonFilterSchema,
   ArrayFilterSchema,
 ]);
-
-const ArrayFilterSchemaRelaxed = z.object({
-  column: z.string(),
-  value: z.array(z.string()),
-  operator: z.enum(ARRAY_OPERATORS),
-});
 
 export const FilterSchemaRelaxed = z.union([
   BaseFilterSchemaRelaxed.extend({ operator: z.enum(STRING_OPERATORS) }),
