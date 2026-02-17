@@ -825,5 +825,3 @@ export function createExtensions(config?: SQLSchemaConfig) {
     ),
   ];
 }
-
-export const extensions = createExtensions();
