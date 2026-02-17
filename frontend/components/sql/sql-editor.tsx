@@ -1,7 +1,7 @@
 "use client";
 
+import { TooltipPortal } from "@radix-ui/react-tooltip";
 import CodeMirror from "@uiw/react-codemirror";
-import { motion } from "framer-motion";
 import { Loader2, Sparkles } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -9,8 +9,10 @@ import { createExtensions, type SQLSchemaConfig, theme } from "@/components/sql/
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { GenerationMode } from "@/lib/actions/sql";
 import { toast } from "@/lib/hooks/use-toast";
+import { cn } from "@/lib/utils.ts";
 
 export interface SQLEditorProps {
   value: string;
@@ -23,6 +25,7 @@ export interface SQLEditorProps {
   generationMode?: GenerationMode;
   inputPlaceholder?: string;
   projectId?: string;
+  aiButtonVariant?: "icon" | "full";
 }
 
 export default function SQLEditor({
@@ -36,6 +39,7 @@ export default function SQLEditor({
   generationMode = "query",
   inputPlaceholder = "e.g. Get top 10 most expensive traces from last 24 hours",
   projectId,
+  aiButtonVariant = "icon",
 }: SQLEditorProps) {
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -56,7 +60,7 @@ export default function SQLEditor({
       const response = await fetch(`/api/projects/${projectId}/sql/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, mode: generationMode }),
+        body: JSON.stringify({ prompt, mode: generationMode, currentQuery: value || undefined }),
       });
 
       const data = await response.json();
@@ -82,7 +86,7 @@ export default function SQLEditor({
     } finally {
       setIsAiLoading(false);
     }
-  }, [aiPrompt, projectId, generationMode, onChange]);
+  }, [aiPrompt, projectId, generationMode, value, onChange]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -108,29 +112,33 @@ export default function SQLEditor({
       />
 
       {projectId && editable && (
-        <motion.button
-          className="absolute bottom-2 right-2 z-10 flex items-center h-6 px-1 rounded-full bg-primary/90 text-primary-foreground/90 hover:bg-primary border border-white/25 shadow-md overflow-hidden disabled:opacity-50 disabled:pointer-events-none text-xs font-medium"
-          disabled={isAiLoading}
-          onClick={() => setIsAiDialogOpen(true)}
-          initial="idle"
-          whileHover="hover"
-        >
-          {isAiLoading ? (
-            <Loader2 className="size-3.5 shrink-0 animate-spin" />
-          ) : (
-            <Sparkles className="size-3.5 shrink-0" />
-          )}
-          <motion.span
-            className="overflow-hidden whitespace-nowrap text-xs font-medium"
-            variants={{
-              idle: { width: 0, opacity: 0, marginLeft: 0 },
-              hover: { width: "auto", opacity: 1, marginLeft: 6 },
-            }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-          >
-            Ask AI
-          </motion.span>
-        </motion.button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className={cn(
+                  "absolute bottom-2 right-2 z-10 flex items-center justify-center gap-1.5 h-6 px-1.5 rounded-full",
+                  {
+                    "w-6": aiButtonVariant === "icon",
+                  }
+                )}
+                disabled={isAiLoading}
+                size={aiButtonVariant === "icon" ? "icon" : "sm"}
+                onClick={() => setIsAiDialogOpen(true)}
+              >
+                {isAiLoading ? (
+                  <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3.5 shrink-0" />
+                )}
+                {aiButtonVariant === "full" && <span>Ask AI</span>}
+              </Button>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent>Generate SQL with AI</TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
+        </TooltipProvider>
       )}
 
       <Dialog open={isAiDialogOpen} onOpenChange={setIsAiDialogOpen}>
@@ -140,6 +148,11 @@ export default function SQLEditor({
               <Sparkles className="size-4 shrink-0" />
               Generate SQL with AI
             </DialogTitle>
+            {value && (
+              <p className="text-xs text-secondary-foreground">
+                AI has context of your current query. You can ask to modify or extend it.
+              </p>
+            )}
           </DialogHeader>
           <Textarea
             ref={inputRef}

@@ -6,15 +6,16 @@ import { generateSql } from "@/lib/actions/sql";
 const GenerateSchema = z.object({
   prompt: z.string().min(1, "Prompt is required"),
   mode: z.enum(["query", "eval-expression"]).optional(),
+  currentQuery: z.string().optional(),
 });
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
   try {
     await params;
     const body = await request.json();
-    const { prompt, mode } = GenerateSchema.parse(body);
+    const { prompt, mode, currentQuery } = GenerateSchema.parse(body);
 
-    const result = await generateSql(prompt, mode);
+    const result = await generateSql(prompt, mode, currentQuery);
 
     if (!result.success) {
       return Response.json({ error: result.error }, { status: 400 });

@@ -119,6 +119,7 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
           editable
           autoFocus
           projectId={projectId as string}
+          aiButtonVariant="full"
         />
       ) : (
         <div className="flex items-center justify-center w-full h-full">
