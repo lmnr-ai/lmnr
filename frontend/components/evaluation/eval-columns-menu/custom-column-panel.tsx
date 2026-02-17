@@ -1,23 +1,23 @@
-import CodeMirror from "@uiw/react-codemirror";
 import { motion } from "framer-motion";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import { type CustomColumn, useEvalStore } from "@/components/evaluation/store";
-import { theme } from "@/components/sql/utils";
+import SQLEditor from "@/components/sql/sql-editor.tsx";
+import type { SQLSchemaConfig } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-import { expressionExtensions } from "./expression-extensions";
 
 interface CustomColumnPanelProps {
   onBack: () => void;
   onSave: (column: CustomColumn) => void;
   editingColumn?: CustomColumn;
 }
+
+const EVAL_DATAPOINTS_SCHEMA: SQLSchemaConfig = { tables: ["evaluation_datapoints"] };
 
 export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColumnPanelProps) => {
   const { projectId, evaluationId } = useParams();
@@ -88,7 +88,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
       exit={{ x: 20, opacity: 0 }}
       transition={{ duration: 0.15 }}
     >
-      <div className="w-[380px]">
+      <div className="w-md">
         <div className="px-3 py-2 border-b flex items-center">
           <Button variant="ghost" size="sm" className="p-0 h-auto hover:bg-transparent" onClick={onBack}>
             <ArrowLeft className="size-3.5 mr-1" />
@@ -118,14 +118,16 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
                 schema docs
               </a>
             </div>
-            <div className="h-[80px] border rounded-md overflow-hidden">
-              <CodeMirror
-                placeholder="e.g. arrayCount(x -> 1, trace_spans)"
-                theme={theme}
-                className="size-full"
-                extensions={expressionExtensions}
+            <div className="h-28 flex flex-1 border rounded-md overflow-hidden">
+              <SQLEditor
                 value={sql}
                 onChange={setSql}
+                editable
+                placeholder="e.g. arrayCount(x -> 1, trace_spans)"
+                schema={EVAL_DATAPOINTS_SCHEMA}
+                generationMode="eval-expression"
+                inputPlaceholder="e.g. Count the number of spans in trace_spans"
+                projectId={projectId as string}
               />
             </div>
             <p className="text-xs text-muted-foreground">

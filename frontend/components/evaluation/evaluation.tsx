@@ -112,10 +112,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   // SQL strings from column defs — only changes when columns structurally change.
   // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
   // produce the same string → no spurious re-fetch.
-  const columnSqls = useMemo(
-    () => columnDefs.map((c) => c.meta?.sql).filter(Boolean),
-    [columnDefs]
-  );
+  const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
 
   const onClose = useCallback(() => {
     setTraceId(undefined);

@@ -1,1 +1,8 @@
-cd frontend && pnpm lint-staged && pnpm type-check
+STAGED_FRONTEND_FILES=$(git diff --cached --name-only --diff-filter=ACMRD | grep "^frontend/" || true)
+
+if [ -n "$STAGED_FRONTEND_FILES" ]; then
+  echo "husky pre-commit: Frontend staged files detected, running checks..."
+  cd frontend && pnpm lint-staged && pnpm type-check
+else
+  echo "husky pre-commit: No frontend files staged, skipping frontend checks."
+fi

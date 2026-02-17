@@ -40,8 +40,17 @@ export async function GET(req: NextRequest, props: { params: Promise<{ evaluatio
   }
 
   try {
-    const { pageNumber, pageSize, filter, search, searchIn, sortBy, sortSql, sortDirection, columns: columnsJson } =
-      parseResult.data;
+    const {
+      pageNumber,
+      pageSize,
+      filter,
+      search,
+      searchIn,
+      sortBy,
+      sortSql,
+      sortDirection,
+      columns: columnsJson,
+    } = parseResult.data;
 
     let columns: EvalQueryColumn[] = [];
     if (columnsJson) {

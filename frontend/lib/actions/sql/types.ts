@@ -1,5 +1,9 @@
 import { z } from "zod/v4";
 
+export type GenerationMode = "query" | "eval-expression";
+
+export type GenerationResult = { success: true; result: string } | { success: false; error: string };
+
 export const MetricSchema = z
   .object({
     fn: z.enum(["count", "sum", "avg", "min", "max", "quantile"]),
