@@ -23,7 +23,7 @@ import {
   clickhouseFunctions,
   createIdentifierHighlighter,
   signatureHelp,
-} from "@/components/ui/content-renderer/lang-clickhouse.ts";
+} from "@/components/ui/content-renderer/lang-clickhouse";
 import { defaultThemeSettings } from "@/components/ui/content-renderer/utils";
 
 // Types for schema configuration

@@ -1,19 +1,4 @@
-// ClickHouse function signatures with parameter information
-// Based on ClickHouse documentation (2026)
-
-export interface FunctionParameter {
-  name: string;
-  type: string;
-  description: string;
-  optional?: boolean;
-}
-
-export interface FunctionSignature {
-  name: string;
-  parameters: FunctionParameter[];
-  returnType: string;
-  description: string;
-}
+import type { FunctionSignature } from "./types";
 
 export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
   // Array functions
@@ -99,6 +84,142 @@ export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
     returnType: "UInt64",
     description: "Returns index of first occurrence (1-based), or 0 if not found",
   },
+  arrayConcat: {
+    name: "arrayConcat",
+    parameters: [
+      { name: "arr1", type: "Array(T)", description: "First array" },
+      { name: "...", type: "Array(T)", description: "Additional arrays to concatenate" },
+    ],
+    returnType: "Array(T)",
+    description: "Concatenates multiple arrays",
+  },
+  arrayElement: {
+    name: "arrayElement",
+    parameters: [
+      { name: "arr", type: "Array(T)", description: "Array to access" },
+      { name: "n", type: "Int", description: "Index (1-based, negative counts from end)" },
+    ],
+    returnType: "T",
+    description: "Returns element at index",
+  },
+  range: {
+    name: "range",
+    parameters: [
+      { name: "start", type: "Int", description: "Starting value", optional: true },
+      { name: "end", type: "Int", description: "Ending value (exclusive)" },
+      { name: "step", type: "Int", description: "Step size", optional: true },
+    ],
+    returnType: "Array(UInt)",
+    description: "Creates array of numbers from start to end-1",
+  },
+  arraySort: {
+    name: "arraySort",
+    parameters: [
+      { name: "func", type: "lambda", description: "Optional lambda for custom sorting", optional: true },
+      { name: "arr", type: "Array(T)", description: "Array to sort" },
+    ],
+    returnType: "Array(T)",
+    description: "Sorts array in ascending order",
+  },
+  arrayDistinct: {
+    name: "arrayDistinct",
+    parameters: [{ name: "arr", type: "Array(T)", description: "Array to get unique elements from" }],
+    returnType: "Array(T)",
+    description: "Returns array of unique elements",
+  },
+  arrayUniq: {
+    name: "arrayUniq",
+    parameters: [{ name: "arr", type: "Array(T)", description: "Array to count unique elements in" }],
+    returnType: "UInt64",
+    description: "Counts number of unique elements",
+  },
+  hasAll: {
+    name: "hasAll",
+    parameters: [
+      { name: "set", type: "Array(T)", description: "Array to check" },
+      { name: "subset", type: "Array(T)", description: "Elements to look for" },
+    ],
+    returnType: "UInt8",
+    description: "Returns 1 if array contains all specified elements",
+  },
+  hasAny: {
+    name: "hasAny",
+    parameters: [
+      { name: "arr1", type: "Array(T)", description: "First array" },
+      { name: "arr2", type: "Array(T)", description: "Second array" },
+    ],
+    returnType: "UInt8",
+    description: "Returns 1 if arrays have any common elements",
+  },
+  arrayFirst: {
+    name: "arrayFirst",
+    parameters: [
+      { name: "func", type: "lambda", description: "Lambda function to test elements" },
+      { name: "arr", type: "Array(T)", description: "Array to search" },
+    ],
+    returnType: "T",
+    description: "Returns first element where lambda returns true",
+  },
+  arrayFirstIndex: {
+    name: "arrayFirstIndex",
+    parameters: [
+      { name: "func", type: "lambda", description: "Lambda function to test elements" },
+      { name: "arr", type: "Array(T)", description: "Array to search" },
+    ],
+    returnType: "UInt32",
+    description: "Returns index of first element where lambda returns true",
+  },
+  arrayReverse: {
+    name: "arrayReverse",
+    parameters: [{ name: "arr", type: "Array(T)", description: "Array to reverse" }],
+    returnType: "Array(T)",
+    description: "Reverses array element order",
+  },
+  arrayFlatten: {
+    name: "arrayFlatten",
+    parameters: [{ name: "arr", type: "Array(Array(T))", description: "Nested array to flatten" }],
+    returnType: "Array(T)",
+    description: "Flattens nested arrays into single array",
+  },
+  arrayZip: {
+    name: "arrayZip",
+    parameters: [
+      { name: "arr1", type: "Array(T)", description: "First array" },
+      { name: "...", type: "Array(U)", description: "Additional arrays" },
+    ],
+    returnType: "Array(Tuple)",
+    description: "Combines arrays into array of tuples",
+  },
+  arrayIntersect: {
+    name: "arrayIntersect",
+    parameters: [
+      { name: "arr1", type: "Array(T)", description: "First array" },
+      { name: "...", type: "Array(T)", description: "Additional arrays" },
+    ],
+    returnType: "Array(T)",
+    description: "Returns intersection of all arrays",
+  },
+  countEqual: {
+    name: "countEqual",
+    parameters: [
+      { name: "arr", type: "Array(T)", description: "Array to search" },
+      { name: "value", type: "T", description: "Value to count" },
+    ],
+    returnType: "UInt64",
+    description: "Counts occurrences of value in array",
+  },
+  empty: {
+    name: "empty",
+    parameters: [{ name: "arr", type: "Array|String", description: "Array or string to check" }],
+    returnType: "UInt8",
+    description: "Returns 1 if array/string is empty",
+  },
+  notEmpty: {
+    name: "notEmpty",
+    parameters: [{ name: "arr", type: "Array|String", description: "Array or string to check" }],
+    returnType: "UInt8",
+    description: "Returns 1 if array/string is not empty",
+  },
 
   // Tuple functions
   tupleElement: {
@@ -179,6 +300,60 @@ export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
     returnType: "Array(String)",
     description: "Splits string by character into array",
   },
+  lower: {
+    name: "lower",
+    parameters: [{ name: "s", type: "String", description: "String to convert to lowercase" }],
+    returnType: "String",
+    description: "Converts string to lowercase",
+  },
+  upper: {
+    name: "upper",
+    parameters: [{ name: "s", type: "String", description: "String to convert to uppercase" }],
+    returnType: "String",
+    description: "Converts string to uppercase",
+  },
+  trim: {
+    name: "trim",
+    parameters: [
+      { name: "s", type: "String", description: "String to trim" },
+      { name: "trim_chars", type: "String", description: "Characters to remove", optional: true },
+    ],
+    returnType: "String",
+    description: "Removes whitespace or specified characters from both ends",
+  },
+  position: {
+    name: "position",
+    parameters: [
+      { name: "haystack", type: "String", description: "String to search in" },
+      { name: "needle", type: "String", description: "Substring to find" },
+    ],
+    returnType: "UInt64",
+    description: "Returns position of substring (1-based), or 0 if not found",
+  },
+  startsWith: {
+    name: "startsWith",
+    parameters: [
+      { name: "s", type: "String", description: "String to check" },
+      { name: "prefix", type: "String", description: "Prefix to check for" },
+    ],
+    returnType: "UInt8",
+    description: "Returns 1 if string starts with prefix",
+  },
+  endsWith: {
+    name: "endsWith",
+    parameters: [
+      { name: "s", type: "String", description: "String to check" },
+      { name: "suffix", type: "String", description: "Suffix to check for" },
+    ],
+    returnType: "UInt8",
+    description: "Returns 1 if string ends with suffix",
+  },
+  length: {
+    name: "length",
+    parameters: [{ name: "x", type: "String|Array", description: "String or array to get length of" }],
+    returnType: "UInt64",
+    description: "Returns number of bytes in string or elements in array",
+  },
 
   // DateTime functions
   toDateTime: {
@@ -231,6 +406,72 @@ export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
     returnType: "DateTime",
     description: "Rounds down to start of specified interval",
   },
+  now: {
+    name: "now",
+    parameters: [{ name: "timezone", type: "String", description: "Timezone", optional: true }],
+    returnType: "DateTime",
+    description: "Returns current date and time",
+  },
+  toStartOfDay: {
+    name: "toStartOfDay",
+    parameters: [{ name: "datetime", type: "DateTime", description: "Date or datetime to round" }],
+    returnType: "DateTime",
+    description: "Rounds down to start of day (midnight)",
+  },
+  toStartOfHour: {
+    name: "toStartOfHour",
+    parameters: [{ name: "datetime", type: "DateTime", description: "Datetime to round" }],
+    returnType: "DateTime",
+    description: "Rounds down to start of hour",
+  },
+  toStartOfMonth: {
+    name: "toStartOfMonth",
+    parameters: [{ name: "date", type: "Date|DateTime", description: "Date to round" }],
+    returnType: "Date",
+    description: "Rounds down to first day of month",
+  },
+  toYear: {
+    name: "toYear",
+    parameters: [{ name: "date", type: "Date|DateTime", description: "Date to extract year from" }],
+    returnType: "UInt16",
+    description: "Extracts year component",
+  },
+  toMonth: {
+    name: "toMonth",
+    parameters: [{ name: "date", type: "Date|DateTime", description: "Date to extract month from" }],
+    returnType: "UInt8",
+    description: "Extracts month component (1-12)",
+  },
+  toHour: {
+    name: "toHour",
+    parameters: [{ name: "datetime", type: "DateTime", description: "Datetime to extract hour from" }],
+    returnType: "UInt8",
+    description: "Extracts hour component (0-23)",
+  },
+  addDays: {
+    name: "addDays",
+    parameters: [
+      { name: "datetime", type: "Date|DateTime", description: "Date or datetime to add to" },
+      { name: "num", type: "Int", description: "Number of days to add" },
+    ],
+    returnType: "Date|DateTime",
+    description: "Adds specified number of days",
+  },
+  addHours: {
+    name: "addHours",
+    parameters: [
+      { name: "datetime", type: "DateTime", description: "Datetime to add to" },
+      { name: "num", type: "Int", description: "Number of hours to add" },
+    ],
+    returnType: "DateTime",
+    description: "Adds specified number of hours",
+  },
+  toDate: {
+    name: "toDate",
+    parameters: [{ name: "x", type: "String|Int|DateTime", description: "Value to convert to Date" }],
+    returnType: "Date",
+    description: "Converts to Date type",
+  },
 
   // Conditional functions
   if: {
@@ -267,25 +508,19 @@ export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
   // Aggregation functions
   count: {
     name: "count",
-    parameters: [
-      { name: "expr", type: "Any", description: "Expression or column to count", optional: true },
-    ],
+    parameters: [{ name: "expr", type: "Any", description: "Expression or column to count", optional: true }],
     returnType: "UInt64",
     description: "Counts rows or non-NULL values",
   },
   sum: {
     name: "sum",
-    parameters: [
-      { name: "x", type: "Numeric", description: "Values to sum" },
-    ],
+    parameters: [{ name: "x", type: "Numeric", description: "Values to sum" }],
     returnType: "Numeric",
     description: "Calculates sum of values",
   },
   avg: {
     name: "avg",
-    parameters: [
-      { name: "x", type: "Numeric", description: "Values to average" },
-    ],
+    parameters: [{ name: "x", type: "Numeric", description: "Values to average" }],
     returnType: "Float64",
     description: "Calculates arithmetic mean",
   },
@@ -300,9 +535,7 @@ export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
   },
   uniq: {
     name: "uniq",
-    parameters: [
-      { name: "x", type: "Any", description: "Values to count unique occurrences of" },
-    ],
+    parameters: [{ name: "x", type: "Any", description: "Values to count unique occurrences of" }],
     returnType: "UInt64",
     description: "Counts approximate number of unique values",
   },
@@ -314,6 +547,33 @@ export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
     ],
     returnType: "Float64",
     description: "Calculates approximate quantile",
+  },
+  min: {
+    name: "min",
+    parameters: [{ name: "x", type: "Any", description: "Values to find minimum of" }],
+    returnType: "T",
+    description: "Returns minimum value",
+  },
+  max: {
+    name: "max",
+    parameters: [{ name: "x", type: "Any", description: "Values to find maximum of" }],
+    returnType: "T",
+    description: "Returns maximum value",
+  },
+  any: {
+    name: "any",
+    parameters: [{ name: "x", type: "Any", description: "Column to select from" }],
+    returnType: "T",
+    description: "Selects first encountered value",
+  },
+  groupConcat: {
+    name: "groupConcat",
+    parameters: [
+      { name: "x", type: "String", description: "Strings to concatenate" },
+      { name: "separator", type: "String", description: "Separator string", optional: true },
+    ],
+    returnType: "String",
+    description: "Concatenates strings from group with optional separator",
   },
 
   // JSON functions
@@ -472,7 +732,7 @@ export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
     description: "Fast check if field exists (with simplifying assumptions)",
   },
 
-  // Type conversion
+  // Type conversion functions
   cast: {
     name: "cast",
     parameters: [
@@ -482,13 +742,44 @@ export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
     returnType: "T",
     description: "Converts value to specified type",
   },
-  toDate: {
-    name: "toDate",
+  toString: {
+    name: "toString",
     parameters: [
-      { name: "x", type: "String|Int|DateTime", description: "Value to convert to Date" },
+      { name: "x", type: "Any", description: "Value to convert to string" },
+      { name: "timezone", type: "String", description: "Timezone (for DateTime)", optional: true },
     ],
-    returnType: "Date",
-    description: "Converts to Date type",
+    returnType: "String",
+    description: "Converts value to string representation",
+  },
+  toInt32: {
+    name: "toInt32",
+    parameters: [{ name: "x", type: "Any", description: "Value to convert" }],
+    returnType: "Int32",
+    description: "Converts to Int32 (throws on error)",
+  },
+  toInt64: {
+    name: "toInt64",
+    parameters: [{ name: "x", type: "Any", description: "Value to convert" }],
+    returnType: "Int64",
+    description: "Converts to Int64 (throws on error)",
+  },
+  toFloat64: {
+    name: "toFloat64",
+    parameters: [{ name: "x", type: "Any", description: "Value to convert" }],
+    returnType: "Float64",
+    description: "Converts to Float64 (throws on error)",
+  },
+  toUInt32: {
+    name: "toUInt32",
+    parameters: [{ name: "x", type: "Any", description: "Value to convert" }],
+    returnType: "UInt32",
+    description: "Converts to UInt32 (throws on error)",
+  },
+  toUInt64: {
+    name: "toUInt64",
+    parameters: [{ name: "x", type: "Any", description: "Value to convert" }],
+    returnType: "UInt64",
+    description: "Converts to UInt64 (throws on error)",
   },
 
   // Math functions
@@ -528,604 +819,54 @@ export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
     returnType: "T",
     description: "Returns the smallest value among arguments",
   },
-
-  // Window functions
-  row_number: {
-    name: "row_number",
-    parameters: [],
-    returnType: "UInt64",
-    description: "Returns sequential row number within partition (requires OVER clause)",
-  },
-  rank: {
-    name: "rank",
-    parameters: [],
-    returnType: "UInt64",
-    description: "Returns rank with gaps for equal values (requires OVER clause)",
-  },
-  dense_rank: {
-    name: "dense_rank",
-    parameters: [],
-    returnType: "UInt64",
-    description: "Returns rank without gaps (requires OVER clause)",
-  },
-  lag: {
-    name: "lag",
-    parameters: [
-      { name: "x", type: "Any", description: "Column to access" },
-      { name: "offset", type: "UInt", description: "Number of rows back", optional: true },
-      { name: "default", type: "Any", description: "Default value if out of bounds", optional: true },
-    ],
-    returnType: "T",
-    description: "Accesses value from previous row (requires OVER clause)",
-  },
-  lead: {
-    name: "lead",
-    parameters: [
-      { name: "x", type: "Any", description: "Column to access" },
-      { name: "offset", type: "UInt", description: "Number of rows forward", optional: true },
-      { name: "default", type: "Any", description: "Default value if out of bounds", optional: true },
-    ],
-    returnType: "T",
-    description: "Accesses value from next row (requires OVER clause)",
-  },
-  first_value: {
-    name: "first_value",
-    parameters: [
-      { name: "x", type: "Any", description: "Column to get first value from" },
-    ],
-    returnType: "T",
-    description: "Returns first value in window frame (requires OVER clause)",
-  },
-  last_value: {
-    name: "last_value",
-    parameters: [
-      { name: "x", type: "Any", description: "Column to get last value from" },
-    ],
-    returnType: "T",
-    description: "Returns last value in window frame (requires OVER clause)",
-  },
-
-  // Other common functions
-  isNull: {
-    name: "isNull",
-    parameters: [
-      { name: "x", type: "Any", description: "Value to check" },
-    ],
-    returnType: "UInt8",
-    description: "Returns 1 if value is NULL",
-  },
-  ifNull: {
-    name: "ifNull",
-    parameters: [
-      { name: "x", type: "Any", description: "Value to check for NULL" },
-      { name: "alt", type: "T", description: "Alternative value to return if NULL" },
-    ],
-    returnType: "T",
-    description: "Returns alternative value if first argument is NULL",
-  },
-  length: {
-    name: "length",
-    parameters: [
-      { name: "x", type: "String|Array", description: "String or array to get length of" },
-    ],
-    returnType: "UInt64",
-    description: "Returns number of bytes in string or elements in array",
-  },
-
-  // More string functions
-  lower: {
-    name: "lower",
-    parameters: [
-      { name: "s", type: "String", description: "String to convert to lowercase" },
-    ],
-    returnType: "String",
-    description: "Converts string to lowercase",
-  },
-  upper: {
-    name: "upper",
-    parameters: [
-      { name: "s", type: "String", description: "String to convert to uppercase" },
-    ],
-    returnType: "String",
-    description: "Converts string to uppercase",
-  },
-  trim: {
-    name: "trim",
-    parameters: [
-      { name: "s", type: "String", description: "String to trim" },
-      { name: "trim_chars", type: "String", description: "Characters to remove", optional: true },
-    ],
-    returnType: "String",
-    description: "Removes whitespace or specified characters from both ends",
-  },
-  position: {
-    name: "position",
-    parameters: [
-      { name: "haystack", type: "String", description: "String to search in" },
-      { name: "needle", type: "String", description: "Substring to find" },
-    ],
-    returnType: "UInt64",
-    description: "Returns position of substring (1-based), or 0 if not found",
-  },
-  startsWith: {
-    name: "startsWith",
-    parameters: [
-      { name: "s", type: "String", description: "String to check" },
-      { name: "prefix", type: "String", description: "Prefix to check for" },
-    ],
-    returnType: "UInt8",
-    description: "Returns 1 if string starts with prefix",
-  },
-  endsWith: {
-    name: "endsWith",
-    parameters: [
-      { name: "s", type: "String", description: "String to check" },
-      { name: "suffix", type: "String", description: "Suffix to check for" },
-    ],
-    returnType: "UInt8",
-    description: "Returns 1 if string ends with suffix",
-  },
-
-  // More datetime functions
-  now: {
-    name: "now",
-    parameters: [
-      { name: "timezone", type: "String", description: "Timezone", optional: true },
-    ],
-    returnType: "DateTime",
-    description: "Returns current date and time",
-  },
-  toStartOfDay: {
-    name: "toStartOfDay",
-    parameters: [
-      { name: "datetime", type: "DateTime", description: "Date or datetime to round" },
-    ],
-    returnType: "DateTime",
-    description: "Rounds down to start of day (midnight)",
-  },
-  toStartOfHour: {
-    name: "toStartOfHour",
-    parameters: [
-      { name: "datetime", type: "DateTime", description: "Datetime to round" },
-    ],
-    returnType: "DateTime",
-    description: "Rounds down to start of hour",
-  },
-  toStartOfMonth: {
-    name: "toStartOfMonth",
-    parameters: [
-      { name: "date", type: "Date|DateTime", description: "Date to round" },
-    ],
-    returnType: "Date",
-    description: "Rounds down to first day of month",
-  },
-  toYear: {
-    name: "toYear",
-    parameters: [
-      { name: "date", type: "Date|DateTime", description: "Date to extract year from" },
-    ],
-    returnType: "UInt16",
-    description: "Extracts year component",
-  },
-  toMonth: {
-    name: "toMonth",
-    parameters: [
-      { name: "date", type: "Date|DateTime", description: "Date to extract month from" },
-    ],
-    returnType: "UInt8",
-    description: "Extracts month component (1-12)",
-  },
-  toHour: {
-    name: "toHour",
-    parameters: [
-      { name: "datetime", type: "DateTime", description: "Datetime to extract hour from" },
-    ],
-    returnType: "UInt8",
-    description: "Extracts hour component (0-23)",
-  },
-  addDays: {
-    name: "addDays",
-    parameters: [
-      { name: "datetime", type: "Date|DateTime", description: "Date or datetime to add to" },
-      { name: "num", type: "Int", description: "Number of days to add" },
-    ],
-    returnType: "Date|DateTime",
-    description: "Adds specified number of days",
-  },
-  addHours: {
-    name: "addHours",
-    parameters: [
-      { name: "datetime", type: "DateTime", description: "Datetime to add to" },
-      { name: "num", type: "Int", description: "Number of hours to add" },
-    ],
-    returnType: "DateTime",
-    description: "Adds specified number of hours",
-  },
-
-  // More array functions
-  arrayConcat: {
-    name: "arrayConcat",
-    parameters: [
-      { name: "arr1", type: "Array(T)", description: "First array" },
-      { name: "...", type: "Array(T)", description: "Additional arrays to concatenate" },
-    ],
-    returnType: "Array(T)",
-    description: "Concatenates multiple arrays",
-  },
-  arrayElement: {
-    name: "arrayElement",
-    parameters: [
-      { name: "arr", type: "Array(T)", description: "Array to access" },
-      { name: "n", type: "Int", description: "Index (1-based, negative counts from end)" },
-    ],
-    returnType: "T",
-    description: "Returns element at index",
-  },
-  range: {
-    name: "range",
-    parameters: [
-      { name: "start", type: "Int", description: "Starting value", optional: true },
-      { name: "end", type: "Int", description: "Ending value (exclusive)" },
-      { name: "step", type: "Int", description: "Step size", optional: true },
-    ],
-    returnType: "Array(UInt)",
-    description: "Creates array of numbers from start to end-1",
-  },
-  arraySort: {
-    name: "arraySort",
-    parameters: [
-      { name: "func", type: "lambda", description: "Optional lambda for custom sorting", optional: true },
-      { name: "arr", type: "Array(T)", description: "Array to sort" },
-    ],
-    returnType: "Array(T)",
-    description: "Sorts array in ascending order",
-  },
-  arrayDistinct: {
-    name: "arrayDistinct",
-    parameters: [
-      { name: "arr", type: "Array(T)", description: "Array to get unique elements from" },
-    ],
-    returnType: "Array(T)",
-    description: "Returns array of unique elements",
-  },
-  arrayUniq: {
-    name: "arrayUniq",
-    parameters: [
-      { name: "arr", type: "Array(T)", description: "Array to count unique elements in" },
-    ],
-    returnType: "UInt64",
-    description: "Counts number of unique elements",
-  },
-  hasAll: {
-    name: "hasAll",
-    parameters: [
-      { name: "set", type: "Array(T)", description: "Array to check" },
-      { name: "subset", type: "Array(T)", description: "Elements to look for" },
-    ],
-    returnType: "UInt8",
-    description: "Returns 1 if array contains all specified elements",
-  },
-  hasAny: {
-    name: "hasAny",
-    parameters: [
-      { name: "arr1", type: "Array(T)", description: "First array" },
-      { name: "arr2", type: "Array(T)", description: "Second array" },
-    ],
-    returnType: "UInt8",
-    description: "Returns 1 if arrays have any common elements",
-  },
-
-  // More aggregate functions
-  min: {
-    name: "min",
-    parameters: [
-      { name: "x", type: "Any", description: "Values to find minimum of" },
-    ],
-    returnType: "T",
-    description: "Returns minimum value",
-  },
-  max: {
-    name: "max",
-    parameters: [
-      { name: "x", type: "Any", description: "Values to find maximum of" },
-    ],
-    returnType: "T",
-    description: "Returns maximum value",
-  },
-  any: {
-    name: "any",
-    parameters: [
-      { name: "x", type: "Any", description: "Column to select from" },
-    ],
-    returnType: "T",
-    description: "Selects first encountered value",
-  },
-  groupConcat: {
-    name: "groupConcat",
-    parameters: [
-      { name: "x", type: "String", description: "Strings to concatenate" },
-      { name: "separator", type: "String", description: "Separator string", optional: true },
-    ],
-    returnType: "String",
-    description: "Concatenates strings from group with optional separator",
-  },
-
-  // Math functions
   abs: {
     name: "abs",
-    parameters: [
-      { name: "x", type: "Numeric", description: "Number to get absolute value of" },
-    ],
+    parameters: [{ name: "x", type: "Numeric", description: "Number to get absolute value of" }],
     returnType: "Numeric",
     description: "Returns absolute value",
   },
   sqrt: {
     name: "sqrt",
-    parameters: [
-      { name: "x", type: "Numeric", description: "Number to get square root of" },
-    ],
+    parameters: [{ name: "x", type: "Numeric", description: "Number to get square root of" }],
     returnType: "Float64",
     description: "Returns square root",
   },
   floor: {
     name: "floor",
-    parameters: [
-      { name: "x", type: "Numeric", description: "Number to round down" },
-    ],
+    parameters: [{ name: "x", type: "Numeric", description: "Number to round down" }],
     returnType: "Numeric",
     description: "Rounds down to nearest integer",
   },
   ceil: {
     name: "ceil",
-    parameters: [
-      { name: "x", type: "Numeric", description: "Number to round up" },
-    ],
+    parameters: [{ name: "x", type: "Numeric", description: "Number to round up" }],
     returnType: "Numeric",
     description: "Rounds up to nearest integer",
   },
   exp: {
     name: "exp",
-    parameters: [
-      { name: "x", type: "Numeric", description: "Exponent" },
-    ],
+    parameters: [{ name: "x", type: "Numeric", description: "Exponent" }],
     returnType: "Float64",
     description: "Returns e raised to the power of x",
   },
   log: {
     name: "log",
-    parameters: [
-      { name: "x", type: "Numeric", description: "Number to get natural logarithm of" },
-    ],
+    parameters: [{ name: "x", type: "Numeric", description: "Number to get natural logarithm of" }],
     returnType: "Float64",
     description: "Returns natural logarithm",
   },
   sin: {
     name: "sin",
-    parameters: [
-      { name: "x", type: "Numeric", description: "Angle in radians" },
-    ],
+    parameters: [{ name: "x", type: "Numeric", description: "Angle in radians" }],
     returnType: "Float64",
     description: "Returns sine of angle",
   },
   cos: {
     name: "cos",
-    parameters: [
-      { name: "x", type: "Numeric", description: "Angle in radians" },
-    ],
+    parameters: [{ name: "x", type: "Numeric", description: "Angle in radians" }],
     returnType: "Float64",
     description: "Returns cosine of angle",
   },
-
-  // Null handling
-  isNotNull: {
-    name: "isNotNull",
-    parameters: [
-      { name: "x", type: "Any", description: "Value to check" },
-    ],
-    returnType: "UInt8",
-    description: "Returns 1 if value is not NULL",
-  },
-  assumeNotNull: {
-    name: "assumeNotNull",
-    parameters: [
-      { name: "x", type: "Nullable(T)", description: "Nullable value" },
-    ],
-    returnType: "T",
-    description: "Converts Nullable to non-Nullable (undefined if NULL)",
-  },
-  nullIf: {
-    name: "nullIf",
-    parameters: [
-      { name: "x", type: "T", description: "First value" },
-      { name: "y", type: "T", description: "Second value to compare" },
-    ],
-    returnType: "Nullable(T)",
-    description: "Returns NULL if both values are equal, otherwise first value",
-  },
-
-  // Type conversions
-  toString: {
-    name: "toString",
-    parameters: [
-      { name: "x", type: "Any", description: "Value to convert to string" },
-      { name: "timezone", type: "String", description: "Timezone (for DateTime)", optional: true },
-    ],
-    returnType: "String",
-    description: "Converts value to string representation",
-  },
-  toInt32: {
-    name: "toInt32",
-    parameters: [
-      { name: "x", type: "Any", description: "Value to convert" },
-    ],
-    returnType: "Int32",
-    description: "Converts to Int32 (throws on error)",
-  },
-  toInt64: {
-    name: "toInt64",
-    parameters: [
-      { name: "x", type: "Any", description: "Value to convert" },
-    ],
-    returnType: "Int64",
-    description: "Converts to Int64 (throws on error)",
-  },
-  toFloat64: {
-    name: "toFloat64",
-    parameters: [
-      { name: "x", type: "Any", description: "Value to convert" },
-    ],
-    returnType: "Float64",
-    description: "Converts to Float64 (throws on error)",
-  },
-  toUInt32: {
-    name: "toUInt32",
-    parameters: [
-      { name: "x", type: "Any", description: "Value to convert" },
-    ],
-    returnType: "UInt32",
-    description: "Converts to UInt32 (throws on error)",
-  },
-  toUInt64: {
-    name: "toUInt64",
-    parameters: [
-      { name: "x", type: "Any", description: "Value to convert" },
-    ],
-    returnType: "UInt64",
-    description: "Converts to UInt64 (throws on error)",
-  },
-
-  // Hash functions
-  MD5: {
-    name: "MD5",
-    parameters: [
-      { name: "s", type: "String", description: "String to hash" },
-    ],
-    returnType: "FixedString(16)",
-    description: "Calculates MD5 hash",
-  },
-  SHA256: {
-    name: "SHA256",
-    parameters: [
-      { name: "s", type: "String", description: "String to hash" },
-    ],
-    returnType: "FixedString(32)",
-    description: "Calculates SHA256 hash",
-  },
-  cityHash64: {
-    name: "cityHash64",
-    parameters: [
-      { name: "x", type: "Any", description: "Value to hash" },
-    ],
-    returnType: "UInt64",
-    description: "Calculates 64-bit CityHash",
-  },
-
-  // Encryption
-  encrypt: {
-    name: "encrypt",
-    parameters: [
-      { name: "mode", type: "String", description: "Encryption mode (e.g., 'aes-256-gcm')" },
-      { name: "plaintext", type: "String", description: "Text to encrypt" },
-      { name: "key", type: "String", description: "Encryption key" },
-      { name: "iv", type: "String", description: "Initialization vector", optional: true },
-      { name: "aad", type: "String", description: "Additional authenticated data (GCM modes)", optional: true },
-    ],
-    returnType: "String",
-    description: "Encrypts plaintext using AES",
-  },
-  decrypt: {
-    name: "decrypt",
-    parameters: [
-      { name: "mode", type: "String", description: "Decryption mode (e.g., 'aes-256-gcm')" },
-      { name: "ciphertext", type: "String", description: "Encrypted text to decrypt" },
-      { name: "key", type: "String", description: "Decryption key" },
-      { name: "iv", type: "String", description: "Initialization vector", optional: true },
-      { name: "aad", type: "String", description: "Additional authenticated data (GCM modes)", optional: true },
-    ],
-    returnType: "String",
-    description: "Decrypts ciphertext using AES",
-  },
-
-  // More array operations
-  arrayFirst: {
-    name: "arrayFirst",
-    parameters: [
-      { name: "func", type: "lambda", description: "Lambda function to test elements" },
-      { name: "arr", type: "Array(T)", description: "Array to search" },
-    ],
-    returnType: "T",
-    description: "Returns first element where lambda returns true",
-  },
-  arrayFirstIndex: {
-    name: "arrayFirstIndex",
-    parameters: [
-      { name: "func", type: "lambda", description: "Lambda function to test elements" },
-      { name: "arr", type: "Array(T)", description: "Array to search" },
-    ],
-    returnType: "UInt32",
-    description: "Returns index of first element where lambda returns true",
-  },
-  arrayReverse: {
-    name: "arrayReverse",
-    parameters: [
-      { name: "arr", type: "Array(T)", description: "Array to reverse" },
-    ],
-    returnType: "Array(T)",
-    description: "Reverses array element order",
-  },
-  arrayFlatten: {
-    name: "arrayFlatten",
-    parameters: [
-      { name: "arr", type: "Array(Array(T))", description: "Nested array to flatten" },
-    ],
-    returnType: "Array(T)",
-    description: "Flattens nested arrays into single array",
-  },
-  arrayZip: {
-    name: "arrayZip",
-    parameters: [
-      { name: "arr1", type: "Array(T)", description: "First array" },
-      { name: "...", type: "Array(U)", description: "Additional arrays" },
-    ],
-    returnType: "Array(Tuple)",
-    description: "Combines arrays into array of tuples",
-  },
-  arrayIntersect: {
-    name: "arrayIntersect",
-    parameters: [
-      { name: "arr1", type: "Array(T)", description: "First array" },
-      { name: "...", type: "Array(T)", description: "Additional arrays" },
-    ],
-    returnType: "Array(T)",
-    description: "Returns intersection of all arrays",
-  },
-  countEqual: {
-    name: "countEqual",
-    parameters: [
-      { name: "arr", type: "Array(T)", description: "Array to search" },
-      { name: "value", type: "T", description: "Value to count" },
-    ],
-    returnType: "UInt64",
-    description: "Counts occurrences of value in array",
-  },
-  empty: {
-    name: "empty",
-    parameters: [
-      { name: "arr", type: "Array|String", description: "Array or string to check" },
-    ],
-    returnType: "UInt8",
-    description: "Returns 1 if array/string is empty",
-  },
-  notEmpty: {
-    name: "notEmpty",
-    parameters: [
-      { name: "arr", type: "Array|String", description: "Array or string to check" },
-    ],
-    returnType: "UInt8",
-    description: "Returns 1 if array/string is not empty",
-  },
-
-  // Arithmetic
   plus: {
     name: "plus",
     parameters: [
@@ -1182,9 +923,7 @@ export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
   },
   negate: {
     name: "negate",
-    parameters: [
-      { name: "x", type: "Numeric", description: "Number to negate" },
-    ],
+    parameters: [{ name: "x", type: "Numeric", description: "Number to negate" }],
     returnType: "Numeric",
     description: "Returns negative of number",
   },
@@ -1206,11 +945,153 @@ export const clickhouseFunctionSignatures: Record<string, FunctionSignature> = {
     returnType: "Int",
     description: "Returns least common multiple",
   },
+
+  // Window functions
+  row_number: {
+    name: "row_number",
+    parameters: [],
+    returnType: "UInt64",
+    description: "Returns sequential row number within partition (requires OVER clause)",
+  },
+  rank: {
+    name: "rank",
+    parameters: [],
+    returnType: "UInt64",
+    description: "Returns rank with gaps for equal values (requires OVER clause)",
+  },
+  dense_rank: {
+    name: "dense_rank",
+    parameters: [],
+    returnType: "UInt64",
+    description: "Returns rank without gaps (requires OVER clause)",
+  },
+  lag: {
+    name: "lag",
+    parameters: [
+      { name: "x", type: "Any", description: "Column to access" },
+      { name: "offset", type: "UInt", description: "Number of rows back", optional: true },
+      { name: "default", type: "Any", description: "Default value if out of bounds", optional: true },
+    ],
+    returnType: "T",
+    description: "Accesses value from previous row (requires OVER clause)",
+  },
+  lead: {
+    name: "lead",
+    parameters: [
+      { name: "x", type: "Any", description: "Column to access" },
+      { name: "offset", type: "UInt", description: "Number of rows forward", optional: true },
+      { name: "default", type: "Any", description: "Default value if out of bounds", optional: true },
+    ],
+    returnType: "T",
+    description: "Accesses value from next row (requires OVER clause)",
+  },
+  first_value: {
+    name: "first_value",
+    parameters: [{ name: "x", type: "Any", description: "Column to get first value from" }],
+    returnType: "T",
+    description: "Returns first value in window frame (requires OVER clause)",
+  },
+  last_value: {
+    name: "last_value",
+    parameters: [{ name: "x", type: "Any", description: "Column to get last value from" }],
+    returnType: "T",
+    description: "Returns last value in window frame (requires OVER clause)",
+  },
+
+  // Null handling functions
+  isNull: {
+    name: "isNull",
+    parameters: [{ name: "x", type: "Any", description: "Value to check" }],
+    returnType: "UInt8",
+    description: "Returns 1 if value is NULL",
+  },
+  ifNull: {
+    name: "ifNull",
+    parameters: [
+      { name: "x", type: "Any", description: "Value to check for NULL" },
+      { name: "alt", type: "T", description: "Alternative value to return if NULL" },
+    ],
+    returnType: "T",
+    description: "Returns alternative value if first argument is NULL",
+  },
+  isNotNull: {
+    name: "isNotNull",
+    parameters: [{ name: "x", type: "Any", description: "Value to check" }],
+    returnType: "UInt8",
+    description: "Returns 1 if value is not NULL",
+  },
+  assumeNotNull: {
+    name: "assumeNotNull",
+    parameters: [{ name: "x", type: "Nullable(T)", description: "Nullable value" }],
+    returnType: "T",
+    description: "Converts Nullable to non-Nullable (undefined if NULL)",
+  },
+  nullIf: {
+    name: "nullIf",
+    parameters: [
+      { name: "x", type: "T", description: "First value" },
+      { name: "y", type: "T", description: "Second value to compare" },
+    ],
+    returnType: "Nullable(T)",
+    description: "Returns NULL if both values are equal, otherwise first value",
+  },
+
+  // Hash functions
+  MD5: {
+    name: "MD5",
+    parameters: [{ name: "s", type: "String", description: "String to hash" }],
+    returnType: "FixedString(16)",
+    description: "Calculates MD5 hash",
+  },
+  SHA256: {
+    name: "SHA256",
+    parameters: [{ name: "s", type: "String", description: "String to hash" }],
+    returnType: "FixedString(32)",
+    description: "Calculates SHA256 hash",
+  },
+  cityHash64: {
+    name: "cityHash64",
+    parameters: [{ name: "x", type: "Any", description: "Value to hash" }],
+    returnType: "UInt64",
+    description: "Calculates 64-bit CityHash",
+  },
+
+  // Encryption functions
+  encrypt: {
+    name: "encrypt",
+    parameters: [
+      { name: "mode", type: "String", description: "Encryption mode (e.g., 'aes-256-gcm')" },
+      { name: "plaintext", type: "String", description: "Text to encrypt" },
+      { name: "key", type: "String", description: "Encryption key" },
+      { name: "iv", type: "String", description: "Initialization vector", optional: true },
+      { name: "aad", type: "String", description: "Additional authenticated data (GCM modes)", optional: true },
+    ],
+    returnType: "String",
+    description: "Encrypts plaintext using AES",
+  },
+  decrypt: {
+    name: "decrypt",
+    parameters: [
+      { name: "mode", type: "String", description: "Decryption mode (e.g., 'aes-256-gcm')" },
+      { name: "ciphertext", type: "String", description: "Encrypted text to decrypt" },
+      { name: "key", type: "String", description: "Decryption key" },
+      { name: "iv", type: "String", description: "Initialization vector", optional: true },
+      { name: "aad", type: "String", description: "Additional authenticated data (GCM modes)", optional: true },
+    ],
+    returnType: "String",
+    description: "Decrypts ciphertext using AES",
+  },
 };
 
-// Get signature for a function name (case-insensitive)
 export function getFunctionSignature(functionName: string): FunctionSignature | undefined {
   const normalized = functionName.toLowerCase();
   const key = Object.keys(clickhouseFunctionSignatures).find((k) => k.toLowerCase() === normalized);
   return key ? clickhouseFunctionSignatures[key] : undefined;
 }
+
+export const clickhouseFunctions = Object.values(clickhouseFunctionSignatures).map((sig) => ({
+  name: sig.name,
+  description: sig.description,
+}));
+
+export const clickhouseFunctionNamesSet = new Set(clickhouseFunctions.map((fn) => fn.name.toLowerCase()));

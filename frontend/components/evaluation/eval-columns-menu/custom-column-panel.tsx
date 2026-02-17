@@ -115,7 +115,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
                 schema docs
               </a>
             </div>
-            <div className="h-32 flex flex-1 border rounded-md overflow-hidden">
+            <div className="h-28 flex flex-1 border rounded-md overflow-hidden">
               <SQLEditor
                 value={sql}
                 onChange={setSql}

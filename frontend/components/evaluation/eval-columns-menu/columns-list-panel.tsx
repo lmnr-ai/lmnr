@@ -11,6 +11,7 @@ import { ListRestart, Plus } from "lucide-react";
 import React from "react";
 
 import { useEvalStore } from "@/components/evaluation/store";
+import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 
 import { EvalColumnsMenuItem } from "./eval-columns-menu-item";
 
@@ -59,38 +60,43 @@ export const ColumnsListPanel = ({
 
   return (
     <motion.div
+      className="max-w-64 overflow-hidden"
       key="list"
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: -20, opacity: 0 }}
       transition={{ duration: 0.15 }}
     >
-      <div className="p-1 w-[250px]">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-          modifiers={[restrictToVerticalAxis]}
-        >
-          <SortableContext items={columnOrder} strategy={verticalListSortingStrategy}>
-            {columnOrder.map((columnId) => {
-              const labelEntry = columnLabels?.find((col) => col.id === columnId);
-              return (
-                <EvalColumnsMenuItem
-                  key={columnId}
-                  id={columnId}
-                  label={labelEntry?.label || columnId}
-                  isVisible={columnVisibility[columnId] !== false}
-                  isLocked={lockedColumns.includes(columnId)}
-                  onToggleVisibility={onToggleVisibility}
-                  onDelete={labelEntry?.onDelete}
-                  onEdit={columnId.startsWith("custom:") && onEditColumn ? () => onEditColumn(columnId) : undefined}
-                />
-              );
-            })}
-          </SortableContext>
-        </DndContext>
-        <div className="h-px bg-border my-1" />
+      <ScrollArea>
+        <div className="max-h-80 pt-1 px-1">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+            modifiers={[restrictToVerticalAxis]}
+          >
+            <SortableContext items={columnOrder} strategy={verticalListSortingStrategy}>
+              {columnOrder.map((columnId) => {
+                const labelEntry = columnLabels?.find((col) => col.id === columnId);
+                return (
+                  <EvalColumnsMenuItem
+                    key={columnId}
+                    id={columnId}
+                    label={labelEntry?.label || columnId}
+                    isVisible={columnVisibility[columnId] !== false}
+                    isLocked={lockedColumns.includes(columnId)}
+                    onToggleVisibility={onToggleVisibility}
+                    onDelete={labelEntry?.onDelete}
+                    onEdit={columnId.startsWith("custom:") && onEditColumn ? () => onEditColumn(columnId) : undefined}
+                  />
+                );
+              })}
+            </SortableContext>
+          </DndContext>
+        </div>
+      </ScrollArea>
+      <div className="h-px bg-border my-1" />
+      <div className="px-1 pb-1">
         <div
           className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
           onClick={onReset}
