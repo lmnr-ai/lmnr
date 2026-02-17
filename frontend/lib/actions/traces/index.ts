@@ -90,6 +90,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     pastHours,
   });
 
+  console.log("main query", mainQuery);
   const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
 
   // If we have traceIds from search, sort items to match the search order

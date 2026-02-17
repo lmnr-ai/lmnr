@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { X } from "lucide-react";
 import {
   type InputHTMLAttributes,
   type KeyboardEvent,
@@ -28,7 +28,6 @@ interface TagInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onC
   onNavigateLeft?: () => void;
   onNavigateRight?: () => void;
   ref?: Ref<FocusableRef>;
-  maxVisibleChips?: number;
 }
 
 const TagInput = ({
@@ -43,7 +42,6 @@ const TagInput = ({
   onNavigateLeft,
   onNavigateRight,
   ref,
-  maxVisibleChips = 2,
   ...props
 }: TagInputProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +51,8 @@ const TagInput = ({
 
   const [inputValue, setInputValue] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [focusedTagIndex, setFocusedTagIndex] = useState<number | null>(null);
+  const tagRefs = useRef<(HTMLSpanElement | null)[]>([]);
 
   const autosizeRef = useSizeInput(inputValue);
 
@@ -68,17 +68,10 @@ const TagInput = ({
     focus: () => inputRef.current?.focus(),
   }));
 
-  const allSuggestions = [...new Set([...values.filter((v) => !suggestions.includes(v)), ...suggestions])];
-
-  const filteredSuggestions = allSuggestions
-    .filter((s) => !inputValue || s.toLowerCase().includes(inputValue.toLowerCase()))
-    .sort((a, b) => {
-      const aSelected = values.includes(a);
-      const bSelected = values.includes(b);
-      if (aSelected && !bSelected) return -1;
-      if (!aSelected && bSelected) return 1;
-      return 0;
-    });
+  // Filter out already selected values from suggestions
+  const filteredSuggestions = suggestions
+    .filter((s) => !values.includes(s))
+    .filter((s) => !inputValue || s.toLowerCase().includes(inputValue.toLowerCase()));
 
   const showDropdown = open && filteredSuggestions.length > 0;
 
@@ -105,17 +98,20 @@ const TagInput = ({
     }
   }, [showDropdown, highlightedIndex]);
 
-  const handleToggleValue = useCallback(
+  const handleSelectValue = useCallback(
     (value: string) => {
       const trimmed = value.trim();
-      if (!trimmed) return;
-
-      if (values.includes(trimmed)) {
-        onChange(values.filter((v) => v !== trimmed));
-      } else {
-        onChange([...values, trimmed]);
-      }
+      if (!trimmed || values.includes(trimmed)) return;
+      onChange([...values, trimmed]);
       setInputValue("");
+    },
+    [values, onChange]
+  );
+
+  const handleRemoveValue = useCallback(
+    (value: string) => {
+      onChange(values.filter((v) => v !== value));
+      setFocusedTagIndex(null);
     },
     [values, onChange]
   );
@@ -160,7 +156,7 @@ const TagInput = ({
         }
         if (e.key === "Enter" && highlightedIndex >= 0) {
           e.preventDefault();
-          handleToggleValue(filteredSuggestions[highlightedIndex]);
+          handleSelectValue(filteredSuggestions[highlightedIndex]);
           return;
         }
       }
@@ -182,7 +178,13 @@ const TagInput = ({
       }
 
       if (e.key === "Backspace" && !inputValue) {
-        onNavigateLeft?.();
+        if (values.length > 0) {
+          const lastIndex = values.length - 1;
+          setFocusedTagIndex(lastIndex);
+          tagRefs.current[lastIndex]?.focus();
+        } else {
+          onNavigateLeft?.();
+        }
         return;
       }
 
@@ -193,7 +195,13 @@ const TagInput = ({
 
       const input = e.target as HTMLInputElement;
       if (e.key === "ArrowLeft" && (input.selectionStart === null || input.selectionStart === 0)) {
-        onNavigateLeft?.();
+        if (values.length > 0) {
+          const lastIndex = values.length - 1;
+          setFocusedTagIndex(lastIndex);
+          tagRefs.current[lastIndex]?.focus();
+        } else {
+          onNavigateLeft?.();
+        }
         return;
       }
 
@@ -206,83 +214,143 @@ const TagInput = ({
       filteredSuggestions,
       highlightedIndex,
       inputValue,
+      values.length,
       handleAddValue,
-      handleToggleValue,
+      handleSelectValue,
       onComplete,
       onNavigateLeft,
       onNavigateRight,
     ]
   );
 
+  const handleTagKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLSpanElement>, index: number) => {
+      if (e.key === "Enter" || e.key === "Backspace") {
+        e.preventDefault();
+        const valueToRemove = values[index];
+        handleRemoveValue(valueToRemove);
+        // Focus input after removing
+        inputRef.current?.focus();
+        return;
+      }
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (index > 0) {
+          setFocusedTagIndex(index - 1);
+          tagRefs.current[index - 1]?.focus();
+        } else {
+          onNavigateLeft?.();
+        }
+        return;
+      }
+
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (index < values.length - 1) {
+          setFocusedTagIndex(index + 1);
+          tagRefs.current[index + 1]?.focus();
+        } else {
+          setFocusedTagIndex(null);
+          inputRef.current?.focus();
+        }
+        return;
+      }
+
+      if (e.key === "Escape") {
+        setFocusedTagIndex(null);
+        inputRef.current?.focus();
+      }
+    },
+    [values, handleRemoveValue, onNavigateLeft]
+  );
+
   return (
     <div
       ref={containerRef}
-      className={cn("relative flex items-center gap-0.5 px-1", className)}
+      className={cn("relative flex items-center gap-1 px-1", className)}
       onBlur={handleContainerBlur}
     >
-      {(open || values.length === 0) && (
-        <input
-          ref={combinedInputRef}
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleInputKeyDown}
-          placeholder={placeholder}
-          className={cn(
-            "h-5 py-0 text-xs bg-transparent outline-none text-primary",
-            "placeholder:text-primary/50 min-w-4 px-1"
-          )}
-          {...props}
-        />
-      )}
       <>
-        {values.slice(0, maxVisibleChips).map((value) => (
+        {values.map((value, index) => (
           <span
             key={value}
-            className="inline-flex items-center px-1.5 py-0.5 text-xs rounded bg-secondary text-secondary-foreground"
+            ref={(el) => {
+              tagRefs.current[index] = el;
+            }}
+            tabIndex={0}
+            onKeyDown={(e) => handleTagKeyDown(e, index)}
+            onFocus={() => setFocusedTagIndex(index)}
+            onBlur={() => setFocusedTagIndex(null)}
+            className={cn(
+              "inline-flex items-center gap-0.5 px-1 py-0.25 text-xs rounded bg-muted text-secondary-foreground outline-none",
+              focusedTagIndex === index && "ring-1 ring-primary"
+            )}
           >
             <span className="truncate max-w-24">{value}</span>
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRemoveValue(value);
+              }}
+              onMouseDown={(e) => e.preventDefault()}
+              className="ml-0.5 hover:text-destructive focus:outline-none"
+            >
+              <X className="w-3 h-3" />
+            </button>
           </span>
         ))}
-        {values.length > maxVisibleChips && (
-          <span className="text-xs text-muted-foreground">+{values.length - maxVisibleChips}</span>
-        )}
       </>
+      {(open || values.length === 0) && (
+        <div className="relative">
+          <input
+            ref={combinedInputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleInputKeyDown}
+            placeholder={placeholder}
+            className={cn(
+              "h-5 py-0 text-xs bg-transparent outline-none text-primary",
+              "placeholder:text-primary/50 min-w-4 px-1"
+            )}
+            {...props}
+          />
 
-      {showDropdown && (
-        <div
-          ref={dropdownRef}
-          role="listbox"
-          className={cn(
-            "absolute top-full left-0 mt-1 z-50 w-48 max-h-48 p-1",
-            "bg-popover border shadow-md rounded-md overflow-y-auto no-scrollbar text-secondary-foreground",
-            "animate-in fade-in-0 zoom-in-95"
+          {showDropdown && (
+            <div
+              ref={dropdownRef}
+              role="listbox"
+              className={cn(
+                "absolute top-full left-0 mt-1 z-50 w-48 max-h-48 p-1",
+                "bg-popover border shadow-md rounded-md overflow-y-auto no-scrollbar text-secondary-foreground",
+                "animate-in fade-in-0 zoom-in-95"
+              )}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              {filteredSuggestions.map((suggestion, index) => (
+                <div
+                  key={suggestion}
+                  ref={(el) => {
+                    optionRefs.current[index] = el;
+                  }}
+                  role="option"
+                  aria-selected={index === highlightedIndex}
+                  onMouseDown={() => handleSelectValue(suggestion)}
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  className={cn(
+                    "relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-xs outline-none select-none",
+                    "hover:bg-accent hover:text-accent-foreground",
+                    index === highlightedIndex && "bg-accent text-accent-foreground"
+                  )}
+                >
+                  <span className="truncate">{suggestion}</span>
+                </div>
+              ))}
+            </div>
           )}
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          {filteredSuggestions.map((suggestion, index) => {
-            const isSelected = values.includes(suggestion);
-            return (
-              <div
-                key={suggestion}
-                ref={(el) => {
-                  optionRefs.current[index] = el;
-                }}
-                role="option"
-                aria-selected={index === highlightedIndex}
-                onMouseDown={() => handleToggleValue(suggestion)}
-                onMouseEnter={() => setHighlightedIndex(index)}
-                className={cn(
-                  "relative flex cursor-default items-center justify-between rounded-sm px-2 py-1.5 text-xs outline-none select-none",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  index === highlightedIndex && "bg-accent text-accent-foreground"
-                )}
-              >
-                <span>{suggestion}</span>
-                {isSelected && <Check className="w-3 h-3 text-primary" />}
-              </div>
-            );
-          })}
         </div>
       )}
     </div>

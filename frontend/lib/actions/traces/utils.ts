@@ -2,10 +2,10 @@ import { scaleUtc } from "d3-scale";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
+  createArrayColumnFilter,
   createCustomFilter,
   createNumberFilter,
   createStringFilter,
@@ -60,19 +60,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
       ),
     ],
     ["trace_type", createStringFilter],
-    [
-      "tags",
-      createCustomFilter(
-        (filter, paramKey) => {
-          if (filter.operator === Operator.Eq) {
-            return `has(tags, {${paramKey}:String})`;
-          } else {
-            return `NOT has(tags, {${paramKey}:String})`;
-          }
-        },
-        (filter, paramKey) => ({ [paramKey]: filter.value })
-      ),
-    ],
+    ["tags", createArrayColumnFilter("String")],
     ["total_cost", createNumberFilter("Float64")],
     ["input_cost", createNumberFilter("Float64")],
     ["output_cost", createNumberFilter("Float64")],
@@ -107,45 +95,7 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
     ],
     ["top_span_type", createStringFilter],
     ["top_span_name", createStringFilter],
-    [
-      "span_names",
-      createCustomFilter(
-        (filter, paramKey) => {
-          if (filter.operator === Operator.Includes) {
-            // Try to parse as JSON array for multiple values
-            let values: string[];
-            try {
-              const parsed = JSON.parse(String(filter.value));
-              values = Array.isArray(parsed) ? parsed : [String(filter.value)];
-            } catch {
-              values = [String(filter.value)];
-            }
-
-            if (values.length > 1) {
-              // Use hasAny for multiple values (OR logic)
-              return `hasAny(span_names, {${paramKey}:Array(String)})`;
-            }
-            return `has(span_names, {${paramKey}:String})`;
-          }
-          return "";
-        },
-        (filter, paramKey) => {
-          // Try to parse as JSON array for multiple values
-          let values: string[];
-          try {
-            const parsed = JSON.parse(String(filter.value));
-            values = Array.isArray(parsed) ? parsed : [String(filter.value)];
-          } catch {
-            values = [String(filter.value)];
-          }
-
-          if (values.length > 1) {
-            return { [paramKey]: values };
-          }
-          return { [paramKey]: values[0] };
-        }
-      ),
-    ],
+    ["span_names", createArrayColumnFilter("String")],
   ]),
 };
 
