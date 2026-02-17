@@ -20,16 +20,16 @@ interface Props {
   hasSession: boolean;
 }
 
-type TabType = "Tracing" | "Debugger" | "Analysis" | "Evals";
+type TabType = "Tracing" | "Debugger" | "Signals" | "Evals";
 
 const tabConfig: Record<TabType, { images: string[] }> = {
   Tracing: { images: ["/assets/landing/tracing.png"] },
   Debugger: { images: ["/assets/landing/debugger.png"] },
-  Analysis: { images: ["/assets/landing/dashboards.png"] },
-  Evals: { images: ["/assets/landing/evals-2.png", "/assets/landing/evals.png"] },
+  Signals: { images: ["/assets/landing/signals-1.png", "/assets/landing/signals-2.png"] },
+  Evals: { images: ["/assets/landing/evals-1.png", "/assets/landing/evals-2.png"] },
 };
 
-const TABS: TabType[] = ["Tracing", "Debugger", "Analysis", "Evals"];
+const TABS: TabType[] = ["Tracing", "Signals", "Debugger", "Evals"];
 
 const Hero = ({ className, hasSession }: Props) => {
   const [activeTab, setActiveTab] = useState<TabType>("Tracing");
