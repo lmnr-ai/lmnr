@@ -112,11 +112,38 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
       createCustomFilter(
         (filter, paramKey) => {
           if (filter.operator === Operator.Includes) {
+            // Try to parse as JSON array for multiple values
+            let values: string[];
+            try {
+              const parsed = JSON.parse(String(filter.value));
+              values = Array.isArray(parsed) ? parsed : [String(filter.value)];
+            } catch {
+              values = [String(filter.value)];
+            }
+
+            if (values.length > 1) {
+              // Use hasAny for multiple values (OR logic)
+              return `hasAny(span_names, {${paramKey}:Array(String)})`;
+            }
             return `has(span_names, {${paramKey}:String})`;
           }
           return "";
         },
-        (filter, paramKey) => ({ [paramKey]: filter.value })
+        (filter, paramKey) => {
+          // Try to parse as JSON array for multiple values
+          let values: string[];
+          try {
+            const parsed = JSON.parse(String(filter.value));
+            values = Array.isArray(parsed) ? parsed : [String(filter.value)];
+          } catch {
+            values = [String(filter.value)];
+          }
+
+          if (values.length > 1) {
+            return { [paramKey]: values };
+          }
+          return { [paramKey]: values[0] };
+        }
       ),
     ],
   ]),

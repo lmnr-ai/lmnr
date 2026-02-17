@@ -6,6 +6,7 @@ import { type ReadonlyURLSearchParams, useSearchParams } from "next/navigation";
 import { createContext, type PropsWithChildren, type RefObject, useContext, useMemo, useRef } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 
+import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter, FilterSchema } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 
@@ -143,10 +144,14 @@ const createAdvancedSearchStore = (
       const columnFilter = filters.find((f) => f.key === field);
       if (!columnFilter) return;
 
+      // Get the default operator for this dataType (first available operator)
+      const operations = dataTypeOperationsMap[columnFilter.dataType];
+      const defaultOperator = operations?.[0]?.key ?? Operator.Eq;
+
       const newTag: FilterTag = {
         id: `tag-${uniqueId()}`,
         field,
-        operator: Operator.Eq,
+        operator: defaultOperator,
         value: "",
       };
 

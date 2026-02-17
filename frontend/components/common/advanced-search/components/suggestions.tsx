@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
+import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
@@ -98,11 +99,13 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
 
   const handleValueSelect = useCallback(
     (field: string, value: string) => {
-      // Find the filter to get the proper field key
+      // Find the filter to get the proper field key and default operator
       const columnFilter = filters.find((f) => f.key === field);
       if (!columnFilter) return;
 
-      addCompleteTag(field, Operator.Eq, value, router, pathname, searchParams);
+      // Get the default operator for this field's dataType
+      const defaultOperator = dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq;
+      addCompleteTag(field, defaultOperator, value, router, pathname, searchParams);
 
       // Keep focus on main input
       mainInputRef.current?.focus();
