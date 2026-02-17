@@ -176,7 +176,7 @@ pub async fn execute_quickwit_search(
         format!("({})", escaped_query),
     ];
 
-    let mut sort_by = "_score,start_time";
+    let mut sort_by = "_score,start_time"; // default sort for scores and timestamp in quickwit is desc!
 
     if let Some(trace_id) = trace_id {
         query_parts.push(format!("trace_id:{}", trace_id));
