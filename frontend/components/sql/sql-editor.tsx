@@ -8,7 +8,9 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { createExtensions, type SQLSchemaConfig, theme } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea.tsx";
+import { Textarea } from "@/components/ui/textarea";
+import type { GenerationMode } from "@/lib/actions/sql";
+import { toast } from "@/lib/hooks/use-toast";
 
 export interface SQLEditorProps {
   value: string;
@@ -18,6 +20,8 @@ export interface SQLEditorProps {
   autoFocus?: boolean;
   className?: string;
   schema?: SQLSchemaConfig;
+  generationMode?: GenerationMode;
+  inputPlaceholder?: string;
   projectId?: string;
 }
 
@@ -29,6 +33,8 @@ export default function SQLEditor({
   autoFocus = false,
   className = "size-full",
   schema,
+  generationMode = "query",
+  inputPlaceholder = "e.g. Get top 10 most expensive traces from last 24 hours",
   projectId,
 }: SQLEditorProps) {
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
@@ -50,27 +56,33 @@ export default function SQLEditor({
       const response = await fetch(`/api/projects/${projectId}/sql/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          schemaConfig: schema,
-        }),
+        body: JSON.stringify({ prompt, mode: generationMode }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        throw new Error(data?.error || "Failed to generate query");
+        toast({
+          title: "Generation failed",
+          description: data?.error || "Failed to generate SQL",
+          variant: "destructive",
+        });
+        return;
       }
 
-      const { query } = await response.json();
-      if (query && onChange) {
-        onChange(query);
+      if (data.query && onChange) {
+        onChange(data.query);
       }
     } catch (error) {
-      console.error("AI generation failed:", error);
+      toast({
+        title: "Generation failed",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
     } finally {
       setIsAiLoading(false);
     }
-  }, [aiPrompt, projectId, schema, onChange]);
+  }, [aiPrompt, projectId, generationMode, onChange]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -97,16 +109,16 @@ export default function SQLEditor({
 
       {projectId && editable && (
         <motion.button
-          className="absolute bottom-2 right-2 z-10 flex items-center h-7 px-1.5 rounded-full bg-primary/90 text-primary-foreground/90 hover:bg-primary border border-white/25 shadow-md overflow-hidden disabled:opacity-50 disabled:pointer-events-none text-xs font-medium"
+          className="absolute bottom-2 right-2 z-10 flex items-center h-6 px-1 rounded-full bg-primary/90 text-primary-foreground/90 hover:bg-primary border border-white/25 shadow-md overflow-hidden disabled:opacity-50 disabled:pointer-events-none text-xs font-medium"
           disabled={isAiLoading}
           onClick={() => setIsAiDialogOpen(true)}
           initial="idle"
           whileHover="hover"
         >
           {isAiLoading ? (
-            <Loader2 className="size-4 shrink-0 animate-spin" />
+            <Loader2 className="size-3.5 shrink-0 animate-spin" />
           ) : (
-            <Sparkles className="size-4 shrink-0" />
+            <Sparkles className="size-3.5 shrink-0" />
           )}
           <motion.span
             className="overflow-hidden whitespace-nowrap text-xs font-medium"
@@ -131,7 +143,7 @@ export default function SQLEditor({
           </DialogHeader>
           <Textarea
             ref={inputRef}
-            placeholder="e.g. Get top 10 most expensive traces from last 24 hours"
+            placeholder={inputPlaceholder}
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
             onKeyDown={handleKeyDown}

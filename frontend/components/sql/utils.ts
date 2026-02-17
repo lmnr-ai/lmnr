@@ -14,7 +14,7 @@ import {
 import { syntaxTree } from "@codemirror/language";
 import { highlightSelectionMatches, search } from "@codemirror/search";
 import { Prec } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorView, keymap, tooltips } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { createTheme, type CreateThemeOptions } from "@uiw/codemirror-themes";
 
@@ -167,6 +167,7 @@ export const tableSchemas: Record<string, TableSchema> = {
         type: "String",
         description: "Scores for the evaluation datapoint as a stringified JSON object from score name to value",
       },
+      { name: "updated_at", type: "DateTime64(9, 'UTC')", description: "When the datapoint was last updated" },
       {
         name: "dataset_id",
         type: "UUID",
@@ -798,6 +799,9 @@ export function createExtensions(config?: SQLSchemaConfig) {
 
   return [
     editorTheme,
+    tooltips({
+      parent: typeof document !== "undefined" ? document.body : undefined,
+    }),
     search(),
     highlightSelectionMatches(),
     EditorView.lineWrapping,

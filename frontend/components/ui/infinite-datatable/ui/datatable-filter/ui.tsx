@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input.tsx";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils.ts";
@@ -319,14 +319,33 @@ const PureFilterList = ({
   return (
     <div className="flex gap-2 flex-wrap">
       {filters.map((f, index) => (
-        <Tooltip key={`${index}-${f.column}-${f.value}-${f.operator}`}>
-          <TooltipTrigger asChild>
-            <Badge
-              className={cn("flex gap-2 border-primary bg-primary/10 py-1 px-2 min-w-8", className)}
-              variant="outline"
-            >
-              <ListFilter className="w-3 h-3 text-primary" />
-              <span className="text-xs text-primary truncate font-mono">
+        <TooltipProvider key={`${index}-${f.column}-${f.value}-${f.operator}`}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge
+                className={cn("flex gap-2 border-primary bg-primary/10 py-1 px-2 min-w-8", className)}
+                variant="outline"
+              >
+                <ListFilter className="w-3 h-3 text-primary" />
+                <span className="text-xs text-primary truncate font-mono">
+                  {f.column}{" "}
+                  {get(
+                    find(
+                      [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS],
+                      ["key", f.operator]
+                    ),
+                    "label",
+                    f.operator
+                  )}{" "}
+                  {f.value}
+                </span>
+                <Button onClick={() => onRemoveFilter(f)} className="p-0 h-fit group" variant="ghost">
+                  <X className="w-3 h-3 text-primary/70 group-hover:text-primary" />
+                </Button>
+              </Badge>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent>
                 {f.column}{" "}
                 {get(
                   find(
@@ -337,27 +356,10 @@ const PureFilterList = ({
                   f.operator
                 )}{" "}
                 {f.value}
-              </span>
-              <Button onClick={() => onRemoveFilter(f)} className="p-0 h-fit group" variant="ghost">
-                <X className="w-3 h-3 text-primary/70 group-hover:text-primary" />
-              </Button>
-            </Badge>
-          </TooltipTrigger>
-          <TooltipPortal>
-            <TooltipContent>
-              {f.column}{" "}
-              {get(
-                find(
-                  [...STRING_OPERATIONS, ...NUMBER_OPERATIONS, ...JSON_OPERATIONS, ...BOOLEAN_OPERATIONS],
-                  ["key", f.operator]
-                ),
-                "label",
-                f.operator
-              )}{" "}
-              {f.value}
-            </TooltipContent>
-          </TooltipPortal>
-        </Tooltip>
+              </TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
+        </TooltipProvider>
       ))}
     </div>
   );

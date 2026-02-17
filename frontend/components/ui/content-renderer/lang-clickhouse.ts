@@ -12,13 +12,11 @@ import {
 
 import { clickhouseFunctionSignatures, type FunctionSignature, getFunctionSignature } from "./clickhouse-signatures";
 
-// Derive simple function list from signatures (single source of truth)
 const clickhouseFunctions = Object.values(clickhouseFunctionSignatures).map((sig) => ({
   name: sig.name,
   description: sig.description,
 }));
 
-// Pre-compute function names set for O(1) lookup (computed once at module load)
 const clickhouseFunctionNamesSet = new Set(clickhouseFunctions.map((fn) => fn.name.toLowerCase()));
 
 const clickhouseFunctionNames = clickhouseFunctions.map((fn) => fn.name).join(" ");
@@ -36,7 +34,6 @@ const ClickHouseDialect = SQLDialect.define({
   hashComments: false,
 });
 
-// Pre-created decoration marks (reused for performance)
 const functionDecoration = Decoration.mark({ class: "cm-sql-function" });
 const knownIdentifierDecoration = Decoration.mark({ class: "cm-sql-known-identifier" });
 const unknownIdentifierDecoration = Decoration.mark({ class: "cm-sql-unknown-identifier" });

@@ -1,6 +1,3 @@
-import { and, eq } from "drizzle-orm";
-import { compact, keyBy } from "lodash";
-
 import { type Filter } from "@/lib/actions/common/filters";
 import {
   buildSelectQuery,
@@ -11,8 +8,6 @@ import {
   type QueryResult,
   type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
-import { db } from "@/lib/db/drizzle";
-import { eventClusters } from "@/lib/db/migrations/schema";
 
 export const eventsColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -52,12 +47,11 @@ const eventsSelectColumns = [
   "signal_id signalId",
   "trace_id traceId",
   "formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp",
-  "name",
   "payload",
 ];
 
 export interface BuildEventsQueryOptions {
-  eventName: string;
+  signalId: string;
   filters: Filter[];
   limit: number;
   offset: number;
@@ -67,15 +61,15 @@ export interface BuildEventsQueryOptions {
 }
 
 export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): QueryResult => {
-  const { eventName, filters, limit, offset, startTime, endTime, pastHours } = options;
+  const { signalId, filters, limit, offset, startTime, endTime, pastHours } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
   }> = [
     {
-      condition: "name = {eventName:String}",
-      params: { eventName },
+      condition: "signal_id = {signalId:UUID}",
+      params: { signalId },
     },
   ];
 
@@ -111,15 +105,15 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
 export const buildEventsCountQueryWithParams = (
   options: Omit<BuildEventsQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { eventName, filters, startTime, endTime, pastHours } = options;
+  const { signalId, filters, startTime, endTime, pastHours } = options;
 
   const customConditions: Array<{
     condition: string;
     params: QueryParams;
   }> = [
     {
-      condition: "name = {eventName:String}",
-      params: { eventName },
+      condition: "signal_id = {signalId:UUID}",
+      params: { signalId },
     },
   ];
 
@@ -141,42 +135,3 @@ export const buildEventsCountQueryWithParams = (
 
   return buildSelectQuery(queryOptions);
 };
-
-export interface ResolveClusterFiltersOptions {
-  filters: Filter[];
-  projectId: string;
-  eventName?: string;
-}
-
-export async function resolveClusterFilters({
-  filters,
-  projectId,
-  eventName,
-}: ResolveClusterFiltersOptions): Promise<Filter[]> {
-  const hasClusterFilter = filters.some((f) => f.column === "cluster");
-  if (!hasClusterFilter) {
-    return filters;
-  }
-
-  const conditions = [eq(eventClusters.projectId, projectId)];
-  if (eventName) {
-    conditions.push(eq(eventClusters.eventName, eventName));
-  }
-
-  const clustersList = await db
-    .select()
-    .from(eventClusters)
-    .where(and(...conditions));
-
-  const clustersByName = keyBy(clustersList, "name");
-
-  return compact(
-    filters.map((filter) => {
-      if (filter.column !== "cluster") {
-        return filter;
-      }
-      const cluster = clustersByName[String(filter.value)];
-      return cluster ? { ...filter, value: cluster.id } : null;
-    })
-  );
-}

@@ -91,26 +91,34 @@ fn truncate_llm_input(value: &Value) -> Value {
     }
 }
 
-/// Truncate any string field in a message object that exceeds LLM_MESSAGE_MAX_CHARS.
-/// Non-string fields and short strings are left untouched.
+/// Truncate large strings in a message, handling both plain string fields and
+/// multimodal content arrays (e.g. `[{"type":"text","text":"..."}]`).
 fn truncate_message_strings(message: &Value) -> Value {
     match message {
         Value::Object(map) => Value::Object(
             map.iter()
-                .map(|(k, v)| {
-                    let truncated = match v {
-                        Value::String(s) if s.chars().count() > LLM_MESSAGE_MAX_CHARS => {
-                            let truncated: String = s.chars().take(LLM_MESSAGE_MAX_CHARS).collect();
-                            let omitted = s.chars().count() - LLM_MESSAGE_MAX_CHARS;
-                            Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
-                        }
-                        other => other.clone(),
-                    };
-                    (k.clone(), truncated)
-                })
+                .map(|(k, v)| (k.clone(), truncate_value_strings(v)))
                 .collect(),
         ),
         _ => message.clone(),
+    }
+}
+
+/// Recursively truncate any string that exceeds LLM_MESSAGE_MAX_CHARS.
+fn truncate_value_strings(value: &Value) -> Value {
+    match value {
+        Value::String(s) if s.chars().count() > LLM_MESSAGE_MAX_CHARS => {
+            let truncated: String = s.chars().take(LLM_MESSAGE_MAX_CHARS).collect();
+            let omitted = s.chars().count() - LLM_MESSAGE_MAX_CHARS;
+            Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
+        }
+        Value::Array(arr) => Value::Array(arr.iter().map(truncate_value_strings).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), truncate_value_strings(v)))
+                .collect(),
+        ),
+        other => other.clone(),
     }
 }
 
