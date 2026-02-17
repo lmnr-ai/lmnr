@@ -16,14 +16,6 @@ interface ArrayValueInputProps {
   ref?: Ref<FocusableRef>;
 }
 
-const parseArrayValue = (value: string[]): string[] => {
-  if (!value) return [];
-  return value;
-};
-
-// Always returns string[]
-const serializeArrayValue = (values: string[]): string[] => values;
-
 const ArrayValueInput = ({ tagId, suggestions, focused, mode, ref }: ArrayValueInputProps) => {
   const router = useRouter();
   const pathname = usePathname();
@@ -39,8 +31,6 @@ const ArrayValueInput = ({ tagId, suggestions, focused, mode, ref }: ArrayValueI
   const { navigateWithinTag } = useAdvancedSearchNavigation();
 
   const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
-  const values = useMemo(() => parseArrayValue(Array.isArray(tag?.value) ? tag.value : []), [tag?.value]);
-
   const tagInputRef = useRef<FocusableRef>(null);
 
   useImperativeHandle(ref, () => ({
@@ -49,7 +39,7 @@ const ArrayValueInput = ({ tagId, suggestions, focused, mode, ref }: ArrayValueI
 
   const handleChange = useCallback(
     (newValues: string[]) => {
-      updateTagValue(tagId, serializeArrayValue(newValues));
+      updateTagValue(tagId, newValues);
     },
     [tagId, updateTagValue]
   );
@@ -72,7 +62,7 @@ const ArrayValueInput = ({ tagId, suggestions, focused, mode, ref }: ArrayValueI
   return (
     <TagInput
       ref={tagInputRef}
-      values={values}
+      values={Array.isArray(tag?.value) ? tag.value : []}
       onChange={handleChange}
       onBlur={handleBlur}
       onComplete={handleComplete}

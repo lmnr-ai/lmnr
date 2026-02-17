@@ -296,7 +296,7 @@ const TagInput = ({
                 handleRemoveValue(value);
               }}
               onMouseDown={(e) => e.preventDefault()}
-              className="ml-0.5 hover:text-destructive focus:outline-none"
+              className="ml-0.5 hover:text-foreground focus:outline-none"
             >
               <X className="w-3 h-3" />
             </button>
