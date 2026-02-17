@@ -60,7 +60,7 @@ export const ColumnsListPanel = ({
 
   return (
     <motion.div
-      className="max-w-64 overflow-hidden"
+      className="w-64 overflow-hidden"
       key="list"
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}

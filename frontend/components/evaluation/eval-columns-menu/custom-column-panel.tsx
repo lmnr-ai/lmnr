@@ -5,7 +5,10 @@ import { useState } from "react";
 
 import { type CustomColumn, useEvalStore } from "@/components/evaluation/store";
 import SQLEditor from "@/components/sql/sql-editor.tsx";
+import type { SQLSchemaConfig } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
+
+const EVAL_DATAPOINTS_SCHEMA: SQLSchemaConfig = { tables: ["evaluation_datapoints"] };
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -121,7 +124,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
                 onChange={setSql}
                 editable
                 placeholder="e.g. arrayCount(x -> 1, trace_spans)"
-                schema={{ tables: ["evaluation_datapoints"] }}
+                schema={EVAL_DATAPOINTS_SCHEMA}
                 generationMode="eval-expression"
                 inputPlaceholder="e.g. Count the number of spans in trace_spans"
                 projectId={projectId as string}
