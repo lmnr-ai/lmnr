@@ -46,22 +46,30 @@ const FilterPopover = ({
 
   const handleApplyFilters = useCallback(
     (filter: { column: string; operator: Operator; value: string | number | string[] }) => {
-      // Cast to Filter
-      const filterToAdd = filter as Filter;
+      const column = find(columns, ["key", filter.column]);
+      const dataType = column?.dataType || "string";
+
+      const filterValue = dataType === "array" && typeof filter.value === "string" ? [filter.value] : filter.value;
+
+      const filterToAdd = { ...filter, value: filterValue } as Filter;
       if (!filters.some((f) => isEqual(f, filterToAdd))) {
         onAddFilter(filterToAdd);
       }
     },
-    [filters, onAddFilter]
+    [columns, filters, onAddFilter]
   );
 
   const handleValueChange = useCallback(
     ({ field, value }: { field: "column" | "operator" | "value"; value: string }) => {
       if (field === "column") {
+        const column = find(columns, ["key", value]);
+        const dataType = column?.dataType || "string";
+        const defaultOperator = dataTypeOperationsMap[dataType]?.[0]?.key ?? Operator.Eq;
+
         setFilter((prev) => ({
           ...prev,
           value: "",
-          operator: Operator.Eq,
+          operator: defaultOperator,
           [field]: value,
         }));
       } else {
@@ -71,7 +79,7 @@ const FilterPopover = ({
         }));
       }
     },
-    []
+    [columns]
   );
 
   useEffect(() => {

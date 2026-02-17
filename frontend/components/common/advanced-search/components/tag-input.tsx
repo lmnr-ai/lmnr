@@ -116,16 +116,6 @@ const TagInput = ({
     [values, onChange]
   );
 
-  const handleAddValue = useCallback(
-    (newValue: string) => {
-      const trimmed = newValue.trim();
-      if (!trimmed || values.includes(trimmed)) return;
-      onChange([...values, trimmed]);
-      setInputValue("");
-    },
-    [values, onChange]
-  );
-
   const handleContainerBlur = useCallback(
     (e: React.FocusEvent) => {
       if (containerRef.current?.contains(e.relatedTarget as Node)) {
@@ -164,7 +154,7 @@ const TagInput = ({
       if (e.key === "Enter") {
         e.preventDefault();
         if (inputValue.trim()) {
-          handleAddValue(inputValue);
+          handleSelectValue(inputValue);
         } else {
           onComplete?.();
         }
@@ -173,7 +163,7 @@ const TagInput = ({
 
       if ((e.key === "," || e.key === "Tab") && inputValue.trim()) {
         e.preventDefault();
-        handleAddValue(inputValue);
+        handleSelectValue(inputValue);
         return;
       }
 
@@ -215,7 +205,6 @@ const TagInput = ({
       highlightedIndex,
       inputValue,
       values.length,
-      handleAddValue,
       handleSelectValue,
       onComplete,
       onNavigateLeft,
