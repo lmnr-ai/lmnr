@@ -70,7 +70,7 @@ const StringValueInput = ({ tagId, suggestions, focused, mode, ref }: StringValu
   return (
     <NativeCombobox
       ref={comboboxRef}
-      value={tag.value}
+      value={Array.isArray(tag.value) ? tag.value.join(", ") : tag.value}
       onChange={handleChange}
       onBlur={handleBlur}
       onComplete={handleComplete}

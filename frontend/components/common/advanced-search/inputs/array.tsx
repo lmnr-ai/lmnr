@@ -16,22 +16,13 @@ interface ArrayValueInputProps {
   ref?: Ref<FocusableRef>;
 }
 
-const parseArrayValue = (value: string): string[] => {
+const parseArrayValue = (value: string[]): string[] => {
   if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    if (Array.isArray(parsed)) return parsed;
-    return [value];
-  } catch {
-    return value ? [value] : [];
-  }
+  return value;
 };
 
-const serializeArrayValue = (values: string[]): string => {
-  if (values.length === 0) return "";
-  if (values.length === 1) return values[0];
-  return JSON.stringify(values);
-};
+// Always returns string[]
+const serializeArrayValue = (values: string[]): string[] => values;
 
 const ArrayValueInput = ({ tagId, suggestions, focused, mode, ref }: ArrayValueInputProps) => {
   const router = useRouter();
@@ -48,7 +39,7 @@ const ArrayValueInput = ({ tagId, suggestions, focused, mode, ref }: ArrayValueI
   const { navigateWithinTag } = useAdvancedSearchNavigation();
 
   const tag = useMemo(() => tags.find((t) => t.id === tagId), [tags, tagId]);
-  const values = useMemo(() => parseArrayValue(tag?.value || ""), [tag?.value]);
+  const values = useMemo(() => parseArrayValue(Array.isArray(tag?.value) ? tag.value : []), [tag?.value]);
 
   const tagInputRef = useRef<FocusableRef>(null);
 

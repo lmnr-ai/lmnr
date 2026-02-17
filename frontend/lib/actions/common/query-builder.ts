@@ -177,20 +177,7 @@ const createArrayColumnFilter =
   (filter, paramKey) => {
     const { column, value } = filter;
 
-    // Parse JSON array if value is a string
-    let values: (string | number)[];
-    if (typeof value === "string") {
-      try {
-        const parsed = JSON.parse(value);
-        values = Array.isArray(parsed) ? parsed : [value];
-      } catch {
-        values = [value];
-      }
-    } else {
-      values = Array.isArray(value) ? value : [value];
-    }
-
-    values = compact(values);
+    const values = compact(Array.isArray(value) ? value : [value]);
 
     if (values.length === 0) {
       return {

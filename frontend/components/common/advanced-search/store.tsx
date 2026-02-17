@@ -70,7 +70,7 @@ interface AdvancedSearchStore {
   ) => void;
   updateTagField: (tagId: string, field: string) => void;
   updateTagOperator: (tagId: string, operator: Operator) => void;
-  updateTagValue: (tagId: string, value: string) => void;
+  updateTagValue: (tagId: string, value: string | string[]) => void;
 
   // Actions - selection
   selectAllTags: () => void;
@@ -148,11 +148,14 @@ const createAdvancedSearchStore = (
       const operations = dataTypeOperationsMap[columnFilter.dataType];
       const defaultOperator = operations?.[0]?.key ?? Operator.Eq;
 
+      // Array filters need empty array as default value
+      const defaultValue = columnFilter.dataType === "array" ? [] : "";
+
       const newTag: FilterTag = {
         id: `tag-${uniqueId()}`,
         field,
         operator: defaultOperator,
-        value: "",
+        value: defaultValue,
       };
 
       set((state) => {
@@ -174,11 +177,14 @@ const createAdvancedSearchStore = (
       const columnFilter = filters.find((f) => f.key === field);
       if (!columnFilter) return;
 
+      // Array filters need value wrapped in array
+      const tagValue = columnFilter.dataType === "array" && !Array.isArray(value) ? [value] : value;
+
       const newTag: FilterTag = {
         id: `tag-${uniqueId()}`,
         field,
         operator,
-        value,
+        value: tagValue,
       };
 
       const updatedTags = [...get().tags, newTag];
@@ -247,7 +253,7 @@ const createAdvancedSearchStore = (
       }));
     },
 
-    updateTagValue: (tagId, value) => {
+    updateTagValue: (tagId, value: string | string[]) => {
       set((state) => ({
         tags: state.tags.map((t) => (t.id === tagId ? { ...t, value } : t)),
       }));

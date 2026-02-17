@@ -93,7 +93,7 @@ const FilterTag = ({ tag, resource = "traces", isSelected = false, ref }: Filter
       return preloadedValues;
     }
 
-    if (!tag.value) {
+    if (!tag.value || Array.isArray(tag.value)) {
       return preloadedValues;
     }
 

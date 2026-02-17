@@ -1,6 +1,6 @@
 "use client";
 
-import { differenceWith, intersectionWith } from "lodash";
+import { differenceWith, intersectionWith, isEqual } from "lodash";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useEffect, useMemo } from "react";
 import useSWR from "swr";
@@ -82,7 +82,7 @@ const AdvancedSearchInner = ({
     if (mode === "state") return;
 
     const tagComparator = (tagA: FilterTag, tagB: FilterTag) =>
-      tagA.field === tagB.field && tagA.operator === tagB.operator && tagA.value === tagB.value;
+      tagA.field === tagB.field && tagA.operator === tagB.operator && isEqual(tagA.value, tagB.value);
 
     const commonTags = intersectionWith(tags, urlTags, tagComparator);
 
