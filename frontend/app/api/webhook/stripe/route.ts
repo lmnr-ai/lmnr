@@ -1,13 +1,8 @@
 import { type NextRequest } from "next/server";
 import stripe from "stripe";
 
-import {
-  handleInvoiceFinalized,
-  handleSubscriptionChange,
-  type ItemDescription,
-  LOOKUP_KEY_TO_TIER_NAME,
-  TIER_CONFIG,
-} from "@/lib/checkout/utils";
+import { type ItemDescription, LOOKUP_KEY_TO_TIER_NAME, TIER_CONFIG } from "@/lib/checkout/constants";
+import { handleInvoiceFinalized, handleSubscriptionChange } from "@/lib/checkout/utils";
 import { sendOnPaymentFailedEmail, sendOnPaymentReceivedEmail } from "@/lib/emails/utils";
 
 export async function POST(req: NextRequest): Promise<Response> {
