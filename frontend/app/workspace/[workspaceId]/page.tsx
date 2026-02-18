@@ -11,6 +11,7 @@ import { authOptions } from "@/lib/auth";
 import { getSubscriptionDetails, getUpcomingInvoice } from "@/lib/checkout/actions";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { getWorkspaceStats } from "@/lib/usage/workspace-stats";
 
 export default async function WorkspacePage(props: { params: Promise<{ workspaceId: string }> }) {
@@ -45,12 +46,15 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     where: eq(workspaceInvitations.workspaceId, params.workspaceId),
   });
 
+  // Check if billing feature is enabled (Laminar Cloud only)
+  const isBillingEnabled = isFeatureEnabled(Feature.BILLING);
+
   // Fetch subscription details for paid tiers
   const isPaidTier = workspace.tierName !== "Free";
   let subscription = null;
   let upcomingInvoice = null;
 
-  if (isPaidTier && (isOwner || ["admin", "owner"].includes(currentUserRole))) {
+  if (isBillingEnabled && isPaidTier && (isOwner || ["admin", "owner"].includes(currentUserRole))) {
     try {
       [subscription, upcomingInvoice] = await Promise.all([
         getSubscriptionDetails(params.workspaceId),
@@ -66,7 +70,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     <WorkspaceMenuProvider>
       <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
         <SidebarProvider className="bg-sidebar">
-          <WorkspaceSidebar isOwner={isOwner} workspace={workspace} />
+          <WorkspaceSidebar isOwner={isOwner} workspace={workspace} isBillingEnabled={isBillingEnabled} />
           <SidebarInset className="flex flex-col flex-1 md:rounded-tl-lg border h-full overflow-hidden">
             <WorkspaceComponent
               invitations={invitations}
@@ -76,6 +80,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
               currentUserRole={currentUserRole}
               subscription={subscription}
               upcomingInvoice={upcomingInvoice}
+              isBillingEnabled={isBillingEnabled}
             />
           </SidebarInset>
         </SidebarProvider>

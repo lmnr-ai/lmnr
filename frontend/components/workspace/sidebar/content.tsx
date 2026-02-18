@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Cloud, FolderClosed, type LucideIcon, Settings, Users } from "lucide-react";
+import { Activity, Cloud, CreditCard, FolderClosed, type LucideIcon, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
@@ -39,6 +39,11 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
     icon: Cloud,
   },
   {
+    name: "Billing",
+    value: "billing",
+    icon: CreditCard,
+  },
+  {
     name: "Settings",
     value: "settings",
     icon: Settings,
@@ -48,12 +53,21 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
 interface WorkspaceSidebarContentProps {
   isOwner: boolean;
   tier: WorkspaceTier;
+  isBillingEnabled: boolean;
 }
 
-export const WorkspaceSidebarContent = ({ isOwner, tier }: WorkspaceSidebarContentProps) => {
+export const WorkspaceSidebarContent = ({ isOwner, tier, isBillingEnabled }: WorkspaceSidebarContentProps) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
   const pathName = usePathname();
-  const sidebarMenus = useMemo(() => menus.filter((m) => isOwner || m.value !== "settings"), [isOwner]);
+  const sidebarMenus = useMemo(
+    () =>
+      menus.filter((m) => {
+        if (m.value === "settings" && !isOwner) return false;
+        if (m.value === "billing" && !isBillingEnabled) return false;
+        return true;
+      }),
+    [isOwner, isBillingEnabled]
+  );
 
   return (
     <SidebarContent>

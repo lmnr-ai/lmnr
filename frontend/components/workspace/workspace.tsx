@@ -7,6 +7,7 @@ import { type WorkspaceStats } from "@/lib/usage/types";
 import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
 import WorkspaceDeployment from "./deployment-settings/workspace-deployment.tsx";
+import WorkspaceBilling from "./workspace-billing";
 import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";
@@ -19,6 +20,7 @@ interface WorkspaceProps {
   currentUserRole: WorkspaceRole;
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
+  isBillingEnabled: boolean;
 }
 
 export default function WorkspaceComponent({
@@ -29,6 +31,7 @@ export default function WorkspaceComponent({
   currentUserRole,
   subscription,
   upcomingInvoice,
+  isBillingEnabled,
 }: WorkspaceProps) {
   const { menu } = useWorkspaceMenuContext();
 
@@ -44,10 +47,10 @@ export default function WorkspaceComponent({
             currentUserRole={currentUserRole}
           />
         )}
-        {menu === "usage" && (
-          <WorkspaceUsage
+        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} isBillingEnabled={isBillingEnabled} />}
+        {isBillingEnabled && menu === "billing" && (
+          <WorkspaceBilling
             workspace={workspace}
-            workspaceStats={workspaceStats}
             isOwner={isOwner}
             subscription={subscription}
             upcomingInvoice={upcomingInvoice}

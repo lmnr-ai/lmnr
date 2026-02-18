@@ -1,57 +1,59 @@
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { memo } from "react";
 import { PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
 
-import BillingPage from "@/components/billing/billing-page";
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { ChartContainer } from "@/components/ui/chart";
-import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/checkout/actions";
 import { type WorkspaceStats } from "@/lib/usage/types";
-import { cn } from "@/lib/utils";
-import { type Workspace } from "@/lib/workspaces/types";
-
-import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "../ui/dialog";
-import PricingDialog from "./pricing-dialog";
 
 interface WorkspaceUsageProps {
-  workspace: Workspace;
   workspaceStats: WorkspaceStats;
-  isOwner: boolean;
-  subscription: SubscriptionDetails | null;
-  upcomingInvoice: UpcomingInvoiceInfo | null;
+  isBillingEnabled: boolean;
 }
 
-const TIER_USAGE_HINTS = {
+const TIER_USAGE_HINTS: Record<
+  string,
+  {
+    data: string;
+    signalRuns: string;
+    isOverageAllowed: boolean;
+    overageDataPrice: number;
+    overageSignalPrice: number;
+    teamMembers: string;
+  }
+> = {
   free: {
-    data: "1GB",
-    signalRuns: "N/A",
+    data: "1 GB",
+    signalRuns: "100",
     isOverageAllowed: false,
     overageDataPrice: 0,
+    overageSignalPrice: 0,
+    teamMembers: "1",
   },
   hobby: {
-    data: "3GB",
+    data: "3 GB",
     signalRuns: "1,000",
     isOverageAllowed: true,
     overageDataPrice: 2,
+    overageSignalPrice: 0.02,
+    teamMembers: "Unlimited",
   },
   pro: {
-    data: "10GB",
+    data: "10 GB",
     signalRuns: "10,000",
     isOverageAllowed: true,
     overageDataPrice: 1.5,
+    overageSignalPrice: 0.015,
+    teamMembers: "Unlimited",
   },
 };
 
-export default function WorkspaceUsage({
-  workspace,
-  workspaceStats,
-  isOwner,
-  subscription,
-  upcomingInvoice,
-}: WorkspaceUsageProps) {
+export default function WorkspaceUsage({ workspaceStats, isBillingEnabled }: WorkspaceUsageProps) {
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
   const gbLimit = workspaceStats?.gbLimit ?? 1;
-  const resetTime = workspaceStats.resetTime;
+  const signalRunsUsed = workspaceStats?.signalRunsUsedThisMonth ?? 0;
+  const signalRunsLimit = workspaceStats?.signalRunsLimit ?? 1;
 
   const formatter = new Intl.NumberFormat("en-US", {
     style: "percent",
@@ -66,94 +68,77 @@ export default function WorkspaceUsage({
     return `${gb.toFixed(2)} GB`;
   };
 
-  const tierHintInfo = TIER_USAGE_HINTS[workspaceStats.tierName.toLowerCase().trim() as keyof typeof TIER_USAGE_HINTS];
+  const formatNumber = (num: number) => new Intl.NumberFormat("en-US").format(num);
+
+  const tierKey = workspaceStats.tierName.toLowerCase().trim();
+  const tierHintInfo = TIER_USAGE_HINTS[tierKey];
   const tierHint = `${workspaceStats.tierName} tier comes with ${tierHintInfo?.data ?? "unlimited"} data and ${tierHintInfo?.signalRuns ?? "unlimited"} signal runs per month.`;
 
   const tierHintOverages =
     "If you exceed these limits, " +
     (tierHintInfo?.isOverageAllowed
-      ? `you will be charged $${tierHintInfo?.overageDataPrice ?? 2} per GB for additional data.`
+      ? `you will be charged $${tierHintInfo?.overageDataPrice ?? 2} per GB for additional data and $${tierHintInfo?.overageSignalPrice ?? 0.02} per signal run.`
       : "you won't be able to send any more data during current billing cycle.");
-
-  const isFree = workspaceStats.tierName.toLowerCase().trim() === "free";
-  const hasDataplaneAddon = workspace.addons.includes("data-plane");
 
   return (
     <>
-      <SettingsSectionHeader title="Usage & Billing" description="Manage your workspace plan and monitor usage" />
-      <SettingsSection>
-        <SettingsSectionHeader
-          size="sm"
-          title="Workspace plan"
-          description={`Monthly billing cycle started ${new Date(resetTime).toLocaleDateString()}`}
-        />
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-secondary-foreground">Current tier:</span>
-            <span
-              className={cn(
-                "text-xs text-secondary-foreground p-0.5 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
-                {
-                  "border-primary bg-primary/10 text-primary": workspace.tierName === "Pro",
-                }
-              )}
-            >
-              {workspace.tierName}
-            </span>
-          </div>
-        </div>
-        {/* Only show upgrade button for free tier */}
-        {isOwner && isFree && (
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button className="w-fit" variant="default">
-                Upgrade
-              </Button>
-            </DialogTrigger>
-            <DialogTitle className="sr-only">Upgrade</DialogTitle>
-            <DialogContent className="max-w-[90vw] p-0 border-none">
-              <PricingDialog
-                workspaceTier={workspaceStats.tierName.toLowerCase().trim()}
-                workspaceId={workspace.id}
-                workspaceName={workspace.name}
-              />
-            </DialogContent>
-          </Dialog>
-        )}
-      </SettingsSection>
+      <SettingsSectionHeader title="Usage" description="Monitor your workspace usage" />
 
       <SettingsSection>
         <SettingsSectionHeader size="sm" title="Usage summary" description={`${tierHint} ${tierHintOverages}`} />
-        <div className="border rounded-md p-6 bg-secondary max-w-md">
-          <div className="flex justify-between items-center max-w-md">
-            <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium">Data usage</span>
-              <span className="text-sm text-secondary-foreground">
-                {formatGB(gbUsedThisMonth)} / {formatGB(gbLimit)}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {formatter.format(gbUsedThisMonth / gbLimit)} of limit used
-              </span>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="border rounded-md p-6 bg-secondary flex-1 max-w-xs">
+            <div className="flex justify-between items-center">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium">Data usage</span>
+                <span className="text-sm text-secondary-foreground">
+                  {formatGB(gbUsedThisMonth)} / {formatGB(gbLimit)}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {formatter.format(gbUsedThisMonth / gbLimit)} of limit used
+                </span>
+              </div>
+              <UsageProgressDisc
+                data={[{ fill: "hsl(var(--chart-1))", usage: gbUsedThisMonth }]}
+                dataKey="usage"
+                value={gbUsedThisMonth}
+                maxValue={gbLimit}
+              />
             </div>
-            <UsageProgressDisc
-              data={[{ fill: "hsl(var(--chart-1))", usage: gbUsedThisMonth }]}
-              dataKey="usage"
-              value={gbUsedThisMonth}
-              maxValue={gbLimit}
-            />
+          </div>
+
+          <div className="border rounded-md p-6 bg-secondary flex-1 max-w-xs">
+            <div className="flex justify-between items-center">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium">Signal runs</span>
+                <span className="text-sm text-secondary-foreground">
+                  {formatNumber(signalRunsUsed)} / {formatNumber(signalRunsLimit)}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {formatter.format(signalRunsUsed / signalRunsLimit)} of limit used
+                </span>
+              </div>
+              <UsageProgressDisc
+                data={[{ fill: "hsl(var(--chart-2))", usage: signalRunsUsed }]}
+                dataKey="usage"
+                value={signalRunsUsed}
+                maxValue={signalRunsLimit}
+              />
+            </div>
           </div>
         </div>
       </SettingsSection>
 
-      {/* Embed billing management for paid tiers */}
-      {!isFree && isOwner && subscription && (
-        <BillingPage
-          workspaceId={workspace.id}
-          workspaceName={workspace.name}
-          subscription={subscription}
-          upcomingInvoice={upcomingInvoice}
-          hasDataplaneAddon={hasDataplaneAddon}
-        />
+      {isBillingEnabled && (
+        <SettingsSection>
+          <div className="flex items-center gap-2 text-sm text-secondary-foreground">
+            <span>Need to upgrade or manage your subscription?</span>
+            <Link href="?tab=billing" className="text-primary hover:underline inline-flex items-center gap-1">
+              Go to Billing
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </SettingsSection>
       )}
     </>
   );
