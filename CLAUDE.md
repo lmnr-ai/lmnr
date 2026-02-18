@@ -50,24 +50,40 @@ uv run pytest                   # Run tests
 
 ## Local Development Setup
 
-### Frontend-only development:
-```bash
-docker compose -f docker-compose-local-dev.yml up  # Starts postgres, clickhouse, app-server
-cd frontend && pnpm run dev
-```
-
-### Full-stack development:
-```bash
-docker compose -f docker-compose-local-dev-full.yml up  # Starts postgres, clickhouse, rabbitmq
-cd app-server && cargo r                                 # In terminal 1
-cd frontend && pnpm run dev                              # In terminal 2
-cd query-engine && uv run python server.py               # In terminal 3
-```
-
 ### Environment setup:
 ```bash
 cp .env.example .env
 cp frontend/.env.local.example frontend/.env.local
+```
+
+### Minimal Working Setup
+
+**PostgreSQL**, **ClickHouse**, and **Query Engine** are required. Other services have automatic fallbacks:
+
+| Service      | Required | Fallback when not configured |
+|--------------|----------|------------------------------|
+| PostgreSQL   | Yes      | None                         |
+| ClickHouse   | Yes      | None                         |
+| Query Engine | Yes      | None                         |
+| RabbitMQ     | No       | In-memory queue (TokioMpsc)  |
+| Redis        | No       | In-memory cache (Moka)       |
+| Quickwit     | No       | Search disabled gracefully   |
+| S3 Storage   | No       | MockStorage                  |
+
+### Docker-based development
+
+**Frontend-only** (uses pre-built app-server image):
+```bash
+docker compose -f docker-compose-local-dev.yml up
+cd frontend && pnpm run dev
+```
+
+**Full-stack with all services:**
+```bash
+docker compose -f docker-compose-local-dev-full.yml up  # All dependencies
+cd app-server && cargo r                                 # Terminal 1
+cd frontend && pnpm run dev                              # Terminal 2
+cd query-engine && uv run python server.py               # Terminal 3
 ```
 
 ## Architecture
@@ -80,11 +96,11 @@ App Server                               │
 ├─ gRPC ingestion (8001) ◄─── SDK traces
 └─ Realtime SSE (8002)
          │
-         ├──► PostgreSQL (5433) - main database
-         ├──► ClickHouse (8123) - analytics/spans
-         ├──► RabbitMQ (5672) - async processing
-         ├──► Query Engine (8903) - SQL processing
-         └──► Quickwit (7280/7281) - full-text search
+         ├──► PostgreSQL (5433) - main database [required]
+         ├──► ClickHouse (8123) - analytics/spans [required]
+         ├──► RabbitMQ (5672) - async processing [optional, has in-memory fallback]
+         ├──► Query Engine (8903) - SQL processing [required]
+         └──► Quickwit (7280/7281) - full-text search [optional]
 ```
 
 ## Database Migrations
