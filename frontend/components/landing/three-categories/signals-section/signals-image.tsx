@@ -73,7 +73,7 @@ const SignalsImage = ({ className, scrollProgress: scrollProgressProp }: Props) 
 
         {/* Column 3: Events table */}
         <div className={cn("flex flex-col h-full items-start justify-between shrink-0", SECTION_WIDTH)}>
-          <SectionTitle lines={["Signals agent extracts events", "based on your definition"]} />
+          <SectionTitle lines={["Signals agent detects events from", "traces based on your definition"]} />
           <div className={cn("flex flex-col justify-center w-full", SECTION_HEIGHT)}>
             <EventsTable progress={eventsScrollProgress} />
           </div>
