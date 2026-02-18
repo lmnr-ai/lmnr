@@ -3413,11 +3413,12 @@ mod tests {
             span_type: SpanType::Default,
             input: None,
             output: None,
-            events: None,
+            events: vec![],
             status: None,
             tags: None,
             input_url: None,
             output_url: None,
+            size_bytes: 0,
         };
 
         span.parse_and_enrich_attributes();
