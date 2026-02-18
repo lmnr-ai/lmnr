@@ -10,7 +10,8 @@ use crate::{
     mq::MessageQueue,
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::ExportTraceServiceRequest,
     routes::types::ResponseResult,
-    traces::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue},
+    traces::producer::push_spans_to_queue,
+    utils::limits::get_workspace_bytes_limit_exceeded,
 };
 use prost::Message;
 
@@ -38,7 +39,7 @@ pub async fn process_traces(
     let spans_message_queue = spans_message_queue.as_ref().clone();
 
     if is_feature_enabled(Feature::UsageLimit) {
-        let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
+        let bytes_limit_exceeded = get_workspace_bytes_limit_exceeded(
             db.clone(),
             clickhouse.into_inner().as_ref().clone(),
             cache.clone(),
@@ -49,7 +50,7 @@ pub async fn process_traces(
             log::error!("Failed to get workspace limits: {:?}", e);
         });
 
-        if limits_exceeded.is_ok_and(|limits_exceeded| limits_exceeded.bytes_ingested) {
+        if bytes_limit_exceeded.is_ok_and(|exceeded| exceeded) {
             return Ok(HttpResponse::Forbidden().json("Workspace data limit exceeded"));
         }
     }

@@ -1,7 +1,13 @@
 import { type NextRequest } from "next/server";
 import stripe from "stripe";
 
-import { handleSubscriptionChange, type ItemDescription, LOOKUP_KEY_TO_TIER_NAME } from "@/lib/checkout/utils";
+import {
+  handleInvoiceFinalized,
+  handleSubscriptionChange,
+  type ItemDescription,
+  LOOKUP_KEY_TO_TIER_NAME,
+  TIER_CONFIG,
+} from "@/lib/checkout/utils";
 import { sendOnPaymentFailedEmail, sendOnPaymentReceivedEmail } from "@/lib/emails/utils";
 
 export async function POST(req: NextRequest): Promise<Response> {
@@ -12,20 +18,20 @@ export async function POST(req: NextRequest): Promise<Response> {
   try {
     event = stripe.webhooks.constructEvent(await req.text(), signature, endpointSecret!);
   } catch (err: Error | any) {
-    console.log(`⚠️  Webhook signature verification failed.`, err.message);
+    console.error(`⚠️  Webhook signature verification failed.`, err.message);
     return new Response("Webhook signature verification failed.", {
       status: 400,
     });
   }
   // Handle the event
-  console.log(event.type);
   switch (event.type) {
     case "invoice.payment_succeeded": {
       const invoice = event.data.object;
       const itemDescriptions = invoice.lines.data.map((line) => {
         const productDescription = line.description ?? "";
-        const lookupKey = line.price?.lookup_key ?? "hobby_monthly_2026_02";
-        const shortDescription = LOOKUP_KEY_TO_TIER_NAME[lookupKey];
+        const priceObj = line.pricing?.price_details?.price;
+        const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
+        const shortDescription = lookupKey ? LOOKUP_KEY_TO_TIER_NAME[lookupKey] : undefined;
         return {
           productDescription,
           quantity: line.quantity,
@@ -46,8 +52,9 @@ export async function POST(req: NextRequest): Promise<Response> {
       }
       const itemDescriptions = invoice.lines.data.map((line) => {
         const productDescription = line.description ?? "";
-        const lookupKey = line.price?.lookup_key ?? "hobby_monthly_2026_02";
-        const shortDescription = LOOKUP_KEY_TO_TIER_NAME[lookupKey];
+        const priceObj = line.pricing?.price_details?.price;
+        const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
+        const shortDescription = lookupKey ? LOOKUP_KEY_TO_TIER_NAME[lookupKey] : undefined;
         return {
           productDescription,
           quantity: line.quantity,
@@ -59,6 +66,40 @@ export async function POST(req: NextRequest): Promise<Response> {
       if (customerEmail) {
         await sendOnPaymentFailedEmail(customerEmail, itemDescriptions, date);
       }
+      break;
+    }
+    case "invoice.finalized": {
+      const invoice = event.data.object;
+
+      if (invoice.parent?.type !== "subscription_details") break;
+
+      // Filter: must contain a line for a known tier or overage price.
+      // This excludes addon-only invoices and other unrelated invoices.
+      const knownLookupKeys = new Set<string>(
+        Object.values(TIER_CONFIG).flatMap((c) => [c.lookupKey, c.overageBytesLookupKey, c.overageSignalRunsLookupKey])
+      );
+      const hasRelevantLine = invoice.lines.data.some((line) => {
+        const priceObj = line.pricing?.price_details?.price;
+        const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
+        return lookupKey && knownLookupKeys.has(lookupKey);
+      });
+      if (!hasRelevantLine) break;
+
+      const workspaceId = invoice.parent.subscription_details?.metadata?.workspaceId;
+      if (!workspaceId) {
+        console.log("invoice.finalized: no workspaceId in subscription metadata");
+        break;
+      }
+
+      // Use the period.start of the first subscription item line as the new resetTime
+      const subscriptionLine = invoice.lines.data.find((l) => l.parent?.type === "subscription_item_details");
+      const newResetTime = subscriptionLine?.period?.start;
+      if (!newResetTime) {
+        console.log("invoice.finalized: no subscription line period start found");
+        break;
+      }
+
+      await handleInvoiceFinalized(workspaceId, newResetTime);
       break;
     }
     case "customer.subscription.deleted":

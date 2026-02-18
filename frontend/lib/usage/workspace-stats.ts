@@ -1,27 +1,21 @@
-import { count, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { db } from "@/lib/db/drizzle";
-import { membersOfWorkspaces, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
 import { type WorkspaceStats } from "./types";
 
 const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
 
 export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceStats> {
-  // First, get member count for the workspace
-  const membersCount = await db
-    .select({ count: count() })
-    .from(membersOfWorkspaces)
-    .where(eq(membersOfWorkspaces.workspaceId, workspaceId));
-
-  const members = membersCount[0]?.count || 0;
-
   const limitsRows = await db
     .select({
       tierName: subscriptionTiers.name,
       bytesLimit: subscriptionTiers.bytesIngested,
       signalRunsLimit: subscriptionTiers.signalRuns,
+      extraBytePrice: subscriptionTiers.extraBytePrice,
+      extraSignalRunPrice: subscriptionTiers.extraSignalRunPrice,
     })
     .from(workspaces)
     .innerJoin(subscriptionTiers, eq(subscriptionTiers.id, workspaces.tierId))
@@ -39,9 +33,13 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
   const gbUsedThisMonth = bytesToGB(usage.totalBytesIngested);
   const gbLimit = bytesToGB(Number(limits.bytesLimit));
 
-  // Calculate GB overages
   const gbOverLimit = Math.max(gbUsedThisMonth - gbLimit, 0);
-  const gbOverLimitCost = gbOverLimit * 2; // $2 per GB overage based on pricing
+  const gbOverLimitCost = gbOverLimit * limits.extraBytePrice;
+
+  const signalRunsUsedThisMonth = usage.totalSignalRuns;
+  const signalRunsLimit = Number(limits.signalRunsLimit);
+  const signalRunsOverLimit = Math.max(signalRunsUsedThisMonth - signalRunsLimit, 0);
+  const signalRunsOverLimitCost = signalRunsOverLimit * limits.extraSignalRunPrice;
 
   return {
     tierName: limits.tierName,
@@ -50,10 +48,9 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
     gbLimit,
     gbOverLimit,
     gbOverLimitCost,
-    // TODO: Implement signal runs usage
-    signalRunsUsedThisMonth: 0,
-    signalRunsLimit: limits.signalRunsLimit,
-    signalRunsOverLimit: 0,
-    signalRunsOverLimitCost: 0,
+    signalRunsUsedThisMonth,
+    signalRunsLimit,
+    signalRunsOverLimit,
+    signalRunsOverLimitCost,
   };
 }

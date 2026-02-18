@@ -7,10 +7,12 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     db::{self, DB},
+    features::is_feature_enabled,
     mq::MessageQueue,
     query_engine::QueryEngine,
     signals::enqueue::enqueue_signal_job,
     sql::{self, ClickhouseReadonlyClient},
+    utils::limits::get_workspace_signal_runs_limit_exceeded,
 };
 
 use super::{ResponseResult, error::Error};
@@ -45,6 +47,23 @@ pub async fn submit_signal_job(
     http_client: web::Data<reqwest::Client>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
+    let db = db.into_inner();
+    let cache = cache.into_inner();
+
+    if is_feature_enabled(crate::features::Feature::UsageLimit) {
+        let signal_runs_limit_exceeded = get_workspace_signal_runs_limit_exceeded(
+            db.clone(),
+            clickhouse.as_ref().clone(),
+            cache.clone(),
+            project_id,
+        )
+        .await;
+        if signal_runs_limit_exceeded.is_ok_and(|exceeded| exceeded) {
+            return Ok(HttpResponse::Forbidden().json(serde_json::json!({
+                "error": "Signal runs limit exceeded"
+            })));
+        }
+    }
 
     let SubmitSignalJobRequest {
         query,
@@ -77,8 +96,6 @@ pub async fn submit_signal_job(
         }
     };
 
-    let db = db.into_inner();
-
     let results = sql::execute_sql_query(
         query,
         project_id,
@@ -87,7 +104,7 @@ pub async fn submit_signal_job(
         query_engine.into_inner().as_ref().clone(),
         http_client.into_inner(),
         db.clone(),
-        cache.into_inner(),
+        cache.clone(),
     )
     .await
     .map_err(|e: sql::SqlQueryError| {

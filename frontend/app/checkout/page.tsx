@@ -99,11 +99,9 @@ export default async function CheckoutPage(props: {
     type: "workspace",
   };
 
-  const urlEncodedWorkspaceName = encodeURIComponent(workspaceName ?? "");
+  const successUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&tab=billing`;
 
-  const successUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&workspaceName=${urlEncodedWorkspaceName}&lookupKey=${lookupKey}`;
-
-  const cancelUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}`;
+  const cancelUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?tab=billing`;
 
   const session = await s.checkout.sessions.create({
     customer: customerId,

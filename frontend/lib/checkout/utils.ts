@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { type Stripe } from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "../actions/project";
-import { cache, WORKSPACE_LIMITS_CACHE_KEY } from "../cache";
+import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "../cache";
 import { db } from "../db/drizzle";
 import { users, userSubscriptionInfo, workspaceAddons, workspaces } from "../db/migrations/schema";
 import { DATAPLANE_ADDON_LOOKUP_KEY } from "./constants";
@@ -60,7 +60,6 @@ export const manageWorkspaceSubscriptionEvent = async ({
         WHERE stripe_product_id = ${productId})
       END
     `,
-      resetTime: sql`now()`,
     })
     .where(eq(workspaces.id, workspaceId));
 
@@ -79,7 +78,8 @@ export const getIdFromStripeObject = (stripeObject: string | { id: string } | nu
 // shared Redis cache as well.
 const updateUsageCacheForWorkspace = async (workspaceId: string) => {
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
-  await cache.remove(`${WORKSPACE_LIMITS_CACHE_KEY}:${workspaceId}`);
+  await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
+  await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
 };
 
 type SubscriptionEvent =
@@ -170,21 +170,30 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
         console.log(`Data plane addon added to workspace ${workspaceId}`);
       } else {
         // Remove addon from workspace if it exists
-        const deletedCount = await db
+        await db
           .delete(workspaceAddons)
           .where(and(eq(workspaceAddons.workspaceId, workspaceId), eq(workspaceAddons.addonSlug, "data-plane")));
-        if (deletedCount) {
-          console.log(`Data plane addon removed from workspace ${workspaceId}`);
-        }
       }
     } else if (cancel) {
       // Remove addon on cancellation
-      const deletedCount = await db
+      await db
         .delete(workspaceAddons)
         .where(and(eq(workspaceAddons.workspaceId, workspaceId), eq(workspaceAddons.addonSlug, "data-plane")));
-      if (deletedCount) {
-        console.log(`Data plane addon removed from workspace ${workspaceId} due to cancellation`);
-      }
+      console.log(`Data plane addon removed from workspace ${workspaceId} due to cancellation`);
     }
   }
+};
+
+export const handleInvoiceFinalized = async (workspaceId: string, periodStart: number) => {
+  await db
+    .update(workspaces)
+    .set({ resetTime: new Date(periodStart * 1000).toISOString() })
+    .where(eq(workspaces.id, workspaceId));
+
+  await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
+  await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
+  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
+  console.log(
+    `Billing cycle reset for workspace ${workspaceId}, new period start: ${new Date(periodStart * 1000).toISOString()}`
+  );
 };
