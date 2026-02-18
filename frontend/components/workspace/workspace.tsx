@@ -20,6 +20,7 @@ interface WorkspaceProps {
   currentUserRole: WorkspaceRole;
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
+  isBillingEnabled: boolean;
 }
 
 export default function WorkspaceComponent({
@@ -30,6 +31,7 @@ export default function WorkspaceComponent({
   currentUserRole,
   subscription,
   upcomingInvoice,
+  isBillingEnabled,
 }: WorkspaceProps) {
   const { menu } = useWorkspaceMenuContext();
 
@@ -45,8 +47,8 @@ export default function WorkspaceComponent({
             currentUserRole={currentUserRole}
           />
         )}
-        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} />}
-        {menu === "billing" && (
+        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} isBillingEnabled={isBillingEnabled} />}
+        {isBillingEnabled && menu === "billing" && (
           <WorkspaceBilling
             workspace={workspace}
             isOwner={isOwner}

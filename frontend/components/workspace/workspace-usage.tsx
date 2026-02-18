@@ -9,6 +9,7 @@ import { type WorkspaceStats } from "@/lib/usage/types";
 
 interface WorkspaceUsageProps {
   workspaceStats: WorkspaceStats;
+  isBillingEnabled: boolean;
 }
 
 const TIER_USAGE_HINTS: Record<
@@ -48,7 +49,7 @@ const TIER_USAGE_HINTS: Record<
   },
 };
 
-export default function WorkspaceUsage({ workspaceStats }: WorkspaceUsageProps) {
+export default function WorkspaceUsage({ workspaceStats, isBillingEnabled }: WorkspaceUsageProps) {
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
   const gbLimit = workspaceStats?.gbLimit ?? 1;
   const signalRunsUsed = workspaceStats?.signalRunsUsedThisMonth ?? 0;
@@ -128,15 +129,17 @@ export default function WorkspaceUsage({ workspaceStats }: WorkspaceUsageProps) 
         </div>
       </SettingsSection>
 
-      <SettingsSection>
-        <div className="flex items-center gap-2 text-sm text-secondary-foreground">
-          <span>Need to upgrade or manage your subscription?</span>
-          <Link href="?tab=billing" className="text-primary hover:underline inline-flex items-center gap-1">
-            Go to Billing
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-      </SettingsSection>
+      {isBillingEnabled && (
+        <SettingsSection>
+          <div className="flex items-center gap-2 text-sm text-secondary-foreground">
+            <span>Need to upgrade or manage your subscription?</span>
+            <Link href="?tab=billing" className="text-primary hover:underline inline-flex items-center gap-1">
+              Go to Billing
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </SettingsSection>
+      )}
     </>
   );
 }
