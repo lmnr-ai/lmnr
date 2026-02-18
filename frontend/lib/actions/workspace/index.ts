@@ -12,6 +12,7 @@ import {
   PROJECT_MEMBER_CACHE_KEY,
   WORKSPACE_BYTES_USAGE_CACHE_KEY,
   WORKSPACE_MEMBER_CACHE_KEY,
+  WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY,
 } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
@@ -184,104 +185,105 @@ export const getWorkspaceInfo = async (workspaceId: string): Promise<Workspace> 
 };
 
 export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {
-  const resetTime = await db.query.workspaces.findFirst({
+  const workspace = await db.query.workspaces.findFirst({
     where: eq(workspaces.id, workspaceId),
-    columns: {
-      resetTime: true,
-    },
+    columns: { resetTime: true },
   });
 
-  if (!resetTime) {
+  if (!workspace) {
     throw new Error("Workspace not found");
   }
 
-  const resetTimeDate = new Date(resetTime.resetTime);
+  const resetTimeDate = new Date(workspace.resetTime);
   const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
+  const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
 
-  const cacheKey = `${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`;
+  // --- Bytes: cache → ClickHouse fallback ---
+  let totalBytesIngested = 0;
+  const bytesCacheKey = `${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`;
   try {
-    const cachedUsage = await cache.get<number>(cacheKey);
-    if (cachedUsage !== null) {
-      return {
-        totalBytesIngested: Number(cachedUsage),
-        resetTime: latestResetTime,
-      };
+    const cached = await cache.get<number>(bytesCacheKey);
+    if (cached !== null) {
+      totalBytesIngested = Number(cached);
     }
   } catch (error) {
-    // If cache fails, continue to ClickHouse query
-    console.error("Error reading from cache:", error);
+    console.error("Error reading bytes usage from cache:", error);
   }
 
-  // Cache miss - query ClickHouse for the actual breakdown
-  const projectIds = await db.query.projects.findMany({
+  // --- Signal runs: cache → ClickHouse fallback ---
+  let totalSignalRuns = 0;
+  const signalRunsCacheKey = `${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`;
+  try {
+    const cached = await cache.get<number>(signalRunsCacheKey);
+    if (cached !== null) {
+      totalSignalRuns = Number(cached);
+    }
+  } catch (error) {
+    console.error("Error reading signal runs usage from cache:", error);
+  }
+
+  // If both came from cache, return early
+  const bytesFromCache = totalBytesIngested !== 0;
+  const signalRunsFromCache = totalSignalRuns !== 0;
+  if (bytesFromCache && signalRunsFromCache) {
+    return { totalBytesIngested, totalSignalRuns, resetTime: latestResetTime };
+  }
+
+  // Need ClickHouse — fetch project IDs once
+  const projectRows = await db.query.projects.findMany({
     where: eq(projects.workspaceId, workspaceId),
-    columns: {
-      id: true,
-    },
+    columns: { id: true },
   });
 
-  if (projectIds.length === 0) {
-    return {
-      totalBytesIngested: 0,
-      resetTime: latestResetTime,
-    };
+  if (projectRows.length === 0) {
+    return { totalBytesIngested, totalSignalRuns, resetTime: latestResetTime };
   }
 
-  const query = `WITH spans_bytes_ingested AS (
-      SELECT
-        SUM(spans.size_bytes) as spans_bytes_ingested
+  const projectIds = projectRows.map((p) => p.id);
+
+  if (!bytesFromCache) {
+    const bytesQuery = `WITH spans_bytes_ingested AS (
+      SELECT SUM(spans.size_bytes) as spans_bytes_ingested
       FROM spans
       WHERE project_id IN { projectIds: Array(UUID) }
       AND spans.start_time >= { latestResetTime: DateTime(3, "UTC") }
     ),
     browser_session_events_bytes_ingested AS (
-      SELECT
-        SUM(browser_session_events.size_bytes) as browser_session_events_bytes_ingested
+      SELECT SUM(browser_session_events.size_bytes) as browser_session_events_bytes_ingested
       FROM browser_session_events
       WHERE project_id IN { projectIds: Array(UUID) }
       AND browser_session_events.timestamp >= { latestResetTime: DateTime(3, "UTC") }
-    ),
-    events_bytes_ingested AS (
-      SELECT
-        SUM(events.size_bytes) as events_bytes_ingested
-      FROM events
-      WHERE project_id IN { projectIds: Array(UUID) }
-      AND events.timestamp >= { latestResetTime: DateTime(3, "UTC") }
     )
     SELECT
-      spans_bytes_ingested,
-      browser_session_events_bytes_ingested,
-      events_bytes_ingested
-    FROM spans_bytes_ingested, browser_session_events_bytes_ingested, events_bytes_ingested`;
+      spans_bytes_ingested + browser_session_events_bytes_ingested as total_bytes_ingested
+    FROM spans_bytes_ingested, browser_session_events_bytes_ingested`;
 
-  const bytesIngested = await clickhouseClient.query({
-    query,
-    format: "JSONEachRow",
-    query_params: {
-      projectIds: projectIds.map((project) => project.id),
-      latestResetTime: latestResetTime.toISOString().replace(/Z$/, ""),
-    },
-  });
-
-  const result = await bytesIngested.json<{
-    spans_bytes_ingested: number;
-    browser_session_events_bytes_ingested: number;
-    events_bytes_ingested: number;
-  }>();
-
-  if (result.length === 0) {
-    throw new Error("Error getting workspace usage");
+    const bytesResult = await clickhouseClient.query({
+      query: bytesQuery,
+      format: "JSONEachRow",
+      query_params: { projectIds, latestResetTime: latestResetTimeStr },
+    });
+    const bytesRows = await bytesResult.json<{ total_bytes_ingested: number }>();
+    totalBytesIngested = bytesRows.length > 0 ? Number(bytesRows[0].total_bytes_ingested) : 0;
   }
 
-  const totalBytesIngested =
-    Number(result[0].spans_bytes_ingested) +
-    Number(result[0].browser_session_events_bytes_ingested) +
-    Number(result[0].events_bytes_ingested);
+  if (!signalRunsFromCache) {
+    const signalRunsQuery = `SELECT COUNT(*) as total_signal_runs
+    FROM signal_runs
+    WHERE project_id IN { projectIds: Array(UUID) }
+    AND signal_runs.updated_at >= { latestResetTime: DateTime(3, "UTC") }
+    AND signal_runs.status = 1`;
 
-  return {
-    totalBytesIngested,
-    resetTime: latestResetTime,
-  };
+    const signalRunsResult = await clickhouseClient.query({
+      query: signalRunsQuery,
+      format: "JSONEachRow",
+      query_params: { projectIds, latestResetTime: latestResetTimeStr },
+    });
+    const signalRunsRows = await signalRunsResult.json<{ total_signal_runs: number }>();
+    totalSignalRuns = signalRunsRows.length > 0 ? Number(signalRunsRows[0].total_signal_runs) : 0;
+  }
+
+  return { totalBytesIngested, totalSignalRuns, resetTime: latestResetTime };
 };
 
 export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {

@@ -17,7 +17,6 @@ pub mod signals;
 pub mod slack_channel_to_events;
 pub mod slack_integrations;
 pub mod spans;
-pub mod stats;
 pub mod trace;
 pub mod utils;
 pub mod workspaces;

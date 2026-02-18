@@ -15,6 +15,7 @@ use std::{
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     ch::{
         signal_events::{CHSignalEvent, insert_signal_events},
         signal_run_messages::{
@@ -23,9 +24,10 @@ use crate::{
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
+    features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     signals::{gemini::FinishReason, prompts::MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE},
-    utils::get_unsigned_env_with_default,
+    utils::{get_unsigned_env_with_default, limits::update_workspace_signal_runs_used},
     worker::{HandlerError, MessageHandler},
 };
 
@@ -90,6 +92,7 @@ enum StepResult {
 
 pub struct SignalJobPendingBatchHandler {
     pub db: Arc<DB>,
+    pub cache: Arc<Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
     pub gemini: Arc<GeminiClient>,
@@ -103,9 +106,11 @@ impl SignalJobPendingBatchHandler {
         clickhouse: clickhouse::Client,
         gemini: Arc<GeminiClient>,
         config: Arc<SignalWorkerConfig>,
+        cache: Arc<Cache>,
     ) -> Self {
         Self {
             db,
+            cache,
             queue,
             clickhouse,
             gemini,
@@ -126,6 +131,7 @@ impl MessageHandler for SignalJobPendingBatchHandler {
             self.queue.clone(),
             self.gemini.clone(),
             self.config.clone(),
+            self.cache.clone(),
         )
         .await
     }
@@ -138,6 +144,7 @@ async fn process(
     queue: Arc<MessageQueue>,
     gemini: Arc<GeminiClient>,
     config: Arc<SignalWorkerConfig>,
+    cache: Arc<Cache>,
 ) -> Result<(), HandlerError> {
     log::debug!(
         "[SIGNAL JOB] Processing batch. batch_id: {}, messages: {}",
@@ -192,8 +199,16 @@ async fn process(
             process_pending_batch(&message, queue, config.clone()).await?;
         }
         JobState::BATCH_STATE_SUCCEEDED => {
-            process_succeeded_batch(&message, result.response, db, queue, clickhouse, config)
-                .await?;
+            process_succeeded_batch(
+                &message,
+                result.response,
+                db,
+                queue,
+                clickhouse,
+                config,
+                cache,
+            )
+            .await?;
         }
     };
 
@@ -469,6 +484,7 @@ async fn process_succeeded_batch(
     queue: Arc<MessageQueue>,
     clickhouse: clickhouse::Client,
     config: Arc<SignalWorkerConfig>,
+    cache: Arc<Cache>,
 ) -> Result<(), HandlerError> {
     let response = response.ok_or(HandlerError::permanent(anyhow::anyhow!(
         "Batch succeeded but response is missing for batch_id: {}",
@@ -626,6 +642,25 @@ async fn process_succeeded_batch(
         .map(|r| CHSignalRun::from(r))
         .collect();
     insert_signal_runs(clickhouse.clone(), &succeeded_runs_ch).await?;
+    if is_feature_enabled(Feature::UsageLimit) {
+        let mut runs_by_project_id: HashMap<Uuid, usize> = HashMap::new();
+        for run in &succeeded_runs {
+            *runs_by_project_id.entry(run.project_id).or_insert(0) += 1;
+        }
+        let update_futures = runs_by_project_id.into_iter().map(|(project_id, runs)| {
+            let db = db.clone();
+            let clickhouse = clickhouse.clone();
+            let cache = cache.clone();
+            async move {
+                if let Err(e) =
+                    update_workspace_signal_runs_used(db, clickhouse, cache, project_id, runs).await
+                {
+                    log::error!("Failed to update workspace signal runs used: {}", e);
+                }
+            }
+        });
+        futures_util::future::join_all(update_futures).await;
+    }
 
     // Push pending runs back to signals queue for next step processing
     // If enqueue fails, add them to failed_runs so they're handled consistently

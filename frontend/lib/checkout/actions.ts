@@ -4,14 +4,19 @@ import { eq, sql } from "drizzle-orm";
 import Stripe from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "../actions/project";
+import { getWorkspaceUsage } from "../actions/workspace";
 import { checkUserWorkspaceRole } from "../actions/workspace/utils";
-import { cache, WORKSPACE_LIMITS_CACHE_KEY } from "../cache";
 import { db } from "../db/drizzle";
 import { subscriptionTiers, workspaces } from "../db/migrations/schema";
 import { METER_EVENT_NAMES, type PaidTier, TIER_CONFIG } from "./constants";
 
+let stripeInstance: Stripe | null = null;
+
 function stripe() {
-  return new Stripe(process.env.STRIPE_SECRET_KEY!);
+  if (!stripeInstance) {
+    stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  }
+  return stripeInstance;
 }
 
 export interface SubscriptionDetails {
@@ -52,20 +57,8 @@ export async function getSubscriptionDetails(workspaceId: string): Promise<Subsc
   }
 
   const s = stripe();
-  const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId);
-
-  // Debug logging to investigate subscription status issue
-  console.log("[getSubscriptionDetails] Debug info:", {
-    subscriptionId: subscription.id,
-    status: subscription.status,
-    cancel_at_period_end: subscription.cancel_at_period_end,
-    current_period_end: subscription.current_period_end,
-    current_period_start: subscription.current_period_start,
-    items: subscription.items.data.map((item) => ({
-      id: item.id,
-      lookup_key: item.price.lookup_key,
-      product: item.price.product,
-    })),
+  const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId, {
+    expand: ["latest_invoice.lines"],
   });
 
   const tierName = workspace[0].tierName.toLowerCase().trim() as PaidTier;
@@ -73,12 +66,15 @@ export async function getSubscriptionDetails(workspaceId: string): Promise<Subsc
 
   const stripeCustomerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
+  const invoice = typeof subscription.latest_invoice === "string" ? null : subscription.latest_invoice;
+  const subscriptionLine = invoice?.lines.data.find((l) => l.parent?.type === "subscription_item_details");
+
   return {
     subscriptionId: subscription.id,
     status: subscription.status,
     currentTier,
-    currentPeriodStart: subscription.current_period_start,
-    currentPeriodEnd: subscription.current_period_end,
+    currentPeriodStart: subscriptionLine?.period.start ?? 0,
+    currentPeriodEnd: subscriptionLine?.period.end ?? 0,
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
     stripeCustomerId,
   };
@@ -100,15 +96,14 @@ export async function getUpcomingInvoice(workspaceId: string): Promise<UpcomingI
   const s = stripe();
 
   try {
-    const invoice = await s.invoices.retrieveUpcoming({
-      subscription: workspace[0].subscriptionId,
-    });
+    const preview = await s.invoices.createPreview({ subscription: workspace[0].subscriptionId });
+    const subscriptionLine = preview.lines.data.find((l) => l.parent?.type === "subscription_item_details");
 
     return {
-      amountDue: invoice.amount_due,
-      currency: invoice.currency,
-      periodEnd: invoice.period_end,
-      lines: invoice.lines.data.map((line) => ({
+      amountDue: preview.amount_due,
+      currency: preview.currency,
+      periodEnd: subscriptionLine?.period.end ?? preview.period_end,
+      lines: preview.lines.data.map((line) => ({
         description: line.description,
         amount: line.amount,
       })),
@@ -136,18 +131,24 @@ export async function cancelSubscription(
 
   const s = stripe();
 
-  const subscription = await s.subscriptions.update(workspace[0].subscriptionId, { cancel_at_period_end: true });
+  await s.subscriptions.update(workspace[0].subscriptionId, { cancel_at_period_end: true });
+  const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId, {
+    expand: ["latest_invoice.lines"],
+  });
+
+  const invoice = typeof subscription.latest_invoice === "string" ? null : subscription.latest_invoice;
+  const subscriptionLine = invoice?.lines.data.find((l) => l.parent?.type === "subscription_item_details");
+  const cancelAt = subscriptionLine?.period.end ?? Math.floor(Date.now() / 1000);
 
   let upcomingInvoice: UpcomingInvoiceInfo | null = null;
   try {
-    const invoice = await s.invoices.retrieveUpcoming({
-      subscription: subscription.id,
-    });
+    const preview = await s.invoices.createPreview({ subscription: workspace[0].subscriptionId });
+    const subscriptionLine = preview.lines.data.find((l) => l.parent?.type === "subscription_item_details");
     upcomingInvoice = {
-      amountDue: invoice.amount_due,
-      currency: invoice.currency,
-      periodEnd: invoice.period_end,
-      lines: invoice.lines.data.map((line) => ({
+      amountDue: preview.amount_due,
+      currency: preview.currency,
+      periodEnd: subscriptionLine?.period.end ?? preview.period_end,
+      lines: preview.lines.data.map((line) => ({
         description: line.description,
         amount: line.amount,
       })),
@@ -157,38 +158,9 @@ export async function cancelSubscription(
   }
 
   return {
-    cancelAt: subscription.current_period_end,
+    cancelAt,
     upcomingInvoice,
   };
-}
-
-async function getMeterEventSummary(
-  s: Stripe,
-  meterEventName: string,
-  customerId: string,
-  startTime: number,
-  endTime: number
-): Promise<number> {
-  // List meters to find the one matching the event name
-  const meters = await s.billing.meters.list({ limit: 100 });
-  const meter = meters.data.find((m) => m.event_name === meterEventName);
-
-  if (!meter) {
-    console.log(`Meter not found for event name: ${meterEventName}`);
-    return 0;
-  }
-
-  const summaries = await s.billing.meters.listEventSummaries(meter.id, {
-    customer: customerId,
-    start_time: startTime,
-    end_time: endTime,
-  });
-
-  if (summaries.data.length === 0) {
-    return 0;
-  }
-
-  return summaries.data[0].aggregated_value;
 }
 
 export async function switchTier(workspaceId: string, newTier: PaidTier): Promise<void> {
@@ -214,31 +186,26 @@ export async function switchTier(workspaceId: string, newTier: PaidTier): Promis
     throw new Error(`Already on the ${newTier} tier`);
   }
 
-  const currentTierConfig =
-    currentTierName === "hobby" || currentTierName === "pro" ? TIER_CONFIG[currentTierName as PaidTier] : null;
-
-  if (!currentTierConfig) {
-    throw new Error(`Cannot switch from ${currentTierName} tier. Use the checkout page to subscribe.`);
+  if (currentTierName === "free") {
+    throw new Error("Cannot switch from free tier. Use the checkout page to subscribe.");
   }
 
   const newTierConfig = TIER_CONFIG[newTier];
   const s = stripe();
 
-  // Step 1: Get the current subscription and its items
-  const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId, { expand: ["items.data.price"] });
+  // Step 1: Fetch real current usage from cache/ClickHouse
+  const usage = await getWorkspaceUsage(workspaceId);
+
+  // Step 2: Calculate overage against the NEW tier's included amounts
+  const newBytesOverage = Math.max(0, usage.totalBytesIngested - newTierConfig.includedBytes);
+  const newSignalRunsOverage = Math.max(0, usage.totalSignalRuns - newTierConfig.includedSignalRuns);
+
+  // Step 3: Get the current subscription and its items
+  const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId);
 
   const stripeCustomerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
-  // Step 2: Retrieve current meter values
-  const now = Math.floor(Date.now() / 1000);
-  const periodStart = subscription.current_period_start;
-
-  const [currentBytesOverage, currentSignalRunsOverage] = await Promise.all([
-    getMeterEventSummary(s, METER_EVENT_NAMES.overageBytes.eventName, stripeCustomerId, periodStart, now),
-    getMeterEventSummary(s, METER_EVENT_NAMES.overageSignalRuns.eventName, stripeCustomerId, periodStart, now),
-  ]);
-
-  // Step 3: Resolve new prices
+  // Step 4: Resolve new prices
   const newPrices = await s.prices.list({
     lookup_keys: [
       newTierConfig.lookupKey,
@@ -257,14 +224,12 @@ export async function switchTier(workspaceId: string, newTier: PaidTier): Promis
     throw new Error("Could not resolve new tier prices in Stripe");
   }
 
-  // Step 4: Build subscription update — remove old items, add new ones
+  // Step 5: Update subscription — remove old items, add new ones
   const itemsUpdate: Stripe.SubscriptionUpdateParams.Item[] = [
-    // Delete all existing items
     ...subscription.items.data.map((item) => ({
       id: item.id,
       deleted: true as const,
     })),
-    // Add new items
     { price: newFlatPrice.id, quantity: 1 },
     { price: newBytesOveragePrice.id },
     { price: newSignalRunsOveragePrice.id },
@@ -274,15 +239,6 @@ export async function switchTier(workspaceId: string, newTier: PaidTier): Promis
     items: itemsUpdate,
     proration_behavior: "none",
   });
-
-  // Step 5: Calculate new overage values
-  const includedBytesDiff = newTierConfig.includedBytes - currentTierConfig.includedBytes;
-  const includedSignalRunsDiff = newTierConfig.includedSignalRuns - currentTierConfig.includedSignalRuns;
-
-  // Upgrading (hobby -> pro): subtract the difference (more included = less overage)
-  // Downgrading (pro -> hobby): add the difference (less included = more overage)
-  const newBytesOverage = Math.max(0, currentBytesOverage - includedBytesDiff);
-  const newSignalRunsOverage = Math.max(0, currentSignalRunsOverage - includedSignalRunsDiff);
 
   // Step 6: Report new overage values to the meters
   const timestamp = Math.floor(Date.now() / 1000);
@@ -319,7 +275,6 @@ export async function switchTier(workspaceId: string, newTier: PaidTier): Promis
     .where(eq(workspaces.id, workspaceId));
 
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
-  await cache.remove(`${WORKSPACE_LIMITS_CACHE_KEY}:${workspaceId}`);
 }
 
 export async function getPaymentMethodPortalUrl(workspaceId: string, returnUrl: string): Promise<string> {

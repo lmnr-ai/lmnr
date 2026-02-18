@@ -1,7 +1,6 @@
 pub mod consumer;
 pub mod data_plane_consumer;
 pub mod grpc_service;
-pub mod limits;
 pub mod processor;
 pub mod producer;
 pub mod provider;
