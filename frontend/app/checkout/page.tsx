@@ -5,7 +5,8 @@ import { getServerSession } from "next-auth";
 import Stripe from "stripe";
 
 import { authOptions } from "@/lib/auth";
-import { getUserSubscriptionInfo, type PaidTier, TIER_CONFIG } from "@/lib/checkout/utils";
+import { type PaidTier, TIER_CONFIG } from "@/lib/checkout/constants";
+import { getUserSubscriptionInfo } from "@/lib/checkout/utils";
 import { db } from "@/lib/db/drizzle";
 import { users, userSubscriptionInfo } from "@/lib/db/migrations/schema";
 
@@ -70,6 +71,9 @@ export default async function CheckoutPage(props: {
       });
   }
 
+  const successUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&tab=billing`;
+  const cancelUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?tab=billing`;
+
   // Resolve the tier config from the lookup key to get the matching overage price keys
   const tierEntry = Object.entries(TIER_CONFIG).find(([, config]) => config.lookupKey === lookupKey);
   const tier = tierEntry ? (tierEntry[0] as PaidTier) : null;
@@ -98,10 +102,6 @@ export default async function CheckoutPage(props: {
     workspaceName: workspaceName!,
     type: "workspace",
   };
-
-  const successUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&tab=billing`;
-
-  const cancelUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?tab=billing`;
 
   const session = await s.checkout.sessions.create({
     customer: customerId,

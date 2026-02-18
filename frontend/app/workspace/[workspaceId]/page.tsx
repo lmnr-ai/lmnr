@@ -25,6 +25,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
   const user = session.user;
 
   const workspace = await getWorkspace({ workspaceId: params.workspaceId });
+  console.log("workspace", workspace);
 
   const userMembership = await db
     .select({ role: membersOfWorkspaces.memberRole })
