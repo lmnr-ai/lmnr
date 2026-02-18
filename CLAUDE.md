@@ -111,9 +111,3 @@ The frontend uses Husky with lint-staged. Before commits:
 - Prettier formats staged files
 - ESLint fixes issues
 - TypeScript type-check runs
-
-## Testing Before PR
-
-```bash
-docker compose -f docker-compose-local-build.yml up  # Builds from source and runs in production mode
-```
