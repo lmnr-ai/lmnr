@@ -20,7 +20,11 @@ interface Props {
   scrollProgress: MotionValue<number>;
 }
 
-const SignalsImage = ({ className, scrollProgress }: Props) => {
+const SignalsImage = ({ className, scrollProgress: scrollProgressProp }: Props) => {
+  const scrollProgress = useTransform(scrollProgressProp, (v) => {
+    const t = Math.max(0, Math.min(1, v));
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  });
   const marginLeft = useTransform(scrollProgress, [0, 1], ["0%", "100%"]);
   const x = useTransform(scrollProgress, [0, 1], ["0%", "-100%"]);
 
@@ -30,11 +34,12 @@ const SignalsImage = ({ className, scrollProgress }: Props) => {
   const threads2Progress = useTransform(scrollProgress, [0.55, 0.9], [0, 1]);
   const typingProgress = useTransform(scrollProgress, [0.12, 0.3], [0, 1]);
   const eventsScrollProgress = useTransform(scrollProgress, [0.3, 1], [0, 1]);
+  const clustersProgress = useTransform(scrollProgress, [0.7, 1], [0, 1]);
 
   return (
     <div
       className={cn(
-        "bg-landing-surface-700 md:h-[630px] h-[560px] overflow-hidden rounded-lg w-full relative border border-landing-surface-400 pr-[120px]",
+        "bg-landing-surface-700 md:h-[630px] h-[560px] overflow-hidden rounded-lg w-full relative border border-landing-surface-400 pr-[200px]",
         className
       )}
     >
@@ -45,10 +50,7 @@ const SignalsImage = ({ className, scrollProgress }: Props) => {
       <motion.div style={{ marginLeft, x }} className="flex items-start pt-5 pb-8 h-full shrink-0 w-max">
         {/* Column 1: Trace threads visualization */}
         <div className="flex flex-col h-full items-start justify-between shrink-0 w-[661px]">
-          <SectionTitle
-            lines={["Signals agent takes all your trace data,", "down to the individual span"]}
-            className="px-5"
-          />
+          <SectionTitle lines={["Analyze millions of traces", "down to the individual span"]} className="px-5" />
           <div className={cn("flex flex-col items-center justify-center rounded w-full", SECTION_HEIGHT)}>
             <AnimatedThreads0 progress={threads0Progress} />
           </div>
@@ -71,7 +73,7 @@ const SignalsImage = ({ className, scrollProgress }: Props) => {
 
         {/* Column 3: Events table */}
         <div className={cn("flex flex-col h-full items-start justify-between shrink-0", SECTION_WIDTH)}>
-          <SectionTitle lines={["Signals agent finds events", "matching your description"]} />
+          <SectionTitle lines={["Signals agent extracts events", "based on your definition"]} />
           <div className={cn("flex flex-col justify-center w-full", SECTION_HEIGHT)}>
             <EventsTable progress={eventsScrollProgress} />
           </div>
@@ -88,10 +90,10 @@ const SignalsImage = ({ className, scrollProgress }: Props) => {
 
         {/* Column 4: Clusters */}
         <div className={cn("flex flex-col h-full items-start justify-between shrink-0", SECTION_WIDTH)}>
-          <SectionTitle lines={["All events are clustered so you can", "extract insights quickly"]} />
+          <SectionTitle lines={["All events are clustered", "for high-level insights"]} />
 
           <div className={cn("flex flex-col justify-center w-full", SECTION_HEIGHT)}>
-            <ClustersPanel />
+            <ClustersPanel progress={clustersProgress} />
           </div>
         </div>
       </motion.div>

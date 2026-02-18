@@ -45,15 +45,22 @@ export const EVENTS_DATA = Array.from({ length: 30 }, (_, i) => ({
   description: DESCRIPTIONS[i % DESCRIPTIONS.length],
 }));
 
-export const CLUSTER_NAMES = ["Incorrect tool call", "Misinterpreted user request", "API call failed"];
+export const CLUSTER_DATA = [
+  {
+    name: "Incorrect tool call",
+    count: 751,
+    bars: [35, 50, 72, 25, 45, 15, 90, 30, 72, 15, 10, 25, 20, 35, 15, 30, 55, 15, 35, 50],
+  },
+  {
+    name: "Confused user",
+    count: 862,
+    bars: [45, 65, 28, 80, 20, 55, 38, 75, 18, 50, 32, 70, 24, 42, 60, 16, 55, 35, 72, 45],
+  },
+  {
+    name: "API call failed",
+    count: 105,
+    bars: [3, 5, 8, 2, 6, 4, 10, 3, 7, 1, 5, 3, 9, 2, 4, 6, 2, 8, 3, 5],
+  },
+];
 
-export function generateClusterRows(clusterIndex: number) {
-  return Array.from({ length: 7 }, (_, i) => {
-    const baseIndex = clusterIndex * 10 + i;
-    return {
-      timestamp: generateTimestamp(baseIndex % 20),
-      category: CATEGORIES[(baseIndex + clusterIndex) % CATEGORIES.length],
-      description: DESCRIPTIONS[baseIndex % DESCRIPTIONS.length],
-    };
-  });
-}
+export const CLUSTER_DATE_LABELS = ["Jan 12", "Jan 13", "Jan 14", "Jan 15"];
