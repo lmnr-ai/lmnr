@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Cloud, FolderClosed, type LucideIcon, Settings, Users } from "lucide-react";
+import { Activity, Cloud, CreditCard, FolderClosed, type LucideIcon, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
@@ -37,6 +37,11 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
     name: "Data Residency",
     value: "deployment",
     icon: Cloud,
+  },
+  {
+    name: "Billing",
+    value: "billing",
+    icon: CreditCard,
   },
   {
     name: "Settings",
