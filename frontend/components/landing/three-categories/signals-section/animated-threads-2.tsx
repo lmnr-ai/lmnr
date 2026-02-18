@@ -1,6 +1,7 @@
 "use client";
 
-import { motion, type MotionValue, useTransform } from "framer-motion";
+import { type MotionValue } from "framer-motion";
+import StaggeredPath from "./staggered-path";
 
 const PATHS = [
   "M0 102.732C79.024 102.732 159.824 66.4175 219.906 66.4175",
@@ -13,19 +14,6 @@ const PATHS = [
 
 // Hardcoded random-ish start offsets (up to +/-0.25 range)
 const OFFSETS = [0.16, -0.09, 0.24, -0.17, 0.05, -0.21];
-
-const StaggeredPath = ({
-  d,
-  offset,
-  progress,
-}: {
-  d: string;
-  offset: number;
-  progress: MotionValue<number>;
-}) => {
-  const pathLength = useTransform(progress, [Math.max(0, offset), 1], [0, 1]);
-  return <motion.path d={d} stroke="#D0754E" strokeOpacity={0.6} style={{ pathLength }} />;
-};
 
 /** Curved lines (between events & clusters) */
 const AnimatedThreads2 = ({ progress }: { progress: MotionValue<number> }) => (
