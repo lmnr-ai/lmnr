@@ -8,7 +8,7 @@ interface Props {
 const SectionTitle = ({ lines, className }: Props) => (
   <div className={cn("flex flex-col md:gap-1 gap-0.5 items-start w-full", className)}>
     <div className="flex items-center py-1 w-full">
-      <div className="md:text-base text-xs text-landing-text-100 font-sans whitespace-nowrap">
+      <div className="md:text-base text-xs text-landing-text-100 font-sans whitespace-nowrap leading-tight">
         {lines.map((line, i) => (
           <p key={i} className={i < lines.length - 1 ? "mb-0" : ""}>
             {line}
