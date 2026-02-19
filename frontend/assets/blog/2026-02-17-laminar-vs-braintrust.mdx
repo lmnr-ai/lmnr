@@ -8,20 +8,22 @@ author:
 tags: ["laminar", "braintrust", "comparison", "observability", "agents", "tracing", "evaluations", "datasets"]
 ---
 
+Just last week, someone asked us, “So how are you better than Braintrust?”
+
+We get that question a lot, so here is the direct answer.
 If you are evaluating AI observability platforms today, Braintrust is likely on your shortlist alongside Laminar. Both cover tracing, evaluations, and datasets. Both have polished UIs and serious engineering behind them. But for teams building **production-grade AI agents**, we believe Laminar is the stronger foundation — and we think the reasons matter.
 
 This is not a neutral comparison. It is honest and practical, and it is biased toward Laminar because we built it around agent reliability, real-time debugging, and deep data access. If you want a batteries-included eval platform with a built-in AI proxy, Braintrust may be a fit. If **observability and debugging are the center of your stack**, Laminar wins.
 
-There is also a structural difference that deserves attention up front: Laminar is **fully open source**. Braintrust is not. For many teams, that distinction alone shapes the decision. But even setting that aside, the platforms make fundamentally different bets about what matters most in the agent era.
+There is a structural difference that deserves attention up front: Laminar is **fully open source**. Braintrust is not. For many teams, that distinction alone shapes the decision.
 
-## Quick Take
+## Short Answer
 
-[#](#quick-take)
-
-Laminar and Braintrust overlap on feature checklists. The difference shows up in **what they optimize for**.
-
-- **Laminar** is optimized for **real-time agent observability**: fast ingestion, deep trace exploration, full-text search, SQL-native access, browser session replay, and debugging workflows that scale.
-- **Braintrust** is optimized for the **evaluation lifecycle**: prompt management, experiment comparison, CI/CD integration, and an AI proxy that centralizes model access.
+- **Trust and control:** Laminar is fully open source with free self-hosting. Braintrust is closed source, with self-hosting on Enterprise only and a hybrid control/data plane.
+- **Observability depth:** Laminar prioritizes real-time traces, full-text search, and browser session replay. Braintrust has strong tracing but is eval-first.
+- **Data access:** Laminar is SQL-native in product. Braintrust is SDK/API-first with in-platform querying.
+- **Evaluation workflow:** Braintrust centers evaluation with CI/CD integration and experiment comparison. Laminar treats evals as an extension of observability.
+- **Pricing model:** Laminar prices by data volume and keeps self-hosting free. Braintrust bundles more platform features and charges accordingly.
 
 If your agents are already in production — especially multi-step, tool-heavy agents — Laminar's bias aligns with your day-to-day reality.
 
@@ -35,9 +37,7 @@ If your agents are already in production — especially multi-step, tool-heavy a
 | Data access | SQL-native editor in product | SDK/API-centric access with in-platform querying |
 | Best fit | Production agents with complex traces | Eval-heavy teams iterating on prompt quality |
 
-## Open Source: Transparency and Control
-
-[#](#open-source-transparency-and-control)
+## Trust and Control: Open Source vs Closed Source
 
 This is the biggest structural difference between the two platforms and it shapes everything downstream.
 
@@ -47,9 +47,7 @@ Braintrust is **closed source**. The core platform, including the database engin
 
 For teams with **data residency requirements, security constraints, or a preference for vendor independence**, this distinction is not abstract. It determines whether you can audit the code that handles your production data, whether you can run the system behind your firewall without a commercial agreement, and whether you can fork and extend the platform if your needs diverge from the vendor's roadmap.
 
-## Observability Depth: Laminar Goes Further
-
-[#](#observability-depth-laminar-goes-further)
+## Observability Depth: Real-Time and Replay
 
 Braintrust does a solid job capturing traces, tool calls, latency, and cost. Its trace viewer lets you expand span trees and inspect inputs and outputs. It is a reliable tracing tool, especially when paired with its evaluation workflows.
 
@@ -67,8 +65,6 @@ Braintrust has invested heavily in Brainstore, its custom database for AI traces
 
 ## Data Access: SQL-Native and Built In
 
-[#](#data-access-sql-native-and-built-in)
-
 Laminar includes a **built-in SQL editor** that gives direct access to traces, spans, events, tags, and datasets. This changes the development loop:
 
 - You can answer "why did this fail?" with one query
@@ -81,8 +77,6 @@ Braintrust supports querying through its SDK and API, and its UI includes filter
 
 ## Signals: Ask New Questions of Old Traces
 
-[#](#signals-ask-new-questions-of-old-traces)
-
 Agents are messy. The failure pattern you care about today might not even exist in your dashboards. Laminar's **Signals** let you define a question once (prompt + schema), then run it across both new and historical traces.
 
 That means you can:
@@ -94,8 +88,6 @@ That means you can:
 Braintrust has its own approach here with **Loop**, an AI assistant that analyzes logs and surfaces insights through natural language queries. Loop is a strong product idea — you describe what you want and it generates scorers, datasets, and prompt suggestions. But Loop operates within Braintrust's closed platform. Signals operate on top of your trace data, which you own and can query however you want.
 
 ## UX: Trace-First vs Eval-First
-
-[#](#ux-trace-first-vs-eval-first)
 
 Braintrust's UX is polished, especially around evaluation workflows. The Playground lets PMs and engineers iterate on prompts side by side. Experiment comparison views make it easy to see what changed between runs. The CI/CD integration with GitHub Actions means eval results appear on every pull request. This is a genuine strength.
 
@@ -118,8 +110,6 @@ In practice, this means Laminar is the faster tool when you are trying to unders
 
 ## Evaluations and Datasets: Both Strong, Different Philosophy
 
-[#](#evaluations-and-datasets-both-strong-different-philosophy)
-
 Both platforms support evaluation workflows and datasets. The difference is philosophical.
 
 Braintrust treats evaluation as the **centerpiece** of the AI development workflow. The idea is that you define what good looks like, run experiments systematically, and gate releases on eval results. This is a sound approach and it has worked well for teams like Notion and Zapier. The Playground, experiment comparison, CI/CD integration, and Loop all reinforce this loop.
@@ -130,8 +120,6 @@ Neither approach is wrong. But if your primary pain is "my agent broke in produc
 
 ## Pricing Model: Simplicity vs Feature Bundling
 
-[#](#pricing-model-simplicity-vs-feature-bundling)
-
 Braintrust offers a generous free tier (1M spans, 10k scores, unlimited users) and a Pro plan at $249/month. Self-hosting is only available on the Enterprise plan with custom pricing. The Pro plan includes unlimited spans but charges per GB of processed data ($3/GB) and per 1k scores ($1.50/1k) above the base allotment.
 
 Laminar starts free (1GB data, 15-day retention) with a Hobby tier at $25/month (2GB, 30-day retention) and a Pro tier that scales with data size. **Self-hosting is free at every tier** — you can run the full platform without paying anything.
@@ -139,8 +127,6 @@ Laminar starts free (1GB data, 15-day retention) with a Hobby tier at $25/month 
 The pricing philosophies differ: Braintrust bundles more into the platform (AI proxy, CI/CD, Loop) and charges accordingly. Laminar prices by data ingested and gives you the entire open-source platform to run yourself. For teams that want to **own their infrastructure** and pay only for what they use, Laminar's model is more predictable and more transparent.
 
 ## Architecture: Designed for Speed
-
-[#](#architecture-designed-for-speed)
 
 Laminar's stack is tuned for high-throughput agent observability:
 
@@ -159,15 +145,11 @@ Both stacks are production-grade. The difference is that Laminar's architecture 
 
 ## The AI Proxy: Nice to Have, Not Essential
 
-[#](#the-ai-proxy-nice-to-have-not-essential)
-
 Braintrust includes an AI proxy — an OpenAI-compatible API that routes requests to multiple model providers with built-in caching and automatic trace logging. The proxy is open source (MIT) and can be used independently of the platform. It is a convenience layer that some teams find valuable.
 
 Laminar does not include an AI proxy, and that is intentional. We believe the observability layer should be **decoupled from the model routing layer**. If you want a proxy, tools like OpenRouter or LiteLLM are purpose-built for that job and integrate cleanly with Laminar's OTel-native tracing. Bundling a proxy into the observability platform creates coupling that most production teams eventually want to avoid.
 
 ## The Practical Choice
-
-[#](#the-practical-choice)
 
 Use **Braintrust** if:
 
@@ -185,3 +167,17 @@ Choose **Laminar** if:
 - You care about speed, debugging depth, and vendor independence
 
 That second list is the world we live in. It is why we built Laminar, and why we believe it is the better platform for serious production agent work.
+
+## Don't Just Take My Word for It
+
+If you want to see Laminar in action, start by tracing a single agent workflow. It takes minutes to set up, and the moment you open your first trace tree, the difference becomes obvious.
+
+```
+git clone https://github.com/lmnr-ai/lmnr
+cd lmnr
+docker compose up -d
+```
+
+Or just sign up at [laminar.sh](https://laminar.sh) and start tracing immediately.
+
+If you are evaluating observability platforms right now, we would love to help you compare against your exact use case. Reach out and we will show you what Laminar looks like on real production data.
