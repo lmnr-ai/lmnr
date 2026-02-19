@@ -6,8 +6,8 @@ import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/action
 import { type WorkspaceStats } from "@/lib/usage/types";
 import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
+import WorkspaceBilling from "./billing";
 import WorkspaceDeployment from "./deployment-settings/workspace-deployment.tsx";
-import WorkspaceBilling from "./workspace-billing";
 import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";

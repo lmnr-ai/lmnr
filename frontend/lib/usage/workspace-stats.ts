@@ -16,16 +16,9 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
 
   if (!isFeatureEnabled(Feature.BILLING)) {
     return {
-      tierName: "Unlimited",
       resetTime: usage.resetTime.toISOString(),
       gbUsedThisMonth,
-      gbLimit: Infinity,
-      gbOverLimit: 0,
-      gbOverLimitCost: 0,
       signalRunsUsedThisMonth,
-      signalRunsLimit: Infinity,
-      signalRunsOverLimit: 0,
-      signalRunsOverLimitCost: 0,
     };
   }
 

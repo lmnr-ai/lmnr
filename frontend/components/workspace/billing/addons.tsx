@@ -2,7 +2,7 @@
 
 import { Loader2, Plus, Server, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,26 @@ function formatPrice(dollars: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(dollars);
 }
 
+export async function buyAddon(workspaceId: string, lookupKey: string): Promise<void> {
+  const res = await fetch(`/api/workspaces/${workspaceId}/addons/${lookupKey}`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error ?? "Failed to add addon");
+  }
+}
+
+async function removeAddon(workspaceId: string, lookupKey: string): Promise<void> {
+  const res = await fetch(`/api/workspaces/${workspaceId}/addons/${lookupKey}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error ?? "Failed to remove addon");
+  }
+}
+
 export default function WorkspaceAddons({
   workspaceId,
   currentTierKey,
@@ -41,32 +61,29 @@ export default function WorkspaceAddons({
 }: WorkspaceAddonsProps) {
   const router = useRouter();
   const [dialog, setDialog] = useState<{ lookupKey: string; action: "add" | "remove" } | null>(null);
-  const [isPending, startTransition] = useTransition();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
 
   const eligibleAddons = Object.entries(ADDON_CONFIG).filter(([, cfg]) => cfg.eligibleTiers.includes(currentTierKey));
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!dialog) return;
     const { lookupKey, action } = dialog;
     setDialog(null);
     setPendingKey(lookupKey);
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/workspaces/${workspaceId}/addons/${lookupKey}`, {
-          method: action === "add" ? "POST" : "DELETE",
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error ?? `Failed to ${action} addon`);
-        }
-        router.refresh();
-      } catch (e: any) {
-        onError(e.message ?? `Failed to ${action} addon`);
-      } finally {
-        setPendingKey(null);
+    try {
+      if (action === "add") {
+        await buyAddon(workspaceId, lookupKey);
+      } else {
+        await removeAddon(workspaceId, lookupKey);
       }
-    });
+      router.refresh();
+    } catch (e) {
+      if (e instanceof Error) {
+        onError(e.message ?? `Failed to ${action} addon`);
+      }
+    } finally {
+      setPendingKey(null);
+    }
   };
 
   const pendingCfg = dialog ? ADDON_CONFIG[dialog.lookupKey] : null;
@@ -88,7 +105,7 @@ export default function WorkspaceAddons({
             const isActive = activeAddonSlugs.includes(cfg.slug);
             const price = cfg.costs[currentTierKey];
             const priceFormatted = price !== undefined ? formatPrice(price) : null;
-            const isThisPending = isPending && pendingKey === lookupKey;
+            const isThisPending = pendingKey === lookupKey;
 
             return (
               <Card key={lookupKey} className={cn(isActive && "ring-2 ring-primary border-primary")}>
@@ -123,7 +140,7 @@ export default function WorkspaceAddons({
                   </p>
                   {isOwner && (
                     <Button
-                      variant={isActive ? "outline" : "default"}
+                      variant="outline"
                       className="bg-secondary ml-auto"
                       disabled={isThisPending || !hasActiveSubscription}
                       onClick={() => setDialog({ lookupKey, action: isActive ? "remove" : "add" })}
@@ -169,8 +186,7 @@ export default function WorkspaceAddons({
                   to your subscription.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  This charge will appear on the payment method on file and will recur monthly until the addon is
-                  removed.
+                  This charge will appear on the payment method on file and will recur monthly.
                 </p>
               </>
             ) : (

@@ -1,0 +1,326 @@
+"use client";
+
+import { ExternalLink, Info, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+
+import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import WorkspaceAddons from "@/components/workspace/billing/addons";
+import CancelSubscriptionDialog from "@/components/workspace/billing/cancel-subscription-dialog";
+import SwitchTierDialog from "@/components/workspace/billing/switch-tier-dialog";
+import { formatCurrency, formatDate, type TierKey,TIERS } from "@/components/workspace/billing/utils";
+import {
+  LOOKUP_KEY_DISPLAY_NAMES,
+  type PaidTier,
+  type SubscriptionDetails,
+  TIER_CONFIG,
+  type UpcomingInvoiceInfo,
+} from "@/lib/actions/checkout/types";
+import { cn } from "@/lib/utils";
+import { type Workspace } from "@/lib/workspaces/types";
+
+interface WorkspaceBillingProps {
+  workspace: Workspace;
+  isOwner: boolean;
+  subscription: SubscriptionDetails | null;
+  upcomingInvoice: UpcomingInvoiceInfo | null;
+}
+
+function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInvoiceInfo }) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Upcoming invoice</CardTitle>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-xs px-2 py-0.5 rounded bg-secondary text-muted-foreground font-medium flex items-center gap-1 cursor-help">
+                <Info className="h-3 w-3" />
+                Estimated
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[200px] text-center">
+              <p>This is an estimate. The final amount may change based on your usage.</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+        <CardDescription className="text-xs">Due {formatDate(upcomingInvoice.periodStart)}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="border rounded-md divide-y text-sm">
+          {upcomingInvoice.lines.map((line, i) => {
+            const displayName = line.lookupKey ? (LOOKUP_KEY_DISPLAY_NAMES[line.lookupKey] ?? line.lookupKey) : "Other";
+            return (
+              <div
+                key={i}
+                className="flex justify-between items-center px-3 py-2 font-mono text-xs text-secondary-foreground"
+              >
+                <span className="truncate mr-2">{displayName}</span>
+                <span>{formatCurrency(line.amount, upcomingInvoice.currency)}</span>
+              </div>
+            );
+          })}
+          <div className="flex justify-between items-center px-3 py-2 font-semibold bg-secondary/30">
+            <span>Total</span>
+            <span className="font-mono">{formatCurrency(upcomingInvoice.amountDue, upcomingInvoice.currency)}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function WorkspaceBilling({ workspace, isOwner, subscription, upcomingInvoice }: WorkspaceBillingProps) {
+  const [isLoadingPortal, setIsLoadingPortal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const currentTierKey: TierKey = subscription ? (subscription.currentTier as TierKey) : "free";
+  const currentTierInfo = TIERS.find((t) => t.key === currentTierKey)?.info;
+  const isFree = !subscription || currentTierKey === "free";
+
+  const handleManagePaymentMethods = async () => {
+    setIsLoadingPortal(true);
+    try {
+      const returnUrl = window.location.href;
+      const res = await fetch(`/api/workspaces/${workspace.id}/subscription/payment-portal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnUrl }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to open payment methods");
+      }
+      const { url } = (await res.json()) as { url: string };
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e: any) {
+      setError(e.message ?? "Failed to open payment methods");
+    } finally {
+      setIsLoadingPortal(false);
+    }
+  };
+
+  const getActionForTier = (tierKey: TierKey): "current" | "upgrade" | "downgrade" | "contact" => {
+    if (tierKey === currentTierKey) return "current";
+    if (tierKey === "enterprise") return "contact";
+
+    const tierOrder = ["free", "hobby", "pro"];
+    const currentIndex = tierOrder.indexOf(currentTierKey);
+    const targetIndex = tierOrder.indexOf(tierKey);
+
+    if (currentIndex === -1 || targetIndex === -1) return "contact";
+    return targetIndex > currentIndex ? "upgrade" : "downgrade";
+  };
+
+  const renderTierAction = (tierKey: TierKey) => {
+    const action = getActionForTier(tierKey);
+
+    if (action === "current") {
+      return (
+        <Button variant="secondary" className="w-full h-8 text-xs" disabled>
+          Current
+        </Button>
+      );
+    }
+
+    if (tierKey === "free") return null;
+
+    if (tierKey === "enterprise") {
+      return (
+        <Link href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry" className="block">
+          <Button variant="outline" className="w-full h-8 text-xs">
+            Contact us
+          </Button>
+        </Link>
+      );
+    }
+
+    const label = action === "upgrade" ? "Upgrade" : "Downgrade";
+
+    if (subscription?.cancelAtPeriodEnd) {
+      return (
+        <Button variant="secondary" className="w-full h-8 text-xs" disabled>
+          {label}
+        </Button>
+      );
+    }
+
+    if (isFree) {
+      return (
+        <Link
+          href={`/checkout?lookupKey=${TIER_CONFIG[tierKey as PaidTier].lookupKey}&workspaceId=${workspace.id}&workspaceName=${encodeURIComponent(workspace.name)}`}
+          className="block"
+        >
+          <Button variant={tierKey === "pro" ? "default" : "outline"} className="w-full h-8 text-xs">
+            Upgrade
+          </Button>
+        </Link>
+      );
+    }
+
+    if (isOwner) {
+      const targetTierInfo = TIERS.find((t) => t.key === tierKey)?.info;
+      return (
+        <SwitchTierDialog
+          workspaceId={workspace.id}
+          targetTier={tierKey as PaidTier}
+          action={action as "upgrade" | "downgrade"}
+          currentTierName={currentTierInfo?.name ?? workspace.tierName}
+          targetTierName={targetTierInfo?.name ?? tierKey}
+          targetTierPrice={targetTierInfo?.price ?? ""}
+          targetTierPriceSubtext={targetTierInfo?.priceSubtext ?? ""}
+          onError={setError}
+        >
+          <Button variant={action === "upgrade" ? "default" : "outline"} className="w-full h-8 text-xs">
+            {label}
+          </Button>
+        </SwitchTierDialog>
+      );
+    }
+
+    return (
+      <Button variant="secondary" size="sm" className="w-full h-8 text-xs" disabled>
+        {label}
+      </Button>
+    );
+  };
+
+  return (
+    <>
+      <SettingsSectionHeader title="Billing" description="Manage your workspace plan and billing" />
+
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-md p-3 text-sm">
+          {error}
+        </div>
+      )}
+
+      {subscription && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-4xl">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Current plan</CardTitle>
+                <span
+                  className={cn(
+                    "text-xs px-2 py-0.5 rounded-md font-medium",
+                    subscription.cancelAtPeriodEnd ? "bg-yellow-500/10 text-yellow-500" : "bg-primary/10 text-primary"
+                  )}
+                >
+                  {subscription.cancelAtPeriodEnd ? "Cancels at period end" : subscription.status}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold">{currentTierInfo?.name ?? workspace.tierName}</span>
+                <span className="text-muted-foreground">
+                  {currentTierInfo?.price}
+                  {currentTierInfo?.priceSubtext && ` ${currentTierInfo.priceSubtext}`}
+                </span>
+              </div>
+              <div className="text-sm text-secondary-foreground">
+                {formatDate(subscription.currentPeriodStart)} – {formatDate(subscription.currentPeriodEnd)}
+              </div>
+              {subscription.cancelAtPeriodEnd && (
+                <p className="text-sm text-yellow-500">Access until {formatDate(subscription.currentPeriodEnd)}</p>
+              )}
+              {!subscription.cancelAtPeriodEnd && isOwner && (
+                <div className="pt-2 flex gap-2">
+                  <Button
+                    className="bg-secondary"
+                    variant="outline"
+                    onClick={handleManagePaymentMethods}
+                    disabled={isLoadingPortal}
+                  >
+                    {isLoadingPortal && <Loader2 className="animate-spin h-3.5 w-3.5 mr-1.5" />}
+                    Billing portal
+                    <ExternalLink className="h-3 w-3 ml-1.5" />
+                  </Button>
+                  <CancelSubscriptionDialog
+                    workspaceId={workspace.id}
+                    tierName={currentTierInfo?.name ?? workspace.tierName}
+                    periodEnd={formatDate(subscription.currentPeriodEnd)}
+                    onError={setError}
+                  >
+                    <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
+                      Cancel plan
+                    </Button>
+                  </CancelSubscriptionDialog>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {upcomingInvoice && <UpcomingInvoiceCard upcomingInvoice={upcomingInvoice} />}
+        </div>
+      )}
+
+      <SettingsSection>
+        <SettingsSectionHeader size="sm" title="Plans" description="Compare and switch between available plans" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          {TIERS.map(({ key, info }) => {
+            const isCurrent = getActionForTier(key) === "current";
+
+            return (
+              <div
+                key={key}
+                className={cn(
+                  "p-4 rounded-lg border flex flex-col justify-between min-h-[180px]",
+                  isCurrent && "ring-2 ring-primary border-primary bg-primary/5",
+                  key === "pro" && !isCurrent && "border-primary/50"
+                )}
+              >
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm">{info.name}</h3>
+                      {isCurrent && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-medium">
+                          Current
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-baseline gap-1 mt-1">
+                      <span className="text-xl font-bold">{info.price}</span>
+                      {info.priceSubtext && <span className="text-xs text-muted-foreground">{info.priceSubtext}</span>}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    {info.features.map((feature, index) => (
+                      <div key={index} className="text-sm text-secondary-foreground">
+                        {feature}
+                        <div className="ml-1">
+                          {info.subfeatures[index] && (
+                            <span className="text-xs text-muted-foreground"> then {info.subfeatures[index]}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-3">{renderTierAction(key)}</div>
+              </div>
+            );
+          })}
+        </div>
+      </SettingsSection>
+
+      {!subscription?.cancelAtPeriodEnd && (
+        <WorkspaceAddons
+          workspaceId={workspace.id}
+          currentTierKey={currentTierKey}
+          activeAddonSlugs={workspace.addons}
+          isOwner={isOwner}
+          hasActiveSubscription={!!subscription}
+          onError={setError}
+        />
+      )}
+    </>
+  );
+}

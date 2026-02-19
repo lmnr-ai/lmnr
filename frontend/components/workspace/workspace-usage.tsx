@@ -1,5 +1,6 @@
 "use client";
 
+import { capitalize } from "lodash";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { memo } from "react";
@@ -52,16 +53,17 @@ const TIER_USAGE_HINTS: Record<
   },
 };
 
-const UNLIMITED_USAGE_DESCRIPTION = "Unlimited data and signal runs.";
+const DEFAULT_USAGE_DESCRIPTION = "Your workspace data and signal run usage.";
 
-const getUsageDescription = (tierName: string): string => {
-  const tierKey = tierName.toLowerCase().trim();
-  const tierHintInfo = TIER_USAGE_HINTS[tierKey];
-  const tierHint = `${tierName} tier comes with ${tierHintInfo?.data ?? "unlimited"} data and ${tierHintInfo?.signalRuns ?? "unlimited"} signal runs per month.`;
+const getUsageDescription = (tierName?: string): string => {
+  if (!tierName) return DEFAULT_USAGE_DESCRIPTION;
+  const tierHintInfo = TIER_USAGE_HINTS[tierName.toLowerCase().trim()];
+  if (!tierHintInfo) return DEFAULT_USAGE_DESCRIPTION;
+  const tierHint = `${capitalize(tierName)} tier comes with ${tierHintInfo.data} data and ${tierHintInfo.signalRuns} signal runs per month.`;
   const tierHintOverages =
     "If you exceed these limits, " +
-    (tierHintInfo?.isOverageAllowed
-      ? `you will be charged $${tierHintInfo?.overageDataPrice ?? 2} per GB for additional data and $${tierHintInfo?.overageSignalPrice ?? 0.02} per signal run.`
+    (tierHintInfo.isOverageAllowed
+      ? `you will be charged $${tierHintInfo.overageDataPrice} per GB for additional data and $${tierHintInfo.overageSignalPrice} per signal run.`
       : "you won't be able to send any more data during current billing cycle.");
   return `${tierHint} ${tierHintOverages}`;
 };
@@ -76,7 +78,6 @@ export default function WorkspaceUsage({ workspaceStats, isBillingEnabled }: Wor
   const isUnlimited = !isFinite(gbLimit);
   const hasLimits = gbLimit > 0 && signalRunsLimit > 0;
 
-  console.log("workspace stats", workspaceStats);
   const formatter = new Intl.NumberFormat("en-US", {
     style: "percent",
     minimumFractionDigits: 0,
@@ -100,7 +101,7 @@ export default function WorkspaceUsage({ workspaceStats, isBillingEnabled }: Wor
     return new Intl.NumberFormat("en-US").format(num);
   };
 
-  const usageDescription = isUnlimited ? UNLIMITED_USAGE_DESCRIPTION : getUsageDescription(workspaceStats.tierName);
+  const usageDescription = getUsageDescription(workspaceStats.tierName);
 
   return (
     <>

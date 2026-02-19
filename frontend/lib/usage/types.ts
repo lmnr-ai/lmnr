@@ -1,16 +1,16 @@
 export type WorkspaceStats = {
-  tierName: string;
+  tierName?: string;
   resetTime: string;
   // GB usage fields
   gbUsedThisMonth: number;
-  gbLimit: number;
-  gbOverLimit: number;
-  gbOverLimitCost: number;
+  gbLimit?: number;
+  gbOverLimit?: number;
+  gbOverLimitCost?: number;
   // Signal runs usage fields
   signalRunsUsedThisMonth: number;
-  signalRunsLimit: number;
-  signalRunsOverLimit: number;
-  signalRunsOverLimitCost: number;
+  signalRunsLimit?: number;
+  signalRunsOverLimit?: number;
+  signalRunsOverLimitCost?: number;
 };
 
 export type StorageStats = {
