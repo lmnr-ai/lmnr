@@ -7,6 +7,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 
 import { getSuggestionAtIndex, getSuggestionsCount } from "@/components/common/advanced-search/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
+import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
@@ -144,7 +145,12 @@ const FilterSearchInput = ({
             if (suggestion.type === "field") {
               addTag(suggestion.filter.key);
             } else if (suggestion.type === "value") {
-              addCompleteTag(suggestion.field, Operator.Eq, suggestion.value, router, pathname, searchParams);
+              // Get the default operator for this field's dataType
+              const columnFilter = filters.find((f) => f.key === suggestion.field);
+              const defaultOperator = columnFilter
+                ? (dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq)
+                : Operator.Eq;
+              addCompleteTag(suggestion.field, defaultOperator, suggestion.value, router, pathname, searchParams);
             } else {
               setInputValue(suggestion.value);
               setIsOpen(false);

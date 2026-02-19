@@ -62,7 +62,7 @@ const EnumValueInput = ({ tagId, options, ref }: EnumValueInputProps) => {
   return (
     <FilterSelect
       ref={ref}
-      value={tag.value}
+      value={Array.isArray(tag.value) ? (tag.value[0] ?? "") : tag.value}
       options={selectOptions}
       onValueChange={handleChange}
       open={focusState.type === "value" && focusState.mode === "edit"}

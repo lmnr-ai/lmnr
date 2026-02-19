@@ -27,7 +27,7 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.EMAIL_AUTH) {
-    return process.env.ENVIRONMENT !== "PRODUCTION";
+    return process.env.ENVIRONMENT !== "PRODUCTION" || process.env.FORCE_EMAIL_AUTH === "true";
   }
 
   if (feature === Feature.LOCAL_DB) {

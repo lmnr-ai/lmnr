@@ -83,7 +83,7 @@ export const filters: ColumnFilter[] = [
   {
     key: "tags",
     name: "Tags",
-    dataType: "string",
+    dataType: "array",
   },
   {
     key: "model",

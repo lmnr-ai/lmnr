@@ -14,7 +14,7 @@
     "format:check": "prettier --check \"{app,lib,components}/**/*.{ts,tsx,mdx}\" --cache",
     "test": "tsx --test tests/**/*.test.ts",
     "schema-pull:lint": "drizzle-kit pull && sed -i.bak \"s/\\.default(')/\\.default('')/g\" lib/db/migrations/schema.ts && sed -i.bak \"s/vector()/jsonb()/g\" lib/db/migrations/schema.ts && rm lib/db/migrations/schema.ts.bak && eslint . --fix",
-    "prepare": "husky"
+    "prepare": "cd .. && husky frontend/.husky"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

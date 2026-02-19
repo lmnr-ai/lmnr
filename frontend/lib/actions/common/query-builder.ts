@@ -1,3 +1,5 @@
+import { compact } from "lodash";
+
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 
@@ -170,14 +172,29 @@ const createNumberFilter =
     };
   };
 
-const createArrayFilter =
+const createArrayColumnFilter =
   (clickHouseType: string): ColumnFilterProcessor =>
   (filter, paramKey) => {
     const { column, value } = filter;
-    const values: (string | number)[] = Array.isArray(value) ? value : [value];
+
+    const values = compact(Array.isArray(value) ? value : [value]);
+
+    if (values.length === 0) {
+      return {
+        condition: null,
+        params: {},
+      };
+    }
+
+    if (values.length === 1) {
+      return {
+        condition: `has(${column}, {${paramKey}:${clickHouseType}})`,
+        params: { [paramKey]: values[0] },
+      };
+    }
 
     return {
-      condition: `${column} IN ({${paramKey}: Array(${clickHouseType})})`,
+      condition: `hasAny(${column}, {${paramKey}:Array(${clickHouseType})})`,
       params: { [paramKey]: values as string[] | number[] },
     };
   };
@@ -338,7 +355,7 @@ export {
   buildSelectQuery,
   buildTimeRangeWithFill,
   buildWhereClause,
-  createArrayFilter,
+  createArrayColumnFilter,
   createCustomFilter,
   createNumberFilter,
   createStringFilter,

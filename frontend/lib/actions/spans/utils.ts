@@ -3,10 +3,10 @@ import { isNil } from "lodash";
 import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
+  createArrayColumnFilter,
   createCustomFilter,
   createNumberFilter,
   createStringFilter,
@@ -40,19 +40,7 @@ const spansColumnFilterConfig: ColumnFilterConfig = {
         }
       ),
     ],
-    [
-      "tags",
-      createCustomFilter(
-        (filter, paramKey) => {
-          if (filter.operator === Operator.Eq) {
-            return `has(tags, {${paramKey}:String})`;
-          } else {
-            return `NOT has(tags, {${paramKey}:String})`;
-          }
-        },
-        (filter, paramKey) => ({ [paramKey]: filter.value })
-      ),
-    ],
+    ["tags", createArrayColumnFilter("String")],
     ["path", createStringFilter],
     ["model", createStringFilter],
     ["input_tokens", createNumberFilter("Float64")],
@@ -126,16 +114,16 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     condition: string;
     params: QueryParams;
   }> = [
-      ...additionalConditions,
-      ...(spanIds?.length > 0
-        ? [
+    ...additionalConditions,
+    ...(spanIds?.length > 0
+      ? [
           {
             condition: `span_id IN ({spanIds:Array(UUID)})`,
             params: { spanIds },
           },
         ]
-        : []),
-    ];
+      : []),
+  ];
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -159,11 +147,11 @@ export const buildSpansQueryWithParams = (options: BuildSpansQueryOptions): Quer
     ],
     ...(!isNil(limit) &&
       !isNil(offset) && {
-      pagination: {
-        limit,
-        offset,
-      },
-    }),
+        pagination: {
+          limit,
+          offset,
+        },
+      }),
   };
 
   return buildSelectQuery(queryOptions);
@@ -178,16 +166,16 @@ export const buildSpansCountQueryWithParams = (
     condition: string;
     params: QueryParams;
   }> = [
-      ...additionalConditions,
-      ...(spanIds?.length > 0
-        ? [
+    ...additionalConditions,
+    ...(spanIds?.length > 0
+      ? [
           {
             condition: `span_id IN ({spanIds:Array(UUID)})`,
             params: { spanIds },
           },
         ]
-        : []),
-    ];
+      : []),
+  ];
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -260,7 +248,7 @@ export const transformSpanWithEvents = (
     attributes: string;
     events?: { timestamp: number; name: string; attributes: string }[];
   },
-  parentRewiring: Map<string, string | undefined>,
+  parentRewiring: Map<string, string | undefined>
 ): TraceViewSpan => {
   const parsedAttributes = tryParseJson(span.attributes) || {};
   const cacheReadInputTokens = parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0;

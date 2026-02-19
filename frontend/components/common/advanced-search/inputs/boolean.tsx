@@ -61,7 +61,7 @@ const BooleanValueInput = ({ tagId, focused, mode, ref }: BooleanValueInputProps
   return (
     <FilterSelect
       ref={selectRef}
-      value={tag.value}
+      value={Array.isArray(tag.value) ? (tag.value[0] ?? "") : tag.value}
       options={booleanOptions}
       onValueChange={handleChange}
       open={mode === "edit" && focused}

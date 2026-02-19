@@ -1,7 +1,7 @@
-import React from "react";
-
 import CreateSignalJob from "@/components/signal/create-signal-job";
 
-const CreateSignalJobPage = () => <CreateSignalJob />;
+export default async function CreateSignalJobPage(props: { searchParams: Promise<{ traceId?: string }> }) {
+  const { traceId } = await props.searchParams;
 
-export default CreateSignalJobPage;
+  return <CreateSignalJob traceId={traceId} />;
+}

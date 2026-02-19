@@ -1,0 +1,88 @@
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripHorizontal, Pencil, Trash2 } from "lucide-react";
+import React from "react";
+
+import { Switch } from "@/components/ui/switch.tsx";
+import { cn } from "@/lib/utils.ts";
+
+interface EvalColumnsMenuItemProps {
+  id: string;
+  label: string;
+  isVisible: boolean;
+  isLocked: boolean;
+  onToggleVisibility: (columnId: string) => void;
+  onDelete?: () => void;
+  onEdit?: () => void;
+}
+
+export const EvalColumnsMenuItem = ({
+  id,
+  label,
+  isVisible,
+  isLocked,
+  onToggleVisibility,
+  onDelete,
+  onEdit,
+}: EvalColumnsMenuItemProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    id,
+    disabled: isLocked,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  return (
+    <div
+      style={style}
+      className={cn(
+        "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground w-full",
+        isLocked && "hidden"
+      )}
+    >
+      <div
+        ref={setNodeRef}
+        {...(!isLocked && { ...attributes, ...listeners })}
+        className={cn("cursor-grab flex-shrink-0", isLocked && "cursor-not-allowed opacity-50")}
+      >
+        <GripHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+      </div>
+      <span className={cn("truncate max-w-[120px]", isLocked && "text-muted-foreground")} title={label}>
+        {label}
+      </span>
+
+      <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+        {onEdit && (
+          <button
+            className="text-muted-foreground hover:text-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            className="text-muted-foreground hover:text-destructive"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <Switch
+          className="h-fit"
+          checked={isVisible}
+          disabled={isLocked}
+          onCheckedChange={() => !isLocked && onToggleVisibility(id)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+    </div>
+  );
+};
