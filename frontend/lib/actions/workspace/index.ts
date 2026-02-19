@@ -199,7 +199,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
 
   // --- Bytes: cache → ClickHouse fallback ---
-  let totalBytesIngested = 0;
+  let totalBytesIngested = null;
   const bytesCacheKey = `${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`;
   try {
     const cached = await cache.get<number>(bytesCacheKey);
@@ -211,7 +211,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   }
 
   // --- Signal runs: cache → ClickHouse fallback ---
-  let totalSignalRuns = 0;
+  let totalSignalRuns = null;
   const signalRunsCacheKey = `${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`;
   try {
     const cached = await cache.get<number>(signalRunsCacheKey);
@@ -223,9 +223,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   }
 
   // If both came from cache, return early
-  const bytesFromCache = totalBytesIngested !== null;
-  const signalRunsFromCache = totalSignalRuns !== null;
-  if (bytesFromCache && signalRunsFromCache) {
+  if (totalBytesIngested !== null && totalSignalRuns !== null) {
     return { totalBytesIngested, totalSignalRuns, resetTime: latestResetTime };
   }
 
@@ -236,12 +234,16 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   });
 
   if (projectRows.length === 0) {
-    return { totalBytesIngested, totalSignalRuns, resetTime: latestResetTime };
+    return {
+      totalBytesIngested: totalBytesIngested ?? 0,
+      totalSignalRuns: totalSignalRuns ?? 0,
+      resetTime: latestResetTime,
+    };
   }
 
   const projectIds = projectRows.map((p) => p.id);
 
-  if (!bytesFromCache) {
+  if (totalBytesIngested === null) {
     const bytesQuery = `WITH spans_bytes_ingested AS (
       SELECT SUM(spans.size_bytes) as spans_bytes_ingested
       FROM spans
@@ -267,7 +269,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
     totalBytesIngested = bytesRows.length > 0 ? Number(bytesRows[0].total_bytes_ingested) : 0;
   }
 
-  if (!signalRunsFromCache) {
+  if (totalSignalRuns === null) {
     const signalRunsQuery = `SELECT COUNT(*) as total_signal_runs
     FROM signal_runs
     WHERE project_id IN { projectIds: Array(UUID) }
