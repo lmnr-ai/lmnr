@@ -43,7 +43,8 @@ export default function Pricing() {
             price="$0 / month"
             featureClassName="text-landing-text-200"
             subfeatureClassName="text-landing-text-400"
-            features={["1 GB data", "100 signal runs", "15 day retention", "1 project / 1 seat", "Community support"]}
+            features={["1 GB data", "100 signal runs", "15 day retention", "1 project", "1 seat", "Community support"]}
+            subfeatures={["no overage", "no overage", null, null, null, null]}
           />
           <Link href="/projects">
             <LandingButton variant="outline" className="w-full">
@@ -59,13 +60,14 @@ export default function Pricing() {
             featureClassName="text-landing-text-200"
             subfeatureClassName="text-landing-text-400"
             features={[
-              "3 GB data",
-              "1,000 signal runs",
+              "3 GB data included",
+              "1,000 signal runs included",
               "30 day retention",
-              "Unlimited projects / seats",
+              "Unlimited projects",
+              "Unlimited seats",
               "Email support",
             ]}
-            subfeatures={["$2 / GB", "$0.02 / run", null, null, null]}
+            subfeatures={["then $2 / GB", "then $0.02 / run", null, null, null, null]}
           />
           <Link href="/projects">
             <LandingButton variant="outline" className="w-full">
@@ -82,13 +84,14 @@ export default function Pricing() {
             featureClassName="text-landing-text-100"
             subfeatureClassName="text-landing-text-100"
             features={[
-              "10 GB data",
-              "10,000 signal runs",
+              "10 GB data included",
+              "10,000 signal runs included",
               "90 day retention",
-              "Unlimited projects / seats",
+              "Unlimited projects",
+              "Unlimited seats",
               "Slack support",
             ]}
-            subfeatures={["$1.50 / GB", "$0.015 / run", null, null, null]}
+            subfeatures={["then $1.50 / GB", "then $0.015 / run", null, null, null, null]}
           />
           <Link href="/projects" className="w-full z-20">
             <LandingButton
@@ -106,7 +109,7 @@ export default function Pricing() {
             price="Custom"
             featureClassName="text-landing-text-200"
             subfeatureClassName="text-landing-text-400"
-            features={["Custom limits", "On-premise", "Unlimited projects / seats", "Dedicated support"]}
+            features={["Custom limits", "On-premise", "Unlimited projects", "Unlimited seats", "Dedicated support"]}
           />
           <Link href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry">
             <LandingButton variant="outline" className="w-full">
