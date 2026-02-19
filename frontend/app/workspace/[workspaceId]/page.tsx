@@ -6,9 +6,9 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import WorkspaceSidebar from "@/components/workspace/sidebar";
 import WorkspaceComponent from "@/components/workspace/workspace";
 import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
+import { getSubscriptionDetails, getUpcomingInvoice } from "@/lib/actions/checkout";
 import { getWorkspace } from "@/lib/actions/workspace";
 import { authOptions } from "@/lib/auth";
-import { getSubscriptionDetails, getUpcomingInvoice } from "@/lib/checkout/actions";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
@@ -25,7 +25,6 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
   const user = session.user;
 
   const workspace = await getWorkspace({ workspaceId: params.workspaceId });
-  console.log("workspace", workspace);
 
   const userMembership = await db
     .select({ role: membersOfWorkspaces.memberRole })

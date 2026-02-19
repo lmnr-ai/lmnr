@@ -4,9 +4,9 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import Stripe from "stripe";
 
+import { type PaidTier, TIER_CONFIG } from "@/lib/actions/checkout/types";
+import { getUserSubscriptionInfo } from "@/lib/actions/checkout/webhook";
 import { authOptions } from "@/lib/auth";
-import { type PaidTier, TIER_CONFIG } from "@/lib/checkout/constants";
-import { getUserSubscriptionInfo } from "@/lib/checkout/utils";
 import { db } from "@/lib/db/drizzle";
 import { users, userSubscriptionInfo } from "@/lib/db/migrations/schema";
 

@@ -77,7 +77,7 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.ADDONS) {
-    return process.env.ENVIRONMENT === "PRODUCTION" && process.env.LAMINAR_CLOUD === "true";
+    return process.env.LAMINAR_CLOUD === "true";
   }
 
   if (feature === Feature.BILLING) {

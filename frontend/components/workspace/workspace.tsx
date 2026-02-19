@@ -2,7 +2,7 @@
 
 import Projects from "@/components/projects/projects.tsx";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
-import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/checkout/actions";
+import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/actions/checkout/types";
 import { type WorkspaceStats } from "@/lib/usage/types";
 import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 

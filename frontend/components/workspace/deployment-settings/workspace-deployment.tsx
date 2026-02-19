@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import HybridSetup from "@/components/workspace/deployment-settings/hybrid-setup.tsx";
+import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import {
@@ -39,6 +40,7 @@ interface WorkspaceDeploymentProps {
 
 const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
+  const { setMenu } = useWorkspaceMenuContext();
 
   const isPro = workspace.tierName === WorkspaceTier.PRO || workspace.tierName === WorkspaceTier.ENTERPRISE;
   const hasDataPlaneAddon = workspace.addons?.includes(DATA_PLANE_ADDON) ?? false;
@@ -211,8 +213,8 @@ const WorkspaceDeployment = ({ workspace }: WorkspaceDeploymentProps) => {
                     : "Your workspace is on the Pro plan, but the Data Plane addon is required to enable hybrid data residency."}
                 </p>
               </div>
-              <Link href={`/workspace/${workspaceId}?menu=usage`}>
-                <Button variant="outline" size="sm">
+              <Link passHref href={`/workspace/${workspaceId}?tab=billing`} onClick={() => setMenu("billing")}>
+                <Button className="bg-secondary" variant="outline">
                   {!isPro ? "View pricing" : "Go to billing settings"}
                 </Button>
               </Link>

@@ -11,13 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import WorkspaceAddons from "@/components/workspace/workspace-addons";
 import {
-  cancelSubscription,
-  getPaymentMethodPortalUrl,
+  LOOKUP_KEY_DISPLAY_NAMES,
+  type PaidTier,
   type SubscriptionDetails,
-  switchTier,
+  TIER_CONFIG,
   type UpcomingInvoiceInfo,
-} from "@/lib/checkout/actions";
-import { type PaidTier, TIER_CONFIG } from "@/lib/checkout/constants";
+} from "@/lib/actions/checkout/types";
 import { cn } from "@/lib/utils";
 import { type Workspace } from "@/lib/workspaces/types";
 
@@ -113,7 +112,15 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
     setSwitchingToTier(newTier);
     startSwitchTransition(async () => {
       try {
-        await switchTier(workspace.id, newTier);
+        const res = await fetch(`/api/workspaces/${workspace.id}/subscription/switch-tier`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tier: newTier }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error ?? "Failed to switch tier");
+        }
         router.refresh();
       } catch (e: any) {
         setError(e.message ?? "Failed to switch tier");
@@ -127,8 +134,17 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
     setIsLoadingPortal(true);
     try {
       const returnUrl = window.location.href;
-      const portalUrl = await getPaymentMethodPortalUrl(workspace.id, returnUrl);
-      window.open(portalUrl, "_blank", "noopener,noreferrer");
+      const res = await fetch(`/api/workspaces/${workspace.id}/subscription/payment-portal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnUrl }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Failed to open payment methods");
+      }
+      const { url } = (await res.json()) as { url: string };
+      window.open(url, "_blank", "noopener,noreferrer");
     } catch (e: any) {
       setError(e.message ?? "Failed to open payment methods");
     } finally {
@@ -140,7 +156,13 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
     setError(null);
     startCancelTransition(async () => {
       try {
-        await cancelSubscription(workspace.id);
+        const res = await fetch(`/api/workspaces/${workspace.id}/subscription/cancel`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error ?? "Failed to cancel subscription");
+        }
         router.refresh();
       } catch (e: any) {
         setError(e.message ?? "Failed to cancel subscription");
@@ -170,7 +192,6 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
         </div>
       )}
 
-      {/* Current Plan & Upcoming Invoice - only show for paid tiers */}
       {subscription && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-4xl">
           <Card>
@@ -180,9 +201,7 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
                 <span
                   className={cn(
                     "text-xs px-2 py-0.5 rounded-md font-medium",
-                    subscription.cancelAtPeriodEnd
-                      ? "bg-orange-500/10 text-orange-600"
-                      : "bg-green-500/10 text-green-600"
+                    subscription.cancelAtPeriodEnd ? "bg-yellow-500/10 text-yellow-500" : "bg-primary/10 text-primary"
                   )}
                 >
                   {subscription.cancelAtPeriodEnd ? "Cancels at period end" : subscription.status}
@@ -201,7 +220,7 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
                 {formatDate(subscription.currentPeriodStart)} – {formatDate(subscription.currentPeriodEnd)}
               </div>
               {subscription.cancelAtPeriodEnd && (
-                <p className="text-sm text-orange-600">Access until {formatDate(subscription.currentPeriodEnd)}</p>
+                <p className="text-sm text-yellow-500">Access until {formatDate(subscription.currentPeriodEnd)}</p>
               )}
               {!subscription.cancelAtPeriodEnd && isOwner && (
                 <div className="pt-2 flex gap-2">
@@ -246,17 +265,25 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <CardDescription className="text-xs">Due {formatDate(upcomingInvoice.periodEnd)}</CardDescription>
+                <CardDescription className="text-xs">Due {formatDate(upcomingInvoice.periodStart)}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="border rounded-md divide-y text-sm">
-                  {upcomingInvoice.lines.map((line, i) => (
-                    <div key={i} className="flex justify-between items-center px-3 py-2">
-                      <span className="text-secondary-foreground truncate mr-2">{line.description}</span>
-                      <span className="font-mono text-xs">{formatCurrency(line.amount, upcomingInvoice.currency)}</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between items-center px-3 py-2 font-medium bg-secondary/30">
+                  {upcomingInvoice.lines.map((line, i) => {
+                    const displayName = line.lookupKey
+                      ? (LOOKUP_KEY_DISPLAY_NAMES[line.lookupKey] ?? line.lookupKey)
+                      : "Other";
+                    return (
+                      <div
+                        key={i}
+                        className="flex justify-between items-center px-3 py-2 font-mono text-xs text-secondary-foreground"
+                      >
+                        <span className="truncate mr-2">{displayName}</span>
+                        <span>{formatCurrency(line.amount, upcomingInvoice.currency)}</span>
+                      </div>
+                    );
+                  })}
+                  <div className="flex justify-between items-center px-3 py-2 font-semibold bg-secondary/30">
                     <span>Total</span>
                     <span className="font-mono">
                       {formatCurrency(upcomingInvoice.amountDue, upcomingInvoice.currency)}
@@ -269,7 +296,6 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
         </div>
       )}
 
-      {/* Plans */}
       <SettingsSection>
         <SettingsSectionHeader size="sm" title="Plans" description="Compare and switch between available plans" />
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

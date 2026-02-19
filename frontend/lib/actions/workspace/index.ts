@@ -203,9 +203,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   const bytesCacheKey = `${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`;
   try {
     const cached = await cache.get<number>(bytesCacheKey);
-    if (cached !== null) {
-      totalBytesIngested = Number(cached);
-    }
+    totalBytesIngested = cached;
   } catch (error) {
     console.error("Error reading bytes usage from cache:", error);
   }
@@ -215,9 +213,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   const signalRunsCacheKey = `${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`;
   try {
     const cached = await cache.get<number>(signalRunsCacheKey);
-    if (cached !== null) {
-      totalSignalRuns = Number(cached);
-    }
+    totalSignalRuns = cached;
   } catch (error) {
     console.error("Error reading signal runs usage from cache:", error);
   }

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { addAddon, isAddonActive, removeAddon, resolveAndValidate } from "@/lib/checkout/actions";
+import { addAddon, isAddonActive, removeAddon, resolveAndValidate } from "@/lib/actions/checkout/addons";
 
 type Params = { params: Promise<{ workspaceId: string; addonKey: string }> };
 /**

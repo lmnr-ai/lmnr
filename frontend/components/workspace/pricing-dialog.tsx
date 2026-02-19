@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { TIER_CONFIG } from "@/lib/checkout/constants";
+import { TIER_CONFIG } from "@/lib/actions/checkout/types";
 
 import PricingCard from "../landing/pricing/pricing-card";
 

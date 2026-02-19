@@ -1,11 +1,12 @@
 import { and, eq, sql } from "drizzle-orm";
 import { type Stripe } from "stripe";
 
-import { deleteAllProjectsWorkspaceInfoFromCache } from "../actions/project";
-import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "../cache";
-import { db } from "../db/drizzle";
-import { users, userSubscriptionInfo, workspaceAddons, workspaces } from "../db/migrations/schema";
-import { DATAPLANE_ADDON_LOOKUP_KEY } from "./constants";
+import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
+import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache";
+import { db } from "@/lib/db/drizzle";
+import { users, userSubscriptionInfo, workspaceAddons, workspaces } from "@/lib/db/migrations/schema";
+
+import { DATAPLANE_ADDON_LOOKUP_KEY } from "./types";
 
 interface ManageWorkspaceSubscriptionEventArgs {
   stripeCustomerId: string;
@@ -34,7 +35,6 @@ export const manageWorkspaceSubscriptionEvent = async ({
   workspaceId,
   cancel,
 }: ManageWorkspaceSubscriptionEventArgs) => {
-  // Activate the stripe customer
   await db
     .update(userSubscriptionInfo)
     .set({
@@ -43,7 +43,6 @@ export const manageWorkspaceSubscriptionEvent = async ({
     })
     .where(eq(userSubscriptionInfo.stripeCustomerId, stripeCustomerId));
 
-  // Update the subscription
   await db
     .update(workspaces)
     .set({
@@ -146,7 +145,6 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
     }
   }
 
-  // Handle dataplane addon management
   const workspaceId = subscription.metadata?.workspaceId;
   if (workspaceId) {
     const hasDataplaneAddon = subscription.items.data.some(
@@ -155,7 +153,6 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
 
     if (!cancel && status === "active") {
       if (hasDataplaneAddon) {
-        // Add addon to workspace if not already present
         await db
           .insert(workspaceAddons)
           .values({
@@ -165,13 +162,11 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
           .onConflictDoNothing();
         console.log(`Data plane addon added to workspace ${workspaceId}`);
       } else {
-        // Remove addon from workspace if it exists
         await db
           .delete(workspaceAddons)
           .where(and(eq(workspaceAddons.workspaceId, workspaceId), eq(workspaceAddons.addonSlug, "data-plane")));
       }
     } else if (cancel) {
-      // Remove addon on cancellation
       await db
         .delete(workspaceAddons)
         .where(and(eq(workspaceAddons.workspaceId, workspaceId), eq(workspaceAddons.addonSlug, "data-plane")));
