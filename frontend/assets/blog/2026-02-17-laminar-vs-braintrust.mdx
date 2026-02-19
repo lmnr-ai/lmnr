@@ -29,13 +29,44 @@ If your agents are already in production — especially multi-step, tool-heavy a
 
 ![Laminar trace viewer](/blog/2026-02-13-laminar-trace-viewer.png)
 
-|  | Laminar | Braintrust |
-| --- | --- | --- |
-| Primary bias | Real-time agent observability | Evaluation lifecycle management |
-| Open source | Yes — fully open source, self-host freely | No — closed source, self-hosting on Enterprise only |
-| Trace depth | Tree/timeline explorer for complex agents | Structured trace viewer with span drill-down |
-| Data access | SQL-native editor in product | SDK/API-centric access with in-platform querying |
-| Best fit | Production agents with complex traces | Eval-heavy teams iterating on prompt quality |
+<div className="overflow-x-auto">
+  <table className="w-full text-left border-separate border-spacing-x-6 border-spacing-y-2">
+    <thead className="text-sm">
+      <tr>
+        <th className="px-2 py-1 font-medium whitespace-nowrap"></th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Laminar</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Braintrust</th>
+      </tr>
+    </thead>
+    <tbody className="font-light">
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Primary bias</td>
+        <td className="px-2 py-1">Real-time agent observability</td>
+        <td className="px-2 py-1">Evaluation lifecycle management</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Open source</td>
+        <td className="px-2 py-1">Yes — fully open source, self-host freely</td>
+        <td className="px-2 py-1">No — closed source, self-hosting on Enterprise only</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Trace depth</td>
+        <td className="px-2 py-1">Tree/timeline explorer for complex agents</td>
+        <td className="px-2 py-1">Structured trace viewer with span drill-down</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Data access</td>
+        <td className="px-2 py-1">SQL-native editor in product</td>
+        <td className="px-2 py-1">SDK/API-centric access with in-platform querying</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Best fit</td>
+        <td className="px-2 py-1">Production agents with complex traces</td>
+        <td className="px-2 py-1">Eval-heavy teams iterating on prompt quality</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
 
 ## Trust and Control: Open Source vs Closed Source
 
@@ -101,12 +132,39 @@ Laminar's UX is optimized for **trace navigation** and **debugging at scale**:
 
 In practice, this means Laminar is the faster tool when you are trying to understand what an agent actually did and why it failed. Braintrust is the faster tool when you are trying to compare two prompt variants across a golden dataset. Both matter — but for teams operating agents in production, the debugging path gets used far more often.
 
-| UX Area | Laminar | Braintrust |
-| --- | --- | --- |
-| Trace navigation | Tree/timeline/reader with fast traversal | Trace viewer with span drill-down |
-| Browser agents | Session replay synced with traces | No browser session replay |
-| Debug speed | Optimized for large, nested traces | Best when tied to eval iteration |
-| Experiment comparison | Evaluations with dataset support | Side-by-side experiment diffing with CI/CD gates |
+<div className="overflow-x-auto">
+  <table className="w-full text-left border-separate border-spacing-x-6 border-spacing-y-2">
+    <thead className="text-sm">
+      <tr>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">UX Area</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Laminar</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Braintrust</th>
+      </tr>
+    </thead>
+    <tbody className="font-light">
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Trace navigation</td>
+        <td className="px-2 py-1">Tree/timeline/reader with fast traversal</td>
+        <td className="px-2 py-1">Trace viewer with span drill-down</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Browser agents</td>
+        <td className="px-2 py-1">Session replay synced with traces</td>
+        <td className="px-2 py-1">No browser session replay</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Debug speed</td>
+        <td className="px-2 py-1">Optimized for large, nested traces</td>
+        <td className="px-2 py-1">Best when tied to eval iteration</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Experiment comparison</td>
+        <td className="px-2 py-1">Evaluations with dataset support</td>
+        <td className="px-2 py-1">Side-by-side experiment diffing with CI/CD gates</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
 
 ## Evaluations and Datasets: Both Strong, Different Philosophy
 
