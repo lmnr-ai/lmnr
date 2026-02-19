@@ -223,8 +223,8 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
   }
 
   // If both came from cache, return early
-  const bytesFromCache = totalBytesIngested !== 0;
-  const signalRunsFromCache = totalSignalRuns !== 0;
+  const bytesFromCache = totalBytesIngested !== null;
+  const signalRunsFromCache = totalSignalRuns !== null;
   if (bytesFromCache && signalRunsFromCache) {
     return { totalBytesIngested, totalSignalRuns, resetTime: latestResetTime };
   }

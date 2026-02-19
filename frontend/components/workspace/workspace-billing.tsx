@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ExternalLink, Info, Loader2 } from "lucide-react";
+import { ExternalLink, Info, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -9,6 +9,7 @@ import { SettingsSection, SettingsSectionHeader } from "@/components/settings/se
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import WorkspaceAddons from "@/components/workspace/workspace-addons";
 import {
   cancelSubscription,
   getPaymentMethodPortalUrl,
@@ -17,7 +18,6 @@ import {
   type UpcomingInvoiceInfo,
 } from "@/lib/checkout/actions";
 import { type PaidTier, TIER_CONFIG } from "@/lib/checkout/constants";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 import { type Workspace } from "@/lib/workspaces/types";
 
@@ -107,7 +107,6 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
   const currentTierKey: TierKey = subscription ? (subscription.currentTier as TierKey) : "free";
   const currentTierInfo = TIERS.find((t) => t.key === currentTierKey)?.info;
   const isFree = !subscription || currentTierKey === "free";
-  const hasDataplaneAddon = workspace.addons.includes("data-plane");
 
   const handleSwitchTier = (newTier: PaidTier) => {
     setError(null);
@@ -127,11 +126,12 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
   const handleManagePaymentMethods = async () => {
     setIsLoadingPortal(true);
     try {
-      const returnUrl = `${window.location.origin}/checkout/portal?workspaceId=${workspace.id}`;
+      const returnUrl = window.location.href;
       const portalUrl = await getPaymentMethodPortalUrl(workspace.id, returnUrl);
-      window.location.href = portalUrl;
+      window.open(portalUrl, "_blank", "noopener,noreferrer");
     } catch (e: any) {
       setError(e.message ?? "Failed to open payment methods");
+    } finally {
       setIsLoadingPortal(false);
     }
   };
@@ -364,35 +364,15 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
         </div>
       </SettingsSection>
 
-      {/* Add-ons Section - Pro tier only */}
-      {subscription?.currentTier === "pro" && isFeatureEnabled(Feature.ADDONS) && (
-        <SettingsSection>
-          <SettingsSectionHeader
-            size="sm"
-            title="Add-ons"
-            description="Enhance your workspace with additional features"
-          />
-          {!hasDataplaneAddon ? (
-            <div className="flex items-center justify-between border rounded-md p-4 max-w-md">
-              <div>
-                <p className="text-sm font-medium">Data Plane Addon</p>
-                <p className="text-xs text-muted-foreground">Deploy in your own infrastructure</p>
-              </div>
-              <Link
-                href={`/checkout?lookupKey=pro_monthly_2026_02_addon_dataplane&workspaceId=${workspace.id}&workspaceName=${encodeURIComponent(workspace.name)}`}
-              >
-                <Button variant="outline" size="sm">
-                  Add
-                </Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-sm text-secondary-foreground">
-              <Check className="h-4 w-4 text-green-500" />
-              <span>Data Plane Addon active</span>
-            </div>
-          )}
-        </SettingsSection>
+      {!subscription?.cancelAtPeriodEnd && (
+        <WorkspaceAddons
+          workspaceId={workspace.id}
+          currentTierKey={currentTierKey}
+          activeAddonSlugs={workspace.addons}
+          isOwner={isOwner}
+          hasActiveSubscription={!!subscription}
+          onError={setError}
+        />
       )}
     </>
   );

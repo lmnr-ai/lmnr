@@ -1,14 +1,14 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import Stripe from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "../actions/project";
 import { getWorkspaceUsage } from "../actions/workspace";
 import { checkUserWorkspaceRole } from "../actions/workspace/utils";
 import { db } from "../db/drizzle";
-import { subscriptionTiers, workspaces } from "../db/migrations/schema";
-import { METER_EVENT_NAMES, type PaidTier, TIER_CONFIG } from "./constants";
+import { subscriptionTiers, workspaceAddons, workspaces } from "../db/migrations/schema";
+import { ADDON_CONFIG, METER_EVENT_NAMES, type PaidTier, TIER_CONFIG } from "./constants";
 
 let stripeInstance: Stripe | null = null;
 
@@ -80,7 +80,7 @@ export async function getSubscriptionDetails(workspaceId: string): Promise<Subsc
   };
 }
 
-export async function getUpcomingInvoice(workspaceId: string): Promise<UpcomingInvoiceInfo | null> {
+export const getUpcomingInvoice = async (workspaceId: string): Promise<UpcomingInvoiceInfo | null> => {
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
   const workspace = await db
@@ -112,11 +112,23 @@ export async function getUpcomingInvoice(workspaceId: string): Promise<UpcomingI
     // No upcoming invoice (e.g., subscription already canceled)
     return null;
   }
-}
+};
 
-export async function cancelSubscription(
-  workspaceId: string
-): Promise<{ cancelAt: number; upcomingInvoice: UpcomingInvoiceInfo | null }> {
+type CancellationReason =
+  | "customer_service"
+  | "low_quality"
+  | "missing_features"
+  | "other"
+  | "switched_service"
+  | "too_complex"
+  | "too_expensive"
+  | "unused";
+
+export const cancelSubscription = async (
+  workspaceId: string,
+  cancellationReason: CancellationReason = "other",
+  cancellationComment: string = ""
+): Promise<{ cancelAt: number; upcomingInvoice: UpcomingInvoiceInfo | null }> => {
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
 
   const workspace = await db
@@ -131,7 +143,13 @@ export async function cancelSubscription(
 
   const s = stripe();
 
-  await s.subscriptions.update(workspace[0].subscriptionId, { cancel_at_period_end: true });
+  await s.subscriptions.update(workspace[0].subscriptionId, {
+    cancel_at_period_end: true,
+    cancellation_details: {
+      feedback: cancellationReason as Stripe.Subscription.CancellationDetails.Feedback,
+      comment: cancellationComment,
+    },
+  });
   const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId, {
     expand: ["latest_invoice.lines"],
   });
@@ -161,9 +179,9 @@ export async function cancelSubscription(
     cancelAt,
     upcomingInvoice,
   };
-}
+};
 
-export async function switchTier(workspaceId: string, newTier: PaidTier): Promise<void> {
+export const switchTier = async (workspaceId: string, newTier: PaidTier): Promise<void> => {
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
 
   const workspace = await db
@@ -237,7 +255,7 @@ export async function switchTier(workspaceId: string, newTier: PaidTier): Promis
 
   await s.subscriptions.update(workspace[0].subscriptionId, {
     items: itemsUpdate,
-    proration_behavior: "none",
+    proration_behavior: "create_prorations",
   });
 
   // Step 6: Report new overage values to the meters
@@ -275,9 +293,90 @@ export async function switchTier(workspaceId: string, newTier: PaidTier): Promis
     .where(eq(workspaces.id, workspaceId));
 
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
-}
+};
 
-export async function getPaymentMethodPortalUrl(workspaceId: string, returnUrl: string): Promise<string> {
+export const addAddon = async (workspaceId: string, addonLookupKey: string): Promise<void> => {
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
+
+  const workspace = await db
+    .select({ subscriptionId: workspaces.subscriptionId })
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+
+  if (!workspace[0]?.subscriptionId) {
+    throw new Error("No active subscription found. Subscribe to a paid plan first.");
+  }
+
+  const s = stripe();
+
+  // Check the addon isn't already on the subscription
+  const existingItems = await s.subscriptionItems.list({ subscription: workspace[0].subscriptionId });
+  const alreadyHasAddon = existingItems.data.some((item) => item.price.lookup_key === addonLookupKey);
+  if (alreadyHasAddon) {
+    throw new Error(`Addon "${addonLookupKey}" is already active on this subscription.`);
+  }
+
+  const addonPrices = await s.prices.list({ lookup_keys: [addonLookupKey] });
+  const addonPrice = addonPrices.data.find((p) => p.lookup_key === addonLookupKey);
+  if (!addonPrice) {
+    throw new Error(`Addon price "${addonLookupKey}" not found in Stripe.`);
+  }
+
+  // Add the addon item to the subscription, charging pro-rated immediately
+  await s.subscriptionItems.create({
+    subscription: workspace[0].subscriptionId,
+    price: addonPrice.id,
+    proration_behavior: "always_invoice",
+  });
+
+  // Eagerly update DB; webhook will also handle this
+  const addonSlug = ADDON_CONFIG[addonLookupKey]?.slug;
+  if (addonSlug) {
+    await db.insert(workspaceAddons).values({ workspaceId, addonSlug }).onConflictDoNothing();
+  }
+
+  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
+};
+
+export const removeAddon = async (workspaceId: string, addonLookupKey: string): Promise<void> => {
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
+
+  const workspace = await db
+    .select({ subscriptionId: workspaces.subscriptionId })
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+
+  if (!workspace[0]?.subscriptionId) {
+    throw new Error("No active subscription found.");
+  }
+
+  const s = stripe();
+
+  const existingItems = await s.subscriptionItems.list({ subscription: workspace[0].subscriptionId });
+  const addonItem = existingItems.data.find((item) => item.price.lookup_key === addonLookupKey);
+  if (!addonItem) {
+    throw new Error(`Addon "${addonLookupKey}" is not active on this subscription.`);
+  }
+
+  // Remove the addon item; credit any unused portion via a credit note (no immediate charge)
+  await s.subscriptionItems.del(addonItem.id, {
+    proration_behavior: "always_invoice",
+  });
+
+  // Eagerly remove from DB; webhook will also handle this
+  const addonSlug = ADDON_CONFIG[addonLookupKey]?.slug;
+  if (addonSlug) {
+    await db
+      .delete(workspaceAddons)
+      .where(and(eq(workspaceAddons.workspaceId, workspaceId), eq(workspaceAddons.addonSlug, addonSlug)));
+  }
+
+  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
+};
+
+export const getPaymentMethodPortalUrl = async (workspaceId: string, returnUrl: string): Promise<string> => {
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
   const details = await getSubscriptionDetails(workspaceId);
@@ -289,10 +388,44 @@ export async function getPaymentMethodPortalUrl(workspaceId: string, returnUrl: 
   const portalSession = await s.billingPortal.sessions.create({
     customer: details.stripeCustomerId,
     return_url: returnUrl,
-    flow_data: {
-      type: "payment_method_update",
-    },
   });
 
   return portalSession.url;
-}
+};
+
+export const resolveAndValidate = async (workspaceId: string, addonKey: string) => {
+  const addonConfig = ADDON_CONFIG[addonKey];
+  if (!addonConfig) {
+    return { error: `Unknown addon: "${addonKey}"`, status: 404 } as const;
+  }
+
+  const workspace = await db
+    .select({ tierName: subscriptionTiers.name })
+    .from(workspaces)
+    .innerJoin(subscriptionTiers, eq(subscriptionTiers.id, workspaces.tierId))
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+
+  if (!workspace[0]) {
+    return { error: "Workspace not found", status: 404 } as const;
+  }
+
+  const tierName = workspace[0].tierName.toLowerCase().trim();
+  if (!addonConfig.eligibleTiers.includes(tierName)) {
+    return {
+      error: `The "${addonConfig.name}" addon requires one of these tiers: ${addonConfig.eligibleTiers.join(", ")}. Current tier: ${workspace[0].tierName}.`,
+      status: 400,
+    } as const;
+  }
+
+  return { error: null, addonConfig } as const;
+};
+
+export const isAddonActive = async (workspaceId: string, slug: string): Promise<boolean> => {
+  const result = await db
+    .select({ id: workspaceAddons.id })
+    .from(workspaceAddons)
+    .where(and(eq(workspaceAddons.workspaceId, workspaceId), eq(workspaceAddons.addonSlug, slug)))
+    .limit(1);
+  return result.length > 0;
+};

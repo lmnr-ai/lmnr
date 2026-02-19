@@ -7,10 +7,6 @@ import { db } from "../db/drizzle";
 import { users, userSubscriptionInfo, workspaceAddons, workspaces } from "../db/migrations/schema";
 import { DATAPLANE_ADDON_LOOKUP_KEY } from "./constants";
 
-// Re-export from constants for backwards compatibility
-export type { ItemDescription, PaidTier } from "./constants";
-export { LOOKUP_KEY_TO_TIER_NAME, METER_EVENT_NAMES, TIER_CONFIG, tierFromLookupKey } from "./constants";
-
 interface ManageWorkspaceSubscriptionEventArgs {
   stripeCustomerId: string;
   productId: string;

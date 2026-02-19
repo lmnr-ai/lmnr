@@ -18,6 +18,29 @@ export const TIER_CONFIG = {
 export type PaidTier = keyof typeof TIER_CONFIG;
 export const DATAPLANE_ADDON_LOOKUP_KEY = "pro_monthly_2026_02_addon_dataplane";
 
+/**
+ * Defines every purchasable addon and which tiers are eligible to buy it.
+ * Tier names are lower-cased to match the DB convention.
+ */
+export const ADDON_CONFIG: Record<
+  string,
+  {
+    name: string;
+    slug: string;
+    costs: { [tierName: string]: number };
+    eligibleTiers: string[];
+  }
+> = {
+  [DATAPLANE_ADDON_LOOKUP_KEY]: {
+    name: "Data Plane",
+    slug: "data-plane",
+    costs: {
+      pro: 850,
+    },
+    eligibleTiers: ["pro"],
+  },
+};
+
 export const METER_EVENT_NAMES = {
   overageBytes: {
     eventName: "2026_02_overage_bytes",

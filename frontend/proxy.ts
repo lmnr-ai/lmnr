@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { type NextRequestWithAuth, withAuth } from "next-auth/middleware";
 
 import { isTracePublic } from "@/lib/actions/trace";
-import { isUserMemberOfProject, isUserMemberOfWorkspace } from "@/lib/authorization";
+import { getWorkspaceRole, isUserMemberOfProject, isUserMemberOfWorkspace } from "@/lib/authorization";
 
 export default withAuth(
   async function middleware(req: NextRequestWithAuth) {
@@ -37,13 +37,31 @@ export default withAuth(
       const workspaceId = workspaceIdMatch[1];
       if (workspaceId) {
         const userId = token.userId as string;
-        const hasAccess = await isUserMemberOfWorkspace(workspaceId, userId);
 
-        if (!hasAccess) {
-          return NextResponse.json(
-            { error: "You do not have access to this workspace", code: "FORBIDDEN" },
-            { status: 403 }
-          );
+        // Routes under /addons require owner or admin role
+        const isAddonRoute = /^\/api\/workspaces\/[^/]+\/addons/.test(req.nextUrl.pathname);
+        if (isAddonRoute) {
+          const role = await getWorkspaceRole(workspaceId, userId);
+          if (!role) {
+            return NextResponse.json(
+              { error: "You do not have access to this workspace", code: "FORBIDDEN" },
+              { status: 403 }
+            );
+          }
+          if (role !== "owner" && role !== "admin") {
+            return NextResponse.json(
+              { error: "Only workspace owners and admins can manage addons", code: "FORBIDDEN" },
+              { status: 403 }
+            );
+          }
+        } else {
+          const hasAccess = await isUserMemberOfWorkspace(workspaceId, userId);
+          if (!hasAccess) {
+            return NextResponse.json(
+              { error: "You do not have access to this workspace", code: "FORBIDDEN" },
+              { status: 403 }
+            );
+          }
         }
       }
     }

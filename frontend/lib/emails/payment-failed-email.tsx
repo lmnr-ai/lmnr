@@ -1,7 +1,7 @@
 import { Heading, Hr, Html, Link, Preview, Text } from "@react-email/components";
 import { Tailwind } from "@react-email/tailwind";
 
-import { type ItemDescription } from "../checkout/utils";
+import { type ItemDescription } from "@/lib/checkout/constants";
 
 const boldClassName = "w-full flex justify-start mb-1 mt-6";
 const textClassName = "w-full flex justify-start";

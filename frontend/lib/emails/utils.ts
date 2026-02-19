@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 
-import { type ItemDescription } from "../checkout/utils";
+import { type ItemDescription } from "@/lib/checkout/constants";
+
 import PaymentFailedEmail from "./payment-failed-email";
 import SubscriptionUpdatedEmail from "./subscription-updated-email";
 import WelcomeEmail from "./welcome-email";
