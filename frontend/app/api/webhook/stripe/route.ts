@@ -74,13 +74,13 @@ export async function POST(req: NextRequest): Promise<Response> {
         Object.values(TIER_CONFIG).flatMap((c) => [c.lookupKey, c.overageBytesLookupKey, c.overageSignalRunsLookupKey])
       );
       const hasRelevantLine = invoice.lines.data.some((line) => {
-        const priceObj = line.pricing?.price_details?.price;
+        const priceObj = (line as any).price ?? line.pricing?.price_details?.price;
         const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
         return lookupKey && knownLookupKeys.has(lookupKey);
       });
       if (!hasRelevantLine) break;
 
-      const workspaceId = invoice.parent.subscription_details?.metadata?.workspaceId;
+      const workspaceId = invoice.metadata?.workspaceId ?? invoice.parent.subscription_details?.metadata?.workspaceId;
       if (!workspaceId) {
         console.log("invoice.finalized: no workspaceId in subscription metadata");
         break;
