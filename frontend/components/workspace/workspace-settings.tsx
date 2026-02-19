@@ -205,19 +205,15 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
                   )}
                 />
               </div>
+              <DialogFooter>
+                <Button type="submit" disabled={!renameForm.formState.isValid || renameForm.formState.isSubmitting}>
+                  <Loader2
+                    className={cn("mr-2 h-4 w-4", renameForm.formState.isSubmitting ? "animate-spin" : "hidden")}
+                  />
+                  Rename
+                </Button>
+              </DialogFooter>
             </form>
-            <DialogFooter>
-              <Button
-                type="submit"
-                disabled={!renameForm.formState.isValid || renameForm.formState.isSubmitting}
-                handleEnter={true}
-              >
-                <Loader2
-                  className={cn("mr-2 h-4 w-4", renameForm.formState.isSubmitting ? "animate-spin" : "hidden")}
-                />
-                Rename
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       </SettingsSection>
