@@ -15,7 +15,6 @@ function getLookupKey(line: stripe.InvoiceLineItem): string | null {
   // even though the v20 types omit it.
   const legacyPrice = (line as unknown as Record<string, unknown>)["price"];
   if (typeof legacyPrice === "object" && legacyPrice && "lookup_key" in legacyPrice) {
-    console.log("legacyPrice", legacyPrice);
     return (legacyPrice as { lookup_key: string | null }).lookup_key;
   }
   return null;
