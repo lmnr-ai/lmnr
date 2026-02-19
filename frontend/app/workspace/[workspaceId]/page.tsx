@@ -7,12 +7,12 @@ import WorkspaceSidebar from "@/components/workspace/sidebar";
 import WorkspaceComponent from "@/components/workspace/workspace";
 import WorkspaceMenuProvider from "@/components/workspace/workspace-menu-provider.tsx";
 import { getSubscriptionDetails, getUpcomingInvoice } from "@/lib/actions/checkout";
+import { getWorkspaceStats } from "@/lib/actions/usage/workspace-stats";
 import { getWorkspace } from "@/lib/actions/workspace";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
-import { getWorkspaceStats } from "@/lib/usage/workspace-stats";
 
 export default async function WorkspacePage(props: { params: Promise<{ workspaceId: string }> }) {
   const params = await props.params;

@@ -182,62 +182,60 @@ const CreateSignalJobContent = () => {
     setConfirmDialogOpen(true);
   }, []);
 
-  const handleCreateSignalJob = useCallback(
-    async () => {
-      try {
-        setIsCreating(true);
-        const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
-        const selectedCount = selectionMode === "all" ? traceCount : (selectedTraceIds?.length ?? 0);
+  const handleCreateSignalJob = useCallback(async () => {
+    try {
+      setIsCreating(true);
+      const selectedTraceIds = selectionMode === "all" ? undefined : Object.keys(rowSelection);
+      const selectedCount = selectionMode === "all" ? traceCount : (selectedTraceIds?.length ?? 0);
 
-        const response = await fetch(`/api/projects/${projectId}/signals/${signal.id}/jobs`, {
-          method: "POST",
-          body: JSON.stringify({
-            // Zod expects filters to be stringified
-            filter: filters.filters.map((filter) => JSON.stringify(filter)),
-            search: filters.search || undefined,
-            pastHours: dateRange.pastHours,
-            startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            traceIds: selectedTraceIds,
-          }),
-        });
+      const response = await fetch(`/api/projects/${projectId}/signals/${signal.id}/jobs`, {
+        method: "POST",
+        body: JSON.stringify({
+          filter: filters.filters.map((filter) => JSON.stringify(filter)),
+          search: filters.search || undefined,
+          pastHours: dateRange.pastHours,
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          traceIds: selectedTraceIds,
+          tracesCount: selectedCount,
+        }),
+      });
 
-        if (!response.ok) {
-          throw new Error("Failed to create signal job");
-        }
-
-        setConfirmDialogOpen(false);
-        router.push(`/project/${projectId}/signals/${signal.id}?tab=jobs`);
-        toast({
-          title: "Signal job created",
-          description: `Job for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
-        });
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: error instanceof Error ? error.message : "Failed to create signal job. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsCreating(false);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error ?? "Failed to create signal job");
       }
-    },
-    [
-      selectionMode,
-      rowSelection,
-      traceCount,
-      projectId,
-      signal.id,
-      signal.name,
-      filters.filters,
-      filters.search,
-      dateRange.pastHours,
-      dateRange.startDate,
-      dateRange.endDate,
-      router,
-      toast,
-    ]
-  );
+
+      setConfirmDialogOpen(false);
+      router.push(`/project/${projectId}/signals/${signal.id}?tab=jobs`);
+      toast({
+        title: "Signal job created",
+        description: `Job for "${signal.name}" has been queued for ${selectedCount?.toLocaleString() ?? "selected"} traces.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create signal job. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  }, [
+    selectionMode,
+    rowSelection,
+    traceCount,
+    projectId,
+    signal.id,
+    signal.name,
+    filters.filters,
+    filters.search,
+    dateRange.pastHours,
+    dateRange.startDate,
+    dateRange.endDate,
+    router,
+    toast,
+  ]);
 
   const traceIdFromUrl = searchParams.get("traceId");
 

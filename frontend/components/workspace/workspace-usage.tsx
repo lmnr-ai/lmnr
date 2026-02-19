@@ -9,7 +9,7 @@ import { PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts"
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { ChartContainer } from "@/components/ui/chart";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
-import { type WorkspaceStats } from "@/lib/usage/types";
+import { type WorkspaceStats } from "@/lib/actions/usage/types";
 
 interface WorkspaceUsageProps {
   workspaceStats: WorkspaceStats;
