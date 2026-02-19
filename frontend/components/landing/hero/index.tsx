@@ -25,7 +25,7 @@ type TabType = "Tracing" | "Debugger" | "Signals" | "Evals" | "SQL";
 const tabConfig: Record<TabType, { images: string[] }> = {
   Tracing: { images: ["/assets/landing/tracing.png"] },
   Debugger: { images: ["/assets/landing/debugger.png"] },
-  Signals: { images: ["/assets/landing/signals-1.png", "/assets/landing/signals-2.png"] },
+  Signals: { images: ["/assets/landing/signals.png"] },
   Evals: { images: ["/assets/landing/evals-1.png", "/assets/landing/evals-2.png"] },
   SQL: { images: ["/assets/landing/sql.png"] },
 };
