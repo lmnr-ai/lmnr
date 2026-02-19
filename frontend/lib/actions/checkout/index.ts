@@ -243,9 +243,14 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     { price: newSignalRunsOveragePrice.id },
   ];
 
+  // "always_invoice" immediately creates and collects an invoice for:
+  // - prorated credit for unused time on the old tier
+  // - prorated charge for remaining time on the new tier
+  // rather than deferring these to the next billing cycle.
+  // Metered events are not pro-rated, so we re-report overage according to the new tier.
   await s.subscriptions.update(workspace[0].subscriptionId, {
     items: itemsUpdate,
-    proration_behavior: "create_prorations",
+    proration_behavior: "always_invoice",
   });
 
   const timestamp = Math.floor(Date.now() / 1000);

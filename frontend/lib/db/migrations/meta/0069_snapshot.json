@@ -2965,7 +2965,7 @@
         },
         "signal_runs": {
           "name": "signal_runs",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true,
           "default": 0

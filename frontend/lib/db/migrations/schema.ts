@@ -450,7 +450,7 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   extraBytePrice: doublePrecision("extra_byte_price")
     .default(sql`'0'`)
     .notNull(),
-  signalRuns: integer("signal_runs").default(0).notNull(),
+  signalRuns: bigint("signal_runs", { mode: "number" }).default(0).notNull(),
   extraSignalRunPrice: doublePrecision("extra_signal_run_price").default(0).notNull(),
 });
 
