@@ -1,10 +1,6 @@
-import { Heading, Hr, Html, Link, Preview, Text } from "@react-email/components";
-import { Tailwind } from "@react-email/tailwind";
+import { Html, Link, Preview, Text } from "@react-email/components";
 
 import { type ItemDescription } from "@/lib/actions/checkout/types";
-
-const boldClassName = "w-full flex justify-start mb-1 mt-6";
-const textClassName = "w-full flex justify-start";
 
 interface SubscriptionUpdatedEmailProps {
   itemDescriptions: ItemDescription[];
@@ -20,82 +16,76 @@ const renderPreviewString = (itemDescriptions: ItemDescription[]) => {
   return "Thanks for your payment!";
 };
 
-// TODO: Import font through tailwind configs
 export default function SubscriptionUpdatedEmail({ itemDescriptions, date, billedTo }: SubscriptionUpdatedEmailProps) {
   return (
     <Html lang="en">
       <Preview>{renderPreviewString(itemDescriptions)}</Preview>
-      <Tailwind>
-        <div className="flex flex-col items-center">
-          <div className="max-w-100 p-4">
-            <Heading style={h1}>Payment details</Heading>
-            <Text className="w-full flex justify-start" style={text}>
-              The payment has been received.
-            </Text>
-            <div style={{ ...text, ...boldText }} className={boldClassName}>
-              Products
-            </div>
-            {itemDescriptions.map(({ productDescription, quantity }, index) => (
-              <div className={textClassName} style={text} key={index}>
-                {/* quantity is already included in the long description */}
-                {productDescription}
-              </div>
-            ))}
-            <div style={{ ...text, ...boldText }} className={boldClassName}>
-              Date
-            </div>
-            <div className={textClassName} style={text}>
-              {date}
-            </div>
-            <div style={{ ...text, ...boldText }} className={boldClassName}>
-              Billed to
-            </div>
-            <div className={textClassName} style={text}>
-              {billedTo}
-            </div>
-            <div style={text} className="mt-6">
-              Read more about the tier limits at
-              <Link className="ml-1" href="https://www.lmnr.ai/pricing" target="_blank">
-                our pricing page.
-              </Link>
-            </div>
-            <div style={text} className="w-full flex justify-start mt-6">
-              Thank you for choosing Laminar.
-            </div>
-            <Hr />
-            <Text style={footer}>LMNR AI, INC. 2024</Text>
-          </div>
-        </div>
-      </Tailwind>
+      <div style={container}>
+        <Text style={heading}>Payment details</Text>
+        <Text style={text}>The payment has been received.</Text>
+        <Text style={label}>Products</Text>
+        {itemDescriptions.map(({ productDescription }, index) => (
+          <Text style={value} key={index}>
+            {productDescription}
+          </Text>
+        ))}
+        <Text style={label}>Date</Text>
+        <Text style={value}>{date}</Text>
+        <Text style={label}>Billed to</Text>
+        <Text style={value}>{billedTo}</Text>
+        <Text style={text}>
+          Read more about the tier limits at
+          <Link style={link} href="https://www.laminar.sh/pricing" target="_blank">
+            {" our pricing page"}
+          </Link>
+          .
+        </Text>
+        <Text style={text}>Thank you for choosing Laminar.</Text>
+        <Text style={footer}>LMNR AI, INC. 2026</Text>
+      </div>
     </Html>
   );
 }
 
-const h1 = {
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: "32px",
-  fontWeight: "bold",
-  margin: "20px 0",
-  padding: "0",
-};
-
 const text = {
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: "16px",
+  fontFamily: "'Inter', 'Roboto', 'Helvetica', sans-serif",
+  fontSize: "15px",
+  fontWeight: "400",
+  lineHeight: "22px",
 };
 
-const boldText = {
-  fontWeight: "bold",
+const container = {
+  margin: "0 auto",
+  padding: "20px",
+  maxWidth: "500px",
+};
+
+const heading = {
+  ...text,
+  fontSize: "24px",
+  fontWeight: "600",
+  marginBottom: "24px",
+};
+
+const link = {
+  color: "#2563eb",
+  textDecoration: "none",
+};
+
+const label = {
+  ...text,
+  fontWeight: "600",
+  marginBottom: "0px",
+};
+
+const value = {
+  ...text,
+  marginTop: "0px",
 };
 
 const footer = {
-  color: "#898989",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
+  ...text,
+  color: "#6b7280",
   fontSize: "12px",
-  lineHeight: "22px",
-  marginTop: "12px",
-  marginBottom: "24px",
+  marginTop: "24px",
 };
