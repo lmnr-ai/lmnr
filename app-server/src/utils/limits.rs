@@ -147,7 +147,13 @@ pub async fn update_workspace_bytes_ingested(
     match cache.get::<i64>(&cache_key).await {
         Ok(Some(_)) => {
             // Cache exists - atomically increment it
-            let _ = cache.increment(&cache_key, bytes as i64).await;
+            if let Err(e) = cache.increment(&cache_key, bytes as i64).await {
+                log::error!(
+                    "Failed to increment workspace bytes ingested cache for project [{}]: {:?}",
+                    project_id,
+                    e
+                );
+            };
         }
         Ok(None) | Err(_) => {
             // Cache miss - recompute from ClickHouse and populate the cache

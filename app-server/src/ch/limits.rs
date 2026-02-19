@@ -52,7 +52,7 @@ pub async fn get_workspace_bytes_ingested_by_project_ids(
       FROM browser_session_events
       WHERE project_id IN { project_ids: Array(UUID) }
       AND browser_session_events.timestamp >= { latest_reset_time: DateTime(6) }
-    ),
+    )
     SELECT
       spans_bytes_ingested + browser_session_events_bytes_ingested as total_bytes_ingested
     FROM spans_bytes_ingested, browser_session_events_bytes_ingested
