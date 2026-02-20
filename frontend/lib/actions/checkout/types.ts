@@ -57,6 +57,7 @@ export const METER_EVENT_NAMES = {
 
 export const LOOKUP_KEY_TO_TIER_NAME: Record<string, string> = {
   hobby_monthly_2026_02: "Laminar Hobby tier",
+  hobby_monthly_2026_02_legacy: "Laminar Hobby tier",
   pro_monthly_2026_02: "Laminar Pro tier",
   // Legacy lookup keys
   hobby_monthly_2025_04: "Laminar Hobby tier",
@@ -68,6 +69,7 @@ export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
   hobby_monthly_2026_02: "Hobby plan",
   pro_monthly_2026_02: "Pro plan",
   hobby_monthly_2025_04: "Hobby plan",
+  hobby_monthly_2026_02_legacy: "Hobby plan",
   pro_monthly_2025_04: "Pro plan",
   // Overage - bytes
   hobby_monthly_2026_02_overage_bytes: "Data overage",
