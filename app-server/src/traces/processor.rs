@@ -269,29 +269,29 @@ async fn check_and_push_signals(
         return;
     }
 
+    if is_feature_enabled(Feature::UsageLimit) {
+        let signal_runs_exceeded = get_workspace_signal_runs_limit_exceeded(
+            db.clone(),
+            clickhouse.clone(),
+            cache.clone(),
+            project_id,
+        )
+        .await;
+        if signal_runs_exceeded.is_ok_and(|exceeded| exceeded) {
+            log::debug!(
+                "Workspace signal runs limit exceeded for project [{}]. Skipping triggers.",
+                project_id,
+            );
+            return;
+        }
+    }
+
     for trigger in &triggers {
         let matching_traces = traces
             .iter()
             .filter(|trace| trace.matches_filters(spans, &trigger.filters));
 
         for trace in matching_traces {
-            if is_feature_enabled(Feature::UsageLimit) {
-                let signal_runs_exceeded = get_workspace_signal_runs_limit_exceeded(
-                    db.clone(),
-                    clickhouse.clone(),
-                    cache.clone(),
-                    project_id,
-                )
-                .await;
-                if signal_runs_exceeded.is_ok_and(|exceeded| exceeded) {
-                    log::debug!(
-                        "Workspace signal runs limit exceeded for project [{}]. Skipping trigger [{}].",
-                        project_id,
-                        trigger.id,
-                    );
-                    continue;
-                }
-            }
             // Filters matched - try to acquire lock to prevent duplicate triggers
             let lock_key = format!(
                 "{}:{}:{}:{}",
