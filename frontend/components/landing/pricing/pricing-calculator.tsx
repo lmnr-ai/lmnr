@@ -272,7 +272,7 @@ export default function PricingCalculator() {
   const signalRuns = SIGNAL_STEPS[signalIdx];
 
   const free = buildEstimate("Free", 0, 1, 100, 0, 0, dataGB, signalRuns, "15-day", "Community");
-  const hobby = buildEstimate("Hobby", 25, 3, 1_000, 2, 0.02, dataGB, signalRuns, "30-day", "Email");
+  const hobby = buildEstimate("Hobby", 30, 3, 1_000, 2, 0.02, dataGB, signalRuns, "30-day", "Email");
   const pro = buildEstimate("Pro", 150, 10, 10_000, 1.5, 0.015, dataGB, signalRuns, "90-day", "Slack");
 
   const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);

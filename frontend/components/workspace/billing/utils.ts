@@ -23,7 +23,7 @@ export const TIERS: { key: TierKey; info: TierInfo }[] = [
     key: "hobby",
     info: {
       name: "Hobby",
-      price: "$25",
+      price: "$30",
       priceSubtext: "/ mo",
       features: ["3 GB data", "1,000 signal runs", "30 day retention", "Unlimited projects / seats", "Email support"],
       subfeatures: ["$2 / GB", "$0.02 / run", null, null, null],

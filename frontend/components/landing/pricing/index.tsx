@@ -56,7 +56,7 @@ export default function Pricing() {
           <PricingCard
             className="text-landing-text-200"
             title="Hobby"
-            price="$25 / month"
+            price="$30 / month"
             featureClassName="text-landing-text-200"
             subfeatureClassName="text-landing-text-400"
             features={[
