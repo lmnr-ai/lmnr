@@ -112,7 +112,7 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
   const flatItems = subscription.items.data
     .filter((item) => item.price.recurring?.usage_type !== "metered")
     .filter((item) => item.price.lookup_key !== DATAPLANE_ADDON_LOOKUP_KEY)
-    .filter((item) => item.deleted !== undefined);
+    .filter((item) => item.deleted === undefined);
   const tierItems = flatItems.length > 0 ? flatItems : subscription.items.data;
 
   for (const subscriptionItem of tierItems) {
