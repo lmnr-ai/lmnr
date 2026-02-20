@@ -30,8 +30,6 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
   const parentRef = useRef<HTMLDivElement>(null);
 
   const processedResult = useMemo(() => {
-
-    console.log(messages)
     const openAIOutput = parseOpenAIOutput(messages);
     if (openAIOutput) {
       return { messages: openAIOutput, type: "openai" as const };
