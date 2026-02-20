@@ -1,9 +1,35 @@
 import { type NextRequest } from "next/server";
 import stripe from "stripe";
 
-import { type ItemDescription, LOOKUP_KEY_TO_TIER_NAME, TIER_CONFIG } from "@/lib/actions/checkout/types";
+import {
+  type ItemDescription,
+  LOOKUP_KEY_DISPLAY_NAMES,
+  LOOKUP_KEY_TO_TIER_NAME,
+  TIER_CONFIG,
+} from "@/lib/actions/checkout/types";
 import { handleInvoiceFinalized, handleSubscriptionChange } from "@/lib/actions/checkout/webhook";
 import { sendOnPaymentFailedEmail, sendOnPaymentReceivedEmail } from "@/lib/emails/utils";
+
+function getLookupKey(line: stripe.InvoiceLineItem): string | null {
+  // Stripe still sends the legacy `price` field as an expanded object in webhooks
+  // even though the v20 types omit it.
+  const legacyPrice = (line as unknown as Record<string, unknown>)["price"];
+  if (typeof legacyPrice === "object" && legacyPrice && "lookup_key" in legacyPrice) {
+    return (legacyPrice as { lookup_key: string | null }).lookup_key;
+  }
+  return null;
+}
+
+function buildItemDescriptions(lines: stripe.InvoiceLineItem[]): ItemDescription[] {
+  return lines
+    .filter((line) => line.amount > 0)
+    .map((line) => {
+      const lookupKey = getLookupKey(line);
+      const productDescription = (lookupKey && LOOKUP_KEY_DISPLAY_NAMES[lookupKey]) ?? line.description ?? "";
+      const shortDescription = lookupKey ? LOOKUP_KEY_TO_TIER_NAME[lookupKey] : undefined;
+      return { productDescription, quantity: line.quantity ?? undefined, shortDescription };
+    });
+}
 
 export async function POST(req: NextRequest): Promise<Response> {
   let event;
@@ -22,43 +48,23 @@ export async function POST(req: NextRequest): Promise<Response> {
   switch (event.type) {
     case "invoice.payment_succeeded": {
       const invoice = event.data.object;
-      const itemDescriptions = invoice.lines.data.map((line) => {
-        const productDescription = line.description ?? "";
-        const priceObj = line.pricing?.price_details?.price;
-        const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
-        const shortDescription = lookupKey ? LOOKUP_KEY_TO_TIER_NAME[lookupKey] : undefined;
-        return {
-          productDescription,
-          quantity: line.quantity,
-          shortDescription,
-        } as ItemDescription;
-      });
+      if (invoice.amount_paid <= 0) break;
+      const itemDescriptions = buildItemDescriptions(invoice.lines.data);
       const customerEmail = invoice.customer_email;
       const date = new Date(invoice.created * 1000).toLocaleDateString();
-      if (customerEmail) {
+      if (customerEmail && itemDescriptions.length > 0) {
         await sendOnPaymentReceivedEmail(customerEmail, itemDescriptions, date);
       }
       break;
     }
     case "invoice.payment_failed": {
       const invoice = event.data.object;
-      if (!invoice.attempted) {
-        break;
-      }
-      const itemDescriptions = invoice.lines.data.map((line) => {
-        const productDescription = line.description ?? "";
-        const priceObj = line.pricing?.price_details?.price;
-        const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
-        const shortDescription = lookupKey ? LOOKUP_KEY_TO_TIER_NAME[lookupKey] : undefined;
-        return {
-          productDescription,
-          quantity: line.quantity,
-          shortDescription,
-        } as ItemDescription;
-      });
+      if (!invoice.attempted) break;
+      if (invoice.amount_due <= 0) break;
+      const itemDescriptions = buildItemDescriptions(invoice.lines.data);
       const customerEmail = invoice.customer_email;
       const date = new Date(invoice.created * 1000).toLocaleDateString();
-      if (customerEmail) {
+      if (customerEmail && itemDescriptions.length > 0) {
         await sendOnPaymentFailedEmail(customerEmail, itemDescriptions, date);
       }
       break;
