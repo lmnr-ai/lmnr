@@ -48,21 +48,20 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
 
   // Check if billing feature is enabled (Laminar Cloud only)
   const isBillingEnabled = isFeatureEnabled(Feature.BILLING);
-  const canViewBilling = isBillingEnabled && ["owner", "admin"].includes(currentUserRole);
+  const canManageBilling = isBillingEnabled && ["owner", "admin"].includes(currentUserRole);
 
-  // Fetch subscription details for paid tiers
+  // Fetch subscription details for paid tiers (only for owners/admins)
   const isPaidTier = workspace.tierName !== "Free";
   let subscription = null;
   let upcomingInvoice = null;
 
-  if (canViewBilling && isPaidTier) {
+  if (canManageBilling && isPaidTier) {
     try {
       [subscription, upcomingInvoice] = await Promise.all([
         getSubscriptionDetails(params.workspaceId),
         getUpcomingInvoice(params.workspaceId),
       ]);
     } catch (error) {
-      // If fetching subscription details fails, continue without them
       console.error("Error fetching subscription details:", error);
     }
   }
@@ -71,7 +70,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     <WorkspaceMenuProvider>
       <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
         <SidebarProvider className="bg-sidebar">
-          <WorkspaceSidebar isOwner={isOwner} workspace={workspace} canViewBilling={canViewBilling} />
+          <WorkspaceSidebar isOwner={isOwner} workspace={workspace} isBillingEnabled={isBillingEnabled} />
           <SidebarInset className="flex flex-col flex-1 md:rounded-tl-lg border h-full overflow-hidden">
             <WorkspaceComponent
               invitations={invitations}
@@ -82,7 +81,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
               subscription={subscription}
               upcomingInvoice={upcomingInvoice}
               isBillingEnabled={isBillingEnabled}
-              canViewBilling={canViewBilling}
+              canManageBilling={canManageBilling}
             />
           </SidebarInset>
         </SidebarProvider>

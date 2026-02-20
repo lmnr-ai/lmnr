@@ -22,7 +22,7 @@ interface WorkspaceAddonsProps {
   workspaceId: string;
   currentTierKey: string;
   activeAddonSlugs: string[];
-  isOwner: boolean;
+  canManageBilling: boolean;
   hasActiveSubscription: boolean;
   onError: (message: string) => void;
 }
@@ -55,7 +55,7 @@ export default function WorkspaceAddons({
   workspaceId,
   currentTierKey,
   activeAddonSlugs,
-  isOwner,
+  canManageBilling,
   hasActiveSubscription,
   onError,
 }: WorkspaceAddonsProps) {
@@ -138,7 +138,7 @@ export default function WorkspaceAddons({
                   <p className="text-sm text-muted-foreground mb-4">
                     Deploy a dedicated data plane for enhanced performance and data isolation.
                   </p>
-                  {isOwner && (
+                  {canManageBilling && (
                     <Button
                       variant="outline"
                       className="bg-secondary ml-auto"

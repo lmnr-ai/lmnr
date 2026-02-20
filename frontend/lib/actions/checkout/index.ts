@@ -177,7 +177,7 @@ export const cancelSubscription = async (
 
 export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promise<void> => {
   const { workspaceId, tier: newTier } = SwitchTierSchema.parse(input);
-  await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
   const workspace = await db
     .select({

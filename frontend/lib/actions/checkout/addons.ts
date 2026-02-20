@@ -9,7 +9,7 @@ import { stripe } from "./stripe";
 import { ADDON_CONFIG } from "./types";
 
 export const addAddon = async (workspaceId: string, addonLookupKey: string): Promise<void> => {
-  await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
   const workspace = await db
     .select({ subscriptionId: workspaces.subscriptionId })
@@ -50,7 +50,7 @@ export const addAddon = async (workspaceId: string, addonLookupKey: string): Pro
 };
 
 export const removeAddon = async (workspaceId: string, addonLookupKey: string): Promise<void> => {
-  await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
+  await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
 
   const workspace = await db
     .select({ subscriptionId: workspaces.subscriptionId })

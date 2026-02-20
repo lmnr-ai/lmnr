@@ -25,6 +25,7 @@ import { type Workspace } from "@/lib/workspaces/types";
 interface WorkspaceBillingProps {
   workspace: Workspace;
   isOwner: boolean;
+  canManageBilling: boolean;
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
 }
@@ -73,7 +74,13 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
   );
 }
 
-export default function WorkspaceBilling({ workspace, isOwner, subscription, upcomingInvoice }: WorkspaceBillingProps) {
+export default function WorkspaceBilling({
+  workspace,
+  isOwner,
+  canManageBilling,
+  subscription,
+  upcomingInvoice,
+}: WorkspaceBillingProps) {
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +88,7 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
     ? (subscription.currentTier as TierKey)
     : (workspace.tierName.toLowerCase() as TierKey);
   const currentTierInfo = TIERS.find((t) => t.key === currentTierKey)?.info;
-  const isFree = !subscription || currentTierKey === "free";
+  const isFree = currentTierKey === "free";
 
   const handleManagePaymentMethods = async () => {
     setIsLoadingPortal(true);
@@ -142,7 +149,7 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
 
     const label = action === "upgrade" ? "Upgrade" : "Downgrade";
 
-    if (subscription?.cancelAtPeriodEnd) {
+    if (!canManageBilling || subscription?.cancelAtPeriodEnd) {
       return (
         <Button variant="secondary" className="w-full h-8 text-xs" disabled>
           {label}
@@ -163,30 +170,22 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
       );
     }
 
-    if (isOwner) {
-      const targetTierInfo = TIERS.find((t) => t.key === tierKey)?.info;
-      return (
-        <SwitchTierDialog
-          workspaceId={workspace.id}
-          targetTier={tierKey as PaidTier}
-          action={action as "upgrade" | "downgrade"}
-          currentTierName={currentTierInfo?.name ?? workspace.tierName}
-          targetTierName={targetTierInfo?.name ?? tierKey}
-          targetTierPrice={targetTierInfo?.price ?? ""}
-          targetTierPriceSubtext={targetTierInfo?.priceSubtext ?? ""}
-          onError={setError}
-        >
-          <Button variant={action === "upgrade" ? "default" : "outline"} className="w-full h-8 text-xs">
-            {label}
-          </Button>
-        </SwitchTierDialog>
-      );
-    }
-
+    const targetTierInfo = TIERS.find((t) => t.key === tierKey)?.info;
     return (
-      <Button variant="secondary" size="sm" className="w-full h-8 text-xs" disabled>
-        {label}
-      </Button>
+      <SwitchTierDialog
+        workspaceId={workspace.id}
+        targetTier={tierKey as PaidTier}
+        action={action as "upgrade" | "downgrade"}
+        currentTierName={currentTierInfo?.name ?? workspace.tierName}
+        targetTierName={targetTierInfo?.name ?? tierKey}
+        targetTierPrice={targetTierInfo?.price ?? ""}
+        targetTierPriceSubtext={targetTierInfo?.priceSubtext ?? ""}
+        onError={setError}
+      >
+        <Button variant={action === "upgrade" ? "default" : "outline"} className="w-full h-8 text-xs">
+          {label}
+        </Button>
+      </SwitchTierDialog>
     );
   };
 
@@ -200,7 +199,7 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
         </div>
       )}
 
-      {subscription && (
+      {canManageBilling && subscription && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-4xl">
           <Card>
             <CardHeader className="pb-3">
@@ -313,12 +312,12 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
         </div>
       </SettingsSection>
 
-      {!subscription?.cancelAtPeriodEnd && (
+      {canManageBilling && !subscription?.cancelAtPeriodEnd && (
         <WorkspaceAddons
           workspaceId={workspace.id}
           currentTierKey={currentTierKey}
           activeAddonSlugs={workspace.addons}
-          isOwner={isOwner}
+          canManageBilling={canManageBilling}
           hasActiveSubscription={!!subscription}
           onError={setError}
         />

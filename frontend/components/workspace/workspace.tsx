@@ -21,7 +21,7 @@ interface WorkspaceProps {
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
   isBillingEnabled: boolean;
-  canViewBilling: boolean;
+  canManageBilling: boolean;
 }
 
 export default function WorkspaceComponent({
@@ -33,7 +33,7 @@ export default function WorkspaceComponent({
   subscription,
   upcomingInvoice,
   isBillingEnabled,
-  canViewBilling,
+  canManageBilling,
 }: WorkspaceProps) {
   const { menu } = useWorkspaceMenuContext();
 
@@ -50,10 +50,11 @@ export default function WorkspaceComponent({
           />
         )}
         {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} isBillingEnabled={isBillingEnabled} />}
-        {canViewBilling && menu === "billing" && (
+        {isBillingEnabled && menu === "billing" && (
           <WorkspaceBilling
             workspace={workspace}
             isOwner={isOwner}
+            canManageBilling={canManageBilling}
             subscription={subscription}
             upcomingInvoice={upcomingInvoice}
           />
