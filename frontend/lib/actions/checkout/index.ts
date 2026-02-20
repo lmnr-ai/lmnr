@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
 import { z } from "zod/v4";
 
@@ -233,23 +233,31 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     throw new Error("Could not resolve new tier prices in Stripe");
   }
 
-  const itemsUpdate: Stripe.SubscriptionUpdateParams.Item[] = [
-    ...subscription.items.data.map((item) => ({
-      id: item.id,
-      deleted: true as const,
-    })),
-    { price: newFlatPrice.id, quantity: 1 },
-    { price: newBytesOveragePrice.id },
-    { price: newSignalRunsOveragePrice.id },
-  ];
+  // Separate old items by billing type so each can be handled with the correct proration.
+  const oldUsageItems = subscription.items.data.filter((item) => item.price.recurring?.usage_type === "metered");
+  const oldFlatItems = subscription.items.data.filter((item) => item.price.recurring?.usage_type !== "metered");
 
+  // Step 1: Swap metered overage items with no proration.
+  // Usage-based charges are billed at the end of the cycle based on the active plan at that time;
+  // charging for accrued metered usage immediately on a tier switch is not desired.
+  await s.subscriptions.update(workspace[0].subscriptionId, {
+    items: [
+      ...oldUsageItems.map((item) => ({ id: item.id, deleted: true as const })),
+      { price: newBytesOveragePrice.id },
+      { price: newSignalRunsOveragePrice.id },
+    ],
+    proration_behavior: "none",
+  });
+
+  // Step 2: Swap the flat tier price with immediate proration invoice.
   // "always_invoice" immediately creates and collects an invoice for:
   // - prorated credit for unused time on the old tier
   // - prorated charge for remaining time on the new tier
-  // rather than deferring these to the next billing cycle.
-  // Metered events are not pro-rated, so we re-report overage according to the new tier.
   await s.subscriptions.update(workspace[0].subscriptionId, {
-    items: itemsUpdate,
+    items: [
+      ...oldFlatItems.map((item) => ({ id: item.id, deleted: true as const })),
+      { price: newFlatPrice.id, quantity: 1 },
+    ],
     proration_behavior: "always_invoice",
   });
 
@@ -273,17 +281,6 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
       },
     }),
   ]);
-
-  await db
-    .update(workspaces)
-    .set({
-      tierId: sql`(
-        SELECT id
-        FROM subscription_tiers
-        WHERE stripe_product_id = ${newFlatPrice.product}
-      )`,
-    })
-    .where(eq(workspaces.id, workspaceId));
 
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
 };

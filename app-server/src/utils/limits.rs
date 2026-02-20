@@ -19,7 +19,7 @@ use crate::{
 };
 // For workspaces over the limit, expire the cache after 24 hours,
 // so that it resets in the next billing period (+/- 1 day).
-const WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
+const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 
 pub async fn get_workspace_bytes_limit_exceeded(
     db: Arc<DB>,
@@ -56,9 +56,17 @@ pub async fn get_workspace_bytes_limit_exceeded(
                     0
                 }
             };
-            let _ = cache
-                .insert_with_ttl::<i64>(&cache_key, bytes, WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS)
-                .await;
+            if let Err(e) = cache
+                .insert_with_ttl::<i64>(&cache_key, bytes, WORKSPACE_USAGE_TTL_SECONDS)
+                .await
+            {
+                log::error!(
+                    "Failed to insert workspace bytes ingested cache for project [{}]: {:?}",
+                    project_id,
+                    e
+                );
+            };
+
             bytes
         }
     };
@@ -101,9 +109,16 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
                     0
                 }
             };
-            let _ = cache
-                .insert_with_ttl::<i64>(&cache_key, runs, WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS)
-                .await;
+            if let Err(e) = cache
+                .insert_with_ttl::<i64>(&cache_key, runs, WORKSPACE_USAGE_TTL_SECONDS)
+                .await
+            {
+                log::error!(
+                    "Failed to insert workspace signal runs cache for project [{}]: {:?}",
+                    project_id,
+                    e
+                );
+            };
             runs
         }
     };
@@ -173,11 +188,7 @@ pub async fn update_workspace_bytes_ingested(
                 }
             };
             cache
-                .insert_with_ttl::<i64>(
-                    &cache_key,
-                    bytes_ingested,
-                    WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS,
-                )
+                .insert_with_ttl::<i64>(&cache_key, bytes_ingested, WORKSPACE_USAGE_TTL_SECONDS)
                 .await?;
         }
     }
@@ -219,7 +230,13 @@ pub async fn update_workspace_signal_runs_used(
     match cache.get::<i64>(&cache_key).await {
         Ok(Some(_)) => {
             // Cache exists - atomically increment it
-            let _ = cache.increment(&cache_key, runs as i64).await;
+            if let Err(e) = cache.increment(&cache_key, runs as i64).await {
+                log::error!(
+                    "Failed to increment workspace signal runs cache for project [{}]: {:?}",
+                    project_id,
+                    e
+                );
+            };
         }
         Ok(None) | Err(_) => {
             // Cache miss - recompute from ClickHouse and populate the cache
@@ -241,11 +258,7 @@ pub async fn update_workspace_signal_runs_used(
                 }
             };
             cache
-                .insert_with_ttl::<i64>(
-                    &cache_key,
-                    signal_runs,
-                    WORKSPACE_USAGE_EXCEEDED_TTL_SECONDS,
-                )
+                .insert_with_ttl::<i64>(&cache_key, signal_runs, WORKSPACE_USAGE_TTL_SECONDS)
                 .await?;
         }
     }

@@ -43,6 +43,14 @@ export const manageWorkspaceSubscriptionEvent = async ({
     })
     .where(eq(userSubscriptionInfo.stripeCustomerId, stripeCustomerId));
 
+  const workspace = await db.query.workspaces.findFirst({
+    where: eq(workspaces.id, workspaceId),
+    with: {
+      subscriptionTier: true,
+    },
+  });
+  const currentTier = workspace?.subscriptionTier?.name.trim().toLowerCase();
+
   await db
     .update(workspaces)
     .set({
@@ -55,6 +63,11 @@ export const manageWorkspaceSubscriptionEvent = async ({
         WHERE stripe_product_id = ${productId})
       END
     `,
+      // Only reset if all of:
+      // - the workspace is on the free tier
+      // - the update is not a cancellation
+      // - the webhook event contains actual tier change
+      ...(currentTier === "free" ? { resetTime: sql`now()` } : {}),
     })
     .where(eq(workspaces.id, workspaceId));
 
@@ -92,7 +105,16 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
     console.log(`Subscription ${subscription.id} status changed to`, status);
     return;
   }
-  for (const subscriptionItem of subscription.items.data) {
+  // A tier switch is performed in two separate Stripe update calls, so this handler may fire
+  // in an intermediate state (e.g. old flat price + new metered items). Only use non-metered
+  // items for tier resolution: metered overage prices are on different products that have no
+  // entry in subscription_tiers and would corrupt the tierId lookup.
+  const flatItems = subscription.items.data
+    .filter((item) => item.price.recurring?.usage_type !== "metered")
+    .filter((item) => item.price.lookup_key !== DATAPLANE_ADDON_LOOKUP_KEY);
+  const tierItems = flatItems.length > 0 ? flatItems : subscription.items.data;
+
+  for (const subscriptionItem of tierItems) {
     if (!subscriptionItem.plan.product) {
       console.log(`subscription updated event. No product found. subscriptionItem: ${subscriptionItem}`);
       continue;
@@ -150,7 +172,6 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
     const hasDataplaneAddon = subscription.items.data.some(
       (item) => item.price.lookup_key === DATAPLANE_ADDON_LOOKUP_KEY
     );
-
     if (!cancel && status === "active") {
       if (hasDataplaneAddon) {
         await db
@@ -176,11 +197,6 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
 };
 
 export const handleInvoiceFinalized = async (workspaceId: string, periodStart: number) => {
-  await db
-    .update(workspaces)
-    .set({ resetTime: new Date(periodStart * 1000).toISOString() })
-    .where(eq(workspaces.id, workspaceId));
-
   await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
   await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
