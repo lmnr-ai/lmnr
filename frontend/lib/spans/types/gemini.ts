@@ -4,7 +4,6 @@ import { z } from "zod/v4";
 import { type Message } from "@/lib/playground/types";
 import { isStorageUrl, urlToBase64 } from "@/lib/s3";
 
-
 /** Part Schemas **/
 
 // Common optional fields that can appear on any part
@@ -120,7 +119,6 @@ export const GeminiContentSchema = z.object({
 
 export const GeminiContentsSchema = z.array(GeminiContentSchema);
 
-
 /** Candidate Schema (output format) **/
 
 // A Candidate wraps a Content with generation metadata.
@@ -139,9 +137,7 @@ export const GeminiCandidatesSchema = z.array(GeminiCandidateSchema);
 /** Helpers **/
 
 /** Find the system message in a Contents array and return its text. */
-export const extractGeminiSystemMessage = (
-  messages: z.infer<typeof GeminiContentsSchema>
-): string | null => {
+export const extractGeminiSystemMessage = (messages: z.infer<typeof GeminiContentsSchema>): string | null => {
   const system = messages.find((m) => m.role === "system");
   if (!system) return null;
   const texts = system.parts.filter((p) => "text" in p).map((p) => (p as { text: string }).text);
@@ -173,13 +169,12 @@ export const parseGeminiOutput = (data: unknown): z.infer<typeof GeminiContentsS
   return candidates.map((c) => c.content);
 };
 
-
 /** Conversion Functions **/
 
 export const convertGeminiToPlaygroundMessages = async (
   messages: z.infer<typeof GeminiContentsSchema>
-): Promise<Message[]> => {
-  return Promise.all(
+): Promise<Message[]> =>
+  Promise.all(
     map(messages, async (message): Promise<Message> => {
       const content: Message["content"] = [];
 
@@ -200,9 +195,7 @@ export const convertGeminiToPlaygroundMessages = async (
             }
             content.push({
               type: "image",
-              image: imageData.startsWith("data:")
-                ? imageData
-                : `data:${part.inlineData.mimeType};base64,${imageData}`,
+              image: imageData.startsWith("data:") ? imageData : `data:${part.inlineData.mimeType};base64,${imageData}`,
             });
           } else {
             content.push({
@@ -262,4 +255,3 @@ export const convertGeminiToPlaygroundMessages = async (
       return { role, content };
     })
   );
-};

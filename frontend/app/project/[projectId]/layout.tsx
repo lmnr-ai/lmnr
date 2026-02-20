@@ -32,7 +32,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const workspace = await getWorkspaceInfo(projectDetails.workspaceId);
   const projects = await getProjectsByWorkspace(projectDetails.workspaceId);
   const showBanner =
-    isFeatureEnabled(Feature.WORKSPACE) &&
+    isFeatureEnabled(Feature.SUBSCRIPTION) &&
     projectDetails.isFreeTier &&
     projectDetails.gbLimit > 0 &&
     projectDetails.gbUsedThisMonth >= 0.8 * projectDetails.gbLimit;

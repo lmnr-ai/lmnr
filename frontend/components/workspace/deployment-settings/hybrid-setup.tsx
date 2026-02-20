@@ -1,6 +1,6 @@
 import { CheckCircle2, CircleDot, ExternalLink, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import React, { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button.tsx";
@@ -94,9 +94,8 @@ const HybridSetup = ({ isSaving, isVerified, onVerifiedChange }: HybridSetupProp
       <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
         <p className="text-sm font-medium">How hybrid deployment works</p>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          Your data is processed through Laminar Cloud, but we never store it. We route
-          writes to services running in <strong>your</strong> infrastructure, which persist
-          to a database in <strong>your</strong> cloud.
+          Your data is processed through Laminar Cloud, but we never store it. We route writes to services running in{" "}
+          <strong>your</strong> infrastructure, which persist to a database in <strong>your</strong> cloud.
         </p>
         <div className="flex items-center gap-4 pt-1">
           <a
@@ -120,7 +119,8 @@ const HybridSetup = ({ isSaving, isVerified, onVerifiedChange }: HybridSetupProp
             <div className="flex-1 min-w-0">
               <Label className="text-sm font-medium">Generate API keys</Label>
               <div className="text-xs text-muted-foreground mt-0.5">
-                This public key is used to generate a signed token that authenticates your data plane with Laminar. <br />
+                This public key is used to generate a signed token that authenticates your data plane with Laminar.{" "}
+                <br />
                 It will be used during the deployment of data plane services.
               </div>
             </div>
@@ -179,7 +179,7 @@ const HybridSetup = ({ isSaving, isVerified, onVerifiedChange }: HybridSetupProp
           </div>
         </div>
       </div>
-    </div >
+    </div>
   );
 };
 

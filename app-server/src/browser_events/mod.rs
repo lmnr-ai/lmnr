@@ -17,7 +17,7 @@ use crate::{
     ch::browser_events::{BrowserEventCHRow, insert_browser_events},
     db::DB,
     features::{Feature, is_feature_enabled},
-    traces::limits::update_workspace_limit_exceeded_by_project_id,
+    utils::limits::update_workspace_bytes_ingested,
     worker::HandlerError,
 };
 
@@ -117,7 +117,7 @@ impl BrowserEventHandler {
             }
 
             for (project_id, bytes) in bytes_per_project {
-                if let Err(e) = update_workspace_limit_exceeded_by_project_id(
+                if let Err(e) = update_workspace_bytes_ingested(
                     self.db.clone(),
                     self.clickhouse.clone(),
                     self.cache.clone(),

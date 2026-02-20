@@ -484,6 +484,13 @@
       "when": 1770402891462,
       "tag": "0068_goofy_omega_flight",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1771345330815,
+      "tag": "0069_curved_king_cobra",
+      "breakpoints": true
     }
   ]
 }

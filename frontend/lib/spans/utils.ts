@@ -1,16 +1,12 @@
 import { type Message } from "@/lib/playground/types";
 import { convertToPlaygroundMessages, downloadImages } from "@/lib/spans/types";
+import { convertGeminiToPlaygroundMessages, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
 import {
   convertLangChainToPlaygroundMessages,
   downloadLangChainImages,
   LangChainMessageSchema,
   LangChainMessagesSchema,
 } from "@/lib/spans/types/langchain";
-import {
-  convertGeminiToPlaygroundMessages,
-  parseGeminiInput,
-  parseGeminiOutput,
-} from "@/lib/spans/types/gemini";
 import {
   convertOpenAIToPlaygroundMessages,
   downloadOpenAIImages,

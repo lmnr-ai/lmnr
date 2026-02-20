@@ -4,7 +4,6 @@ export const enum Feature {
   GOOGLE_AUTH = "GOOGLE_AUTH",
   AZURE_AUTH = "AZURE_AUTH",
   EMAIL_AUTH = "EMAIL_AUTH",
-  WORKSPACE = "WORKSPACE",
   POSTHOG = "POSTHOG",
   LOCAL_DB = "LOCAL_DB",
   FULL_BUILD = "FULL_BUILD",
@@ -13,6 +12,9 @@ export const enum Feature {
   LANDING = "LANDING",
   PATTERNS = "PATTERNS",
   SIGNALS = "SIGNALS",
+  ADDONS = "ADDONS",
+  BILLING = "BILLING",
+  DEPLOYMENT = "DEPLOYMENT",
 }
 
 // right now all managed-version features are disabled in local environment
@@ -73,6 +75,18 @@ export const isFeatureEnabled = (feature: Feature) => {
 
   if (feature === Feature.POSTHOG) {
     return process.env.POSTHOG_TELEMETRY === "true";
+  }
+
+  if (feature === Feature.ADDONS) {
+    return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.BILLING) {
+    return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.DEPLOYMENT) {
+    return process.env.LAMINAR_CLOUD === "true";
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";

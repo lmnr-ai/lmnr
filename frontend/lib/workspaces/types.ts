@@ -68,5 +68,6 @@ export interface ProjectStats {
 
 export interface WorkspaceUsage {
   totalBytesIngested: number;
+  totalSignalRuns: number;
   resetTime: Date;
 }

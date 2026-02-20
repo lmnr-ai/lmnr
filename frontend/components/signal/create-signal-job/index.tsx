@@ -234,11 +234,13 @@ const CreateSignalJobContent = () => {
           startDate: dateRange.startDate,
           endDate: dateRange.endDate,
           traceIds: selectedTraceIds,
+          tracesCount: selectedCount,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create signal job");
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error ?? "Failed to create signal job");
       }
 
       setConfirmDialogOpen(false);

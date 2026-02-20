@@ -34,11 +34,11 @@ use crate::{
         producer::publish_for_indexing,
     },
     traces::{
-        limits::update_workspace_limit_exceeded_by_project_id,
         provider::convert_span_to_provider_format,
         realtime::{send_span_updates, send_trace_updates},
         utils::{get_llm_usage_for_span, group_traces_by_project, prepare_span_for_recording},
     },
+    utils::limits::{get_workspace_signal_runs_limit_exceeded, update_workspace_bytes_ingested},
     worker::HandlerError,
 };
 
@@ -223,7 +223,7 @@ pub async fn process_span_messages(
         }
 
         for (project_id, bytes) in bytes_per_project {
-            if let Err(e) = update_workspace_limit_exceeded_by_project_id(
+            if let Err(e) = update_workspace_bytes_ingested(
                 db.clone(),
                 clickhouse.clone(),
                 cache.clone(),
@@ -267,6 +267,23 @@ async fn check_and_push_signals(
 
     if triggers.is_empty() {
         return;
+    }
+
+    if is_feature_enabled(Feature::UsageLimit) {
+        let signal_runs_exceeded = get_workspace_signal_runs_limit_exceeded(
+            db.clone(),
+            clickhouse.clone(),
+            cache.clone(),
+            project_id,
+        )
+        .await;
+        if signal_runs_exceeded.is_ok_and(|exceeded| exceeded) {
+            log::debug!(
+                "Workspace signal runs limit exceeded for project [{}]. Skipping triggers.",
+                project_id,
+            );
+            return;
+        }
     }
 
     for trigger in &triggers {

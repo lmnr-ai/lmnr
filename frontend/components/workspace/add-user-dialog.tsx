@@ -14,20 +14,16 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type WorkspaceStats } from "@/lib/usage/types";
 import { type Workspace } from "@/lib/workspaces/types";
 
 interface AddUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspace: Workspace;
-  workspaceStats: WorkspaceStats;
-  usersCount: number;
 }
 
-const AddUserDialog = ({ open, onOpenChange, workspace, workspaceStats, usersCount }: AddUserDialogProps) => {
+const AddUserDialog = ({ open, onOpenChange, workspace }: AddUserDialogProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState("");
   const { toast } = useToast();
@@ -81,31 +77,11 @@ const AddUserDialog = ({ open, onOpenChange, workspace, workspaceStats, usersCou
         setUser("");
       }}
     >
-      {usersCount >= workspaceStats.membersLimit ? (
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button icon="plus" className="w-fit" variant="outline" disabled>
-                Invite member
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              You have reached the maximum number of users for this workspace.
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ) : (
-        <DialogTrigger asChild>
-          <Button
-            icon="plus"
-            disabled={usersCount >= workspaceStats.membersLimit}
-            onClick={() => onOpenChange(true)}
-            variant="outline"
-          >
-            Invite member
-          </Button>
-        </DialogTrigger>
-      )}
+      <DialogTrigger asChild>
+        <Button icon="plus" onClick={() => onOpenChange(true)} variant="outline">
+          Invite member
+        </Button>
+      </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Invite a member to workspace</DialogTitle>

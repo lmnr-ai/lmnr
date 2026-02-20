@@ -5,178 +5,90 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 
-export default function PricingCalculator() {
-  const [tokens, setTokens] = useState(100_000_000); // Default 100 million tokens
-  const [teamMembers, setTeamMembers] = useState(1);
-  const [agentSteps, setAgentSteps] = useState(500); // agent steps per month
+const TOKEN_STEPS = [
+  100_000_000, 150_000_000, 200_000_000, 250_000_000, 300_000_000, 350_000_000, 400_000_000, 450_000_000,
+  500_000_000, 1_000_000_000, 2_500_000_000, 5_000_000_000, 10_000_000_000, 25_000_000_000, 50_000_000_000,
+  100_000_000_000,
+];
+const SIGNAL_STEPS = [100, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000];
 
-  // Convert tokens to GB (1 token = 3.5 bytes)
-  const tokensToGB = (tokenCount: number) => {
-    const bytes = tokenCount * 4;
-    const gb = bytes / (1024 * 1024 * 1024); // Convert bytes to GB
-    return gb;
-  };
+const BYTES_PER_TOKEN = 3;
 
-  // Logarithmic slider mapping
-  const tokenRanges = [
-    // Range 10M-100M: step 10M (9 positions: 14-22)
-    { min: 10_000_000, max: 100_000_000, step: 10_000_000, positions: 9 },
-    // Range 100M-1B: step 100M (9 positions: 23-31)
-    { min: 100_000_000, max: 1_000_000_000, step: 50_000_000, positions: 20 },
-    // Range 1B-10B: step 1B (9 positions: 32-40)
-    { min: 1_000_000_000, max: 10_000_000_000, step: 1_000_000_000, positions: 10 },
-  ];
+interface Breakdown {
+  baseTier: string;
+  basePrice: number;
+  additionalData: number;
+  additionalSignalRuns: number;
+  total: number;
+}
 
-  const positionToTokens = (position: number): number => {
-    let currentPosition = 0;
+function estimateDataFromTokens(tokens: number): number {
+  return (tokens * BYTES_PER_TOKEN) / 1_000_000_000;
+}
 
-    for (const range of tokenRanges) {
-      if (position < currentPosition + range.positions) {
-        const relativePosition = position - currentPosition;
-        if (relativePosition === 0) {
-          return range.min;
-        }
-        return range.min + relativePosition * range.step;
-      }
-      currentPosition += range.positions;
-    }
-
-    // Fallback to max value
-    return tokenRanges[tokenRanges.length - 1].max;
-  };
-
-  const tokensToPosition = (tokenValue: number): number => {
-    let currentPosition = 0;
-
-    for (const range of tokenRanges) {
-      if (tokenValue <= range.max) {
-        if (tokenValue <= range.min) {
-          return currentPosition;
-        }
-        const relativeTokens = tokenValue - range.min;
-        const relativePosition = Math.round(relativeTokens / range.step);
-        return currentPosition + relativePosition;
-      }
-      currentPosition += range.positions;
-    }
-
-    // Fallback to max position
-    return currentPosition - 1;
-  };
-
-  const maxPosition = tokenRanges.reduce((sum, range) => sum + range.positions, 0) - 1;
-  const currentPosition = tokensToPosition(tokens);
-
-  const calculateTierAndPrice = () => {
-    const dataCount = tokensToGB(tokens); // Convert tokens to GB for calculation
-
-    let breakdown = {
-      baseTier: "",
+function calculateTierAndPrice(dataGB: number, signalRuns: number) {
+  if (dataGB <= 1 && signalRuns <= 100) {
+    const breakdown: Breakdown = {
+      baseTier: "Free",
       basePrice: 0,
       additionalData: 0,
-      additionalMembers: 0,
-      additionalSteps: 0,
+      additionalSignalRuns: 0,
       total: 0,
     };
+    return { tier: "Free", breakdown };
+  }
 
-    // Free tier: 1GB data, 1 team member, 500 agent steps
-    if (dataCount <= 1 && teamMembers <= 1 && agentSteps <= 500) {
-      breakdown = {
-        baseTier: "Free",
-        basePrice: 0,
-        additionalData: 0,
-        additionalMembers: 0,
-        additionalSteps: 0,
-        total: 0,
-      };
-      return { tier: "Free", price: 0, breakdown };
-    }
+  const hobbyData = Math.max(0, dataGB - 3) * 2;
+  const hobbySignal = Math.max(0, signalRuns - 1_000) * 0.02;
+  const hobbyTotal = 25 + hobbyData + hobbySignal;
 
-    // Hobby tier: 2GB data, 2 team members, 2500 agent steps
-    if (teamMembers <= 2) {
-      const basePrice = 25;
-      let additionalDataCost = 0;
-      let additionalStepsCost = 0;
+  const proData = Math.max(0, dataGB - 10) * 1.5;
+  const proSignal = Math.max(0, signalRuns - 10_000) * 0.015;
+  const proTotal = 150 + proData + proSignal;
 
-      // Additional data cost - changed to $2 per GB
-      if (dataCount > 2) {
-        additionalDataCost = (dataCount - 2) * 2;
-      }
-
-      // Additional agent steps cost
-      if (agentSteps > 2500) {
-        const additionalSteps = Math.ceil((agentSteps - 2500) / 100);
-        additionalStepsCost = additionalSteps;
-      }
-
-      const total = basePrice + additionalDataCost + additionalStepsCost;
-
-      breakdown = {
-        baseTier: "Hobby",
-        basePrice,
-        additionalData: additionalDataCost,
-        additionalMembers: 0,
-        additionalSteps: additionalStepsCost,
-        total,
-      };
-
-      return { tier: "Hobby", price: total, breakdown };
-    }
-
-    // Pro tier: 5GB data, 5+ team members, 5000 agent steps
-    const basePrice = 50;
-    let additionalDataCost = 0;
-    let additionalMembersCost = 0;
-    let additionalStepsCost = 0;
-
-    // Additional data cost - changed to $2 per GB
-    if (dataCount > 5) {
-      additionalDataCost = (dataCount - 5) * 2;
-    }
-
-    // Additional team members cost - changed to 5 included members
-    if (teamMembers > 3) {
-      additionalMembersCost = (teamMembers - 3) * 25;
-    }
-
-    // Additional agent steps cost
-    if (agentSteps > 5000) {
-      const additionalSteps = Math.ceil((agentSteps - 5000) / 100);
-      additionalStepsCost = additionalSteps;
-    }
-
-    const total = basePrice + additionalDataCost + additionalMembersCost + additionalStepsCost;
-
-    breakdown = {
-      baseTier: "Pro",
-      basePrice,
-      additionalData: additionalDataCost,
-      additionalMembers: additionalMembersCost,
-      additionalSteps: additionalStepsCost,
-      total,
+  if (hobbyTotal <= proTotal) {
+    const breakdown: Breakdown = {
+      baseTier: "Hobby",
+      basePrice: 25,
+      additionalData: hobbyData,
+      additionalSignalRuns: hobbySignal,
+      total: hobbyTotal,
     };
+    return { tier: "Hobby", breakdown };
+  }
 
-    return { tier: "Pro", price: total, breakdown };
+  const breakdown: Breakdown = {
+    baseTier: "Pro",
+    basePrice: 150,
+    additionalData: proData,
+    additionalSignalRuns: proSignal,
+    total: proTotal,
   };
+  return { tier: "Pro", breakdown };
+}
 
-  const { tier, price, breakdown } = calculateTierAndPrice();
+function formatTokens(tokens: number): string {
+  if (tokens >= 1_000_000_000) {
+    const billions = tokens / 1_000_000_000;
+    return `${billions % 1 === 0 ? billions.toFixed(0) : billions.toFixed(1)}B`;
+  }
+  return `${(tokens / 1_000_000).toFixed(0)}M`;
+}
 
-  // Format tokens for display
-  const formatTokens = (tokenCount: number) => {
-    if (tokenCount >= 1_000_000_000) {
-      return `${(tokenCount / 1_000_000_000).toFixed(tokenCount % 1_000_000_000 === 0 ? 0 : 1)}B`;
-    }
-    if (tokenCount >= 1_000_000) {
-      return `${(tokenCount / 1_000_000).toFixed(tokenCount % 1_000_000 === 0 ? 0 : 1)}M`;
-    }
-    if (tokenCount >= 1_000) {
-      return `${(tokenCount / 1_000).toFixed(tokenCount % 1_000 === 0 ? 0 : 1)}K`;
-    }
-    return tokenCount.toLocaleString();
-  };
+function formatNumber(n: number) {
+  return n.toLocaleString("en-US");
+}
 
-  // Calculate estimated GB for display
-  const estimatedGB = tokensToGB(tokens);
+export default function PricingCalculator() {
+  const [tokenIdx, setTokenIdx] = useState(0);
+  const [signalIdx, setSignalIdx] = useState(0);
+
+  const tokens = TOKEN_STEPS[tokenIdx];
+  const dataGB = estimateDataFromTokens(tokens);
+  const signalRuns = SIGNAL_STEPS[signalIdx];
+
+  const { tier, breakdown } = calculateTierAndPrice(dataGB, signalRuns);
+  const hasOverage = breakdown.additionalData > 0 || breakdown.additionalSignalRuns > 0;
 
   return (
     <div className="w-full max-w-2xl mt-16 px-4">
@@ -191,7 +103,7 @@ export default function PricingCalculator() {
               {tier}
             </Badge>
             <span className="text-2xl font-bold font-space-grotesk text-landing-text-100">
-              ${price.toFixed(2)} / month
+              ${breakdown.total.toFixed(2)} / month
             </span>
           </div>
         </div>
@@ -200,78 +112,66 @@ export default function PricingCalculator() {
           <div className="space-y-2">
             <div className="flex justify-between">
               <span className="font-medium text-landing-text-100">Tokens per month</span>
-              <span className="font-medium text-landing-text-100">{formatTokens(tokens)} tokens</span>
-            </div>
-            <div className="text-sm text-landing-text-300 mb-2 font-semibold">≈ {estimatedGB.toFixed(2)} GB</div>
-            <div className="text-xs text-landing-text-300 mb-2">
-              * Based on ~4 bytes per token (approximation, excludes stored images)
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-landing-text-100">{formatTokens(tokens)}</span>
+                <span className="text-sm text-landing-text-300">≈ {dataGB < 1 ? dataGB.toFixed(1) : dataGB.toFixed(0)} GB</span>
+              </div>
             </div>
             <Slider
-              value={[currentPosition]}
-              max={maxPosition}
+              value={[tokenIdx]}
+              max={TOKEN_STEPS.length - 1}
               min={0}
               step={1}
-              onValueChange={(value) => setTokens(positionToTokens(value[0]))}
+              onValueChange={(v) => setTokenIdx(v[0])}
               className="w-full"
             />
           </div>
 
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-landing-text-100">Team members</span>
-              <span className="font-medium text-landing-text-100">{teamMembers}</span>
+              <span className="font-medium text-landing-text-100">Signal runs per month</span>
+              <span className="font-medium text-landing-text-100">{formatNumber(signalRuns)}</span>
             </div>
             <Slider
-              value={[teamMembers]}
-              max={10}
-              min={1}
+              value={[signalIdx]}
+              max={SIGNAL_STEPS.length - 1}
+              min={0}
               step={1}
-              onValueChange={(value) => setTeamMembers(value[0])}
+              onValueChange={(v) => setSignalIdx(v[0])}
               className="w-full"
             />
           </div>
         </div>
-        {/* Pricing Breakdown */}
-        {breakdown && (
-          <div className="border-t border-landing-surface-400 pt-4 space-y-3">
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between text-landing-text-100">
-                <span>{breakdown.baseTier} tier (base)</span>
-                <span>${breakdown.basePrice.toFixed(2)}</span>
-              </div>
 
-              {breakdown.additionalData > 0 && (
-                <div className="flex justify-between text-landing-text-300">
-                  <span>Additional data ({(breakdown.additionalData / 2).toFixed(2)}GB)</span>
-                  <span>+${breakdown.additionalData.toFixed(2)}</span>
-                </div>
-              )}
-
-              {breakdown.additionalMembers > 0 && (
-                <div className="flex justify-between text-landing-text-300">
-                  <span>Additional team members ({teamMembers - 5})</span>
-                  <span>+${breakdown.additionalMembers.toFixed(2)}</span>
-                </div>
-              )}
-
-              {breakdown.additionalSteps > 0 && (
-                <div className="flex justify-between text-landing-text-300">
-                  <span>
-                    Additional agent steps ({Math.ceil((agentSteps - (tier === "Hobby" ? 2500 : 5000)) / 100) * 100})
-                  </span>
-                  <span>+${breakdown.additionalSteps.toFixed(2)}</span>
-                </div>
-              )}
-
-              {(breakdown.additionalData > 0 || breakdown.additionalMembers > 0 || breakdown.additionalSteps > 0) && (
-                <div className="flex justify-between font-medium pt-2 border-t border-landing-surface-400 text-landing-text-100">
-                  <span>Total</span>
-                  <span>${breakdown.total.toFixed(2)}</span>
-                </div>
-              )}
+        <div className="border-t border-landing-surface-400 pt-4 space-y-3">
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between text-landing-text-100">
+              <span>{breakdown.baseTier} tier (base)</span>
+              <span>${breakdown.basePrice.toFixed(2)}</span>
             </div>
+
+            {breakdown.additionalData > 0 && (
+              <div className="flex justify-between text-landing-text-300">
+                <span>Additional data ({(breakdown.additionalData / (tier === "Hobby" ? 2 : 1.5)).toFixed(0)} GB)</span>
+                <span>+${breakdown.additionalData.toFixed(2)}</span>
+              </div>
+            )}
+
+            {breakdown.additionalSignalRuns > 0 && (
+              <div className="flex justify-between text-landing-text-300">
+                <span>Additional signal runs ({formatNumber(signalRuns - (tier === "Hobby" ? 1_000 : 10_000))})</span>
+                <span>+${breakdown.additionalSignalRuns.toFixed(2)}</span>
+              </div>
+            )}
+
+            {hasOverage && (
+              <div className="flex justify-between font-medium pt-2 border-t border-landing-surface-400 text-landing-text-100">
+                <span>Total</span>
+                <span>${breakdown.total.toFixed(2)}</span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

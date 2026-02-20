@@ -15,24 +15,20 @@ import RemoveUserDialog from "@/components/workspace/remove-user-dialog";
 import TransferOwnershipDialog from "@/components/workspace/ui/transfer-ownership-dialog.tsx";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type WorkspaceStats } from "@/lib/usage/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 import {
   type WorkspaceInvitation,
   type WorkspaceRole,
-  WorkspaceTier,
   type WorkspaceUser,
   type WorkspaceWithOptionalUsers,
 } from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
-import PurchaseSeatsDialog from "./purchase-seats-dialog";
 
 interface WorkspaceUsersProps {
   invitations: WorkspaceInvitation[];
   workspace: WorkspaceWithOptionalUsers;
-  workspaceStats: WorkspaceStats;
   isOwner: boolean;
   currentUserRole: WorkspaceRole;
 }
@@ -42,13 +38,7 @@ type DialogState = {
   targetUser?: WorkspaceUser;
 };
 
-export default function WorkspaceUsers({
-  invitations,
-  workspace,
-  workspaceStats,
-  isOwner,
-  currentUserRole,
-}: WorkspaceUsersProps) {
+export default function WorkspaceUsers({ invitations, workspace, isOwner, currentUserRole }: WorkspaceUsersProps) {
   const user = useUserContext();
   const { toast } = useToast();
   const router = useRouter();
@@ -192,25 +182,6 @@ export default function WorkspaceUsers({
   return (
     <>
       <SettingsSectionHeader title="Members" description="Manage workspace members and their roles" />
-      {canManageUsers && (
-        <SettingsSection>
-          <SettingsSectionHeader
-            size="sm"
-            title="Workspace seats"
-            description={`You have ${workspaceStats.membersLimit} seat${workspaceStats.membersLimit > 1 ? "s" : ""} in this workspace`}
-          />
-          {workspace.tierName === WorkspaceTier.PRO && (
-            <PurchaseSeatsDialog
-              workspaceId={workspace.id}
-              currentQuantity={workspaceStats.membersLimit}
-              seatsIncludedInTier={workspaceStats.seatsIncludedInTier}
-              onUpdate={() => {
-                router.refresh();
-              }}
-            />
-          )}
-        </SettingsSection>
-      )}
       <SettingsSection>
         <div className="flex items-center justify-between">
           <SettingsSectionHeader
@@ -220,11 +191,9 @@ export default function WorkspaceUsers({
           />
           {canManageUsers && (
             <AddUserDialog
-              workspaceStats={workspaceStats}
               open={dialogState.type === "addUser"}
               onOpenChange={(open) => (open ? openDialog("addUser") : closeDialog())}
               workspace={workspace}
-              usersCount={users.length}
             />
           )}
           {!isOwner && (
