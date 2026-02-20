@@ -1,4 +1,4 @@
-import { Html, Link, Preview, Text } from "@react-email/components";
+import { Html, Preview, Text } from "@react-email/components";
 
 import { type ItemDescription } from "@/lib/actions/checkout/types";
 
@@ -35,13 +35,7 @@ export default function PaymentFailedEmail({ itemDescriptions, date, billedTo }:
         <Text style={value}>{date}</Text>
         <Text style={label}>Billed to</Text>
         <Text style={value}>{billedTo}</Text>
-        <Text style={text}>
-          Please update your payment method in your
-          <Link style={link} href="https://www.laminar.sh/settings/billing" target="_blank">
-            {" billing settings"}
-          </Link>
-          .
-        </Text>
+        <Text style={text}>Please update your payment method in your workspace settings.</Text>
         <Text style={text}>
           If you have any questions or need assistance, please don{"'"}t hesitate to reach out to us.
         </Text>
