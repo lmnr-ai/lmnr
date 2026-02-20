@@ -1,5 +1,3 @@
-// TODO: move this from the traces module
-
 use std::sync::Arc;
 
 use anyhow::Result;
