@@ -46,8 +46,9 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     where: eq(workspaceInvitations.workspaceId, params.workspaceId),
   });
 
-  // Check if billing feature is enabled (Laminar Cloud only)
+  // Laminar Cloud features
   const isBillingEnabled = isFeatureEnabled(Feature.BILLING);
+  const isDeploymentEnabled = isFeatureEnabled(Feature.DEPLOYMENT);
   const canManageBilling = isBillingEnabled && ["owner", "admin"].includes(currentUserRole);
 
   // Fetch subscription details for paid tiers (only for owners/admins)
@@ -70,7 +71,12 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     <WorkspaceMenuProvider>
       <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
         <SidebarProvider className="bg-sidebar">
-          <WorkspaceSidebar isOwner={isOwner} workspace={workspace} isBillingEnabled={isBillingEnabled} />
+          <WorkspaceSidebar
+            isOwner={isOwner}
+            workspace={workspace}
+            isBillingEnabled={isBillingEnabled}
+            isDeploymentEnabled={isDeploymentEnabled}
+          />
           <SidebarInset className="flex flex-col flex-1 md:rounded-tl-lg border h-full overflow-hidden">
             <WorkspaceComponent
               invitations={invitations}
@@ -81,6 +87,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
               subscription={subscription}
               upcomingInvoice={upcomingInvoice}
               isBillingEnabled={isBillingEnabled}
+              isDeploymentEnabled={isDeploymentEnabled}
               canManageBilling={canManageBilling}
             />
           </SidebarInset>

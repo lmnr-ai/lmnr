@@ -14,6 +14,7 @@ export const enum Feature {
   SIGNALS = "SIGNALS",
   ADDONS = "ADDONS",
   BILLING = "BILLING",
+  DEPLOYMENT = "DEPLOYMENT",
 }
 
 // right now all managed-version features are disabled in local environment
@@ -81,6 +82,10 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.BILLING) {
+    return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.DEPLOYMENT) {
     return process.env.LAMINAR_CLOUD === "true";
   }
 

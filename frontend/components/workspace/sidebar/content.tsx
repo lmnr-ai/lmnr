@@ -54,9 +54,15 @@ interface WorkspaceSidebarContentProps {
   isOwner: boolean;
   tier: WorkspaceTier;
   isBillingEnabled: boolean;
+  isDeploymentEnabled: boolean;
 }
 
-export const WorkspaceSidebarContent = ({ isOwner, tier, isBillingEnabled }: WorkspaceSidebarContentProps) => {
+export const WorkspaceSidebarContent = ({
+  isOwner,
+  tier,
+  isBillingEnabled,
+  isDeploymentEnabled,
+}: WorkspaceSidebarContentProps) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
   const pathName = usePathname();
   const sidebarMenus = useMemo(
@@ -64,9 +70,10 @@ export const WorkspaceSidebarContent = ({ isOwner, tier, isBillingEnabled }: Wor
       menus.filter((m) => {
         if (m.value === "settings" && !isOwner) return false;
         if (m.value === "billing" && !isBillingEnabled) return false;
+        if (m.value === "deployment" && !isDeploymentEnabled) return false;
         return true;
       }),
-    [isOwner, isBillingEnabled]
+    [isOwner, isBillingEnabled, isDeploymentEnabled]
   );
 
   return (
