@@ -11,13 +11,13 @@ import { type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 interface WorkspaceSidebarProps {
   workspace: WorkspaceWithOptionalUsers;
   isOwner: boolean;
-  isBillingEnabled: boolean;
+  canViewBilling: boolean;
 }
 
-const WorkspaceSidebar = ({ workspace, isOwner, isBillingEnabled }: WorkspaceSidebarProps) => (
+const WorkspaceSidebar = ({ workspace, isOwner, canViewBilling }: WorkspaceSidebarProps) => (
   <Sidebar className="border-none" collapsible="icon">
     <WorkspaceSidebarHeader workspace={workspace} />
-    <WorkspaceSidebarContent tier={workspace.tierName} isOwner={isOwner} isBillingEnabled={isBillingEnabled} />
+    <WorkspaceSidebarContent tier={workspace.tierName} isOwner={isOwner} canViewBilling={canViewBilling} />
     <SidebarFooter />
   </Sidebar>
 );

@@ -53,20 +53,20 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
 interface WorkspaceSidebarContentProps {
   isOwner: boolean;
   tier: WorkspaceTier;
-  isBillingEnabled: boolean;
+  canViewBilling: boolean;
 }
 
-export const WorkspaceSidebarContent = ({ isOwner, tier, isBillingEnabled }: WorkspaceSidebarContentProps) => {
+export const WorkspaceSidebarContent = ({ isOwner, tier, canViewBilling }: WorkspaceSidebarContentProps) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
   const pathName = usePathname();
   const sidebarMenus = useMemo(
     () =>
       menus.filter((m) => {
         if (m.value === "settings" && !isOwner) return false;
-        if (m.value === "billing" && !isBillingEnabled) return false;
+        if (m.value === "billing" && !canViewBilling) return false;
         return true;
       }),
-    [isOwner, isBillingEnabled]
+    [isOwner, canViewBilling]
   );
 
   return (
