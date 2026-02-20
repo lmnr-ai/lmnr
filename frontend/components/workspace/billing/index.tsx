@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import WorkspaceAddons from "@/components/workspace/billing/addons";
 import CancelSubscriptionDialog from "@/components/workspace/billing/cancel-subscription-dialog";
 import SwitchTierDialog from "@/components/workspace/billing/switch-tier-dialog";
-import { formatCurrency, formatDate, type TierKey,TIERS } from "@/components/workspace/billing/utils";
+import { formatCurrency, formatDate, type TierKey, TIERS } from "@/components/workspace/billing/utils";
 import {
   LOOKUP_KEY_DISPLAY_NAMES,
   type PaidTier,
@@ -77,7 +77,9 @@ export default function WorkspaceBilling({ workspace, isOwner, subscription, upc
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentTierKey: TierKey = subscription ? (subscription.currentTier as TierKey) : "free";
+  const currentTierKey: TierKey = subscription
+    ? (subscription.currentTier as TierKey)
+    : (workspace.tierName.toLowerCase() as TierKey);
   const currentTierInfo = TIERS.find((t) => t.key === currentTierKey)?.info;
   const isFree = !subscription || currentTierKey === "free";
 
