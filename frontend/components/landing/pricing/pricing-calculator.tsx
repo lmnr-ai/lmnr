@@ -269,10 +269,10 @@ function EnterpriseTierColumn({
 
 type CalculatorState = "free" | "hobby" | "pro" | "enterprise";
 
-function getCalculatorState(dataGB: number, signalRuns: number): CalculatorState {
+function getCalculatorState(dataGB: number, signalRuns: number, hobbyTotal: number, proTotal: number): CalculatorState {
   if (dataGB <= 1 && signalRuns <= 100) return "free";
   if (dataGB >= ENTERPRISE_DATA_THRESHOLD_GB || signalRuns >= ENTERPRISE_SIGNAL_THRESHOLD) return "enterprise";
-  if (dataGB >= PRO_DATA_THRESHOLD_GB) return "pro";
+  if (dataGB >= PRO_DATA_THRESHOLD_GB || proTotal < hobbyTotal) return "pro";
   return "hobby";
 }
 
@@ -288,7 +288,7 @@ export default function PricingCalculator() {
   const hobby = buildEstimate("Hobby", 30, 3, 1_000, 2, 0.02, dataGB, signalRuns, "30-day", "Email");
   const pro = buildEstimate("Pro", 150, 10, 10_000, 1.5, 0.015, dataGB, signalRuns, "90-day", "Slack");
 
-  const state = getCalculatorState(dataGB, signalRuns);
+  const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);
 
   const freeTooltip = "Your usage fits within the Free tier — no payment needed.";
   const hobbyTooltip = "Most teams at this usage level choose Hobby as the safer, more predictable option.";
