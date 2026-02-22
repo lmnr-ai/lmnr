@@ -15,8 +15,8 @@ import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
 import { type GeminiContentsSchema, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
-import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 import {
+  type OpenAIMessagesSchema,
   parseOpenAIInput,
   parseOpenAIOutput,
 } from "@/lib/spans/types/openai";
@@ -42,24 +42,6 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 
     const langchainMessageResult = LangChainMessageSchema.safeParse(messages);
     const langchainResult = LangChainMessagesSchema.safeParse(messages);
-
-    // Keep old openai format for backwards compatibility
-    const openAIMessageResult = OpenAIMessageSchema.safeParse(messages);
-    const openAIResult = OpenAIMessagesSchema.safeParse(messages);
-
-    if (openAIMessageResult.success) {
-      return {
-        messages: [openAIMessageResult.data],
-        type: "openai" as const,
-      };
-    }
-
-    if (openAIResult.success) {
-      return {
-        messages: openAIResult.data,
-        type: "openai" as const,
-      };
-    }
 
     if (langchainMessageResult.success) {
       return {

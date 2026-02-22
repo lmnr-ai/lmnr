@@ -1,7 +1,6 @@
 import { type Message } from "@/lib/playground/types";
 import { convertToPlaygroundMessages, downloadImages } from "@/lib/spans/types";
 import { convertGeminiToPlaygroundMessages, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
-import { parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
 import {
   convertLangChainToPlaygroundMessages,
   downloadLangChainImages,
@@ -11,8 +10,8 @@ import {
 import {
   convertOpenAIToPlaygroundMessages,
   downloadOpenAIImages,
-  OpenAIMessageSchema,
-  OpenAIMessagesSchema,
+  parseOpenAIInput,
+  parseOpenAIOutput,
 } from "@/lib/spans/types/openai";
 
 /**
@@ -20,18 +19,18 @@ import {
  * downloading necessary image parts
  */
 export const downloadSpanImages = async (messages: any): Promise<unknown> => {
-  const openAIMessageResult = OpenAIMessageSchema.safeParse(messages);
-  const openAIMessagesResult = OpenAIMessagesSchema.safeParse(messages);
+  const openAIOutput = parseOpenAIOutput(messages);
+  if (openAIOutput) {
+    return await downloadOpenAIImages(openAIOutput);
+  }
+
+  const openAIInput = parseOpenAIInput(messages);
+  if (openAIInput) {
+    return await downloadOpenAIImages(openAIInput);
+  }
+
   const langChainMessageResult = LangChainMessageSchema.safeParse(messages);
   const langChainMessagesResult = LangChainMessagesSchema.safeParse(messages);
-
-  if (openAIMessageResult.success) {
-    return await downloadOpenAIImages([openAIMessageResult.data]);
-  }
-
-  if (openAIMessagesResult.success) {
-    return await downloadOpenAIImages(openAIMessagesResult.data);
-  }
 
   if (langChainMessageResult.success) {
     return await downloadLangChainImages([langChainMessageResult.data]);
@@ -59,20 +58,8 @@ export const convertSpanToPlayground = async (messages: any): Promise<Message[]>
     return await convertOpenAIToPlaygroundMessages(openaiInput);
   }
 
-  // Keep old openai format for backwards compatibility
-  const openAIMessageResult = OpenAIMessageSchema.safeParse(messages);
-  const openAIMessagesResult = OpenAIMessagesSchema.safeParse(messages);
-
   const langChainMessageResult = LangChainMessageSchema.safeParse(messages);
   const langChainMessagesResult = LangChainMessagesSchema.safeParse(messages);
-
-  if (openAIMessageResult.success) {
-    return await convertOpenAIToPlaygroundMessages([openAIMessageResult.data]);
-  }
-
-  if (openAIMessagesResult.success) {
-    return await convertOpenAIToPlaygroundMessages(openAIMessagesResult.data);
-  }
 
   if (langChainMessageResult.success) {
     return await convertLangChainToPlaygroundMessages([langChainMessageResult.data]);
