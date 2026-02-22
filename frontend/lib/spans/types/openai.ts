@@ -73,7 +73,7 @@ export const OpenAIAssistantMessageSchema = z.object({
     .optional(),
   annotations: z.array(z.string()).nullable().optional(),
   refusal: z.string().nullable().optional(),
-  content: z.union([z.string(), z.array(OpenAITextPartSchema)]).nullable(),
+  content: z.union([z.string(), z.array(OpenAITextPartSchema)]).nullable().optional(),
   name: z.string().optional(),
   tool_calls: z.array(OpenAIToolCallPartSchema).nullable().optional(),
 });

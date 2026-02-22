@@ -1,6 +1,7 @@
 import { type Message } from "@/lib/playground/types";
 import { convertToPlaygroundMessages, downloadImages } from "@/lib/spans/types";
 import { convertGeminiToPlaygroundMessages, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
+import { parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
 import {
   convertLangChainToPlaygroundMessages,
   downloadLangChainImages,
@@ -48,8 +49,20 @@ export const downloadSpanImages = async (messages: any): Promise<unknown> => {
  * downloading necessary image parts
  */
 export const convertSpanToPlayground = async (messages: any): Promise<Message[]> => {
+  const openaiOutput = parseOpenAIOutput(messages);
+  if (openaiOutput) {
+    return await convertOpenAIToPlaygroundMessages(openaiOutput);
+  }
+
+  const openaiInput = parseOpenAIInput(messages);
+  if (openaiInput) {
+    return await convertOpenAIToPlaygroundMessages(openaiInput);
+  }
+
+  // Keep old openai format for backwards compatibility
   const openAIMessageResult = OpenAIMessageSchema.safeParse(messages);
   const openAIMessagesResult = OpenAIMessagesSchema.safeParse(messages);
+
   const langChainMessageResult = LangChainMessageSchema.safeParse(messages);
   const langChainMessagesResult = LangChainMessagesSchema.safeParse(messages);
 
