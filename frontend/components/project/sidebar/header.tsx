@@ -87,7 +87,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
             >
               <DropdownMenuLabel className="flex gap-2 p-1">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.image ?? ''} alt="avatar" />
+                  <AvatarImage src={user.image ?? ""} alt="avatar" />
                   <AvatarFallback className="rounded-lg">{user.name?.at(0)?.toUpperCase() || "L"}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left leading-tight">
@@ -114,6 +114,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                 </Link>
               ))}
               <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-muted-foreground p-1">Workspace</DropdownMenuLabel>
               <Link passHref href={`/workspace/${workspaceId}`}>
                 <DropdownMenuItem className="cursor-pointer">
                   <ArrowUpLeft />

@@ -11,14 +11,15 @@ import { cn } from "@/lib/utils";
 const TOKEN_STEPS = [
   100_000_000, 150_000_000, 200_000_000, 250_000_000, 300_000_000, 350_000_000, 400_000_000, 450_000_000, 500_000_000,
   1_000_000_000, 2_500_000_000, 5_000_000_000, 10_000_000_000, 15_000_000_000, 20_000_000_000, 25_000_000_000,
-  35_000_000_000, 50_000_000_000, 75_000_000_000, 100_000_000_000, 250_000_000_000, 500_000_000_000, 1_000_000_000_000,
-  1_666_666_666_667,
+  35_000_000_000, 50_000_000_000, 75_000_000_000, 100_000_000_000, 250_000_000_000, 300_000_000_000, 333_333_333_334,
+  400_000_000_000, 500_000_000_000, 1_000_000_000_000, 1_666_666_666_667,
 ];
 const SIGNAL_STEPS = [100, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000];
 
 const BYTES_PER_TOKEN = 3;
-const PRO_BASE_PRICE = 150;
-const ENTERPRISE_THRESHOLD = 500;
+const PRO_DATA_THRESHOLD_GB = 30;
+const ENTERPRISE_DATA_THRESHOLD_GB = 1000;
+const ENTERPRISE_SIGNAL_THRESHOLD = 100_000;
 
 interface TierEstimate {
   name: string;
@@ -147,7 +148,7 @@ function TierColumn({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-landing-text-100 font-space-grotesk text-lg">{estimate.name}</span>
+        <span className="font-semibold text-landing-text-100 font-space-grotesk text-2xl">{estimate.name}</span>
         {isRecommended && <RecommendedBadge tooltip={recommendationTooltip} />}
       </div>
 
@@ -198,8 +199,13 @@ function TierColumn({
         </div>
       </div>
 
-      <div className="text-xs text-landing-text-400 pt-1">
-        {estimate.retention} retention · {estimate.support} support
+      <div className="flex flex-wrap gap-2 pt-1">
+        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
+          {estimate.retention} retention
+        </span>
+        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
+          {estimate.support} support
+        </span>
       </div>
     </div>
   );
@@ -220,7 +226,7 @@ function EnterpriseTierColumn({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-landing-text-100 font-space-grotesk text-lg">Enterprise</span>
+        <span className="font-semibold text-landing-text-100 font-space-grotesk text-2xl">Enterprise</span>
         {isRecommended && <RecommendedBadge tooltip={recommendationTooltip} />}
       </div>
 
@@ -230,15 +236,15 @@ function EnterpriseTierColumn({
             <span>Base</span>
             <span>Custom</span>
           </div>
-          <div className="text-xs text-landing-text-400">Custom data & signal limits</div>
+          <div className="text-xs text-landing-text-400">1 TB data + 100,000 runs included</div>
         </div>
         <div className="flex justify-between text-landing-text-300">
-          <span>Data</span>
-          <span>Custom</span>
+          <span>Data (1 TB)</span>
+          <span>Included</span>
         </div>
         <div className="flex justify-between text-landing-text-300">
-          <span>Signals</span>
-          <span>Custom</span>
+          <span>Signals (100,000)</span>
+          <span>Included</span>
         </div>
       </div>
 
@@ -249,17 +255,24 @@ function EnterpriseTierColumn({
         </div>
       </div>
 
-      <div className="text-xs text-landing-text-400 pt-1">Custom retention · Dedicated support</div>
+      <div className="flex flex-wrap gap-2 pt-1">
+        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
+          Custom retention
+        </span>
+        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
+          Dedicated support
+        </span>
+      </div>
     </div>
   );
 }
 
 type CalculatorState = "free" | "hobby" | "pro" | "enterprise";
 
-function getCalculatorState(dataGB: number, signalRuns: number, hobbyTotal: number, proTotal: number): CalculatorState {
+function getCalculatorState(dataGB: number, signalRuns: number): CalculatorState {
   if (dataGB <= 1 && signalRuns <= 100) return "free";
-  if (proTotal > ENTERPRISE_THRESHOLD) return "enterprise";
-  if (hobbyTotal > PRO_BASE_PRICE) return "pro";
+  if (dataGB >= ENTERPRISE_DATA_THRESHOLD_GB || signalRuns >= ENTERPRISE_SIGNAL_THRESHOLD) return "enterprise";
+  if (dataGB >= PRO_DATA_THRESHOLD_GB) return "pro";
   return "hobby";
 }
 
@@ -275,13 +288,15 @@ export default function PricingCalculator() {
   const hobby = buildEstimate("Hobby", 30, 3, 1_000, 2, 0.02, dataGB, signalRuns, "30-day", "Email");
   const pro = buildEstimate("Pro", 150, 10, 10_000, 1.5, 0.015, dataGB, signalRuns, "90-day", "Slack");
 
-  const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);
+  const state = getCalculatorState(dataGB, signalRuns);
 
+  const freeTooltip = "Your usage fits within the Free tier — no payment needed.";
+  const hobbyTooltip = "Most teams at this usage level choose Hobby as the safer, more predictable option.";
   const proTooltip = "Most teams at this usage level choose Pro as the safer, more predictable option.";
   const enterpriseTooltip = "Most teams at this scale choose Enterprise as the safer, more cost-effective option.";
 
   return (
-    <div className="w-full max-w-2xl mt-16 px-4">
+    <div className="w-full max-w-xl mt-16 px-4">
       <div className="p-8 border border-landing-surface-400 rounded-lg space-y-6">
         <h3 className="text-xl font-semibold font-space-grotesk text-landing-text-100">Pricing calculator</h3>
 
@@ -321,38 +336,34 @@ export default function PricingCalculator() {
         </div>
 
         <div className="border-t border-landing-surface-400 pt-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            {state === "free" && (
-              <>
-                <TierColumn estimate={free} isRecommended dataGB={dataGB} signalRuns={signalRuns} />
-                <TierColumn estimate={hobby} isRecommended={false} dataGB={dataGB} signalRuns={signalRuns} />
-              </>
-            )}
-            {state === "hobby" && (
-              <>
-                <TierColumn estimate={hobby} isRecommended dataGB={dataGB} signalRuns={signalRuns} />
-                <TierColumn estimate={pro} isRecommended={false} dataGB={dataGB} signalRuns={signalRuns} />
-              </>
-            )}
-            {state === "pro" && (
-              <>
-                <TierColumn estimate={hobby} isRecommended={false} dataGB={dataGB} signalRuns={signalRuns} />
-                <TierColumn
-                  estimate={pro}
-                  isRecommended
-                  recommendationTooltip={proTooltip}
-                  dataGB={dataGB}
-                  signalRuns={signalRuns}
-                />
-              </>
-            )}
-            {state === "enterprise" && (
-              <>
-                <TierColumn estimate={pro} isRecommended={false} dataGB={dataGB} signalRuns={signalRuns} />
-                <EnterpriseTierColumn isRecommended recommendationTooltip={enterpriseTooltip} />
-              </>
-            )}
-          </div>
+          {state === "free" && (
+            <TierColumn
+              estimate={free}
+              isRecommended
+              recommendationTooltip={freeTooltip}
+              dataGB={dataGB}
+              signalRuns={signalRuns}
+            />
+          )}
+          {state === "hobby" && (
+            <TierColumn
+              estimate={hobby}
+              isRecommended
+              recommendationTooltip={hobbyTooltip}
+              dataGB={dataGB}
+              signalRuns={signalRuns}
+            />
+          )}
+          {state === "pro" && (
+            <TierColumn
+              estimate={pro}
+              isRecommended
+              recommendationTooltip={proTooltip}
+              dataGB={dataGB}
+              signalRuns={signalRuns}
+            />
+          )}
+          {state === "enterprise" && <EnterpriseTierColumn isRecommended recommendationTooltip={enterpriseTooltip} />}
         </div>
       </div>
     </div>
