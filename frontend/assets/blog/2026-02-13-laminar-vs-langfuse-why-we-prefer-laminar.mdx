@@ -21,7 +21,7 @@ This is not a neutral comparison. It is honest and practical, and it is biased t
 - **Debugging speed:** Laminar is built for real-time trace visibility, deep trees, and fast traversal across large traces. Langfuse is built for prompt iteration and evaluation workflows.
 - **Data access:** Laminar is SQL-native in product. Langfuse is SDK/API-first.
 - **Observability depth:** Laminar focuses on multi-step agents and long-running workflows; Langfuse focuses on structured prompt-centric telemetry.
-- **Pricing model:** Laminar prices by data size; Langfuse prices by units (traces, observations, scores). For many small spans, data-volume pricing is often more predictable.
+- **Pricing model:** Laminar prices by data size; Langfuse prices by units (traces, observations, scores). Data-volume pricing is more predictable.
 
 If your agents are already in production, Laminar's bias aligns with your day-to-day reality.
 
@@ -80,7 +80,7 @@ If you are debugging multi-step agents that call tools, spawn subagents, and run
 
 Laminar includes a **built-in SQL editor** that gives direct access to traces, spans, events, tags, and datasets. This changes the development loop:
 
-- You can answer “why did this fail?” with one query
+- You can answer "why did this fail?" with one query
 - You can build custom metrics without waiting for product features
 - You can generate datasets directly from production traces
 
@@ -154,7 +154,7 @@ Langfuse has a strong eval story, but its workflow is more strongly tied to prom
 
 Langfuse Cloud pricing is based on **billable units** (their definition: `Units = Traces + Observations + Scores`). That means lots of small spans/observations can add up quickly even if each one is tiny.
 
-Laminar prices by **data size ingested (GB)**. For agent systems with many small spans, size-based pricing tracks the actual payload rather than the count, which tends to be more predictable at scale.
+Laminar prices by **data size ingested (GB)**. Size-based pricing tracks the actual payload rather than the count, which tends to be more predictable.
 
 ## Architecture: Designed for Real-Time Ingestion
 
