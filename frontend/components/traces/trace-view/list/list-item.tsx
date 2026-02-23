@@ -32,7 +32,15 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
     spans: state.spans,
   }));
 
-  const { enabled: cachingEnabled, isSpanCached, cacheToSpan, uncacheFromSpan } = useRolloutCaching();
+  const {
+    enabled: cachingEnabled,
+    state: { isSpanCached, cacheToSpan, uncacheFromSpan },
+  } = useRolloutCaching((s) => ({
+    isSpanCached: s.isSpanCached,
+    cacheToSpan: s.cacheToSpan,
+    uncacheFromSpan: s.uncacheFromSpan,
+    cachedSpanCounts: s.cachedSpanCounts,
+  }));
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
 

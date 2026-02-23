@@ -102,7 +102,6 @@ export interface BaseTraceViewState {
   tab: "tree" | "reader";
   hasBrowserSession: boolean;
   spanTemplates: Record<string, string>;
-  spanPathCounts: Map<string, number>;
   showTreeContent: boolean;
   condensedTimelineEnabled: boolean;
   condensedTimelineVisibleSpanIds: Set<string>;
@@ -145,7 +144,6 @@ export interface BaseTraceViewActions {
   getSpanBranch: <T extends { spanId: string; parentSpanId?: string }>(span: T) => T[];
   getSpanTemplate: (spanPathKey: string) => string | undefined;
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
-  rebuildSpanPathCounts: () => void;
 }
 
 export type BaseTraceViewStore = BaseTraceViewState & BaseTraceViewActions;
@@ -171,7 +169,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     spanPath: null,
     hasBrowserSession: options?.initialTrace?.hasBrowserSession || false,
     spanTemplates: {},
-    spanPathCounts: new Map(),
     showTreeContent: true,
     condensedTimelineEnabled: true,
     condensedTimelineVisibleSpanIds: new Set(),
@@ -368,20 +365,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     getSpanAttribute: (spanId: string, attributeKey: string) => {
       const span = get().spans.find((s) => s.spanId === spanId);
       return span?.attributes?.[attributeKey];
-    },
-    rebuildSpanPathCounts: () => {
-      const spans = get().spans;
-      const pathCounts = new Map<string, number>();
-
-      spans.forEach((span) => {
-        const spanPath = span.attributes?.["lmnr.span.path"];
-        if (spanPath && Array.isArray(spanPath)) {
-          const pathKey = spanPath.join("/");
-          pathCounts.set(pathKey, (pathCounts.get(pathKey) ?? 0) + 1);
-        }
-      });
-
-      set({ spanPathCounts: pathCounts } as Partial<T>);
     },
   };
 }

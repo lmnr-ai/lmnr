@@ -55,7 +55,16 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
     showTreeContent: state.showTreeContent,
   }));
 
-  const { enabled: cachingEnabled, isSpanCached, cacheToSpan, uncacheFromSpan } = useRolloutCaching();
+  const {
+    enabled: cachingEnabled,
+    state: { isSpanCached, cacheToSpan, uncacheFromSpan },
+  } = useRolloutCaching((s) => ({
+    isSpanCached: s.isSpanCached,
+    cacheToSpan: s.cacheToSpan,
+    uncacheFromSpan: s.uncacheFromSpan,
+    cachedSpanCounts: s.cachedSpanCounts,
+  }));
+
   const isCached = cachingEnabled ? isSpanCached(span) : false;
 
   const llmMetrics = getLLMMetrics(span);
