@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
-import { useTraceViewStore, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useTraceViewStore, useTraceViewStoreContext } from "@/components/traces/trace-view/store";
 import {
   DropdownMenu,
   DropdownMenuContent,

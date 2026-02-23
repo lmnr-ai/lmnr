@@ -3,26 +3,25 @@ import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan, useTraceViewContext } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import MustacheTemplateSheet from "../list/mustache-template-sheet";
 import { useBatchedSpanOutputs } from "../list/use-batched-span-outputs";
 import { useScrollContext } from "../scroll-context";
-import { type PathInfo } from "../trace-view-store-utils";
+import { type PathInfo } from "../store/utils";
 import { SpanCard } from "./span-card";
 
 interface TreeProps {
-  traceId: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
   isShared?: boolean;
 }
 
-const Tree = ({ traceId, onSpanSelect, isShared = false }: TreeProps) => {
+const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
   const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds, selectedSpan } =
-    useTraceViewStoreContext((state) => ({
+    useTraceViewContext((state) => ({
       getTreeSpans: state.getTreeSpans,
       spans: state.spans,
       trace: state.trace,
@@ -72,7 +71,7 @@ const Tree = ({ traceId, onSpanSelect, isShared = false }: TreeProps) => {
     projectId,
     visibleSpanIds,
     {
-      id: traceId,
+      id: trace?.id,
       startTime: trace?.startTime,
       endTime: trace?.endTime,
     },

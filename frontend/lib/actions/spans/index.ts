@@ -1,7 +1,7 @@
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
-import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { buildSelectQuery, type SelectQueryOptions } from "@/lib/actions/common/query-builder";
@@ -110,12 +110,12 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-      projectId,
-      traceId: undefined,
-      searchQuery: search,
-      timeRange: getTimeRange(pastHours, startTime, endTime),
-      searchType: searchIn as SpanSearchType[],
-    })
+        projectId,
+        traceId: undefined,
+        searchQuery: search,
+        timeRange: getTimeRange(pastHours, startTime, endTime),
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
   const spanIds = spanHits.map((span) => span.span_id);
 
@@ -280,12 +280,12 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const timeRange = getOptionalTimeRange(pastHours, startDate, endDate);
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-      projectId,
-      traceId,
-      searchQuery: search,
-      ...(timeRange && { timeRange }),
-      searchType: searchIn as SpanSearchType[],
-    })
+        projectId,
+        traceId,
+        searchQuery: search,
+        ...(timeRange && { timeRange }),
+        searchType: searchIn as SpanSearchType[],
+      })
     : [];
   const spanIds = spanHits.map((span) => span.span_id);
 
@@ -316,9 +316,9 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const parentRewiring =
     shouldApplyRewiring && treeStructure.length > 0
       ? createParentRewiring(
-        spans.map((span) => span.spanId),
-        treeStructure
-      )
+          spans.map((span) => span.spanId),
+          treeStructure
+        )
       : new Map<string, string | undefined>();
 
   const transformedSpans = spans.map((span) => transformSpanWithEvents(span as any, parentRewiring));

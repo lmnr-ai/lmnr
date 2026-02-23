@@ -1,4 +1,4 @@
-import { type TraceViewListSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewListSpan } from "@/components/traces/trace-view/store";
 import { tryParseJson } from "@/lib/utils.ts";
 
 export const generateSpanPathKey = (span: TraceViewListSpan): string => {

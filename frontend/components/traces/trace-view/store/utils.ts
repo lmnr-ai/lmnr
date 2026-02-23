@@ -1,4 +1,4 @@
-import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan } from "./base";
 
 export type PathInfo = {
   display: Array<{ spanId: string; name: string; count?: number }>;
@@ -269,10 +269,7 @@ export interface CondensedTimelineData {
  * Computes the visible span IDs by adding all ancestors of selected spans.
  * This ensures tree views maintain hierarchy when filtering.
  */
-export const computeVisibleSpanIds = (
-  selectedIds: Set<string>,
-  spans: TraceViewSpan[]
-): Set<string> => {
+export const computeVisibleSpanIds = (selectedIds: Set<string>, spans: TraceViewSpan[]): Set<string> => {
   if (selectedIds.size === 0) return new Set();
 
   const visibleIds = new Set(selectedIds);

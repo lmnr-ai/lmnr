@@ -5,26 +5,26 @@ import { AlertTriangle, CirclePlay, Radio } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
-import CondensedTimeline from "@/components/rollout-sessions/rollout-session-view/condensed-timeline";
 import Header from "@/components/rollout-sessions/rollout-session-view/header";
-import List from "@/components/rollout-sessions/rollout-session-view/list";
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/session-player";
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
 import { SessionTerminatedOverlay } from "@/components/rollout-sessions/rollout-session-view/terminated-overlay.tsx";
-import Tree from "@/components/rollout-sessions/rollout-session-view/tree/index";
 import {
   onRealtimeStartSpan,
   onRealtimeUpdateSpans,
 } from "@/components/rollout-sessions/rollout-session-view/utils.ts";
-import ViewDropdown from "@/components/rollout-sessions/rollout-session-view/view-dropdown";
 import { SpanView } from "@/components/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
+import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
+import List from "@/components/traces/trace-view/list";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
-import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
+import Tree from "@/components/traces/trace-view/tree";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -62,7 +62,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     setTraceError,
     spansError,
     setSpansError,
-    rebuildSpanPathCounts,
     // UI state
     tab,
     browserSession,
@@ -97,7 +96,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     setTraceError: state.setTraceError,
     spansError: state.spansError,
     setSpansError: state.setSpansError,
-    rebuildSpanPathCounts: state.rebuildSpanPathCounts,
     // UI state
     tab: state.tab,
     browserSession: state.browserSession,
@@ -236,9 +234,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
 
         setSpans(spans);
 
-        // Rebuild the span path counts map for efficient realtime updates
-        rebuildSpanPathCounts();
-
         if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
           setHasBrowserSession(true);
           setBrowserSession(true);
@@ -262,7 +257,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
       hasBrowserSession,
       setHasBrowserSession,
       setBrowserSession,
-      rebuildSpanPathCounts,
     ]
   );
 
@@ -479,12 +473,12 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
               </div>
               {tab === "reader" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
-                  <List traceId={trace?.id} onSpanSelect={handleSpanSelect} />
+                  <List onSpanSelect={handleSpanSelect} />
                 </div>
               )}
               {tab === "tree" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
-                  <Tree traceId={trace?.id} onSpanSelect={handleSpanSelect} />
+                  <Tree onSpanSelect={handleSpanSelect} />
                 </div>
               )}
             </ResizablePanel>

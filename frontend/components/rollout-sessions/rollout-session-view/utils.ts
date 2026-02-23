@@ -1,6 +1,6 @@
 import { get } from "lodash";
 
-import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils.ts";
 import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
 import { type RealtimeSpan } from "@/lib/traces/types.ts";

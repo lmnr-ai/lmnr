@@ -11,7 +11,7 @@ import rrwebPlayer from "rrweb-player";
 
 import { fetchBrowserSessionEvents, type UrlChange } from "@/components/session-player/utils";
 import SpanImagesVideoPlayer from "@/components/traces/span-images-video-player";
-import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useTraceViewStoreContext } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button.tsx";
 import {
   DropdownMenu,

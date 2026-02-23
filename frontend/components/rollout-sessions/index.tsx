@@ -4,7 +4,7 @@ import React from "react";
 
 import RolloutSessionView from "@/components/rollout-sessions/rollout-session-view";
 import RolloutSessionStoreProvider from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
-import { type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import Header from "@/components/ui/header";
 import { type RolloutSession as RolloutSessionType, type RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
 

@@ -13,7 +13,7 @@ import TraceViewStoreProvider, {
   type TraceViewSpan,
   type TraceViewTrace,
   useTraceViewStoreContext,
-} from "@/components/traces/trace-view/trace-view-store.tsx";
+} from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
@@ -450,12 +450,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 </div>
                 {tab === "reader" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
-                    <List traceId={traceId} onSpanSelect={handleSpanSelect} />
+                    <List onSpanSelect={handleSpanSelect} />
                   </div>
                 )}
                 {tab === "tree" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
-                    <Tree traceId={traceId} onSpanSelect={handleSpanSelect} />
+                    <Tree onSpanSelect={handleSpanSelect} />
                   </div>
                 )}
               </ResizablePanel>
