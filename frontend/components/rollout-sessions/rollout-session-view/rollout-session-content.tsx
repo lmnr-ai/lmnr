@@ -62,7 +62,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     setTraceError,
     spansError,
     setSpansError,
-    rebuildSpanPathCounts,
     // UI state
     tab,
     browserSession,
@@ -97,7 +96,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     setTraceError: state.setTraceError,
     spansError: state.spansError,
     setSpansError: state.setSpansError,
-    rebuildSpanPathCounts: state.rebuildSpanPathCounts,
     // UI state
     tab: state.tab,
     browserSession: state.browserSession,
@@ -236,9 +234,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
 
         setSpans(spans);
 
-        // Rebuild the span path counts map for efficient realtime updates
-        rebuildSpanPathCounts();
-
         if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
           setHasBrowserSession(true);
           setBrowserSession(true);
@@ -262,7 +257,6 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
       hasBrowserSession,
       setHasBrowserSession,
       setBrowserSession,
-      rebuildSpanPathCounts,
     ]
   );
 

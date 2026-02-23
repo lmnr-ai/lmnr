@@ -1,3 +1,4 @@
+import { isNil } from "lodash";
 import { createContext, type PropsWithChildren, useContext, useRef } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
@@ -125,7 +126,6 @@ const createRolloutSessionStore = ({
           }
         },
 
-        // Override setTrace: also sync history runs
         setTrace: (trace) => {
           let newTrace: TraceViewTrace | undefined;
           if (typeof trace === "function") {
@@ -167,23 +167,6 @@ const createRolloutSessionStore = ({
             }
           }
         },
-
-        // Override rebuildSpanPathCounts: uses "." separator
-        rebuildSpanPathCounts: () => {
-          const spans = get().spans;
-          const pathCounts = new Map<string, number>();
-
-          spans.forEach((span) => {
-            const spanPath = span.attributes?.["lmnr.span.path"];
-            if (spanPath && Array.isArray(spanPath)) {
-              const pathKey = spanPath.join(".");
-              pathCounts.set(pathKey, (pathCounts.get(pathKey) ?? 0) + 1);
-            }
-          });
-
-          set({ spanPathCounts: pathCounts });
-        },
-
         isSpanCached: (span: TraceViewSpan): boolean => {
           const spanPath = span.attributes?.["lmnr.span.path"];
           if (!spanPath || !Array.isArray(spanPath)) return false;
@@ -459,7 +442,6 @@ const createRolloutSessionStore = ({
             if (spansResponse.ok) {
               const results = (await spansResponse.json()) as TraceViewSpan[];
               get().setSpans(enrichSpansWithPending(results));
-              get().rebuildSpanPathCounts();
             }
           } catch {
             set({ spansError: "Failed to load spans" });
@@ -542,18 +524,12 @@ export const useRolloutSessionStore = () => {
   return store;
 };
 
-const DISABLED_CACHING = {
-  enabled: false as const,
-  isSpanCached: () => false as const,
-  cacheToSpan: () => {},
-  uncacheFromSpan: () => {},
-};
+const NOOP_ROLLOUT_SESSION_STORE = createStore(() => ({})) as unknown as StoreApi<RolloutSessionStore>;
 
-export const useRolloutCaching = () => {
+export const useRolloutCaching = <T,>(selector: (state: RolloutSessionStore) => T): { enabled: boolean; state: T } => {
   const store = useContext(RolloutSessionStoreContext);
-  if (!store) return DISABLED_CACHING;
-  const { isSpanCached, cacheToSpan, uncacheFromSpan } = store.getState();
-  return { enabled: true as const, isSpanCached, cacheToSpan, uncacheFromSpan };
+  const state = useStore(store ?? NOOP_ROLLOUT_SESSION_STORE, selector);
+  return { enabled: !isNil(store), state };
 };
 
 export default RolloutSessionStoreProvider;
