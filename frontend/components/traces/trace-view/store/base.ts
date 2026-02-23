@@ -107,7 +107,6 @@ export interface BaseTraceViewState {
   condensedTimelineEnabled: boolean;
   condensedTimelineVisibleSpanIds: Set<string>;
   condensedTimelineZoom: number;
-  cachingEnabled: boolean;
 }
 
 export interface BaseTraceViewActions {
@@ -147,9 +146,6 @@ export interface BaseTraceViewActions {
   getSpanTemplate: (spanPathKey: string) => string | undefined;
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
   rebuildSpanPathCounts: () => void;
-  isSpanCached: (span: TraceViewSpan) => boolean;
-  cacheToSpan: (span: TraceViewSpan) => void;
-  uncacheFromSpan: (span: TraceViewSpan) => void;
 }
 
 export type BaseTraceViewStore = BaseTraceViewState & BaseTraceViewActions;
@@ -180,7 +176,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     condensedTimelineEnabled: true,
     condensedTimelineVisibleSpanIds: new Set(),
     condensedTimelineZoom: 1,
-    cachingEnabled: false,
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
     setTrace: (trace) => {
@@ -388,10 +383,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
       set({ spanPathCounts: pathCounts } as Partial<T>);
     },
-
-    isSpanCached: () => false,
-    cacheToSpan: () => {},
-    uncacheFromSpan: () => {},
   };
 }
 

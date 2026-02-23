@@ -3,6 +3,7 @@ import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
+import { useRolloutCaching } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { type TraceViewSpan, useTraceViewContext } from "@/components/traces/trace-view/store/base";
 import { type PathInfo } from "@/components/traces/trace-view/store/utils";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
@@ -47,26 +48,14 @@ const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo
 export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathInfo, onOpenSettings }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  const {
-    selectedSpan,
-    spans,
-    toggleCollapse,
-    showTreeContent,
-    cachingEnabled,
-    isSpanCached,
-    cacheToSpan,
-    uncacheFromSpan,
-  } = useTraceViewContext((state) => ({
+  const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewContext((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
     toggleCollapse: state.toggleCollapse,
     showTreeContent: state.showTreeContent,
-    cachingEnabled: state.cachingEnabled,
-    isSpanCached: state.isSpanCached,
-    cacheToSpan: state.cacheToSpan,
-    uncacheFromSpan: state.uncacheFromSpan,
   }));
 
+  const { enabled: cachingEnabled, isSpanCached, cacheToSpan, uncacheFromSpan } = useRolloutCaching();
   const isCached = cachingEnabled ? isSpanCached(span) : false;
 
   const llmMetrics = getLLMMetrics(span);

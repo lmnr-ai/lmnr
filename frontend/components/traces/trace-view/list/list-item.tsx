@@ -3,6 +3,7 @@ import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 
+import { useRolloutCaching } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import Markdown from "@/components/traces/trace-view/list/markdown";
@@ -26,16 +27,12 @@ interface ListItemProps {
 }
 
 const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
-  const { selectedSpan, spans, cachingEnabled, isSpanCached, cacheToSpan, uncacheFromSpan } = useTraceViewContext(
-    (state) => ({
-      selectedSpan: state.selectedSpan,
-      spans: state.spans,
-      cachingEnabled: state.cachingEnabled,
-      isSpanCached: state.isSpanCached,
-      cacheToSpan: state.cacheToSpan,
-      uncacheFromSpan: state.uncacheFromSpan,
-    })
-  );
+  const { selectedSpan, spans } = useTraceViewContext((state) => ({
+    selectedSpan: state.selectedSpan,
+    spans: state.spans,
+  }));
+
+  const { enabled: cachingEnabled, isSpanCached, cacheToSpan, uncacheFromSpan } = useRolloutCaching();
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
 

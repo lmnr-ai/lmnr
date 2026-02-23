@@ -49,6 +49,9 @@ interface RolloutSessionStoreActions {
     messages: Map<string, SystemMessage> | ((prev: Map<string, SystemMessage>) => Map<string, SystemMessage>)
   ) => void;
   setIsSystemMessagesLoading: (isLoading: boolean) => void;
+  isSpanCached: (span: TraceViewSpan) => boolean;
+  cacheToSpan: (span: TraceViewSpan) => void;
+  uncacheFromSpan: (span: TraceViewSpan) => void;
   toggleOverride: (messageId: string) => void;
   updateOverride: (pathKey: string, content: string) => void;
   isOverrideEnabled: (messageId: string) => boolean;
@@ -81,9 +84,7 @@ const createRolloutSessionStore = ({
       (set, get) => ({
         ...createBaseTraceViewSlice(set, get, { initialTrace: trace }),
 
-        // Override base defaults
         condensedTimelineEnabled: false,
-        cachingEnabled: true,
 
         // Override selectSpanById: rollout doesn't expand collapsed ancestors
         selectSpanById: (spanId: string) => {
@@ -183,7 +184,6 @@ const createRolloutSessionStore = ({
           set({ spanPathCounts: pathCounts });
         },
 
-        // Override caching actions with real implementations
         isSpanCached: (span: TraceViewSpan): boolean => {
           const spanPath = span.attributes?.["lmnr.span.path"];
           if (!spanPath || !Array.isArray(spanPath)) return false;
@@ -498,7 +498,7 @@ const createRolloutSessionStore = ({
     )
   );
 
-const RolloutSessionStoreContext = createContext<StoreApi<RolloutSessionStore> | undefined>(undefined);
+export const RolloutSessionStoreContext = createContext<StoreApi<RolloutSessionStore> | undefined>(undefined);
 
 const RolloutSessionStoreProvider = ({
   trace,
@@ -540,6 +540,20 @@ export const useRolloutSessionStore = () => {
     throw new Error("useRolloutSessionStore must be used within a RolloutSessionStoreContext");
   }
   return store;
+};
+
+const DISABLED_CACHING = {
+  enabled: false as const,
+  isSpanCached: () => false as const,
+  cacheToSpan: () => {},
+  uncacheFromSpan: () => {},
+};
+
+export const useRolloutCaching = () => {
+  const store = useContext(RolloutSessionStoreContext);
+  if (!store) return DISABLED_CACHING;
+  const { isSpanCached, cacheToSpan, uncacheFromSpan } = store.getState();
+  return { enabled: true as const, isSpanCached, cacheToSpan, uncacheFromSpan };
 };
 
 export default RolloutSessionStoreProvider;
