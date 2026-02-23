@@ -450,12 +450,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 </div>
                 {tab === "reader" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
-                    <List traceId={traceId} onSpanSelect={handleSpanSelect} />
+                    <List onSpanSelect={handleSpanSelect} />
                   </div>
                 )}
                 {tab === "tree" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
-                    <Tree traceId={traceId} onSpanSelect={handleSpanSelect} />
+                    <Tree onSpanSelect={handleSpanSelect} />
                   </div>
                 )}
               </ResizablePanel>

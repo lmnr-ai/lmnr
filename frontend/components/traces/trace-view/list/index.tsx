@@ -16,12 +16,11 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { useScrollContext } from "../scroll-context.tsx";
 
 interface ListProps {
-  traceId?: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
   isShared?: boolean;
 }
 
-const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
+const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
   const { getListData, spans, isSpansLoading, selectedSpan, trace, condensedTimelineVisibleSpanIds } =
@@ -73,7 +72,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
     // Make sure that spans in view (~20) + overscan spans < cache size (default 100) in this hook.
     visibleSpanIds,
     {
-      id: traceId ?? "-",
+      id: trace?.id,
       startTime: trace?.startTime,
       endTime: trace?.endTime,
     },

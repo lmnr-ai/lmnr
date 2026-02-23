@@ -473,12 +473,12 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
               </div>
               {tab === "reader" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
-                  <List traceId={trace?.id} onSpanSelect={handleSpanSelect} />
+                  <List onSpanSelect={handleSpanSelect} />
                 </div>
               )}
               {tab === "tree" && (
                 <div className="flex flex-1 h-full overflow-hidden relative">
-                  <Tree traceId={trace?.id} onSpanSelect={handleSpanSelect} />
+                  <Tree onSpanSelect={handleSpanSelect} />
                 </div>
               )}
             </ResizablePanel>
