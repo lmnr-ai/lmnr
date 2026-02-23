@@ -368,7 +368,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     eventHandlers,
   });
 
-  if (isLoading) {
+  if (isLoading || isSpansLoading) {
     return (
       <div className="flex flex-col flex-1">
         <div className="flex items-center gap-x-2 p-2 border-b h-12">

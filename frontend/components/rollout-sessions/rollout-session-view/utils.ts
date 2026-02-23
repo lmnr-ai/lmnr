@@ -32,7 +32,7 @@ export const onRealtimeStartSpan =
           outputCost: 0,
           totalCost: 0,
           metadata: "",
-          status: newSpan.status || "OK",
+          status: newSpan.status || "success",
           traceType: "DEFAULT",
           visibility: "private",
           hasBrowserSession: !!newSpan.attributes["lmnr.internal.has_browser_session"],
@@ -53,7 +53,7 @@ export const onRealtimeStartSpan =
           outputCost: 0,
           totalCost: 0,
           metadata: trace.metadata || "",
-          status: newSpan.status || "OK",
+          status: newSpan.status || "success",
           traceType: trace.traceType || "DEFAULT",
           visibility: trace.visibility || "private",
           hasBrowserSession: trace.hasBrowserSession || !!newSpan.attributes["lmnr.internal.has_browser_session"],
@@ -150,7 +150,7 @@ export const onRealtimeUpdateSpans =
           outputCost: outputCost,
           totalCost: totalCost,
           metadata: "",
-          status: newSpan.status || "OK",
+          status: newSpan.status || "success",
           traceType: "DEFAULT",
           visibility: "private",
           hasBrowserSession: !!newSpan.attributes["lmnr.internal.has_browser_session"],
@@ -172,7 +172,7 @@ export const onRealtimeUpdateSpans =
           outputCost: outputCost,
           totalCost: totalCost,
           metadata: trace.metadata || "",
-          status: newSpan.status || "OK",
+          status: newSpan.status || "success",
           traceType: trace.traceType || "DEFAULT",
           visibility: trace.visibility || "private",
           hasBrowserSession: trace.hasBrowserSession || !!newSpan.attributes["lmnr.internal.has_browser_session"],
@@ -195,6 +195,7 @@ export const onRealtimeUpdateSpans =
       newTrace.inputCost += inputCost;
       newTrace.outputCost += outputCost;
       newTrace.totalCost += totalCost;
+      newTrace.status = newSpan.status || "success";
 
       if (newSpan.attributes["lmnr.internal.has_browser_session"]) {
         newTrace.hasBrowserSession = true;

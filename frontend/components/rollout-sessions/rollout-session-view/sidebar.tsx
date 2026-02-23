@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch.tsx";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
+import RolloutSessionHistory from "./rollout-session-history";
 import { useRolloutSessionStoreContext } from "./rollout-session-store";
 import { type SystemMessage } from "./system-messages-utils";
 
@@ -217,6 +218,8 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
           </Alert>
         )}
       </div>
+
+      <RolloutSessionHistory />
 
       {params && params.length > 0 && (
         <div className="flex flex-col gap-2">
