@@ -3,7 +3,7 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
 import React, { useState } from "react";
 
-import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useTraceViewStoreContext } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";

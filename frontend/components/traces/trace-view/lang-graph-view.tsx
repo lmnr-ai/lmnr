@@ -2,7 +2,7 @@ import { has, isEmpty } from "lodash";
 import React, { memo, useMemo } from "react";
 
 import LangGraphViewer from "@/components/lang-graph";
-import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { getLangGraphFromSpan } from "@/lib/lang-graph/utils";

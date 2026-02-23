@@ -1,18 +1,20 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, Settings } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
 
-import SpanTypeIcon from "@/components/traces/span-type-icon.tsx";
-import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
-import { MiniTree } from "@/components/traces/trace-view/list/mini-tree.tsx";
-import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
-import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield.tsx";
-import { type TraceViewListSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
-import { Button } from "@/components/ui/button.tsx";
-import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip.tsx";
-import { cn } from "@/lib/utils.ts";
+import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
+import SpanTypeIcon from "@/components/traces/span-type-icon";
+import Markdown from "@/components/traces/trace-view/list/markdown";
+import { MiniTree } from "@/components/traces/trace-view/list/mini-tree";
+import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils";
+import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
+import { type TraceViewListSpan, useTraceViewContext } from "@/components/traces/trace-view/store/base";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { isStringDateOld } from "@/lib/traces/utils";
+import { cn } from "@/lib/utils";
 
 interface ListItemProps {
   span: TraceViewListSpan;
@@ -24,16 +26,41 @@ interface ListItemProps {
 }
 
 const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
-  const selectedSpan = useTraceViewStoreContext((state) => state.selectedSpan);
+  const { selectedSpan, spans, cachingEnabled, isSpanCached, cacheToSpan, uncacheFromSpan } = useTraceViewContext(
+    (state) => ({
+      selectedSpan: state.selectedSpan,
+      spans: state.spans,
+      cachingEnabled: state.cachingEnabled,
+      isSpanCached: state.isSpanCached,
+      cacheToSpan: state.cacheToSpan,
+      uncacheFromSpan: state.uncacheFromSpan,
+    })
+  );
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
 
-  const savedTemplate = useTraceViewStoreContext((state) => state.getSpanTemplate(spanPathKey));
+  const savedTemplate = useTraceViewContext((state) => state.getSpanTemplate(spanPathKey));
+
+  const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
+  const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
 
   const [isExpanded, setIsExpanded] = useState(
-    span.spanType === "LLM" || span.spanType === "EXECUTOR" || span.spanType === "EVALUATOR"
+    span.spanType === "LLM" ||
+      span.spanType === "CACHED" ||
+      span.spanType === "EXECUTOR" ||
+      span.spanType === "EVALUATOR"
   );
 
+  useEffect(() => {
+    const shouldBeExpanded =
+      span.spanType === "LLM" ||
+      span.spanType === "CACHED" ||
+      span.spanType === "EXECUTOR" ||
+      span.spanType === "EVALUATOR";
+    setIsExpanded(shouldBeExpanded);
+  }, [span.spanId, span.spanType]);
+
+  const isPending = span.pending;
   const isLoadingOutput = output === undefined;
 
   const displayName = useMemo(
@@ -51,15 +78,22 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
         {
           "border-t pt-1": span.spanType === "LLM" && !isFirst,
           "pb-1": isLast,
+          "opacity-50": isCached,
         }
       )}
-      onClick={() => onSpanSelect(span)}
+      onClick={() => {
+        if (!isPending) {
+          onSpanSelect(span);
+        }
+      }}
     >
       <div className="flex items-center gap-2 pl-2 pr-3 py-2">
         <div className="flex items-center gap-2 flex-1 justify-between overflow-hidden">
           <div className="flex items-center gap-2 min-w-0 flex-shrink-[2]">
-            <SpanTypeIcon spanType={span.spanType} />
-            <span className="font-medium text-sm truncate min-w-0">{displayName}</span>
+            <SpanTypeIcon spanType={span.spanType} className={cn({ "text-muted-foreground bg-muted": isPending })} />
+            <span className={cn("font-medium text-sm truncate min-w-0", isPending && "text-muted-foreground shimmer")}>
+              {displayName}
+            </span>
             <Button
               variant="ghost"
               onClick={(e) => {
@@ -75,17 +109,57 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
                 )}
               />
             </Button>
+            {cachingEnabled && (span.spanType === "LLM" || span.spanType === "CACHED") && fullSpan && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "py-0 px-2 h-5 bg-muted rounded text-secondary-foreground animate-in fade-in duration-200 text-xs",
+                      isCached ? "block" : "hidden group-hover/message:block"
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isCached) {
+                        uncacheFromSpan(fullSpan);
+                      } else {
+                        cacheToSpan(fullSpan);
+                      }
+                    }}
+                  >
+                    {isCached ? "Cached" : "Cache until here"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipPortal>
+                  <TooltipContent side="top" className="text-xs">
+                    {isCached ? "Remove cache from this point" : "Cache up to and including this span"}
+                  </TooltipContent>
+                </TooltipPortal>
+              </Tooltip>
+            )}
           </div>
 
           <div className="flex items-center gap-2 min-w-0 ml-auto">
-            <SpanStatsShield
-              startTime={span.startTime}
-              endTime={span.endTime}
-              tokens={span.totalTokens}
-              cost={span.totalCost}
-              cacheReadInputTokens={span.cacheReadInputTokens}
-              className="hidden group-hover/message:flex"
-            />
+            {isPending ? (
+              isStringDateOld(span.startTime) ? (
+                <NoSpanTooltip>
+                  <div className="flex rounded bg-secondary p-1">
+                    <X className="w-4 h-4 text-secondary-foreground" />
+                  </div>
+                </NoSpanTooltip>
+              ) : (
+                <Skeleton className="w-20 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
+              )
+            ) : (
+              <SpanStatsShield
+                className="hidden group-hover/message:flex"
+                startTime={span.startTime}
+                endTime={span.endTime}
+                tokens={span.totalTokens}
+                cost={span.totalCost}
+                cacheReadInputTokens={span.cacheReadInputTokens}
+              />
+            )}
             <Button
               disabled={isLoadingOutput}
               variant="ghost"

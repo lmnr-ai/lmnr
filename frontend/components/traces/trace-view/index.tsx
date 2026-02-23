@@ -13,7 +13,7 @@ import TraceViewStoreProvider, {
   type TraceViewSpan,
   type TraceViewTrace,
   useTraceViewStoreContext,
-} from "@/components/traces/trace-view/trace-view-store.tsx";
+} from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";

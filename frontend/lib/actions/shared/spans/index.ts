@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type z from "zod/v4";
 
-import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { GetSharedTraceSchema } from "@/lib/actions/shared/trace";
 import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";

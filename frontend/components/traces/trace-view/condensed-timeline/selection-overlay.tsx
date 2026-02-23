@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 
-import { type CondensedTimelineSpan } from "@/components/traces/trace-view/trace-view-store-utils";
+import { type CondensedTimelineSpan } from "@/components/traces/trace-view/store/utils";
 
 import { ROW_HEIGHT } from "./condensed-timeline-element";
 
@@ -20,11 +20,7 @@ interface SelectionOverlayProps {
 
 const DRAG_THRESHOLD = 5;
 
-const SelectionOverlay = ({
-  spans,
-  containerRef,
-  onSelectionComplete,
-}: SelectionOverlayProps) => {
+const SelectionOverlay = ({ spans, containerRef, onSelectionComplete }: SelectionOverlayProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
   const startPos = useRef<{ x: number; y: number } | null>(null);
@@ -46,12 +42,7 @@ const SelectionOverlay = ({
     (e: MouseEvent): boolean => {
       if (!containerRef.current) return false;
       const rect = containerRef.current.getBoundingClientRect();
-      return (
-        e.clientX >= rect.left &&
-        e.clientX <= rect.right &&
-        e.clientY >= rect.top &&
-        e.clientY <= rect.bottom
-      );
+      return e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
     },
     [containerRef]
   );

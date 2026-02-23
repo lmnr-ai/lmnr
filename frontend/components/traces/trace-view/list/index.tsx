@@ -9,14 +9,14 @@ import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-b
 import {
   type TraceViewListSpan,
   type TraceViewSpan,
-  useTraceViewStoreContext,
-} from "@/components/traces/trace-view/trace-view-store.tsx";
+  useTraceViewContext,
+} from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 import { useScrollContext } from "../scroll-context.tsx";
 
 interface ListProps {
-  traceId: string;
+  traceId?: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
   isShared?: boolean;
 }
@@ -25,7 +25,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
   const { getListData, spans, isSpansLoading, selectedSpan, trace, condensedTimelineVisibleSpanIds } =
-    useTraceViewStoreContext((state) => ({
+    useTraceViewContext((state) => ({
       getListData: state.getListData,
       spans: state.spans,
       isSpansLoading: state.isSpansLoading,
@@ -73,7 +73,7 @@ const List = ({ traceId, onSpanSelect, isShared = false }: ListProps) => {
     // Make sure that spans in view (~20) + overscan spans < cache size (default 100) in this hook.
     visibleSpanIds,
     {
-      id: traceId,
+      id: traceId ?? "-",
       startTime: trace?.startTime,
       endTime: trace?.endTime,
     },

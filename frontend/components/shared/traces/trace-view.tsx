@@ -21,7 +21,7 @@ import TraceViewStoreProvider, {
   type TraceViewSpan,
   type TraceViewTrace,
   useTraceViewStoreContext,
-} from "@/components/traces/trace-view/trace-view-store.tsx";
+} from "@/components/traces/trace-view/store";
 import Tree from "@/components/traces/trace-view/tree";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
