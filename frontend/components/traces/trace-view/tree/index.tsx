@@ -13,12 +13,11 @@ import { type PathInfo } from "../store/utils";
 import { SpanCard } from "./span-card";
 
 interface TreeProps {
-  traceId?: string;
   onSpanSelect: (span?: TraceViewSpan) => void;
   isShared?: boolean;
 }
 
-const Tree = ({ traceId, onSpanSelect, isShared = false }: TreeProps) => {
+const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
   const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds, selectedSpan } =
@@ -72,7 +71,7 @@ const Tree = ({ traceId, onSpanSelect, isShared = false }: TreeProps) => {
     projectId,
     visibleSpanIds,
     {
-      id: traceId ?? "-",
+      id: trace?.id,
       startTime: trace?.startTime,
       endTime: trace?.endTime,
     },
