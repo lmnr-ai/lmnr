@@ -11,14 +11,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
-import { type Project } from "@/lib/workspaces/types";
+import { type Project, type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 interface ProjectsProps {
-  workspaceId: string;
+  workspace: Workspace;
 }
 
-export default function Projects({ workspaceId }: ProjectsProps) {
-  const { data, mutate, isLoading, error } = useSWR<Project[]>(`/api/workspaces/${workspaceId}/projects`, swrFetcher);
+export default function Projects({ workspace }: ProjectsProps) {
+  const { data, mutate, isLoading, error } = useSWR<Project[]>(`/api/workspaces/${workspace.id}/projects`, swrFetcher);
 
   const { toast } = useToast();
 
@@ -44,7 +44,12 @@ export default function Projects({ workspaceId }: ProjectsProps) {
       {!data ? (
         <Skeleton className="w-36 h-6" />
       ) : (
-        <ProjectCreateDialog workspaceId={workspaceId} onProjectCreate={mutate} />
+        <ProjectCreateDialog
+          workspaceId={workspace.id}
+          onProjectCreate={mutate}
+          isFreeTier={workspace.tierName === WorkspaceTier.FREE}
+          projectCount={data.length}
+        />
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {isLoading && times(4, (i) => <Skeleton key={i} className="h-44 w-full" />)}

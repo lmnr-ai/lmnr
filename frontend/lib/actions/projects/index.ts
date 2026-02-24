@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import defaultCharts from "@/lib/db/default-charts";
 import { db } from "@/lib/db/drizzle";
-import { dashboardCharts, projects } from "@/lib/db/migrations/schema";
+import { dashboardCharts, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 import { type Project } from "@/lib/workspaces/types";
 
 export const CreateProjectSchema = z.object({
@@ -12,36 +12,53 @@ export const CreateProjectSchema = z.object({
   workspaceId: z.string(),
 });
 
-const populateDefaultDashboardCharts = async (projectId: string): Promise<void> => {
-  const chartsToInsert = defaultCharts.map((chart) => ({
-    name: chart.name,
-    query: chart.query,
-    settings: chart.settings,
-    projectId: projectId,
-  }));
-
-  await db.insert(dashboardCharts).values(chartsToInsert);
-};
-
 export async function createProject(input: z.infer<typeof CreateProjectSchema>) {
   const { name, workspaceId } = CreateProjectSchema.parse(input);
 
   try {
-    const [project] = await db
-      .insert(projects)
-      .values({
-        name,
-        workspaceId,
-      })
-      .returning();
+    return await db.transaction(async (tx) => {
+      const [workspace] = await tx
+        .select({ tierName: subscriptionTiers.name })
+        .from(workspaces)
+        .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
+        .where(eq(workspaces.id, workspaceId))
+        .limit(1)
+        .for("update");
 
-    if (!project) {
-      throw new Error("Failed to create project");
-    }
+      if (workspace?.tierName.trim().toLowerCase() === "free") {
+        const existingProjects = await tx
+          .select({ id: projects.id })
+          .from(projects)
+          .where(eq(projects.workspaceId, workspaceId));
 
-    await populateDefaultDashboardCharts(project.id);
+        if (existingProjects.length >= 1) {
+          throw new Error("Free plan is limited to 1 project per workspace. Please upgrade to create more projects.");
+        }
+      }
 
-    return project;
+      const [newProject] = await tx
+        .insert(projects)
+        .values({
+          name,
+          workspaceId,
+        })
+        .returning();
+
+      if (!newProject) {
+        throw new Error("Failed to create project");
+      }
+
+      const chartsToInsert = defaultCharts.map((chart) => ({
+        name: chart.name,
+        query: chart.query,
+        settings: chart.settings,
+        projectId: newProject.id,
+      }));
+
+      await tx.insert(dashboardCharts).values(chartsToInsert);
+
+      return newProject;
+    });
   } finally {
     await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
   }

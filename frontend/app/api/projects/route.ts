@@ -26,6 +26,6 @@ export async function POST(req: NextRequest): Promise<Response> {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
 
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
 }
