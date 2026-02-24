@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import { tryParseJson } from "@/lib/actions/common/utils.ts";
 import { executeQuery } from "@/lib/actions/sql";
+import { extractAnthropicSystemMessage, parseAnthropicInput } from "@/lib/spans/types/anthropic";
 import { extractGeminiSystemMessage, parseGeminiInput } from "@/lib/spans/types/gemini";
 import { LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessagesSchema } from "@/lib/spans/types/openai";
@@ -59,6 +60,13 @@ function parseSystemMessageFromInput(input: string): string | null {
     }
   } catch {
     // Schema validation failed, try next format
+  }
+
+  // Anthropic
+  const anthropicMessages = parseAnthropicInput(parsed);
+  if (anthropicMessages) {
+    const text = extractAnthropicSystemMessage(anthropicMessages);
+    if (text) return text;
   }
 
   // Gemini
