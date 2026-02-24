@@ -33,6 +33,7 @@ interface RolloutSessionStoreState {
   isSystemMessagesLoading: boolean;
   cachedSpanCounts: Record<string, number>;
   overrides: Record<string, { system: string }>;
+  generatedNames: Record<string, string>;
   isRolloutLoading: boolean;
   rolloutError?: string;
   sessionStatus: RolloutSessionStatus;
@@ -65,6 +66,7 @@ interface RolloutSessionStoreActions {
   loadHistoryTrace: (projectId: string, traceId: string, startTime: string, endTime: string) => Promise<void>;
   setHistoryRuns: (runs: HistoryRun[]) => void;
   setIsHistoryLoading: (loading: boolean) => void;
+  setGeneratedName: (pathKey: string, name: string) => void;
 }
 
 type RolloutSessionStore = BaseTraceViewStore & RolloutSessionStoreState & RolloutSessionStoreActions;
@@ -240,6 +242,7 @@ const createRolloutSessionStore = ({
         isSystemMessagesLoading: false,
         cachedSpanCounts: {},
         overrides: {},
+        generatedNames: {},
         isRolloutLoading: false,
         rolloutError: undefined,
         sessionStatus: initialStatus,
@@ -389,6 +392,9 @@ const createRolloutSessionStore = ({
         setHistoryRuns: (runs: HistoryRun[]) => set({ historyRuns: runs }),
         setIsHistoryLoading: (isHistoryLoading: boolean) => set({ isHistoryLoading }),
 
+        setGeneratedName: (pathKey: string, name: string) =>
+          set({ generatedNames: { ...get().generatedNames, [pathKey]: name } }),
+
         loadHistoryTrace: async (projectId: string, traceId: string, startTime: string, endTime: string) => {
           set({
             trace: {
@@ -463,6 +469,7 @@ const createRolloutSessionStore = ({
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
+            generatedNames: state.generatedNames,
           };
         },
         merge: (persistedState, currentState) => {

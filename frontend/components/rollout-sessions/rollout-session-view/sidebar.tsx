@@ -2,66 +2,98 @@
 
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { AlertTriangle, CirclePlay, Loader, Loader2, RotateCcw, Save, Square } from "lucide-react";
+import { AlertTriangle, CirclePlay, Loader, Loader2, MessageSquare, RotateCcw, Square } from "lucide-react";
+import { useParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch.tsx";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import RolloutSessionHistory from "./rollout-session-history";
 import { useRolloutSessionStoreContext } from "./rollout-session-store";
 import { type SystemMessage } from "./system-messages-utils";
 
-interface SystemMessageEditorProps {
-  message: SystemMessage;
-  isEnabled: boolean;
-  overrideContent: string | undefined;
-  onToggle: () => void;
-  onEdit: (content: string) => void;
-  onReset: () => void;
-}
+const SystemMessageEditor = ({ message }: { message: SystemMessage }) => {
+  const { projectId, id: sessionId } = useParams<{ projectId: string; id: string }>();
 
-const SystemMessageEditor = ({
-  message,
-  isEnabled,
-  overrideContent,
-  onToggle,
-  onEdit,
-  onReset,
-}: SystemMessageEditorProps) => {
-  // Local state for draft content - only syncs to store on blur
+  const { overrideContent, isEnabled, generatedName, toggleOverride, updateOverride, resetOverride, setGeneratedName } =
+    useRolloutSessionStoreContext((state) => ({
+      overrideContent: state.overrides[message.pathKey]?.system,
+      isEnabled: state.isOverrideEnabled(message.id),
+      generatedName: state.generatedNames[message.pathKey],
+      toggleOverride: state.toggleOverride,
+      updateOverride: state.updateOverride,
+      resetOverride: state.resetOverride,
+      setGeneratedName: state.setGeneratedName,
+    }));
+
   const currentContent = overrideContent || message.content;
   const [localContent, setLocalContent] = useState(currentContent);
+  const [isNameLoading, setIsNameLoading] = useState(false);
 
-  // Sync local state when override content or message content changes from outside
   useEffect(() => {
     setLocalContent(currentContent);
   }, [currentContent]);
 
+  useEffect(() => {
+    if (!message.content || generatedName) return;
+
+    let cancelled = false;
+
+    const generateName = async () => {
+      setIsNameLoading(true);
+      try {
+        const res = await fetch(`/api/projects/${projectId}/rollout-sessions/${sessionId}/generate-name`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ promptContent: message.content }),
+        });
+
+        if (!res.ok) return;
+
+        const data = (await res.json()) as { name: string };
+        if (!cancelled) {
+          setGeneratedName(message.pathKey, data.name);
+        }
+      } catch {
+        // Fall back to showing the path
+      } finally {
+        if (!cancelled) setIsNameLoading(false);
+      }
+    };
+
+    generateName();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [message.content, message.pathKey, generatedName, projectId, sessionId, setGeneratedName]);
+
   const isModified = isEnabled && overrideContent !== undefined && overrideContent !== message.content;
 
-  // Sync to store when user is done editing (on blur)
   const handleBlur = () => {
     if (isEnabled && localContent !== currentContent) {
-      onEdit(localContent);
+      updateOverride(message.pathKey, localContent);
     }
   };
 
   const handleReset = () => {
     setLocalContent(message.content);
-    onReset();
+    resetOverride(message.id);
   };
 
   const handleToggle = () => {
     if (!isEnabled) {
       setLocalContent(message.content);
     }
-    onToggle();
+    toggleOverride(message.id);
   };
 
   return (
@@ -73,10 +105,22 @@ const SystemMessageEditor = ({
     >
       <div className="flex items-center justify-between px-2 bg-muted/30">
         <div className="flex items-center gap-2 truncate overflow-x-auto no-scrollbar py-2">
-          <span className="text-xs text-muted-foreground">Path:</span>
-          <span className="text-xs font-medium font-mono truncate" title={message.pathKey}>
-            {message.path.join(" → ")}
-          </span>
+          {isNameLoading ? (
+            <Skeleton className="h-4 w-32" />
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs font-semibold truncate cursor-default">
+                    {generatedName ?? message.path.join(" → ")}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="start">
+                  <span className="text-xs font-mono">{message.path.join(" → ")}</span>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
         {isModified && (
           <Button className="text-secondary-foreground hover:text-foreground" variant="ghost" onClick={handleReset}>
@@ -94,9 +138,7 @@ const SystemMessageEditor = ({
           value={localContent}
           onChange={(e) => setLocalContent(e.target.value)}
           onBlur={handleBlur}
-          className={cn(
-            "min-h-32 max-h-64 text-sm font-mono resize-y border-0 bg-transparent focus-visible:ring-0 shadow-none"
-          )}
+          className={cn("min-h-32 text-sm font-mono resize-y border-0 bg-transparent focus-visible:ring-0 shadow-none")}
           placeholder="Enter system message..."
         />
       )}
@@ -114,11 +156,6 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
   const {
     systemMessagesMap,
     isSystemMessagesLoading,
-    overrides,
-    toggleOverride,
-    updateOverride,
-    isOverrideEnabled,
-    resetOverride,
     rolloutError,
     params,
     paramValues,
@@ -127,11 +164,6 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
   } = useRolloutSessionStoreContext((state) => ({
     systemMessagesMap: state.systemMessagesMap,
     isSystemMessagesLoading: state.isSystemMessagesLoading,
-    overrides: state.overrides,
-    toggleOverride: state.toggleOverride,
-    updateOverride: state.updateOverride,
-    isOverrideEnabled: state.isOverrideEnabled,
-    resetOverride: state.resetOverride,
     rolloutError: state.rolloutError,
     params: state.params,
     paramValues: state.paramValues,
@@ -247,14 +279,14 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
       <div className="flex flex-col gap-2">
         <h4 className="text-sm font-semibold">System Prompts</h4>
         {isSystemMessagesLoading ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Loader2 size={24} className="text-muted-foreground animate-spin mb-3" />
-            <p className="text-sm text-muted-foreground">Loading system prompts...</p>
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-20 w-full rounded-lg" />
+            <Skeleton className="h-20 w-full rounded-lg" />
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-3">
-              <Save size={18} className="text-muted-foreground" />
+              <MessageSquare size={18} className="text-muted-foreground" />
             </div>
             <p className="text-sm text-muted-foreground">No system prompts found</p>
             <p className="text-xs text-muted-foreground/70 mt-1">System prompts will appear here once detected</p>
@@ -262,15 +294,7 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
         ) : (
           <div className="flex flex-col gap-2">
             {messages.map((message) => (
-              <SystemMessageEditor
-                key={message.id}
-                message={message}
-                isEnabled={isOverrideEnabled(message.id)}
-                overrideContent={overrides[message.pathKey]?.system}
-                onToggle={() => toggleOverride(message.id)}
-                onEdit={(content) => updateOverride(message.pathKey, content)}
-                onReset={() => resetOverride(message.id)}
-              />
+              <SystemMessageEditor key={message.id} message={message} />
             ))}
           </div>
         )}

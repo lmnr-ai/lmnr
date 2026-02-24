@@ -1,7 +1,7 @@
 "use client";
 
 import { times } from "lodash";
-import { Check, X } from "lucide-react";
+import { Check, History, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { memo, useCallback, useEffect } from "react";
 
@@ -106,8 +106,12 @@ const RolloutSessionHistoryList = () => {
 
   if (runs.length === 0) {
     return (
-      <div className="flex flex-col gap-2">
-        <p className="text-sm text-muted-foreground text-center py-4">No runs yet</p>
+      <div className="flex flex-col items-center justify-center py-8 text-center">
+        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-3">
+          <History size={18} className="text-muted-foreground" />
+        </div>
+        <p className="text-sm text-muted-foreground">No runs yet</p>
+        <p className="text-xs text-muted-foreground/70 mt-1">Runs will appear here after you start a rollout</p>
       </div>
     );
   }
