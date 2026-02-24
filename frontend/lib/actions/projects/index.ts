@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import defaultCharts from "@/lib/db/default-charts";
 import { db } from "@/lib/db/drizzle";
-import { dashboardCharts, projects } from "@/lib/db/migrations/schema";
+import { dashboardCharts, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 import { type Project } from "@/lib/workspaces/types";
 
 export const CreateProjectSchema = z.object({
@@ -25,6 +25,24 @@ const populateDefaultDashboardCharts = async (projectId: string): Promise<void> 
 
 export async function createProject(input: z.infer<typeof CreateProjectSchema>) {
   const { name, workspaceId } = CreateProjectSchema.parse(input);
+
+  const [workspace] = await db
+    .select({ tierName: subscriptionTiers.name })
+    .from(workspaces)
+    .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+
+  if (workspace?.tierName.trim().toLowerCase() === "free") {
+    const existingProjects = await db.query.projects.findMany({
+      where: eq(projects.workspaceId, workspaceId),
+      columns: { id: true },
+    });
+
+    if (existingProjects.length >= 1) {
+      throw new Error("Free plan is limited to 1 project per workspace. Please upgrade to create more projects.");
+    }
+  }
 
   try {
     const [project] = await db

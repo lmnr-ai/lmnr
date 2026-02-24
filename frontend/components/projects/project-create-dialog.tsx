@@ -1,8 +1,11 @@
 import { Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { type Project } from "@/lib/workspaces/types";
@@ -14,9 +17,17 @@ import { Label } from "../ui/label";
 interface ProjectCreateDialogProps {
   workspaceId: string;
   onProjectCreate?: () => void;
+  isFreeTier?: boolean;
+  projectCount?: number;
 }
 
-export default function ProjectCreateDialog({ workspaceId, onProjectCreate }: ProjectCreateDialogProps) {
+export default function ProjectCreateDialog({
+  workspaceId,
+  onProjectCreate,
+  isFreeTier,
+  projectCount,
+}: ProjectCreateDialogProps) {
+  const { setMenu } = useWorkspaceMenuContext();
   const [newProjectName, setNewProjectName] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -53,6 +64,34 @@ export default function ProjectCreateDialog({ workspaceId, onProjectCreate }: Pr
       setIsCreatingProject(false);
     }
   }, [newProjectName, workspaceId, onProjectCreate, router, toast]);
+
+  const hasReachedFreeLimit = isFreeTier && (projectCount ?? 0) >= 1;
+
+  if (hasReachedFreeLimit) {
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span tabIndex={0} className="w-fit">
+              <Button icon="plus" className="w-fit" disabled>
+                Project
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="flex flex-col gap-1 p-2">
+            <p className="text-xs">Free plan is limited to 1 project per workspace.</p>
+            <Link
+              href={`/workspace/${workspaceId}?tab=billing`}
+              onClick={() => setMenu("billing")}
+              className="text-xs text-primary hover:underline"
+            >
+              Upgrade to create more projects
+            </Link>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
 
   return (
     <Dialog

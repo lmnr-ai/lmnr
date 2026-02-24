@@ -1,6 +1,7 @@
 "use client";
 
 import { isEmpty } from "lodash";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import useSWR from "swr";
@@ -8,17 +9,20 @@ import useSWR from "swr";
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import AddUserDialog from "@/components/workspace/add-user-dialog";
 import InvitationsTable from "@/components/workspace/invitations-table";
 import LeaveWorkspaceDialog from "@/components/workspace/leave-workspace-dialog";
 import RemoveUserDialog from "@/components/workspace/remove-user-dialog";
 import TransferOwnershipDialog from "@/components/workspace/ui/transfer-ownership-dialog.tsx";
+import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider";
 import { useUserContext } from "@/contexts/user-context";
 import { useToast } from "@/lib/hooks/use-toast";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 import {
   type WorkspaceInvitation,
   type WorkspaceRole,
+  WorkspaceTier,
   type WorkspaceUser,
   type WorkspaceWithOptionalUsers,
 } from "@/lib/workspaces/types";
@@ -52,7 +56,9 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
   const [dialogState, setDialogState] = useState<DialogState>({ type: "none" });
   const [updatingRoleUserId, setUpdatingRoleUserId] = useState<string | null>(null);
 
+  const { setMenu } = useWorkspaceMenuContext();
   const canManageUsers = currentUserRole === "owner" || currentUserRole === "admin";
+  const isFreeTier = workspace.tierName === WorkspaceTier.FREE;
 
   const isCurrentUser = useCallback((u: WorkspaceUser) => u.email === user.email, [user.email]);
   const openDialog = useCallback((type: DialogState["type"], targetUser?: WorkspaceUser) => {
@@ -189,13 +195,36 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
             title="Workspace members"
             description={`${users.length} member${users.length > 1 ? "s" : ""} in this workspace`}
           />
-          {canManageUsers && (
-            <AddUserDialog
-              open={dialogState.type === "addUser"}
-              onOpenChange={(open) => (open ? openDialog("addUser") : closeDialog())}
-              workspace={workspace}
-            />
-          )}
+          {canManageUsers &&
+            (isFreeTier ? (
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>
+                      <Button icon="plus" variant="outline" disabled>
+                        Invite member
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="flex flex-col gap-1 p-2">
+                    <p className="text-xs">Inviting members is not available on the Free plan.</p>
+                    <Link
+                      href={`/workspace/${workspace.id}?tab=billing`}
+                      onClick={() => setMenu("billing")}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Upgrade to invite team members
+                    </Link>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <AddUserDialog
+                open={dialogState.type === "addUser"}
+                onOpenChange={(open) => (open ? openDialog("addUser") : closeDialog())}
+                workspace={workspace}
+              />
+            ))}
           {!isOwner && (
             <LeaveWorkspaceDialog
               user={users?.find(isCurrentUser)}
