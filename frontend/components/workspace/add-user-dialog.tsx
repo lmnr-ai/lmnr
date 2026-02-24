@@ -49,21 +49,15 @@ const AddUserDialog = ({ open, onOpenChange, workspace }: AddUserDialogProps) =>
       });
 
       if (!res.ok) {
-        if (res.status === 400) {
-          showError(await res.text());
-        } else {
-          showError(`Failed to add user`);
-        }
-        setIsLoading(false);
-        return;
+        const error = (await res.json().catch(() => ({ error: "Failed to invite user." }))) as { error: string };
+        throw new Error(error?.error ?? "Failed to invite user.");
       }
 
-      await res.text();
       onOpenChange(false);
       toast({ description: "Invitation sent successfully." });
       router.refresh();
     } catch (e) {
-      showError(`Failed to add user`);
+      showError(e instanceof Error ? e.message : "Failed to invite user.");
     } finally {
       setIsLoading(false);
     }

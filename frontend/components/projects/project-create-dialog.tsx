@@ -47,7 +47,8 @@ export default function ProjectCreateDialog({
       });
 
       if (!res.ok) {
-        throw new Error("Failed to create project");
+        const error = (await res.json().catch(() => ({ error: "Failed to create project" }))) as { error: string };
+        throw new Error(error?.error ?? "Failed to create project");
       }
 
       const newProject = (await res.json()) as Project;
@@ -58,7 +59,7 @@ export default function ProjectCreateDialog({
       toast({
         title: "Error creating project",
         variant: "destructive",
-        description: "Possible reason: you have reached the projects limit in this workspace.",
+        description: e instanceof Error ? e.message : "Failed to create project",
       });
     } finally {
       setIsCreatingProject(false);
