@@ -9,12 +9,69 @@ import { LaminarLogo } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-interface CreateFirstWorkspaceAndProjectProps {
-  name?: string | null;
+const COMMON_EMAIL_PROVIDERS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "outlook.com",
+  "hotmail.com",
+  "hotmail.co.uk",
+  "hotmail.fr",
+  "live.com",
+  "msn.com",
+  "yahoo.com",
+  "yahoo.co.uk",
+  "yahoo.fr",
+  "yahoo.de",
+  "yahoo.es",
+  "yahoo.it",
+  "yahoo.co.jp",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "aol.com",
+  "aim.com",
+  "protonmail.com",
+  "proton.me",
+  "zoho.com",
+  "yandex.com",
+  "yandex.ru",
+  "mail.com",
+  "email.com",
+  "gmx.com",
+  "gmx.net",
+  "gmx.de",
+  "web.de",
+  "freenet.de",
+  "tutanota.com",
+  "tutamail.com",
+  "fastmail.com",
+  "hey.com",
+]);
+
+function getDefaultWorkspaceName(name?: string | null, email?: string | null): string {
+  if (email) {
+    const parts = email.split("@");
+    if (parts.length === 2) {
+      const domain = parts[1].toLowerCase();
+      if (!COMMON_EMAIL_PROVIDERS.has(domain)) {
+        // Use company name derived from domain (strip TLD(s))
+        const domainParts = domain.split(".");
+        const companyPart = domainParts[0];
+        const capitalized = companyPart.charAt(0).toUpperCase() + companyPart.slice(1);
+        return `${capitalized}'s workspace`;
+      }
+    }
+  }
+  return name ? `${name}'s workspace` : "";
 }
 
-export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWorkspaceAndProjectProps) {
-  const [workspaceName, setWorkspaceName] = useState(name ? `${name}'s workspace` : "");
+interface CreateFirstWorkspaceAndProjectProps {
+  name?: string | null;
+  email?: string | null;
+}
+
+export default function CreateFirstWorkspaceAndProject({ name, email }: CreateFirstWorkspaceAndProjectProps) {
+  const [workspaceName, setWorkspaceName] = useState(() => getDefaultWorkspaceName(name, email));
   const [projectName, setProjectName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 

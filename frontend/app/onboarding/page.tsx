@@ -35,7 +35,7 @@ export default async function OnboardingPage() {
   return (
     <UserContextProvider user={user}>
       <div className="flex flex-col h-screen w-full bg-background">
-        <CreateFirstWorkspaceAndProject name={user.name} />
+        <CreateFirstWorkspaceAndProject name={user.name} email={user.email} />
       </div>
     </UserContextProvider>
   );
