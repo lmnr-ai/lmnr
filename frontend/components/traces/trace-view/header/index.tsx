@@ -1,10 +1,9 @@
-import { ChevronDown, ChevronsRight, Copy, Database, GitFork, Loader, Maximize, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Sparkles, X } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo } from "react";
 
 import ShareTraceButton from "@/components/traces/share-trace-button";
-import OpenInDebuggerDialog from "@/components/traces/trace-view/open-in-debugger-dialog.tsx";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/store";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
@@ -40,7 +39,6 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
     setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
   }));
 
-  const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
     projectId: projectId as string,
@@ -94,11 +92,6 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
                     <Copy size={14} />
                     Copy trace ID
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setOpen(true)} disabled={isSqlLoading}>
-                    <GitFork className="size-3.5" />
-                    <span>Open in debugger</span>
-                  </DropdownMenuItem>
-
                   <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
                     {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
                     Open in SQL editor
@@ -146,7 +139,6 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
       {!chatOpen && (
         <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
       )}
-      <OpenInDebuggerDialog open={open} onOpenChange={setOpen} trace={trace} />
     </div>
   );
 };

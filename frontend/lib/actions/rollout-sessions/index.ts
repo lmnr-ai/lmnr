@@ -2,11 +2,8 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
-import { buildSelectQuery } from "@/lib/actions/common/query-builder";
 import { PaginationSchema } from "@/lib/actions/common/types";
-import { tryParseJson } from "@/lib/actions/common/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { rolloutSessions, sharedTraces } from "@/lib/db/migrations/schema";
 import { fetcherJSON } from "@/lib/utils";
@@ -123,91 +120,6 @@ const UpdateRolloutSessionStatusSchema = z.object({
   sessionId: z.string(),
   status: z.enum(["PENDING", "RUNNING", "FINISHED", "STOPPED"]),
 });
-
-const LinkTraceToPendingSessionSchema = z.object({
-  projectId: z.string(),
-  traceId: z.string(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-});
-
-export async function linkTraceToPendingSession(input: z.infer<typeof LinkTraceToPendingSessionSchema>) {
-  const { projectId, traceId, startDate, endDate } = LinkTraceToPendingSessionSchema.parse(input);
-
-  const latestPendingSession = await db.query.rolloutSessions.findFirst({
-    where: and(eq(rolloutSessions.projectId, projectId), eq(rolloutSessions.status, "PENDING")),
-    orderBy: [desc(rolloutSessions.createdAt)],
-  });
-
-  if (!latestPendingSession) {
-    throw new Error("No pending rollout session found.");
-  }
-
-  const traceQueryConditions: Array<{ condition: string; params: Record<string, string> }> = [
-    {
-      condition: "id = {traceId: UUID}",
-      params: { traceId },
-    },
-  ];
-
-  if (startDate) {
-    traceQueryConditions.push({
-      condition: "start_time >= {startDate: String}",
-      params: { startDate: startDate.replace("Z", "") },
-    });
-  }
-
-  if (endDate) {
-    traceQueryConditions.push({
-      condition: "end_time <= {endDate: String}",
-      params: { endDate: endDate.replace("Z", "") },
-    });
-  }
-
-  const { query: traceQuery, parameters: traceParameters } = buildSelectQuery({
-    select: {
-      columns: ["metadata"],
-      table: "traces",
-    },
-    customConditions: traceQueryConditions,
-    pagination: { limit: 1, offset: 0 },
-  });
-
-  const [trace] = await executeQuery<{ metadata: string }>({
-    query: traceQuery,
-    projectId,
-    parameters: traceParameters,
-  });
-
-  if (!trace) {
-    throw new Error("Trace not found.");
-  }
-
-  const parsedMetadata = tryParseJson(trace.metadata ?? "{}");
-  const metadata =
-    parsedMetadata && typeof parsedMetadata === "object" && !Array.isArray(parsedMetadata)
-      ? { ...(parsedMetadata as Record<string, unknown>) }
-      : {};
-
-  metadata["rollout.session_id"] = latestPendingSession.id;
-
-  await clickhouseClient.command({
-    query: `
-      ALTER TABLE traces_replacing
-      UPDATE metadata = {metadata: String}
-      WHERE project_id = {projectId: UUID} AND id = {traceId: UUID}
-    `,
-    query_params: {
-      projectId,
-      traceId,
-      metadata: JSON.stringify(metadata),
-    },
-  });
-
-  return {
-    sessionId: latestPendingSession.id,
-  };
-}
 
 export async function runRolloutSession(input: z.infer<typeof RunRolloutSessionSchema>) {
   const { projectId, sessionId, trace_id, path_to_count, args, overrides } = RunRolloutSessionSchema.parse(input);

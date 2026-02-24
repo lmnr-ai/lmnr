@@ -13,19 +13,12 @@ import {
 } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import { type RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
-import { SpanType } from "@/lib/traces/types";
+import { SpanType, type TraceRow } from "@/lib/traces/types";
 import { tryParseJson } from "@/lib/utils";
 
 import { type SystemMessage } from "./system-messages-utils";
 
 export const MIN_SIDEBAR_WIDTH = 450;
-
-export interface HistoryRun {
-  traceId: string;
-  startTime: string;
-  endTime: string;
-  status?: string;
-}
 
 interface RolloutSessionStoreState {
   sidebarWidth: number;
@@ -40,7 +33,7 @@ interface RolloutSessionStoreState {
   isSessionDeleted: boolean;
   params: Array<{ name: string; [key: string]: any }>;
   paramValues: string;
-  historyRuns: HistoryRun[];
+  historyRuns: TraceRow[];
   isHistoryLoading: boolean;
 }
 
@@ -64,7 +57,7 @@ interface RolloutSessionStoreActions {
   cancelSession: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
   setParamValue: (value: string) => void;
   loadHistoryTrace: (projectId: string, traceId: string, startTime: string, endTime: string) => Promise<void>;
-  setHistoryRuns: (runs: HistoryRun[]) => void;
+  setHistoryRuns: (runs: TraceRow[]) => void;
   setIsHistoryLoading: (loading: boolean) => void;
   setGeneratedName: (pathKey: string, name: string) => void;
 }
@@ -140,17 +133,30 @@ const createRolloutSessionStore = ({
 
           if (newTrace) {
             const historyRuns = get().historyRuns;
-            const existingIndex = historyRuns.findIndex((r) => r.traceId === newTrace.id);
+            const existingIndex = historyRuns.findIndex((r) => r.id === newTrace.id);
+
+            const traceFields: Partial<TraceRow> = {
+              startTime: newTrace.startTime,
+              endTime: newTrace.endTime,
+              status: newTrace.status,
+              inputTokens: newTrace.inputTokens,
+              outputTokens: newTrace.outputTokens,
+              totalTokens: newTrace.totalTokens,
+              inputCost: newTrace.inputCost,
+              outputCost: newTrace.outputCost,
+              totalCost: newTrace.totalCost,
+            };
 
             if (existingIndex === -1) {
               set({
                 historyRuns: [
                   {
-                    traceId: newTrace.id,
-                    startTime: newTrace.startTime,
-                    endTime: newTrace.endTime,
-                    status: newTrace.status,
-                  },
+                    id: newTrace.id,
+                    traceType: newTrace.traceType as TraceRow["traceType"],
+                    metadata: {},
+                    tags: [],
+                    ...traceFields,
+                  } as TraceRow,
                   ...historyRuns,
                 ],
               });
@@ -163,7 +169,7 @@ const createRolloutSessionStore = ({
 
               if (newEndTime !== existing.endTime || newTrace.status !== existing.status) {
                 const updated = [...historyRuns];
-                updated[existingIndex] = { ...existing, endTime: newEndTime, status: newTrace.status };
+                updated[existingIndex] = { ...existing, ...traceFields, endTime: newEndTime };
                 set({ historyRuns: updated });
               }
             }
@@ -389,7 +395,7 @@ const createRolloutSessionStore = ({
           set({ paramValues: value });
         },
 
-        setHistoryRuns: (runs: HistoryRun[]) => set({ historyRuns: runs }),
+        setHistoryRuns: (runs: TraceRow[]) => set({ historyRuns: runs }),
         setIsHistoryLoading: (isHistoryLoading: boolean) => set({ isHistoryLoading }),
 
         setGeneratedName: (pathKey: string, name: string) =>

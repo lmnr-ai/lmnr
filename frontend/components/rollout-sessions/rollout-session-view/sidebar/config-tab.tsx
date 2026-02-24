@@ -2,12 +2,10 @@
 
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { AlertTriangle, CirclePlay, Loader, Loader2, MessageSquare, RotateCcw, Square } from "lucide-react";
+import { MessageSquare, RotateCcw } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
-import { useHotkeys } from "react-hotkeys-hook";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,9 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-import RolloutSessionHistory from "./rollout-session-history";
-import { useRolloutSessionStoreContext } from "./rollout-session-store";
-import { type SystemMessage } from "./system-messages-utils";
+import { useRolloutSessionStoreContext } from "../rollout-session-store";
+import { type SystemMessage } from "../system-messages-utils";
 
 const SystemMessageEditor = ({ message }: { message: SystemMessage }) => {
   const { projectId, id: sessionId } = useParams<{ projectId: string; id: string }>();
@@ -138,7 +135,9 @@ const SystemMessageEditor = ({ message }: { message: SystemMessage }) => {
           value={localContent}
           onChange={(e) => setLocalContent(e.target.value)}
           onBlur={handleBlur}
-          className={cn("min-h-32 text-sm font-mono resize-y border-0 bg-transparent focus-visible:ring-0 shadow-none")}
+          className={cn(
+            "min-h-32 max-h-120 text-sm font-mono resize-y border-0 bg-transparent focus-visible:ring-0 shadow-none"
+          )}
           placeholder="Enter system message..."
         />
       )}
@@ -146,35 +145,17 @@ const SystemMessageEditor = ({ message }: { message: SystemMessage }) => {
   );
 };
 
-interface RolloutSidebarProps {
-  onRollout: () => void;
-  onCancel: () => void;
-  isLoading?: boolean;
-}
-
-export default function RolloutSidebar({ onRollout, onCancel, isLoading }: RolloutSidebarProps) {
-  const {
-    systemMessagesMap,
-    isSystemMessagesLoading,
-    rolloutError,
-    params,
-    paramValues,
-    setParamValue,
-    sessionStatus,
-  } = useRolloutSessionStoreContext((state) => ({
-    systemMessagesMap: state.systemMessagesMap,
-    isSystemMessagesLoading: state.isSystemMessagesLoading,
-    rolloutError: state.rolloutError,
-    params: state.params,
-    paramValues: state.paramValues,
-    setParamValue: state.setParamValue,
-    sessionStatus: state.sessionStatus,
-  }));
+export default function ConfigTab() {
+  const { systemMessagesMap, isSystemMessagesLoading, params, paramValues, setParamValue } =
+    useRolloutSessionStoreContext((state) => ({
+      systemMessagesMap: state.systemMessagesMap,
+      isSystemMessagesLoading: state.isSystemMessagesLoading,
+      params: state.params,
+      paramValues: state.paramValues,
+      setParamValue: state.setParamValue,
+    }));
 
   const messages = useMemo(() => Array.from(systemMessagesMap.values()), [systemMessagesMap]);
-
-  const isRunning = sessionStatus === "RUNNING";
-  const canRun = sessionStatus === "PENDING" || sessionStatus === "FINISHED" || sessionStatus === "STOPPED";
 
   const handleParamsBlur = () => {
     if (paramValues && paramValues.trim() !== "") {
@@ -190,75 +171,14 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
     }
   };
 
-  useHotkeys(
-    "meta+enter,ctrl+enter",
-    () => {
-      if (canRun && !isLoading) {
-        onRollout();
-      }
-    },
-    {
-      enabled: !isRunning,
-    },
-    [isRunning, canRun, isLoading, onRollout]
-  );
-
   return (
-    <div className="flex flex-col flex-1 gap-4 divide-y [&>div]:px-4 pt-4 [&>div]:pb-4 overflow-y-auto styled-scrollbar">
-      <div className="flex flex-col gap-2">
-        {isRunning ? (
-          <Button className="w-fit" variant="destructive" onClick={onCancel} disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 size={14} className="mr-1.5 animate-spin" />
-                Stopping...
-              </>
-            ) : (
-              <>
-                <Square size={14} className="mr-1.5" />
-                <span className="mr-1.5">Stop</span>
-                <Loader className="animate-spin w-4 h-4" />
-              </>
-            )}
-          </Button>
-        ) : (
-          <Button className="w-fit" onClick={onRollout} disabled={isLoading || !canRun}>
-            {isLoading ? (
-              <>
-                <Loader2 size={14} className="mr-1.5 animate-spin" />
-                Starting...
-              </>
-            ) : (
-              <>
-                <CirclePlay size={14} className="mr-1.5" />
-                <span className="mr-1.5">Run</span>
-                <kbd
-                  data-slot="kbd"
-                  className="inline-flex items-center justify-center px-1 font-sans text-xs font-medium select-none"
-                >
-                  ⌘ + ⏎
-                </kbd>
-              </>
-            )}
-          </Button>
-        )}
-        {rolloutError && (
-          <Alert variant="destructive">
-            <AlertTriangle className="w-4 h-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{rolloutError}</AlertDescription>
-          </Alert>
-        )}
-      </div>
-
-      <RolloutSessionHistory />
-
+    <div className="flex flex-col gap-4 overflow-y-auto styled-scrollbar py-2">
       {params && params.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h4 className="text-sm font-semibold">Parameters</h4>
+          <h4 className="text-sm font-semibold">Input Arguments</h4>
           <div className="flex flex-col gap-2">
             <div className="text-xs text-muted-foreground px-2 py-1 bg-muted/30 rounded-md">
-              <span className="font-medium">Params order: </span>
+              <span className="font-medium">Arguments order: </span>
               <span className="font-mono">{params.map((p) => p.name).join(", ")}</span>
             </div>
             <div className="flex border rounded-md bg-muted/50 overflow-hidden max-h-96">
@@ -269,7 +189,7 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
                 onChange={(value) => setParamValue(value)}
                 extensions={[json(), ...baseExtensions]}
                 theme={theme}
-                placeholder='Enter params as array [value1, value2] or object {"key1": value1, "key2": value2}'
+                placeholder='Enter arguments as array [value1, value2] or object {"key1": value1, "key2": value2}'
               />
             </div>
           </div>
