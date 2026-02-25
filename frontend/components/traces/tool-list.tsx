@@ -62,7 +62,12 @@ export const extractToolsFromAttributes = (attributes: Record<string, any>): Too
       const name = attributes[`llm.request.functions.${index}.name`];
       const description = attributes[`llm.request.functions.${index}.description`];
       const rawParameters = attributes[`llm.request.functions.${index}.parameters`];
-      const parameters = typeof rawParameters === "string" ? rawParameters : JSON.stringify(rawParameters || {});
+      const rawArguments = attributes[`llm.request.functions.${index}.arguments`];
+      const rawInputSchema = attributes[`llm.request.functions.${index}.input_schema`];
+
+      const paramsToParse = rawParameters || rawArguments || rawInputSchema;
+
+      const parameters = typeof paramsToParse === "string" ? paramsToParse : JSON.stringify(paramsToParse || {});
 
       return name ? { name, description, parameters } : null;
     })
