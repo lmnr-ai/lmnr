@@ -2,12 +2,11 @@
 
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { AlertTriangle, CirclePlay, Loader, Loader2, MessageSquare, RotateCcw, Square } from "lucide-react";
+import { CirclePlay, Loader, Loader2, MessageSquare, RotateCcw, Square } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -258,15 +257,9 @@ export default function ConfigTab({ onRollout, onCancel, isLoading, isActive }: 
         </div>
       </ScrollArea>
 
-      <div className="flex flex-col gap-2 border-t px-4 pt-2 pb-4">
-        {rolloutError && (
-          <Alert variant="destructive">
-            <AlertTriangle className="w-4 h-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{rolloutError}</AlertDescription>
-          </Alert>
-        )}
-        <div className="flex justify-end">
+      <div className="flex items-center gap-2 border-t px-4 pt-4 pb-4">
+        {rolloutError && <span className="text-sm font-semibold text-destructive">rolloutError</span>}
+        <div className="flex ml-auto">
           {isRunning ? (
             <Button variant="destructive" onClick={onCancel} disabled={isLoading}>
               {isLoading ? (
