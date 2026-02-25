@@ -52,9 +52,11 @@ export const AnthropicRedactedThinkingBlockSchema = z.object({
   data: z.string(),
 });
 
-export const AnthropicDocumentSourceSchema = z.object({
-  type: z.enum(["base64", "text", "content", "url"]),
-}).passthrough();
+export const AnthropicDocumentSourceSchema = z
+  .object({
+    type: z.enum(["base64", "text", "content", "url"]),
+  })
+  .passthrough();
 
 export const AnthropicDocumentBlockSchema = z.object({
   type: z.literal("document"),
@@ -113,7 +115,7 @@ export const AnthropicOutputMessageSchema = z
   .object({
     role: z.string().optional(),
     content: z.array(AnthropicContentBlockSchema),
-    stop_reason: z.string().optional(),
+    stop_reason: z.string().nullable().optional(),
   })
   .passthrough();
 

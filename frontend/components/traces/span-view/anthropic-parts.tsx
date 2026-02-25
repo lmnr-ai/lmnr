@@ -38,6 +38,7 @@ const AnthropicPartRenderer = ({
       );
 
     case "tool_use":
+    case "server_tool_use":
       return (
         <ToolCallContentPart
           toolName={block.name}
@@ -59,12 +60,59 @@ const AnthropicPartRenderer = ({
       );
     }
 
+    case "web_search_tool_result": {
+      const searchResultContent = JSON.stringify(block.content ?? "");
+      return (
+        <ToolResultContentPart
+          toolCallId={block.tool_use_id}
+          content={searchResultContent}
+          presetKey={`${messageIndex}-tool-result-${contentPartIndex}-${presetKey}`}
+        />
+      );
+    }
+
     case "image": {
       if (block.source.type === "base64") {
         const src = `data:${block.source.media_type};base64,${block.source.data}`;
         return <ImageContentPart src={src} />;
       }
       return <ImageContentPart src={block.source.url} />;
+    }
+
+    case "redacted_thinking":
+      return (
+        <TextContentPart
+          content="[Redacted thinking]"
+          presetKey={presetKey}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+        />
+      );
+
+    case "document": {
+      const docLabel = block.title ? `[Document: ${block.title}]` : "[Document]";
+      return (
+        <TextContentPart
+          content={docLabel}
+          presetKey={presetKey}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+        />
+      );
+    }
+
+    case "search_result": {
+      const searchText = `[Search result: ${block.title}]\nSource: ${block.source}\n${
+        typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
+      }`;
+      return (
+        <TextContentPart
+          content={searchText}
+          presetKey={presetKey}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+        />
+      );
     }
 
     default:
