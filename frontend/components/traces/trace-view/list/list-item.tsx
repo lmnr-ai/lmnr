@@ -3,7 +3,7 @@ import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, Lock, LockOpen, Settings, X } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 
-import { useRolloutCaching } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import { useDebuggerCaching } from "@/components/debugger-sessions/debugger-session-view/debugger-session-store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import Markdown from "@/components/traces/trace-view/list/markdown";
@@ -35,7 +35,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
   const {
     enabled: cachingEnabled,
     state: { isSpanCached, cacheToSpan, uncacheFromSpan },
-  } = useRolloutCaching((s) => ({
+  } = useDebuggerCaching((s) => ({
     isSpanCached: s.isSpanCached,
     cacheToSpan: s.cacheToSpan,
     uncacheFromSpan: s.uncacheFromSpan,

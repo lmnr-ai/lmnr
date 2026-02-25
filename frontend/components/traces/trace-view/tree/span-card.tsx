@@ -3,7 +3,7 @@ import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, Lock, LockOpen, Settings, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
-import { useRolloutCaching } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import { useDebuggerCaching } from "@/components/debugger-sessions/debugger-session-view/debugger-session-store";
 import { type TraceViewSpan, useTraceViewContext } from "@/components/traces/trace-view/store/base";
 import { type PathInfo } from "@/components/traces/trace-view/store/utils";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
@@ -58,7 +58,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const {
     enabled: cachingEnabled,
     state: { isSpanCached, cacheToSpan, uncacheFromSpan },
-  } = useRolloutCaching((s) => ({
+  } = useDebuggerCaching((s) => ({
     isSpanCached: s.isSpanCached,
     cacheToSpan: s.cacheToSpan,
     uncacheFromSpan: s.uncacheFromSpan,
