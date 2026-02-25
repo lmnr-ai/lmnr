@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { Circle, CircleDot, Lock } from "lucide-react";
+import { ArrowDown, Circle, Lock } from "lucide-react";
 import { type MouseEvent } from "react";
 
 import { useRolloutCaching } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
@@ -40,7 +40,7 @@ export function BreakpointIndicator({ span }: BreakpointIndicatorProps) {
   const icon = isCached ? (
     <Lock className="h-3.5 w-3.5 text-primary" />
   ) : isBreakpoint ? (
-    <CircleDot className="h-3.5 w-3.5 text-destructive" />
+    <ArrowDown className="h-3.5 w-3.5 text-success" />
   ) : (
     <Circle className="h-3.5 w-3.5 text-muted-foreground" />
   );
@@ -48,8 +48,8 @@ export function BreakpointIndicator({ span }: BreakpointIndicatorProps) {
   const tooltipText = isCached
     ? "Locked — will use cached response"
     : isBreakpoint
-      ? "Remove breakpoint"
-      : "Set breakpoint — run from here";
+      ? "Unset start span"
+      : "Run from here";
 
   return (
     <Tooltip>

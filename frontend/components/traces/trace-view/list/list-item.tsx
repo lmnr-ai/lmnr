@@ -72,7 +72,6 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
   );
 
   const isSelected = selectedSpan?.spanId === span.spanId;
-  const isLLMOrCached = span.spanType === "LLM" || span.spanType === "CACHED";
 
   const outerClasses = cn(
     "flex flex-row group/message cursor-pointer transition-all border-l-4",
@@ -81,9 +80,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
     { "opacity-60": isCached }
   );
 
-  const lockColumnClasses = cn("flex items-start justify-center shrink-0 w-10 p-1 self-stretch", {
-    "border-t": span.spanType === "LLM" && !isFirst,
-  });
+  const lockColumnClasses = cn("flex items-start justify-center shrink-0 w-10 p-1 self-stretch pt-2.5");
 
   return (
     <div
@@ -98,7 +95,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
 
       <div
         className={cn("flex flex-col flex-1 min-w-0", {
-          "border-t pt-1": span.spanType === "LLM" && !isFirst,
+          "pt-1": span.spanType === "LLM" && !isFirst,
           "pb-1": isLast,
         })}
       >

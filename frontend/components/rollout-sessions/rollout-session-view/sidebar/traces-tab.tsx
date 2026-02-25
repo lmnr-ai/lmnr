@@ -87,37 +87,43 @@ const TracesContent = () => {
   );
 
   return (
-    <InfiniteDataTable<TraceRow>
-      className="w-full"
-      columns={sidebarTraceColumns}
-      data={traces}
-      getRowId={(t) => t.id}
-      onRowClick={handleRowClick}
-      focusedRowId={trace?.id}
-      hasMore={!filters.search && hasMore}
-      isFetching={isFetching}
-      isLoading={isLoading}
-      fetchNextPage={fetchNextPage}
-      estimatedRowHeight={36}
-      lockedColumns={["status"]}
-    >
-      <div className="flex gap-2 w-full items-center">
-        <DateRangeFilter mode="state" value={dateRange} onChange={setDateRange} />
-        <RefreshButton onClick={refetch} variant="outline" />
-      </div>
-      <div className="w-full px-px">
-        <AdvancedSearch
-          mode="state"
-          filters={traceFilters}
-          resource="traces"
-          value={filters}
-          onSubmit={(f, search) => setFilters({ filters: f, search })}
-          placeholder="Search traces..."
-          className="w-full flex-1"
-          options={{ disableHotKey: true }}
-        />
-      </div>
-    </InfiniteDataTable>
+    <div className="flex flex-col gap-3 px-4 py-2">
+      <span className="text-secondary-foreground text-xs px-1">
+        Select a trace to rerun in debugger. Trace structure must match the agent you are running locally.
+      </span>
+
+      <InfiniteDataTable<TraceRow>
+        className="w-full"
+        columns={sidebarTraceColumns}
+        data={traces}
+        getRowId={(t) => t.id}
+        onRowClick={handleRowClick}
+        focusedRowId={trace?.id}
+        hasMore={!filters.search && hasMore}
+        isFetching={isFetching}
+        isLoading={isLoading}
+        fetchNextPage={fetchNextPage}
+        estimatedRowHeight={36}
+        lockedColumns={["status"]}
+      >
+        <div className="flex gap-2 w-full items-center">
+          <DateRangeFilter mode="state" value={dateRange} onChange={setDateRange} />
+          <RefreshButton onClick={refetch} variant="outline" />
+        </div>
+        <div className="w-full px-px">
+          <AdvancedSearch
+            mode="state"
+            filters={traceFilters}
+            resource="traces"
+            value={filters}
+            onSubmit={(f, search) => setFilters({ filters: f, search })}
+            placeholder="Search traces..."
+            className="w-full flex-1"
+            options={{ disableHotKey: true }}
+          />
+        </div>
+      </InfiniteDataTable>
+    </div>
   );
 };
 

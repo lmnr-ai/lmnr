@@ -79,8 +79,6 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
 
   const isLoadingOutput = output === undefined;
 
-  const isLLMOrCached = span.spanType === "LLM" || span.spanType === "CACHED";
-
   const outerClasses = cn(
     "group flex flex-row w-full min-w-full cursor-pointer transition-all border-l-2",
     "hover:bg-red-100/5",
@@ -88,9 +86,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
     { "opacity-60": isCached }
   );
 
-  const lockColumnClasses = cn("flex items-start justify-center shrink-0 w-10 p-1 self-stretch", {
-    "border-t": isLLMOrCached,
-  });
+  const lockColumnClasses = cn("flex items-start justify-center shrink-0 w-10 p-1 self-stretch");
 
   return (
     <div
@@ -108,13 +104,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
         </div>
       )}
 
-      <div
-        className={cn(
-          "flex flex-row flex-1 min-w-0 text-md",
-          !cachingEnabled && "pl-2",
-          cachingEnabled && isLLMOrCached && "border-t"
-        )}
-      >
+      <div className={cn("flex flex-row flex-1 min-w-0 text-md", !cachingEnabled && "pl-2")}>
         <BranchConnector depth={depth} branchMask={branchMask} isSelected={isSelected} />
 
         <div className="flex flex-col items-center shrink-0 pt-[6px] self-stretch">
