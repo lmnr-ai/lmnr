@@ -14,6 +14,7 @@ export const AnthropicTextBlockSchema = z.object({
 export const AnthropicThinkingBlockSchema = z.object({
   type: z.literal("thinking"),
   thinking: z.string(),
+  signature: z.string().optional(),
 });
 
 export const AnthropicToolUseBlockSchema = z.object({
@@ -46,12 +47,53 @@ export const AnthropicImageBlockSchema = z.object({
   source: z.union([AnthropicImageBase64SourceSchema, AnthropicImageUrlSourceSchema]),
 });
 
+export const AnthropicRedactedThinkingBlockSchema = z.object({
+  type: z.literal("redacted_thinking"),
+  data: z.string(),
+});
+
+export const AnthropicDocumentSourceSchema = z.object({
+  type: z.enum(["base64", "text", "content", "url"]),
+}).passthrough();
+
+export const AnthropicDocumentBlockSchema = z.object({
+  type: z.literal("document"),
+  source: AnthropicDocumentSourceSchema,
+  title: z.string().optional(),
+  context: z.string().optional(),
+});
+
+export const AnthropicServerToolUseBlockSchema = z.object({
+  type: z.literal("server_tool_use"),
+  id: z.string(),
+  name: z.string(),
+  input: z.unknown(),
+});
+
+export const AnthropicWebSearchToolResultBlockSchema = z.object({
+  type: z.literal("web_search_tool_result"),
+  tool_use_id: z.string(),
+  content: z.unknown(),
+});
+
+export const AnthropicSearchResultBlockSchema = z.object({
+  type: z.literal("search_result"),
+  source: z.string(),
+  title: z.string(),
+  content: z.unknown(),
+});
+
 export const AnthropicContentBlockSchema = z.union([
   AnthropicTextBlockSchema,
   AnthropicThinkingBlockSchema,
+  AnthropicRedactedThinkingBlockSchema,
   AnthropicToolUseBlockSchema,
   AnthropicToolResultBlockSchema,
   AnthropicImageBlockSchema,
+  AnthropicDocumentBlockSchema,
+  AnthropicServerToolUseBlockSchema,
+  AnthropicWebSearchToolResultBlockSchema,
+  AnthropicSearchResultBlockSchema,
 ]);
 
 /** Message Schemas **/
@@ -147,7 +189,7 @@ export const convertAnthropicToPlaygroundMessages = async (
   for (const message of messages) {
     if (typeof message.content !== "string") {
       for (const block of message.content) {
-        if (block.type === "tool_use") {
+        if (block.type === "tool_use" || block.type === "server_tool_use") {
           toolNameById.set(block.id, block.name);
         }
       }
@@ -209,6 +251,49 @@ export const convertAnthropicToPlaygroundMessages = async (
               }
               break;
             }
+
+            case "redacted_thinking":
+              content.push({ type: "text", text: "[Redacted thinking]" });
+              break;
+
+            case "document": {
+              const docLabel = block.title ? `[Document: ${block.title}]` : "[Document]";
+              if ("data" in block.source && typeof block.source.data === "string") {
+                content.push({ type: "text", text: `${docLabel}\n${block.context ?? ""}`.trim() });
+              } else if ("text" in block.source && typeof block.source.text === "string") {
+                content.push({ type: "text", text: `${docLabel}\n${block.source.text}` });
+              } else {
+                content.push({ type: "text", text: docLabel });
+              }
+              break;
+            }
+
+            case "server_tool_use":
+              content.push({
+                type: "tool-call",
+                toolCallId: block.id,
+                toolName: block.name,
+                input: { type: "json", value: JSON.stringify(block.input ?? {}) },
+              });
+              break;
+
+            case "web_search_tool_result":
+              content.push({
+                type: "tool-result",
+                toolCallId: block.tool_use_id,
+                toolName: toolNameById.get(block.tool_use_id) || "web_search",
+                output: { type: "json", value: JSON.stringify(block.content ?? "") },
+              });
+              break;
+
+            case "search_result":
+              content.push({
+                type: "text",
+                text: `[Search result: ${block.title}]\nSource: ${block.source}\n${
+                  typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
+                }`,
+              });
+              break;
           }
         }
       }
