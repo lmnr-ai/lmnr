@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRolloutCaching } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
-import { BreakpointIndicator } from "@/components/traces/trace-view/breakpoint-indicator";
+import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import { MiniTree } from "@/components/traces/trace-view/list/mini-tree";
 import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils";
@@ -91,7 +91,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
         }
       }}
     >
-      {cachingEnabled && <div className={lockColumnClasses}>{fullSpan && <BreakpointIndicator span={fullSpan} />}</div>}
+      {cachingEnabled && <div className={lockColumnClasses}>{fullSpan && <DebuggerCheckpoint span={fullSpan} />}</div>}
 
       <div
         className={cn("flex flex-col flex-1 min-w-0", {

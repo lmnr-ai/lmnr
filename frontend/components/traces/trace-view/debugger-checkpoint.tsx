@@ -7,39 +7,39 @@ import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-interface BreakpointIndicatorProps {
+interface DebuggerCheckpointProps {
   span: TraceViewSpan;
 }
 
-export function BreakpointIndicator({ span }: BreakpointIndicatorProps) {
+export function DebuggerCheckpoint({ span }: DebuggerCheckpointProps) {
   const {
     enabled,
-    state: { isSpanCached, isBreakpointSpan, setBreakpoint, clearBreakpoint },
+    state: { isSpanCached, isCheckpointSpan, setCheckpoint, clearCheckpoint },
   } = useRolloutCaching((s) => ({
     isSpanCached: s.isSpanCached,
-    isBreakpointSpan: s.isBreakpointSpan,
-    setBreakpoint: s.setBreakpoint,
-    clearBreakpoint: s.clearBreakpoint,
+    isCheckpointSpan: s.isCheckpointSpan,
+    setCheckpoint: s.setCheckpoint,
+    clearCheckpoint: s.clearCheckpoint,
   }));
 
   if (!enabled) return null;
   if (span.spanType !== "LLM" && span.spanType !== "CACHED") return null;
 
   const isCached = isSpanCached(span);
-  const isBreakpoint = isBreakpointSpan(span);
+  const isCheckpoint = isCheckpointSpan(span);
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
-    if (isBreakpoint) {
-      clearBreakpoint();
+    if (isCheckpoint) {
+      clearCheckpoint();
     } else {
-      setBreakpoint(span);
+      setCheckpoint(span);
     }
   };
 
   const icon = isCached ? (
     <Lock className="h-3.5 w-3.5 text-primary" />
-  ) : isBreakpoint ? (
+  ) : isCheckpoint ? (
     <ArrowDown className="h-3.5 w-3.5 text-success" />
   ) : (
     <Circle className="h-3.5 w-3.5 text-muted-foreground" />
@@ -47,8 +47,8 @@ export function BreakpointIndicator({ span }: BreakpointIndicatorProps) {
 
   const tooltipText = isCached
     ? "Locked — will use cached response"
-    : isBreakpoint
-      ? "Unset start span"
+    : isCheckpoint
+      ? "Unset checkpoint"
       : "Run from here";
 
   return (

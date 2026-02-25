@@ -25,7 +25,7 @@ interface RolloutSessionStoreState {
   systemMessagesMap: Map<string, SystemMessage>;
   isSystemMessagesLoading: boolean;
   cachedSpanCounts: Record<string, number>;
-  breakpointSpanId: string | undefined;
+  checkpointSpanId: string | undefined;
   overrides: Record<string, { system: string }>;
   generatedNames: Record<string, string>;
   isRolloutLoading: boolean;
@@ -46,9 +46,9 @@ interface RolloutSessionStoreActions {
   ) => void;
   setIsSystemMessagesLoading: (isLoading: boolean) => void;
   isSpanCached: (span: TraceViewSpan) => boolean;
-  isBreakpointSpan: (span: TraceViewSpan) => boolean;
-  setBreakpoint: (span: TraceViewSpan) => void;
-  clearBreakpoint: () => void;
+  isCheckpointSpan: (span: TraceViewSpan) => boolean;
+  setCheckpoint: (span: TraceViewSpan) => void;
+  clearCheckpoint: () => void;
   toggleOverride: (messageId: string) => void;
   updateOverride: (pathKey: string, content: string) => void;
   isOverrideEnabled: (messageId: string) => boolean;
@@ -67,10 +67,10 @@ interface RolloutSessionStoreActions {
 type RolloutSessionStore = BaseTraceViewStore & RolloutSessionStoreState & RolloutSessionStoreActions;
 
 /**
- * Finds the first non-cached LLM/CACHED span — i.e. where execution resumes.
+ * Derives the checkpoint span — the first non-cached LLM span where execution resumes.
  * Runs in O(n log n) via a single sorted walk with per-path counters.
  */
-const deriveBreakpointSpanId = (
+const deriveCheckpointSpanId = (
   spans: TraceViewSpan[],
   cachedSpanCounts: Record<string, number>
 ): string | undefined => {
@@ -128,7 +128,7 @@ const createRolloutSessionStore = ({
           }
         },
 
-        // Override setSpans: also recalculate cachedSpanCounts and derive breakpoint
+        // Override setSpans: also recalculate cachedSpanCounts and derive checkpoint
         setSpans: (spans) => {
           let newSpans: TraceViewSpan[];
 
@@ -154,7 +154,7 @@ const createRolloutSessionStore = ({
             set({ cachedSpanCounts: newCachedCounts });
           }
 
-          set({ breakpointSpanId: deriveBreakpointSpanId(newSpans, get().cachedSpanCounts) });
+          set({ checkpointSpanId: deriveCheckpointSpanId(newSpans, get().cachedSpanCounts) });
         },
 
         setTrace: (trace) => {
@@ -234,9 +234,9 @@ const createRolloutSessionStore = ({
           return spanIndex !== -1 && spanIndex < cacheCount;
         },
 
-        isBreakpointSpan: (span: TraceViewSpan): boolean => span.spanId === get().breakpointSpanId,
+        isCheckpointSpan: (span: TraceViewSpan): boolean => span.spanId === get().checkpointSpanId,
 
-        setBreakpoint: (span: TraceViewSpan) => {
+        setCheckpoint: (span: TraceViewSpan) => {
           const spans = get().spans;
           const clickedSpanTime = new Date(span.startTime).getTime();
 
@@ -255,11 +255,11 @@ const createRolloutSessionStore = ({
             }
           });
 
-          set({ cachedSpanCounts: newCachedCounts, breakpointSpanId: span.spanId });
+          set({ cachedSpanCounts: newCachedCounts, checkpointSpanId: span.spanId });
         },
 
-        clearBreakpoint: () => {
-          set({ cachedSpanCounts: {}, breakpointSpanId: undefined });
+        clearCheckpoint: () => {
+          set({ cachedSpanCounts: {}, checkpointSpanId: undefined });
         },
 
         // Rollout-specific state
@@ -267,7 +267,7 @@ const createRolloutSessionStore = ({
         systemMessagesMap: new Map(),
         isSystemMessagesLoading: false,
         cachedSpanCounts: {},
-        breakpointSpanId: undefined,
+        checkpointSpanId: undefined,
         overrides: {},
         generatedNames: {},
         isRolloutLoading: false,
@@ -345,7 +345,7 @@ const createRolloutSessionStore = ({
 
             const rolloutPayload: Record<string, any> = {};
 
-            set({ spans: [], cachedSpanCounts: {}, breakpointSpanId: undefined, trace: undefined });
+            set({ spans: [], cachedSpanCounts: {}, checkpointSpanId: undefined, trace: undefined });
             if (currentTraceId) {
               rolloutPayload.trace_id = currentTraceId;
             }
@@ -447,7 +447,7 @@ const createRolloutSessionStore = ({
             isTraceLoading: true,
             isSpansLoading: true,
             cachedSpanCounts: {},
-            breakpointSpanId: undefined,
+            checkpointSpanId: undefined,
             systemMessagesMap: new Map(),
           });
 
