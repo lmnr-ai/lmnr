@@ -78,19 +78,6 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
 
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
 
-  const projectsInWorkspace = await db.query.projects.findMany({
-    where: eq(projects.workspaceId, workspaceId),
-    columns: {
-      id: true,
-    },
-  });
-
-  await Promise.all(
-    projectsInWorkspace.map(async (project) => {
-      await deleteProject({ projectId: project.id });
-    })
-  );
-
   const workspace = await db.query.workspaces.findFirst({
     where: eq(workspaces.id, workspaceId),
     columns: { id: true, subscriptionId: true },
@@ -104,6 +91,19 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
     const s = stripe();
     await s.subscriptions.cancel(workspace.subscriptionId);
   }
+
+  const projectsInWorkspace = await db.query.projects.findMany({
+    where: eq(projects.workspaceId, workspaceId),
+    columns: {
+      id: true,
+    },
+  });
+
+  await Promise.all(
+    projectsInWorkspace.map(async (project) => {
+      await deleteProject({ projectId: project.id });
+    })
+  );
 
   await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
 
