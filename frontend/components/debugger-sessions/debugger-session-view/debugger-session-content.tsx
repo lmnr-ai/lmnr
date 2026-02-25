@@ -7,14 +7,14 @@ import React, { useCallback, useEffect, useMemo } from "react";
 
 import Header from "@/components/debugger-sessions/debugger-session-view/header";
 import Loading, { SpansLoading } from "@/components/debugger-sessions/debugger-session-view/loading.tsx";
-import SessionPlayer from "@/components/debugger-sessions/debugger-session-view/session-player";
-import { useDebuggerSessionStoreContext } from "@/components/debugger-sessions/debugger-session-view/store";
+import { useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { fetchSystemMessages } from "@/components/debugger-sessions/debugger-session-view/system-messages-utils";
 import { SessionTerminatedOverlay } from "@/components/debugger-sessions/debugger-session-view/terminated-overlay.tsx";
 import {
   onRealtimeStartSpan,
   onRealtimeUpdateSpans,
 } from "@/components/debugger-sessions/debugger-session-view/utils.ts";
+import SessionPlayer from "@/components/traces/session-player";
 import { SpanView } from "@/components/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
@@ -80,7 +80,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     sessionStatus,
     isSessionDeleted,
     setIsSessionDeleted,
-  } = useDebuggerSessionStoreContext((state) => ({
+  } = useDebuggerSessionStore((state) => ({
     // Data state
     selectedSpan: state.selectedSpan,
     setSelectedSpan: state.setSelectedSpan,

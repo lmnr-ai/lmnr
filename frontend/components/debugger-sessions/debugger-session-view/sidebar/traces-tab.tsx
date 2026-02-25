@@ -14,12 +14,12 @@ import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button"
 import type { Filter } from "@/lib/actions/common/filters";
 import type { TraceRow } from "@/lib/traces/types";
 
-import { useDebuggerSessionStoreContext } from "../store";
+import { useDebuggerSessionStore } from "../store";
 import { FETCH_SIZE, sidebarColumnOrder, sidebarTraceColumns } from "./columns";
 
 const TracesContent = () => {
   const { projectId } = useParams<{ projectId: string; id: string }>();
-  const { loadHistoryTrace, trace } = useDebuggerSessionStoreContext((state) => ({
+  const { loadHistoryTrace, trace } = useDebuggerSessionStore((state) => ({
     loadHistoryTrace: state.loadHistoryTrace,
     trace: state.trace,
   }));

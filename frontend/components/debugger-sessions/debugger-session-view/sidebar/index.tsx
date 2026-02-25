@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 
-import { useDebuggerSessionStoreContext } from "@/components/debugger-sessions/debugger-session-view/store";
+import { useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import ConfigTab from "./config-tab";
@@ -16,7 +16,7 @@ interface DebuggerSidebarProps {
 }
 
 export default function DebuggerSidebar({ onRun, onCancel, isLoading }: DebuggerSidebarProps) {
-  const sessionStatus = useDebuggerSessionStoreContext((state) => state.sessionStatus);
+  const sessionStatus = useDebuggerSessionStore((state) => state.sessionStatus);
 
   const [activeTab, setActiveTab] = useState("config");
 

@@ -371,10 +371,18 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
 export const TraceViewContext = createContext<StoreApi<BaseTraceViewStore> | undefined>(undefined);
 
-export const useTraceViewContext = <T>(selector: (store: BaseTraceViewStore) => T): T => {
+export const useTraceViewBaseStore = <T>(selector: (store: BaseTraceViewStore) => T): T => {
   const store = useContext(TraceViewContext);
   if (!store) {
     throw new Error("useTraceViewContext must be used within a TraceViewContext provider");
   }
   return useStore(store, selector);
+};
+
+export const useTraceViewBaseStoreRaw = () => {
+  const store = useContext(TraceViewContext);
+  if (!store) {
+    throw new Error("useTraceViewBaseStore must be used within a TraceViewContext provider");
+  }
+  return store;
 };

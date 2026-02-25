@@ -3,7 +3,7 @@ import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 
-import { useDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { BreakpointIndicator } from "@/components/traces/trace-view/breakpoint-indicator";
@@ -11,7 +11,7 @@ import Markdown from "@/components/traces/trace-view/list/markdown";
 import { MiniTree } from "@/components/traces/trace-view/list/mini-tree";
 import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
-import { type TraceViewListSpan, useTraceViewContext } from "@/components/traces/trace-view/store/base";
+import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -28,7 +28,7 @@ interface ListItemProps {
 }
 
 const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
-  const { selectedSpan, spans } = useTraceViewContext((state) => ({
+  const { selectedSpan, spans } = useTraceViewBaseStore((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
   }));
@@ -36,13 +36,13 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
   const {
     enabled: cachingEnabled,
     state: { isSpanCached },
-  } = useDebuggerStore((s) => ({
+  } = useOptionalDebuggerStore((s) => ({
     isSpanCached: s.isSpanCached,
   }));
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
 
-  const savedTemplate = useTraceViewContext((state) => state.getSpanTemplate(spanPathKey));
+  const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
 
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
   const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;

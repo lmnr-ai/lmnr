@@ -3,7 +3,7 @@ import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-import { type TraceViewSpan, useTraceViewContext } from "@/components/traces/trace-view/store/base";
+import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import MustacheTemplateSheet from "../list/mustache-template-sheet";
@@ -21,7 +21,7 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
   const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds, selectedSpan } =
-    useTraceViewContext((state) => ({
+    useTraceViewBaseStore((state) => ({
       getTreeSpans: state.getTreeSpans,
       spans: state.spans,
       trace: state.trace,

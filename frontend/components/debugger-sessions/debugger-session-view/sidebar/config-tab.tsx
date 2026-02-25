@@ -16,14 +16,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-import { useDebuggerSessionStoreContext } from "../store";
+import { useDebuggerSessionStore } from "../store";
 import { type SystemMessage } from "../system-messages-utils";
 
 const SystemMessageEditor = ({ message }: { message: SystemMessage }) => {
   const { projectId, id: sessionId } = useParams<{ projectId: string; id: string }>();
 
   const { overrideContent, isEnabled, generatedName, toggleOverride, updateOverride, resetOverride, setGeneratedName } =
-    useDebuggerSessionStoreContext((state) => ({
+    useDebuggerSessionStore((state) => ({
       overrideContent: state.overrides[message.pathKey]?.system,
       isEnabled: state.isOverrideEnabled(message.id),
       generatedName: state.generatedNames[message.pathKey],
@@ -156,7 +156,7 @@ interface ConfigTabProps {
 
 export default function ConfigTab({ onRollout, onCancel, isLoading, isActive }: ConfigTabProps) {
   const { systemMessagesMap, isSystemMessagesLoading, params, paramValues, setParamValue, error, sessionStatus } =
-    useDebuggerSessionStoreContext((state) => ({
+    useDebuggerSessionStore((state) => ({
       systemMessagesMap: state.systemMessagesMap,
       isSystemMessagesLoading: state.isSystemMessagesLoading,
       params: state.params,

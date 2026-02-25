@@ -2,7 +2,7 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Circle, CircleDot, Lock } from "lucide-react";
 import { type MouseEvent } from "react";
 
-import { useDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,7 +15,7 @@ export function BreakpointIndicator({ span }: BreakpointIndicatorProps) {
   const {
     enabled,
     state: { isSpanCached, isBreakpointSpan, setBreakpoint, clearBreakpoint },
-  } = useDebuggerStore((s) => ({
+  } = useOptionalDebuggerStore((s) => ({
     isSpanCached: s.isSpanCached,
     isBreakpointSpan: s.isBreakpointSpan,
     setBreakpoint: s.setBreakpoint,

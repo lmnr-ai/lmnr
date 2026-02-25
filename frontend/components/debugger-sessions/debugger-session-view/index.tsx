@@ -5,10 +5,7 @@ import React, { useCallback } from "react";
 
 import DebuggerSessionContent from "@/components/debugger-sessions/debugger-session-view/debugger-session-content";
 import DebuggerSidebar from "@/components/debugger-sessions/debugger-session-view/sidebar";
-import {
-  MIN_SIDEBAR_WIDTH,
-  useDebuggerSessionStoreContext,
-} from "@/components/debugger-sessions/debugger-session-view/store";
+import { MIN_SIDEBAR_WIDTH, useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface DebuggerSessionViewProps {
@@ -20,15 +17,13 @@ const PureDebuggerSessionView = ({ sessionId, spanId }: DebuggerSessionViewProps
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { runDebugger, cancelSession, isLoading, sidebarWidth, setSidebarWidth } = useDebuggerSessionStoreContext(
-    (state) => ({
-      runDebugger: state.runDebugger,
-      cancelSession: state.cancelSession,
-      isLoading: state.isLoading,
-      sidebarWidth: state.sidebarWidth,
-      setSidebarWidth: state.setSidebarWidth,
-    })
-  );
+  const { runDebugger, cancelSession, isLoading, sidebarWidth, setSidebarWidth } = useDebuggerSessionStore((state) => ({
+    runDebugger: state.runDebugger,
+    cancelSession: state.cancelSession,
+    isLoading: state.isLoading,
+    sidebarWidth: state.sidebarWidth,
+    setSidebarWidth: state.setSidebarWidth,
+  }));
 
   const handleRun = useCallback(async () => {
     const result = await runDebugger(projectId as string, sessionId);

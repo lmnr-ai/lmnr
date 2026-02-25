@@ -3,7 +3,7 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { Globe, Link, Loader2, Lock, Share } from "lucide-react";
 import React, { useState } from "react";
 
-import { useTraceViewStoreContext } from "@/components/traces/trace-view/store";
+import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/lib/hooks/use-toast";
 
 const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => void }) => {
-  const { trace, updateTraceVisibility } = useTraceViewStoreContext((state) => ({
+  const { trace, updateTraceVisibility } = useTraceViewStore((state) => ({
     trace: state.trace,
     updateTraceVisibility: state.updateTraceVisibility,
   }));

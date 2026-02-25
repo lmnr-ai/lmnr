@@ -9,13 +9,13 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
 import type { TraceRow } from "@/lib/traces/types";
 
-import { useDebuggerSessionStoreContext } from "../store";
+import { useDebuggerSessionStore } from "../store";
 import { FETCH_SIZE, sidebarColumnOrder, sidebarTraceColumns } from "./columns";
 
 const RunsContent = () => {
   const { projectId, id: sessionId } = useParams<{ projectId: string; id: string }>();
   const { historyRuns, isHistoryLoading, setHistoryRuns, setIsHistoryLoading, loadHistoryTrace, trace } =
-    useDebuggerSessionStoreContext((state) => ({
+    useDebuggerSessionStore((state) => ({
       historyRuns: state.historyRuns,
       isHistoryLoading: state.isHistoryLoading,
       setHistoryRuns: state.setHistoryRuns,

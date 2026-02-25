@@ -9,7 +9,7 @@ import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-b
 import {
   type TraceViewListSpan,
   type TraceViewSpan,
-  useTraceViewContext,
+  useTraceViewBaseStore,
 } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
@@ -24,7 +24,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
   const { getListData, spans, isSpansLoading, selectedSpan, trace, condensedTimelineVisibleSpanIds } =
-    useTraceViewContext((state) => ({
+    useTraceViewBaseStore((state) => ({
       getListData: state.getListData,
       spans: state.spans,
       isSpansLoading: state.isSpansLoading,

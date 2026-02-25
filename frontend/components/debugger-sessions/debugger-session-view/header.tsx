@@ -2,7 +2,7 @@ import { ChevronDown, Copy, Database, Loader } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback } from "react";
 
-import { useDebuggerSessionStoreContext } from "@/components/debugger-sessions/debugger-session-view/store";
+import { useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import CondensedTimelineControls from "@/components/traces/trace-view/header/timeline-toggle";
 import Metadata from "@/components/traces/trace-view/metadata";
 import TraceViewSearch from "@/components/traces/trace-view/search";
@@ -26,7 +26,7 @@ interface HeaderProps {
 const Header = ({ spans, onSearch }: HeaderProps) => {
   const params = useParams();
   const projectId = params?.projectId as string;
-  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useDebuggerSessionStoreContext((state) => ({
+  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useDebuggerSessionStore((state) => ({
     trace: state.trace,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,

@@ -507,7 +507,7 @@ const DebuggerSessionStoreProvider = ({
   );
 };
 
-export const useDebuggerSessionStoreContext = <T,>(selector: (store: DebuggerSessionStore) => T): T => {
+export const useDebuggerSessionStore = <T,>(selector: (store: DebuggerSessionStore) => T): T => {
   const store = useContext(DebuggerSessionStoreContext);
   if (!store) {
     throw new Error("useDebuggerSessionStoreContext must be used within a DebuggerSessionStoreContext");
@@ -516,17 +516,11 @@ export const useDebuggerSessionStoreContext = <T,>(selector: (store: DebuggerSes
   return useStore(store, useShallow(selector));
 };
 
-export const useDebuggerSessionStore = () => {
-  const store = useContext(DebuggerSessionStoreContext);
-  if (!store) {
-    throw new Error("useDebuggerSessionStore must be used within a DebuggerSessionStoreContext");
-  }
-  return store;
-};
-
 const NOOP_DEBUGGER_SESSION_STORE = createStore(() => ({})) as unknown as StoreApi<DebuggerSessionStore>;
 
-export const useDebuggerStore = <T,>(selector: (state: DebuggerSessionStore) => T): { enabled: boolean; state: T } => {
+export const useOptionalDebuggerStore = <T,>(
+  selector: (state: DebuggerSessionStore) => T
+): { enabled: boolean; state: T } => {
   const store = useContext(DebuggerSessionStoreContext);
   const state = useStore(store ?? NOOP_DEBUGGER_SESSION_STORE, selector);
   return { enabled: !isNil(store), state };

@@ -12,7 +12,7 @@ import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   type TraceViewSpan,
   type TraceViewTrace,
-  useTraceViewStoreContext,
+  useTraceViewStore,
 } from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
@@ -62,7 +62,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setTraceError,
     spansError,
     setSpansError,
-  } = useTraceViewStoreContext((state) => ({
+  } = useTraceViewStore((state) => ({
     selectedSpan: state.selectedSpan,
     setSelectedSpan: state.setSelectedSpan,
     spans: state.spans,
@@ -91,7 +91,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setHasBrowserSession,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
-  } = useTraceViewStoreContext((state) => ({
+  } = useTraceViewStore((state) => ({
     tab: state.tab,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
@@ -105,7 +105,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }));
 
   // Local storage states
-  const { treeWidth, spanPath, setSpanPath, setTreeWidth } = useTraceViewStoreContext((state) => ({
+  const { treeWidth, spanPath, setSpanPath, setTreeWidth } = useTraceViewStore((state) => ({
     treeWidth: state.treeWidth,
     setTreeWidth: state.setTreeWidth,
     spanPath: state.spanPath,

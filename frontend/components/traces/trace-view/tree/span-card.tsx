@@ -2,9 +2,9 @@ import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
-import { useDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { BreakpointIndicator } from "@/components/traces/trace-view/breakpoint-indicator";
-import { type TraceViewSpan, useTraceViewContext } from "@/components/traces/trace-view/store/base";
+import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { type PathInfo } from "@/components/traces/trace-view/store/utils";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,7 @@ const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo
 export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathInfo, onOpenSettings }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewContext((state) => ({
+  const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewBaseStore((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
     toggleCollapse: state.toggleCollapse,
@@ -57,7 +57,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const {
     enabled: cachingEnabled,
     state: { isSpanCached },
-  } = useDebuggerStore((s) => ({
+  } = useOptionalDebuggerStore((s) => ({
     isSpanCached: s.isSpanCached,
   }));
 
@@ -68,7 +68,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
 
   const spanPathKey = useMemo(() => generateSpanPathKeyFromPathInfo(span, pathInfo), [span, pathInfo]);
 
-  const savedTemplate = useTraceViewContext((state) => state.getSpanTemplate(spanPathKey));
+  const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
 
   const hasChildren = childSpans && childSpans.length > 0;
   const isExpandable = hasChildren || (span.spanType === "LLM" && (showTreeContent ?? true));
