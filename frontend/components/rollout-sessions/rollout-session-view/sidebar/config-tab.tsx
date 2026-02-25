@@ -258,7 +258,7 @@ export default function ConfigTab({ onRollout, onCancel, isLoading, isActive }: 
       </ScrollArea>
 
       <div className="flex items-center gap-2 border-t px-4 pt-4 pb-4">
-        {rolloutError && <span className="text-sm font-semibold text-destructive">rolloutError</span>}
+        {rolloutError && <span className="text-sm font-semibold text-destructive">{rolloutError}</span>}
         <div className="flex ml-auto">
           {isRunning ? (
             <Button variant="destructive" onClick={onCancel} disabled={isLoading}>

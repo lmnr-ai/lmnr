@@ -66,38 +66,6 @@ interface RolloutSessionStoreActions {
 
 type RolloutSessionStore = BaseTraceViewStore & RolloutSessionStoreState & RolloutSessionStoreActions;
 
-/**
- * Derives the checkpoint span — the first non-cached LLM span where execution resumes.
- * Runs in O(n log n) via a single sorted walk with per-path counters.
- */
-const deriveCheckpointSpanId = (
-  spans: TraceViewSpan[],
-  cachedSpanCounts: Record<string, number>
-): string | undefined => {
-  const llmSpans = spans
-    .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
-    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-
-  const seenPerPath: Record<string, number> = {};
-
-  for (const span of llmSpans) {
-    const spanPath = span.attributes?.["lmnr.span.path"];
-    if (!spanPath || !Array.isArray(spanPath)) continue;
-
-    const pathKey = spanPath.join(".");
-    const cacheCount = cachedSpanCounts[pathKey] || 0;
-    const seen = seenPerPath[pathKey] || 0;
-
-    if (seen >= cacheCount) {
-      return span.spanId;
-    }
-
-    seenPerPath[pathKey] = seen + 1;
-  }
-
-  return undefined;
-};
-
 const createRolloutSessionStore = ({
   trace,
   params = [],
@@ -128,7 +96,6 @@ const createRolloutSessionStore = ({
           }
         },
 
-        // Override setSpans: also recalculate cachedSpanCounts and derive checkpoint
         setSpans: (spans) => {
           let newSpans: TraceViewSpan[];
 
@@ -153,8 +120,6 @@ const createRolloutSessionStore = ({
             });
             set({ cachedSpanCounts: newCachedCounts });
           }
-
-          set({ checkpointSpanId: deriveCheckpointSpanId(newSpans, get().cachedSpanCounts) });
         },
 
         setTrace: (trace) => {
