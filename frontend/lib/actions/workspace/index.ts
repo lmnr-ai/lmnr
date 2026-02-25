@@ -89,7 +89,9 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
 
   if (workspace.subscriptionId) {
     const s = stripe();
-    await s.subscriptions.cancel(workspace.subscriptionId);
+    await s.subscriptions
+      .cancel(workspace.subscriptionId)
+      .catch((e) => console.error("Failed to cancel subscription", e));
   }
 
   const projectsInWorkspace = await db.query.projects.findMany({
