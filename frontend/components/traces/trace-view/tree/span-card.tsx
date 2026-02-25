@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
-import { BreakpointIndicator } from "@/components/traces/trace-view/breakpoint-indicator";
+import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { type PathInfo } from "@/components/traces/trace-view/store/utils";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
@@ -100,7 +100,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
     >
       {cachingEnabled && (
         <div className={lockColumnClasses}>
-          <BreakpointIndicator span={span} />
+          <DebuggerCheckpoint span={span} />
         </div>
       )}
 

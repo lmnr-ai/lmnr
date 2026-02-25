@@ -4,7 +4,7 @@ import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
 
-import { deriveBreakpointSpanId } from "@/components/debugger-sessions/debugger-session-view/store/utils.ts";
+import { deriveCheckpointSpanId } from "@/components/debugger-sessions/debugger-session-view/store/utils.ts";
 import {
   type BaseTraceViewStore,
   createBaseTraceViewSlice,
@@ -26,7 +26,7 @@ interface DebuggerSessionStoreState {
   systemMessagesMap: Map<string, SystemMessage>;
   isSystemMessagesLoading: boolean;
   cachedSpanCounts: Record<string, number>;
-  breakpointSpanId: string | undefined;
+  checkpointSpanId: string | undefined;
   overrides: Record<string, { system: string }>;
   generatedNames: Record<string, string>;
   isLoading: boolean;
@@ -47,9 +47,9 @@ interface DebuggerSessionStoreActions {
   ) => void;
   setIsSystemMessagesLoading: (isLoading: boolean) => void;
   isSpanCached: (span: TraceViewSpan) => boolean;
-  isBreakpointSpan: (span: TraceViewSpan) => boolean;
-  setBreakpoint: (span: TraceViewSpan) => void;
-  clearBreakpoint: () => void;
+  isCheckpointSpan: (span: TraceViewSpan) => boolean;
+  setCheckpoint: (span: TraceViewSpan) => void;
+  clearCheckpoint: () => void;
   toggleOverride: (messageId: string) => void;
   updateOverride: (pathKey: string, content: string) => void;
   isOverrideEnabled: (messageId: string) => boolean;
@@ -121,7 +121,7 @@ const createDebuggerSessionStore = ({
             set({ cachedSpanCounts: newCachedCounts });
           }
 
-          set({ breakpointSpanId: deriveBreakpointSpanId(newSpans, get().cachedSpanCounts) });
+          set({ checkpointSpanId: deriveCheckpointSpanId(newSpans, get().cachedSpanCounts) });
         },
 
         setTrace: (trace) => {
@@ -201,9 +201,9 @@ const createDebuggerSessionStore = ({
           return spanIndex !== -1 && spanIndex < cacheCount;
         },
 
-        isBreakpointSpan: (span: TraceViewSpan): boolean => span.spanId === get().breakpointSpanId,
+        isCheckpointSpan: (span: TraceViewSpan): boolean => span.spanId === get().checkpointSpanId,
 
-        setBreakpoint: (span: TraceViewSpan) => {
+        setCheckpoint: (span: TraceViewSpan) => {
           const spans = get().spans;
           const clickedSpanTime = new Date(span.startTime).getTime();
 
@@ -222,18 +222,18 @@ const createDebuggerSessionStore = ({
             }
           });
 
-          set({ cachedSpanCounts: newCachedCounts, breakpointSpanId: span.spanId });
+          set({ cachedSpanCounts: newCachedCounts, checkpointSpanId: span.spanId });
         },
 
-        clearBreakpoint: () => {
-          set({ cachedSpanCounts: {}, breakpointSpanId: undefined });
+        clearCheckpoint: () => {
+          set({ cachedSpanCounts: {}, checkpointSpanId: undefined });
         },
 
         sidebarWidth: MIN_SIDEBAR_WIDTH,
         systemMessagesMap: new Map(),
         isSystemMessagesLoading: false,
         cachedSpanCounts: {},
-        breakpointSpanId: undefined,
+        checkpointSpanId: undefined,
         overrides: {},
         generatedNames: {},
         isLoading: false,
@@ -310,7 +310,7 @@ const createDebuggerSessionStore = ({
 
             const rolloutPayload: Record<string, any> = {};
 
-            set({ spans: [], cachedSpanCounts: {}, breakpointSpanId: undefined, trace: undefined });
+            set({ spans: [], cachedSpanCounts: {}, checkpointSpanId: undefined, trace: undefined });
             if (currentTraceId) {
               rolloutPayload.trace_id = currentTraceId;
             }
@@ -412,7 +412,7 @@ const createDebuggerSessionStore = ({
             isTraceLoading: true,
             isSpansLoading: true,
             cachedSpanCounts: {},
-            breakpointSpanId: undefined,
+            checkpointSpanId: undefined,
             systemMessagesMap: new Map(),
           });
 

@@ -1,7 +1,7 @@
 import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { SpanType } from "@/lib/traces/types.ts";
 
-export const deriveBreakpointSpanId = (
+export const deriveCheckpointSpanId = (
   spans: TraceViewSpan[],
   cachedSpanCounts: Record<string, number>
 ): string | undefined => {
