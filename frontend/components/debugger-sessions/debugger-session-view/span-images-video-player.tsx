@@ -10,7 +10,7 @@ import useSWR from "swr";
 import {
   useDebuggerSessionStore,
   useDebuggerSessionStoreContext,
-} from "@/components/debugger-sessions/debugger-session-view/debugger-session-store.tsx";
+} from "@/components/debugger-sessions/debugger-session-view/store";
 import {
   DropdownMenu,
   DropdownMenuContent,

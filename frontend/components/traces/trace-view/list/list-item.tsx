@@ -1,11 +1,12 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, Lock, LockOpen, Settings, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 
-import { useDebuggerCaching } from "@/components/debugger-sessions/debugger-session-view/debugger-session-store";
+import { useDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
+import { BreakpointIndicator } from "@/components/traces/trace-view/breakpoint-indicator";
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import { MiniTree } from "@/components/traces/trace-view/list/mini-tree";
 import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils";
@@ -34,11 +35,9 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
 
   const {
     enabled: cachingEnabled,
-    state: { isSpanCached, cacheToSpan, uncacheFromSpan },
-  } = useDebuggerCaching((s) => ({
+    state: { isSpanCached },
+  } = useDebuggerStore((s) => ({
     isSpanCached: s.isSpanCached,
-    cacheToSpan: s.cacheToSpan,
-    uncacheFromSpan: s.uncacheFromSpan,
   }));
 
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
@@ -95,40 +94,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
         }
       }}
     >
-      {cachingEnabled && (
-        <div className={lockColumnClasses}>
-          {(span.spanType === "LLM" || span.spanType === "CACHED") && fullSpan && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="z-30 hover:bg-muted transition-all rounded-sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isCached) {
-                      uncacheFromSpan(fullSpan);
-                    } else {
-                      cacheToSpan(fullSpan);
-                    }
-                  }}
-                >
-                  {isCached ? (
-                    <Lock className="h-3.5 w-3.5 text-primary" />
-                  ) : (
-                    <LockOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent side="left" className="text-xs">
-                  {isCached ? "Remove cache from this point" : "Cache up to and including this span"}
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          )}
-        </div>
-      )}
+      {cachingEnabled && <div className={lockColumnClasses}>{fullSpan && <BreakpointIndicator span={fullSpan} />}</div>}
 
       <div
         className={cn("flex flex-col flex-1 min-w-0", {

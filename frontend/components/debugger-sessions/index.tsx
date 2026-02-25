@@ -3,7 +3,7 @@
 import React from "react";
 
 import DebuggerSessionView from "@/components/debugger-sessions/debugger-session-view";
-import DebuggerSessionStoreProvider from "@/components/debugger-sessions/debugger-session-view/debugger-session-store";
+import DebuggerSessionStoreProvider from "@/components/debugger-sessions/debugger-session-view/store";
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import Header from "@/components/ui/header";
 import {

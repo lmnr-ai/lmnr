@@ -14,7 +14,7 @@ import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button"
 import type { Filter } from "@/lib/actions/common/filters";
 import type { TraceRow } from "@/lib/traces/types";
 
-import { useDebuggerSessionStoreContext } from "../debugger-session-store";
+import { useDebuggerSessionStoreContext } from "../store";
 import { FETCH_SIZE, sidebarColumnOrder, sidebarTraceColumns } from "./columns";
 
 const TracesContent = () => {

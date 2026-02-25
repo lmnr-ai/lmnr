@@ -4,11 +4,11 @@ import { useParams } from "next/navigation";
 import React, { useCallback } from "react";
 
 import DebuggerSessionContent from "@/components/debugger-sessions/debugger-session-view/debugger-session-content";
+import DebuggerSidebar from "@/components/debugger-sessions/debugger-session-view/sidebar";
 import {
   MIN_SIDEBAR_WIDTH,
   useDebuggerSessionStoreContext,
-} from "@/components/debugger-sessions/debugger-session-view/debugger-session-store";
-import DebuggerSidebar from "@/components/debugger-sessions/debugger-session-view/sidebar";
+} from "@/components/debugger-sessions/debugger-session-view/store";
 import { useToast } from "@/lib/hooks/use-toast";
 
 interface DebuggerSessionViewProps {
@@ -20,18 +20,18 @@ const PureDebuggerSessionView = ({ sessionId, spanId }: DebuggerSessionViewProps
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  const { runRollout, cancelSession, isRolloutLoading, sidebarWidth, setSidebarWidth } = useDebuggerSessionStoreContext(
+  const { runDebugger, cancelSession, isLoading, sidebarWidth, setSidebarWidth } = useDebuggerSessionStoreContext(
     (state) => ({
-      runRollout: state.runRollout,
+      runDebugger: state.runDebugger,
       cancelSession: state.cancelSession,
-      isRolloutLoading: state.isRolloutLoading,
+      isLoading: state.isLoading,
       sidebarWidth: state.sidebarWidth,
       setSidebarWidth: state.setSidebarWidth,
     })
   );
 
-  const handleRollout = useCallback(async () => {
-    const result = await runRollout(projectId as string, sessionId);
+  const handleRun = useCallback(async () => {
+    const result = await runDebugger(projectId as string, sessionId);
     if (result.success) {
       toast({
         title: "Debugger started successfully",
@@ -44,7 +44,7 @@ const PureDebuggerSessionView = ({ sessionId, spanId }: DebuggerSessionViewProps
         variant: "destructive",
       });
     }
-  }, [runRollout, projectId, sessionId, toast]);
+  }, [runDebugger, projectId, sessionId, toast]);
 
   const handleCancel = useCallback(async () => {
     const result = await cancelSession(projectId as string, sessionId);
@@ -88,7 +88,7 @@ const PureDebuggerSessionView = ({ sessionId, spanId }: DebuggerSessionViewProps
     <div className="flex flex-col h-full w-full">
       <div className="flex h-full w-full min-h-0">
         <div className="flex-none border-r bg-background flex flex-col relative" style={{ width: sidebarWidth }}>
-          <DebuggerSidebar onRollout={handleRollout} onCancel={handleCancel} isLoading={isRolloutLoading} />
+          <DebuggerSidebar onRun={handleRun} onCancel={handleCancel} isLoading={isLoading} />
           <div
             className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
             onMouseDown={handleResizeSidebar}

@@ -10,8 +10,8 @@ import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import rrwebPlayer from "rrweb-player";
 
-import { useDebuggerSessionStoreContext } from "@/components/debugger-sessions/debugger-session-view/debugger-session-store";
 import SpanImagesVideoPlayer from "@/components/debugger-sessions/debugger-session-view/span-images-video-player";
+import { useDebuggerSessionStoreContext } from "@/components/debugger-sessions/debugger-session-view/store";
 import { fetchBrowserSessionEvents, type UrlChange } from "@/components/session-player/utils";
 import { Button } from "@/components/ui/button.tsx";
 import {

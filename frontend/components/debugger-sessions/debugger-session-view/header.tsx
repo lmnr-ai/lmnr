@@ -2,7 +2,7 @@ import { ChevronDown, Copy, Database, Loader } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { memo, useCallback } from "react";
 
-import { useDebuggerSessionStoreContext } from "@/components/debugger-sessions/debugger-session-view/debugger-session-store";
+import { useDebuggerSessionStoreContext } from "@/components/debugger-sessions/debugger-session-view/store";
 import CondensedTimelineControls from "@/components/traces/trace-view/header/timeline-toggle";
 import Metadata from "@/components/traces/trace-view/metadata";
 import TraceViewSearch from "@/components/traces/trace-view/search";

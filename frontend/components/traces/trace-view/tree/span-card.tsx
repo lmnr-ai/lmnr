@@ -1,14 +1,13 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, Lock, LockOpen, Settings, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
-import { useDebuggerCaching } from "@/components/debugger-sessions/debugger-session-view/debugger-session-store";
+import { useDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { BreakpointIndicator } from "@/components/traces/trace-view/breakpoint-indicator";
 import { type TraceViewSpan, useTraceViewContext } from "@/components/traces/trace-view/store/base";
 import { type PathInfo } from "@/components/traces/trace-view/store/utils";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
@@ -57,11 +56,9 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
 
   const {
     enabled: cachingEnabled,
-    state: { isSpanCached, cacheToSpan, uncacheFromSpan },
-  } = useDebuggerCaching((s) => ({
+    state: { isSpanCached },
+  } = useDebuggerStore((s) => ({
     isSpanCached: s.isSpanCached,
-    cacheToSpan: s.cacheToSpan,
-    uncacheFromSpan: s.uncacheFromSpan,
   }));
 
   const isCached = cachingEnabled ? isSpanCached(span) : false;
@@ -107,36 +104,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
     >
       {cachingEnabled && (
         <div className={lockColumnClasses}>
-          {(span.spanType === "LLM" || span.spanType === "CACHED") && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="z-30 hover:bg-muted transition-all rounded-sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isCached) {
-                      uncacheFromSpan(span);
-                    } else {
-                      cacheToSpan(span);
-                    }
-                  }}
-                >
-                  {isCached ? (
-                    <Lock className="h-3.5 w-3.5 text-primary" />
-                  ) : (
-                    <LockOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent side="left" className="text-xs">
-                  {isCached ? "Remove cache from this point" : "Cache up to and including this span"}
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          )}
+          <BreakpointIndicator span={span} />
         </div>
       )}
 

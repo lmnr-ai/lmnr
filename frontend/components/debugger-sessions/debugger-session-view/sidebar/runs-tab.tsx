@@ -9,7 +9,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
 import type { TraceRow } from "@/lib/traces/types";
 
-import { useDebuggerSessionStoreContext } from "../debugger-session-store";
+import { useDebuggerSessionStoreContext } from "../store";
 import { FETCH_SIZE, sidebarColumnOrder, sidebarTraceColumns } from "./columns";
 
 const RunsContent = () => {

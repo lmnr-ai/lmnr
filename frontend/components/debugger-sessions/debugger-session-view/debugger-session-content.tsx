@@ -5,10 +5,10 @@ import { AlertTriangle, CirclePlay, Radio } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 
-import { useDebuggerSessionStoreContext } from "@/components/debugger-sessions/debugger-session-view/debugger-session-store";
 import Header from "@/components/debugger-sessions/debugger-session-view/header";
 import Loading, { SpansLoading } from "@/components/debugger-sessions/debugger-session-view/loading.tsx";
 import SessionPlayer from "@/components/debugger-sessions/debugger-session-view/session-player";
+import { useDebuggerSessionStoreContext } from "@/components/debugger-sessions/debugger-session-view/store";
 import { fetchSystemMessages } from "@/components/debugger-sessions/debugger-session-view/system-messages-utils";
 import { SessionTerminatedOverlay } from "@/components/debugger-sessions/debugger-session-view/terminated-overlay.tsx";
 import {
@@ -73,7 +73,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     setSpanPath,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
-    // Rollout state
+    // Debugger state
     setSystemMessagesMap,
     setIsSystemMessagesLoading,
     setSessionStatus,
@@ -107,7 +107,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     setSpanPath: state.setSpanPath,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    // Rollout state
+    // Debugger state
     setSystemMessagesMap: state.setSystemMessagesMap,
     setIsSystemMessagesLoading: state.setIsSystemMessagesLoading,
     setSessionStatus: state.setSessionStatus,

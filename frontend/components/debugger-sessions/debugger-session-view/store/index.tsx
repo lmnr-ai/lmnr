@@ -4,19 +4,20 @@ import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
 
+import { deriveBreakpointSpanId } from "@/components/debugger-sessions/debugger-session-view/store/utils.ts";
 import {
   type BaseTraceViewStore,
   createBaseTraceViewSlice,
   TraceViewContext,
   type TraceViewSpan,
   type TraceViewTrace,
-} from "@/components/traces/trace-view/store/base";
-import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
+} from "@/components/traces/trace-view/store/base.ts";
+import { enrichSpansWithPending } from "@/components/traces/trace-view/utils.ts";
 import { type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
-import { SpanType, type TraceRow } from "@/lib/traces/types";
-import { tryParseJson } from "@/lib/utils";
+import { SpanType, type TraceRow } from "@/lib/traces/types.ts";
+import { tryParseJson } from "@/lib/utils.ts";
 
-import { type SystemMessage } from "./system-messages-utils";
+import { type SystemMessage } from "../system-messages-utils.ts";
 
 export const MIN_SIDEBAR_WIDTH = 450;
 
@@ -25,10 +26,11 @@ interface DebuggerSessionStoreState {
   systemMessagesMap: Map<string, SystemMessage>;
   isSystemMessagesLoading: boolean;
   cachedSpanCounts: Record<string, number>;
+  breakpointSpanId: string | undefined;
   overrides: Record<string, { system: string }>;
   generatedNames: Record<string, string>;
-  isRolloutLoading: boolean;
-  rolloutError?: string;
+  isLoading: boolean;
+  error?: string;
   sessionStatus: DebuggerSessionStatus;
   isSessionDeleted: boolean;
   params: Array<{ name: string; [key: string]: any }>;
@@ -45,15 +47,16 @@ interface DebuggerSessionStoreActions {
   ) => void;
   setIsSystemMessagesLoading: (isLoading: boolean) => void;
   isSpanCached: (span: TraceViewSpan) => boolean;
-  cacheToSpan: (span: TraceViewSpan) => void;
-  uncacheFromSpan: (span: TraceViewSpan) => void;
+  isBreakpointSpan: (span: TraceViewSpan) => boolean;
+  setBreakpoint: (span: TraceViewSpan) => void;
+  clearBreakpoint: () => void;
   toggleOverride: (messageId: string) => void;
   updateOverride: (pathKey: string, content: string) => void;
   isOverrideEnabled: (messageId: string) => boolean;
   resetOverride: (messageId: string) => void;
   setSessionStatus: (status: DebuggerSessionStatus) => void;
   setIsSessionDeleted: (isSessionDeleted: boolean) => void;
-  runRollout: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
+  runDebugger: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
   cancelSession: (projectId: string, sessionId: string) => Promise<{ success: boolean; error?: string }>;
   setParamValue: (value: string) => void;
   loadHistoryTrace: (projectId: string, traceId: string, startTime: string, endTime: string) => Promise<void>;
@@ -117,6 +120,8 @@ const createDebuggerSessionStore = ({
             });
             set({ cachedSpanCounts: newCachedCounts });
           }
+
+          set({ breakpointSpanId: deriveBreakpointSpanId(newSpans, get().cachedSpanCounts) });
         },
 
         setTrace: (trace) => {
@@ -196,29 +201,9 @@ const createDebuggerSessionStore = ({
           return spanIndex !== -1 && spanIndex < cacheCount;
         },
 
-        cacheToSpan: (span: TraceViewSpan) => {
-          const spans = get().spans;
-          const clickedSpanTime = new Date(span.startTime).getTime();
+        isBreakpointSpan: (span: TraceViewSpan): boolean => span.spanId === get().breakpointSpanId,
 
-          const spansBeforeOrAt = spans
-            .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
-            .filter((s) => new Date(s.startTime).getTime() <= clickedSpanTime)
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-
-          const newCachedCounts: Record<string, number> = {};
-
-          spansBeforeOrAt.forEach((s) => {
-            const sPath = s.attributes?.["lmnr.span.path"];
-            if (sPath && Array.isArray(sPath)) {
-              const pathKey = sPath.join(".");
-              newCachedCounts[pathKey] = (newCachedCounts[pathKey] || 0) + 1;
-            }
-          });
-
-          set({ cachedSpanCounts: newCachedCounts });
-        },
-
-        uncacheFromSpan: (span: TraceViewSpan) => {
+        setBreakpoint: (span: TraceViewSpan) => {
           const spans = get().spans;
           const clickedSpanTime = new Date(span.startTime).getTime();
 
@@ -237,17 +222,22 @@ const createDebuggerSessionStore = ({
             }
           });
 
-          set({ cachedSpanCounts: newCachedCounts });
+          set({ cachedSpanCounts: newCachedCounts, breakpointSpanId: span.spanId });
+        },
+
+        clearBreakpoint: () => {
+          set({ cachedSpanCounts: {}, breakpointSpanId: undefined });
         },
 
         sidebarWidth: MIN_SIDEBAR_WIDTH,
         systemMessagesMap: new Map(),
         isSystemMessagesLoading: false,
         cachedSpanCounts: {},
+        breakpointSpanId: undefined,
         overrides: {},
         generatedNames: {},
-        isRolloutLoading: false,
-        rolloutError: undefined,
+        isLoading: false,
+        error: undefined,
         sessionStatus: initialStatus,
         isSessionDeleted: false,
         params,
@@ -309,9 +299,9 @@ const createDebuggerSessionStore = ({
 
         setSessionStatus: (sessionStatus: DebuggerSessionStatus) => set({ sessionStatus }),
 
-        runRollout: async (projectId: string, sessionId: string) => {
+        runDebugger: async (projectId: string, sessionId: string) => {
           try {
-            set({ isRolloutLoading: true, rolloutError: undefined });
+            set({ isLoading: true, error: undefined });
 
             const overrides = get().overrides;
             const currentTraceId = get()?.trace?.id;
@@ -320,7 +310,7 @@ const createDebuggerSessionStore = ({
 
             const rolloutPayload: Record<string, any> = {};
 
-            set({ spans: [], cachedSpanCounts: {}, trace: undefined });
+            set({ spans: [], cachedSpanCounts: {}, breakpointSpanId: undefined, trace: undefined });
             if (currentTraceId) {
               rolloutPayload.trace_id = currentTraceId;
             }
@@ -354,17 +344,17 @@ const createDebuggerSessionStore = ({
             return { success: true };
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Failed to run debugger";
-            set({ rolloutError: errorMessage });
+            set({ error: errorMessage });
             return { success: false, error: errorMessage };
           } finally {
-            set({ isRolloutLoading: false });
+            set({ isLoading: false });
           }
         },
         setIsSessionDeleted: (isSessionDeleted: boolean) => set({ isSessionDeleted }),
 
         cancelSession: async (projectId: string, sessionId: string) => {
           try {
-            set({ isRolloutLoading: true });
+            set({ isLoading: true });
 
             const response = await fetch(`/api/projects/${projectId}/debugger-sessions/${sessionId}/status`, {
               method: "PATCH",
@@ -383,7 +373,7 @@ const createDebuggerSessionStore = ({
             const errorMessage = error instanceof Error ? error.message : "Failed to cancel debugger";
             return { success: false, error: errorMessage };
           } finally {
-            set({ isRolloutLoading: false });
+            set({ isLoading: false });
           }
         },
 
@@ -422,6 +412,7 @@ const createDebuggerSessionStore = ({
             isTraceLoading: true,
             isSpansLoading: true,
             cachedSpanCounts: {},
+            breakpointSpanId: undefined,
             systemMessagesMap: new Map(),
           });
 
@@ -535,9 +526,7 @@ export const useDebuggerSessionStore = () => {
 
 const NOOP_DEBUGGER_SESSION_STORE = createStore(() => ({})) as unknown as StoreApi<DebuggerSessionStore>;
 
-export const useDebuggerCaching = <T,>(
-  selector: (state: DebuggerSessionStore) => T
-): { enabled: boolean; state: T } => {
+export const useDebuggerStore = <T,>(selector: (state: DebuggerSessionStore) => T): { enabled: boolean; state: T } => {
   const store = useContext(DebuggerSessionStoreContext);
   const state = useStore(store ?? NOOP_DEBUGGER_SESSION_STORE, selector);
   return { enabled: !isNil(store), state };
