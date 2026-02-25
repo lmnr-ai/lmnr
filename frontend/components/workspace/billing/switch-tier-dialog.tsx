@@ -83,10 +83,21 @@ export default function SwitchTierDialog({
               {targetTierName} ({targetTierPrice}
               {targetTierPriceSubtext})
             </span>{" "}
-            immediately. Your current plan will be pro-rated and refunded, and{" "}
-            <span className="underline">
-              the new plan will be charged right away for the remainder of the billing cycle.
-            </span>
+            immediately.{" "}
+            {isUpgrade ? (
+              <>
+                Your current plan will be pro-rated and refunded, and{" "}
+                <span className="underline">
+                  the new plan will be charged right away for the remainder of the billing cycle.
+                </span>
+              </>
+            ) : (
+              <>
+                The remaining value of your current plan will be pro-rated and{" "}
+                <span className="underline">credited to your balance</span>, which will be applied to future charges.
+                The new plan will be charged right away for the remainder of the billing cycle.
+              </>
+            )}
           </p>
           <p>
             Usage-based charges (data and signal runs) will be billed at the end of the cycle based on your active plan

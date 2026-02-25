@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
+import { stripe } from "@/lib/actions/checkout/stripe.ts";
 import { deleteProject } from "@/lib/actions/project";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
@@ -90,10 +91,15 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
     })
   );
 
-  const result = await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
+  const [workspace] = await db.delete(workspaces).where(eq(workspaces.id, workspaceId)).returning();
 
-  if (result.count === 0) {
+  if (!workspace) {
     throw new Error("Workspace not found");
+  }
+
+  if (workspace.subscriptionId) {
+    const s = stripe();
+    await s.subscriptions.cancel(workspace.subscriptionId);
   }
 
   return { success: true, message: "Workspace deleted successfully" };
