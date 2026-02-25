@@ -46,7 +46,6 @@ export const AnthropicImageBlockSchema = z.object({
   source: z.union([AnthropicImageBase64SourceSchema, AnthropicImageUrlSourceSchema]),
 });
 
-/** Strict content block union — used for type narrowing in renderer / converter */
 export const AnthropicContentBlockSchema = z.union([
   AnthropicTextBlockSchema,
   AnthropicThinkingBlockSchema,
@@ -55,22 +54,12 @@ export const AnthropicContentBlockSchema = z.union([
   AnthropicImageBlockSchema,
 ]);
 
-/** Lenient content block schema for parsing — accepts unknown block types
- *  (e.g. `redacted_thinking`, `document`) so they don't cause the entire
- *  trace to fail validation. Unknown blocks are silently skipped by the
- *  renderer and playground converter. */
-const AnthropicAnyContentBlockSchema = z.object({ type: z.string() }).passthrough();
-
-const KNOWN_BLOCK_TYPES = new Set(["text", "thinking", "tool_use", "tool_result", "image"]);
-
-export type AnthropicContentBlock = z.infer<typeof AnthropicContentBlockSchema>;
-
 /** Message Schemas **/
 
 export const AnthropicMessageSchema = z
   .object({
     role: z.enum(["user", "assistant", "system"]),
-    content: z.union([z.string(), z.array(AnthropicAnyContentBlockSchema)]),
+    content: z.union([z.string(), z.array(AnthropicContentBlockSchema)]),
   })
   .passthrough();
 
@@ -81,19 +70,12 @@ export const AnthropicMessagesSchema = z.array(AnthropicMessageSchema);
 export const AnthropicOutputMessageSchema = z
   .object({
     role: z.string().optional(),
-    content: z.array(AnthropicAnyContentBlockSchema),
+    content: z.array(AnthropicContentBlockSchema),
     stop_reason: z.string().optional(),
   })
   .passthrough();
 
 export const AnthropicOutputMessagesSchema = z.array(AnthropicOutputMessageSchema);
-
-/** Narrow a loosely-parsed block to the strict known type, or null */
-export const toKnownBlock = (block: { type: string }): AnthropicContentBlock | null => {
-  if (!KNOWN_BLOCK_TYPES.has(block.type)) return null;
-  const result = AnthropicContentBlockSchema.safeParse(block);
-  return result.success ? result.data : null;
-};
 
 /** Parse helpers — validate + normalise **/
 
@@ -164,9 +146,8 @@ export const convertAnthropicToPlaygroundMessages = async (
   const toolNameById = new Map<string, string>();
   for (const message of messages) {
     if (typeof message.content !== "string") {
-      for (const raw of message.content) {
-        const block = toKnownBlock(raw);
-        if (block?.type === "tool_use") {
+      for (const block of message.content) {
+        if (block.type === "tool_use") {
           toolNameById.set(block.id, block.name);
         }
       }
@@ -180,10 +161,7 @@ export const convertAnthropicToPlaygroundMessages = async (
       if (typeof message.content === "string") {
         content.push({ type: "text", text: message.content });
       } else {
-        for (const raw of message.content) {
-          const block = toKnownBlock(raw);
-          if (!block) continue;
-
+        for (const block of message.content) {
           switch (block.type) {
             case "text":
               content.push({ type: "text", text: block.text });

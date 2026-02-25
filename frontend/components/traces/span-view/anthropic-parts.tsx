@@ -1,7 +1,7 @@
 import React, { memo } from "react";
 import { type z } from "zod/v4";
 
-import { type AnthropicContentBlock, type AnthropicMessageSchema, toKnownBlock } from "@/lib/spans/types/anthropic";
+import { type AnthropicContentBlockSchema, type AnthropicMessageSchema } from "@/lib/spans/types/anthropic";
 
 import { ImageContentPart, TextContentPart, ToolCallContentPart, ToolResultContentPart } from "./common";
 
@@ -11,7 +11,7 @@ const AnthropicPartRenderer = ({
   messageIndex,
   contentPartIndex,
 }: {
-  block: AnthropicContentBlock;
+  block: z.infer<typeof AnthropicContentBlockSchema>;
   presetKey: string;
   messageIndex: number;
   contentPartIndex: number;
@@ -94,19 +94,15 @@ const PureAnthropicContentParts = ({
 
   return (
     <>
-      {message.content.map((raw, index) => {
-        const block = toKnownBlock(raw);
-        if (!block) return null;
-        return (
-          <AnthropicPartRenderer
-            key={`${parentIndex}-part-${index}-${presetKey}`}
-            block={block}
-            presetKey={`${parentIndex}-part-${index}-${presetKey}`}
-            messageIndex={parentIndex}
-            contentPartIndex={index}
-          />
-        );
-      })}
+      {message.content.map((block, index) => (
+        <AnthropicPartRenderer
+          key={`${parentIndex}-part-${index}-${presetKey}`}
+          block={block}
+          presetKey={`${parentIndex}-part-${index}-${presetKey}`}
+          messageIndex={parentIndex}
+          contentPartIndex={index}
+        />
+      ))}
     </>
   );
 };
