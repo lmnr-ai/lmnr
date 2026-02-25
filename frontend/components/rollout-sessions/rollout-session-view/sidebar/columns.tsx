@@ -13,13 +13,15 @@ export const sidebarTraceColumns: ColumnDef<TraceRow, any>[] = [
       <div
         className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
           "bg-destructive-bright": row.getValue() === "error",
+          "": row.getValue() === "info", // temporary color values
+          "bg-yellow-400": row.getValue() === "warning", // temporary color values
         })}
       />
     ),
-    accessorFn: (row) => (row.status === "error" ? "error" : "success"),
+    accessorFn: (row) => (row.status === "error" ? "error" : row.analysis_status),
     header: () => <div />,
     id: "status",
-    size: 30,
+    size: 40,
   },
   {
     accessorKey: "topSpanType",

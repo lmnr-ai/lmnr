@@ -1,11 +1,7 @@
 "use client";
 
-import { AlertTriangle, CirclePlay, Loader, Loader2, Square } from "lucide-react";
-import React from "react";
-import { useHotkeys } from "react-hotkeys-hook";
+import React, { useEffect, useState } from "react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useRolloutSessionStoreContext } from "../rollout-session-store";
@@ -20,90 +16,40 @@ interface RolloutSidebarProps {
 }
 
 export default function RolloutSidebar({ onRollout, onCancel, isLoading }: RolloutSidebarProps) {
-  const { rolloutError, sessionStatus } = useRolloutSessionStoreContext((state) => ({
-    rolloutError: state.rolloutError,
-    sessionStatus: state.sessionStatus,
-  }));
+  const sessionStatus = useRolloutSessionStoreContext((state) => state.sessionStatus);
+
+  const [activeTab, setActiveTab] = useState("config");
 
   const isRunning = sessionStatus === "RUNNING";
-  const canRun = sessionStatus === "PENDING" || sessionStatus === "FINISHED" || sessionStatus === "STOPPED";
 
-  useHotkeys(
-    "meta+enter,ctrl+enter",
-    () => {
-      if (canRun && !isLoading) {
-        onRollout();
-      }
-    },
-    {
-      enabled: !isRunning,
-    },
-    [isRunning, canRun, isLoading, onRollout]
-  );
+  useEffect(() => {
+    if (isRunning) {
+      setActiveTab("config");
+    }
+  }, [isRunning]);
 
   return (
     <div className="flex flex-col gap-1 flex-1 overflow-hidden">
-      <div className="flex flex-col gap-2 px-4 pt-4 pb-2">
-        {isRunning ? (
-          <Button className="w-fit" variant="destructive" onClick={onCancel} disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 size={14} className="mr-1.5 animate-spin" />
-                Stopping...
-              </>
-            ) : (
-              <>
-                <Square size={14} className="mr-1.5" />
-                <span className="mr-1.5">Stop</span>
-                <Loader className="animate-spin w-4 h-4" />
-              </>
-            )}
-          </Button>
-        ) : (
-          <Button className="w-fit" onClick={onRollout} disabled={isLoading || !canRun}>
-            {isLoading ? (
-              <>
-                <Loader2 size={14} className="mr-1.5 animate-spin" />
-                Starting...
-              </>
-            ) : (
-              <>
-                <CirclePlay size={14} className="mr-1.5" />
-                <span className="mr-1.5">Run</span>
-                <kbd
-                  data-slot="kbd"
-                  className="inline-flex items-center justify-center px-1 font-sans text-xs font-medium select-none"
-                >
-                  ⌘ + ⏎
-                </kbd>
-              </>
-            )}
-          </Button>
-        )}
-        {rolloutError && (
-          <Alert variant="destructive">
-            <AlertTriangle className="w-4 h-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{rolloutError}</AlertDescription>
-          </Alert>
-        )}
-      </div>
-
-      <Tabs defaultValue="config" className="flex flex-col flex-1 overflow-hidden px-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden px-4 pt-4">
         <TabsList className="w-full">
           <TabsTrigger value="config" className="flex-1 text-xs">
             Config
           </TabsTrigger>
-          <TabsTrigger value="runs" className="flex-1 text-xs">
+          <TabsTrigger disabled={isRunning} value="runs" className="flex-1 text-xs">
             Runs
           </TabsTrigger>
-          <TabsTrigger value="traces" className="flex-1 text-xs">
+          <TabsTrigger disabled={isRunning} value="traces" className="flex-1 text-xs">
             Traces
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="config" className="flex flex-col flex-1 overflow-hidden">
-          <ConfigTab />
+          <ConfigTab
+            onRollout={onRollout}
+            onCancel={onCancel}
+            isLoading={isLoading}
+            isActive={activeTab === "config"}
+          />
         </TabsContent>
 
         <TabsContent value="runs" className="flex flex-col flex-1 overflow-hidden py-2">

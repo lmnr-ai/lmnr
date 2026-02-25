@@ -2,10 +2,12 @@
 
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { MessageSquare, RotateCcw } from "lucide-react";
+import { AlertTriangle, CirclePlay, Loader, Loader2, MessageSquare, RotateCcw, Square } from "lucide-react";
 import { useParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -145,15 +147,46 @@ const SystemMessageEditor = ({ message }: { message: SystemMessage }) => {
   );
 };
 
-export default function ConfigTab() {
-  const { systemMessagesMap, isSystemMessagesLoading, params, paramValues, setParamValue } =
-    useRolloutSessionStoreContext((state) => ({
-      systemMessagesMap: state.systemMessagesMap,
-      isSystemMessagesLoading: state.isSystemMessagesLoading,
-      params: state.params,
-      paramValues: state.paramValues,
-      setParamValue: state.setParamValue,
-    }));
+interface ConfigTabProps {
+  onRollout: () => void;
+  onCancel: () => void;
+  isLoading?: boolean;
+  isActive?: boolean;
+}
+
+export default function ConfigTab({ onRollout, onCancel, isLoading, isActive }: ConfigTabProps) {
+  const {
+    systemMessagesMap,
+    isSystemMessagesLoading,
+    params,
+    paramValues,
+    setParamValue,
+    rolloutError,
+    sessionStatus,
+  } = useRolloutSessionStoreContext((state) => ({
+    systemMessagesMap: state.systemMessagesMap,
+    isSystemMessagesLoading: state.isSystemMessagesLoading,
+    params: state.params,
+    paramValues: state.paramValues,
+    setParamValue: state.setParamValue,
+    rolloutError: state.rolloutError,
+    sessionStatus: state.sessionStatus,
+  }));
+
+  const isRunning = sessionStatus === "RUNNING";
+
+  useHotkeys(
+    "meta+enter,ctrl+enter",
+    () => {
+      if (!isRunning && !isLoading && isActive) {
+        onRollout();
+      }
+    },
+    {
+      enabled: !isRunning && !isLoading && isActive,
+    },
+    [isRunning, isLoading, isActive, onRollout]
+  );
 
   const messages = useMemo(() => Array.from(systemMessagesMap.values()), [systemMessagesMap]);
 
@@ -173,6 +206,52 @@ export default function ConfigTab() {
 
   return (
     <div className="flex flex-col gap-4 overflow-y-auto styled-scrollbar py-2">
+      <div className="flex flex-col gap-2">
+        {isRunning ? (
+          <Button className="w-fit" variant="destructive" onClick={onCancel} disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Loader2 size={14} className="mr-1.5 animate-spin" />
+                Stopping...
+              </>
+            ) : (
+              <>
+                <Square size={14} className="mr-1.5" />
+                <span className="mr-1.5">Stop</span>
+                <Loader className="animate-spin w-4 h-4" />
+              </>
+            )}
+          </Button>
+        ) : (
+          <Button className="w-fit" onClick={onRollout} disabled={isLoading || isRunning}>
+            {isLoading ? (
+              <>
+                <Loader2 size={14} className="mr-1.5 animate-spin" />
+                Starting...
+              </>
+            ) : (
+              <>
+                <CirclePlay size={14} className="mr-1.5" />
+                <span className="mr-1.5">Run</span>
+                <kbd
+                  data-slot="kbd"
+                  className="inline-flex items-center justify-center px-1 font-sans text-xs font-medium select-none"
+                >
+                  ⌘ + ⏎
+                </kbd>
+              </>
+            )}
+          </Button>
+        )}
+        {rolloutError && (
+          <Alert variant="destructive">
+            <AlertTriangle className="w-4 h-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{rolloutError}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+
       {params && params.length > 0 && (
         <div className="flex flex-col gap-2">
           <h4 className="text-sm font-semibold">Input Arguments</h4>

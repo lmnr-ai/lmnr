@@ -25,6 +25,7 @@ interface RolloutSessionStoreState {
   systemMessagesMap: Map<string, SystemMessage>;
   isSystemMessagesLoading: boolean;
   cachedSpanCounts: Record<string, number>;
+  breakpointSpanId: string | undefined;
   overrides: Record<string, { system: string }>;
   generatedNames: Record<string, string>;
   isRolloutLoading: boolean;
@@ -45,8 +46,9 @@ interface RolloutSessionStoreActions {
   ) => void;
   setIsSystemMessagesLoading: (isLoading: boolean) => void;
   isSpanCached: (span: TraceViewSpan) => boolean;
-  cacheToSpan: (span: TraceViewSpan) => void;
-  uncacheFromSpan: (span: TraceViewSpan) => void;
+  isBreakpointSpan: (span: TraceViewSpan) => boolean;
+  setBreakpoint: (span: TraceViewSpan) => void;
+  clearBreakpoint: () => void;
   toggleOverride: (messageId: string) => void;
   updateOverride: (pathKey: string, content: string) => void;
   isOverrideEnabled: (messageId: string) => boolean;
@@ -63,6 +65,38 @@ interface RolloutSessionStoreActions {
 }
 
 type RolloutSessionStore = BaseTraceViewStore & RolloutSessionStoreState & RolloutSessionStoreActions;
+
+/**
+ * Finds the first non-cached LLM/CACHED span — i.e. where execution resumes.
+ * Runs in O(n log n) via a single sorted walk with per-path counters.
+ */
+const deriveBreakpointSpanId = (
+  spans: TraceViewSpan[],
+  cachedSpanCounts: Record<string, number>
+): string | undefined => {
+  const llmSpans = spans
+    .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+  const seenPerPath: Record<string, number> = {};
+
+  for (const span of llmSpans) {
+    const spanPath = span.attributes?.["lmnr.span.path"];
+    if (!spanPath || !Array.isArray(spanPath)) continue;
+
+    const pathKey = spanPath.join(".");
+    const cacheCount = cachedSpanCounts[pathKey] || 0;
+    const seen = seenPerPath[pathKey] || 0;
+
+    if (seen >= cacheCount) {
+      return span.spanId;
+    }
+
+    seenPerPath[pathKey] = seen + 1;
+  }
+
+  return undefined;
+};
 
 const createRolloutSessionStore = ({
   trace,
@@ -94,7 +128,7 @@ const createRolloutSessionStore = ({
           }
         },
 
-        // Override setSpans: also recalculate cachedSpanCounts
+        // Override setSpans: also recalculate cachedSpanCounts and derive breakpoint
         setSpans: (spans) => {
           let newSpans: TraceViewSpan[];
 
@@ -119,6 +153,8 @@ const createRolloutSessionStore = ({
             });
             set({ cachedSpanCounts: newCachedCounts });
           }
+
+          set({ breakpointSpanId: deriveBreakpointSpanId(newSpans, get().cachedSpanCounts) });
         },
 
         setTrace: (trace) => {
@@ -198,29 +234,9 @@ const createRolloutSessionStore = ({
           return spanIndex !== -1 && spanIndex < cacheCount;
         },
 
-        cacheToSpan: (span: TraceViewSpan) => {
-          const spans = get().spans;
-          const clickedSpanTime = new Date(span.startTime).getTime();
+        isBreakpointSpan: (span: TraceViewSpan): boolean => span.spanId === get().breakpointSpanId,
 
-          const spansBeforeOrAt = spans
-            .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
-            .filter((s) => new Date(s.startTime).getTime() <= clickedSpanTime)
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-
-          const newCachedCounts: Record<string, number> = {};
-
-          spansBeforeOrAt.forEach((s) => {
-            const sPath = s.attributes?.["lmnr.span.path"];
-            if (sPath && Array.isArray(sPath)) {
-              const pathKey = sPath.join(".");
-              newCachedCounts[pathKey] = (newCachedCounts[pathKey] || 0) + 1;
-            }
-          });
-
-          set({ cachedSpanCounts: newCachedCounts });
-        },
-
-        uncacheFromSpan: (span: TraceViewSpan) => {
+        setBreakpoint: (span: TraceViewSpan) => {
           const spans = get().spans;
           const clickedSpanTime = new Date(span.startTime).getTime();
 
@@ -239,7 +255,11 @@ const createRolloutSessionStore = ({
             }
           });
 
-          set({ cachedSpanCounts: newCachedCounts });
+          set({ cachedSpanCounts: newCachedCounts, breakpointSpanId: span.spanId });
+        },
+
+        clearBreakpoint: () => {
+          set({ cachedSpanCounts: {}, breakpointSpanId: undefined });
         },
 
         // Rollout-specific state
@@ -247,6 +267,7 @@ const createRolloutSessionStore = ({
         systemMessagesMap: new Map(),
         isSystemMessagesLoading: false,
         cachedSpanCounts: {},
+        breakpointSpanId: undefined,
         overrides: {},
         generatedNames: {},
         isRolloutLoading: false,
@@ -324,7 +345,7 @@ const createRolloutSessionStore = ({
 
             const rolloutPayload: Record<string, any> = {};
 
-            set({ spans: [], cachedSpanCounts: {}, trace: undefined });
+            set({ spans: [], cachedSpanCounts: {}, breakpointSpanId: undefined, trace: undefined });
             if (currentTraceId) {
               rolloutPayload.trace_id = currentTraceId;
             }
@@ -426,6 +447,7 @@ const createRolloutSessionStore = ({
             isTraceLoading: true,
             isSpansLoading: true,
             cachedSpanCounts: {},
+            breakpointSpanId: undefined,
             systemMessagesMap: new Map(),
           });
 
