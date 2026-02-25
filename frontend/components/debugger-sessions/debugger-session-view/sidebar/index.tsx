@@ -30,28 +30,30 @@ export default function DebuggerSidebar({ onRun, onCancel, isLoading }: Debugger
 
   return (
     <div className="flex flex-col gap-1 flex-1 overflow-hidden">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden px-4 pt-4">
-        <TabsList className="w-full">
-          <TabsTrigger value="config" className="flex-1 text-xs">
-            Config
-          </TabsTrigger>
-          <TabsTrigger disabled={isRunning} value="runs" className="flex-1 text-xs">
-            Runs
-          </TabsTrigger>
-          <TabsTrigger disabled={isRunning} value="traces" className="flex-1 text-xs">
-            Traces
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden">
+        <div className="px-4 pt-4">
+          <TabsList className="w-full">
+            <TabsTrigger value="config" className="flex-1 text-xs">
+              Config
+            </TabsTrigger>
+            <TabsTrigger disabled={isRunning} value="runs" className="flex-1 text-xs">
+              Runs
+            </TabsTrigger>
+            <TabsTrigger disabled={isRunning} value="traces" className="flex-1 text-xs">
+              Traces
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="config" className="flex flex-col flex-1 overflow-hidden">
           <ConfigTab onRollout={onRun} onCancel={onCancel} isLoading={isLoading} isActive={activeTab === "config"} />
         </TabsContent>
 
-        <TabsContent value="runs" className="flex flex-col flex-1 overflow-hidden py-2">
+        <TabsContent value="runs" className="flex flex-col flex-1 overflow-hidden">
           <RunsTab />
         </TabsContent>
 
-        <TabsContent value="traces" className="flex flex-col flex-1 overflow-hidden py-2">
+        <TabsContent value="traces" className="flex flex-col flex-1 overflow-hidden">
           <TracesTab />
         </TabsContent>
       </Tabs>

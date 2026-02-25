@@ -69,7 +69,7 @@ const RunsContent = () => {
 
   return (
     <InfiniteDataTable<TraceRow>
-      className="w-full"
+      className="w-full px-4 py-2"
       columns={sidebarTraceColumns}
       data={historyRuns}
       getRowId={(t) => t.id}
