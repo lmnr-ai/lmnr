@@ -91,7 +91,10 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
     })
   );
 
-  const [workspace] = await db.delete(workspaces).where(eq(workspaces.id, workspaceId)).returning();
+  const workspace = await db.query.workspaces.findFirst({
+    where: eq(workspaces.id, workspaceId),
+    columns: { id: true, subscriptionId: true },
+  });
 
   if (!workspace) {
     throw new Error("Workspace not found");
@@ -101,6 +104,8 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
     const s = stripe();
     await s.subscriptions.cancel(workspace.subscriptionId);
   }
+
+  await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
 
   return { success: true, message: "Workspace deleted successfully" };
 }
