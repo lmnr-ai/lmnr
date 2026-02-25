@@ -143,8 +143,19 @@ export const extractAnthropicSystemMessage = (messages: z.infer<typeof Anthropic
 
 export const convertAnthropicToPlaygroundMessages = async (
   messages: z.infer<typeof AnthropicMessagesSchema>
-): Promise<Message[]> =>
-  Promise.all(
+): Promise<Message[]> => {
+  const toolNameById = new Map<string, string>();
+  for (const message of messages) {
+    if (typeof message.content !== "string") {
+      for (const block of message.content) {
+        if (block.type === "tool_use") {
+          toolNameById.set(block.id, block.name);
+        }
+      }
+    }
+  }
+
+  return Promise.all(
     map(messages, async (message): Promise<Message> => {
       const content: Message["content"] = [];
 
@@ -176,7 +187,7 @@ export const convertAnthropicToPlaygroundMessages = async (
               content.push({
                 type: "tool-result",
                 toolCallId: block.tool_use_id,
-                toolName: block.tool_use_id,
+                toolName: toolNameById.get(block.tool_use_id) || block.tool_use_id,
                 output: { type: "text", value: resultContent },
               });
               break;
@@ -207,3 +218,4 @@ export const convertAnthropicToPlaygroundMessages = async (
       return { role: message.role, content };
     })
   );
+};
