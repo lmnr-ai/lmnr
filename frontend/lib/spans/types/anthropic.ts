@@ -30,20 +30,20 @@ export const AnthropicToolResultBlockSchema = z.object({
   is_error: z.boolean().optional(),
 });
 
-export const AnthropicImageBlockSchema = z.object({
-  type: z.literal("image"),
-  source: z.object({
-    type: z.string(),
-    media_type: z.string(),
-    data: z.string(),
-  }),
+export const AnthropicImageBase64SourceSchema = z.object({
+  type: z.literal("base64"),
+  media_type: z.string(),
+  data: z.string(),
 });
 
-export const AnthropicImageUrlBlockSchema = z.object({
-  type: z.literal("image_url"),
-  image_url: z.object({
-    url: z.string(),
-  }),
+export const AnthropicImageUrlSourceSchema = z.object({
+  type: z.literal("url"),
+  url: z.string(),
+});
+
+export const AnthropicImageBlockSchema = z.object({
+  type: z.literal("image"),
+  source: z.union([AnthropicImageBase64SourceSchema, AnthropicImageUrlSourceSchema]),
 });
 
 export const AnthropicContentBlockSchema = z.union([
@@ -52,7 +52,6 @@ export const AnthropicContentBlockSchema = z.union([
   AnthropicToolUseBlockSchema,
   AnthropicToolResultBlockSchema,
   AnthropicImageBlockSchema,
-  AnthropicImageUrlBlockSchema,
 ]);
 
 /** Message Schemas **/
@@ -194,21 +193,20 @@ export const convertAnthropicToPlaygroundMessages = async (
             }
 
             case "image": {
-              const src = `data:${block.source.media_type};base64,${block.source.data}`;
-              content.push({ type: "image", image: src });
-              break;
-            }
-
-            case "image_url": {
-              let imageData = block.image_url.url;
-              if (isStorageUrl(imageData)) {
-                try {
-                  imageData = await urlToBase64(imageData);
-                } catch (error) {
-                  console.error("Error downloading Anthropic image:", error);
+              if (block.source.type === "base64") {
+                const src = `data:${block.source.media_type};base64,${block.source.data}`;
+                content.push({ type: "image", image: src });
+              } else {
+                let imageData = block.source.url;
+                if (isStorageUrl(imageData)) {
+                  try {
+                    imageData = await urlToBase64(imageData);
+                  } catch (error) {
+                    console.error("Error downloading Anthropic image:", error);
+                  }
                 }
+                content.push({ type: "image", image: imageData });
               }
-              content.push({ type: "image", image: imageData });
               break;
             }
           }

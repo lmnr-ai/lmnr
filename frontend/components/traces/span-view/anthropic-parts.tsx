@@ -60,12 +60,12 @@ const AnthropicPartRenderer = ({
     }
 
     case "image": {
-      const src = `data:${block.source.media_type};base64,${block.source.data}`;
-      return <ImageContentPart src={src} />;
+      if (block.source.type === "base64") {
+        const src = `data:${block.source.media_type};base64,${block.source.data}`;
+        return <ImageContentPart src={src} />;
+      }
+      return <ImageContentPart src={block.source.url} />;
     }
-
-    case "image_url":
-      return <ImageContentPart src={block.image_url.url} />;
 
     default:
       return null;
