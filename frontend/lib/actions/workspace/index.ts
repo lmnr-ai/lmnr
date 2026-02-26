@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
+import { stripe } from "@/lib/actions/checkout/stripe.ts";
 import { deleteProject } from "@/lib/actions/project";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
@@ -77,6 +78,22 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
 
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner"] });
 
+  const workspace = await db.query.workspaces.findFirst({
+    where: eq(workspaces.id, workspaceId),
+    columns: { id: true, subscriptionId: true },
+  });
+
+  if (!workspace) {
+    throw new Error("Workspace not found");
+  }
+
+  if (workspace.subscriptionId) {
+    const s = stripe();
+    await s.subscriptions
+      .cancel(workspace.subscriptionId)
+      .catch((e) => console.error("Failed to cancel subscription", e));
+  }
+
   const projectsInWorkspace = await db.query.projects.findMany({
     where: eq(projects.workspaceId, workspaceId),
     columns: {
@@ -90,11 +107,7 @@ export async function deleteWorkspace(input: z.infer<typeof DeleteWorkspaceSchem
     })
   );
 
-  const result = await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
-
-  if (result.count === 0) {
-    throw new Error("Workspace not found");
-  }
+  await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
 
   return { success: true, message: "Workspace deleted successfully" };
 }

@@ -5,7 +5,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
 import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
-import { numberFormatter, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
+import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import {
   chartConfig,
   getTickCountForWidth,
@@ -121,7 +121,7 @@ const Chart = ({ data, containerWidth }: ChartProps) => {
               <ChartTooltipContent
                 labelKey="timestamp"
                 labelFormatter={(_, payload) =>
-                  payload && payload[0] ? formatter.format(new Date(payload[0].payload.timestamp)) : "-"
+                  payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
                 }
               />
             }
