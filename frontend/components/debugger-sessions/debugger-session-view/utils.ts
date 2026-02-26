@@ -185,7 +185,9 @@ export const onRealtimeUpdateSpans =
       newTrace.inputCost += inputCost;
       newTrace.outputCost += outputCost;
       newTrace.totalCost += totalCost;
-      newTrace.status = newSpan.status || "success";
+      if (newSpan.status === "error") {
+        newTrace.status = "error";
+      }
 
       if (newSpan.attributes["lmnr.internal.has_browser_session"]) {
         newTrace.hasBrowserSession = true;

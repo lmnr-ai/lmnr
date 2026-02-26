@@ -4,7 +4,6 @@ import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
 
-import { deriveCheckpointSpanId } from "@/components/debugger-sessions/debugger-session-view/store/utils.ts";
 import {
   type BaseTraceViewStore,
   createBaseTraceViewSlice,
@@ -77,14 +76,14 @@ const createDebuggerSessionStore = ({
   params?: Array<{ name: string; [key: string]: any }>;
   storeKey?: string;
   initialStatus?: DebuggerSessionStatus;
-}) =>
-  createStore<DebuggerSessionStore>()(
+}) => {
+  let loadTraceController: AbortController | null = null;
+
+  return createStore<DebuggerSessionStore>()(
     persist(
       (set, get) => ({
         ...createBaseTraceViewSlice(set, get, { initialTrace: trace }),
-
-        condensedTimelineEnabled: false,
-
+        // Override selectSpanById: rollout doesn't expand collapsed ancestors
         selectSpanById: (spanId: string) => {
           const span = get().spans.find((s) => s.spanId === spanId);
           if (span && !span.pending) {
@@ -120,8 +119,6 @@ const createDebuggerSessionStore = ({
             });
             set({ cachedSpanCounts: newCachedCounts });
           }
-
-          set({ checkpointSpanId: deriveCheckpointSpanId(newSpans, get().cachedSpanCounts) });
         },
 
         setTrace: (trace) => {
@@ -388,6 +385,11 @@ const createDebuggerSessionStore = ({
           set({ generatedNames: { ...get().generatedNames, [pathKey]: name } }),
 
         loadHistoryTrace: async (projectId: string, traceId: string, startTime: string, endTime: string) => {
+          loadTraceController?.abort();
+          const controller = new AbortController();
+          loadTraceController = controller;
+          const { signal } = controller;
+
           set({
             trace: {
               id: traceId,
@@ -417,35 +419,39 @@ const createDebuggerSessionStore = ({
           });
 
           try {
-            const traceResponse = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
-            if (traceResponse.ok) {
-              const traceData = (await traceResponse.json()) as TraceViewTrace;
-              get().setTrace(traceData);
-            }
-          } catch {
-            set({ traceError: "Failed to load trace" });
-          } finally {
-            set({ isTraceLoading: false });
-          }
-
-          try {
             const spanParams = new URLSearchParams();
             spanParams.append("searchIn", "input");
             spanParams.append("searchIn", "output");
             spanParams.set("startDate", new Date(new Date(startTime).getTime() - 1000).toISOString());
             spanParams.set("endDate", new Date(new Date(endTime).getTime() + 1000).toISOString());
 
-            const spansResponse = await fetch(
-              `/api/projects/${projectId}/traces/${traceId}/spans?${spanParams.toString()}`
-            );
-            if (spansResponse.ok) {
-              const results = (await spansResponse.json()) as TraceViewSpan[];
-              get().setSpans(enrichSpansWithPending(results));
+            const [traceResult, spansResult] = await Promise.allSettled([
+              fetch(`/api/projects/${projectId}/traces/${traceId}`, { signal }).then((r) =>
+                r.ok ? (r.json() as Promise<TraceViewTrace>) : null
+              ),
+              fetch(`/api/projects/${projectId}/traces/${traceId}/spans?${spanParams.toString()}`, { signal }).then(
+                (r) => (r.ok ? (r.json() as Promise<TraceViewSpan[]>) : null)
+              ),
+            ]);
+
+            if (signal.aborted) return;
+
+            if (traceResult.status === "fulfilled" && traceResult.value) {
+              get().setTrace(traceResult.value);
+            } else if (traceResult.status === "rejected") {
+              set({ traceError: "Failed to load trace" });
+            }
+
+            if (spansResult.status === "fulfilled" && spansResult.value) {
+              get().setSpans(enrichSpansWithPending(spansResult.value));
+            } else if (spansResult.status === "rejected") {
+              set({ spansError: "Failed to load spans" });
             }
           } catch {
-            set({ spansError: "Failed to load spans" });
+            if (signal.aborted) return;
+            set({ traceError: "Failed to load trace", spansError: "Failed to load spans" });
           } finally {
-            set({ isSpansLoading: false });
+            if (!signal.aborted) set({ isTraceLoading: false, isSpansLoading: false });
           }
         },
       }),
@@ -479,6 +485,7 @@ const createDebuggerSessionStore = ({
       }
     )
   );
+};
 
 export const DebuggerSessionStoreContext = createContext<StoreApi<DebuggerSessionStore> | undefined>(undefined);
 

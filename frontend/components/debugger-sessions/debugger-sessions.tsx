@@ -118,7 +118,7 @@ function DebuggerSessionsContent() {
 
   return (
     <>
-      <Header path="debugger-sessions" />
+      <Header path="debugger sessions" />
       <div className="flex px-4 pb-4 flex-col gap-4 overflow-hidden flex-1">
         <div className="flex overflow-hidden flex-1">
           <InfiniteDataTable
