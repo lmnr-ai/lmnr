@@ -93,8 +93,8 @@ importers:
         specifier: ^1.2.1
         version: 1.2.1
       '@lmnr-ai/lmnr':
-        specifier: ^0.8.13
-        version: 0.8.13
+        specifier: ^0.8.14
+        version: 0.8.14
       '@mux/mux-player-react':
         specifier: ^3.5.3
         version: 3.5.3(@types/react-dom@19.2.3(@types/react@19.2.8))(@types/react@19.2.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -1821,8 +1821,8 @@ packages:
     resolution: {integrity: sha512-fIRSCxt0b2J8LeWKCr7OaVr6lNonlxDgVIVdNpKfzM7/noEzMRV7NUCSiu7fafMIxsdykd2cuiYjX+ZYE0A+8w==}
     engines: {node: '>=18.0.0'}
 
-  '@lmnr-ai/lmnr@0.8.13':
-    resolution: {integrity: sha512-Rinhj7pdb/ttEBs9UiFLeHeIGW+1tyXpc9n/RvBC8BZl+bQqO+VmAcEgVQQZJkC8kZGjw/vP1VseuDx5C9GSTw==}
+  '@lmnr-ai/lmnr@0.8.14':
+    resolution: {integrity: sha512-YaaAfZSZQ7/7QR6SA3Bj36Sb5nXzBZ7zpK9JjsxyWr1sZwpKScvs5Cuzuc5h5pV9sRBc5iKguFhrTFvH9DBVng==}
     hasBin: true
 
   '@marijn/find-cluster-break@1.0.2':
@@ -5513,8 +5513,8 @@ packages:
     resolution: {integrity: sha512-ME4Fb83LgEgwNw96RKNvKV4VTLuXfoKudAmm2lP8Kk87KaMK0/Xrx/aAkMWmT8mDb+3MlFDspfbCs7adjRxA2g==}
     engines: {node: '>=20.0.0'}
 
-  lmnr-cli@0.1.5:
-    resolution: {integrity: sha512-HVQarUWmc6DHKSwIsyU8LGWTJyOwoAPBDiH0RRTICE4+oml5Q96Ch4yXTuqkksa6Ll4s+/0RS2AlxtjNq7egGA==}
+  lmnr-cli@0.1.6:
+    resolution: {integrity: sha512-q0po7DSZe+gIk7Is2XCH/Q5rv7DEqKQXU4Wupbbgm1sulTN2Zxm86QPVrnG4aFzoguPyYbhKurs+d9k0h08xig==}
     hasBin: true
     peerDependencies:
       '@lmnr-ai/lmnr': '*'
@@ -8537,7 +8537,7 @@ snapshots:
       '@lmnr-ai/claude-code-proxy-linux-x64-musl': 0.1.14
       '@lmnr-ai/claude-code-proxy-win32-x64-msvc': 0.1.14
 
-  '@lmnr-ai/lmnr@0.8.13':
+  '@lmnr-ai/lmnr@0.8.14':
     dependencies:
       '@grpc/grpc-js': 1.14.3
       '@lmnr-ai/claude-code-proxy': 0.1.14
@@ -8575,7 +8575,7 @@ snapshots:
       eventsource-parser: 3.0.6
       export-to-csv: 1.4.0
       glob: 13.0.6
-      lmnr-cli: 0.1.5(@lmnr-ai/lmnr@0.8.13)
+      lmnr-cli: 0.1.6(@lmnr-ai/lmnr@0.8.14)
       pino: 9.12.0
       pino-pretty: 13.1.3
       uuid: 11.1.0
@@ -12692,7 +12692,7 @@ snapshots:
       rfdc: 1.4.1
       wrap-ansi: 9.0.2
 
-  lmnr-cli@0.1.5(@lmnr-ai/lmnr@0.8.13):
+  lmnr-cli@0.1.6(@lmnr-ai/lmnr@0.8.14):
     dependencies:
       chokidar: 5.0.0
       commander: 14.0.2
@@ -12701,7 +12701,7 @@ snapshots:
       pino-pretty: 13.1.3
       uuid: 13.0.0
     optionalDependencies:
-      '@lmnr-ai/lmnr': 0.8.13
+      '@lmnr-ai/lmnr': 0.8.14
 
   loader-runner@4.3.1: {}
 
