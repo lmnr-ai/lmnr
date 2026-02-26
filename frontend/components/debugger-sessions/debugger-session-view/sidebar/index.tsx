@@ -15,10 +15,12 @@ interface DebuggerSidebarProps {
   isLoading?: boolean;
 }
 
+type DebuggerSidebarTab = "config" | "runs" | "traces";
+
 export default function DebuggerSidebar({ onRun, onCancel, isLoading }: DebuggerSidebarProps) {
   const sessionStatus = useDebuggerSessionStore((state) => state.sessionStatus);
 
-  const [activeTab, setActiveTab] = useState("config");
+  const [activeTab, setActiveTab] = useState<DebuggerSidebarTab>("config");
 
   const isRunning = sessionStatus === "RUNNING";
 
@@ -30,7 +32,11 @@ export default function DebuggerSidebar({ onRun, onCancel, isLoading }: Debugger
 
   return (
     <div className="flex flex-col gap-1 flex-1 overflow-hidden">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden">
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as DebuggerSidebarTab)}
+        className="flex flex-col flex-1 overflow-hidden"
+      >
         <div className="px-4 pt-4">
           <TabsList className="w-full">
             <TabsTrigger value="config" className="flex-1 text-xs">
