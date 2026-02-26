@@ -6,6 +6,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import React, { useCallback, useEffect, useMemo } from "react";
 
 import Header from "@/components/rollout-sessions/rollout-session-view/header";
+import Loading, { SpansLoading } from "@/components/rollout-sessions/rollout-session-view/loading.tsx";
 import { useRolloutSessionStoreContext } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
 import SessionPlayer from "@/components/rollout-sessions/rollout-session-view/session-player";
 import { fetchSystemMessages } from "@/components/rollout-sessions/rollout-session-view/system-messages-utils";
@@ -27,7 +28,6 @@ import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
@@ -363,18 +363,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
   });
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col flex-1">
-        <div className="flex items-center gap-x-2 p-2 border-b h-12">
-          <Skeleton className="h-8 w-full" />
-        </div>
-        <div className="flex flex-col p-2 gap-2">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-        </div>
-      </div>
-    );
+    return <Loading />;
   }
 
   if (traceError) {
@@ -392,19 +381,16 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
     );
   }
 
-  if (isEmpty(spans)) {
-    const isRunning = sessionStatus === "RUNNING";
+  if (isEmpty(spans) && !isSpansLoading && (sessionStatus === "PENDING" || sessionStatus === "RUNNING")) {
     return (
-      <div className="flex items-center justify-center p-6 h-full">
-        <div className="flex flex-col items-center gap-4 p-6 rounded-lg border bg-card text-card-foreground">
-          <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4 text-primary animate-pulse" />
-            <span className="text-sm text-muted-foreground">
-              {isRunning ? "Running rollout..." : "Waiting for traces..."}
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground text-center max-w-sm">
-            {isRunning
+      <div className="flex flex-1 h-full flex-col items-center justify-center p-8 text-center">
+        <div className="max-w-md mx-auto">
+          <Radio className="w-10 h-10 text-muted-foreground/50 mx-auto mb-4 animate-pulse" />
+          <h3 className="text-base font-medium text-secondary-foreground mb-2">
+            {sessionStatus === "RUNNING" ? "Running rollout..." : "Waiting for traces..."}
+          </h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            {sessionStatus === "RUNNING"
               ? "The rollout is running. Traces will appear here once they arrive."
               : "Run the rollout to start, or traces will appear here when your code runs."}
           </p>
@@ -426,6 +412,8 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
             <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
             <p className="text-xs text-muted-foreground">{spansError}</p>
           </div>
+        ) : isSpansLoading ? (
+          <SpansLoading />
         ) : (
           <ResizablePanelGroup id="rollout-session-view-panels" orientation="vertical">
             {condensedTimelineEnabled && (
