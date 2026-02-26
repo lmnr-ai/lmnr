@@ -171,6 +171,9 @@ export const parseGeminiOutput = (data: unknown): z.infer<typeof GeminiContentsS
 
 /** Conversion Functions **/
 
+// Convert URL-safe base64 (RFC 4648 §5) to standard base64 for data URIs.
+const toStandardBase64 = (s: string) => s.replace(/-/g, "+").replace(/_/g, "/");
+
 export const convertGeminiToPlaygroundMessages = async (
   messages: z.infer<typeof GeminiContentsSchema>
 ): Promise<Message[]> =>
@@ -195,7 +198,9 @@ export const convertGeminiToPlaygroundMessages = async (
             }
             content.push({
               type: "image",
-              image: imageData.startsWith("data:") ? imageData : `data:${part.inlineData.mimeType};base64,${imageData}`,
+              image: imageData.startsWith("data:")
+                ? imageData
+                : `data:${part.inlineData.mimeType};base64,${toStandardBase64(imageData)}`,
             });
           } else {
             content.push({

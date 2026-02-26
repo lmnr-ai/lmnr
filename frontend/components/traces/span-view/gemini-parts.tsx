@@ -14,6 +14,9 @@ import {
     ToolResultContentPart,
 } from "./common";
 
+// Convert URL-safe base64 (RFC 4648 §5) to standard base64 for data URIs.
+const toStandardBase64 = (s: string) => s.replace(/-/g, "+").replace(/_/g, "/");
+
 const GeminiPartRenderer = ({
     part,
     presetKey,
@@ -39,7 +42,7 @@ const GeminiPartRenderer = ({
     }
 
     if ("inlineData" in part) {
-        const src = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        const src = `data:${part.inlineData.mimeType};base64,${toStandardBase64(part.inlineData.data)}`;
         if (part.inlineData.mimeType.startsWith("image/")) {
             return <ImageContentPart src={src} />;
         }
