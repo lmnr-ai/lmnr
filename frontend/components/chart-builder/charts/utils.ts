@@ -87,9 +87,10 @@ export const createAxisFormatter = (data: Record<string, unknown>[], dataKey: st
 };
 
 export const parseUtcTimestamp = (s: string): Date => {
-  if (s.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(s)) return new Date(s);
-  const normalized = s.includes("T") ? s : s.replace(" ", "T");
-  return new Date(normalized + "Z");
+  const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(s);
+  const hasTime = s.includes("T") || s.includes(" ");
+  if (hasTime && !hasTimezone) return new Date(s.replace(" ", "T") + "Z");
+  return new Date(s);
 };
 
 export const selectNiceTicksFromData = (
