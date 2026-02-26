@@ -57,7 +57,7 @@ const SidebarFooterComponent = () => {
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="Docs" asChild>
-                <Link href="https://docs.lmnr.ai" target="_blank" rel="noopener noreferrer">
+                <Link href="https://docs.laminar.sh" target="_blank" rel="noopener noreferrer">
                   <Book size={16} />
                   <span>Docs</span>
                 </Link>
