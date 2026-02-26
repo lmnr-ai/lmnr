@@ -443,7 +443,22 @@ const createDebuggerSessionStore = ({
             }
 
             if (spansResult.status === "fulfilled" && spansResult.value) {
-              get().setSpans(enrichSpansWithPending(spansResult.value));
+              const spans = spansResult.value;
+              get().setSpans(enrichSpansWithPending(spans));
+
+              const rootSpan = spans.find((s) => !s.parentSpanId);
+              if (rootSpan) {
+                fetch(`/api/projects/${projectId}/traces/${traceId}/spans/${rootSpan.spanId}`, { signal })
+                  .then((r) => (r.ok ? r.json() : null))
+                  .then((fullSpan) => {
+                    if (signal.aborted || !fullSpan?.input) return;
+                    const inputStr =
+                      typeof fullSpan.input === "string" ? fullSpan.input : JSON.stringify(fullSpan.input, null, 2);
+
+                    set({ paramValues: inputStr });
+                  })
+                  .catch(() => {});
+              }
             } else if (spansResult.status === "rejected") {
               set({ spansError: "Failed to load spans" });
             }

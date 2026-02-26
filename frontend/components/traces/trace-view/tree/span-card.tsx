@@ -71,11 +71,13 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
 
   const hasChildren = childSpans && childSpans.length > 0;
-  const isExpandable = hasChildren || (span.spanType === "LLM" && (showTreeContent ?? true));
+  const isExpandable =
+    hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true));
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
-  const showContent = (showTreeContent ?? true) && !span.collapsed && span.spanType === "LLM";
+  const showContent =
+    (showTreeContent ?? true) && !span.collapsed && (span.spanType === "LLM" || span.spanType === "CACHED");
 
   const isLoadingOutput = output === undefined;
 

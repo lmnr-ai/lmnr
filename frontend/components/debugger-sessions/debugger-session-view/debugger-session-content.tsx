@@ -80,6 +80,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     sessionStatus,
     isSessionDeleted,
     setIsSessionDeleted,
+    setParamValue,
   } = useDebuggerSessionStore((state) => ({
     // Data state
     selectedSpan: state.selectedSpan,
@@ -114,6 +115,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     sessionStatus: state.sessionStatus,
     isSessionDeleted: state.isSessionDeleted,
     setIsSessionDeleted: state.setIsSessionDeleted,
+    setParamValue: state.setParamValue,
   }));
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
@@ -234,6 +236,19 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
 
         setSpans(spans);
 
+        const rootSpan = spans.find((s) => !s.parentSpanId);
+        if (rootSpan) {
+          fetch(`/api/projects/${projectId}/traces/${trace?.id}/spans/${rootSpan.spanId}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((fullSpan) => {
+              if (!fullSpan?.input) return;
+              const inputStr =
+                typeof fullSpan.input === "string" ? fullSpan.input : JSON.stringify(fullSpan.input, null, 2);
+              setParamValue(inputStr);
+            })
+            .catch(() => {});
+        }
+
         if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
           setHasBrowserSession(true);
           setBrowserSession(true);
@@ -254,6 +269,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
       projectId,
       trace?.id,
       setSpans,
+      setParamValue,
       hasBrowserSession,
       setHasBrowserSession,
       setBrowserSession,
