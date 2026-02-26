@@ -20,8 +20,8 @@ import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   type TraceViewSpan,
   type TraceViewTrace,
-  useTraceViewStoreContext,
-} from "@/components/traces/trace-view/trace-view-store.tsx";
+  useTraceViewStore,
+} from "@/components/traces/trace-view/store";
 import Tree from "@/components/traces/trace-view/tree";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
@@ -56,7 +56,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     setHasBrowserSession,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
-  } = useTraceViewStoreContext((state) => ({
+  } = useTraceViewStore((state) => ({
     tab: state.tab,
     setSpans: state.setSpans,
     setTrace: state.setTrace,
@@ -73,7 +73,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
   }));
 
-  const { treeWidth, setTreeWidth } = useTraceViewStoreContext((state) => ({
+  const { treeWidth, setTreeWidth } = useTraceViewStore((state) => ({
     treeWidth: state.treeWidth,
     setTreeWidth: state.setTreeWidth,
   }));
@@ -201,12 +201,12 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                 </div>
                 {tab === "tree" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
-                    <Tree traceId={trace.id} onSpanSelect={handleSpanSelect} isShared />
+                    <Tree onSpanSelect={handleSpanSelect} isShared />
                   </div>
                 )}
                 {tab === "reader" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
-                    <List traceId={trace.id} onSpanSelect={handleSpanSelect} isShared />
+                    <List onSpanSelect={handleSpanSelect} isShared />
                   </div>
                 )}
               </ResizablePanel>

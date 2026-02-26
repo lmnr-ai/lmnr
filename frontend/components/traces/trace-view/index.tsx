@@ -12,8 +12,8 @@ import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   type TraceViewSpan,
   type TraceViewTrace,
-  useTraceViewStoreContext,
-} from "@/components/traces/trace-view/trace-view-store.tsx";
+  useTraceViewStore,
+} from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setTraceError,
     spansError,
     setSpansError,
-  } = useTraceViewStoreContext((state) => ({
+  } = useTraceViewStore((state) => ({
     selectedSpan: state.selectedSpan,
     setSelectedSpan: state.setSelectedSpan,
     spans: state.spans,
@@ -91,7 +91,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setHasBrowserSession,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
-  } = useTraceViewStoreContext((state) => ({
+  } = useTraceViewStore((state) => ({
     tab: state.tab,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
@@ -105,7 +105,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }));
 
   // Local storage states
-  const { treeWidth, spanPath, setSpanPath, setTreeWidth } = useTraceViewStoreContext((state) => ({
+  const { treeWidth, spanPath, setSpanPath, setTreeWidth } = useTraceViewStore((state) => ({
     treeWidth: state.treeWidth,
     setTreeWidth: state.setTreeWidth,
     spanPath: state.spanPath,
@@ -450,12 +450,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 </div>
                 {tab === "reader" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
-                    <List traceId={traceId} onSpanSelect={handleSpanSelect} />
+                    <List onSpanSelect={handleSpanSelect} />
                   </div>
                 )}
                 {tab === "tree" && (
                   <div className="flex flex-1 h-full overflow-hidden relative">
-                    <Tree traceId={traceId} onSpanSelect={handleSpanSelect} />
+                    <Tree onSpanSelect={handleSpanSelect} />
                   </div>
                 )}
               </ResizablePanel>

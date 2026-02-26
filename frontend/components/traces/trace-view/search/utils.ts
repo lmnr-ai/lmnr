@@ -1,6 +1,6 @@
 import { get, isArray } from "lodash";
 
-import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 
 export const STATIC_SPAN_SUGGESTIONS: AutocompleteSuggestion[] = [

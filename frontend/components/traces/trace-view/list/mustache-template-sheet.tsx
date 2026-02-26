@@ -4,7 +4,7 @@ import { type PropsWithChildren, useMemo, useState } from "react";
 
 import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
 import { extractKeys, generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
-import { type TraceViewListSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button.tsx";
 import { mustache } from "@/components/ui/content-renderer/lang-mustache.ts";
 import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
@@ -28,11 +28,11 @@ function MustacheTemplateSheetContent({
 
   const spanPathKey = useMemo(() => (span ? generateSpanPathKey(span) : ""), [span]);
 
-  const savedTemplate = useTraceViewStoreContext((state) => state.getSpanTemplate(spanPathKey));
+  const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
 
   const [templateInput, setTemplateInput] = useState(savedTemplate || "");
 
-  const { saveSpanTemplate, deleteSpanTemplate } = useTraceViewStoreContext((state) => ({
+  const { saveSpanTemplate, deleteSpanTemplate } = useTraceViewBaseStore((state) => ({
     saveSpanTemplate: state.saveSpanTemplate,
     deleteSpanTemplate: state.deleteSpanTemplate,
   }));

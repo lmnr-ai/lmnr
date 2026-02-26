@@ -1,6 +1,6 @@
 import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
-import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/trace-view-store";
+import { MAX_ZOOM, MIN_ZOOM } from "@/components/traces/trace-view/store";
 
 const ZOOM_INCREMENT = 0.5;
 
@@ -53,10 +53,7 @@ export function useWheelZoom(
       const fraction = contentX / oldScrollWidth;
 
       // Calculate new zoom
-      const newZoom =
-        direction === "in"
-          ? currentZoom + ZOOM_INCREMENT
-          : currentZoom - ZOOM_INCREMENT;
+      const newZoom = direction === "in" ? currentZoom + ZOOM_INCREMENT : currentZoom - ZOOM_INCREMENT;
 
       // Don't do anything if zoom would be outside limits
       if (newZoom < MIN_ZOOM || newZoom > MAX_ZOOM) return;

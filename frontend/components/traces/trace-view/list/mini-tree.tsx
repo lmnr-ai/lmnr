@@ -1,7 +1,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 
-import { type TraceViewListSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { cn } from "@/lib/utils.ts";
 
 import SpanTypeIcon from "../../span-type-icon.tsx";
@@ -15,7 +15,7 @@ export function MiniTree({ span }: MiniTreeProps) {
   const searchParams = useSearchParams();
   const pathName = usePathname();
 
-  const { getSpanBranch, getSpanNameInfo, selectSpanById } = useTraceViewStoreContext((state) => ({
+  const { getSpanBranch, getSpanNameInfo, selectSpanById } = useTraceViewBaseStore((state) => ({
     getSpanBranch: state.getSpanBranch,
     getSpanNameInfo: state.getSpanNameInfo,
     selectSpanById: state.selectSpanById,

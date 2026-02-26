@@ -5,7 +5,7 @@ import { memo, useCallback, useMemo } from "react";
 
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
-import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +33,7 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
 
-  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStoreContext((state) => ({
+  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStore((state) => ({
     trace: state.trace,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
@@ -62,7 +62,6 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
 
   return (
     <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-2">
-      {/* Line 1: Close, Expand, Trace + chevron dropdown, Ask AI, Metadata, Export */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center min-w-0 gap-2">
           {!params?.traceId && (
@@ -79,7 +78,6 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
               )}
             </div>
           )}
-          {/* Chevron dropdown (Copy trace ID, Open in SQL) */}
           {trace && (
             <div className="flex">
               <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
@@ -102,7 +100,6 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
               </DropdownMenu>
             </div>
           )}
-          {/* Ask AI button */}
           <Button
             onClick={() => setChatOpen(!chatOpen)}
             variant="outline"
@@ -136,14 +133,12 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
           {trace && <ShareTraceButton projectId={projectId} />}
         </div>
       </div>
-
-      {/* Line 2: Search only */}
       <div className="flex items-center gap-2">
         {!chatOpen && <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />}
       </div>
-
-      {/* Line 3: Timeline toggle */}
-      {!chatOpen && <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />}
+      {!chatOpen && (
+        <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
+      )}
     </div>
   );
 };

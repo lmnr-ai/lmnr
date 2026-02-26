@@ -12,7 +12,7 @@ import rrwebPlayer from "rrweb-player";
 
 import { fetchBrowserSessionEvents, type UrlChange } from "@/components/session-player/utils";
 import SpanImagesVideoPlayer from "@/components/traces/span-images-video-player";
-import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store";
+import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base.ts";
 import { Button } from "@/components/ui/button.tsx";
 import {
   DropdownMenu,
@@ -36,7 +36,7 @@ const speedOptions = [1, 2, 4, 8, 16];
 
 const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }: SessionPlayerProps) => {
   const { projectId } = useParams();
-  const { setSessionTime, sessionTime, setSessionStartTime } = useTraceViewStoreContext((state) => ({
+  const { setSessionTime, sessionTime, setSessionStartTime } = useTraceViewBaseStore((state) => ({
     setSessionTime: state.setSessionTime,
     sessionTime: state.sessionTime,
     setSessionStartTime: state.setSessionStartTime,

@@ -59,8 +59,8 @@ export const getSidebarMenus = (projectId: string) => [
     icon: PlayCircle,
   },
   {
-    name: "rollout sessions",
-    href: `/project/${projectId}/rollout-sessions`,
+    name: "debugger",
+    href: `/project/${projectId}/debugger-sessions`,
     icon: GitFork,
   },
   {

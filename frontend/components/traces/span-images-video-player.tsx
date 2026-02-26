@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useHotkeys } from "react-hotkeys-hook";
 import useSWR from "swr";
 
-import { useTraceViewStore, useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useTraceViewBaseStore, useTraceViewBaseStoreRaw } from "@/components/traces/trace-view/store/base";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,12 +39,12 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
   const sliderRef = useRef<HTMLInputElement>(null);
   const timeDisplayRef = useRef<HTMLSpanElement>(null);
 
-  const { setSessionTime, incrementSessionTime } = useTraceViewStoreContext((state) => ({
+  const { setSessionTime, incrementSessionTime } = useTraceViewBaseStore((state) => ({
     setSessionTime: state.setSessionTime,
     incrementSessionTime: state.incrementSessionTime,
   }));
 
-  const store = useTraceViewStore();
+  const store = useTraceViewBaseStoreRaw();
 
   const swrKey =
     spanIds.length > 0

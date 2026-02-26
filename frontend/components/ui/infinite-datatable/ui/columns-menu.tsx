@@ -69,7 +69,7 @@ export default function ColumnsMenu({ lockedColumns = [], columnLabels = [] }: C
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button className="text-secondary-foreground" icon="columns2" variant="outline">
+        <Button className="text-secondary-foreground focus:outline-0" icon="columns2" variant="outline">
           Columns
         </Button>
       </DropdownMenuTrigger>
