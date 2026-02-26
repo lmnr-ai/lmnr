@@ -1,7 +1,7 @@
 "use client";
 
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, SquareArrowOutUpRight, Trash2 } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -15,6 +15,7 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-d
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import Mono from "@/components/ui/mono";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type LabelingQueue } from "@/lib/queue/types";
 
@@ -78,6 +79,31 @@ const queuesTableFilters: ColumnFilter[] = [
 ];
 
 const FETCH_SIZE = 50;
+
+const EmptyRow = (
+  <TableRow className="flex">
+    <TableCell className="text-center p-4 rounded-b w-full h-auto">
+      <div className="flex flex-1 justify-center">
+        <div className="flex flex-col gap-2 items-center max-w-md">
+          <h3 className="text-base font-medium text-secondary-foreground">No labeling queues yet</h3>
+          <p className="text-sm text-muted-foreground text-center">
+            Labeling queues let you review and annotate items with a FIFO workflow, then save results to a dataset.
+            Click + Queue above to create one.
+          </p>
+          <a
+            href="https://docs.laminar.sh/queues/quickstart"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            Learn more
+            <SquareArrowOutUpRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </div>
+    </TableCell>
+  </TableRow>
+);
 
 const QueuesContent = () => {
   const { projectId } = useParams();
@@ -196,6 +222,7 @@ const QueuesContent = () => {
           }}
           onRowSelectionChange={setRowSelection}
           lockedColumns={["__row_selection"]}
+          emptyRow={EmptyRow}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Database, Radio, SquareArrowOutUpRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
@@ -17,6 +18,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
 import { type ProjectDetails } from "@/lib/actions/project";
+import { cn } from "@/lib/utils.ts";
 
 const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; open: boolean }) => {
   const { gbLimit, gbUsedThisMonth, signalRunsLimit, signalRunsUsedThisMonth, workspaceId } = usageDetails;
@@ -43,25 +45,42 @@ const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; op
       <div className="text-muted-foreground font-medium">Free plan</div>
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Data</span>
+          <span className="flex items-center gap-1 text-muted-foreground">
+            <Database className="size-3.5" />
+            Data
+          </span>
           <span className="font-medium text-secondary-foreground">
-            {formatGB(gbUsedThisMonth)} / {formatGB(gbLimit)}
+            <span className="font-semibold">{formatGB(gbUsedThisMonth)}</span> / {formatGB(gbLimit)}
           </span>
         </div>
-        <Progress value={storagePercentage} className="h-1.5 border" indicatorClassName="bg-[hsl(var(--chart-1))]" />
+        <Progress
+          value={storagePercentage}
+          className="h-1.5 border"
+          indicatorClassName={cn({ "bg-destructive": storagePercentage > 80 })}
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Runs</span>
+          <span className="flex items-center gap-1 text-muted-foreground">
+            <Radio className="size-3.5" />
+            Signal runs
+          </span>
           <span className="font-medium text-secondary-foreground">
-            {formatRuns(signalRunsUsedThisMonth)} / {formatRuns(signalRunsLimit)}
+            <span className="font-semibold">{formatRuns(signalRunsUsedThisMonth)}</span> / {formatRuns(signalRunsLimit)}
           </span>
         </div>
-        <Progress value={runsPercentage} className="h-1.5 border" indicatorClassName="bg-success-bright" />
+        <Progress
+          value={runsPercentage}
+          className="h-1.5 border"
+          indicatorClassName={cn({ "bg-destructive": runsPercentage > 80 })}
+        />
       </div>
 
       <Link href={`/workspace/${workspaceId}?tab=billing`}>
-        <Button className="w-full h-6">Upgrade</Button>
+        <Button className="w-full">
+          <span>Upgrade</span>
+          <SquareArrowOutUpRight className="ml-1 h-3.5 w-3.5" />
+        </Button>
       </Link>
     </div>
   );

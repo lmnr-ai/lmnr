@@ -237,7 +237,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       // not used in ui
       gbUsedThisMonth: 0,
       gbLimit,
-      signalRunsLimit: 0,
+      signalRunsLimit,
       signalRunsUsedThisMonth: 0,
       isFreeTier,
     };

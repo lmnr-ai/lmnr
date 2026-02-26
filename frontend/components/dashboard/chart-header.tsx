@@ -123,7 +123,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
           defaultValue={name}
           onKeyDown={handleKeyDown}
           onBlur={handleOnBlur}
-          className="w-full text-lg bg-transparent focus:ring-0 focus-visible:ring-0 p-0 h-fit"
+          className="w-full text-sm! bg-transparent"
           onClick={(e) => e.preventDefault()}
         />
       ) : (

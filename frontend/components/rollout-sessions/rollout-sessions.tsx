@@ -1,6 +1,7 @@
 "use client";
 
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
+import { SquareArrowOutUpRight } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -12,6 +13,7 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import Mono from "@/components/ui/mono";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { type RolloutSession, type RolloutSessionStatus } from "@/lib/actions/rollout-sessions";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -64,6 +66,31 @@ const columns: ColumnDef<RolloutSession>[] = [
 ];
 
 const defaultRolloutSessionsColumnOrder = ["id", "name", "status", "createdAt"];
+
+const EmptyRow = (
+  <TableRow className="flex">
+    <TableCell className="text-center p-4 rounded-b w-full h-auto">
+      <div className="flex flex-1 justify-center">
+        <div className="flex flex-col gap-2 items-center max-w-md">
+          <h3 className="text-base font-medium text-secondary-foreground">No active rollout sessions</h3>
+          <p className="text-sm text-muted-foreground text-center">
+            Active sessions will appear here when you start one from the CLI with{" "}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">npx lmnr-cli dev</code>.
+          </p>
+          <a
+            href="https://docs.laminar.sh/platform/rollout-sessions"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            Learn more
+            <SquareArrowOutUpRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </div>
+    </TableCell>
+  </TableRow>
+);
 
 function RolloutSessionsContent() {
   const { projectId } = useParams();
@@ -134,6 +161,7 @@ function RolloutSessionsContent() {
               rowSelection,
             }}
             onRowSelectionChange={setRowSelection}
+            emptyRow={EmptyRow}
           >
             <div className="flex flex-1 w-full space-x-2 pt-1">
               <ColumnsMenu

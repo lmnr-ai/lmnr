@@ -1,5 +1,6 @@
 "use client";
 
+import { SquareArrowOutUpRight } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
@@ -14,9 +15,34 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
-import { useProjectContext } from "@/contexts/project-context";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { type SignalRow } from "@/lib/actions/signals";
 import { useToast } from "@/lib/hooks/use-toast";
+
+const EmptyRow = (
+  <TableRow className="flex">
+    <TableCell className="text-center p-4 rounded-b w-full h-auto">
+      <div className="flex flex-1 justify-center">
+        <div className="flex flex-col gap-2 items-center max-w-md">
+          <h3 className="text-base font-medium text-secondary-foreground">No signals yet</h3>
+          <p className="text-sm text-muted-foreground text-center">
+            Signals let you track outcomes, behaviors, and failures in your traces using LLM-based evaluation. Click +
+            Signal above to get started.
+          </p>
+          <a
+            href="https://docs.laminar.sh/signals"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            Learn more
+            <SquareArrowOutUpRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </div>
+    </TableCell>
+  </TableRow>
+);
 
 export default function Signals() {
   return (
@@ -29,11 +55,8 @@ export default function Signals() {
 function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { workspace } = useProjectContext();
   const { toast } = useToast();
   const { rowSelection, onRowSelectionChange } = useSelection();
-
-  const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
   const searchParams = useSearchParams();
   const filter = searchParams.getAll("filter");
@@ -132,15 +155,13 @@ function SignalsContent() {
     <>
       <Header path="signals" />
       <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
-        {!isFreeTier && (
-          <div className="flex items-center gap-2">
-            <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-              <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
-                Signal
-              </Button>
-            </ManageSignalSheet>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+            <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
+              Signal
+            </Button>
+          </ManageSignalSheet>
+        </div>
         <InfiniteDataTable<SignalRow>
           columns={signalsColumns}
           data={eventDefinitions}
@@ -161,6 +182,7 @@ function SignalsContent() {
               <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
             </div>
           )}
+          emptyRow={EmptyRow}
         >
           <div className="flex flex-1 w-full space-x-2 pt-1">
             <DataTableFilter columns={signalsTableFilters} />
