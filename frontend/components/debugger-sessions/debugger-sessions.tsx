@@ -1,8 +1,9 @@
 "use client";
 
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
+import { CheckCircle2, Clock, Loader2, StopCircle } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
@@ -17,23 +18,39 @@ import { useToast } from "@/lib/hooks/use-toast";
 
 const FETCH_SIZE = 50;
 
-const STATUS_COLORS: Record<DebuggerSessionStatus, string> = {
-  PENDING: "bg-muted text-muted-foreground border-muted",
-  RUNNING: "bg-primary/20 text-primary border-primary/30",
-  FINISHED: "bg-success/20 text-success-bright border-success/30",
-  STOPPED: "bg-destructive/20 text-destructive-bright border-destructive/30",
+const STATUS_CONFIG: Record<DebuggerSessionStatus, { label: string; icon: ReactNode; classes: string }> = {
+  PENDING: {
+    label: "Pending",
+    icon: <Clock className="w-3 h-3" />,
+    classes: "bg-muted text-muted-foreground border-muted",
+  },
+  RUNNING: {
+    label: "Running",
+    icon: <Loader2 className="w-3 h-3 animate-spin" />,
+    classes: "bg-primary/20 text-primary border-primary/30",
+  },
+  FINISHED: {
+    label: "Finished",
+    icon: <CheckCircle2 className="w-3 h-3" />,
+    classes: "bg-success/20 text-success-bright border-success/30",
+  },
+  STOPPED: {
+    label: "Stopped",
+    icon: <StopCircle className="w-3 h-3" />,
+    classes: "bg-destructive/20 text-destructive-bright border-destructive/30",
+  },
 };
 
 const columns: ColumnDef<DebuggerSession>[] = [
   {
-    cell: ({ row }) => <Mono className="text-xs">{row.original.id}</Mono>,
-    size: 300,
+    cell: ({ row }) => <Mono className="text-xs text-muted-foreground">{row.original.id}</Mono>,
+    size: 120,
     header: "ID",
     id: "id",
   },
   {
     cell: ({ row }) => (
-      <div title={row.original.name ?? "-"} className="text-sm truncate text-muted-foreground">
+      <div title={row.original.name ?? "-"} className="text-sm truncate">
         {row.original.name ?? "-"}
       </div>
     ),
@@ -42,12 +59,13 @@ const columns: ColumnDef<DebuggerSession>[] = [
   },
   {
     cell: ({ row }) => {
-      const status = row.original.status;
-      const colorClasses = STATUS_COLORS[status] || "text-secondary-foreground";
+      const config = STATUS_CONFIG[row.original.status];
+      if (!config) return "-";
 
       return (
-        <Badge className={`rounded-3xl mr-1 ${colorClasses}`} variant="outline">
-          {status}
+        <Badge className={`rounded-3xl gap-1.5 ${config.classes}`} variant="outline">
+          {config.icon}
+          {config.label}
         </Badge>
       );
     },
@@ -57,7 +75,7 @@ const columns: ColumnDef<DebuggerSession>[] = [
   {
     header: "Created",
     accessorKey: "createdAt",
-    cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
+    cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "createdAt",
     size: 180,
   },
