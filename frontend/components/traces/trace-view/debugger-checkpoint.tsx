@@ -1,5 +1,5 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { ArrowDown, Circle, Lock } from "lucide-react";
+import { ArrowDown, Circle, DatabaseZap } from "lucide-react";
 import { type MouseEvent } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
@@ -38,7 +38,7 @@ export function DebuggerCheckpoint({ span }: DebuggerCheckpointProps) {
   };
 
   const icon = isCached ? (
-    <Lock className="h-3.5 w-3.5 text-primary" />
+    <DatabaseZap className="h-3.5 w-3.5 text-primary" />
   ) : isCheckpoint ? (
     <ArrowDown className="h-3.5 w-3.5 text-success" />
   ) : (
