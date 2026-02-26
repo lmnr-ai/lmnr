@@ -40,13 +40,13 @@ export default function DebuggerSidebar({ onRun, onCancel, isLoading }: Debugger
         <div className="px-4 pt-4">
           <TabsList className="w-full">
             <TabsTrigger value="config" className="flex-1 text-xs">
-              Config
+              Run
             </TabsTrigger>
             <TabsTrigger disabled={isRunning} value="runs" className="flex-1 text-xs">
-              Runs
+              Runs history
             </TabsTrigger>
             <TabsTrigger disabled={isRunning} value="traces" className="flex-1 text-xs">
-              Traces
+              Run from trace
             </TabsTrigger>
           </TabsList>
         </div>
