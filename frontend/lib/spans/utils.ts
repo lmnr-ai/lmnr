@@ -1,5 +1,10 @@
 import { type Message } from "@/lib/playground/types";
 import { convertToPlaygroundMessages, downloadImages } from "@/lib/spans/types";
+import {
+  convertAnthropicToPlaygroundMessages,
+  parseAnthropicInput,
+  parseAnthropicOutput,
+} from "@/lib/spans/types/anthropic";
 import { convertGeminiToPlaygroundMessages, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
 import {
   convertLangChainToPlaygroundMessages,
@@ -67,6 +72,16 @@ export const convertSpanToPlayground = async (messages: any): Promise<Message[]>
 
   if (langChainMessagesResult.success) {
     return await convertLangChainToPlaygroundMessages(langChainMessagesResult.data);
+  }
+
+  const anthropicOutput = parseAnthropicOutput(messages);
+  if (anthropicOutput) {
+    return await convertAnthropicToPlaygroundMessages(anthropicOutput);
+  }
+
+  const anthropicInput = parseAnthropicInput(messages);
+  if (anthropicInput) {
+    return await convertAnthropicToPlaygroundMessages(anthropicInput);
   }
 
   const geminiOutput = parseGeminiOutput(messages);
