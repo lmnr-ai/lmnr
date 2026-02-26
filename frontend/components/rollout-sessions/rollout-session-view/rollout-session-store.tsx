@@ -83,9 +83,6 @@ const createRolloutSessionStore = ({
     persist(
       (set, get) => ({
         ...createBaseTraceViewSlice(set, get, { initialTrace: trace }),
-
-        condensedTimelineEnabled: false,
-
         // Override selectSpanById: rollout doesn't expand collapsed ancestors
         selectSpanById: (spanId: string) => {
           const span = get().spans.find((s) => s.spanId === spanId);
