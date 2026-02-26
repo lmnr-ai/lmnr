@@ -38,7 +38,7 @@ export function DebuggerCheckpoint({ span }: DebuggerCheckpointProps) {
   };
 
   const icon = isCached ? (
-    <DatabaseZap className="h-3.5 w-3.5 text-primary" />
+    <DatabaseZap className="h-3.5 w-3.5 text-muted-foreground" />
   ) : isCheckpoint ? (
     <ArrowDown className="h-3.5 w-3.5 text-success" />
   ) : (
@@ -46,7 +46,7 @@ export function DebuggerCheckpoint({ span }: DebuggerCheckpointProps) {
   );
 
   const tooltipText = isCached
-    ? "Locked — will use cached response"
+    ? "Cached — will replay the recorded response instead of calling the model"
     : isCheckpoint
       ? "Unset checkpoint"
       : "Run from here";
