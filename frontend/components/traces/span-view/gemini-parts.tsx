@@ -6,6 +6,8 @@ import {
     type GeminiPartSchema,
 } from "@/lib/spans/types/gemini";
 
+import { toStandardBase64 } from "@/lib/utils";
+
 import {
     FileContentPart,
     ImageContentPart,
@@ -39,7 +41,7 @@ const GeminiPartRenderer = ({
     }
 
     if ("inlineData" in part) {
-        const src = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        const src = `data:${part.inlineData.mimeType};base64,${toStandardBase64(part.inlineData.data)}`;
         if (part.inlineData.mimeType.startsWith("image/")) {
             return <ImageContentPart src={src} />;
         }
