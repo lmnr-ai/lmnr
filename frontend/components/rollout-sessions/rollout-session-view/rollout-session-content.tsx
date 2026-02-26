@@ -369,7 +369,7 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
   if (traceError) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <Header spans={[]} onSearch={() => {}} />
+        <Header spans={[]} onSearch={() => { }} />
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
           <div className="max-w-md mx-auto">
             <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
@@ -387,12 +387,12 @@ export default function RolloutSessionContent({ sessionId, spanId }: RolloutSess
         <div className="max-w-md mx-auto">
           <Radio className="w-10 h-10 text-muted-foreground/50 mx-auto mb-4 animate-pulse" />
           <h3 className="text-base font-medium text-secondary-foreground mb-2">
-            {sessionStatus === "RUNNING" ? "Running rollout..." : "Waiting for traces..."}
+            {sessionStatus === "RUNNING" ? "Running rollout..." : "Waiting for code to run..."}
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
             {sessionStatus === "RUNNING"
               ? "The rollout is running. Traces will appear here once they arrive."
-              : "Run the rollout to start, or traces will appear here when your code runs."}
+              : "Run the rollout to start. Trace will appear here when your code runs."}
           </p>
         </div>
       </div>

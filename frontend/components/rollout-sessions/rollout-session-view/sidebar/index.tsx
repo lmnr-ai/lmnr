@@ -34,13 +34,13 @@ export default function RolloutSidebar({ onRollout, onCancel, isLoading }: Rollo
         <div className="px-4 pt-4">
           <TabsList className="w-full">
             <TabsTrigger value="config" className="flex-1 text-xs">
-              Config
+              Run
             </TabsTrigger>
             <TabsTrigger disabled={isRunning} value="runs" className="flex-1 text-xs">
-              Runs
+              History
             </TabsTrigger>
             <TabsTrigger disabled={isRunning} value="traces" className="flex-1 text-xs">
-              Traces
+              Select trace
             </TabsTrigger>
           </TabsList>
         </div>
