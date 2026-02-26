@@ -3,7 +3,7 @@ import { type z } from "zod/v4";
 
 import { type AnthropicContentBlockSchema, type AnthropicMessageSchema } from "@/lib/spans/types/anthropic";
 
-import { ImageContentPart, TextContentPart, ToolCallContentPart, ToolResultContentPart } from "./common";
+import { ImageContentPart, TextContentPart, ThinkingContentPart, ToolCallContentPart, ToolResultContentPart } from "./common";
 
 const AnthropicPartRenderer = ({
   block,
@@ -29,7 +29,7 @@ const AnthropicPartRenderer = ({
 
     case "thinking":
       return (
-        <TextContentPart
+        <ThinkingContentPart
           content={block.thinking}
           presetKey={presetKey}
           messageIndex={messageIndex}
@@ -81,8 +81,9 @@ const AnthropicPartRenderer = ({
 
     case "redacted_thinking":
       return (
-        <TextContentPart
+        <ThinkingContentPart
           content="[Redacted thinking]"
+          label="Thinking (redacted)"
           presetKey={presetKey}
           messageIndex={messageIndex}
           contentPartIndex={contentPartIndex}
