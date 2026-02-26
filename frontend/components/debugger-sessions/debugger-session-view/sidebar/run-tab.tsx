@@ -21,7 +21,7 @@ interface ConfigTabProps {
   isActive?: boolean;
 }
 
-export default function ConfigTab({ onRun, onCancel, isLoading, isActive }: ConfigTabProps) {
+export default function RunTab({ onRun, onCancel, isLoading, isActive }: ConfigTabProps) {
   const { systemMessagesMap, isSystemMessagesLoading, params, paramValues, setParamValue, error, sessionStatus } =
     useDebuggerSessionStore((state) => ({
       systemMessagesMap: state.systemMessagesMap,

@@ -5,7 +5,7 @@ import React, { useEffect, useState } from "react";
 import { useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import ConfigTab from "./config-tab";
+import RunTab from "./run-tab.tsx";
 import RunsTab from "./runs-tab";
 import TracesTab from "./traces-tab";
 
@@ -15,18 +15,18 @@ interface DebuggerSidebarProps {
   isLoading?: boolean;
 }
 
-type DebuggerSidebarTab = "config" | "runs" | "traces";
+type DebuggerSidebarTab = "run" | "runs" | "traces";
 
 export default function DebuggerSidebar({ onRun, onCancel, isLoading }: DebuggerSidebarProps) {
   const sessionStatus = useDebuggerSessionStore((state) => state.sessionStatus);
 
-  const [activeTab, setActiveTab] = useState<DebuggerSidebarTab>("config");
+  const [activeTab, setActiveTab] = useState<DebuggerSidebarTab>("run");
 
   const isRunning = sessionStatus === "RUNNING";
 
   useEffect(() => {
     if (isRunning) {
-      setActiveTab("config");
+      setActiveTab("run");
     }
   }, [isRunning]);
 
@@ -39,7 +39,7 @@ export default function DebuggerSidebar({ onRun, onCancel, isLoading }: Debugger
       >
         <div className="px-4 pt-4">
           <TabsList className="w-full">
-            <TabsTrigger value="config" className="flex-1 text-xs">
+            <TabsTrigger value="run" className="flex-1 text-xs">
               Run
             </TabsTrigger>
             <TabsTrigger disabled={isRunning} value="runs" className="flex-1 text-xs">
@@ -51,8 +51,8 @@ export default function DebuggerSidebar({ onRun, onCancel, isLoading }: Debugger
           </TabsList>
         </div>
 
-        <TabsContent value="config" className="flex flex-col flex-1 overflow-hidden">
-          <ConfigTab onRun={onRun} onCancel={onCancel} isLoading={isLoading} isActive={activeTab === "config"} />
+        <TabsContent value="run" className="flex flex-col flex-1 overflow-hidden">
+          <RunTab onRun={onRun} onCancel={onCancel} isLoading={isLoading} isActive={activeTab === "run"} />
         </TabsContent>
 
         <TabsContent value="runs" className="flex flex-col flex-1 overflow-hidden">
