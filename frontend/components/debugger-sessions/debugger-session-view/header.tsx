@@ -1,10 +1,13 @@
-import { ChevronDown, ChevronsRight, Copy, Maximize } from "lucide-react";
-import Link from "next/link";
-import { memo, useCallback } from "react";
+import { ChevronDown, Copy, Database, Loader } from "lucide-react";
+import { useParams } from "next/navigation";
+import React, { memo, useCallback } from "react";
 
+import { useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import CondensedTimelineControls from "@/components/traces/trace-view/header/timeline-toggle";
 import Metadata from "@/components/traces/trace-view/metadata";
-import { useTraceViewStore } from "@/components/traces/trace-view/store";
+import TraceViewSearch from "@/components/traces/trace-view/search";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
+import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,21 +15,28 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
-import { cn } from "@/lib/utils";
 
 interface HeaderProps {
-  onClose?: () => void;
+  spans: TraceViewSpan[];
+  onSearch: (filters: Filter[], search: string) => void;
 }
 
-const Header = ({ onClose }: HeaderProps) => {
-  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStore((state) => ({
+const Header = ({ spans, onSearch }: HeaderProps) => {
+  const params = useParams();
+  const projectId = params?.projectId as string;
+  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useDebuggerSessionStore((state) => ({
     trace: state.trace,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
   }));
 
   const { toast } = useToast();
+  const { openInSql, isLoading } = useOpenInSql({
+    projectId: projectId as string,
+    params: { type: "trace", traceId: String(trace?.id) },
+  });
 
   const handleCopyTraceId = useCallback(async () => {
     if (trace?.id) {
@@ -35,35 +45,12 @@ const Header = ({ onClose }: HeaderProps) => {
     }
   }, [trace?.id, toast]);
 
-  if (!onClose) {
-    return (
-      <div className="relative h-0">
-        <CondensedTimelineControls
-          enabled={condensedTimelineEnabled}
-          setEnabled={setCondensedTimelineEnabled}
-          className={cn(condensedTimelineEnabled ? "top-full" : "top-[calc(100%+8px)]")}
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-1">
-      {/* Line 1: Close, Expand, Trace + chevron dropdown, Metadata */}
+    <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-2">
+      {/* Line 1: Trace + chevron dropdown, Metadata */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center min-w-0 gap-2">
-          <div className="flex items-center flex-shrink-0 gap-0.5">
-            <Button variant="ghost" className="px-0.5" onClick={onClose}>
-              <ChevronsRight className="w-5 h-5" />
-            </Button>
-            {trace && (
-              <Link passHref href={`/shared/traces/${trace.id}`}>
-                <Button variant="ghost" className="px-0.5">
-                  <Maximize className="w-4 h-4" />
-                </Button>
-              </Link>
-            )}
-          </div>
+          {/* Chevron dropdown (Copy trace ID, Open in SQL) */}
           {trace && (
             <div className="flex">
               <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
@@ -78,6 +65,10 @@ const Header = ({ onClose }: HeaderProps) => {
                     <Copy size={14} />
                     Copy trace ID
                   </DropdownMenuItem>
+                  <DropdownMenuItem disabled={isLoading} onClick={openInSql}>
+                    {isLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
+                    Open in SQL editor
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -88,7 +79,12 @@ const Header = ({ onClose }: HeaderProps) => {
         </div>
       </div>
 
-      {/* Timeline toggle */}
+      {/* Line 2: Search only */}
+      <div className="flex items-center gap-2">
+        <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />
+      </div>
+
+      {/* Line 3: Timeline toggle */}
       <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
     </div>
   );

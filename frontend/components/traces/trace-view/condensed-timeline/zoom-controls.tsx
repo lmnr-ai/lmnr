@@ -1,11 +1,11 @@
 import { Minus, Plus } from "lucide-react";
 
 import { MAX_ZOOM, MIN_ZOOM, ZOOM_INCREMENT } from "@/components/traces/trace-view/store";
-import { useTraceViewContext } from "@/components/traces/trace-view/store/base";
+import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 
 export default function ZoomControls() {
-  const { condensedTimelineZoom, setCondensedTimelineZoom } = useTraceViewContext((state) => ({
+  const { condensedTimelineZoom, setCondensedTimelineZoom } = useTraceViewBaseStore((state) => ({
     condensedTimelineZoom: state.condensedTimelineZoom,
     setCondensedTimelineZoom: state.setCondensedTimelineZoom,
   }));

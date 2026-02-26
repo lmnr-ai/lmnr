@@ -5,7 +5,7 @@ import { memo, useCallback, useMemo } from "react";
 
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
-import { type TraceViewSpan, useTraceViewStoreContext } from "@/components/traces/trace-view/store";
+import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +33,7 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
 
-  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStoreContext((state) => ({
+  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStore((state) => ({
     trace: state.trace,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,

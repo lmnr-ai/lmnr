@@ -2,7 +2,7 @@ import { PlayIcon } from "@radix-ui/react-icons";
 import { isEmpty } from "lodash";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 
-import { useTraceViewContext } from "@/components/traces/trace-view/store/base";
+import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,7 @@ function CondensedTimeline() {
     sessionTime,
     sessionStartTime,
     browserSession,
-  } = useTraceViewContext((state) => ({
+  } = useTraceViewBaseStore((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
     spans: state.spans,
     selectedSpan: state.selectedSpan,

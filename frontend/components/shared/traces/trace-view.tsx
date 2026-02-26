@@ -20,7 +20,7 @@ import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   type TraceViewSpan,
   type TraceViewTrace,
-  useTraceViewStoreContext,
+  useTraceViewStore,
 } from "@/components/traces/trace-view/store";
 import Tree from "@/components/traces/trace-view/tree";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
@@ -56,7 +56,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     setHasBrowserSession,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
-  } = useTraceViewStoreContext((state) => ({
+  } = useTraceViewStore((state) => ({
     tab: state.tab,
     setSpans: state.setSpans,
     setTrace: state.setTrace,
@@ -73,7 +73,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
   }));
 
-  const { treeWidth, setTreeWidth } = useTraceViewStoreContext((state) => ({
+  const { treeWidth, setTreeWidth } = useTraceViewStore((state) => ({
     treeWidth: state.treeWidth,
     setTreeWidth: state.setTreeWidth,
   }));

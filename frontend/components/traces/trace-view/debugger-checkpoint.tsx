@@ -2,7 +2,7 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ArrowDown, Circle, Lock } from "lucide-react";
 import { type MouseEvent } from "react";
 
-import { useRolloutCaching } from "@/components/rollout-sessions/rollout-session-view/rollout-session-store";
+import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { type TraceViewSpan } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,7 +15,7 @@ export function DebuggerCheckpoint({ span }: DebuggerCheckpointProps) {
   const {
     enabled,
     state: { isSpanCached, isCheckpointSpan, setCheckpoint, clearCheckpoint },
-  } = useRolloutCaching((s) => ({
+  } = useOptionalDebuggerStore((s) => ({
     isSpanCached: s.isSpanCached,
     isCheckpointSpan: s.isCheckpointSpan,
     setCheckpoint: s.setCheckpoint,
