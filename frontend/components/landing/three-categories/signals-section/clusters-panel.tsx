@@ -19,7 +19,7 @@ const AnimatedCount = ({ value, progress }: { value: number; progress: MotionVal
   const count = useTransform(progress, (p) => Math.round(p * value));
 
   return (
-    <motion.span className="font-grotesk font-normal leading-[40px] text-[36px] tracking-tighter md:text-[48px] text-landing-surface-400">
+    <motion.span className="font-space-grotesk font-normal leading-[40px] text-[36px] tracking-tighter md:text-[48px] text-landing-surface-400">
       {count}
     </motion.span>
   );
