@@ -102,9 +102,8 @@ const AnthropicPartRenderer = ({
     }
 
     case "search_result": {
-      const searchText = `[Search result: ${block.title}]\nSource: ${block.source}\n${
-        typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
-      }`;
+      const searchText = `[Search result: ${block.title}]\nSource: ${block.source}\n${typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
+        }`;
       return (
         <TextContentPart
           content={searchText}
@@ -114,9 +113,6 @@ const AnthropicPartRenderer = ({
         />
       );
     }
-
-    default:
-      return null;
   }
 };
 

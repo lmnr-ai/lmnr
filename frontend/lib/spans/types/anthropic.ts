@@ -216,6 +216,7 @@ export const convertAnthropicToPlaygroundMessages = async (
               break;
 
             case "tool_use":
+            case "server_tool_use":
               content.push({
                 type: "tool-call",
                 toolCallId: block.id,
@@ -270,15 +271,6 @@ export const convertAnthropicToPlaygroundMessages = async (
               break;
             }
 
-            case "server_tool_use":
-              content.push({
-                type: "tool-call",
-                toolCallId: block.id,
-                toolName: block.name,
-                input: { type: "json", value: JSON.stringify(block.input ?? {}) },
-              });
-              break;
-
             case "web_search_tool_result":
               content.push({
                 type: "tool-result",
@@ -291,9 +283,8 @@ export const convertAnthropicToPlaygroundMessages = async (
             case "search_result":
               content.push({
                 type: "text",
-                text: `[Search result: ${block.title}]\nSource: ${block.source}\n${
-                  typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
-                }`,
+                text: `[Search result: ${block.title}]\nSource: ${block.source}\n${typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
+                  }`,
               });
               break;
           }
