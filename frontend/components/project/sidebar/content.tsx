@@ -86,9 +86,12 @@ const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; op
   );
 };
 
-const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
+const ProjectSidebarContent = ({ details, isCloud }: { details: ProjectDetails; isCloud: boolean }) => {
   const pathname = usePathname();
-  const options = useMemo(() => getSidebarMenus(details.id), [details.id]);
+  const options = useMemo(
+    () => getSidebarMenus(details.id).filter((m) => m.name !== "signals" || isCloud),
+    [details.id, isCloud]
+  );
   const { open, openMobile } = useSidebar();
 
   return (
@@ -110,7 +113,7 @@ const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
         </SidebarGroupContent>
       </SidebarGroup>
 
-      {details.isFreeTier && (open || openMobile) && (
+      {isCloud && details.isFreeTier && (open || openMobile) && (
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>

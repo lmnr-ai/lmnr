@@ -11,13 +11,14 @@ import ProjectSidebarContent from "./content";
 
 interface ProjectSidebarProps {
   details: ProjectDetails;
+  isCloud: boolean;
 }
 
-export default function ProjectSidebar({ details }: ProjectSidebarProps) {
+export default function ProjectSidebar({ details, isCloud }: ProjectSidebarProps) {
   return (
     <Sidebar className="border-none" collapsible="icon">
       <ProjectSidebarHeader workspaceId={details.workspaceId} projectId={details.id} />
-      <ProjectSidebarContent details={details} />
+      <ProjectSidebarContent details={details} isCloud={isCloud} />
       <SidebarFooter />
     </Sidebar>
   );

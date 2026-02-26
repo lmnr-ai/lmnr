@@ -14,7 +14,7 @@ export async function getWorkspaceStats(workspaceId: string): Promise<WorkspaceS
   const gbUsedThisMonth = bytesToGB(usage.totalBytesIngested);
   const signalRunsUsedThisMonth = usage.totalSignalRuns;
 
-  if (!isFeatureEnabled(Feature.BILLING)) {
+  if (!isFeatureEnabled(Feature.CLOUD)) {
     return {
       resetTime: usage.resetTime.toISOString(),
       gbUsedThisMonth,

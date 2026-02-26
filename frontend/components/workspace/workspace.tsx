@@ -20,8 +20,7 @@ interface WorkspaceProps {
   currentUserRole: WorkspaceRole;
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
-  isBillingEnabled: boolean;
-  isDeploymentEnabled: boolean;
+  isCloud: boolean;
   canManageBilling: boolean;
 }
 
@@ -33,8 +32,7 @@ export default function WorkspaceComponent({
   currentUserRole,
   subscription,
   upcomingInvoice,
-  isBillingEnabled,
-  isDeploymentEnabled,
+  isCloud,
   canManageBilling,
 }: WorkspaceProps) {
   const { menu } = useWorkspaceMenuContext();
@@ -42,17 +40,18 @@ export default function WorkspaceComponent({
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">
-        {menu === "projects" && <Projects workspace={workspace} />}
+        {menu === "projects" && <Projects workspace={workspace} isCloud={isCloud} />}
         {menu === "team" && (
           <WorkspaceUsers
             invitations={invitations}
             workspace={workspace}
             isOwner={isOwner}
             currentUserRole={currentUserRole}
+            isCloud={isCloud}
           />
         )}
-        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} isBillingEnabled={isBillingEnabled} />}
-        {isBillingEnabled && menu === "billing" && (
+        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} isCloud={isCloud} />}
+        {isCloud && menu === "billing" && (
           <WorkspaceBilling
             workspace={workspace}
             isOwner={isOwner}
@@ -62,7 +61,7 @@ export default function WorkspaceComponent({
           />
         )}
         {menu === "settings" && <WorkspaceSettings workspace={workspace} isOwner={isOwner} />}
-        {isDeploymentEnabled && menu === "deployment" && <WorkspaceDeployment workspace={workspace} />}
+        {isCloud && menu === "deployment" && <WorkspaceDeployment workspace={workspace} />}
       </div>
     </div>
   );

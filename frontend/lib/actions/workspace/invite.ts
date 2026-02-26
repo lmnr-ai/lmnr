@@ -6,6 +6,7 @@ import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { db } from "@/lib/db/drizzle";
 import { subscriptionTiers, workspaceInvitations, workspaces } from "@/lib/db/migrations/schema";
 import { sendInvitationEmail } from "@/lib/emails/utils";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 const InviteUserSchema = z.object({
   workspaceId: z.string(),
@@ -32,7 +33,7 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
     throw new Error("Workspace not found");
   }
 
-  if (workspace.tierName.trim().toLowerCase() === "free") {
+  if (isFeatureEnabled(Feature.CLOUD) && workspace.tierName.trim().toLowerCase() === "free") {
     throw new Error("Inviting members is not available on the Free plan. Please upgrade to invite team members.");
   }
 

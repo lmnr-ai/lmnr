@@ -119,7 +119,7 @@ export const getWorkspace = async (input: z.infer<typeof GetWorkspaceSchema>): P
 
   let addons: string[] = [];
 
-  if (isFeatureEnabled(Feature.ADDONS)) {
+  if (isFeatureEnabled(Feature.CLOUD)) {
     const addonDefinitions = await db
       .select({ addonSlug: workspaceAddons.addonSlug })
       .from(workspaceAddons)
@@ -168,7 +168,7 @@ export const getWorkspaceInfo = async (workspaceId: string): Promise<Workspace> 
 
   let addons: string[] = [];
 
-  if (isFeatureEnabled(Feature.ADDONS)) {
+  if (isFeatureEnabled(Feature.CLOUD)) {
     const addonDefinitions = await db
       .select({ addonSlug: workspaceAddons.addonSlug })
       .from(workspaceAddons)
