@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { type Message } from "@/lib/playground/types";
 import { isStorageUrl, urlToBase64 } from "@/lib/s3";
+import { toStandardBase64 } from "@/lib/utils";
 
 /** Part Schemas **/
 
@@ -170,9 +171,6 @@ export const parseGeminiOutput = (data: unknown): z.infer<typeof GeminiContentsS
 };
 
 /** Conversion Functions **/
-
-// Convert URL-safe base64 (RFC 4648 §5) to standard base64 for data URIs.
-const toStandardBase64 = (s: string) => s.replace(/-/g, "+").replace(/_/g, "/");
 
 export const convertGeminiToPlaygroundMessages = async (
   messages: z.infer<typeof GeminiContentsSchema>

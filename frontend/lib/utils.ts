@@ -294,6 +294,9 @@ export function generateRandomKey(length: number): string {
     .join("");
 }
 
+// Convert URL-safe base64 (RFC 4648 §5) to standard base64 for data URIs.
+export const toStandardBase64 = (s: string) => s.replace(/-/g, "+").replace(/_/g, "/");
+
 export const inferImageType = (base64: string): `image/${string}` | null => {
   if (base64.startsWith("/9j/")) {
     return "image/jpeg";

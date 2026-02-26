@@ -6,6 +6,8 @@ import {
     type GeminiPartSchema,
 } from "@/lib/spans/types/gemini";
 
+import { toStandardBase64 } from "@/lib/utils";
+
 import {
     FileContentPart,
     ImageContentPart,
@@ -13,9 +15,6 @@ import {
     ToolCallContentPart,
     ToolResultContentPart,
 } from "./common";
-
-// Convert URL-safe base64 (RFC 4648 §5) to standard base64 for data URIs.
-const toStandardBase64 = (s: string) => s.replace(/-/g, "+").replace(/_/g, "/");
 
 const GeminiPartRenderer = ({
     part,
