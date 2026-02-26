@@ -148,13 +148,13 @@ const SystemMessageEditor = ({ message }: { message: SystemMessage }) => {
 };
 
 interface ConfigTabProps {
-  onRollout: () => void;
+  onRun: () => void;
   onCancel: () => void;
   isLoading?: boolean;
   isActive?: boolean;
 }
 
-export default function ConfigTab({ onRollout, onCancel, isLoading, isActive }: ConfigTabProps) {
+export default function ConfigTab({ onRun, onCancel, isLoading, isActive }: ConfigTabProps) {
   const { systemMessagesMap, isSystemMessagesLoading, params, paramValues, setParamValue, error, sessionStatus } =
     useDebuggerSessionStore((state) => ({
       systemMessagesMap: state.systemMessagesMap,
@@ -172,13 +172,13 @@ export default function ConfigTab({ onRollout, onCancel, isLoading, isActive }: 
     "meta+enter,ctrl+enter",
     () => {
       if (!isRunning && !isLoading && isActive) {
-        onRollout();
+        onRun();
       }
     },
     {
       enabled: !isRunning && !isLoading && isActive,
     },
-    [isRunning, isLoading, isActive, onRollout]
+    [isRunning, isLoading, isActive, onRun]
   );
 
   const messages = useMemo(() => Array.from(systemMessagesMap.values()), [systemMessagesMap]);
@@ -269,7 +269,7 @@ export default function ConfigTab({ onRollout, onCancel, isLoading, isActive }: 
               )}
             </Button>
           ) : (
-            <Button onClick={onRollout} disabled={isLoading || isRunning}>
+            <Button onClick={onRun} disabled={isLoading || isRunning}>
               {isLoading ? (
                 <>
                   <Loader2 size={14} className="mr-1.5 animate-spin" />

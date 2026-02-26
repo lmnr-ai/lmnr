@@ -46,7 +46,7 @@ export default function DebuggerSidebar({ onRun, onCancel, isLoading }: Debugger
         </div>
 
         <TabsContent value="config" className="flex flex-col flex-1 overflow-hidden">
-          <ConfigTab onRollout={onRun} onCancel={onCancel} isLoading={isLoading} isActive={activeTab === "config"} />
+          <ConfigTab onRun={onRun} onCancel={onCancel} isLoading={isLoading} isActive={activeTab === "config"} />
         </TabsContent>
 
         <TabsContent value="runs" className="flex flex-col flex-1 overflow-hidden">
