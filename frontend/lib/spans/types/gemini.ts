@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { type Message } from "@/lib/playground/types";
 import { isStorageUrl, urlToBase64 } from "@/lib/s3";
+import { toStandardBase64 } from "@/lib/utils";
 
 /** Part Schemas **/
 
@@ -195,7 +196,9 @@ export const convertGeminiToPlaygroundMessages = async (
             }
             content.push({
               type: "image",
-              image: imageData.startsWith("data:") ? imageData : `data:${part.inlineData.mimeType};base64,${imageData}`,
+              image: imageData.startsWith("data:")
+                ? imageData
+                : `data:${part.inlineData.mimeType};base64,${toStandardBase64(imageData)}`,
             });
           } else {
             content.push({
