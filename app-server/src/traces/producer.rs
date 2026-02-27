@@ -33,19 +33,38 @@ pub async fn push_spans_to_queue(
         .resource_spans
         .into_iter()
         .flat_map(|resource_span| {
+            let resource_attributes = resource_span.resource.map(|r| {
+                r.attributes
+                    .into_iter()
+                    .map(|kv| {
+                        (
+                            kv.key,
+                            crate::traces::utils::convert_any_value_to_json_value(kv.value),
+                        )
+                    })
+                    .collect::<std::collections::HashMap<String, serde_json::Value>>()
+            });
             resource_span
                 .scope_spans
                 .into_iter()
-                .flat_map(|scope_span| {
-                    scope_span.spans.into_iter().filter_map(|otel_span| {
-                        let span = Span::from_otel_span(otel_span, project_id);
+                .flat_map({
+                    let resource_attributes = resource_attributes.clone();
+                    move |scope_span| {
+                        let resource_attributes = resource_attributes.clone();
+                        scope_span.spans.into_iter().filter_map(move |otel_span| {
+                            let span = Span::from_otel_span(
+                                otel_span,
+                                project_id,
+                                resource_attributes.as_ref(),
+                            );
 
-                        if span.should_save() {
-                            Some(RabbitMqSpanMessage { span })
-                        } else {
-                            None
-                        }
-                    })
+                            if span.should_save() {
+                                Some(RabbitMqSpanMessage { span })
+                            } else {
+                                None
+                            }
+                        })
+                    }
                 })
         })
         .collect::<Vec<_>>();

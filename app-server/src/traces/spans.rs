@@ -105,6 +105,32 @@ impl SpanAttributes {
         }
     }
 
+    pub fn string_attr(&self, key: &str) -> Option<String> {
+        match self.raw_attributes.get(key) {
+            Some(Value::String(s)) => Some(s.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn int_attr(&self, key: &str) -> Option<i64> {
+        match self.raw_attributes.get(key) {
+            Some(Value::Number(n)) => n.as_i64(),
+            _ => None,
+        }
+    }
+
+    pub fn bool_attr(&self, key: &str) -> Option<bool> {
+        match self.raw_attributes.get(key) {
+            Some(Value::Bool(b)) => Some(*b),
+            Some(Value::String(s)) => match s.to_lowercase().as_str() {
+                "true" | "1" => Some(true),
+                "false" | "0" => Some(false),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     pub fn to_value(&self) -> Value {
         Value::Object(
             self.raw_attributes
@@ -507,7 +533,11 @@ impl Span {
     ///
     /// This is called on the producer side of the MQ, i.e. at the OTel ingester
     /// side, so it must be lightweight.
-    pub fn from_otel_span(otel_span: OtelSpan, project_id: Uuid) -> Self {
+    pub fn from_otel_span(
+        otel_span: OtelSpan,
+        project_id: Uuid,
+        resource_attributes: Option<&HashMap<String, Value>>,
+    ) -> Self {
         let trace_id = Uuid::from_slice(&otel_span.trace_id).unwrap();
 
         let span_id = span_id_to_uuid(&otel_span.span_id);
@@ -524,11 +554,20 @@ impl Span {
             .map(|event| Event::from_otel(event, span_id, project_id, trace_id))
             .collect();
 
-        let attributes = otel_span
+        let mut attributes = otel_span
             .attributes
             .into_iter()
             .map(|k| (k.key, convert_any_value_to_json_value(k.value)))
             .collect::<HashMap<String, Value>>();
+
+        // Merge selected resource attributes into span attributes
+        if let Some(resource_attrs) = resource_attributes {
+            if let Some(region) = resource_attrs.get("cloud.region") {
+                attributes
+                    .entry("cloud.region".to_string())
+                    .or_insert_with(|| region.clone());
+            }
+        }
 
         let override_parent_span = attributes.get(OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME).cloned();
 

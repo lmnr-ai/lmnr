@@ -12,9 +12,17 @@ use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
 use crate::{
     cache::Cache,
     db::{DB, spans::Span, trace::Trace},
-    language_model::costs::estimate_cost_by_provider_name,
+    language_model::costs::{
+        ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs,
+    },
 };
 
+use super::span_attributes::{
+    CLOUD_REGION, GEN_AI_REQUEST_BATCH, GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+    GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
+    GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS, GEN_AI_USAGE_REASONING_TOKENS,
+    OPENAI_REQUEST_SERVICE_TIER, OPENAI_RESPONSE_SERVICE_TIER,
+};
 use super::spans::{SpanAttributes, SpanUsage};
 
 static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
@@ -64,21 +72,16 @@ pub async fn get_llm_usage_for_span(
     let mut total_cost = total_cost.unwrap_or(input_cost + output_cost);
 
     if let Some(model) = model_name.as_deref() {
-        if let Some(provider) = &provider_name {
-            let cost_entry = estimate_cost_by_provider_name(
-                db.clone(),
-                cache.clone(),
-                provider,
-                model,
-                input_tokens,
-                output_tokens,
-            )
-            .await;
-            if let Some(cost_entry) = cost_entry {
-                input_cost = cost_entry.input_cost;
-                output_cost = cost_entry.output_cost;
-                total_cost = input_cost + output_cost;
-            }
+        let region = attributes.string_attr(CLOUD_REGION);
+        let model_info =
+            ModelInfo::extract(model, provider_name.as_deref(), region.as_deref());
+
+        if let Some(model_costs) = get_model_costs(db.clone(), cache.clone(), &model_info).await {
+            let span_cost_input = build_span_cost_input(attributes, &input_tokens, output_tokens);
+            let cost_entry = calculate_span_cost(&model_costs, &span_cost_input);
+            input_cost = cost_entry.input_cost;
+            output_cost = cost_entry.output_cost;
+            total_cost = input_cost + output_cost;
         }
     }
 
@@ -92,6 +95,49 @@ pub async fn get_llm_usage_for_span(
         response_model,
         request_model,
         provider_name,
+    }
+}
+
+/// Build SpanCostInput from span attributes
+fn build_span_cost_input(
+    attributes: &SpanAttributes,
+    input_tokens: &super::spans::InputTokens,
+    output_tokens: i64,
+) -> SpanCostInput {
+    let audio_input_tokens = attributes
+        .int_attr(GEN_AI_USAGE_AUDIO_INPUT_TOKENS)
+        .unwrap_or(0);
+    let audio_output_tokens = attributes
+        .int_attr(GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS)
+        .unwrap_or(0);
+    let reasoning_tokens = attributes
+        .int_attr(GEN_AI_USAGE_REASONING_TOKENS)
+        .unwrap_or(0);
+    let cache_creation_5m_tokens = attributes
+        .int_attr(GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS)
+        .unwrap_or(0);
+    let cache_creation_1h_tokens = attributes
+        .int_attr(GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS)
+        .unwrap_or(0);
+
+    let service_tier = attributes
+        .string_attr(OPENAI_RESPONSE_SERVICE_TIER)
+        .or_else(|| attributes.string_attr(OPENAI_REQUEST_SERVICE_TIER));
+
+    let is_batch = attributes.bool_attr(GEN_AI_REQUEST_BATCH).unwrap_or(false);
+
+    SpanCostInput {
+        prompt_tokens: input_tokens.regular_input_tokens,
+        completion_tokens: output_tokens,
+        cache_read_tokens: input_tokens.cache_read_tokens,
+        cache_creation_tokens: input_tokens.cache_write_tokens,
+        cache_creation_5m_tokens,
+        cache_creation_1h_tokens,
+        audio_input_tokens,
+        audio_output_tokens,
+        reasoning_tokens,
+        service_tier,
+        is_batch,
     }
 }
 

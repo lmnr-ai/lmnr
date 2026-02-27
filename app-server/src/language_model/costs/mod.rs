@@ -1,184 +1,137 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
-    cache::{Cache, CacheTrait, keys::LLM_PRICES_CACHE_KEY},
-    db::{
-        DB,
-        prices::{DBPriceEntry, get_price},
-    },
-    traces::spans::InputTokens,
+    cache::{Cache, CacheTrait, keys::MODEL_COSTS_CACHE_KEY},
+    db::{DB, model_costs::get_model_cost},
 };
 use serde::{Deserialize, Serialize};
-use utils::calculate_cost;
+use serde_json::Value;
 
-mod utils;
+mod cost_calculator;
+#[cfg(test)]
+mod tests;
 
-const LLM_PRICES_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
+pub use cost_calculator::{CostEntry, SpanCostInput, calculate_span_cost};
 
-#[derive(Clone, Deserialize, Serialize)]
-pub struct LLMPriceEntry {
-    _provider: String,
-    _model: String,
-    input_price_per_million: f64,
-    output_price_per_million: f64,
-    input_cached_price_per_million: Option<f64>,
-    additional_prices: HashMap<String, f64>,
+const MODEL_COSTS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
+
+/// Costs JSON blob from the `model_costs` table, cached as-is.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct ModelCosts(pub Value);
+
+/// Extract provider, region, raw model name from span attributes.
+#[derive(Debug, Clone)]
+pub struct ModelInfo {
+    /// The full model string from gen_ai.request.model
+    pub model: String,
+    /// Provider from gen_ai.system or inferred from model prefix
+    pub provider: Option<String>,
+    /// Region from cloud.region resource attribute
+    pub region: Option<String>,
+    /// The model name with provider prefix stripped
+    pub raw_model: String,
 }
 
-impl From<DBPriceEntry> for LLMPriceEntry {
-    fn from(value: DBPriceEntry) -> Self {
-        Self {
-            _provider: value.provider,
-            _model: value.model,
-            input_price_per_million: value.input_price_per_million,
-            output_price_per_million: value.output_price_per_million,
-            input_cached_price_per_million: value.input_cached_price_per_million,
-            additional_prices: serde_json::from_value(value.additional_prices).unwrap(),
+impl ModelInfo {
+    pub fn extract(model: &str, provider: Option<&str>, region: Option<&str>) -> Self {
+        let provider = provider.map(|p| p.to_lowercase().trim().to_string());
+
+        // If provider is missing, try to infer from model name
+        let provider = provider.or_else(|| {
+            if model.contains('/') {
+                model.split('/').next().map(|s| s.to_lowercase())
+            } else {
+                None
+            }
+        });
+
+        // Extract raw model name by stripping provider prefix
+        let raw_model = if model.contains('/') {
+            model.splitn(2, '/').nth(1).unwrap_or(model).to_string()
+        } else {
+            model.to_string()
+        };
+
+        let region = region.map(|r| r.to_string());
+
+        ModelInfo {
+            model: model.to_string(),
+            provider,
+            region,
+            raw_model,
         }
+    }
+
+    /// Generate lookup keys in priority order.
+    /// Try each key in order; use the first one that matches in the DB/cache.
+    pub fn lookup_keys(&self) -> Vec<String> {
+        let mut keys = Vec::with_capacity(4);
+
+        if let (Some(provider), Some(region)) = (&self.provider, &self.region) {
+            // 1. provider/region/model
+            keys.push(format!("{}/{}/{}", provider, region, self.model));
+        }
+
+        if let Some(provider) = &self.provider {
+            // 2. provider/model
+            keys.push(format!("{}/{}", provider, self.model));
+        }
+
+        // 3. model (full string as-is)
+        keys.push(self.model.clone());
+
+        // 4. raw model name (with provider prefix stripped)
+        if self.raw_model != self.model {
+            keys.push(self.raw_model.clone());
+        }
+
+        keys
     }
 }
 
-pub async fn estimate_output_cost(
+/// Look up model costs from cache or DB, trying keys in priority order.
+pub async fn get_model_costs(
     db: Arc<DB>,
     cache: Arc<Cache>,
-    provider: &str,
-    model: &str,
-    num_tokens: i64,
-) -> Option<f64> {
-    let cache_key = format!("{LLM_PRICES_CACHE_KEY}:{provider}:{model}");
-    let cache_res = cache.get::<LLMPriceEntry>(&cache_key).await;
+    model_info: &ModelInfo,
+) -> Option<ModelCosts> {
+    let keys = model_info.lookup_keys();
 
-    let price_per_million_tokens = match cache_res {
-        Ok(Some(price)) => price.output_price_per_million,
-        Ok(None) | Err(_) => {
-            let price = get_price(&db.pool, provider, model)
-                .await
-                .map_err(|e| {
-                    log::error!(
-                        "Error getting price from DB for provider: {}, model: {}: {:?}",
-                        provider,
-                        model,
-                        e
-                    );
-                    e
-                })
-                .unwrap_or_default()?;
-            let price = LLMPriceEntry::from(price);
-            let _ = cache
-                .insert_with_ttl::<LLMPriceEntry>(
-                    &cache_key,
-                    price.clone(),
-                    LLM_PRICES_CACHE_TTL_SECONDS,
-                )
-                .await;
-            price.output_price_per_million
+    for key in &keys {
+        let cache_key = format!("{MODEL_COSTS_CACHE_KEY}:{key}");
+
+        // Try cache first
+        match cache.get::<ModelCosts>(&cache_key).await {
+            Ok(Some(costs)) => return Some(costs),
+            Ok(None) => {} // Cache miss, try DB
+            Err(e) => {
+                log::warn!("Cache error looking up model costs for key {}: {:?}", key, e);
+            }
         }
-    };
-    Some(calculate_cost(num_tokens, price_per_million_tokens))
-}
 
-pub async fn estimate_input_cost(
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-    provider: &str,
-    model: &str,
-    input_tokens: InputTokens,
-) -> Option<f64> {
-    let cache_key = format!("{LLM_PRICES_CACHE_KEY}:{provider}:{model}");
-    let cache_res = cache.get::<LLMPriceEntry>(&cache_key).await;
-
-    let price = match cache_res {
-        Ok(Some(price)) => price,
-        Ok(None) | Err(_) => {
-            let price = get_price(&db.pool, provider, model)
-                .await
-                .map_err(|e| {
-                    log::error!(
-                        "Error getting price from DB for provider: {}, model: {}: {:?}",
-                        provider,
-                        model,
-                        e
-                    );
-                    e
-                })
-                .unwrap_or_default()?;
-            let price = LLMPriceEntry::from(price);
-            let _ = cache
-                .insert_with_ttl::<LLMPriceEntry>(
-                    &cache_key,
-                    price.clone(),
-                    LLM_PRICES_CACHE_TTL_SECONDS,
-                )
-                .await;
-            price
+        // Try DB
+        match get_model_cost(&db.pool, key).await {
+            Ok(Some(entry)) => {
+                let costs = ModelCosts(entry.costs);
+                // Store in cache for future lookups
+                let _ = cache
+                    .insert_with_ttl(&cache_key, costs.clone(), MODEL_COSTS_CACHE_TTL_SECONDS)
+                    .await;
+                return Some(costs);
+            }
+            Ok(None) => {} // Not found, try next key
+            Err(e) => {
+                log::error!("DB error looking up model costs for key {}: {:?}", key, e);
+            }
         }
-    };
+    }
 
-    let regular_input_tokens = input_tokens.regular_input_tokens;
-    let cache_write_tokens = input_tokens.cache_write_tokens;
-    let cache_read_tokens = input_tokens.cache_read_tokens;
-
-    let regular_input_cost = calculate_cost(regular_input_tokens, price.input_price_per_million);
-    let cache_read_cost = calculate_cost(
-        cache_read_tokens,
-        price.input_cached_price_per_million.unwrap_or(0.0),
+    log::warn!(
+        "No model costs found for model: {}, provider: {:?}, region: {:?}. Tried keys: {:?}",
+        model_info.model,
+        model_info.provider,
+        model_info.region,
+        keys
     );
-    let cache_write_cost = if let Some(cache_write_cost) = price
-        .additional_prices
-        .get("input_cache_write_price_per_million")
-    {
-        calculate_cost(cache_write_tokens, *cache_write_cost)
-    } else {
-        0.0
-    };
-
-    Some(regular_input_cost + cache_write_cost + cache_read_cost)
-}
-
-pub struct CostEntry {
-    pub input_cost: f64,
-    pub output_cost: f64,
-}
-
-// This is a simpler function than per-provider implementation.
-// For now, we default to this, but if language model providers keep making quirky prices like
-// gemini with their additional price over 128k tokens, we will have to switch to per-provider
-// implementation.
-pub async fn estimate_cost_by_provider_name(
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-    provider_name: &str,
-    model: &str,
-    input_tokens: InputTokens,
-    output_tokens: i64,
-) -> Option<CostEntry> {
-    let input_cost = estimate_input_cost(
-        db.clone(),
-        cache.clone(),
-        provider_name,
-        model,
-        input_tokens,
-    )
-    .await
-    .or_else(|| {
-        log::warn!(
-            "No stored price found for provider: {}, model: {}",
-            provider_name,
-            model,
-        );
-        None
-    })?;
-    let output_cost = estimate_output_cost(
-        db.clone(),
-        cache.clone(),
-        provider_name,
-        model,
-        output_tokens,
-    )
-    .await?;
-
-    Some(CostEntry {
-        input_cost,
-        output_cost,
-    })
+    None
 }

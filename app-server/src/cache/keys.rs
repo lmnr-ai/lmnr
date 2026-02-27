@@ -2,6 +2,7 @@
 //! Keys are used across modules and need to be stored in a single place
 
 pub const LLM_PRICES_CACHE_KEY: &str = "llm_prices";
+pub const MODEL_COSTS_CACHE_KEY: &str = "model_costs_v2";
 pub const PROJECT_API_KEY_CACHE_KEY: &str = "project_api_key";
 pub const PROJECT_CACHE_KEY: &str = "project";
 pub const SIGNAL_TRIGGERS_CACHE_KEY: &str = "signal_triggers";
