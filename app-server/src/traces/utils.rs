@@ -12,7 +12,7 @@ use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
 use crate::{
     cache::Cache,
     db::{DB, spans::Span, trace::Trace},
-    language_model::costs::estimate_cost_by_provider_name,
+    language_model::costs::{estimate_span_cost, extract_model_info},
 };
 
 use super::spans::{SpanAttributes, SpanUsage};
@@ -38,9 +38,9 @@ pub async fn get_llm_usage_for_span(
     let total_cost = attributes.total_cost();
     let response_model = attributes.response_model();
     let request_model = attributes.request_model();
-    let model_name = response_model.clone().or(attributes.request_model());
     let provider_name = attributes.provider_name(span_name);
 
+    // If costs are already provided by instrumentation, use them directly
     if input_cost.is_some_and(|c| c > 0.0)
         || output_cost.is_some_and(|c| c > 0.0)
         || total_cost.is_some_and(|c| c > 0.0)
@@ -63,23 +63,30 @@ pub async fn get_llm_usage_for_span(
     let mut output_cost = output_cost.unwrap_or(0.0);
     let mut total_cost = total_cost.unwrap_or(input_cost + output_cost);
 
-    if let Some(model) = model_name.as_deref() {
-        if let Some(provider) = &provider_name {
-            let cost_entry = estimate_cost_by_provider_name(
-                db.clone(),
-                cache.clone(),
-                provider,
-                model,
-                input_tokens,
-                output_tokens,
-            )
-            .await;
-            if let Some(cost_entry) = cost_entry {
-                input_cost = cost_entry.input_cost;
-                output_cost = cost_entry.output_cost;
-                total_cost = input_cost + output_cost;
-            }
-        }
+    // Build cost context and calculate costs using model_costs table
+    let region = attributes.cloud_region();
+    let mut cost_ctx = extract_model_info(
+        request_model.as_deref(),
+        response_model.as_deref(),
+        provider_name.as_deref(),
+        region.as_deref(),
+    );
+
+    // Populate token details from span attributes
+    cost_ctx.input_tokens = input_tokens;
+    cost_ctx.output_tokens = output_tokens;
+    cost_ctx.service_tier = attributes.service_tier();
+    cost_ctx.is_batch = attributes.is_batch_request();
+    cost_ctx.reasoning_tokens = attributes.reasoning_tokens();
+    cost_ctx.audio_input_tokens = attributes.audio_input_tokens();
+    cost_ctx.audio_output_tokens = attributes.audio_output_tokens();
+    cost_ctx.cache_creation_5m_tokens = attributes.cache_creation_5m_tokens();
+    cost_ctx.cache_creation_1h_tokens = attributes.cache_creation_1h_tokens();
+
+    if let Some(cost_result) = estimate_span_cost(db, cache, &cost_ctx).await {
+        input_cost = cost_result.input_cost;
+        output_cost = cost_result.output_cost;
+        total_cost = input_cost + output_cost;
     }
 
     SpanUsage {

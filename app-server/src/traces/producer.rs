@@ -19,6 +19,10 @@ use crate::{
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
+    traces::{
+        span_attributes::CLOUD_REGION,
+        utils::convert_any_value_to_json_value,
+    },
 };
 
 // TODO: Implement partial_success
@@ -33,19 +37,50 @@ pub async fn push_spans_to_queue(
         .resource_spans
         .into_iter()
         .flat_map(|resource_span| {
-            resource_span
-                .scope_spans
-                .into_iter()
-                .flat_map(|scope_span| {
-                    scope_span.spans.into_iter().filter_map(|otel_span| {
-                        let span = Span::from_otel_span(otel_span, project_id);
-
-                        if span.should_save() {
-                            Some(RabbitMqSpanMessage { span })
+            // Extract cloud.region from resource attributes if present
+            let cloud_region = resource_span
+                .resource
+                .as_ref()
+                .and_then(|resource| {
+                    resource.attributes.iter().find_map(|kv| {
+                        if kv.key == CLOUD_REGION {
+                            let val = convert_any_value_to_json_value(kv.value.clone());
+                            if let serde_json::Value::String(s) = val {
+                                Some(s)
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
                     })
+                });
+
+            resource_span
+                .scope_spans
+                .into_iter()
+                .flat_map({
+                    let cloud_region = cloud_region.clone();
+                    move |scope_span| {
+                        let cloud_region = cloud_region.clone();
+                        scope_span.spans.into_iter().filter_map(move |otel_span| {
+                            let mut span = Span::from_otel_span(otel_span, project_id);
+
+                            // Inject cloud.region into span attributes if present
+                            if let Some(ref region) = cloud_region {
+                                span.attributes.raw_attributes.insert(
+                                    CLOUD_REGION.to_string(),
+                                    serde_json::Value::String(region.clone()),
+                                );
+                            }
+
+                            if span.should_save() {
+                                Some(RabbitMqSpanMessage { span })
+                            } else {
+                                None
+                            }
+                        })
+                    }
                 })
         })
         .collect::<Vec<_>>();

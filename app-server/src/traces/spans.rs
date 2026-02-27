@@ -35,10 +35,13 @@ use crate::{
 
 use super::{
     span_attributes::{
-        ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST,
+        ASSOCIATION_PROPERTIES_PREFIX, CLOUD_REGION, GEN_AI_AUDIO_INPUT_TOKENS,
+        GEN_AI_AUDIO_OUTPUT_TOKENS, GEN_AI_CACHE_CREATION_1H_TOKENS,
+        GEN_AI_CACHE_CREATION_5M_TOKENS, GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST,
         GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS,
-        GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_COST,
-        SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
+        GEN_AI_REASONING_TOKENS, GEN_AI_REQUEST_BATCH, GEN_AI_REQUEST_MODEL,
+        GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_COST, OPENAI_REQUEST_SERVICE_TIER,
+        OPENAI_RESPONSE_SERVICE_TIER, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
     },
     utils::skip_span_name,
 };
@@ -239,6 +242,82 @@ impl SpanAttributes {
             Some(Value::String(s)) => Some(s.clone()),
             _ => None,
         }
+    }
+
+    /// Extract cloud region from resource attributes
+    pub fn cloud_region(&self) -> Option<String> {
+        match self.raw_attributes.get(CLOUD_REGION) {
+            Some(Value::String(s)) => Some(s.clone()),
+            _ => None,
+        }
+    }
+
+    /// Extract service tier (OpenAI flex/priority)
+    pub fn service_tier(&self) -> Option<String> {
+        // Try response tier first, then request tier
+        let tier = self
+            .raw_attributes
+            .get(OPENAI_RESPONSE_SERVICE_TIER)
+            .or_else(|| self.raw_attributes.get(OPENAI_REQUEST_SERVICE_TIER));
+        match tier {
+            Some(Value::String(s)) => {
+                let t = s.to_lowercase();
+                if t == "flex" || t == "priority" {
+                    Some(t)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Check if this is a batch request
+    pub fn is_batch_request(&self) -> bool {
+        matches!(
+            self.raw_attributes.get(GEN_AI_REQUEST_BATCH),
+            Some(Value::Bool(true))
+        )
+    }
+
+    /// Extract reasoning tokens from completion_tokens_details
+    pub fn reasoning_tokens(&self) -> i64 {
+        self.raw_attributes
+            .get(GEN_AI_REASONING_TOKENS)
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
+    }
+
+    /// Extract audio input tokens
+    pub fn audio_input_tokens(&self) -> i64 {
+        self.raw_attributes
+            .get(GEN_AI_AUDIO_INPUT_TOKENS)
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
+    }
+
+    /// Extract audio output tokens
+    pub fn audio_output_tokens(&self) -> i64 {
+        self.raw_attributes
+            .get(GEN_AI_AUDIO_OUTPUT_TOKENS)
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
+    }
+
+    /// Extract ephemeral 5-minute cache creation tokens
+    pub fn cache_creation_5m_tokens(&self) -> i64 {
+        self.raw_attributes
+            .get(GEN_AI_CACHE_CREATION_5M_TOKENS)
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
+    }
+
+    /// Extract ephemeral 1-hour cache creation tokens
+    pub fn cache_creation_1h_tokens(&self) -> i64 {
+        self.raw_attributes
+            .get(GEN_AI_CACHE_CREATION_1H_TOKENS)
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
     }
 
     pub fn provider_name(&self, span_name: &str) -> Option<String> {

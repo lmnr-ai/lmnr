@@ -31,3 +31,26 @@ pub const SPAN_IDS_PATH: &str = "lmnr.span.ids_path";
 
 pub const GEN_AI_CACHE_WRITE_INPUT_TOKENS: &str = "gen_ai.usage.cache_creation_input_tokens";
 pub const GEN_AI_CACHE_READ_INPUT_TOKENS: &str = "gen_ai.usage.cache_read_input_tokens";
+
+// Reasoning tokens from completion_tokens_details
+pub const GEN_AI_REASONING_TOKENS: &str = "gen_ai.usage.reasoning_tokens";
+
+// Audio tokens
+pub const GEN_AI_AUDIO_INPUT_TOKENS: &str = "gen_ai.usage.audio_input_tokens";
+pub const GEN_AI_AUDIO_OUTPUT_TOKENS: &str = "gen_ai.usage.audio_output_tokens";
+
+// Cache creation token details (Anthropic)
+pub const GEN_AI_CACHE_CREATION_5M_TOKENS: &str =
+    "gen_ai.usage.cache_creation_input_tokens.ephemeral_5m";
+pub const GEN_AI_CACHE_CREATION_1H_TOKENS: &str =
+    "gen_ai.usage.cache_creation_input_tokens.ephemeral_1h";
+
+// Service tier (OpenAI)
+pub const OPENAI_RESPONSE_SERVICE_TIER: &str = "openai.response.service_tier";
+pub const OPENAI_REQUEST_SERVICE_TIER: &str = "openai.request.service_tier";
+
+// Batch request
+pub const GEN_AI_REQUEST_BATCH: &str = "gen_ai.request.batch";
+
+// Cloud region (resource attribute)
+pub const CLOUD_REGION: &str = "cloud.region";
