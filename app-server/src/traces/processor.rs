@@ -71,6 +71,9 @@ pub async fn process_span_messages(
     if is_feature_enabled(Feature::Storage) && config.is_none() {
         let storage_futures = spans
             .iter_mut()
+            // only upload non-llm spans to avoid parsing issues with
+            // llm-span-specific features, such as debugger
+            .filter(|span| !span.is_llm_span())
             .map(|span| {
                 let project_id: Uuid = span.project_id;
                 let queue_clone = queue.clone();
