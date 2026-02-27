@@ -20,6 +20,7 @@ interface FilterSearchInputProps {
   className?: string;
   resource?: "traces" | "spans";
   disableHotKey?: boolean;
+  disabled?: boolean;
 }
 
 const FilterSearchInput = ({
@@ -27,6 +28,7 @@ const FilterSearchInput = ({
   className,
   resource = "traces",
   disableHotKey,
+  disabled,
 }: FilterSearchInputProps) => {
   const router = useRouter();
   const pathname = usePathname();
@@ -243,6 +245,7 @@ const FilterSearchInput = ({
       className={cn(
         "flex items-start gap-2 px-1 rounded-md border border-input relative",
         "bg-muted/80 transition duration-250 py-0.75",
+        disabled && "opacity-50 pointer-events-none",
         className
       )}
       onClick={() => mainInputRef.current?.focus()}
@@ -270,6 +273,7 @@ const FilterSearchInput = ({
           onFocus={() => setIsOpen(true)}
           onBlur={handleInputBlur}
           onKeyDown={handleKeyDown}
+          disabled={disabled}
           placeholder={tags.length === 0 ? placeholder : ""}
           className={cn(
             "flex-1 min-w-[100px] h-6 bg-transparent text-xs outline-none",
