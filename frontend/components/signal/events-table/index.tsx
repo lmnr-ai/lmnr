@@ -238,7 +238,7 @@ function PureEventsTable() {
         fetchNextPage={fetchNextPage}
         loadMoreButton
         estimatedRowHeight={80}
-        emptyRow={getEmptyRow({ pastHours, startDate, endDate })}
+        emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={eventsTableFilters} />

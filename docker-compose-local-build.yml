@@ -120,6 +120,7 @@ services:
       QUICKWIT_SEARCH_URL: http://quickwit:7280
       QUICKWIT_INGEST_URL: http://quickwit:7281
       QUICKWIT_SPANS_INDEX_ID: spans
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
 
   frontend:
     build:
@@ -147,6 +148,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
       QUICKWIT_SEARCH_URL: http://quickwit:7280
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
 
 volumes:
   clickhouse-data:

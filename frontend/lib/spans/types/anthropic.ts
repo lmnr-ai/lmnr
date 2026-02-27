@@ -283,8 +283,9 @@ export const convertAnthropicToPlaygroundMessages = async (
             case "search_result":
               content.push({
                 type: "text",
-                text: `[Search result: ${block.title}]\nSource: ${block.source}\n${typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
-                  }`,
+                text: `[Search result: ${block.title}]\nSource: ${block.source}\n${
+                  typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
+                }`,
               });
               break;
           }

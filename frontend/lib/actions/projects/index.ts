@@ -5,6 +5,7 @@ import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import defaultCharts from "@/lib/db/default-charts";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { type Project } from "@/lib/workspaces/types";
 
 export const CreateProjectSchema = z.object({
@@ -25,7 +26,7 @@ export async function createProject(input: z.infer<typeof CreateProjectSchema>) 
         .limit(1)
         .for("update");
 
-      if (workspace?.tierName.trim().toLowerCase() === "free") {
+      if (isFeatureEnabled(Feature.SUBSCRIPTION) && workspace?.tierName.trim().toLowerCase() === "free") {
         const existingProjects = await tx
           .select({ id: projects.id })
           .from(projects)

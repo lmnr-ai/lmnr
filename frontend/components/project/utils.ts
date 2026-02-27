@@ -8,7 +8,6 @@ import {
   Radio,
   Rows4,
   Settings,
-  SquareFunction,
   SquareTerminal,
 } from "lucide-react";
 
@@ -32,11 +31,6 @@ export const getSidebarMenus = (projectId: string) => [
     name: "evaluations",
     href: `/project/${projectId}/evaluations`,
     icon: FlaskConical,
-  },
-  {
-    name: "evaluators",
-    href: `/project/${projectId}/evaluators`,
-    icon: SquareFunction,
   },
   {
     name: "datasets",

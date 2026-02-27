@@ -8,23 +8,16 @@ export const enum Feature {
   LOCAL_DB = "LOCAL_DB",
   FULL_BUILD = "FULL_BUILD",
   SUBSCRIPTION = "SUBSCRIPTION",
+  DEPLOYMENT = "DEPLOYMENT",
+  SIGNALS = "SIGNALS",
   SLACK = "SLACK",
   LANDING = "LANDING",
-  PATTERNS = "PATTERNS",
-  SIGNALS = "SIGNALS",
-  ADDONS = "ADDONS",
-  BILLING = "BILLING",
-  DEPLOYMENT = "DEPLOYMENT",
 }
 
 // right now all managed-version features are disabled in local environment
 export const isFeatureEnabled = (feature: Feature) => {
   if (feature === Feature.LANDING) {
     return process.env.ENVIRONMENT === "PRODUCTION" ? true : false;
-  }
-
-  if (feature === Feature.PATTERNS) {
-    return process.env.ENVIRONMENT === "PRODUCTION";
   }
 
   if (feature === Feature.EMAIL_AUTH) {
@@ -56,7 +49,15 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.SUBSCRIPTION) {
-    return process.env.ENVIRONMENT === "PRODUCTION" && !!process.env.STRIPE_SECRET_KEY;
+    return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.DEPLOYMENT) {
+    return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.SIGNALS) {
+    return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   }
 
   if (feature === Feature.SEND_EMAIL) {
@@ -75,18 +76,6 @@ export const isFeatureEnabled = (feature: Feature) => {
 
   if (feature === Feature.POSTHOG) {
     return process.env.POSTHOG_TELEMETRY === "true";
-  }
-
-  if (feature === Feature.ADDONS) {
-    return process.env.LAMINAR_CLOUD === "true";
-  }
-
-  if (feature === Feature.BILLING) {
-    return process.env.LAMINAR_CLOUD === "true";
-  }
-
-  if (feature === Feature.DEPLOYMENT) {
-    return process.env.LAMINAR_CLOUD === "true";
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";

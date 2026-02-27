@@ -11,13 +11,15 @@ import ProjectSidebarContent from "./content";
 
 interface ProjectSidebarProps {
   details: ProjectDetails;
+  isSubscription: boolean;
+  isSignals: boolean;
 }
 
-export default function ProjectSidebar({ details }: ProjectSidebarProps) {
+export default function ProjectSidebar({ details, isSubscription, isSignals }: ProjectSidebarProps) {
   return (
     <Sidebar className="border-none" collapsible="icon">
       <ProjectSidebarHeader workspaceId={details.workspaceId} projectId={details.id} />
-      <ProjectSidebarContent details={details} />
+      <ProjectSidebarContent details={details} isSubscription={isSubscription} isSignals={isSignals} />
       <SidebarFooter />
     </Sidebar>
   );

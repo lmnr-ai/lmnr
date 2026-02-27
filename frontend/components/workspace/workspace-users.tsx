@@ -35,6 +35,7 @@ interface WorkspaceUsersProps {
   workspace: WorkspaceWithOptionalUsers;
   isOwner: boolean;
   currentUserRole: WorkspaceRole;
+  isSubscription: boolean;
 }
 
 type DialogState = {
@@ -42,7 +43,13 @@ type DialogState = {
   targetUser?: WorkspaceUser;
 };
 
-export default function WorkspaceUsers({ invitations, workspace, isOwner, currentUserRole }: WorkspaceUsersProps) {
+export default function WorkspaceUsers({
+  invitations,
+  workspace,
+  isOwner,
+  currentUserRole,
+  isSubscription,
+}: WorkspaceUsersProps) {
   const user = useUserContext();
   const { toast } = useToast();
   const router = useRouter();
@@ -196,7 +203,7 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
             description={`${users.length} member${users.length > 1 ? "s" : ""} in this workspace`}
           />
           {canManageUsers &&
-            (isFreeTier ? (
+            (isSubscription && isFreeTier ? (
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>

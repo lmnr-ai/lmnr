@@ -3,7 +3,13 @@ import { type z } from "zod/v4";
 
 import { type AnthropicContentBlockSchema, type AnthropicMessageSchema } from "@/lib/spans/types/anthropic";
 
-import { ImageContentPart, TextContentPart, ThinkingContentPart, ToolCallContentPart, ToolResultContentPart } from "./common";
+import {
+  ImageContentPart,
+  TextContentPart,
+  ThinkingContentPart,
+  ToolCallContentPart,
+  ToolResultContentPart,
+} from "./common";
 
 const AnthropicPartRenderer = ({
   block,
@@ -103,8 +109,9 @@ const AnthropicPartRenderer = ({
     }
 
     case "search_result": {
-      const searchText = `[Search result: ${block.title}]\nSource: ${block.source}\n${typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
-        }`;
+      const searchText = `[Search result: ${block.title}]\nSource: ${block.source}\n${
+        typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
+      }`;
       return (
         <TextContentPart
           content={searchText}

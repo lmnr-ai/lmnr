@@ -1,6 +1,7 @@
 "use client";
 
 import { type MotionValue } from "framer-motion";
+
 import StaggeredPath from "./staggered-path";
 
 const PATHS = [

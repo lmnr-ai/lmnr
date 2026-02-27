@@ -1,6 +1,7 @@
 "use client";
 
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
+import { SquareArrowOutUpRight } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -12,6 +13,7 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { type DatasetInfo } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -69,6 +71,31 @@ const datasetsTableFilters: ColumnFilter[] = [
 ];
 
 const FETCH_SIZE = 50;
+
+const EmptyRow = (
+  <TableRow className="flex">
+    <TableCell className="text-center p-4 rounded-b w-full h-auto">
+      <div className="flex flex-1 justify-center">
+        <div className="flex flex-col gap-2 items-center max-w-md">
+          <h3 className="text-base font-medium text-secondary-foreground">No datasets yet</h3>
+          <p className="text-sm text-muted-foreground text-center">
+            Datasets store collections of datapoints for evaluations and fine-tuning. Click + Dataset above to create
+            one.
+          </p>
+          <a
+            href="https://docs.laminar.sh/datasets/introduction"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            Learn more
+            <SquareArrowOutUpRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </div>
+    </TableCell>
+  </TableRow>
+);
 
 function DatasetsContent() {
   const { projectId } = useParams();
@@ -193,6 +220,7 @@ function DatasetsContent() {
             }}
             onRowSelectionChange={setRowSelection}
             lockedColumns={["__row_selection"]}
+            emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
             selectionPanel={(selectedRowIds) => (
               <div className="flex flex-col space-y-2">
                 <DeleteSelectedRows

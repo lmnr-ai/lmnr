@@ -246,7 +246,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
                 typeof fullSpan.input === "string" ? fullSpan.input : JSON.stringify(fullSpan.input, null, 2);
               setParamValue(inputStr);
             })
-            .catch(() => { });
+            .catch(() => {});
         }
 
         if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
@@ -385,7 +385,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
   if (traceError) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <Header spans={[]} onSearch={() => { }} />
+        <Header spans={[]} onSearch={() => {}} />
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
           <div className="max-w-md mx-auto">
             <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />

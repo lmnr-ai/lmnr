@@ -13,7 +13,7 @@ import { type WorkspaceStats } from "@/lib/actions/usage/types";
 
 interface WorkspaceUsageProps {
   workspaceStats: WorkspaceStats;
-  isBillingEnabled: boolean;
+  isSubscription: boolean;
 }
 
 const TIER_USAGE_HINTS: Record<
@@ -68,7 +68,7 @@ const getUsageDescription = (tierName?: string): string => {
   return `${tierHint} ${tierHintOverages}`;
 };
 
-export default function WorkspaceUsage({ workspaceStats, isBillingEnabled }: WorkspaceUsageProps) {
+export default function WorkspaceUsage({ workspaceStats, isSubscription }: WorkspaceUsageProps) {
   const { setMenu } = useWorkspaceMenuContext();
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
   const gbLimit = workspaceStats?.gbLimit ?? 0;
@@ -162,7 +162,7 @@ export default function WorkspaceUsage({ workspaceStats, isBillingEnabled }: Wor
         </div>
       </SettingsSection>
 
-      {isBillingEnabled && (
+      {isSubscription && (
         <SettingsSection>
           <div className="flex items-center gap-2 text-sm text-secondary-foreground">
             <span>Need to upgrade or manage your subscription?</span>

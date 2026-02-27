@@ -1,12 +1,13 @@
 "use client";
 
 import { type MotionValue } from "framer-motion";
+
 import StaggeredPath from "./staggered-path";
 
 const Y_VALUES = [0.5, 12.5996, 24.6992, 36.8008, 48.9004, 61];
 
 // Hardcoded random-ish start offsets (up to +/-0.25 range)
-const OFFSETS = [-0.14, 0.19, -0.06, 0.22, -0.20, 0.11];
+const OFFSETS = [-0.14, 0.19, -0.06, 0.22, -0.2, 0.11];
 
 /** Straight horizontal lines (between definition & events) */
 const AnimatedThreads1 = ({ progress }: { progress: MotionValue<number> }) => (

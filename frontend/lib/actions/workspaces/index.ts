@@ -94,7 +94,7 @@ export const getWorkspaces = async (): Promise<Workspace[]> => {
 
   let addons: { workspaceId: string; addonSlug: string }[] = [];
 
-  if (isFeatureEnabled(Feature.ADDONS)) {
+  if (isFeatureEnabled(Feature.SUBSCRIPTION)) {
     addons = await db
       .select({ workspaceId: workspaceAddons.workspaceId, addonSlug: workspaceAddons.addonSlug })
       .from(workspaceAddons)
