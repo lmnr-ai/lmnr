@@ -947,8 +947,8 @@ impl Span {
     }
 
     pub fn is_llm_span(&self) -> bool {
-        self.span_type == SpanType::LLM
-            || (self.span_type == SpanType::Cached
+        self.attributes.span_type() == SpanType::LLM
+            || (self.attributes.span_type() == SpanType::Cached
                 && self
                     .attributes
                     .raw_attributes
