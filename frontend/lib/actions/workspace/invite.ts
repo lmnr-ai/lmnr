@@ -50,7 +50,7 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
 
   await checkUserWorkspaceRole({ workspaceId, roles: ["admin", "owner"] });
 
-  if (!isFeatureEnabled(Feature.SUBSCRIPTION)) {
+  if (!isFeatureEnabled(Feature.SEND_EMAIL)) {
     return addExistingUserToWorkspace(workspaceId, email);
   }
 
