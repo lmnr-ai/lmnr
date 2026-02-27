@@ -23,13 +23,13 @@ export default function Pricing() {
       id: "data-calculation",
       question: "How is data usage calculated?",
       answer:
-        "Data usage is calculated from text and image data processed in traces, evaluations, and datasets. Note that pricing calculator does not take into account stored images and is an approximation of the total data usage.",
+        "Data usage is calculated from text and image data processed in traces, evaluations, and datasets. Note that the pricing calculator does not take into account stored images and is an approximation of the total data usage.",
     },
     {
-      id: "span",
-      question: "What is a span?",
+      id: "signal-run",
+      question: "What is a signal run?",
       answer:
-        "A span represents a unit of work or operation in your application. In the context of tracing, single LLM call or function tool call is a span. In case of evaluations, executor run and evaluator run are spans.",
+        "A signal run is a single execution of a signal job — for example, running an LLM-as-a-judge evaluator on one datapoint. The average cost per signal run is approximately $0.005.",
     },
   ];
 
@@ -40,10 +40,11 @@ export default function Pricing() {
           <PricingCard
             className="text-landing-text-200"
             title="Free"
-            price="0 / month"
+            price="$0 / month"
             featureClassName="text-landing-text-200"
             subfeatureClassName="text-landing-text-400"
-            features={["1GB data / month", "15 day data retention", "1 team member", "Community support"]}
+            features={["1 GB data", "100 signal runs", "15 day retention", "1 project", "1 seat", "Community support"]}
+            subfeatures={["no overage", "no overage", null, null, null, null]}
           />
           <Link href="/projects">
             <LandingButton variant="outline" className="w-full">
@@ -55,16 +56,18 @@ export default function Pricing() {
           <PricingCard
             className="text-landing-text-200"
             title="Hobby"
-            price="$25 / month"
+            price="$30 / month"
             featureClassName="text-landing-text-200"
             subfeatureClassName="text-landing-text-400"
             features={[
-              "2GB data / month included",
-              "30 day data retention",
-              "2 team members",
-              "Priority email support",
+              "3 GB data included",
+              "1,000 signal runs included",
+              "30 day retention",
+              "Unlimited projects",
+              "Unlimited seats",
+              "Email support",
             ]}
-            subfeatures={["then $2 per 1GB of additional data", null, null]}
+            subfeatures={["then $2 / GB", "then $0.02 / run", null, null, null, null]}
           />
           <Link href="/projects">
             <LandingButton variant="outline" className="w-full">
@@ -76,20 +79,25 @@ export default function Pricing() {
           <PricingCard
             className="z-20"
             title="Pro"
-            price="$50 / month"
+            price="$150 / month"
             titleClassName="text-landing-text-100"
             featureClassName="text-landing-text-100"
             subfeatureClassName="text-landing-text-100"
             features={[
-              "5GB data / month included",
-              "90 day data retention",
-              "3 team members included",
-              "Private Slack channel",
+              "10 GB data included",
+              "10,000 signal runs included",
+              "90 day retention",
+              "Unlimited projects",
+              "Unlimited seats",
+              "Slack support",
             ]}
-            subfeatures={["then $2 per 1GB of additional data", null, "then $25 per additional team member"]}
+            subfeatures={["then $1.50 / GB", "then $0.015 / run", null, null, null, null]}
           />
           <Link href="/projects" className="w-full z-20">
-            <LandingButton variant="primary" className="w-full bg-landing-text-100 text-landing-surface-900 hover:bg-landing-text-200">
+            <LandingButton
+              variant="primary"
+              className="w-full bg-landing-text-100 text-landing-surface-900 hover:bg-landing-text-200"
+            >
               GET STARTED
             </LandingButton>
           </Link>
@@ -101,7 +109,7 @@ export default function Pricing() {
             price="Custom"
             featureClassName="text-landing-text-200"
             subfeatureClassName="text-landing-text-400"
-            features={["Custom data retention", "Custom team members", "On-premise deployment", "Dedicated support"]}
+            features={["Custom limits", "On-premise", "Unlimited projects", "Unlimited seats", "Dedicated support"]}
           />
           <Link href="mailto:founders@lmnr.ai?subject=Enterprise%20Inquiry">
             <LandingButton variant="outline" className="w-full">

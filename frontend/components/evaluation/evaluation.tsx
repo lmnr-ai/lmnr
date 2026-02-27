@@ -1,4 +1,5 @@
 "use client";
+
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable, type ResizeCallback } from "re-resizable";
@@ -10,19 +11,13 @@ import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
-import TraceViewNavigationProvider, {
-  getTraceWithDatapointConfig,
-} from "@/components/traces/trace-view/navigation-context";
+import { useEvalStore } from "@/components/evaluation/store";
 import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
-import {
-  type Evaluation as EvaluationType,
-  type EvaluationDatapointPreviewWithCompared,
-  type EvaluationResultsInfo,
-} from "@/lib/evaluation/types";
+import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
@@ -45,6 +40,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const search = searchParams.get("search");
   const filter = searchParams.getAll("filter");
   const searchIn = searchParams.getAll("searchIn");
+  const sortBy = searchParams.get("sortBy");
+  const sortDirection = searchParams.get("sortDirection");
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
   const [traceId, setTraceId] = useState<string | undefined>(undefined);
@@ -53,27 +50,21 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   // Pagination state
   const pageSize = 50;
 
+  // Store
+  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
+  const setIsComparison = useEvalStore((s) => s.setIsComparison);
+  const setIsShared = useEvalStore((s) => s.setIsShared);
+  const columnDefs = useEvalStore((s) => s.columnDefs);
+  const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
+  const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
+
   // Statistics URL (fetches all stats at once)
   const statsUrl = useMemo(() => {
-    let url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
-    const urlParams = new URLSearchParams();
-
-    if (search) {
-      urlParams.set("search", search);
-    }
-
-    searchIn.forEach((value) => {
-      urlParams.append("searchIn", value);
-    });
-
-    filter.forEach((f) => urlParams.append("filter", f));
-
-    if (urlParams.toString()) {
-      url += `?${urlParams.toString()}`;
-    }
-
-    return url;
-  }, [params?.projectId, evaluationId, search, searchIn, filter]);
+    const base = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
+    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const qs = urlParams.toString();
+    return qs ? `${base}?${qs}` : base;
+  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: EvaluationType;
@@ -85,35 +76,43 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   // Target statistics URL (if comparing)
   const targetStatsUrl = useMemo(() => {
     if (!targetId) return null;
+    const base = `/api/projects/${params?.projectId}/evaluations/${targetId}/stats`;
+    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const qs = urlParams.toString();
+    return qs ? `${base}?${qs}` : base;
+  }, [params?.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
 
-    let url = `/api/projects/${params?.projectId}/evaluations/${targetId}/stats`;
-    const urlParams = new URLSearchParams();
-
-    if (search) {
-      urlParams.set("search", search);
-    }
-
-    searchIn.forEach((value) => {
-      urlParams.append("searchIn", value);
-    });
-
-    filter.forEach((f) => urlParams.append("filter", f));
-
-    if (urlParams.toString()) {
-      url += `?${urlParams.toString()}`;
-    }
-
-    return url;
-  }, [params?.projectId, targetId, search, searchIn, filter]);
-
-  const { data: targetStatsData, isLoading: isTargetStatsLoading } = useSWR<{
+  const { data: targetStatsData } = useSWR<{
     evaluation: EvaluationType;
     allStatistics: Record<string, any>;
     allDistributions: Record<string, any>;
     scores: string[];
   }>(targetStatsUrl, swrFetcher);
 
-  const scores = statsData?.scores || [];
+  const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
+
+  // Sync comparison state from URL
+  useEffect(() => {
+    setIsComparison(!!targetId);
+  }, [targetId, setIsComparison]);
+
+  // Reset shared state — authenticated evals are not shared.
+  useEffect(() => {
+    setIsShared(false);
+  }, [setIsShared]);
+
+  const customColumns = useEvalStore((s) => s.customColumns);
+
+  // Rebuild column defs when scores or custom columns change.
+  // This must run before useInfiniteScroll's effect (declaration order).
+  useEffect(() => {
+    rebuildColumns(scores);
+  }, [scores, customColumns, rebuildColumns]);
+
+  // SQL strings from column defs — only changes when columns structurally change.
+  // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
+  // produce the same string → no spurious re-fetch.
+  const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
@@ -123,108 +122,71 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     push(`${pathName}?${params}`);
   }, [searchParams, pathName, push]);
 
-  // Fetch function for main evaluation datapoints
+  // Fetch function for datapoints — single query handles comparison via targetId
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
-      const urlParams = new URLSearchParams();
-      urlParams.set("pageNumber", pageNumber.toString());
-      urlParams.set("pageSize", pageSize.toString());
-
-      if (search) {
-        urlParams.set("search", search);
-      }
-
-      searchIn.forEach((value) => {
-        urlParams.append("searchIn", value);
+      const urlParams = buildFetchParams({
+        search,
+        searchIn,
+        filter,
+        sortBy,
+        sortDirection,
+        targetId,
+        pageNumber,
+        pageSize,
       });
-
-      filter.forEach((f) => urlParams.append("filter", f));
 
       const url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch datapoints.");
+      }
       const data: EvaluationResultsInfo = await response.json();
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, params?.projectId, evaluationId, pageSize]
+    [
+      search,
+      searchIn,
+      filter,
+      params?.projectId,
+      evaluationId,
+      pageSize,
+      sortBy,
+      sortDirection,
+      targetId,
+      buildFetchParams,
+    ]
   );
 
-  // Use infinite scroll hook for main datapoints
+  // Use infinite scroll hook — data is now EvalRow (Record<string, unknown>)
   const {
     data: allDatapoints,
     hasMore: hasMorePages,
     isFetching: isFetchingPage,
     isLoading: isLoadingDatapoints,
     fetchNextPage,
-  } = useInfiniteScroll<EvaluationDatapointPreviewWithCompared>({
+  } = useInfiniteScroll<EvalRow>({
     fetchFn: fetchDatapoints,
-    enabled: true,
-    deps: [search, filter, searchIn, evaluationId],
+    enabled: !isStatsLoading,
+    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection, targetId, columnSqls],
   });
 
-  // Dynamically fetch target datapoints to match main datapoints length
-  const targetDatapointsUrl = useMemo(() => {
-    if (!targetId || allDatapoints.length === 0) return null;
-
-    const urlParams = new URLSearchParams();
-    urlParams.set("pageNumber", "0");
-    // Fetch all items needed in one call by using allDatapoints.length as page size
-    urlParams.set("pageSize", allDatapoints.length.toString());
-
-    if (search) {
-      urlParams.set("search", search);
-    }
-
-    searchIn.forEach((value) => {
-      urlParams.append("searchIn", value);
-    });
-
-    filter.forEach((f) => urlParams.append("filter", f));
-
-    return `/api/projects/${params?.projectId}/evaluations/${targetId}?${urlParams.toString()}`;
-  }, [targetId, allDatapoints.length, search, searchIn, filter, params?.projectId]);
-
-  const { data: targetDatapointsData } = useSWR<EvaluationResultsInfo>(targetDatapointsUrl, swrFetcher);
-
-  const targetDatapoints = targetDatapointsData?.results || [];
-
-  const tableData = useMemo(() => {
-    if (targetId) {
-      return allDatapoints.map((original) => {
-        const compared = targetDatapoints.find((dp) => dp.index === original.index);
-
-        return {
-          ...original,
-          comparedStartTime: compared?.startTime,
-          comparedEndTime: compared?.endTime,
-          comparedInputCost: compared?.inputCost,
-          comparedOutputCost: compared?.outputCost,
-          comparedTotalCost: compared?.totalCost,
-          comparedId: compared?.id,
-          comparedEvaluationId: compared?.evaluationId,
-          comparedScores: compared?.scores,
-          comparedTraceId: compared?.traceId,
-        };
-      });
-    }
-    return allDatapoints;
-  }, [allDatapoints, targetDatapoints, targetId]);
-
-  const selectedRow = useMemo<undefined | EvaluationDatapointPreviewWithCompared>(
-    () => tableData?.find((row) => row.id === searchParams.get("datapointId")),
-    [searchParams, tableData]
+  const selectedRow = useMemo<EvalRow | undefined>(
+    () => allDatapoints?.find((row) => row["id"] === searchParams.get("datapointId")),
+    [searchParams, allDatapoints]
   );
 
-  const handleRowClick = useCallback((row: Row<EvaluationDatapointPreviewWithCompared>) => {
-    setTraceId(row.original.traceId);
-    setDatapointId(row.original.id);
+  const handleRowClick = useCallback((row: Row<EvalRow>) => {
+    setTraceId(row.original["traceId"] as string);
+    setDatapointId(row.original["id"] as string);
   }, []);
 
   const getRowHref = useCallback(
-    (row: Row<EvaluationDatapointPreviewWithCompared>) => {
+    (row: Row<EvalRow>) => {
       const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original.traceId);
-      params.set("datapointId", row.original.id);
+      params.set("traceId", row.original["traceId"] as string);
+      params.set("datapointId", row.original["id"] as string);
       return `${pathName}?${params.toString()}`;
     },
     [pathName, searchParams]
@@ -282,13 +244,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   }, []);
 
   return (
-    <TraceViewNavigationProvider<{ datapointId: string; traceId: string }>
-      config={getTraceWithDatapointConfig()}
-      onNavigate={(item) => {
-        setTraceId(item?.traceId);
-        setDatapointId(item?.datapointId);
-      }}
-    >
+    <>
       <Header
         path={[
           { name: "evaluations", href: `/project/${params.projectId}/evaluations` },
@@ -339,9 +295,9 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
             )}
           </div>
           <EvaluationDatapointsTable
-            isLoading={isLoadingDatapoints}
+            isLoading={isStatsLoading || isLoadingDatapoints}
             datapointId={datapointId}
-            data={tableData}
+            data={allDatapoints}
             scores={scores}
             handleRowClick={handleRowClick}
             getRowHref={getRowHref}
@@ -371,8 +327,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
                       <SelectValue placeholder="Select evaluation" />
                     </SelectTrigger>
                     <SelectContent>
-                      {selectedRow?.traceId && (
-                        <SelectItem value={selectedRow.traceId}>
+                      {(selectedRow?.["traceId"] as string) && (
+                        <SelectItem value={selectedRow!["traceId"] as string}>
                           <span>
                             {statsData?.evaluation.name}
                             <span className="text-secondary-foreground text-xs ml-2">
@@ -381,8 +337,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
                           </span>
                         </SelectItem>
                       )}
-                      {selectedRow?.comparedTraceId && (
-                        <SelectItem value={selectedRow?.comparedTraceId}>
+                      {(selectedRow?.["compared:traceId"] as string) && (
+                        <SelectItem value={selectedRow!["compared:traceId"] as string}>
                           <span>
                             {targetStatsData?.evaluation.name}
                             <span className="text-secondary-foreground text-xs ml-2">
@@ -400,7 +356,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
           </Resizable>
         </div>
       )}
-    </TraceViewNavigationProvider>
+    </>
   );
 }
 

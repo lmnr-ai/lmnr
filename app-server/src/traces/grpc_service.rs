@@ -9,10 +9,11 @@ use crate::{
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
         ExportTraceServiceRequest, ExportTraceServiceResponse, trace_service_server::TraceService,
     },
+    utils::limits::get_workspace_bytes_limit_exceeded,
 };
 use tonic::{Request, Response, Status};
 
-use super::{limits::get_workspace_limit_exceeded_by_project_id, producer::push_spans_to_queue};
+use super::producer::push_spans_to_queue;
 
 pub struct ProcessTracesService {
     db: Arc<DB>,
@@ -50,7 +51,7 @@ impl TraceService for ProcessTracesService {
         let request = request.into_inner();
 
         if is_feature_enabled(Feature::UsageLimit) {
-            let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
+            let bytes_limit_exceeded = get_workspace_bytes_limit_exceeded(
                 self.db.clone(),
                 self.clickhouse.clone(),
                 self.cache.clone(),
@@ -64,17 +65,23 @@ impl TraceService for ProcessTracesService {
                 log::error!("Failed to get workspace limits: {:?}", e);
             });
 
-            if limits_exceeded.is_ok_and(|limits_exceeded| limits_exceeded.bytes_ingested) {
+            if bytes_limit_exceeded.is_ok_and(|exceeded| exceeded) {
                 return Err(Status::resource_exhausted("Workspace data limit exceeded"));
             }
         }
 
-        let response = push_spans_to_queue(request, project_id, self.queue.clone())
-            .await
-            .map_err(|e| {
-                log::error!("Failed to process traces: {:?}", e);
-                Status::internal("Failed to process traces")
-            })?;
+        let response = push_spans_to_queue(
+            request,
+            project_id,
+            self.queue.clone(),
+            self.db.clone(),
+            self.cache.clone(),
+        )
+        .await
+        .map_err(|e| {
+            log::error!("Failed to process traces: {:?}", e);
+            Status::internal("Failed to process traces")
+        })?;
 
         Ok(Response::new(response))
     }

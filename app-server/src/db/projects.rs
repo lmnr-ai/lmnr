@@ -14,6 +14,7 @@ pub struct ProjectWithWorkspaceBillingInfo {
     pub reset_time: DateTime<Utc>,
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
+    pub signal_runs_limit: i64,
 }
 
 pub async fn get_project_and_workspace_billing_info(
@@ -35,7 +36,8 @@ pub async fn get_project_and_workspace_billing_info(
             subscription_tiers.name as tier_name,
             workspaces.reset_time,
             COALESCE(workspace_project_ids.project_ids, '{}') as workspace_project_ids,
-            subscription_tiers.bytes_ingested as bytes_limit
+            subscription_tiers.bytes_ingested as bytes_limit,
+            subscription_tiers.signal_runs as signal_runs_limit
         FROM
             projects
             join workspaces on projects.workspace_id = workspaces.id

@@ -1,277 +1,370 @@
 "use client";
 
+import { Info } from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
-export default function PricingCalculator() {
-  const [tokens, setTokens] = useState(100_000_000); // Default 100 million tokens
-  const [teamMembers, setTeamMembers] = useState(1);
-  const [agentSteps, setAgentSteps] = useState(500); // agent steps per month
+const TOKEN_STEPS = [
+  100_000_000, 150_000_000, 200_000_000, 250_000_000, 300_000_000, 350_000_000, 400_000_000, 450_000_000, 500_000_000,
+  1_000_000_000, 2_500_000_000, 5_000_000_000, 10_000_000_000, 15_000_000_000, 20_000_000_000, 25_000_000_000,
+  35_000_000_000, 50_000_000_000, 75_000_000_000, 100_000_000_000, 250_000_000_000, 300_000_000_000, 333_333_333_334,
+  400_000_000_000, 500_000_000_000, 1_000_000_000_000, 1_666_666_666_667,
+];
+const SIGNAL_STEPS = [100, 500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000];
 
-  // Convert tokens to GB (1 token = 3.5 bytes)
-  const tokensToGB = (tokenCount: number) => {
-    const bytes = tokenCount * 4;
-    const gb = bytes / (1024 * 1024 * 1024); // Convert bytes to GB
-    return gb;
+const BYTES_PER_TOKEN = 3;
+const PRO_DATA_THRESHOLD_GB = 30;
+const ENTERPRISE_DATA_THRESHOLD_GB = 1000;
+const ENTERPRISE_SIGNAL_THRESHOLD = 100_000;
+
+interface TierEstimate {
+  name: string;
+  basePrice: number;
+  includedDataGB: number;
+  includedSignals: number;
+  dataOverageRate: number;
+  signalOverageRate: number;
+  dataOverageCost: number;
+  signalOverageCost: number;
+  total: number;
+  retention: string;
+  support: string;
+}
+
+function estimateDataFromTokens(tokens: number): number {
+  return (tokens * BYTES_PER_TOKEN) / 1_000_000_000;
+}
+
+function buildEstimate(
+  name: string,
+  basePrice: number,
+  includedDataGB: number,
+  includedSignals: number,
+  dataOverageRate: number,
+  signalOverageRate: number,
+  dataGB: number,
+  signalRuns: number,
+  retention: string,
+  support: string
+): TierEstimate {
+  const dataOverageCost = Math.max(0, dataGB - includedDataGB) * dataOverageRate;
+  const signalOverageCost = Math.max(0, signalRuns - includedSignals) * signalOverageRate;
+  return {
+    name,
+    basePrice,
+    includedDataGB,
+    includedSignals,
+    dataOverageRate,
+    signalOverageRate,
+    dataOverageCost,
+    signalOverageCost,
+    total: basePrice + dataOverageCost + signalOverageCost,
+    retention,
+    support,
   };
+}
 
-  // Logarithmic slider mapping
-  const tokenRanges = [
-    // Range 10M-100M: step 10M (9 positions: 14-22)
-    { min: 10_000_000, max: 100_000_000, step: 10_000_000, positions: 9 },
-    // Range 100M-1B: step 100M (9 positions: 23-31)
-    { min: 100_000_000, max: 1_000_000_000, step: 50_000_000, positions: 20 },
-    // Range 1B-10B: step 1B (9 positions: 32-40)
-    { min: 1_000_000_000, max: 10_000_000_000, step: 1_000_000_000, positions: 10 },
-  ];
+function formatTokens(tokens: number): string {
+  if (tokens >= 1_000_000_000_000) {
+    const trillions = tokens / 1_000_000_000_000;
+    return `${trillions % 1 === 0 ? trillions.toFixed(0) : trillions.toFixed(1)}T`;
+  }
+  if (tokens >= 1_000_000_000) {
+    const billions = tokens / 1_000_000_000;
+    return `${billions % 1 === 0 ? billions.toFixed(0) : billions.toFixed(1)}B`;
+  }
+  return `${(tokens / 1_000_000).toFixed(0)}M`;
+}
 
-  const positionToTokens = (position: number): number => {
-    let currentPosition = 0;
+function formatNumber(n: number): string {
+  return n.toLocaleString("en-US");
+}
 
-    for (const range of tokenRanges) {
-      if (position < currentPosition + range.positions) {
-        const relativePosition = position - currentPosition;
-        if (relativePosition === 0) {
-          return range.min;
-        }
-        return range.min + relativePosition * range.step;
-      }
-      currentPosition += range.positions;
-    }
+function formatDollars(n: number): string {
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
-    // Fallback to max value
-    return tokenRanges[tokenRanges.length - 1].max;
-  };
+function formatDataSize(gb: number): string {
+  if (gb >= 1000) {
+    const tb = gb / 1000;
+    return `${tb % 1 === 0 ? tb.toFixed(0) : tb.toFixed(1)} TB`;
+  }
+  if (gb < 1) return `${gb.toFixed(1)} GB`;
+  if (gb % 1 === 0) return `${gb.toFixed(0)} GB`;
+  return `${gb.toFixed(1)} GB`;
+}
 
-  const tokensToPosition = (tokenValue: number): number => {
-    let currentPosition = 0;
-
-    for (const range of tokenRanges) {
-      if (tokenValue <= range.max) {
-        if (tokenValue <= range.min) {
-          return currentPosition;
-        }
-        const relativeTokens = tokenValue - range.min;
-        const relativePosition = Math.round(relativeTokens / range.step);
-        return currentPosition + relativePosition;
-      }
-      currentPosition += range.positions;
-    }
-
-    // Fallback to max position
-    return currentPosition - 1;
-  };
-
-  const maxPosition = tokenRanges.reduce((sum, range) => sum + range.positions, 0) - 1;
-  const currentPosition = tokensToPosition(tokens);
-
-  const calculateTierAndPrice = () => {
-    const dataCount = tokensToGB(tokens); // Convert tokens to GB for calculation
-
-    let breakdown = {
-      baseTier: "",
-      basePrice: 0,
-      additionalData: 0,
-      additionalMembers: 0,
-      additionalSteps: 0,
-      total: 0,
-    };
-
-    // Free tier: 1GB data, 1 team member, 500 agent steps
-    if (dataCount <= 1 && teamMembers <= 1 && agentSteps <= 500) {
-      breakdown = {
-        baseTier: "Free",
-        basePrice: 0,
-        additionalData: 0,
-        additionalMembers: 0,
-        additionalSteps: 0,
-        total: 0,
-      };
-      return { tier: "Free", price: 0, breakdown };
-    }
-
-    // Hobby tier: 2GB data, 2 team members, 2500 agent steps
-    if (teamMembers <= 2) {
-      const basePrice = 25;
-      let additionalDataCost = 0;
-      let additionalStepsCost = 0;
-
-      // Additional data cost - changed to $2 per GB
-      if (dataCount > 2) {
-        additionalDataCost = (dataCount - 2) * 2;
-      }
-
-      // Additional agent steps cost
-      if (agentSteps > 2500) {
-        const additionalSteps = Math.ceil((agentSteps - 2500) / 100);
-        additionalStepsCost = additionalSteps;
-      }
-
-      const total = basePrice + additionalDataCost + additionalStepsCost;
-
-      breakdown = {
-        baseTier: "Hobby",
-        basePrice,
-        additionalData: additionalDataCost,
-        additionalMembers: 0,
-        additionalSteps: additionalStepsCost,
-        total,
-      };
-
-      return { tier: "Hobby", price: total, breakdown };
-    }
-
-    // Pro tier: 5GB data, 5+ team members, 5000 agent steps
-    const basePrice = 50;
-    let additionalDataCost = 0;
-    let additionalMembersCost = 0;
-    let additionalStepsCost = 0;
-
-    // Additional data cost - changed to $2 per GB
-    if (dataCount > 5) {
-      additionalDataCost = (dataCount - 5) * 2;
-    }
-
-    // Additional team members cost - changed to 5 included members
-    if (teamMembers > 3) {
-      additionalMembersCost = (teamMembers - 3) * 25;
-    }
-
-    // Additional agent steps cost
-    if (agentSteps > 5000) {
-      const additionalSteps = Math.ceil((agentSteps - 5000) / 100);
-      additionalStepsCost = additionalSteps;
-    }
-
-    const total = basePrice + additionalDataCost + additionalMembersCost + additionalStepsCost;
-
-    breakdown = {
-      baseTier: "Pro",
-      basePrice,
-      additionalData: additionalDataCost,
-      additionalMembers: additionalMembersCost,
-      additionalSteps: additionalStepsCost,
-      total,
-    };
-
-    return { tier: "Pro", price: total, breakdown };
-  };
-
-  const { tier, price, breakdown } = calculateTierAndPrice();
-
-  // Format tokens for display
-  const formatTokens = (tokenCount: number) => {
-    if (tokenCount >= 1_000_000_000) {
-      return `${(tokenCount / 1_000_000_000).toFixed(tokenCount % 1_000_000_000 === 0 ? 0 : 1)}B`;
-    }
-    if (tokenCount >= 1_000_000) {
-      return `${(tokenCount / 1_000_000).toFixed(tokenCount % 1_000_000 === 0 ? 0 : 1)}M`;
-    }
-    if (tokenCount >= 1_000) {
-      return `${(tokenCount / 1_000).toFixed(tokenCount % 1_000 === 0 ? 0 : 1)}K`;
-    }
-    return tokenCount.toLocaleString();
-  };
-
-  // Calculate estimated GB for display
-  const estimatedGB = tokensToGB(tokens);
+function RecommendedBadge({ tooltip }: { tooltip?: string }) {
+  if (tooltip) {
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="default" className="text-xs shrink-0 cursor-help gap-1">
+              Recommended
+              <Info size={11} />
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-56 text-xs leading-relaxed">
+            {tooltip}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
 
   return (
-    <div className="w-full max-w-2xl mt-16 px-4">
-      <div className="p-8 border border-landing-surface-400 rounded-lg space-y-6">
-        <div className="text-center space-y-2 flex items-center justify-between">
-          <h3 className="text-xl font-semibold font-space-grotesk text-landing-text-100">Pricing calculator</h3>
-          <div className="flex justify-center items-center gap-2">
-            <Badge
-              variant={tier === "Free" ? "outline" : tier === "Hobby" ? "outlinePrimary" : "default"}
-              className="text-sm"
-            >
-              {tier}
-            </Badge>
-            <span className="text-2xl font-bold font-space-grotesk text-landing-text-100">
-              ${price.toFixed(2)} / month
-            </span>
+    <Badge variant="default" className="text-xs shrink-0">
+      Recommended
+    </Badge>
+  );
+}
+
+function TierColumn({
+  estimate,
+  isRecommended,
+  recommendationTooltip,
+  dataGB,
+  signalRuns,
+}: {
+  estimate: TierEstimate;
+  isRecommended: boolean;
+  recommendationTooltip?: string;
+  dataGB: number;
+  signalRuns: number;
+}) {
+  const extraDataGB = Math.max(0, dataGB - estimate.includedDataGB);
+  const extraSignals = Math.max(0, signalRuns - estimate.includedSignals);
+
+  return (
+    <div
+      className={cn(
+        "flex-1 rounded-lg p-4 space-y-3",
+        isRecommended ? "border border-landing-primary-400" : "border border-landing-surface-400"
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold text-landing-text-100 font-space-grotesk text-2xl">{estimate.name}</span>
+        {isRecommended && <RecommendedBadge tooltip={recommendationTooltip} />}
+      </div>
+
+      <div className="space-y-1.5 text-sm">
+        <div>
+          <div className="flex justify-between text-landing-text-200">
+            <span>Base</span>
+            <span>${formatDollars(estimate.basePrice)}</span>
+          </div>
+          <div className="text-xs text-landing-text-400">
+            {formatDataSize(estimate.includedDataGB)} + {formatNumber(estimate.includedSignals)} runs included
           </div>
         </div>
+
+        {estimate.dataOverageCost > 0 ? (
+          <div className="flex justify-between text-landing-text-300">
+            <span>
+              {formatDataSize(extraDataGB)} × ${estimate.dataOverageRate}/GB
+            </span>
+            <span>+${formatDollars(estimate.dataOverageCost)}</span>
+          </div>
+        ) : (
+          <div className="flex justify-between text-landing-text-300">
+            <span>Data ({formatDataSize(dataGB)})</span>
+            <span>Included</span>
+          </div>
+        )}
+
+        {estimate.signalOverageCost > 0 ? (
+          <div className="flex justify-between text-landing-text-300">
+            <span>
+              {formatNumber(extraSignals)} × ${estimate.signalOverageRate}/run
+            </span>
+            <span>+${formatDollars(estimate.signalOverageCost)}</span>
+          </div>
+        ) : (
+          <div className="flex justify-between text-landing-text-300">
+            <span>Signals ({formatNumber(signalRuns)})</span>
+            <span>Included</span>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-landing-surface-400 pt-2">
+        <div className="flex justify-between font-semibold text-landing-text-100 font-space-grotesk">
+          <span>Total</span>
+          <span>${formatDollars(estimate.total)}/mo</span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 pt-1">
+        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
+          {estimate.retention} retention
+        </span>
+        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
+          {estimate.support} support
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function EnterpriseTierColumn({
+  isRecommended,
+  recommendationTooltip,
+}: {
+  isRecommended: boolean;
+  recommendationTooltip?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex-1 rounded-lg p-4 space-y-3",
+        isRecommended ? "border border-landing-primary-400" : "border border-landing-surface-400"
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold text-landing-text-100 font-space-grotesk text-2xl">Enterprise</span>
+        {isRecommended && <RecommendedBadge tooltip={recommendationTooltip} />}
+      </div>
+
+      <div className="space-y-1.5 text-sm">
+        <div>
+          <div className="flex justify-between text-landing-text-200">
+            <span>Base</span>
+            <span>Custom</span>
+          </div>
+          <div className="text-xs text-landing-text-400">1 TB data + 100,000 runs included</div>
+        </div>
+        <div className="flex justify-between text-landing-text-300">
+          <span>Data (1 TB)</span>
+          <span>Included</span>
+        </div>
+        <div className="flex justify-between text-landing-text-300">
+          <span>Signals (100,000)</span>
+          <span>Included</span>
+        </div>
+      </div>
+
+      <div className="border-t border-landing-surface-400 pt-2">
+        <div className="flex justify-between font-semibold text-landing-text-100 font-space-grotesk">
+          <span>Total</span>
+          <span>Custom</span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 pt-1">
+        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
+          Custom retention
+        </span>
+        <span className="inline-flex items-center rounded-md border border-landing-primary-400/40 bg-landing-primary-400/10 px-2.5 py-1 text-xs font-semibold text-landing-text-100">
+          Dedicated support
+        </span>
+      </div>
+    </div>
+  );
+}
+
+type CalculatorState = "free" | "hobby" | "pro" | "enterprise";
+
+function getCalculatorState(dataGB: number, signalRuns: number, hobbyTotal: number, proTotal: number): CalculatorState {
+  if (dataGB <= 1 && signalRuns <= 100) return "free";
+  if (dataGB >= ENTERPRISE_DATA_THRESHOLD_GB || signalRuns >= ENTERPRISE_SIGNAL_THRESHOLD) return "enterprise";
+  if (dataGB >= PRO_DATA_THRESHOLD_GB || proTotal < hobbyTotal) return "pro";
+  return "hobby";
+}
+
+export default function PricingCalculator() {
+  const [tokenIdx, setTokenIdx] = useState(0);
+  const [signalIdx, setSignalIdx] = useState(0);
+
+  const tokens = TOKEN_STEPS[tokenIdx];
+  const dataGB = estimateDataFromTokens(tokens);
+  const signalRuns = SIGNAL_STEPS[signalIdx];
+
+  const free = buildEstimate("Free", 0, 1, 100, 0, 0, dataGB, signalRuns, "15-day", "Community");
+  const hobby = buildEstimate("Hobby", 30, 3, 1_000, 2, 0.02, dataGB, signalRuns, "30-day", "Email");
+  const pro = buildEstimate("Pro", 150, 10, 10_000, 1.5, 0.015, dataGB, signalRuns, "90-day", "Slack");
+
+  const state = getCalculatorState(dataGB, signalRuns, hobby.total, pro.total);
+
+  const freeTooltip = "Your usage fits within the Free tier — no payment needed.";
+  const hobbyTooltip = "Most teams at this usage level choose Hobby as the safer, more predictable option.";
+  const proTooltip = "Most teams at this usage level choose Pro as the safer, more predictable option.";
+  const enterpriseTooltip = "Most teams at this scale choose Enterprise as the safer, more cost-effective option.";
+
+  return (
+    <div className="w-full max-w-xl mt-16 px-4">
+      <div className="p-8 border border-landing-surface-400 rounded-lg space-y-6">
+        <h3 className="text-xl font-semibold font-space-grotesk text-landing-text-100">Pricing calculator</h3>
 
         <div className="space-y-6 font-medium">
           <div className="space-y-2">
             <div className="flex justify-between">
               <span className="font-medium text-landing-text-100">Tokens per month</span>
-              <span className="font-medium text-landing-text-100">{formatTokens(tokens)} tokens</span>
-            </div>
-            <div className="text-sm text-landing-text-300 mb-2 font-semibold">≈ {estimatedGB.toFixed(2)} GB</div>
-            <div className="text-xs text-landing-text-300 mb-2">
-              * Based on ~4 bytes per token (approximation, excludes stored images)
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-landing-text-100">{formatTokens(tokens)}</span>
+                <span className="text-sm text-landing-text-300">≈ {formatDataSize(dataGB)}</span>
+              </div>
             </div>
             <Slider
-              value={[currentPosition]}
-              max={maxPosition}
+              value={[tokenIdx]}
+              max={TOKEN_STEPS.length - 1}
               min={0}
               step={1}
-              onValueChange={(value) => setTokens(positionToTokens(value[0]))}
+              onValueChange={(v) => setTokenIdx(v[0])}
               className="w-full"
             />
           </div>
 
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-landing-text-100">Team members</span>
-              <span className="font-medium text-landing-text-100">{teamMembers}</span>
+              <span className="font-medium text-landing-text-100">Signal runs per month</span>
+              <span className="font-medium text-landing-text-100">{formatNumber(signalRuns)}</span>
             </div>
             <Slider
-              value={[teamMembers]}
-              max={10}
-              min={1}
+              value={[signalIdx]}
+              max={SIGNAL_STEPS.length - 1}
+              min={0}
               step={1}
-              onValueChange={(value) => setTeamMembers(value[0])}
+              onValueChange={(v) => setSignalIdx(v[0])}
               className="w-full"
             />
           </div>
         </div>
-        {/* Pricing Breakdown */}
-        {breakdown && (
-          <div className="border-t border-landing-surface-400 pt-4 space-y-3">
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between text-landing-text-100">
-                <span>{breakdown.baseTier} tier (base)</span>
-                <span>${breakdown.basePrice.toFixed(2)}</span>
-              </div>
 
-              {breakdown.additionalData > 0 && (
-                <div className="flex justify-between text-landing-text-300">
-                  <span>Additional data ({(breakdown.additionalData / 2).toFixed(2)}GB)</span>
-                  <span>+${breakdown.additionalData.toFixed(2)}</span>
-                </div>
-              )}
-
-              {breakdown.additionalMembers > 0 && (
-                <div className="flex justify-between text-landing-text-300">
-                  <span>Additional team members ({teamMembers - 5})</span>
-                  <span>+${breakdown.additionalMembers.toFixed(2)}</span>
-                </div>
-              )}
-
-              {breakdown.additionalSteps > 0 && (
-                <div className="flex justify-between text-landing-text-300">
-                  <span>
-                    Additional agent steps ({Math.ceil((agentSteps - (tier === "Hobby" ? 2500 : 5000)) / 100) * 100})
-                  </span>
-                  <span>+${breakdown.additionalSteps.toFixed(2)}</span>
-                </div>
-              )}
-
-              {(breakdown.additionalData > 0 || breakdown.additionalMembers > 0 || breakdown.additionalSteps > 0) && (
-                <div className="flex justify-between font-medium pt-2 border-t border-landing-surface-400 text-landing-text-100">
-                  <span>Total</span>
-                  <span>${breakdown.total.toFixed(2)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <div className="border-t border-landing-surface-400 pt-4">
+          {state === "free" && (
+            <TierColumn
+              estimate={free}
+              isRecommended
+              recommendationTooltip={freeTooltip}
+              dataGB={dataGB}
+              signalRuns={signalRuns}
+            />
+          )}
+          {state === "hobby" && (
+            <TierColumn
+              estimate={hobby}
+              isRecommended
+              recommendationTooltip={hobbyTooltip}
+              dataGB={dataGB}
+              signalRuns={signalRuns}
+            />
+          )}
+          {state === "pro" && (
+            <TierColumn
+              estimate={pro}
+              isRecommended
+              recommendationTooltip={proTooltip}
+              dataGB={dataGB}
+              signalRuns={signalRuns}
+            />
+          )}
+          {state === "enterprise" && <EnterpriseTierColumn isRecommended recommendationTooltip={enterpriseTooltip} />}
+        </div>
       </div>
     </div>
   );

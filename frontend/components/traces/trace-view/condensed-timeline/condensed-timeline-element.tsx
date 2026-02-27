@@ -1,7 +1,7 @@
 import React, { memo, useMemo } from "react";
 
-import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store";
-import { type CondensedTimelineSpan } from "@/components/traces/trace-view/trace-view-store-utils";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
+import { type CondensedTimelineSpan } from "@/components/traces/trace-view/store/utils";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 

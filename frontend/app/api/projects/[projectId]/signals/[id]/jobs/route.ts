@@ -3,6 +3,7 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils.ts";
 import { createSignalJob, getSignalJobs, GetSignalJobsSchema } from "@/lib/actions/signal-jobs";
+import { checkSignalRunsLimit } from "@/lib/actions/usage/limits";
 
 export async function GET(
   req: NextRequest,
@@ -50,6 +51,10 @@ export async function POST(
 
   try {
     const body = await req.json();
+    const tracesCount = Number(body.tracesCount) || 0;
+
+    await checkSignalRunsLimit(projectId, tracesCount);
+
     const result = await createSignalJob({
       ...body,
       projectId,

@@ -1,6 +1,6 @@
 import { get, isArray } from "lodash";
 
-import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { type AutocompleteSuggestion } from "@/lib/actions/autocomplete";
 
 export const STATIC_SPAN_SUGGESTIONS: AutocompleteSuggestion[] = [
@@ -25,6 +25,6 @@ export const extractSpanSuggestions = (spans: TraceViewSpan[]): AutocompleteSugg
   return [
     ...Array.from(nameSet, (name) => ({ field: "name", value: name })),
     ...Array.from(modelSet, (model) => ({ field: "model", value: model })),
-    ...Array.from(tagsSet, (tag) => ({ field: "tag", value: tag })),
+    ...Array.from(tagsSet, (tag) => ({ field: "tags", value: tag })),
   ];
 };

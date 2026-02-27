@@ -19,10 +19,10 @@ import { useParams } from "next/navigation";
 import React, { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import SQLEditor from "@/components/sql/editor";
 import ExportSqlDialog from "@/components/sql/export-sql-dialog";
 import ParametersPanel from "@/components/sql/parameters-panel";
 import { useSqlEditorStore } from "@/components/sql/sql-editor-store";
+import TemplateEditor from "@/components/sql/template-editor";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -157,7 +157,7 @@ export default function EditorPanel() {
   }, [projectId, template?.query, toast, getFormattedParameters]);
 
   useHotkeys("meta+enter,ctrl+enter", executeQuery, {
-    enableOnFormTags: ["input", "textarea"],
+    enableOnFormTags: ["input"],
     enableOnContentEditable: true,
   });
 
@@ -211,10 +211,10 @@ export default function EditorPanel() {
   return (
     <ResizablePanelGroup id="sql-editor-panels" orientation="vertical">
       <ResizablePanel className="h-full flex flex-col" defaultSize={40} minSize={20}>
-        <SQLEditor />
+        <TemplateEditor />
       </ResizablePanel>
       <ResizableHandle className="z-30 bg-transparent transition-colors duration-200" withHandle />
-      <ResizablePanel className="flex flex-col h-full mt-2" defaultSize={60} minSize={20}>
+      <ResizablePanel className="flex flex-col w-full mt-2" defaultSize={60} minSize={20}>
         <Tabs className="flex flex-col h-full overflow-hidden" defaultValue="table">
           <div className="flex items-center h-fit">
             <TabsList className="text-xs">

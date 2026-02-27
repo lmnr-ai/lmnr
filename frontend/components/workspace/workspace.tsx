@@ -2,9 +2,12 @@
 
 import Projects from "@/components/projects/projects.tsx";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
-import { type WorkspaceStats } from "@/lib/usage/types";
+import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/actions/checkout/types";
+import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
+import WorkspaceBilling from "./billing";
+import WorkspaceDeployment from "./deployment-settings/workspace-deployment.tsx";
 import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";
@@ -15,7 +18,11 @@ interface WorkspaceProps {
   workspaceStats: WorkspaceStats;
   isOwner: boolean;
   currentUserRole: WorkspaceRole;
-  workspaceFeatureEnabled: boolean;
+  subscription: SubscriptionDetails | null;
+  upcomingInvoice: UpcomingInvoiceInfo | null;
+  isSubscription: boolean;
+  isDeployment: boolean;
+  canManageBilling: boolean;
 }
 
 export default function WorkspaceComponent({
@@ -24,29 +31,39 @@ export default function WorkspaceComponent({
   workspaceStats,
   isOwner,
   currentUserRole,
-  workspaceFeatureEnabled,
+  subscription,
+  upcomingInvoice,
+  isSubscription,
+  isDeployment,
+  canManageBilling,
 }: WorkspaceProps) {
   const { menu } = useWorkspaceMenuContext();
 
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">
-        {menu === "projects" && <Projects workspaceId={workspace.id} />}
-        {workspaceFeatureEnabled && menu === "team" && (
+        {menu === "projects" && <Projects workspace={workspace} isSubscription={isSubscription} />}
+        {menu === "team" && (
           <WorkspaceUsers
             invitations={invitations}
             workspace={workspace}
-            workspaceStats={workspaceStats}
             isOwner={isOwner}
             currentUserRole={currentUserRole}
+            isSubscription={isSubscription}
           />
         )}
-        {workspaceFeatureEnabled && menu === "usage" && (
-          <WorkspaceUsage workspace={workspace} workspaceStats={workspaceStats} isOwner={isOwner} />
+        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} isSubscription={isSubscription} />}
+        {isSubscription && menu === "billing" && (
+          <WorkspaceBilling
+            workspace={workspace}
+            isOwner={isOwner}
+            canManageBilling={canManageBilling}
+            subscription={subscription}
+            upcomingInvoice={upcomingInvoice}
+          />
         )}
-        {workspaceFeatureEnabled && menu === "settings" && (
-          <WorkspaceSettings workspace={workspace} isOwner={isOwner} />
-        )}
+        {menu === "settings" && <WorkspaceSettings workspace={workspace} isOwner={isOwner} />}
+        {isDeployment && menu === "deployment" && <WorkspaceDeployment workspace={workspace} />}
       </div>
     </div>
   );

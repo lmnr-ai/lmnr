@@ -14,7 +14,13 @@ import {
 } from "@dnd-kit/core";
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
-import { getCoreRowModel, getExpandedRowModel, type RowData, useReactTable } from "@tanstack/react-table";
+import {
+  getCoreRowModel,
+  getExpandedRowModel,
+  type RowData,
+  type SortingState,
+  useReactTable,
+} from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { type PropsWithChildren, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -54,6 +60,11 @@ export function InfiniteDataTable<TData extends RowData>({
   loadingRow,
   children,
 
+  // Sort props
+  sortBy,
+  sortDirection,
+  onSort,
+
   // TableOptions props
   columns,
   data,
@@ -71,6 +82,11 @@ export function InfiniteDataTable<TData extends RowData>({
   const finalColumns = useMemo(
     () => (enableRowSelection ? [createCheckboxColumn<TData>(), ...columns] : columns),
     [columns, enableRowSelection]
+  );
+
+  const sorting: SortingState = useMemo(
+    () => (sortBy ? [{ id: sortBy, desc: sortDirection === "desc" }] : []),
+    [sortBy, sortDirection]
   );
 
   const store = useDataTableStore();
@@ -135,6 +151,7 @@ export function InfiniteDataTable<TData extends RowData>({
     columnResizeDirection: tableOptions.columnResizeDirection ?? "ltr",
     defaultColumn: {
       minSize: 32,
+      enableSorting: false,
       ...tableOptions.defaultColumn,
     },
 
@@ -143,10 +160,22 @@ export function InfiniteDataTable<TData extends RowData>({
     getExpandedRowModel: getExpandedRowModel(),
     getRowCanExpand: tableOptions.getRowCanExpand ?? (() => true),
 
+    manualSorting: true,
+    enableSorting: true,
+    onSortingChange: (updater) => {
+      if (!onSort) return;
+      const next = typeof updater === "function" ? updater(sorting) : updater;
+      if (next.length > 0) {
+        onSort(next[0].id, next[0].desc ? "desc" : "asc");
+      } else {
+        onSort("", "asc");
+      }
+    },
+
     enableRowSelection,
     enableMultiRowSelection: tableOptions.enableMultiRowSelection ?? true,
     onRowSelectionChange,
-    state: { ...state, columnVisibility, columnOrder },
+    state: { ...state, columnVisibility, columnOrder, sorting },
     onColumnVisibilityChange: (visibility) => setColumnVisibility(visibility as Record<string, boolean>),
     onColumnOrderChange: (order) => setColumnOrder(order as string[]),
   });

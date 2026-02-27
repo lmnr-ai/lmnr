@@ -2,12 +2,7 @@
 <a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
 <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./images/logo_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="./images/logo_light.png">
-  <img alt="Laminar logo" src="./images/logo_light.png">
-</picture>
-
+![Laminar banner](./images/laminar-banner.png)
 
 # Laminar
 
@@ -18,7 +13,7 @@
 - [x] Evals. [Docs](https://docs.laminar.sh/evaluations/introduction)
     - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
     - [x] UI for visualizing evals and comparing results.
-- [x] AI monitoring. [Docs](https://docs.laminar.sh/tracing/events/semantic-events)
+- [x] AI monitoring. [Docs](https://docs.laminar.sh/signals)
     - [x] Define events with natural language descriptions to track issues, logical errors, and custom behavior of your agent.
 - [x] SQL access to all data. [Docs](https://docs.laminar.sh/platform/sql-editor)
     - [x] Query traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries. Available via API.
@@ -32,7 +27,7 @@
     - [x] Ultra-fast full-text search over span data.
     - [x] gRPC exporter for tracing data.
 
-<img alt="traces" src="./images/traces.png">
+![Traces](./images/trace-screenshot.png)
 
 ## Documentation
 
@@ -57,6 +52,15 @@ or for lightweight usage. You can access the UI at http://localhost:5667 in your
 You will also need to properly configure the SDK, with `baseUrl` and correct ports. See [guide on self-hosting](https://docs.laminar.sh/hosting-options#self-hosted-docker-compose).
 
 For production environment, we recommend using our [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
+
+### Enabling the Signals feature
+
+To enable [Signals / AI monitoring](https://docs.laminar.sh/signals) in self-hosted mode, set the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable in your `.env` file. This key is required by both the app-server and the frontend.
+
+```sh
+# In .env at the repo root
+GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
+```
 
 ## Contributing
 

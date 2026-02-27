@@ -43,13 +43,15 @@ const getSpansSuggestions = async (projectId: string): Promise<AutocompleteSugge
 };
 
 const getTracesSuggestions = async (projectId: string): Promise<AutocompleteSuggestion[]> => {
-  const [names, tags] = await Promise.all([
+  const [topSpanNames, spanNames, tags] = await Promise.all([
     getSuggestions("spans", projectId, "top_span_names"),
+    getSuggestions("spans", projectId, "names"),
     getSuggestions("spans", projectId, "tags"),
   ]);
 
   return [
-    ...names.map((value) => ({ field: "top_span_name", value })),
+    ...topSpanNames.map((value) => ({ field: "top_span_name", value })),
+    ...spanNames.map((value) => ({ field: "span_names", value })),
     ...tags.map((value) => ({ field: "tags", value })),
   ];
 };

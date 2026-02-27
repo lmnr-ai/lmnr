@@ -1,0 +1,163 @@
+import React, { memo } from "react";
+import { type z } from "zod/v4";
+
+import { type AnthropicContentBlockSchema, type AnthropicMessageSchema } from "@/lib/spans/types/anthropic";
+
+import {
+  ImageContentPart,
+  TextContentPart,
+  ThinkingContentPart,
+  ToolCallContentPart,
+  ToolResultContentPart,
+} from "./common";
+
+const AnthropicPartRenderer = ({
+  block,
+  presetKey,
+  messageIndex,
+  contentPartIndex,
+}: {
+  block: z.infer<typeof AnthropicContentBlockSchema>;
+  presetKey: string;
+  messageIndex: number;
+  contentPartIndex: number;
+}) => {
+  switch (block.type) {
+    case "text":
+      return (
+        <TextContentPart
+          content={block.text}
+          presetKey={presetKey}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+        />
+      );
+
+    case "thinking":
+      return (
+        <ThinkingContentPart
+          content={block.thinking}
+          presetKey={presetKey}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+        />
+      );
+
+    case "tool_use":
+    case "server_tool_use":
+      return (
+        <ToolCallContentPart
+          toolName={block.name}
+          content={block.input ?? {}}
+          presetKey={presetKey}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+        />
+      );
+
+    case "tool_result": {
+      const resultContent = typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "");
+      return (
+        <ToolResultContentPart
+          toolCallId={block.tool_use_id}
+          content={resultContent}
+          presetKey={`${messageIndex}-tool-result-${contentPartIndex}-${presetKey}`}
+        />
+      );
+    }
+
+    case "web_search_tool_result": {
+      const searchResultContent = JSON.stringify(block.content ?? "");
+      return (
+        <ToolResultContentPart
+          toolCallId={block.tool_use_id}
+          content={searchResultContent}
+          presetKey={`${messageIndex}-tool-result-${contentPartIndex}-${presetKey}`}
+        />
+      );
+    }
+
+    case "image": {
+      if (block.source.type === "base64") {
+        const src = `data:${block.source.media_type};base64,${block.source.data}`;
+        return <ImageContentPart src={src} />;
+      }
+      return <ImageContentPart src={block.source.url} />;
+    }
+
+    case "redacted_thinking":
+      return (
+        <ThinkingContentPart
+          content="[Redacted thinking]"
+          label="Thinking (redacted)"
+          presetKey={presetKey}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+        />
+      );
+
+    case "document": {
+      const docLabel = block.title ? `[Document: ${block.title}]` : "[Document]";
+      return (
+        <TextContentPart
+          content={docLabel}
+          presetKey={presetKey}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+        />
+      );
+    }
+
+    case "search_result": {
+      const searchText = `[Search result: ${block.title}]\nSource: ${block.source}\n${
+        typeof block.content === "string" ? block.content : JSON.stringify(block.content ?? "")
+      }`;
+      return (
+        <TextContentPart
+          content={searchText}
+          presetKey={presetKey}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+        />
+      );
+    }
+  }
+};
+
+const PureAnthropicContentParts = ({
+  message,
+  parentIndex,
+  presetKey,
+}: {
+  message: z.infer<typeof AnthropicMessageSchema>;
+  parentIndex: number;
+  presetKey: string;
+}) => {
+  if (typeof message.content === "string") {
+    return (
+      <TextContentPart
+        content={message.content}
+        presetKey={`${parentIndex}-text-0-${presetKey}`}
+        messageIndex={parentIndex}
+        contentPartIndex={0}
+      />
+    );
+  }
+
+  return (
+    <>
+      {message.content.map((block, index) => (
+        <AnthropicPartRenderer
+          key={`${parentIndex}-part-${index}-${presetKey}`}
+          block={block}
+          presetKey={`${parentIndex}-part-${index}-${presetKey}`}
+          messageIndex={parentIndex}
+          contentPartIndex={index}
+        />
+      ))}
+    </>
+  );
+};
+
+const AnthropicContentParts = memo(PureAnthropicContentParts);
+export default AnthropicContentParts;

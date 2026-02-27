@@ -45,7 +45,10 @@ const GranularEvalsImage = ({ className }: Props) => {
   const barHeights = ["15%", "35%", "20%", "45%", "50%", "40%", "30%", "55%", "70%", "45%", "60%", "85%"];
 
   return (
-    <div ref={containerRef} className={cn("flex items-start overflow-hidden rounded-sm relative gap-1 bg-landing-surface-800", className)}>
+    <div
+      ref={containerRef}
+      className={cn("flex items-start overflow-hidden rounded-sm relative gap-1 bg-landing-surface-800", className)}
+    >
       {/* Left Half - BarContainer */}
       <div className="flex-1 relative h-full bg-landing-surface-700 overflow-hidden">
         {/* NumberContainer - Static in top left */}
@@ -239,14 +242,14 @@ const GranularEvalsImage = ({ className }: Props) => {
                 <li>Team members: 1</li>
                 <li>Support: Community support</li>
                 <li>Hobby</li>
-                <li>Price: $25 / month</li>
-                <li>Data: 2 GB data / month included</li>
+                <li>Price: $30 / month</li>
+                <li>Data: 3 GB data / month included</li>
                 <li>Additional data: $2 per 1 GB</li>
                 <li>Data retention: 30 days</li>
-                <li>Team members: 2</li>
+                <li>Team members: Unlimited</li>
                 <li>Support: Priority email support</li>
                 <li>Pro</li>
-                <li>Price: $50 / month</li>
+                <li>Price: $150 / month</li>
               </ul>
             </div>
 
@@ -279,7 +282,7 @@ const GranularEvalsImage = ({ className }: Props) => {
                 <div className="bg-[rgba(196,148,52,0.3)] flex items-center p-1 rounded">
                   <Bolt className="w-3 h-3 text-landing-text-300" />
                 </div>
-                <p className="text-landing-text-300 text-xs">writing to pricing_summary.md</p>
+                <p className="text-landing-text-300 text-xs">writing to pricingsummary.md</p>
               </div>
             </div>
           </div>

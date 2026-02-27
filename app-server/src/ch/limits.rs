@@ -52,17 +52,48 @@ pub async fn get_workspace_bytes_ingested_by_project_ids(
       FROM browser_session_events
       WHERE project_id IN { project_ids: Array(UUID) }
       AND browser_session_events.timestamp >= { latest_reset_time: DateTime(6) }
-    ),
-    events_bytes_ingested AS (
-      SELECT
-        SUM(events.size_bytes) as events_bytes_ingested
-      FROM events
-      WHERE project_id IN { project_ids: Array(UUID) }
-      AND events.timestamp >= { latest_reset_time: DateTime(6) }
     )
     SELECT
-      spans_bytes_ingested + browser_session_events_bytes_ingested + events_bytes_ingested as total_bytes_ingested
-    FROM spans_bytes_ingested, browser_session_events_bytes_ingested, events_bytes_ingested
+      spans_bytes_ingested + browser_session_events_bytes_ingested as total_bytes_ingested
+    FROM spans_bytes_ingested, browser_session_events_bytes_ingested
+    ";
+
+    let result = clickhouse
+        .query(&query)
+        .param("project_ids", project_ids)
+        .param("latest_reset_time", latest_reset_time.naive_utc())
+        .fetch_optional::<usize>()
+        .await?;
+
+    Ok(result.unwrap_or(0))
+}
+
+pub async fn get_workspace_signal_runs_by_project_ids(
+    clickhouse: Client,
+    project_ids: Vec<Uuid>,
+    reset_time: DateTime<Utc>,
+) -> Result<usize> {
+    let now = Utc::now();
+    let months_elapsed = complete_months_elapsed(reset_time, now);
+
+    let latest_reset_time = if months_elapsed > 0 {
+        // Unwrap is safe, because the date is unlikely to be out of range
+        // and we are using UTC, so DST is not an issue
+        reset_time
+            .checked_add_months(Months::new(months_elapsed))
+            .unwrap_or(reset_time)
+    } else {
+        reset_time
+    };
+
+    let query = "
+    SELECT
+      COUNT(*) as total_signal_runs
+    FROM signal_runs
+    WHERE project_id IN { project_ids: Array(UUID) }
+    AND signal_runs.updated_at >= { latest_reset_time: DateTime(6) }
+    -- Only count completed signal runs
+    AND signal_runs.status = 1
     ";
 
     let result = clickhouse

@@ -1,12 +1,12 @@
 import { isNil } from "lodash";
 
-import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
+  createArrayColumnFilter,
   createCustomFilter,
   createNumberFilter,
   createStringFilter,
@@ -40,19 +40,7 @@ const spansColumnFilterConfig: ColumnFilterConfig = {
         }
       ),
     ],
-    [
-      "tags",
-      createCustomFilter(
-        (filter, paramKey) => {
-          if (filter.operator === Operator.Eq) {
-            return `has(tags, {${paramKey}:String})`;
-          } else {
-            return `NOT has(tags, {${paramKey}:String})`;
-          }
-        },
-        (filter, paramKey) => ({ [paramKey]: filter.value })
-      ),
-    ],
+    ["tags", createArrayColumnFilter("String")],
     ["path", createStringFilter],
     ["model", createStringFilter],
     ["input_tokens", createNumberFilter("Float64")],
@@ -246,7 +234,7 @@ export const createParentRewiring = (
 };
 
 const applyParentRewiring = (
-  span: Omit<TraceViewSpan, "attributes"> & { attributes: string },
+  span: { spanId: string; parentSpanId?: string },
   parentRewiring: Map<string, string | undefined>
 ): string | undefined => {
   if (parentRewiring.has(span.spanId)) {
@@ -256,10 +244,11 @@ const applyParentRewiring = (
   return span.parentSpanId === "00000000-0000-0000-0000-000000000000" ? undefined : span.parentSpanId;
 };
 export const transformSpanWithEvents = (
-  span: Omit<TraceViewSpan, "attributes"> & { attributes: string },
-  spanEventsMap: Record<string, any[]>,
-  parentRewiring: Map<string, string | undefined>,
-  projectId: string
+  span: Omit<TraceViewSpan, "attributes" | "events"> & {
+    attributes: string;
+    events?: { timestamp: number; name: string; attributes: string }[];
+  },
+  parentRewiring: Map<string, string | undefined>
 ): TraceViewSpan => {
   const parsedAttributes = tryParseJson(span.attributes) || {};
   const cacheReadInputTokens = parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0;
@@ -270,9 +259,10 @@ export const transformSpanWithEvents = (
     cacheReadInputTokens,
     parentSpanId: applyParentRewiring(span, parentRewiring),
     name: span.name,
-    events: (spanEventsMap[span.spanId] || []).map((event) => ({
-      ...event,
-      projectId,
+    events: (span.events || []).map((event) => ({
+      timestamp: event.timestamp,
+      name: event.name,
+      attributes: tryParseJson(event.attributes) || {},
     })),
     collapsed: false,
   };

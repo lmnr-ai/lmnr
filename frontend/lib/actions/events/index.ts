@@ -2,68 +2,26 @@ import { compact } from "lodash";
 import { z } from "zod/v4";
 
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
-import { tryParseJson } from "@/lib/actions/common/utils";
 import { executeQuery } from "@/lib/actions/sql";
-import { type Event, type EventRow } from "@/lib/events/types";
+import { type EventRow } from "@/lib/events/types";
 
 import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
-
-const GetEventsSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
-  traceId: z.string().optional(),
-});
-
-export async function getEvents(input: z.infer<typeof GetEventsSchema>): Promise<Event[]> {
-  const { spanId, traceId, projectId } = GetEventsSchema.parse(input);
-
-  const whereConditions = [`span_id = {spanId: UUID}`];
-  const parameters: Record<string, any> = { spanId };
-
-  if (traceId) {
-    whereConditions.push(`trace_id = {traceId: UUID}`);
-    parameters.traceId = traceId;
-  }
-
-  const events = await executeQuery<{
-    id: string;
-    timestamp: string;
-    name: string;
-    attributes: string;
-    spanId: string;
-  }>({
-    query: `
-      SELECT id, formatDateTime(timestamp , '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, name, attributes, span_id spanId
-      FROM events
-      WHERE ${whereConditions.join(" AND ")}
-      ORDER BY timestamp ASC
-    `,
-    parameters,
-    projectId,
-  });
-
-  return events.map((event) => ({
-    ...event,
-    projectId,
-    attributes: tryParseJson(event.attributes),
-  }));
-}
 
 export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.string(),
-  eventName: z.string(),
+  signalId: z.string(),
 });
 
 export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginatedSchema>) {
-  const { projectId, eventName, pageSize, pageNumber, pastHours, startDate, endDate, filter } = input;
+  const { projectId, signalId, pageSize, pageNumber, pastHours, startDate, endDate, filter } = input;
 
   const filters = compact(filter);
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
 
   const { query: mainQuery, parameters: mainParams } = buildEventsQueryWithParams({
-    eventName,
+    signalId,
     filters,
     limit,
     offset,
@@ -73,7 +31,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
   });
 
   const { query: countQuery, parameters: countParams } = buildEventsCountQueryWithParams({
-    eventName,
+    signalId,
     filters,
     startTime: startDate,
     endTime: endDate,

@@ -10,7 +10,7 @@ export const GetEventStatsSchema = z.object({
   ...FiltersSchema.shape,
   ...TimeRangeSchema.shape,
   projectId: z.string(),
-  eventName: z.string(),
+  signalId: z.string(),
   intervalValue: z.coerce.number().default(1),
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
 });
@@ -25,7 +25,7 @@ export async function getEventStats(
 ): Promise<{ items: EventsStatsDataPoint[] }> {
   const {
     projectId,
-    eventName,
+    signalId,
     pastHours,
     startDate: startTime,
     endDate: endTime,
@@ -41,8 +41,8 @@ export async function getEventStats(
     params: QueryParams;
   }> = [
     {
-      condition: "name = {eventName:String}",
-      params: { eventName },
+      condition: "signal_id = {signalId:UUID}",
+      params: { signalId },
     },
   ];
 

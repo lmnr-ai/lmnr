@@ -13,8 +13,6 @@ pub enum Feature {
     Storage,
     /// Build all containers. If false, only lite part is used: app-server, postgres, frontend
     FullBuild,
-    /// Evaluators
-    Evaluators,
     RabbitMQ,
     SqlQueryEngine,
     ClickhouseReadOnly,
@@ -36,7 +34,6 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
                 .expect("ENVIRONMENT must be set")
                 .as_str(),
         ),
-        Feature::Evaluators => env::var("ONLINE_EVALUATORS_SECRET_KEY").is_ok(),
         Feature::RabbitMQ => env::var("RABBITMQ_URL").is_ok(),
         Feature::SqlQueryEngine => env::var("QUERY_ENGINE_URL").is_ok(),
         Feature::ClickhouseReadOnly => {
@@ -49,7 +46,9 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
             env::var("CLUSTERING_SERVICE_URL").is_ok()
                 && env::var("CLUSTERING_SERVICE_SECRET_KEY").is_ok()
         }
-        Feature::Signals => env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok(),
+        Feature::Signals => {
+            env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok_and(|s| !s.is_empty())
+        }
     }
 }
 

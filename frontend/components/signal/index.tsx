@@ -132,7 +132,7 @@ function SignalContent() {
         </div>
 
         <TabsContent value="events" className="flex flex-col gap-4 px-4 pb-4 overflow-auto">
-          {/* Hide clusters for now until we migrate to mew clustering system <ClustersTable /> */}
+          <ClustersTable />
           <EventsTable />
         </TabsContent>
         <TabsContent value="triggers" className="flex flex-col gap-4 px-4 pb-4 overflow-hidden">

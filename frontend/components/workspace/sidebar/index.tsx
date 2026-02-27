@@ -11,13 +11,19 @@ import { type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 interface WorkspaceSidebarProps {
   workspace: WorkspaceWithOptionalUsers;
   isOwner: boolean;
-  workspaceFeatureEnabled: boolean;
+  isSubscription: boolean;
+  isDeployment: boolean;
 }
 
-const WorkspaceSidebar = ({ workspace, isOwner, workspaceFeatureEnabled }: WorkspaceSidebarProps) => (
+const WorkspaceSidebar = ({ workspace, isOwner, isSubscription, isDeployment }: WorkspaceSidebarProps) => (
   <Sidebar className="border-none" collapsible="icon">
     <WorkspaceSidebarHeader workspace={workspace} />
-    <WorkspaceSidebarContent isOwner={isOwner} workspaceFeatureEnabled={workspaceFeatureEnabled} />
+    <WorkspaceSidebarContent
+      tier={workspace.tierName}
+      isOwner={isOwner}
+      isSubscription={isSubscription}
+      isDeployment={isDeployment}
+    />
     <SidebarFooter />
   </Sidebar>
 );

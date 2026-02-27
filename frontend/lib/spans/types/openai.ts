@@ -73,9 +73,9 @@ export const OpenAIAssistantMessageSchema = z.object({
     .optional(),
   annotations: z.array(z.string()).nullable().optional(),
   refusal: z.string().nullable().optional(),
-  content: z.union([z.string(), z.array(OpenAITextPartSchema)]).nullable(),
+  content: z.union([z.string(), z.array(OpenAITextPartSchema)]).nullable().optional(),
   name: z.string().optional(),
-  tool_calls: z.array(OpenAIToolCallPartSchema).optional(),
+  tool_calls: z.array(OpenAIToolCallPartSchema).nullable().optional(),
 });
 
 export const OpenAIToolMessageSchema = z.object({
@@ -94,6 +94,45 @@ export const OpenAIMessageSchema = z.union([
 ]);
 
 export const OpenAIMessagesSchema = z.array(OpenAIMessageSchema);
+
+
+/** Choice Schema (output format) **/
+
+// A Choice wraps a Message with generation metadata.
+// See: https://platform.openai.com/docs/api-reference/chat/object
+export const OpenAIChoiceSchema = z
+  .object({
+    message: OpenAIMessageSchema,
+    finish_reason: z.string().nullable().optional(),
+    index: z.number().optional(),
+    logprobs: z.unknown().nullable().optional(),
+  })
+  .passthrough();
+
+export const OpenAIChoicesSchema = z.array(OpenAIChoiceSchema);
+
+/** High-level input / output schemas **/
+
+export const OpenAIInputSchema = z.union([OpenAIMessageSchema, OpenAIMessagesSchema]);
+export const OpenAIOutputSchema = z.union([OpenAIChoiceSchema, OpenAIChoicesSchema]);
+
+/** Parse helpers — validate + normalise into a Messages array **/
+
+/** Try to parse `data` as OpenAI input (Message or Message[]). Returns null on mismatch. */
+export const parseOpenAIInput = (data: unknown): z.infer<typeof OpenAIMessagesSchema> | null => {
+  const result = OpenAIInputSchema.safeParse(data);
+  if (!result.success) return null;
+  return Array.isArray(result.data) ? result.data : [result.data];
+};
+
+/** Try to parse `data` as OpenAI output (Choice or Choice[]). Returns null on mismatch. */
+export const parseOpenAIOutput = (data: unknown): z.infer<typeof OpenAIMessagesSchema> | null => {
+  const result = OpenAIOutputSchema.safeParse(data);
+  if (!result.success) return null;
+  const choices = Array.isArray(result.data) ? result.data : [result.data];
+  return choices.map((c) => c.message);
+};
+
 
 const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSchema>): ModelMessage[] => {
   const store = new Map();

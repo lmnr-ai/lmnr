@@ -1,7 +1,7 @@
 import { capitalize, get } from "lodash";
 
 import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
-import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
 import { type RealtimeSpan, SpanType } from "@/lib/traces/types";
@@ -137,7 +137,7 @@ export const filterColumns: ColumnFilter[] = [
   {
     key: "tags",
     name: "Tags",
-    dataType: "string",
+    dataType: "array",
   },
   {
     key: "model",

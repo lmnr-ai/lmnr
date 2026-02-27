@@ -9,7 +9,7 @@ use crate::{
     opentelemetry_proto::opentelemetry::proto::collector::logs::v1::{
         ExportLogsServiceRequest, ExportLogsServiceResponse, logs_service_server::LogsService,
     },
-    traces::limits::get_workspace_limit_exceeded_by_project_id,
+    utils::limits::get_workspace_bytes_limit_exceeded,
 };
 use tonic::{Request, Response, Status};
 
@@ -51,7 +51,7 @@ impl LogsService for ProcessLogsService {
         let request = request.into_inner();
 
         if is_feature_enabled(Feature::UsageLimit) {
-            let limits_exceeded = get_workspace_limit_exceeded_by_project_id(
+            let bytes_limit_exceeded = get_workspace_bytes_limit_exceeded(
                 self.db.clone(),
                 self.clickhouse.clone(),
                 self.cache.clone(),
@@ -65,7 +65,7 @@ impl LogsService for ProcessLogsService {
                 log::error!("Failed to get workspace limits: {:?}", e);
             });
 
-            if limits_exceeded.is_ok_and(|limits_exceeded| limits_exceeded.bytes_ingested) {
+            if bytes_limit_exceeded.is_ok_and(|exceeded| exceeded) {
                 return Err(Status::resource_exhausted("Workspace data limit exceeded"));
             }
         }

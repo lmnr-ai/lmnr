@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
-import { type Filter } from "@/lib/actions/common/filters";
+import { type Filter, type StringFilter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators.ts";
 
 export const SIGNAL_TRIGGER_COLUMNS: ColumnFilter[] = [
@@ -20,9 +20,9 @@ export const SIGNAL_TRIGGER_COLUMNS: ColumnFilter[] = [
   { name: "Status", key: "status", dataType: "enum", options: [{ label: "Error", value: "error" }] },
 ];
 
-export const getDefaultFilter = (): Filter => {
+export const getDefaultFilter = (): StringFilter => {
   const firstColumn = SIGNAL_TRIGGER_COLUMNS[0];
-  const defaultOperator = dataTypeOperationsMap[firstColumn.dataType][0].key;
+  const defaultOperator = dataTypeOperationsMap[firstColumn.dataType][0].key as StringFilter["operator"];
   return {
     column: firstColumn.key,
     operator: defaultOperator,

@@ -4,15 +4,14 @@ export const enum Feature {
   GOOGLE_AUTH = "GOOGLE_AUTH",
   AZURE_AUTH = "AZURE_AUTH",
   EMAIL_AUTH = "EMAIL_AUTH",
-  WORKSPACE = "WORKSPACE",
   POSTHOG = "POSTHOG",
   LOCAL_DB = "LOCAL_DB",
   FULL_BUILD = "FULL_BUILD",
   SUBSCRIPTION = "SUBSCRIPTION",
+  DEPLOYMENT = "DEPLOYMENT",
+  SIGNALS = "SIGNALS",
   SLACK = "SLACK",
   LANDING = "LANDING",
-  PATTERNS = "PATTERNS",
-  SIGNALS = "SIGNALS",
 }
 
 // right now all managed-version features are disabled in local environment
@@ -21,12 +20,8 @@ export const isFeatureEnabled = (feature: Feature) => {
     return process.env.ENVIRONMENT === "PRODUCTION" ? true : false;
   }
 
-  if (feature === Feature.PATTERNS) {
-    return process.env.ENVIRONMENT === "PRODUCTION";
-  }
-
   if (feature === Feature.EMAIL_AUTH) {
-    return process.env.ENVIRONMENT !== "PRODUCTION";
+    return process.env.ENVIRONMENT !== "PRODUCTION" || process.env.FORCE_EMAIL_AUTH === "true";
   }
 
   if (feature === Feature.LOCAL_DB) {
@@ -54,7 +49,15 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.SUBSCRIPTION) {
-    return process.env.ENVIRONMENT === "PRODUCTION" && !!process.env.STRIPE_SECRET_KEY;
+    return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.DEPLOYMENT) {
+    return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.SIGNALS) {
+    return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   }
 
   if (feature === Feature.SEND_EMAIL) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, FolderClosed, type LucideIcon, Settings, Users } from "lucide-react";
+import { Activity, Cloud, CreditCard, FolderClosed, type LucideIcon, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar.tsx";
 import { useWorkspaceMenuContext, type WorkspaceMenu } from "@/components/workspace/workspace-menu-provider.tsx";
 import { cn } from "@/lib/utils.ts";
+import { type WorkspaceTier } from "@/lib/workspaces/types.ts";
 
 const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
   {
@@ -32,7 +33,16 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
     value: "team",
     icon: Users,
   },
-
+  {
+    name: "Data Residency",
+    value: "deployment",
+    icon: Cloud,
+  },
+  {
+    name: "Billing",
+    value: "billing",
+    icon: CreditCard,
+  },
   {
     name: "Settings",
     value: "settings",
@@ -42,19 +52,29 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
 
 interface WorkspaceSidebarContentProps {
   isOwner: boolean;
-  workspaceFeatureEnabled: boolean;
+  tier: WorkspaceTier;
+  isSubscription: boolean;
+  isDeployment: boolean;
 }
 
-export const WorkspaceSidebarContent = ({ isOwner, workspaceFeatureEnabled }: WorkspaceSidebarContentProps) => {
+export const WorkspaceSidebarContent = ({
+  isOwner,
+  tier,
+  isSubscription,
+  isDeployment,
+}: WorkspaceSidebarContentProps) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
   const pathName = usePathname();
-  const sidebarMenus = useMemo(() => {
-    if (!workspaceFeatureEnabled) {
-      return menus.filter((m) => m.value === "projects");
-    }
-
-    return isOwner ? menus : menus.filter((m) => m.value !== "settings");
-  }, [isOwner, workspaceFeatureEnabled]);
+  const sidebarMenus = useMemo(
+    () =>
+      menus.filter((m) => {
+        if (m.value === "settings" && !isOwner) return false;
+        if (m.value === "billing" && !isSubscription) return false;
+        if (m.value === "deployment" && !isDeployment) return false;
+        return true;
+      }),
+    [isOwner, isSubscription, isDeployment]
+  );
 
   return (
     <SidebarContent>

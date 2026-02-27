@@ -9,12 +9,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    db::project_api_keys::ProjectApiKey,
+    cache::Cache,
+    db::{DB, project_api_keys::ProjectApiKey},
     query_engine::QueryEngine,
+    routes::types::ResponseResult,
     sql::{self, ClickhouseReadonlyClient},
 };
-
-use crate::routes::types::ResponseResult;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,8 +34,11 @@ pub struct SqlQueryResponse {
 pub async fn execute_sql_query(
     req: web::Json<SqlQueryRequest>,
     project_api_key: ProjectApiKey,
+    db: web::Data<DB>,
     clickhouse_ro: web::Data<Option<Arc<ClickhouseReadonlyClient>>>,
     query_engine: web::Data<Arc<QueryEngine>>,
+    http_client: web::Data<reqwest::Client>,
+    cache: web::Data<Cache>,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
     let SqlQueryRequest { query, parameters } = req.into_inner();
@@ -52,6 +55,9 @@ pub async fn execute_sql_query(
                 parameters,
                 ro_client.clone(),
                 query_engine.into_inner().as_ref().clone(),
+                http_client.into_inner(),
+                db.into_inner(),
+                cache.into_inner(),
             )
             .await
             {

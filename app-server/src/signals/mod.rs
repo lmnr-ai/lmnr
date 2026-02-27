@@ -27,8 +27,9 @@ pub use queue::{
 
 use crate::signals::queue::SignalMessage;
 
-pub static LLM_MODEL: LazyLock<String> =
-    LazyLock::new(|| env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-2.5-flash".to_string()));
+pub static LLM_MODEL: LazyLock<String> = LazyLock::new(|| {
+    env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-3-flash-preview".to_string())
+});
 pub static LLM_PROVIDER: LazyLock<String> =
     LazyLock::new(|| env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string()));
 

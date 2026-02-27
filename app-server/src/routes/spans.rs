@@ -8,10 +8,7 @@ use uuid::Uuid;
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    db::{
-        events::Event,
-        spans::{Span, SpanType},
-    },
+    db::spans::{Span, SpanType},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     quickwit::client::QuickwitClient,
     routes::{ResponseResult, error::Error},
@@ -93,15 +90,14 @@ pub async fn create_span(
         start_time: request.start_time,
         end_time: request.end_time,
         status: None,
-        events: None,
+        events: vec![],
         tags: None,
         input_url: None,
         output_url: None,
+        size_bytes: 0,
     };
 
-    let events: Vec<Event> = vec![];
-
-    let rabbitmq_span_message = RabbitMqSpanMessage { span, events };
+    let rabbitmq_span_message = RabbitMqSpanMessage { span };
     let mq_message = serde_json::to_vec(&vec![rabbitmq_span_message]).unwrap();
 
     if mq_message.len() >= mq_max_payload() {

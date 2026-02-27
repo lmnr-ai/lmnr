@@ -4,7 +4,7 @@ use futures_util::StreamExt;
 use lapin::{
     BasicProperties, Channel, Connection, Consumer,
     acker::Acker,
-    options::{BasicConsumeOptions, BasicPublishOptions, QueueBindOptions},
+    options::{BasicConsumeOptions, BasicPublishOptions, BasicQosOptions, QueueBindOptions},
     types::{FieldTable, ShortString},
 };
 use std::sync::Arc;
@@ -68,6 +68,7 @@ impl Manager for RabbitChannelManager {
 }
 
 pub struct RabbitMQ {
+    prefetch_count: u16,
     publisher_connection: Arc<Connection>,
     consumer_connection: Option<Arc<Connection>>,
     publisher_channel_pool: Pool<RabbitChannelManager>,
@@ -119,6 +120,7 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
 
 impl RabbitMQ {
     pub fn new(
+        prefetch_count: u16,
         publisher_connection: Arc<Connection>,
         consumer_connection: Option<Arc<Connection>>,
         max_channel_pool_size: usize,
@@ -133,6 +135,7 @@ impl RabbitMQ {
             .unwrap();
 
         Self {
+            prefetch_count,
             publisher_connection,
             consumer_connection,
             publisher_channel_pool: pool,
@@ -250,6 +253,12 @@ impl MessageQueueTrait for RabbitMQ {
         }
 
         let channel = consumer_conn.create_channel().await?;
+
+        // We want to limit the number of unacknowledged messages RabbitMQ will deliver,
+        // preventing unbounded memory growth of rabbitmq pod
+        channel
+            .basic_qos(self.prefetch_count, BasicQosOptions::default())
+            .await?;
 
         channel
             .queue_bind(

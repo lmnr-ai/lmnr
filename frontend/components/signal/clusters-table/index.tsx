@@ -23,8 +23,9 @@ const EmptyRow = (
         <div className="flex flex-col gap-2 items-center max-w-md">
           <h3 className="text-base font-medium text-secondary-foreground">No clusters yet</h3>
           <p className="text-sm text-muted-foreground text-center">
-            Clusters group similar events together for easier analysis. Enable clustering in your triggers by defining a
-            clustering key to start organizing your signal events.
+            Clusters group similar events together for easier analysis and it's performed automatically in the
+            background. If you don't see any clusters, most likely there's not enough data for distinct cluster to
+            appear.
           </p>
         </div>
       </div>
@@ -45,7 +46,9 @@ const PureClustersTable = () => {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`/api/projects/${params.projectId}/events/${signal.name}/clusters`);
+      const res = await fetch(
+        `/api/projects/${params.projectId}/signals/${signal.id}/events/clusters?eventName=${encodeURIComponent(signal.name)}`
+      );
 
       if (!res.ok) {
         const text = (await res.json()) as { error: string };
@@ -62,7 +65,7 @@ const PureClustersTable = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [params.projectId, signal.name, toast]);
+  }, [params.projectId, signal.id, toast]);
 
   useEffect(() => {
     fetchClusters();

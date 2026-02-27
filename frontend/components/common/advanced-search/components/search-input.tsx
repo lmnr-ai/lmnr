@@ -7,6 +7,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 
 import { getSuggestionAtIndex, getSuggestionsCount } from "@/components/common/advanced-search/utils.ts";
 import { Button } from "@/components/ui/button.tsx";
+import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ interface FilterSearchInputProps {
   className?: string;
   resource?: "traces" | "spans";
   disableHotKey?: boolean;
+  disabled?: boolean;
 }
 
 const FilterSearchInput = ({
@@ -26,6 +28,7 @@ const FilterSearchInput = ({
   className,
   resource = "traces",
   disableHotKey,
+  disabled,
 }: FilterSearchInputProps) => {
   const router = useRouter();
   const pathname = usePathname();
@@ -144,7 +147,12 @@ const FilterSearchInput = ({
             if (suggestion.type === "field") {
               addTag(suggestion.filter.key);
             } else if (suggestion.type === "value") {
-              addCompleteTag(suggestion.field, Operator.Eq, suggestion.value, router, pathname, searchParams);
+              // Get the default operator for this field's dataType
+              const columnFilter = filters.find((f) => f.key === suggestion.field);
+              const defaultOperator = columnFilter
+                ? (dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq)
+                : Operator.Eq;
+              addCompleteTag(suggestion.field, defaultOperator, suggestion.value, router, pathname, searchParams);
             } else {
               setInputValue(suggestion.value);
               setIsOpen(false);
@@ -237,6 +245,7 @@ const FilterSearchInput = ({
       className={cn(
         "flex items-start gap-2 px-1 rounded-md border border-input relative",
         "bg-muted/80 transition duration-250 py-0.75",
+        disabled && "opacity-50 pointer-events-none",
         className
       )}
       onClick={() => mainInputRef.current?.focus()}
@@ -264,6 +273,7 @@ const FilterSearchInput = ({
           onFocus={() => setIsOpen(true)}
           onBlur={handleInputBlur}
           onKeyDown={handleKeyDown}
+          disabled={disabled}
           placeholder={tags.length === 0 ? placeholder : ""}
           className={cn(
             "flex-1 min-w-[100px] h-6 bg-transparent text-xs outline-none",

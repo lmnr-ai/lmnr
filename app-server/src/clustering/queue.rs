@@ -17,14 +17,13 @@ pub const EVENT_CLUSTERING_BATCH_ROUTING_KEY: &str = "event_clustering_batch_rou
 pub async fn push_to_event_clustering_queue(
     project_id: Uuid,
     signal_event: CHSignalEvent,
-    summary: String,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let message = ClusteringMessage {
         project_id,
         signal_id: signal_event.signal_id,
         event_id: signal_event.id,
-        content: summary,
+        content: signal_event.summary,
     };
 
     let serialized = serde_json::to_vec(&message)?;

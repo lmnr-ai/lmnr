@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { extractSpanSuggestions, STATIC_SPAN_SUGGESTIONS } from "@/components/traces/trace-view/search/utils";
-import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { filterColumns } from "@/components/traces/trace-view/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 import { cn } from "@/lib/utils";
@@ -11,9 +11,10 @@ interface TraceViewSearchProps {
   spans: TraceViewSpan[];
   onSubmit: (filters: Filter[], search: string) => void;
   className?: string;
+  disabled?: boolean;
 }
 
-const TraceViewSearch = ({ spans, onSubmit, className }: TraceViewSearchProps) => {
+const TraceViewSearch = ({ spans, onSubmit, className, disabled }: TraceViewSearchProps) => {
   const suggestions = useMemo(() => {
     const dynamicSuggestions = extractSpanSuggestions(spans);
     const allSuggestions = [...dynamicSuggestions, ...STATIC_SPAN_SUGGESTIONS];
@@ -38,6 +39,7 @@ const TraceViewSearch = ({ spans, onSubmit, className }: TraceViewSearchProps) =
       onSubmit={onSubmit}
       placeholder="Search text, name, id, tags..."
       className={cn("w-full", className)}
+      disabled={disabled}
       options={{
         suggestions,
         disableHotKey: true,

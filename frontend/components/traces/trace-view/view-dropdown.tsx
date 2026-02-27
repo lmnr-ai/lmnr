@@ -1,6 +1,6 @@
 import { ChevronDown, Eye, EyeOff, List, ListTree, type LucideIcon } from "lucide-react";
 
-import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +31,7 @@ const viewOptions: Record<
 const viewTabs: ViewTab[] = ["tree", "reader"];
 
 export default function ViewDropdown() {
-  const { tab, setTab, showTreeContent, setShowTreeContent } = useTraceViewStoreContext((state) => ({
+  const { tab, setTab, showTreeContent, setShowTreeContent } = useTraceViewBaseStore((state) => ({
     tab: state.tab,
     setTab: state.setTab,
     showTreeContent: state.showTreeContent,

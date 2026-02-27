@@ -173,6 +173,8 @@ export interface ProjectDetails {
   workspaceId: string;
   gbUsedThisMonth: number;
   gbLimit: number;
+  signalRunsUsedThisMonth: number;
+  signalRunsLimit: number;
   isFreeTier: boolean;
 }
 
@@ -210,8 +212,8 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
   const tierResult = await db
     .select({
       name: subscriptionTiers.name,
-      stepsLimit: subscriptionTiers.steps,
       bytesLimit: subscriptionTiers.bytesIngested,
+      signalRunsLimit: subscriptionTiers.signalRuns,
     })
     .from(subscriptionTiers)
     .where(eq(subscriptionTiers.id, workspace.tierId))
@@ -225,6 +227,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
 
   const bytesToGB = (bytes: number): number => bytes / (1024 * 1024 * 1024);
   const gbLimit = bytesToGB(Number(tier.bytesLimit));
+  const signalRunsLimit = Number(tier.signalRunsLimit);
 
   if (!isFreeTier) {
     return {
@@ -234,12 +237,15 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       // not used in ui
       gbUsedThisMonth: 0,
       gbLimit,
+      signalRunsLimit,
+      signalRunsUsedThisMonth: 0,
       isFreeTier,
     };
   }
 
   const usageResult = await getWorkspaceUsage(project.workspaceId);
   const gbUsedThisMonth = bytesToGB(usageResult.totalBytesIngested);
+  const signalRunsUsedThisMonth = usageResult.totalSignalRuns;
 
   return {
     id: project.id,
@@ -247,6 +253,8 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     workspaceId: project.workspaceId,
     gbUsedThisMonth,
     gbLimit,
+    signalRunsUsedThisMonth,
+    signalRunsLimit,
     isFreeTier,
   };
 };

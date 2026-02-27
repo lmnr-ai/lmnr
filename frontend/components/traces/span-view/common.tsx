@@ -1,4 +1,4 @@
-import { Bolt, ChevronRight, GripHorizontal } from "lucide-react";
+import { Bolt, Brain, ChevronRight, GripHorizontal } from "lucide-react";
 import { Resizable } from "re-resizable";
 import React, { memo, type PropsWithChildren, type ReactNode } from "react";
 
@@ -223,8 +223,52 @@ const PureImageContentPart = ({
   return <ImageWithPreview src={imageUrl} className={className} alt={alt} />;
 };
 
+interface ThinkingContentPartProps {
+  content: string;
+  label?: string;
+  presetKey: string;
+  messageIndex?: number;
+  contentPartIndex?: number;
+}
+
+const PureThinkingContentPart = ({
+  content,
+  label = "Thinking",
+  presetKey,
+  messageIndex = 0,
+  contentPartIndex = 0,
+}: ThinkingContentPartProps) => {
+  const storageKey = `resize-${presetKey}`;
+  const setHeight = useSpanViewStore((state) => state.setHeight);
+  const height = useSpanViewStore((state) => state.heights.get(storageKey) || null);
+  const searchContext = useSpanSearchContext();
+
+  return (
+    <div className="flex flex-col gap-2 p-2 bg-background">
+      <span className="flex items-center text-xs">
+        <Brain size={12} className="min-w-3 mr-2" />
+        {label}
+      </span>
+      <ResizableWrapper height={height} onHeightChange={setHeight(storageKey)} className="border-0">
+        <ContentRenderer
+          readOnly
+          defaultMode="json"
+          codeEditorClassName="rounded"
+          value={content}
+          presetKey={`editor-${presetKey}`}
+          className="border-0 bg-muted/50"
+          searchTerm={searchContext?.searchTerm || ""}
+          messageIndex={messageIndex}
+          contentPartIndex={contentPartIndex}
+        />
+      </ResizableWrapper>
+    </div>
+  );
+};
+
 export const ImageContentPart = memo(PureImageContentPart);
 export const TextContentPart = memo(PureTextContentPart);
+export const ThinkingContentPart = memo(PureThinkingContentPart);
 export const FileContentPart = memo(PureFileContentPart);
 export const ToolCallContentPart = memo(PureToolCallContentPart);
 export const ToolResultContentPart = memo(PureToolResultContentPart);

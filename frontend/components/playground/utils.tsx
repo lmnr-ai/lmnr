@@ -198,9 +198,12 @@ export const parseToolsFromLLMRequest = (span: Span) => {
     // Try to get parameters from both possible locations
     const parametersStr = get(span, ["attributes", `llm.request.functions.${index}.parameters`]) as string | undefined;
     const argumentsStr = get(span, ["attributes", `llm.request.functions.${index}.arguments`]) as string | undefined;
+    const inputSchemaStr = get(span, ["attributes", `llm.request.functions.${index}.input_schema`]) as
+      | string
+      | undefined;
 
     // Use whichever one is available
-    const paramsToParse = parametersStr || argumentsStr;
+    const paramsToParse = parametersStr || argumentsStr || inputSchemaStr;
 
     if (paramsToParse) {
       try {

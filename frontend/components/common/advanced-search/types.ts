@@ -22,7 +22,7 @@ export interface FilterTag {
   id: string;
   field: string;
   operator: Operator;
-  value: string;
+  value: string | string[];
 }
 
 export type TagFocusPosition = "field" | "operator" | "value" | "remove";
@@ -41,7 +41,7 @@ export function createFilterFromTag(tag: FilterTag): Filter {
     column: tag.field,
     operator: tag.operator,
     value: tag.value,
-  };
+  } as Filter;
 }
 
 export function createTagFromFilter(filter: Filter): FilterTag {
@@ -49,7 +49,8 @@ export function createTagFromFilter(filter: Filter): FilterTag {
     id: `tag-${uniqueId()}`,
     field: filter.column,
     operator: filter.operator,
-    value: String(filter.value),
+    // Preserve array values directly, stringify others
+    value: Array.isArray(filter.value) ? filter.value : String(filter.value),
   };
 }
 

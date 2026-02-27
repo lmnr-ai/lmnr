@@ -11,7 +11,7 @@ use crate::{
     ch::{self, logs::CHLog},
     db::DB,
     features::{Feature, is_feature_enabled},
-    traces::limits::update_workspace_limit_exceeded_by_project_id,
+    utils::limits::update_workspace_bytes_ingested,
     worker::{HandlerError, MessageHandler},
 };
 
@@ -87,14 +87,9 @@ async fn process_logs_batch(
 
     // Update workspace limits cache
     if is_feature_enabled(Feature::UsageLimit) {
-        if let Err(e) = update_workspace_limit_exceeded_by_project_id(
-            db,
-            clickhouse,
-            cache,
-            project_id,
-            total_ingested_bytes,
-        )
-        .await
+        if let Err(e) =
+            update_workspace_bytes_ingested(db, clickhouse, cache, project_id, total_ingested_bytes)
+                .await
         {
             log::error!(
                 "Failed to update workspace limit exceeded for project [{}]: {:?}",

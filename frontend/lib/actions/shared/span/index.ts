@@ -23,7 +23,12 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
     throw new Error("No shared trace found.");
   }
 
-  const [span] = await executeQuery<Omit<Span, "attributes"> & { attributes: string }>({
+  const [span] = await executeQuery<
+    Omit<Span, "attributes" | "events"> & {
+      attributes: string;
+      events: { timestamp: number; name: string; attributes: string }[];
+    }
+  >({
     query: `
       SELECT
         span_id as spanId,
@@ -43,7 +48,8 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
         input,
         output,
         path,
-        attributes
+        attributes,
+        events
       FROM spans
       WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
       LIMIT 1
@@ -64,54 +70,10 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
     input: tryParseJson(span.input),
     output: tryParseJson(span.output),
     attributes: tryParseJson(span.attributes) ?? {},
+    events: (span.events || []).map((event) => ({
+      timestamp: event.timestamp,
+      name: event.name,
+      attributes: tryParseJson(event.attributes) || {},
+    })),
   };
-};
-
-export const getSharedSpanEvents = async (input: z.infer<typeof GetSharedSpanSchema>) => {
-  const { spanId, traceId } = GetSharedSpanSchema.parse(input);
-
-  const sharedTrace = await db.query.sharedTraces.findFirst({
-    where: eq(sharedTraces.id, traceId),
-  });
-
-  if (!sharedTrace) {
-    throw new Error("No shared trace found.");
-  }
-
-  // Check if span really belongs to trace.
-  const [spanExists] = await executeQuery<{ exists: number }>({
-    query: `
-      SELECT 1 as exists
-      FROM spans
-      WHERE span_id = {spanId: UUID} AND trace_id = {traceId: UUID}
-      LIMIT 1
-    `,
-    parameters: { spanId, traceId },
-    projectId: sharedTrace.projectId,
-  });
-
-  if (!spanExists) {
-    throw new Error("Span not found or does not belong to the given trace");
-  }
-
-  const events = await executeQuery<{
-    id: string;
-    timestamp: string;
-    spanId: string;
-    name: string;
-    attributes: string;
-  }>({
-    query: `
-      SELECT id, formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp, span_id spanId, name, attributes
-      FROM events
-      WHERE span_id = {spanId: UUID}
-    `,
-    parameters: { spanId },
-    projectId: sharedTrace.projectId,
-  });
-
-  return events.map((row) => ({
-    ...row,
-    attributes: tryParseJson(row.attributes) ?? {},
-  }));
 };

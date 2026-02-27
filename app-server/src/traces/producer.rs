@@ -6,13 +6,18 @@ use std::sync::Arc;
 use anyhow::Result;
 use uuid::Uuid;
 
-use super::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY};
+use super::{
+    OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, SPANS_DATA_PLANE_EXCHANGE,
+    SPANS_DATA_PLANE_ROUTING_KEY,
+};
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    db::{events::Event, spans::Span, utils::span_id_to_uuid},
+    cache::Cache,
+    data_plane::get_workspace_deployment,
+    db::{DB, spans::Span, workspaces::DeploymentMode},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry::proto::collector::trace::v1::{
-        ExportTraceServiceRequest, ExportTraceServiceResponse,
+        ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
     },
 };
 
@@ -21,6 +26,8 @@ pub async fn push_spans_to_queue(
     request: ExportTraceServiceRequest,
     project_id: Uuid,
     queue: Arc<MessageQueue>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
 ) -> Result<ExportTraceServiceResponse> {
     let messages = request
         .resource_spans
@@ -31,21 +38,10 @@ pub async fn push_spans_to_queue(
                 .into_iter()
                 .flat_map(|scope_span| {
                     scope_span.spans.into_iter().filter_map(|otel_span| {
-                        let span_id = span_id_to_uuid(&otel_span.span_id);
-
-                        let otel_events = otel_span.events.clone();
-
                         let span = Span::from_otel_span(otel_span, project_id);
 
-                        let events = otel_events
-                            .into_iter()
-                            .map(|event| {
-                                Event::from_otel(event, span_id, project_id, span.trace_id)
-                            })
-                            .collect::<Vec<Event>>();
-
                         if span.should_save() {
-                            Some(RabbitMqSpanMessage { span, events })
+                            Some(RabbitMqSpanMessage { span })
                         } else {
                             None
                         }
@@ -55,6 +51,7 @@ pub async fn push_spans_to_queue(
         .collect::<Vec<_>>();
 
     let mq_message = serde_json::to_vec(&messages).unwrap();
+    let span_count = messages.len();
 
     if mq_message.len() >= mq_max_payload() {
         log::warn!(
@@ -63,16 +60,45 @@ pub async fn push_spans_to_queue(
             mq_message.len(),
             messages.len()
         );
-        // Don't return error for now, skip publishing
-    } else {
-        queue
-            .publish(
-                &mq_message,
-                OBSERVATIONS_EXCHANGE,
-                OBSERVATIONS_ROUTING_KEY,
-                None,
-            )
-            .await?;
+
+        // Return partial success to inform client that logs were rejected
+        return Ok(ExportTraceServiceResponse {
+            partial_success: Some(ExportTracePartialSuccess {
+                rejected_spans: span_count as i64,
+                error_message: format!(
+                    "Payload size {} exceeds limit. All {} spans rejected.",
+                    mq_message.len(),
+                    span_count
+                ),
+            }),
+        });
+    }
+
+    let workspace_deployment = get_workspace_deployment(&db.pool, cache.clone(), project_id)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get workspace deployment: {:?}", e))?;
+
+    match workspace_deployment.mode {
+        DeploymentMode::CLOUD => {
+            queue
+                .publish(
+                    &mq_message,
+                    OBSERVATIONS_EXCHANGE,
+                    OBSERVATIONS_ROUTING_KEY,
+                    None,
+                )
+                .await?;
+        }
+        DeploymentMode::HYBRID => {
+            queue
+                .publish(
+                    &mq_message,
+                    SPANS_DATA_PLANE_EXCHANGE,
+                    SPANS_DATA_PLANE_ROUTING_KEY,
+                    None,
+                )
+                .await?;
+        }
     }
 
     let response = ExportTraceServiceResponse {
