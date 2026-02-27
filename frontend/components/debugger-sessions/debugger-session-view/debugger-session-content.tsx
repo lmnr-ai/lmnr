@@ -325,15 +325,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
         }
       },
     }),
-    [
-      setSpans,
-      setTrace,
-      setBrowserSession,
-      setHasBrowserSession,
-      setSessionStatus,
-      setIsSessionDeleted,
-      hasBrowserSession,
-    ]
+    [setSpans, setTrace, setBrowserSession, setHasBrowserSession, setSessionStatus, setIsSessionDeleted]
   );
 
   useEffect(() => {
