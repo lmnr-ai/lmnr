@@ -31,8 +31,10 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const user = session?.user;
   const workspace = await getWorkspaceInfo(projectDetails.workspaceId);
   const projects = await getProjectsByWorkspace(projectDetails.workspaceId);
+  const isSubscription = isFeatureEnabled(Feature.SUBSCRIPTION);
+  const isSignals = isFeatureEnabled(Feature.SIGNALS);
   const showBanner =
-    isFeatureEnabled(Feature.CLOUD) &&
+    isSubscription &&
     projectDetails.isFreeTier &&
     projectDetails.gbLimit > 0 &&
     projectDetails.gbUsedThisMonth >= 0.8 * projectDetails.gbLimit;
@@ -55,7 +57,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
         <ProjectContextProvider workspace={workspace} projects={projects} project={projectDetails}>
           <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
-              <ProjectSidebar details={projectDetails} isCloud={isFeatureEnabled(Feature.CLOUD)} />
+              <ProjectSidebar details={projectDetails} isSubscription={isSubscription} isSignals={isSignals} />
               <SidebarInset className="flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
                 {showBanner && <ProjectUsageBanner details={projectDetails} />}
                 {children}

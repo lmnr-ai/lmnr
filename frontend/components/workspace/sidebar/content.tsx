@@ -53,21 +53,27 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
 interface WorkspaceSidebarContentProps {
   isOwner: boolean;
   tier: WorkspaceTier;
-  isCloud: boolean;
+  isSubscription: boolean;
+  isDeployment: boolean;
 }
 
-export const WorkspaceSidebarContent = ({ isOwner, tier, isCloud }: WorkspaceSidebarContentProps) => {
+export const WorkspaceSidebarContent = ({
+  isOwner,
+  tier,
+  isSubscription,
+  isDeployment,
+}: WorkspaceSidebarContentProps) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
   const pathName = usePathname();
   const sidebarMenus = useMemo(
     () =>
       menus.filter((m) => {
         if (m.value === "settings" && !isOwner) return false;
-        if (m.value === "billing" && !isCloud) return false;
-        if (m.value === "deployment" && !isCloud) return false;
+        if (m.value === "billing" && !isSubscription) return false;
+        if (m.value === "deployment" && !isDeployment) return false;
         return true;
       }),
-    [isOwner, isCloud]
+    [isOwner, isSubscription, isDeployment]
   );
 
   return (

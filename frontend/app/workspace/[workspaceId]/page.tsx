@@ -46,8 +46,9 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     where: eq(workspaceInvitations.workspaceId, params.workspaceId),
   });
 
-  const isCloud = isFeatureEnabled(Feature.CLOUD);
-  const canManageBilling = isCloud && ["owner", "admin"].includes(currentUserRole);
+  const isSubscription = isFeatureEnabled(Feature.SUBSCRIPTION);
+  const isDeployment = isFeatureEnabled(Feature.DEPLOYMENT);
+  const canManageBilling = isSubscription && ["owner", "admin"].includes(currentUserRole);
 
   // Fetch subscription details for paid tiers (only for owners/admins)
   const isPaidTier = workspace.tierName !== "Free";
@@ -69,7 +70,12 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     <WorkspaceMenuProvider>
       <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
         <SidebarProvider className="bg-sidebar">
-          <WorkspaceSidebar isOwner={isOwner} workspace={workspace} isCloud={isCloud} />
+          <WorkspaceSidebar
+            isOwner={isOwner}
+            workspace={workspace}
+            isSubscription={isSubscription}
+            isDeployment={isDeployment}
+          />
           <SidebarInset className="flex flex-col flex-1 md:rounded-tl-lg border h-full overflow-hidden">
             <WorkspaceComponent
               invitations={invitations}
@@ -79,7 +85,8 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
               currentUserRole={currentUserRole}
               subscription={subscription}
               upcomingInvoice={upcomingInvoice}
-              isCloud={isCloud}
+              isSubscription={isSubscription}
+              isDeployment={isDeployment}
               canManageBilling={canManageBilling}
             />
           </SidebarInset>

@@ -33,7 +33,7 @@ export const inviteUserToWorkspace = async (input: z.infer<typeof InviteUserSche
     throw new Error("Workspace not found");
   }
 
-  if (isFeatureEnabled(Feature.CLOUD) && workspace.tierName.trim().toLowerCase() === "free") {
+  if (isFeatureEnabled(Feature.SUBSCRIPTION) && workspace.tierName.trim().toLowerCase() === "free") {
     throw new Error("Inviting members is not available on the Free plan. Please upgrade to invite team members.");
   }
 

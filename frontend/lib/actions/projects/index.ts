@@ -26,7 +26,7 @@ export async function createProject(input: z.infer<typeof CreateProjectSchema>) 
         .limit(1)
         .for("update");
 
-      if (isFeatureEnabled(Feature.CLOUD) && workspace?.tierName.trim().toLowerCase() === "free") {
+      if (isFeatureEnabled(Feature.SUBSCRIPTION) && workspace?.tierName.trim().toLowerCase() === "free") {
         const existingProjects = await tx
           .select({ id: projects.id })
           .from(projects)

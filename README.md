@@ -53,6 +53,15 @@ You will also need to properly configure the SDK, with `baseUrl` and correct por
 
 For production environment, we recommend using our [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
 
+### Enabling the Signals feature
+
+To enable [Signals / AI monitoring](https://docs.laminar.sh/signals) in self-hosted mode, set the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable in your `.env` file. This key is required by both the app-server and the frontend.
+
+```sh
+# In .env at the repo root
+GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
+```
+
 ## Contributing
 
 For running and building Laminar locally, or to learn more about docker compose files,

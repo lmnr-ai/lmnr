@@ -7,7 +7,9 @@ export const enum Feature {
   POSTHOG = "POSTHOG",
   LOCAL_DB = "LOCAL_DB",
   FULL_BUILD = "FULL_BUILD",
-  CLOUD = "CLOUD",
+  SUBSCRIPTION = "SUBSCRIPTION",
+  DEPLOYMENT = "DEPLOYMENT",
+  SIGNALS = "SIGNALS",
   SLACK = "SLACK",
   LANDING = "LANDING",
 }
@@ -46,8 +48,16 @@ export const isFeatureEnabled = (feature: Feature) => {
     return ["FULL", "PRODUCTION"].includes(environment);
   }
 
-  if (feature === Feature.CLOUD) {
+  if (feature === Feature.SUBSCRIPTION) {
     return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.DEPLOYMENT) {
+    return process.env.LAMINAR_CLOUD === "true";
+  }
+
+  if (feature === Feature.SIGNALS) {
+    return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   }
 
   if (feature === Feature.SEND_EMAIL) {

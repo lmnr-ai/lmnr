@@ -15,10 +15,10 @@ import { type Project, type Workspace, WorkspaceTier } from "@/lib/workspaces/ty
 
 interface ProjectsProps {
   workspace: Workspace;
-  isCloud: boolean;
+  isSubscription: boolean;
 }
 
-export default function Projects({ workspace, isCloud }: ProjectsProps) {
+export default function Projects({ workspace, isSubscription }: ProjectsProps) {
   const { data, mutate, isLoading, error } = useSWR<Project[]>(`/api/workspaces/${workspace.id}/projects`, swrFetcher);
 
   const { toast } = useToast();
@@ -48,7 +48,7 @@ export default function Projects({ workspace, isCloud }: ProjectsProps) {
         <ProjectCreateDialog
           workspaceId={workspace.id}
           onProjectCreate={mutate}
-          isFreeTier={isCloud && workspace.tierName === WorkspaceTier.FREE}
+          isFreeTier={isSubscription && workspace.tierName === WorkspaceTier.FREE}
           projectCount={data.length}
         />
       )}

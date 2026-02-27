@@ -20,7 +20,8 @@ interface WorkspaceProps {
   currentUserRole: WorkspaceRole;
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
-  isCloud: boolean;
+  isSubscription: boolean;
+  isDeployment: boolean;
   canManageBilling: boolean;
 }
 
@@ -32,7 +33,8 @@ export default function WorkspaceComponent({
   currentUserRole,
   subscription,
   upcomingInvoice,
-  isCloud,
+  isSubscription,
+  isDeployment,
   canManageBilling,
 }: WorkspaceProps) {
   const { menu } = useWorkspaceMenuContext();
@@ -40,18 +42,18 @@ export default function WorkspaceComponent({
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">
-        {menu === "projects" && <Projects workspace={workspace} isCloud={isCloud} />}
+        {menu === "projects" && <Projects workspace={workspace} isSubscription={isSubscription} />}
         {menu === "team" && (
           <WorkspaceUsers
             invitations={invitations}
             workspace={workspace}
             isOwner={isOwner}
             currentUserRole={currentUserRole}
-            isCloud={isCloud}
+            isSubscription={isSubscription}
           />
         )}
-        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} isCloud={isCloud} />}
-        {isCloud && menu === "billing" && (
+        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} isSubscription={isSubscription} />}
+        {isSubscription && menu === "billing" && (
           <WorkspaceBilling
             workspace={workspace}
             isOwner={isOwner}
@@ -61,7 +63,7 @@ export default function WorkspaceComponent({
           />
         )}
         {menu === "settings" && <WorkspaceSettings workspace={workspace} isOwner={isOwner} />}
-        {isCloud && menu === "deployment" && <WorkspaceDeployment workspace={workspace} />}
+        {isDeployment && menu === "deployment" && <WorkspaceDeployment workspace={workspace} />}
       </div>
     </div>
   );

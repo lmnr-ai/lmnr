@@ -35,7 +35,7 @@ interface WorkspaceUsersProps {
   workspace: WorkspaceWithOptionalUsers;
   isOwner: boolean;
   currentUserRole: WorkspaceRole;
-  isCloud: boolean;
+  isSubscription: boolean;
 }
 
 type DialogState = {
@@ -48,7 +48,7 @@ export default function WorkspaceUsers({
   workspace,
   isOwner,
   currentUserRole,
-  isCloud,
+  isSubscription,
 }: WorkspaceUsersProps) {
   const user = useUserContext();
   const { toast } = useToast();
@@ -203,7 +203,7 @@ export default function WorkspaceUsers({
             description={`${users.length} member${users.length > 1 ? "s" : ""} in this workspace`}
           />
           {canManageUsers &&
-            (isCloud && isFreeTier ? (
+            (isSubscription && isFreeTier ? (
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>

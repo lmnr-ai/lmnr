@@ -78,7 +78,7 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
 }
 
 export async function checkSignalRunsLimit(projectId: string, tracesCount: number): Promise<void> {
-  if (!isFeatureEnabled(Feature.CLOUD)) {
+  if (!isFeatureEnabled(Feature.SUBSCRIPTION)) {
     return;
   }
 
