@@ -58,7 +58,7 @@ tonic = {version = "0.14", features = ["gzip"]}
 tonic-prost = "0.14"
 tracing = {version = "0.1.41", features = ["attributes"]}
 # Tracing opentelemetry must be compatible with the opentelemetry version. For tracing-opentelemetry = 0.30.0, opentelemetry = 0.29
-tracing-opentelemetry = "0.30.0"
+tracing-opentelemetry = "0.32.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "fmt"]}
 uuid = {version = "1.19.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde", "v7", "std"]}
 
