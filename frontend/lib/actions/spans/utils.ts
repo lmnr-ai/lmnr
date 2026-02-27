@@ -14,6 +14,7 @@ import {
   type QueryResult,
   type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
+import { SpanSearchType } from "@/lib/clickhouse/types";
 import { tryParseJson } from "@/lib/utils.ts";
 
 const spansColumnFilterConfig: ColumnFilterConfig = {
@@ -350,4 +351,24 @@ export const aggregateSpanMetrics = (spans: TraceViewSpan[]): TraceViewSpan[] =>
     const metrics = calculateMetrics(span.spanId);
     return metrics ? { ...span, aggregatedMetrics: metrics } : span;
   });
+};
+
+export const searchTypeToQueryFilter = (searchType?: SpanSearchType[], queryParamName: string = "query"): string => {
+  const uniqueSearchTypes = Array.from(new Set(searchType));
+  const searchBoth = `input_lower LIKE {${queryParamName}: String} OR output_lower LIKE {${queryParamName}: String}`;
+  if (uniqueSearchTypes.length === 0) {
+    return searchBoth;
+  }
+  if (uniqueSearchTypes.length === 1) {
+    const searchType = uniqueSearchTypes[0];
+    switch (searchType) {
+      case SpanSearchType.Input:
+        return `input_lower LIKE {${queryParamName}: String}`;
+      case SpanSearchType.Output:
+        return `output_lower LIKE {${queryParamName}: String}`;
+      default:
+        return searchBoth;
+    }
+  }
+  return searchBoth;
 };

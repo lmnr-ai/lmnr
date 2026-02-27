@@ -1,8 +1,8 @@
 import { z } from "zod/v4";
 
 import { buildSelectQuery, type QueryParams, type SelectQueryOptions } from "@/lib/actions/common/query-builder";
+import { createDatapoints, type DatapointResult } from "@/lib/actions/datapoints/clickhouse";
 import { executeQuery } from "@/lib/actions/sql";
-import { createDatapoints, type DatapointResult } from "@/lib/clickhouse/datapoints";
 import { tryParseJson } from "@/lib/utils";
 
 // Schema for listing versions of a datapoint

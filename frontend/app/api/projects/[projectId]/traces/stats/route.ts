@@ -4,7 +4,7 @@ import { prettifyError, ZodError } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { getTraceStats, GetTraceStatsSchema } from "@/lib/actions/traces/stats";
 import { generateEmptyTimeBuckets } from "@/lib/actions/traces/utils.ts";
-import { getOptionalTimeRange } from "@/lib/clickhouse/utils.ts";
+import { getTimeRange } from "@/lib/clickhouse/utils";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTraceStatsSchema.omit({ projectId: true }));
 
   if (!parseResult.success) {
-    const timeRange = getOptionalTimeRange(
+    const timeRange = getTimeRange(
       req.nextUrl.searchParams.get("pastHours") ?? undefined,
       req.nextUrl.searchParams.get("startTime") ?? undefined,
       req.nextUrl.searchParams.get("endTime") ?? undefined

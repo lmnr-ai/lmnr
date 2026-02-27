@@ -3,6 +3,7 @@ import { get } from "lodash";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils.ts";
 import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 import { type RealtimeSpan } from "@/lib/traces/types.ts";
 
 export const onRealtimeStartSpan =
@@ -59,7 +60,7 @@ export const onRealtimeStartSpan =
 
       const newTrace = { ...trace };
       newTrace.startTime =
-        new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
+        parseTimestampToMs(newTrace.startTime) < parseTimestampToMs(newSpan.startTime)
           ? newTrace.startTime
           : newSpan.startTime;
 
@@ -98,7 +99,7 @@ export const onRealtimeStartSpan =
         };
         newSpans.push(pendingSpan);
 
-        newSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        newSpans.sort((a, b) => parseTimestampToMs(a.startTime) - parseTimestampToMs(b.startTime));
 
         return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
       }
@@ -173,11 +174,11 @@ export const onRealtimeUpdateSpans =
       const newTrace = { ...trace };
 
       newTrace.startTime =
-        new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
+        parseTimestampToMs(newTrace.startTime) < parseTimestampToMs(newSpan.startTime)
           ? newTrace.startTime
           : newSpan.startTime;
       newTrace.endTime =
-        new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
+        parseTimestampToMs(newTrace.endTime) > parseTimestampToMs(newSpan.endTime) ? newTrace.endTime : newSpan.endTime;
       newTrace.totalTokens += totalTokens;
       newTrace.inputTokens += inputTokens;
       newTrace.outputTokens += outputTokens;
@@ -236,7 +237,7 @@ export const onRealtimeUpdateSpans =
         newSpans.push(updatedSpan);
       }
 
-      newSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      newSpans.sort((a, b) => parseTimestampToMs(a.startTime) - parseTimestampToMs(b.startTime));
 
       return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
     });

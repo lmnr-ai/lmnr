@@ -77,16 +77,12 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
 
   const whereConditions = [eq(signals.projectId, projectId)];
 
-  if (pastHours || (startDate && endDate)) {
-    const timeRange = getTimeRange(pastHours, startDate, endDate);
-
-    if ("start" in timeRange && timeRange.start) {
+  const timeRange = getTimeRange(pastHours, startDate, endDate);
+  if (timeRange) {
+    if ("start" in timeRange) {
       whereConditions.push(gte(signals.createdAt, timeRange.start.toISOString()));
-    }
-    if ("end" in timeRange && timeRange.end) {
       whereConditions.push(lte(signals.createdAt, timeRange.end.toISOString()));
-    }
-    if ("pastHours" in timeRange && typeof timeRange.pastHours === "number") {
+    } else if ("pastHours" in timeRange) {
       const start = new Date(Date.now() - timeRange.pastHours * 60 * 60 * 1000);
       whereConditions.push(gte(signals.createdAt, start.toISOString()));
     }

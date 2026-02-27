@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/lib/hooks/use-toast";
+import { parseTimestampToDate } from "@/lib/time/timestamp";
 import { type Span, SpanType } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
 
@@ -97,7 +98,7 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
           <div className="flex items-center gap-2 flex-wrap">
             <SpanStatsShields span={span} variant="outline" />
             <div className="text-xs font-mono rounded-md py-0.5 truncate px-2 border border-muted">
-              {new Date(span.startTime).toLocaleString()}
+              {parseTimestampToDate(span.startTime).toLocaleString()}
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">

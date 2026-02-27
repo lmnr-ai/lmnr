@@ -1,7 +1,7 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
-import { format, subDays } from "date-fns";
+import { subDays } from "date-fns";
 import { isDate, isEmpty, isNil, isObject } from "lodash";
 import { createContext, type PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
@@ -9,6 +9,7 @@ import { createStore, useStore } from "zustand";
 import { ChartType } from "@/components/chart-builder/types.ts";
 import { type DashboardChart } from "@/components/dashboard/types";
 import { type SQLParameter } from "@/components/sql/sql-editor-store";
+import { isoToCH } from "@/lib/time/timestamp";
 
 type DashboardEditorState = {
   chart: { id?: string; createdAt?: string } & Omit<DashboardChart, "id" | "createdAt">;
@@ -165,7 +166,7 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
         (formatted, param) => {
           if (!isNil(param.value)) {
             if (isDate(param.value)) {
-              formatted[param.name] = format(param.value, "yyyy-MM-dd HH:mm:ss.SSS");
+              formatted[param.name] = isoToCH(param.value);
             } else if (param.type === "number") {
               formatted[param.name] = Number(param.value);
             } else {

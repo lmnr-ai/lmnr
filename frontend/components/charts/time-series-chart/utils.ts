@@ -1,6 +1,8 @@
 import { scaleUtc } from "d3-scale";
 import { differenceInHours } from "date-fns";
 
+import { parseTimestampToMs } from "@/lib/time/timestamp";
+
 export type IntervalUnit = "minute" | "hour" | "day";
 
 export interface Interval {
@@ -65,8 +67,8 @@ export function calculateOptimalInterval(startDate: Date, endDate: Date, targetB
 }
 
 export const normalizeTimeRange = (left: string, right: string) => {
-  const leftTime = new Date(left).getTime();
-  const rightTime = new Date(right).getTime();
+  const leftTime = parseTimestampToMs(left);
+  const rightTime = parseTimestampToMs(right);
 
   return leftTime > rightTime
     ? { start: right, end: left, startTime: rightTime, endTime: leftTime }

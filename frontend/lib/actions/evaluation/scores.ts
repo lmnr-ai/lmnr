@@ -1,7 +1,6 @@
 import { executeQuery } from "@/lib/actions/sql";
 import { type AggregationFunction } from "@/lib/clickhouse/types";
-
-import { type EvaluationTimeProgression } from "../evaluation/types";
+import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
 
 export const getEvaluationTimeProgression = async (
   projectId: string,
@@ -9,7 +8,6 @@ export const getEvaluationTimeProgression = async (
   aggregationFunction: AggregationFunction,
   ids: string[]
 ): Promise<EvaluationTimeProgression[]> => {
-  // Query all datapoints with their scores for the given evaluations
   const datapoints = await executeQuery<{
     evaluation_id: string;
     created_at: string;
@@ -33,11 +31,13 @@ export const getEvaluationTimeProgression = async (
     },
   });
 
-  // Group by evaluation_id and aggregate scores in memory
-  const evaluationMap = new Map<string, {
-    timestamp: string;
-    scoresByName: Map<string, number[]>;
-  }>();
+  const evaluationMap = new Map<
+    string,
+    {
+      timestamp: string;
+      scoresByName: Map<string, number[]>;
+    }
+  >();
 
   for (const dp of datapoints) {
     const scores = (dp.scores ? JSON.parse(dp.scores) : {}) as Record<string, number | null>;
@@ -51,7 +51,6 @@ export const getEvaluationTimeProgression = async (
 
     const evalData = evaluationMap.get(dp.evaluation_id)!;
 
-    // Aggregate scores by name
     for (const [name, value] of Object.entries(scores)) {
       if (value !== null && !isNaN(value)) {
         if (!evalData.scoresByName.has(name)) {
@@ -62,7 +61,6 @@ export const getEvaluationTimeProgression = async (
     }
   }
 
-  // Apply aggregation function and format results
   const results: EvaluationTimeProgression[] = [];
 
   for (const [evaluationId, evalData] of evaluationMap.entries()) {
@@ -90,9 +88,7 @@ export const getEvaluationTimeProgression = async (
           {
             const sorted = [...scoreValues].sort((a, b) => a - b);
             const mid = Math.floor(sorted.length / 2);
-            aggregatedValue = sorted.length % 2 === 0
-              ? (sorted[mid - 1] + sorted[mid]) / 2
-              : sorted[mid];
+            aggregatedValue = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
           }
           break;
         case "p90":
@@ -132,6 +128,5 @@ export const getEvaluationTimeProgression = async (
     });
   }
 
-  // Sort by timestamp
   return results.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 };

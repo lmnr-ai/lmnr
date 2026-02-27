@@ -3,6 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
@@ -70,10 +71,10 @@ export const sidebarTraceColumns: ColumnDef<TraceRow, any>[] = [
   },
   {
     accessorFn: (row) => {
-      const start = new Date(row.startTime);
-      const end = new Date(row.endTime);
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return "-";
-      return `${((end.getTime() - start.getTime()) / 1000).toFixed(2)}s`;
+      const startMs = parseTimestampToMs(row.startTime);
+      const endMs = parseTimestampToMs(row.endTime);
+      if (isNaN(startMs) || isNaN(endMs) || endMs < startMs) return "-";
+      return `${((endMs - startMs) / 1000).toFixed(2)}s`;
     },
     header: "Duration",
     id: "duration",

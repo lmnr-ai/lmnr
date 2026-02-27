@@ -6,8 +6,8 @@ import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatabl
 import { parseFilters } from "@/lib/actions/common/filters";
 import { buildSelectQuery } from "@/lib/actions/common/query-builder";
 import { PaginationFiltersSchema } from "@/lib/actions/common/types";
+import { deleteDatapointsByDatasetIds } from "@/lib/actions/datapoints/clickhouse";
 import { executeQuery } from "@/lib/actions/sql";
-import { deleteDatapointsByDatasetIds } from "@/lib/clickhouse/datapoints";
 import { type DatasetInfo } from "@/lib/dataset/types";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";

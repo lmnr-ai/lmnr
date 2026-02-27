@@ -26,6 +26,7 @@ import {
   workspaces,
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { isoToClickHouseParam } from "@/lib/time/timestamp";
 import { type Workspace, type WorkspaceTier, type WorkspaceUsage, type WorkspaceUser } from "@/lib/workspaces/types";
 
 const LAST_WORKSPACE_ID = "last-workspace-id";
@@ -209,7 +210,7 @@ export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceU
 
   const resetTimeDate = new Date(workspace.resetTime);
   const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
-  const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
+  const latestResetTimeStr = isoToClickHouseParam(latestResetTime.toISOString());
 
   // --- Bytes: cache → ClickHouse fallback ---
   let totalBytesIngested = null;

@@ -54,7 +54,7 @@ export async function getTraceStats(
   const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
   if (search && traceIds?.length === 0) {
-    const timeRange = getTimeRange(pastHours, startTime, endTime);
+    const timeRange = getTimeRange(pastHours, startTime, endTime) ?? { pastHours: 24 };
     const items = generateEmptyTimeBuckets(timeRange);
     return { items };
   }

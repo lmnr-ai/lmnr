@@ -3,6 +3,7 @@ import { format, isValid, parseISO } from "date-fns";
 import { isNil } from "lodash";
 
 import { type ChartConfig } from "@/components/ui/chart";
+import { parseTimestampToDate } from "@/lib/time/timestamp";
 
 export const numberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
@@ -86,12 +87,7 @@ export const createAxisFormatter = (data: Record<string, unknown>[], dataKey: st
   };
 };
 
-export const parseUtcTimestamp = (s: string): Date => {
-  const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(s);
-  const hasTime = s.includes("T") || s.includes(" ");
-  if (hasTime && !hasTimezone) return new Date(s.replace(" ", "T") + "Z");
-  return new Date(s);
-};
+export const parseUtcTimestamp = (s: string): Date => parseTimestampToDate(s);
 
 export const selectNiceTicksFromData = (
   dataTimestamps: string[],

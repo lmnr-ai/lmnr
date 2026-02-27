@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { db } from "@/lib/db/drizzle";
 import { tracesAgentChats, tracesAgentMessages } from "@/lib/db/migrations/schema";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 
 export const ChatMessageSchema = z.object({
   traceId: z.string().describe("The trace ID"),
@@ -155,8 +156,8 @@ export async function createGetSpansDataTool(projectId: string, traceId: string,
           spanTypes: [...new Set(spans.map((s: any) => s.spanType))],
           totalDuration:
             spans.length > 0
-              ? new Date(Math.max(...spans.map((s: any) => new Date(s.endTime).getTime()))).getTime() -
-                new Date(Math.min(...spans.map((s: any) => new Date(s.startTime).getTime()))).getTime()
+              ? Math.max(...spans.map((s: any) => parseTimestampToMs(s.endTime))) -
+                Math.min(...spans.map((s: any) => parseTimestampToMs(s.startTime)))
               : 0,
           errorCount: spans.filter((s: any) => s.status === "ERROR" || s.attributes?.["error.message"]).length,
           llmSpans: spans.filter((s: any) => s.spanType === "LLM"),

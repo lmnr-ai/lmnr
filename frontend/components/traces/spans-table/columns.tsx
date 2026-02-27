@@ -9,6 +9,7 @@ import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatab
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
 import Mono from "@/components/ui/mono";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 import { type SpanRow, SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -161,10 +162,7 @@ export const columns: ColumnDef<SpanRow, any>[] = [
   },
   {
     accessorFn: (row) => {
-      const start = new Date(row.startTime);
-      const end = new Date(row.endTime);
-      const duration = end.getTime() - start.getTime();
-
+      const duration = parseTimestampToMs(row.endTime) - parseTimestampToMs(row.startTime);
       return `${(duration / 1000).toFixed(2)}s`;
     },
     header: "Duration",

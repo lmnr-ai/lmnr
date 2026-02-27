@@ -4,6 +4,7 @@ import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { differenceInDays, differenceInHours, differenceInMinutes, differenceInSeconds, format } from "date-fns";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { parseTimestampToDate } from "@/lib/time/timestamp";
 import { cn, formatTimestamp } from "@/lib/utils.ts";
 
 function formatShortRelativeTime(date: Date): string {
@@ -35,7 +36,7 @@ export default function ClientTimestampFormatter({
   className?: string;
   absolute?: boolean;
 }) {
-  const date = new Date(timestamp);
+  const date = parseTimestampToDate(timestamp);
   const days = differenceInDays(new Date(), date);
   const displayText = absolute
     ? formatTimestamp(timestamp)

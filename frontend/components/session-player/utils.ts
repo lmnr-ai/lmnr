@@ -152,7 +152,7 @@ const processEvent = (data: SessionEventData): ProcessedEvent | null => {
 
     return {
       data: cleanedData,
-      timestamp: new Date(parsedEvent.timestamp + "Z").getTime(),
+      timestamp: parsedEvent.timestamp,
       type: parsedEvent.type,
     };
   } catch (e) {

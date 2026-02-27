@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { SimpleLRU } from "@/lib/simple-lru.ts";
-import { convertToTimeParameters } from "@/lib/time.ts";
+import { convertToTimeParameters } from "@/lib/time";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 
 export interface BatchedOutputsHook {
   outputs: Record<string, any>;
@@ -39,8 +40,8 @@ export function useBatchedSpanOutputs(
         const body: Record<string, any> = { spanIds };
 
         if (trace?.startTime && trace?.endTime) {
-          const startTime = new Date(new Date(trace.startTime).getTime() - 1000).toISOString();
-          const endTime = new Date(new Date(trace.endTime).getTime() + 1000).toISOString();
+          const startTime = new Date(parseTimestampToMs(trace.startTime) - 1000).toISOString();
+          const endTime = new Date(parseTimestampToMs(trace.endTime) + 1000).toISOString();
 
           const params = convertToTimeParameters({ startTime, endTime });
           body.startDate = params.start_time;

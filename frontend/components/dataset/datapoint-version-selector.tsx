@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { type Datapoint } from "@/lib/dataset/types";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 import { formatTimestampWithSeconds } from "@/lib/utils";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -34,7 +35,7 @@ export default function DatapointVersionSelector({
     if (!versions || versions.length === 0) return [];
 
     return [...versions]
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .sort((a, b) => parseTimestampToMs(a.createdAt) - parseTimestampToMs(b.createdAt))
       .map((v, index) => ({
         ...v,
         versionNumber: index + 1,

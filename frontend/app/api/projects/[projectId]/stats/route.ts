@@ -1,7 +1,7 @@
 import { count, eq } from "drizzle-orm";
 import { type NextRequest } from "next/server";
 
-import { getSpansCountInProject } from "@/lib/clickhouse/spans";
+import { getSpansCountInProject } from "@/lib/actions/spans";
 import { db } from "@/lib/db/drizzle";
 import { datasets, evaluations } from "@/lib/db/migrations/schema";
 

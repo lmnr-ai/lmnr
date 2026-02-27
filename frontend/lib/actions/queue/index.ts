@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { createDatapoints } from "@/lib/clickhouse/datapoints";
+import { createDatapoints } from "@/lib/actions/datapoints/clickhouse";
 import { db } from "@/lib/db/drizzle";
 import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
 import { generateUuid } from "@/lib/utils";

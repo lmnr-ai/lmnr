@@ -2,6 +2,7 @@ import { differenceInHours, parseISO } from "date-fns";
 import { z } from "zod/v4";
 
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
+import { isoToClickHouseParam } from "@/lib/time/timestamp";
 
 const RelativeTimeInputSchema = z.object({
   pastHours: z.union([z.string(), z.number()]).refine(
@@ -69,8 +70,8 @@ export const convertToTimeParameters = (input: TimeInput, groupByInterval?: Grou
     const interval = groupByInterval || inferGroupByInterval(start, end);
 
     return TimeParametersSchema.parse({
-      start_time: start.toISOString().replace("T", " ").replace("Z", ""),
-      end_time: end.toISOString().replace("T", " ").replace("Z", ""),
+      start_time: isoToClickHouseParam(start.toISOString()),
+      end_time: isoToClickHouseParam(end.toISOString()),
       interval_unit: interval.toUpperCase(),
     });
   }
@@ -84,8 +85,8 @@ export const convertToTimeParameters = (input: TimeInput, groupByInterval?: Grou
   const interval = groupByInterval || inferGroupByInterval(start, now);
 
   return TimeParametersSchema.parse({
-    start_time: start.toISOString().replace("T", " ").replace("Z", ""),
-    end_time: now.toISOString().replace("T", " ").replace("Z", ""),
+    start_time: isoToClickHouseParam(start.toISOString()),
+    end_time: isoToClickHouseParam(now.toISOString()),
     interval_unit: interval.toUpperCase(),
   });
 };

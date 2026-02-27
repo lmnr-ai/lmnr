@@ -4,11 +4,12 @@ import { z } from "zod/v4";
 import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
+import { searchTypeToQueryFilter } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { addTimeRangeToQuery, getTimeRange, type TimeRange } from "@/lib/clickhouse/utils";
+import { getTimeRange, type TimeRange } from "@/lib/clickhouse/utils";
+import { toClickHouseParam } from "@/lib/time/timestamp";
 import { type SessionRow } from "@/lib/traces/types";
 
 export const GetSessionsSchema = PaginationFiltersSchema.extend({
@@ -83,28 +84,39 @@ const searchTraceIds = async ({
 }: {
   projectId: string;
   searchQuery: string;
-  timeRange: TimeRange;
+  timeRange?: TimeRange;
   searchType?: SpanSearchType[];
 }): Promise<string[]> => {
-  const baseQuery = `
+  let query = `
       SELECT DISTINCT(trace_id) traceId
       FROM spans
       WHERE project_id = {projectId: UUID}
   `;
 
-  const queryWithTime = addTimeRangeToQuery(baseQuery, timeRange, "start_time");
+  const queryParams: Record<string, any> = {
+    projectId,
+    query: `%${searchQuery.toLowerCase()}%`,
+  };
 
-  const finalQuery = `${queryWithTime} AND (${searchTypeToQueryFilter(searchType, "query")})`;
+  if (timeRange) {
+    if ("start" in timeRange && "end" in timeRange) {
+      query += ` AND start_time >= {startTime:String} AND start_time <= {endTime:String}`;
+      queryParams.startTime = toClickHouseParam(timeRange.start.toISOString());
+      queryParams.endTime = toClickHouseParam(timeRange.end.toISOString());
+    } else if ("pastHours" in timeRange) {
+      query += ` AND start_time >= now() - INTERVAL {pastHours:UInt32} HOUR`;
+      queryParams.pastHours = timeRange.pastHours;
+    }
+  }
+
+  query += ` AND (${searchTypeToQueryFilter(searchType, "query")})`;
 
   const response = await clickhouseClient.query({
-    query: `${finalQuery}
+    query: `${query}
      ORDER BY start_time DESC
      LIMIT 1000`,
     format: "JSONEachRow",
-    query_params: {
-      projectId,
-      query: `%${searchQuery.toLowerCase()}%`,
-    },
+    query_params: queryParams,
   });
 
   const result = (await response.json()) as { traceId: string }[];

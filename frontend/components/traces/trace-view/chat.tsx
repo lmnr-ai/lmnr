@@ -10,6 +10,7 @@ import { Response } from "@/components/ai-elements/response";
 import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
+import { parseTimestampToDate } from "@/lib/time/timestamp";
 import { cn } from "@/lib/utils";
 
 const EXAMPLE_QUESTIONS = [
@@ -119,8 +120,8 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
     transport: new DefaultChatTransport({
       api: `/api/projects/${projectId}/traces/${trace.id}/agent`,
       body: {
-        traceStartTime: new Date(trace.startTime).toISOString(),
-        traceEndTime: new Date(trace.endTime).toISOString(),
+        traceStartTime: parseTimestampToDate(trace.startTime).toISOString(),
+        traceEndTime: parseTimestampToDate(trace.endTime).toISOString(),
       },
     }),
     onFinish: async ({ message }) => {

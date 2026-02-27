@@ -1,8 +1,8 @@
-import { parseISO } from "date-fns";
 import { createContext, type PropsWithChildren, useContext, useRef } from "react";
 import { createStore, useStore } from "zustand";
 
 import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats";
+import { parseTimestampToDate } from "@/lib/time/timestamp";
 
 export type TracesState = {
   traceId: string | null;
@@ -69,11 +69,12 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
       const { stats } = get();
       if (!stats || stats.length === 0) return false;
 
-      const traceTime = parseISO(timestamp);
+      const traceTime = parseTimestampToDate(timestamp);
 
       const bucketIndex = stats.findIndex((stat, idx) => {
-        const bucketStart = parseISO(stat.timestamp);
-        const bucketEnd = idx < stats.length - 1 ? parseISO(stats[idx + 1].timestamp) : new Date(8640000000000000);
+        const bucketStart = parseTimestampToDate(stat.timestamp);
+        const bucketEnd =
+          idx < stats.length - 1 ? parseTimestampToDate(stats[idx + 1].timestamp) : new Date(8640000000000000);
 
         return traceTime >= bucketStart && traceTime < bucketEnd;
       });
@@ -85,11 +86,12 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
       const { stats } = get();
       if (!stats || stats?.length === 0) return;
 
-      const traceTime = parseISO(timestamp);
+      const traceTime = parseTimestampToDate(timestamp);
 
       const bucketIndex = stats.findIndex((stat, idx) => {
-        const bucketStart = parseISO(stat.timestamp);
-        const bucketEnd = idx < stats.length - 1 ? parseISO(stats[idx + 1].timestamp) : new Date(8640000000000000);
+        const bucketStart = parseTimestampToDate(stat.timestamp);
+        const bucketEnd =
+          idx < stats.length - 1 ? parseTimestampToDate(stats[idx + 1].timestamp) : new Date(8640000000000000);
 
         return traceTime >= bucketStart && traceTime < bucketEnd;
       });
