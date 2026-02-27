@@ -4,7 +4,7 @@ import { memo, useCallback } from "react";
 
 import CondensedTimelineControls from "@/components/traces/trace-view/header/timeline-toggle";
 import Metadata from "@/components/traces/trace-view/metadata";
-import { useTraceViewStoreContext } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,7 +20,7 @@ interface HeaderProps {
 }
 
 const Header = ({ onClose }: HeaderProps) => {
-  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStoreContext((state) => ({
+  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStore((state) => ({
     trace: state.trace,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,

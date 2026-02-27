@@ -2,12 +2,7 @@
 <a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
 <a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./images/logo_dark.png">
-  <source media="(prefers-color-scheme: light)" srcset="./images/logo_light.png">
-  <img alt="Laminar logo" src="./images/logo_light.png">
-</picture>
-
+![Laminar banner](./images/laminar-banner.png)
 
 # Laminar
 
@@ -32,7 +27,7 @@
     - [x] Ultra-fast full-text search over span data.
     - [x] gRPC exporter for tracing data.
 
-<img alt="traces" src="./images/traces.png">
+![Traces](./images/trace-screenshot.png)
 
 ## Documentation
 

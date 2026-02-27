@@ -1,4 +1,4 @@
-import { scaleUtc } from "d3-scale";
+import { scaleTime, scaleUtc } from "d3-scale";
 import { format, isValid, parseISO } from "date-fns";
 import { isNil } from "lodash";
 
@@ -86,27 +86,32 @@ export const createAxisFormatter = (data: Record<string, unknown>[], dataKey: st
   };
 };
 
+export const parseUtcTimestamp = (s: string): Date => {
+  const hasTimezone = /Z$|[+-]\d{2}:\d{2}$/.test(s);
+  const hasTime = s.includes("T") || s.includes(" ");
+  if (hasTime && !hasTimezone) return new Date(s.replace(" ", "T") + "Z");
+  return new Date(s);
+};
+
 export const selectNiceTicksFromData = (
   dataTimestamps: string[],
   targetTickCount: number = 8
 ): { ticks: string[]; formatter: (value: string) => string } | null => {
   if (dataTimestamps.length === 0) return null;
 
-  const toUtc = (s: string) => (s.includes("T") && !s.endsWith("Z") ? s + "Z" : s);
-
-  const startDate = new Date(toUtc(dataTimestamps[0]));
-  const endDate = new Date(toUtc(dataTimestamps[dataTimestamps.length - 1]));
+  const startDate = parseUtcTimestamp(dataTimestamps[0]);
+  const endDate = parseUtcTimestamp(dataTimestamps[dataTimestamps.length - 1]);
 
   if (!isValid(startDate) || !isValid(endDate)) return null;
 
   const scale = scaleUtc().domain([startDate, endDate]);
   const idealTicks = scale.ticks(targetTickCount);
-  const formatTick = scale.tickFormat();
+  const formatTick = scaleTime().domain([startDate, endDate]).tickFormat();
 
   const findClosestTimestamp = (targetTime: number) =>
     dataTimestamps.reduce((closest, current) => {
-      const closestDiff = Math.abs(new Date(toUtc(closest)).getTime() - targetTime);
-      const currentDiff = Math.abs(new Date(toUtc(current)).getTime() - targetTime);
+      const closestDiff = Math.abs(parseUtcTimestamp(closest).getTime() - targetTime);
+      const currentDiff = Math.abs(parseUtcTimestamp(current).getTime() - targetTime);
       return currentDiff < closestDiff ? current : closest;
     });
 

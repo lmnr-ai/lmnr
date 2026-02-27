@@ -3,7 +3,7 @@
 import React from "react";
 
 import TraceView from "@/components/traces/trace-view";
-import { type TraceViewTrace } from "@/components/traces/trace-view/trace-view-store.tsx";
+import { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import Header from "@/components/ui/header";
 
 const Trace = ({ trace }: { trace: TraceViewTrace }) => (

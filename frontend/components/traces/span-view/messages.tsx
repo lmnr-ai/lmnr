@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react";
 import React, { memo, type PropsWithChildren, type Ref, useMemo, useRef } from "react";
 import { type z } from "zod/v4";
 
+import AnthropicContentParts from "@/components/traces/span-view/anthropic-parts";
 import { MessageWrapper } from "@/components/traces/span-view/common";
 import GeminiContentParts from "@/components/traces/span-view/gemini-parts";
 import ContentParts from "@/components/traces/span-view/generic-parts";
@@ -13,13 +14,10 @@ import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
 import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
+import { type AnthropicMessagesSchema, parseAnthropicInput, parseAnthropicOutput } from "@/lib/spans/types/anthropic";
 import { type GeminiContentsSchema, parseGeminiInput, parseGeminiOutput } from "@/lib/spans/types/gemini";
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
-import {
-  type OpenAIMessagesSchema,
-  parseOpenAIInput,
-  parseOpenAIOutput,
-} from "@/lib/spans/types/openai";
+import { type OpenAIMessagesSchema, parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
 
 interface MessagesProps {
   messages: any;
@@ -52,6 +50,16 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 
     if (langchainResult.success) {
       return { messages: langchainResult.data, type: "langchain" as const };
+    }
+
+    const anthropicOutput = parseAnthropicOutput(messages);
+    if (anthropicOutput) {
+      return { messages: anthropicOutput, type: "anthropic" as const };
+    }
+
+    const anthropicInput = parseAnthropicInput(messages);
+    if (anthropicInput) {
+      return { messages: anthropicInput, type: "anthropic" as const };
     }
 
     const geminiOutput = parseGeminiOutput(messages);
@@ -148,6 +156,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
 type MessageRendererProps =
   | { type: "langchain"; messages: z.infer<typeof LangChainMessagesSchema> }
   | { type: "openai"; messages: z.infer<typeof OpenAIMessagesSchema> }
+  | { type: "anthropic"; messages: z.infer<typeof AnthropicMessagesSchema> }
   | { type: "gemini"; messages: z.infer<typeof GeminiContentsSchema> }
   | { type: "generic"; messages: (Omit<ModelMessage, "role"> & { role?: ModelMessage["role"] })[] };
 
@@ -182,6 +191,18 @@ const MessagesRenderer = ({
           <div key={row.key} data-index={row.index} ref={ref}>
             <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`}>
               <LangChainContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
+            </MessageWrapper>
+          </div>
+        );
+      });
+
+    case "anthropic":
+      return virtualItems.map((row) => {
+        const message = messages[row.index];
+        return (
+          <div key={row.key} data-index={row.index} ref={ref}>
+            <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`}>
+              <AnthropicContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
             </MessageWrapper>
           </div>
         );

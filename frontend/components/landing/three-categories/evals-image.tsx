@@ -41,7 +41,7 @@ const EvalsImage = ({ className }: Props) => {
           height={0}
           className="w-full h-auto rounded-lg border border-landing-surface-400"
         />
-        <motion.div className="absolute top-[6px] right-0 bottom-0 z-20 h-full" style={{ x: tracesX }}>
+        <motion.div className="absolute top-[1px] right-0 bottom-0 z-20 h-full" style={{ x: tracesX }}>
           <Image
             src="/assets/landing/evals-section-traces.png"
             alt="Evals"

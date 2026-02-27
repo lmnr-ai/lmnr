@@ -192,8 +192,9 @@ export default function WorkspaceAddons({
             ) : (
               <>
                 <p>
-                  The {pendingCfg?.name} addon will be removed from your subscription. You will receive a pro-rated
-                  credit for the unused portion of the current billing period.
+                  The {pendingCfg?.name} addon will be removed from your subscription. The unused portion of the current
+                  billing period will be pro-rated and <span className="underline">credited to your balance</span>,
+                  which will be applied to future charges.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Any features provided by this addon will no longer be available after removal.

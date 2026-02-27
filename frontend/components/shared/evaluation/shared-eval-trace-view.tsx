@@ -4,10 +4,7 @@ import { ChevronsRight } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { PureTraceView } from "@/components/shared/traces/trace-view";
-import TraceViewStoreProvider, {
-  type TraceViewSpan,
-  type TraceViewTrace,
-} from "@/components/traces/trace-view/trace-view-store.tsx";
+import TraceViewStoreProvider, { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -65,9 +62,7 @@ function SharedEvalTraceViewContent({ traceId, onClose }: SharedEvalTraceViewPro
             <ChevronsRight className="w-5 h-5" />
           </Button>
         </div>
-        <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">
-          {error}
-        </div>
+        <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">{error}</div>
       </div>
     );
   }

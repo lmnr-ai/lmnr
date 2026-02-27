@@ -19,7 +19,7 @@ interface UseBatchedSpanOutputsOptions {
 export function useBatchedSpanOutputs(
   projectId: string | undefined,
   visibleSpanIds: string[],
-  trace: { id: string; startTime?: string; endTime?: string },
+  trace: { id?: string; startTime?: string; endTime?: string },
   options: UseBatchedSpanOutputsOptions = {}
 ): BatchedOutputsHook {
   const { debounceMs = 150, maxEntries = 100, isShared = false } = options;
@@ -33,7 +33,7 @@ export function useBatchedSpanOutputs(
 
   const fetchBatch = useCallback(
     async (spanIds: string[]) => {
-      if (spanIds.length === 0 || !trace) return;
+      if (spanIds.length === 0 || !trace?.id) return;
 
       try {
         const body: Record<string, any> = { spanIds };

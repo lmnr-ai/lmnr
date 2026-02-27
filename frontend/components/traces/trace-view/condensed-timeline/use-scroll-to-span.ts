@@ -1,7 +1,7 @@
 import { type RefObject, useEffect } from "react";
 
-import { type TraceViewSpan } from "@/components/traces/trace-view/trace-view-store";
-import { type CondensedTimelineSpan } from "@/components/traces/trace-view/trace-view-store-utils";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
+import { type CondensedTimelineSpan } from "@/components/traces/trace-view/store/utils";
 
 import { ROW_HEIGHT } from "./condensed-timeline-element";
 
