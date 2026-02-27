@@ -22,7 +22,7 @@ use crate::{
     },
     db::{
         DB,
-        spans::{Span, SpanType},
+        spans::Span,
         trace::{Trace, upsert_trace_statistics_batch},
         workspaces::WorkspaceDeployment,
     },
@@ -73,7 +73,7 @@ pub async fn process_span_messages(
             .iter_mut()
             // only upload non-llm spans to avoid parsing issues with
             // llm-span-specific features, such as debugger
-            .filter(|span| span.attributes.span_type() != SpanType::LLM)
+            .filter(|span| !span.is_llm_span())
             .map(|span| {
                 let project_id: Uuid = span.project_id;
                 let queue_clone = queue.clone();
