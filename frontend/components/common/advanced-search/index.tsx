@@ -24,6 +24,7 @@ interface AdvancedSearchInnerProps {
   resource: "traces" | "spans";
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
   options?: {
     suggestions?: Map<string, string[]>;
     disableHotKey?: boolean;
@@ -35,6 +36,7 @@ const AdvancedSearchInner = ({
   placeholder = "Search...",
   className,
   filters,
+  disabled,
   options: { suggestions, disableHotKey } = { disableHotKey: false },
 }: AdvancedSearchInnerProps) => {
   const params = useParams();
@@ -135,6 +137,7 @@ const AdvancedSearchInner = ({
       placeholder={placeholder}
       className={className}
       resource={resource}
+      disabled={disabled}
     />
   );
 };
@@ -146,6 +149,7 @@ interface AdvancedSearchProps {
   resource: "traces" | "spans";
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
   mode?: AdvancedSearchMode;
   value?: { filters: Filter[]; search: string };
   onSubmit?: (filters: Filter[], search: string) => void;
@@ -161,6 +165,7 @@ const AdvancedSearch = ({
   resource,
   placeholder,
   className,
+  disabled,
   mode = "url",
   value,
   onSubmit,
@@ -179,6 +184,7 @@ const AdvancedSearch = ({
       resource={resource}
       placeholder={placeholder}
       className={className}
+      disabled={disabled}
       options={{
         suggestions,
         disableHotKey,

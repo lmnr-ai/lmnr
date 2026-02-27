@@ -397,7 +397,12 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
     );
   }
 
-  if (isEmpty(spans) && !isSpansLoading && (sessionStatus === "PENDING" || sessionStatus === "RUNNING")) {
+  // Show placeholder when session has no trace loaded (e.g. freshly created or just started running
+  // with trace cleared). Skipped when user has selected a previous trace to browse while PENDING.
+  const showSessionPlaceholder =
+    isEmpty(spans) && !isSpansLoading && (sessionStatus === "PENDING" || sessionStatus === "RUNNING") && !trace;
+
+  if (showSessionPlaceholder) {
     return (
       <div className="flex flex-1 h-full flex-col items-center justify-center p-8 text-center">
         <div className="max-w-md mx-auto">
@@ -408,7 +413,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
           <p className="text-sm text-muted-foreground mb-4">
             {sessionStatus === "RUNNING"
               ? "Debugger is running. Traces will appear here once they arrive."
-              : "Run the debugger session by fillingin input arguments and clicking run. Trace will appear here when your agent runs."}
+              : "Run the debugger session by filling in input arguments and clicking run. Trace will appear here when your agent runs."}
           </p>
         </div>
       </div>
