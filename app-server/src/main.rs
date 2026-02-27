@@ -1353,6 +1353,7 @@ fn main() -> anyhow::Result<()> {
                     let mcp_service = api::v1::mcp::build_mcp_service(
                         clickhouse_for_http.clone(),
                         clickhouse_readonly_client.clone(),
+                        quickwit_client.clone(),
                         query_engine.clone(),
                         Arc::new(http_client_for_http.clone()),
                         db_for_http.clone(),

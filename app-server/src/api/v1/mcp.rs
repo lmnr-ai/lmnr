@@ -13,6 +13,8 @@ use rmcp_actix_web::transport::StreamableHttpService;
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::quickwit::client::QuickwitClient;
+use crate::routes::spans::execute_quickwit_search;
 use crate::{
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey},
@@ -47,12 +49,27 @@ pub struct GetTraceContextParams {
     pub trace_id: Uuid,
 }
 
+const MCP_SEARCH_MAX_HITS: usize = 200;
+
+/// Parameters for the trace context tool.
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSpansParams {
+    pub query: String,
+    #[serde(default)]
+    pub search_in: Option<Vec<String>>,
+    /// Maximum number of results to return (default: 50, max: 200).
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
 // ============ MCP Server ============
 
 #[derive(Clone)]
 pub struct LaminarMcpServer {
     clickhouse: clickhouse::Client,
     clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
+    quickwit: Option<QuickwitClient>,
     query_engine: Arc<QueryEngine>,
     http_client: Arc<reqwest::Client>,
     db: Arc<DB>,
@@ -65,6 +82,7 @@ impl LaminarMcpServer {
     pub fn new(
         clickhouse: clickhouse::Client,
         clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
+        quickwit: Option<QuickwitClient>,
         query_engine: Arc<QueryEngine>,
         http_client: Arc<reqwest::Client>,
         db: Arc<DB>,
@@ -73,6 +91,7 @@ impl LaminarMcpServer {
         Self {
             clickhouse,
             clickhouse_ro,
+            quickwit,
             query_engine,
             http_client,
             db,
@@ -175,6 +194,54 @@ impl LaminarMcpServer {
             ))])),
         }
     }
+
+    /// Full-text search across span inputs, outputs, and attributes.
+    #[tool(name = "search_spans")]
+    async fn search_spans(
+        &self,
+        context: RequestContext<RoleServer>,
+        Parameters(params): Parameters<SearchSpansParams>,
+    ) -> Result<CallToolResult, McpError> {
+        if params.query.trim().is_empty() {
+            return Ok(CallToolResult::success(vec![Content::text("[]")]));
+        }
+
+        let project_id = context
+            .extensions
+            .get::<ProjectId>()
+            .ok_or_else(|| McpError::internal_error("Missing project context", None))?
+            .0;
+
+        let quickwit = self.quickwit.as_ref().ok_or_else(|| {
+            McpError::internal_error(
+                "Full-text search is not available (Quickwit not configured)",
+                None,
+            )
+        })?;
+
+        let limit = match params.limit {
+            Some(l) if l > 0 => l.min(MCP_SEARCH_MAX_HITS),
+            _ => 50,
+        };
+
+        let hits = execute_quickwit_search(
+            quickwit,
+            project_id,
+            &params.query,
+            params.search_in,
+            None,
+            None,
+            None,
+            limit,
+            0,
+        )
+        .await
+        .map_err(|e| McpError::internal_error(format!("Search failed: {}", e), None))?;
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&hits).unwrap_or_default(),
+        )]))
+    }
 }
 
 #[tool_handler]
@@ -200,6 +267,7 @@ impl ServerHandler for LaminarMcpServer {
 pub fn build_mcp_service(
     clickhouse: clickhouse::Client,
     clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
+    quickwit: Option<QuickwitClient>,
     query_engine: Arc<QueryEngine>,
     http_client: Arc<reqwest::Client>,
     db: Arc<DB>,
@@ -209,6 +277,7 @@ pub fn build_mcp_service(
         .service_factory({
             let clickhouse = clickhouse.clone();
             let clickhouse_ro = clickhouse_ro.clone();
+            let quickwit = quickwit.clone();
             let query_engine = query_engine.clone();
             let http_client = http_client.clone();
             let db = db.clone();
@@ -217,6 +286,7 @@ pub fn build_mcp_service(
                 Ok(LaminarMcpServer::new(
                     clickhouse.clone(),
                     clickhouse_ro.clone(),
+                    quickwit.clone(),
                     query_engine.clone(),
                     http_client.clone(),
                     db.clone(),
