@@ -143,6 +143,100 @@ STEP toInterval(1, {interval_unit:String})
         assert result["metrics"][0]["alias"] == "value"
 
 
+class TestRawSqlMetrics:
+    """Test raw SQL metric support in both directions"""
+
+    def test_json_to_sql_with_raw_metric(self):
+        """Test that raw SQL metrics are passed through directly"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "raw", "column": "", "raw_sql": "countIf(status = 'ERROR')", "alias": "error_count", "args": []}
+            ],
+            "dimensions": [],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "countIf(status = 'ERROR') AS error_count" in sql
+        assert "FROM spans" in sql
+
+    def test_json_to_sql_with_raw_and_standard_metrics(self):
+        """Test mixing raw SQL and standard metrics"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "count", "column": "*", "alias": "total", "args": []},
+                {"fn": "raw", "column": "", "raw_sql": "sumIf(total_cost, status = 'OK')", "alias": "success_cost", "args": []},
+            ],
+            "dimensions": ["model"],
+            "filters": [],
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "count(*) AS total" in sql
+        assert "sumIf(total_cost, status = 'OK') AS success_cost" in sql
+        assert "model" in sql
+
+    def test_json_to_sql_raw_metric_missing_sql_raises_error(self):
+        """Test that raw metric without raw_sql raises an error"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "raw", "column": "", "alias": "broken", "args": []}
+            ],
+        }
+
+        with pytest.raises(JsonToSqlError, match="raw_sql is required"):
+            convert_json_to_sql(query_json)
+
+    def test_sql_to_json_with_custom_expression(self):
+        """Test that unrecognized expressions are parsed as raw SQL"""
+        sql = """
+SELECT
+    countIf(status = 'ERROR') AS error_count
+FROM spans
+WHERE
+    start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}
+"""
+        result = convert_sql_to_json(sql)
+
+        assert result["table"] == "spans"
+        assert len(result["metrics"]) == 1
+        metric = result["metrics"][0]
+        assert metric["fn"] == "raw"
+        assert "raw_sql" in metric
+        assert metric["alias"] == "error_count"
+
+    def test_raw_sql_roundtrip(self):
+        """Test that raw SQL metrics survive a roundtrip"""
+        original_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "raw", "column": "", "raw_sql": "uniqExact(trace_id)", "alias": "unique_traces", "args": []}
+            ],
+            "dimensions": ["model"],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+
+        sql = convert_json_to_sql(original_json)
+        assert "uniqExact(trace_id) AS unique_traces" in sql
+
+        result = convert_sql_to_json(sql)
+        assert result["table"] == "spans"
+        assert len(result["metrics"]) == 1
+        assert result["metrics"][0]["alias"] == "unique_traces"
+
+
 class TestRoundTripConversion:
     """Test that queries survive round-trip conversion: JSON -> SQL -> JSON"""
 

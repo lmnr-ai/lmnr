@@ -6,14 +6,23 @@ export type GenerationResult = { success: true; result: string } | { success: fa
 
 export const MetricSchema = z
   .object({
-    fn: z.enum(["count", "sum", "avg", "min", "max", "quantile"]),
+    fn: z.enum(["count", "sum", "avg", "min", "max", "quantile", "raw"]),
     column: z.string(),
     args: z.array(z.number()),
     alias: z.string().optional().nullable(),
+    rawSql: z.string().optional().nullable(),
   })
-  .refine((data) => data.fn === "count" || data.column.trim().length > 0, {
+  .refine((data) => data.fn === "count" || data.fn === "raw" || data.column.trim().length > 0, {
     message: "Column is required for this metric function",
     path: ["column"],
+  })
+  .refine((data) => data.fn !== "raw" || (data.rawSql?.trim().length ?? 0) > 0, {
+    message: "SQL expression is required for custom SQL metrics",
+    path: ["rawSql"],
+  })
+  .refine((data) => data.fn !== "raw" || (data.alias?.trim().length ?? 0) > 0, {
+    message: "Alias is required for custom SQL metrics",
+    path: ["alias"],
   });
 
 export const FilterStringSchema = z.object({

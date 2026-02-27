@@ -177,9 +177,17 @@ class JsonToSqlConverter:
         return f"toStartOfInterval({col}, {interval_expr}) AS time"
 
     def _metric_sql(self, metric: dict[str, Any]) -> str:
-        fn = metric['fn']
-        col = metric['column']
+        fn = metric.get('fn', '')
+        col = metric.get('column', '')
         alias = metric.get('alias', col)
+
+        if fn.lower() == 'raw':
+            raw_sql = metric.get('raw_sql', '')
+            if not raw_sql:
+                raise QueryBuilderError("raw_sql is required for raw metric type")
+            if alias:
+                return f"{raw_sql} AS {alias}"
+            return raw_sql
 
         if fn.lower() == 'quantile' and metric.get('args'):
             return f"quantile({metric['args'][0]})({col}) AS {alias}"
