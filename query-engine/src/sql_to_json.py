@@ -126,7 +126,7 @@ class SqlToJsonConverter:
                                  sqlglot.exp.Min, sqlglot.exp.Max)):
                 return self._parse_standard_agg(node, alias)
 
-        return {'fn': 'unknown', 'column': str(expr), 'alias': alias}
+        return {'fn': 'raw', 'column': '', 'raw_sql': expr.sql(dialect="clickhouse"), 'alias': alias}
 
     def _parse_quantile(self, node, alias: str) -> dict[str, Any]:
         column = self._extract_column(node.this) if node.this else 'unknown'

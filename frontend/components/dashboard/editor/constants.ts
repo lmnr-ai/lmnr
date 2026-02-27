@@ -49,6 +49,11 @@ export const METRIC_FUNCTION_OPTIONS: MetricFunctionOption[] = [
     label: "P99",
     createMetric: (column) => ({ fn: "quantile", column, args: [0.99], alias: `p99_${column}` }),
   },
+  {
+    value: "raw",
+    label: "Custom SQL",
+    createMetric: () => ({ fn: "raw", column: "", args: [], rawSql: "", alias: "" }),
+  },
 ];
 
 export const getMetricFunctionValue = (metric: Metric): string => {
@@ -58,6 +63,7 @@ export const getMetricFunctionValue = (metric: Metric): string => {
     if (metric.args?.[0] === 0.99) return "p99";
     return "quantile"; // fallback for custom quantiles
   }
+  if (metric.fn === "raw") return "raw";
   return metric.fn;
 };
 
@@ -65,6 +71,9 @@ export const createMetricFromOption = (functionValue: string, column: string, al
   const option = METRIC_FUNCTION_OPTIONS.find((opt) => opt.value === functionValue);
   if (!option) {
     return { fn: "count", column: "*", alias: alias || "count", args: [] };
+  }
+  if (functionValue === "raw") {
+    return { fn: "raw", column: "", args: [], rawSql: "", alias: alias || "" } as Metric;
   }
   return { ...option.createMetric(column), column, alias } as Metric;
 };

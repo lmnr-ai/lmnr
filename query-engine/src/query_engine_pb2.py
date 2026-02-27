@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12query_engine.proto\x12\x0cquery_engine\"P\n\x06Metric\x12\n\n\x02\x66n\x18\x01 \x01(\t\x12\x0e\n\x06\x63olumn\x18\x02 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x03 \x03(\x01\x12\x12\n\x05\x61lias\x18\x04 \x01(\tH\x00\x88\x01\x01\x42\x08\n\x06_alias\"\\\n\x06\x46ilter\x12\r\n\x05\x66ield\x18\x01 \x01(\t\x12\n\n\x02op\x18\x02 \x01(\t\x12\x16\n\x0cstring_value\x18\x03 \x01(\tH\x00\x12\x16\n\x0cnumber_value\x18\x04 \x01(\x01H\x00\x42\x07\n\x05value\"w\n\tTimeRange\x12\x0e\n\x06\x63olumn\x18\x01 \x01(\t\x12\x0c\n\x04\x66rom\x18\x02 \x01(\t\x12\n\n\x02to\x18\x03 \x01(\t\x12\x15\n\rinterval_unit\x18\x04 \x01(\t\x12\x16\n\x0einterval_value\x18\x05 \x01(\t\x12\x11\n\tfill_gaps\x18\x06 \x01(\x08\"%\n\x07OrderBy\x12\r\n\x05\x66ield\x18\x01 \x01(\t\x12\x0b\n\x03\x64ir\x18\x02 \x01(\t\"\x89\x02\n\x0eQueryStructure\x12\r\n\x05table\x18\x01 \x01(\t\x12%\n\x07metrics\x18\x02 \x03(\x0b\x32\x14.query_engine.Metric\x12\x12\n\ndimensions\x18\x03 \x03(\t\x12%\n\x07\x66ilters\x18\x04 \x03(\x0b\x32\x14.query_engine.Filter\x12\x30\n\ntime_range\x18\x05 \x01(\x0b\x32\x17.query_engine.TimeRangeH\x00\x88\x01\x01\x12\'\n\x08order_by\x18\x06 \x03(\x0b\x32\x15.query_engine.OrderBy\x12\x12\n\x05limit\x18\x07 \x01(\x05H\x01\x88\x01\x01\x42\r\n\x0b_time_rangeB\x08\n\x06_limit\"1\n\x0cQueryRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x12\n\nproject_id\x18\x02 \x01(\t\"y\n\rQueryResponse\x12\x30\n\x07success\x18\x01 \x01(\x0b\x32\x1d.query_engine.SuccessResponseH\x00\x12,\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x1b.query_engine.ErrorResponseH\x00\x42\x08\n\x06result\" \n\x0fSuccessResponse\x12\r\n\x05query\x18\x01 \x01(\t\"\x1e\n\rErrorResponse\x12\r\n\x05\x65rror\x18\x01 \x01(\t\"I\n\x10JsonToSqlRequest\x12\x35\n\x0fquery_structure\x18\x01 \x01(\x0b\x32\x1c.query_engine.QueryStructure\"\'\n\x18JsonToSqlSuccessResponse\x12\x0b\n\x03sql\x18\x01 \x01(\t\"\x86\x01\n\x11JsonToSqlResponse\x12\x39\n\x07success\x18\x01 \x01(\x0b\x32&.query_engine.JsonToSqlSuccessResponseH\x00\x12,\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x1b.query_engine.ErrorResponseH\x00\x42\x08\n\x06result\"\x1f\n\x10SqlToJsonRequest\x12\x0b\n\x03sql\x18\x01 \x01(\t\"Q\n\x18SqlToJsonSuccessResponse\x12\x35\n\x0fquery_structure\x18\x01 \x01(\x0b\x32\x1c.query_engine.QueryStructure\"\x86\x01\n\x11SqlToJsonResponse\x12\x39\n\x07success\x18\x01 \x01(\x0b\x32&.query_engine.SqlToJsonSuccessResponseH\x00\x12,\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x1b.query_engine.ErrorResponseH\x00\x42\x08\n\x06result2\xfa\x01\n\x12QueryEngineService\x12H\n\rValidateQuery\x12\x1a.query_engine.QueryRequest\x1a\x1b.query_engine.QueryResponse\x12L\n\tJsonToSql\x12\x1e.query_engine.JsonToSqlRequest\x1a\x1f.query_engine.JsonToSqlResponse\x12L\n\tSqlToJson\x12\x1e.query_engine.SqlToJsonRequest\x1a\x1f.query_engine.SqlToJsonResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12query_engine.proto\x12\x0cquery_engine\"r\n\x06Metric\x12\n\n\x02\x66n\x18\x01 \x01(\t\x12\x0e\n\x06\x63olumn\x18\x02 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x03 \x03(\x01\x12\x12\n\x05\x61lias\x18\x04 \x01(\tH\x00\x88\x01\x01\x12\x14\n\x07raw_sql\x18\x05 \x01(\tH\x01\x88\x01\x01\x42\x08\n\x06_aliasB\n\n\x08_raw_sql\"\\\n\x06\x46ilter\x12\r\n\x05\x66ield\x18\x01 \x01(\t\x12\n\n\x02op\x18\x02 \x01(\t\x12\x16\n\x0cstring_value\x18\x03 \x01(\tH\x00\x12\x16\n\x0cnumber_value\x18\x04 \x01(\x01H\x00\x42\x07\n\x05value\"w\n\tTimeRange\x12\x0e\n\x06\x63olumn\x18\x01 \x01(\t\x12\x0c\n\x04\x66rom\x18\x02 \x01(\t\x12\n\n\x02to\x18\x03 \x01(\t\x12\x15\n\rinterval_unit\x18\x04 \x01(\t\x12\x16\n\x0einterval_value\x18\x05 \x01(\t\x12\x11\n\tfill_gaps\x18\x06 \x01(\x08\"%\n\x07OrderBy\x12\r\n\x05\x66ield\x18\x01 \x01(\t\x12\x0b\n\x03\x64ir\x18\x02 \x01(\t\"\x89\x02\n\x0eQueryStructure\x12\r\n\x05table\x18\x01 \x01(\t\x12%\n\x07metrics\x18\x02 \x03(\x0b\x32\x14.query_engine.Metric\x12\x12\n\ndimensions\x18\x03 \x03(\t\x12%\n\x07\x66ilters\x18\x04 \x03(\x0b\x32\x14.query_engine.Filter\x12\x30\n\ntime_range\x18\x05 \x01(\x0b\x32\x17.query_engine.TimeRangeH\x00\x88\x01\x01\x12\'\n\x08order_by\x18\x06 \x03(\x0b\x32\x15.query_engine.OrderBy\x12\x12\n\x05limit\x18\x07 \x01(\x05H\x01\x88\x01\x01\x42\r\n\x0b_time_rangeB\x08\n\x06_limit\"1\n\x0cQueryRequest\x12\r\n\x05query\x18\x01 \x01(\t\x12\x12\n\nproject_id\x18\x02 \x01(\t\"y\n\rQueryResponse\x12\x30\n\x07success\x18\x01 \x01(\x0b\x32\x1d.query_engine.SuccessResponseH\x00\x12,\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x1b.query_engine.ErrorResponseH\x00\x42\x08\n\x06result\" \n\x0fSuccessResponse\x12\r\n\x05query\x18\x01 \x01(\t\"\x1e\n\rErrorResponse\x12\r\n\x05\x65rror\x18\x01 \x01(\t\"I\n\x10JsonToSqlRequest\x12\x35\n\x0fquery_structure\x18\x01 \x01(\x0b\x32\x1c.query_engine.QueryStructure\"\'\n\x18JsonToSqlSuccessResponse\x12\x0b\n\x03sql\x18\x01 \x01(\t\"\x86\x01\n\x11JsonToSqlResponse\x12\x39\n\x07success\x18\x01 \x01(\x0b\x32&.query_engine.JsonToSqlSuccessResponseH\x00\x12,\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x1b.query_engine.ErrorResponseH\x00\x42\x08\n\x06result\"\x1f\n\x10SqlToJsonRequest\x12\x0b\n\x03sql\x18\x01 \x01(\t\"Q\n\x18SqlToJsonSuccessResponse\x12\x35\n\x0fquery_structure\x18\x01 \x01(\x0b\x32\x1c.query_engine.QueryStructure\"\x86\x01\n\x11SqlToJsonResponse\x12\x39\n\x07success\x18\x01 \x01(\x0b\x32&.query_engine.SqlToJsonSuccessResponseH\x00\x12,\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x1b.query_engine.ErrorResponseH\x00\x42\x08\n\x06result2\xfa\x01\n\x12QueryEngineService\x12H\n\rValidateQuery\x12\x1a.query_engine.QueryRequest\x1a\x1b.query_engine.QueryResponse\x12L\n\tJsonToSql\x12\x1e.query_engine.JsonToSqlRequest\x1a\x1f.query_engine.JsonToSqlResponse\x12L\n\tSqlToJson\x12\x1e.query_engine.SqlToJsonRequest\x1a\x1f.query_engine.SqlToJsonResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,35 +32,35 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'query_engine_pb2', _globals
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_METRIC']._serialized_start=36
-  _globals['_METRIC']._serialized_end=116
-  _globals['_FILTER']._serialized_start=118
-  _globals['_FILTER']._serialized_end=210
-  _globals['_TIMERANGE']._serialized_start=212
-  _globals['_TIMERANGE']._serialized_end=331
-  _globals['_ORDERBY']._serialized_start=333
-  _globals['_ORDERBY']._serialized_end=370
-  _globals['_QUERYSTRUCTURE']._serialized_start=373
-  _globals['_QUERYSTRUCTURE']._serialized_end=638
-  _globals['_QUERYREQUEST']._serialized_start=640
-  _globals['_QUERYREQUEST']._serialized_end=689
-  _globals['_QUERYRESPONSE']._serialized_start=691
-  _globals['_QUERYRESPONSE']._serialized_end=812
-  _globals['_SUCCESSRESPONSE']._serialized_start=814
-  _globals['_SUCCESSRESPONSE']._serialized_end=846
-  _globals['_ERRORRESPONSE']._serialized_start=848
-  _globals['_ERRORRESPONSE']._serialized_end=878
-  _globals['_JSONTOSQLREQUEST']._serialized_start=880
-  _globals['_JSONTOSQLREQUEST']._serialized_end=953
-  _globals['_JSONTOSQLSUCCESSRESPONSE']._serialized_start=955
-  _globals['_JSONTOSQLSUCCESSRESPONSE']._serialized_end=994
-  _globals['_JSONTOSQLRESPONSE']._serialized_start=997
-  _globals['_JSONTOSQLRESPONSE']._serialized_end=1131
-  _globals['_SQLTOJSONREQUEST']._serialized_start=1133
-  _globals['_SQLTOJSONREQUEST']._serialized_end=1164
-  _globals['_SQLTOJSONSUCCESSRESPONSE']._serialized_start=1166
-  _globals['_SQLTOJSONSUCCESSRESPONSE']._serialized_end=1247
-  _globals['_SQLTOJSONRESPONSE']._serialized_start=1250
-  _globals['_SQLTOJSONRESPONSE']._serialized_end=1384
-  _globals['_QUERYENGINESERVICE']._serialized_start=1387
-  _globals['_QUERYENGINESERVICE']._serialized_end=1637
+  _globals['_METRIC']._serialized_end=150
+  _globals['_FILTER']._serialized_start=152
+  _globals['_FILTER']._serialized_end=244
+  _globals['_TIMERANGE']._serialized_start=246
+  _globals['_TIMERANGE']._serialized_end=365
+  _globals['_ORDERBY']._serialized_start=367
+  _globals['_ORDERBY']._serialized_end=404
+  _globals['_QUERYSTRUCTURE']._serialized_start=407
+  _globals['_QUERYSTRUCTURE']._serialized_end=672
+  _globals['_QUERYREQUEST']._serialized_start=674
+  _globals['_QUERYREQUEST']._serialized_end=723
+  _globals['_QUERYRESPONSE']._serialized_start=725
+  _globals['_QUERYRESPONSE']._serialized_end=846
+  _globals['_SUCCESSRESPONSE']._serialized_start=848
+  _globals['_SUCCESSRESPONSE']._serialized_end=880
+  _globals['_ERRORRESPONSE']._serialized_start=882
+  _globals['_ERRORRESPONSE']._serialized_end=912
+  _globals['_JSONTOSQLREQUEST']._serialized_start=914
+  _globals['_JSONTOSQLREQUEST']._serialized_end=987
+  _globals['_JSONTOSQLSUCCESSRESPONSE']._serialized_start=989
+  _globals['_JSONTOSQLSUCCESSRESPONSE']._serialized_end=1028
+  _globals['_JSONTOSQLRESPONSE']._serialized_start=1031
+  _globals['_JSONTOSQLRESPONSE']._serialized_end=1165
+  _globals['_SQLTOJSONREQUEST']._serialized_start=1167
+  _globals['_SQLTOJSONREQUEST']._serialized_end=1198
+  _globals['_SQLTOJSONSUCCESSRESPONSE']._serialized_start=1200
+  _globals['_SQLTOJSONSUCCESSRESPONSE']._serialized_end=1281
+  _globals['_SQLTOJSONRESPONSE']._serialized_start=1284
+  _globals['_SQLTOJSONRESPONSE']._serialized_end=1418
+  _globals['_QUERYENGINESERVICE']._serialized_start=1421
+  _globals['_QUERYENGINESERVICE']._serialized_end=1671
 # @@protoc_insertion_point(module_scope)

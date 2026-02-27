@@ -11,6 +11,8 @@ pub struct Metric {
     pub args: ::prost::alloc::vec::Vec<f64>,
     #[prost(string, optional, tag = "4")]
     pub alias: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
+    pub raw_sql: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]

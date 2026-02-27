@@ -7,6 +7,7 @@ message Metric {
     string column = 2;
     repeated double args = 3;
     optional string alias = 4;
+    optional string raw_sql = 5;
 }
 
 message Filter {
