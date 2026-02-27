@@ -207,7 +207,7 @@ const PlaygroundsContent = () => {
           }}
           onRowSelectionChange={setRowSelection}
           lockedColumns={["__row_selection"]}
-          emptyRow={EmptyRow}
+          emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

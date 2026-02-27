@@ -182,7 +182,7 @@ function SignalsContent() {
               <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
             </div>
           )}
-          emptyRow={EmptyRow}
+          emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
         >
           <div className="flex flex-1 w-full space-x-2 pt-1">
             <DataTableFilter columns={signalsTableFilters} />
