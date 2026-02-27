@@ -947,13 +947,16 @@ impl Span {
     }
 
     pub fn is_llm_span(&self) -> bool {
-        self.attributes.span_type() == SpanType::LLM
-            || (self.attributes.span_type() == SpanType::Cached
-                && self
-                    .attributes
-                    .raw_attributes
-                    .get("lmnr.span.original_type")
-                    == Some(&Value::String("LLM".to_string())))
+        let is_cached_llm_span = self.attributes.span_type() == SpanType::Cached
+            && self
+                .attributes
+                .raw_attributes
+                .get("lmnr.span.original_type")
+                == Some(&Value::String("LLM".to_string()));
+        !self.is_ai_sdk_tool_call_span()
+            && (self.attributes.span_type() == SpanType::LLM
+                || is_cached_llm_span
+                || self.span_type == SpanType::LLM)
     }
 }
 
