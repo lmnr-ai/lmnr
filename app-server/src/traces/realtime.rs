@@ -37,6 +37,14 @@ struct RealtimeTrace {
     tags: Vec<String>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RealtimeDebuggerTrace {
+    trace_id: Uuid,
+    metadata: Option<Value>,
+    has_browser_session: Option<bool>,
+}
+
 /// Realtime span data for frontend consumption (lightweight, no input/output)
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -117,6 +125,8 @@ pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
 
     // Group traces by project_id
     let mut traces_by_project: HashMap<Uuid, Vec<RealtimeTrace>> = HashMap::new();
+    let mut traces_by_rollout_session: HashMap<(Uuid, String), Vec<RealtimeDebuggerTrace>> =
+        HashMap::new();
 
     for trace in traces {
         // Very rudimentary filter to exclude evaluation traces
@@ -130,6 +140,21 @@ pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
             .entry(trace.project_id())
             .or_default()
             .push(RealtimeTrace::from_trace(trace));
+
+        if let Some(rollout_session_id) = trace
+            .metadata()
+            .and_then(|m| m.get("rollout.session_id"))
+            .and_then(|v| v.as_str())
+        {
+            traces_by_rollout_session
+                .entry((trace.project_id(), rollout_session_id.to_string()))
+                .or_default()
+                .push(RealtimeDebuggerTrace {
+                    trace_id: trace.id(),
+                    metadata: trace.metadata().cloned(),
+                    has_browser_session: trace.has_browser_session(),
+                });
+        }
     }
 
     for (project_id, traces_data) in traces_by_project {
@@ -141,6 +166,18 @@ pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
         };
 
         send_to_key(pubsub, &project_id, "traces", trace_message).await;
+    }
+
+    for ((project_id, rollout_session_id), traces_data) in traces_by_rollout_session {
+        let trace_message = SseMessage {
+            event_type: "trace_update".to_string(),
+            data: serde_json::json!({
+                "traces": traces_data
+            }),
+        };
+
+        let rollout_session_key = format!("rollout_session_{}", rollout_session_id);
+        send_to_key(pubsub, &project_id, &rollout_session_key, trace_message).await;
     }
 }
 

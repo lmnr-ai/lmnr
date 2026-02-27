@@ -300,6 +300,24 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
           setSessionStatus(payload.status);
         }
       },
+      trace_update: (event: MessageEvent) => {
+        const payload = JSON.parse(event.data);
+        if (payload.traces && Array.isArray(payload.traces)) {
+          for (const t of payload.traces) {
+            if (t.hasBrowserSession && !hasBrowserSession) {
+              setHasBrowserSession(true);
+              setBrowserSession(true);
+            }
+            if (t.metadata) {
+              setTrace((prev) => {
+                if (!prev || prev.metadata) return prev;
+                const metadata = typeof t.metadata === "string" ? t.metadata : JSON.stringify(t.metadata);
+                return { ...prev, metadata };
+              });
+            }
+          }
+        }
+      },
       session_deleted: (event: MessageEvent) => {
         const payload = JSON.parse(event.data);
         if (payload.session_id) {
@@ -307,7 +325,15 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
         }
       },
     }),
-    [setSpans, setTrace, setBrowserSession, setHasBrowserSession, setSessionStatus, setIsSessionDeleted]
+    [
+      setSpans,
+      setTrace,
+      setBrowserSession,
+      setHasBrowserSession,
+      setSessionStatus,
+      setIsSessionDeleted,
+      hasBrowserSession,
+    ]
   );
 
   useEffect(() => {
@@ -493,7 +519,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
             </ResizablePanel>
             {browserSession && (
               <>
-                <ResizableHandle className="z-50" withHandle />
+                <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" withHandle />
                 <ResizablePanel>
                   {!isLoading && trace?.id && (
                     <SessionPlayer
