@@ -5,7 +5,7 @@ import { Terminal } from "lucide-react";
 import { CopyButton } from "@/components/ui/copy-button";
 
 import ApiKeyGenerator from "../../onboarding/api-key-generator";
-import { LAMINAR_BASIC_INSTALL_PROMPT, LAMINAR_INSTRUMENTATION_PROMPT, LAMINAR_MIGRATION_PROMPT } from "./prompts";
+import { LAMINAR_INSTALL_FROM_SCRATCH, LAMINAR_MIGRATION_PROMPT } from "./prompts";
 import { PromptCard } from "./prompt-card";
 
 const SKILLS_COMMANDS = [
@@ -25,14 +25,9 @@ const SKILLS_COMMANDS = [
 
 const PROMPT_CARDS = [
   {
-    title: "Incorporate Laminar into an existing product",
-    subtitle: "Best if you already have an LLM/agent pipeline and want high-quality traces.",
-    prompt: LAMINAR_INSTRUMENTATION_PROMPT,
-  },
-  {
-    title: "Basic install + auto-instrumentation",
-    subtitle: "Best if you just want traces to show up quickly with minimal code changes.",
-    prompt: LAMINAR_BASIC_INSTALL_PROMPT,
+    title: "Install and instrument from scratch",
+    subtitle: "Best for new projects or repos without existing observability.",
+    prompt: LAMINAR_INSTALL_FROM_SCRATCH,
   },
   {
     title: "Migrate from another observability platform",
