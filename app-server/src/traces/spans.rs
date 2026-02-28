@@ -35,10 +35,12 @@ use crate::{
 
 use super::{
     span_attributes::{
-        ASSOCIATION_PROPERTIES_PREFIX, GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST,
-        GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_COST, GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS,
-        GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL, GEN_AI_SYSTEM, GEN_AI_TOTAL_COST,
-        SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
+        AISDK_MODEL_ID, AISDK_MODEL_PROVIDER, ASSOCIATION_PROPERTIES_PREFIX,
+        GEN_AI_COMPLETION_TOKENS, GEN_AI_INPUT_COST, GEN_AI_INPUT_TOKENS, GEN_AI_OUTPUT_COST,
+        GEN_AI_OUTPUT_TOKENS, GEN_AI_PROMPT_TOKENS, GEN_AI_REQUEST_MODEL, GEN_AI_RESPONSE_MODEL,
+        GEN_AI_SYSTEM, GEN_AI_TOTAL_COST, SPAN_IDS_PATH, SPAN_PATH, SPAN_TYPE,
+        STREAM_USAGE_CACHED_INPUT_TOKENS, STREAM_USAGE_INPUT_TOKENS,
+        STREAM_USAGE_OUTPUT_TOKENS,
     },
     utils::skip_span_name,
 };
@@ -152,6 +154,73 @@ impl SpanAttributes {
         self.raw_attributes
             .get(format!("{ASSOCIATION_PROPERTIES_PREFIX}.trace_type").as_str())
             .and_then(|s| serde_json::from_value(s.clone()).ok())
+    }
+
+    /// Detect Mastra spans and normalize their attributes into the gen_ai.* convention
+    /// so the existing token/cost pipeline picks them up.
+    ///
+    /// Mastra emits AI SDK attributes under `stream.usage.*` and `aisdk.model.*` keys
+    /// instead of the standard `gen_ai.*` keys.
+    pub fn normalize_mastra_attributes(&mut self, span_name: &str) {
+        let is_mastra = span_name.contains("mastra.stream")
+            || self
+                .raw_attributes
+                .get("operation.name")
+                .and_then(|v| v.as_str())
+                .is_some_and(|s| s.contains("mastra.stream"))
+            || self
+                .raw_attributes
+                .get(SPAN_PATH)
+                .and_then(|v| v.as_array())
+                .is_some_and(|arr| {
+                    arr.iter()
+                        .any(|v| v.as_str().is_some_and(|s| s.contains("mastra.stream")))
+                });
+
+        if !is_mastra {
+            return;
+        }
+
+        // Map stream.usage.* -> gen_ai.usage.* (only if gen_ai key is not already set)
+        if !self.raw_attributes.contains_key(GEN_AI_INPUT_TOKENS) {
+            if let Some(v) = self.raw_attributes.get(STREAM_USAGE_INPUT_TOKENS).cloned() {
+                self.raw_attributes
+                    .insert(GEN_AI_INPUT_TOKENS.to_string(), v);
+            }
+        }
+        if !self.raw_attributes.contains_key(GEN_AI_OUTPUT_TOKENS) {
+            if let Some(v) = self.raw_attributes.get(STREAM_USAGE_OUTPUT_TOKENS).cloned() {
+                self.raw_attributes
+                    .insert(GEN_AI_OUTPUT_TOKENS.to_string(), v);
+            }
+        }
+        if !self.raw_attributes.contains_key(GEN_AI_CACHE_READ_INPUT_TOKENS) {
+            if let Some(v) = self
+                .raw_attributes
+                .get(STREAM_USAGE_CACHED_INPUT_TOKENS)
+                .cloned()
+            {
+                self.raw_attributes
+                    .insert(GEN_AI_CACHE_READ_INPUT_TOKENS.to_string(), v);
+            }
+        }
+
+        // Map aisdk.model.id -> gen_ai.request.model
+        if !self.raw_attributes.contains_key(GEN_AI_REQUEST_MODEL) {
+            if let Some(v) = self.raw_attributes.get(AISDK_MODEL_ID).cloned() {
+                self.raw_attributes
+                    .insert(GEN_AI_REQUEST_MODEL.to_string(), v);
+            }
+        }
+
+        // Map aisdk.model.provider -> gen_ai.system (normalize "openai.chat" -> "openai")
+        if !self.raw_attributes.contains_key(GEN_AI_SYSTEM) {
+            if let Some(Value::String(provider)) = self.raw_attributes.get(AISDK_MODEL_PROVIDER) {
+                let normalized = provider.split('.').next().unwrap_or(provider).to_string();
+                self.raw_attributes
+                    .insert(GEN_AI_SYSTEM.to_string(), Value::String(normalized));
+            }
+        }
     }
 
     pub fn input_tokens(&mut self) -> InputTokens {
@@ -564,6 +633,13 @@ impl Span {
         if self.attributes.raw_attributes.is_empty() {
             return;
         }
+
+        // Normalize Mastra stream.* / aisdk.* attributes into gen_ai.* convention
+        // so the rest of the pipeline recognizes them.
+        self.attributes.normalize_mastra_attributes(&self.name);
+
+        // Re-evaluate span type after normalization (Mastra spans may now have gen_ai.* keys)
+        self.span_type = self.attributes.span_type();
 
         if self.is_llm_span() {
             if self
@@ -3305,6 +3381,87 @@ mod tests {
         assert_eq!(
             span.attributes.raw_attributes.get("llm.usage.total_tokens"),
             Some(&json!(105))
+        );
+    }
+
+    #[test]
+    fn test_mastra_stream_attributes_normalization() {
+        // Mastra emits AI SDK attributes under stream.usage.* and aisdk.model.* keys
+        // instead of gen_ai.* keys. This test verifies they are normalized correctly.
+        let attributes = HashMap::from([
+            (
+                "operation.name".to_string(),
+                json!("mastra.stream"),
+            ),
+            ("aisdk.model.id".to_string(), json!("glm-4.5-flash")),
+            ("aisdk.model.provider".to_string(), json!("openai.chat")),
+            ("stream.usage.inputTokens".to_string(), json!(14)),
+            ("stream.usage.outputTokens".to_string(), json!(87)),
+            ("stream.usage.totalTokens".to_string(), json!(101)),
+            ("stream.usage.cachedInputTokens".to_string(), json!(12)),
+        ]);
+
+        let span_id = Uuid::new_v4();
+        let trace_id = Uuid::new_v4();
+
+        let mut span = Span {
+            span_id,
+            project_id: Uuid::new_v4(),
+            trace_id,
+            parent_span_id: None,
+            name: "mastra.stream".to_string(),
+            attributes: SpanAttributes::new(attributes),
+            start_time: Utc::now(),
+            end_time: Utc::now(),
+            span_type: SpanType::Default,
+            input: None,
+            output: None,
+            events: vec![],
+            status: None,
+            tags: None,
+            input_url: None,
+            output_url: None,
+            size_bytes: 0,
+        };
+
+        span.parse_and_enrich_attributes();
+
+        // After normalization, span should be detected as LLM type
+        assert_eq!(span.span_type, SpanType::LLM);
+
+        // Token fields should be populated via gen_ai.usage.* normalization
+        let input_tokens = span.attributes.input_tokens();
+        // total input = 14, cached = 12, so regular = 14 - 12 = 2
+        assert_eq!(input_tokens.total(), 14);
+        assert_eq!(input_tokens.cache_read_tokens, 12);
+        assert_eq!(input_tokens.regular_input_tokens, 2);
+
+        let output_tokens = span.attributes.output_tokens();
+        assert_eq!(output_tokens, 87);
+
+        let total_tokens = input_tokens.total() + output_tokens;
+        assert_eq!(total_tokens, 101);
+
+        // Provider should be normalized from "openai.chat" -> "openai"
+        let provider = span.attributes.provider_name(&span.name);
+        assert_eq!(provider, Some("openai".to_string()));
+
+        // Model should be mapped from aisdk.model.id
+        let model = span.attributes.request_model();
+        assert_eq!(model, Some("glm-4.5-flash".to_string()));
+
+        // Original Mastra attributes should still be present
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("stream.usage.inputTokens"),
+            Some(&json!(14))
+        );
+        assert_eq!(
+            span.attributes
+                .raw_attributes
+                .get("aisdk.model.provider"),
+            Some(&json!("openai.chat"))
         );
     }
 }
