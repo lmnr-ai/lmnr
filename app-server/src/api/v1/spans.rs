@@ -9,9 +9,11 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::Cache,
     db::{DB, project_api_keys::ProjectApiKey, spans::{Span, SpanType}},
+    features::{Feature, is_feature_enabled},
     mq::MessageQueue,
     routes::types::ResponseResult,
     traces::{producer::publish_span_messages, spans::SpanAttributes},
+    utils::limits::get_workspace_bytes_limit_exceeded,
 };
 
 #[derive(Deserialize)]
@@ -44,8 +46,29 @@ pub async fn create_spans(
     spans_message_queue: web::Data<Arc<MessageQueue>>,
     db: web::Data<DB>,
     cache: web::Data<Cache>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
+    let db = db.into_inner();
+    let cache = cache.into_inner();
+
+    if is_feature_enabled(Feature::UsageLimit) {
+        let bytes_limit_exceeded = get_workspace_bytes_limit_exceeded(
+            db.clone(),
+            clickhouse.into_inner().as_ref().clone(),
+            cache.clone(),
+            project_id,
+        )
+        .await
+        .map_err(|e| {
+            log::error!("Failed to get workspace limits: {:?}", e);
+        });
+
+        if bytes_limit_exceeded.is_ok_and(|exceeded| exceeded) {
+            return Ok(HttpResponse::Forbidden().json("Workspace data limit exceeded"));
+        }
+    }
+
     let requests = request.into_inner();
 
     let mut responses = Vec::with_capacity(requests.len());
@@ -83,8 +106,8 @@ pub async fn create_spans(
         messages,
         project_id,
         spans_message_queue.as_ref().clone(),
-        db.into_inner(),
-        cache.into_inner(),
+        db,
+        cache,
     )
     .await
     .map_err(|e| {
