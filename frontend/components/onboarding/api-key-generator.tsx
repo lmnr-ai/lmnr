@@ -13,13 +13,15 @@ import { cn } from "@/lib/utils.ts";
 interface ApiKeyGeneratorProps {
   context: "traces" | "evaluations";
   title?: string;
+  titleClassName?: string;
   subtitle?: string;
 }
 
 export default function ApiKeyGenerator({
   context,
   title = "Get your API Key",
-  subtitle = "Paste into your .env file",
+  titleClassName,
+  subtitle,
 }: ApiKeyGeneratorProps) {
   const { projectId } = useParams();
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export default function ApiKeyGenerator({
     <div className="flex flex-col gap-3">
       <div className="flex flex-row justify-between items-center">
         <div className="flex flex-col gap-1">
-          <h3 className="text-base font-medium">{title}</h3>
+          <h2 className={cn("text-lg font-medium", titleClassName)}>{title}</h2>
           {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
         </div>
         {!generatedKey && (

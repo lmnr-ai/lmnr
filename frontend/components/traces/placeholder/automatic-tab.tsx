@@ -5,8 +5,8 @@ import { Terminal } from "lucide-react";
 import { CopyButton } from "@/components/ui/copy-button";
 
 import ApiKeyGenerator from "../../onboarding/api-key-generator";
-import { LAMINAR_INSTALL_FROM_SCRATCH, LAMINAR_MIGRATION_PROMPT } from "./prompts";
 import { PromptCard } from "./prompt-card";
+import { LAMINAR_INSTALL_FROM_SCRATCH, LAMINAR_MIGRATION_PROMPT } from "./prompts";
 
 const SKILLS_COMMANDS = [
   {
@@ -39,7 +39,12 @@ const PROMPT_CARDS = [
 export function AutomaticTab() {
   return (
     <div className="flex flex-col gap-8">
-      <ApiKeyGenerator context="traces" title="1. Paste an API key into your .env" subtitle="" />
+      <ApiKeyGenerator
+        context="traces"
+        title="1. Paste an API key into your .env"
+        titleClassName="text-base"
+        subtitle=""
+      />
 
       <div className="flex flex-col gap-2">
         <h3 className="text-base font-medium">2. Paste and run a prompt</h3>
