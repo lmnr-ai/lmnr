@@ -1,7 +1,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { find, get, head, isEmpty, isEqual, map } from "lodash";
 import { ListFilter, X } from "lucide-react";
-import { memo, type PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, type PropsWithChildren, useCallback, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -29,6 +29,25 @@ interface FilterUIProps {
   filters: Filter[];
 }
 
+const parseFirstFilter = (columnFilters: ColumnFilter[]) => {
+  const firstColumn = head(columnFilters);
+  if (firstColumn) {
+    const { key: column, dataType } = firstColumn;
+    if (dataType && dataTypeOperationsMap[dataType]?.length) {
+      return {
+        operator: dataTypeOperationsMap[dataType][0].key,
+        column,
+        value: "",
+      };
+    }
+  }
+  return {
+    operator: Operator.Eq,
+    column: "",
+    value: "",
+  };
+};
+
 const FilterPopover = ({
   columns,
   presetFilters,
@@ -38,11 +57,15 @@ const FilterPopover = ({
   children,
 }: PropsWithChildren<FilterUIProps>) => {
   // Internal filter state - value is string during editing, converted to proper type on apply
-  const [filter, setFilter] = useState<{ column: string; operator: Operator; value: string }>({
-    operator: Operator.Eq,
-    column: "",
-    value: "",
-  });
+  const [filter, setFilter] = useState<{ column: string; operator: Operator; value: string }>(() =>
+    parseFirstFilter(columns)
+  );
+
+  const [prevColumns, setPrevColumns] = useState(columns);
+  if (!isEqual(columns, prevColumns)) {
+    setPrevColumns(columns);
+    setFilter(parseFirstFilter(columns));
+  }
 
   const handleApplyFilters = useCallback(
     (filter: { column: string; operator: Operator; value: string | number | string[] }) => {
@@ -81,24 +104,6 @@ const FilterPopover = ({
     },
     [columns]
   );
-
-  useEffect(() => {
-    const firstColumn = head(columns);
-
-    if (firstColumn) {
-      const { key: column, dataType } = firstColumn;
-
-      if (dataType && dataTypeOperationsMap[dataType]?.length) {
-        const operator = dataTypeOperationsMap[dataType][0].key;
-
-        setFilter({
-          operator,
-          column,
-          value: "",
-        });
-      }
-    }
-  }, [columns]);
 
   return (
     <Popover>

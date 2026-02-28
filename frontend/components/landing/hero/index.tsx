@@ -42,17 +42,15 @@ const Hero = ({ className, hasSession }: Props) => {
 
   const currentImage = tabConfig[activeTab].images[activeImageIndex];
 
+  const [prevCurrentImage, setPrevCurrentImage] = useState(currentImage);
+  if (currentImage !== prevCurrentImage) {
+    setPrevCurrentImage(currentImage);
+    setIsTransitioning(true);
+  }
+
   // Handle fade transition when currentImage changes
   useEffect(() => {
-    if (currentImage !== displayedImage) {
-      // Clear any pending transition
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-      }
-
-      // Start fade out
-      setIsTransitioning(true);
-
+    if (isTransitioning) {
       // After fade completes, update displayed image
       transitionTimeoutRef.current = setTimeout(() => {
         setDisplayedImage(currentImage);
@@ -65,7 +63,7 @@ const Hero = ({ className, hasSession }: Props) => {
         clearTimeout(transitionTimeoutRef.current);
       }
     };
-  }, [currentImage, displayedImage]);
+  }, [isTransitioning, currentImage]);
 
   const handleTabClick = useCallback((tab: TabType) => {
     setActiveTab(tab);

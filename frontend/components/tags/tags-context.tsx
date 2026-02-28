@@ -54,7 +54,7 @@ const TagsContextProvider = ({ children, spanId }: PropsWithChildren<{ spanId: s
     if (newTags.length > 0) {
       mutateTagClass();
     }
-  }, [tags, tagClasses, params?.projectId]);
+  }, [tags, tagClasses, params?.projectId, mutateTagClass]);
 
   useEffect(() => {
     // Backend now simply inserts tags to `spans` and `tags` tables, so we create

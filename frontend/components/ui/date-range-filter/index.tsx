@@ -2,7 +2,7 @@ import { formatDate, subYears } from "date-fns";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, CalendarIcon, ChevronRight } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
 
 import { Badge } from "@/components/ui/badge.tsx";
@@ -17,11 +17,17 @@ import { cn } from "@/lib/utils.ts";
 import { DateRangeFilterProvider, useDateRangeFilterContext } from "./store";
 import { getTimeDifference, QUICK_RANGES } from "./utils.ts";
 
-const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } }) => {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+const useIsMounted = () =>
+  useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
-  if (!mounted) {
+const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } }) => {
+  const isMounted = useIsMounted();
+
+  if (!isMounted) {
     return (
       <div className="flex items-center space-x-2">
         <Skeleton className="h-4 w-8 rounded-full" />

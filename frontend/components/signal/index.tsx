@@ -2,8 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable, type ResizeCallback } from "re-resizable";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Resizable } from "re-resizable";
+import React, { useCallback, useEffect, useState } from "react";
 
 import ClustersTable from "@/components/signal/clusters-table";
 import EventsTable from "@/components/signal/events-table";
@@ -15,12 +15,12 @@ import { type EventNavigationItem, getEventsConfig } from "@/components/signal/u
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet.tsx";
 import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
-import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/ui/header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
+import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 
 const ManageSignalSheet = dynamic(
   () => import("@/components/signals/manage-signal-sheet.tsx").then((mod) => mod.default),
@@ -33,7 +33,6 @@ function SignalContent() {
   const { push } = useRouter();
   const searchParams = useSearchParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const ref = useRef<Resizable>(null);
   const { workspace } = useProjectContext();
 
   const activeTab = searchParams.get("tab") || "events";
@@ -51,14 +50,16 @@ function SignalContent() {
     setSpanId: state.setSpanId,
   }));
 
-  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = React.useState(initialTraceViewWidth || 1000);
-  const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
+  const {
+    width: defaultTraceViewWidth,
+    resizableRef: ref,
+    handleResizeStop,
+  } = useResizableTraceViewWidth({
+    initialWidth: initialTraceViewWidth,
+    onSaveWidth: setEventsTraceViewWidthCookie,
+  });
 
-  useEffect(() => {
-    if (!initialTraceViewWidth) {
-      setDefaultTraceViewWidth(getDefaultTraceViewWidth());
-    }
-  }, [initialTraceViewWidth]);
+  const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
   const handleSuccess = useCallback(
     async (form: ManageSignalForm) => {
@@ -79,23 +80,6 @@ function SignalContent() {
     },
     [pathName, push, searchParams]
   );
-
-  const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
-    const newWidth = defaultTraceViewWidth + delta.width;
-    setDefaultTraceViewWidth(newWidth);
-    setEventsTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
-  };
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (defaultTraceViewWidth > window.innerWidth - 180) {
-        const newWidth = window.innerWidth - 240;
-        setDefaultTraceViewWidth(newWidth);
-        setEventsTraceViewWidthCookie(newWidth);
-        ref?.current?.updateSize({ width: newWidth });
-      }
-    }
-  }, [defaultTraceViewWidth]);
 
   return (
     <>

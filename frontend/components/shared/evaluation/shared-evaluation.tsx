@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import fullLogo from "@/assets/logo/logo.svg";
@@ -14,7 +14,6 @@ import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapo
 import ScoreCard from "@/components/evaluation/score-card";
 import { useEvalStore } from "@/components/evaluation/store";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
-import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +24,7 @@ import {
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types";
+import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 import { swrFetcher } from "@/lib/utils";
 
 interface SharedEvaluationProps {
@@ -43,8 +43,10 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const sortDirection = searchParams.get("sortDirection");
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
-  const [traceId, setTraceId] = useState<string | undefined>(undefined);
-  const [datapointId, setDatapointId] = useState<string | undefined>(undefined);
+  const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
+  const [datapointId, setDatapointId] = useState<string | undefined>(
+    () => searchParams.get("datapointId") ?? undefined
+  );
 
   const pageSize = 50;
 
@@ -67,7 +69,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: Evaluation;
@@ -147,45 +149,15 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     [pathName, searchParams]
   );
 
-  useEffect(() => {
-    if (scores?.length > 0) {
+  const [prevScores, setPrevScores] = useState<string[]>([]);
+  if (scores !== prevScores) {
+    setPrevScores(scores);
+    if (scores.length > 0 && (!selectedScore || !scores.includes(selectedScore))) {
       setSelectedScore(scores[0]);
     }
-  }, [scores]);
+  }
 
-  // URL sync on mount
-  useEffect(() => {
-    const traceId = searchParams.get("traceId");
-    const datapointId = searchParams.get("datapointId");
-    if (traceId) {
-      setTraceId(traceId);
-    }
-    if (datapointId) {
-      setDatapointId(datapointId);
-    }
-  }, []);
-
-  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(1000);
-
-  const handleResizeStop = useCallback(
-    (_event: MouseEvent | TouchEvent, _direction: unknown, _elementRef: HTMLElement, delta: { width: number }) => {
-      setDefaultTraceViewWidth((prev) => prev + delta.width);
-    },
-    []
-  );
-
-  const ref = useRef<Resizable>(null);
-
-  useEffect(() => {
-    const width = getDefaultTraceViewWidth();
-    if (width > window.innerWidth - 180) {
-      const newWidth = window.innerWidth - 240;
-      setDefaultTraceViewWidth(newWidth);
-      ref?.current?.updateSize({ width: newWidth });
-    } else {
-      setDefaultTraceViewWidth(width);
-    }
-  }, []);
+  const { width: defaultTraceViewWidth, resizableRef: ref, handleResizeStop } = useResizableTraceViewWidth();
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden relative">

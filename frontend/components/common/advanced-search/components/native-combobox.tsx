@@ -58,6 +58,8 @@ const NativeCombobox = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [prevOpen, setPrevOpen] = useState(false);
+  const [prevSuggestionsLength, setPrevSuggestionsLength] = useState(0);
 
   const autosizeRef = useSizeInput(value);
 
@@ -73,13 +75,15 @@ const NativeCombobox = ({
     focus: () => inputRef.current?.focus(),
   }));
 
-  useEffect(() => {
+  if (open !== prevOpen || suggestions.length !== prevSuggestionsLength) {
+    setPrevOpen(open);
+    setPrevSuggestionsLength(suggestions.length);
     if (open && suggestions.length > 0) {
       setHighlightedIndex(0);
     } else {
       setHighlightedIndex(-1);
     }
-  }, [open, suggestions.length]);
+  }
 
   useEffect(() => {
     if (open && highlightedIndex >= 0 && highlightedIndex < optionRefs.current.length) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 
 // ============================================================================
 // Dynamic Time Intervals
@@ -100,7 +100,6 @@ export function useDynamicTimeIntervals({
   totalDurationMs,
   zoom,
 }: UseDynamicTimeIntervalsProps): UseDynamicTimeIntervalsResult {
-  const [containerWidth, setContainerWidth] = useState(0);
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
 
   // Callback ref to capture the container element
@@ -108,24 +107,19 @@ export function useDynamicTimeIntervals({
     setContainer(node);
   }, []);
 
-  // Track container width with ResizeObserver
-  useEffect(() => {
-    if (!container) return;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setContainerWidth(entry.contentRect.width);
-      }
-    });
-
-    resizeObserver.observe(container);
-    // Set initial width
-    setContainerWidth(container.clientWidth);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [container]);
+  const containerWidth = useSyncExternalStore(
+    useCallback(
+      (onStoreChange) => {
+        if (!container) return () => {};
+        const observer = new ResizeObserver(onStoreChange);
+        observer.observe(container);
+        return () => observer.disconnect();
+      },
+      [container]
+    ),
+    () => container?.clientWidth ?? 0,
+    () => 0
+  );
 
   // Compute markers based on timeline width (container * zoom) and duration
   const markers = useMemo(() => {

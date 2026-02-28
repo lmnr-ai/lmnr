@@ -1,5 +1,5 @@
 import { isNil } from "lodash";
-import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
@@ -516,15 +516,11 @@ const DebuggerSessionStoreProvider = ({
   storeKey?: string;
   initialStatus?: DebuggerSessionStatus;
 }>) => {
-  const storeRef = useRef<StoreApi<DebuggerSessionStore>>(undefined);
-
-  if (!storeRef.current) {
-    storeRef.current = createDebuggerSessionStore({ trace, params, storeKey, initialStatus });
-  }
+  const [storeState] = useState(() => createDebuggerSessionStore({ trace, params, storeKey, initialStatus }));
 
   return (
-    <TraceViewContext.Provider value={storeRef.current}>
-      <DebuggerSessionStoreContext.Provider value={storeRef.current}>{children}</DebuggerSessionStoreContext.Provider>
+    <TraceViewContext.Provider value={storeState}>
+      <DebuggerSessionStoreContext.Provider value={storeState}>{children}</DebuggerSessionStoreContext.Provider>
     </TraceViewContext.Provider>
   );
 };

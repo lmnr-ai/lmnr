@@ -2,15 +2,14 @@
 
 import type { Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable, type ResizeCallback } from "re-resizable";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Resizable } from "re-resizable";
+import { useCallback, useEffect, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
 import SelectionBanner from "@/components/signal/create-signal-job/selection-banner.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import TraceView from "@/components/traces/trace-view";
-import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import {
   columns,
   defaultTracesColumnOrder,
@@ -26,6 +25,7 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx"
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import type { Filter } from "@/lib/actions/common/filters.ts";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
+import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import type { TraceRow } from "@/lib/traces/types.ts";
 
@@ -37,7 +37,6 @@ const CreateSignalJobContent = () => {
   const router = useRouter();
   const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
-  const ref = useRef<Resizable>(null);
 
   const signal = useSignalStoreContext((state) => state.signal);
   const { rowSelection, onRowSelectionChange } = useSelection();
@@ -66,30 +65,14 @@ const CreateSignalJobContent = () => {
     initialTraceViewWidth: state.initialTraceViewWidth,
   }));
 
-  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
-
-  useEffect(() => {
-    if (!initialTraceViewWidth) {
-      setDefaultTraceViewWidth(getDefaultTraceViewWidth());
-    }
-  }, [initialTraceViewWidth]);
-
-  const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
-    const newWidth = defaultTraceViewWidth + delta.width;
-    setDefaultTraceViewWidth(newWidth);
-    setEventsTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
-  };
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (defaultTraceViewWidth > window.innerWidth - 180) {
-        const newWidth = window.innerWidth - 240;
-        setDefaultTraceViewWidth(newWidth);
-        setEventsTraceViewWidthCookie(newWidth);
-        ref?.current?.updateSize({ width: newWidth });
-      }
-    }
-  }, [defaultTraceViewWidth]);
+  const {
+    width: defaultTraceViewWidth,
+    resizableRef: ref,
+    handleResizeStop,
+  } = useResizableTraceViewWidth({
+    initialWidth: initialTraceViewWidth,
+    onSaveWidth: setEventsTraceViewWidthCookie,
+  });
 
   const fetchTraces = useCallback(
     async (pageNumber: number) => {

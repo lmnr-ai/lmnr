@@ -51,6 +51,8 @@ const TagInput = ({
 
   const [inputValue, setInputValue] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [prevShowDropdown, setPrevShowDropdown] = useState(false);
+  const [prevSuggestionsLength, setPrevSuggestionsLength] = useState(0);
   const [focusedTagIndex, setFocusedTagIndex] = useState<number | null>(null);
   const tagRefs = useRef<(HTMLSpanElement | null)[]>([]);
 
@@ -75,13 +77,15 @@ const TagInput = ({
 
   const showDropdown = open && filteredSuggestions.length > 0;
 
-  useEffect(() => {
+  if (showDropdown !== prevShowDropdown || filteredSuggestions.length !== prevSuggestionsLength) {
+    setPrevShowDropdown(showDropdown);
+    setPrevSuggestionsLength(filteredSuggestions.length);
     if (!showDropdown) {
       setHighlightedIndex(-1);
     } else {
       setHighlightedIndex((prev) => (prev < 0 ? 0 : Math.min(prev, filteredSuggestions.length - 1)));
     }
-  }, [showDropdown, filteredSuggestions.length]);
+  }
 
   useEffect(() => {
     if (!showDropdown || highlightedIndex < 0) return;

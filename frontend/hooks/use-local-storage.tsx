@@ -4,10 +4,7 @@ import { useEffect, useState } from "react";
 
 export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T | ((prevValue: T) => T)) => void] {
   // Always start with defaultValue to match SSR
-  const [value, setValue] = useState<T>(defaultValue);
-
-  // Read from localStorage only on client after mount
-  useEffect(() => {
+  const [value, setValue] = useState<T>(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -18,13 +15,14 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T 
         const parsed = JSON.parse(storedValue);
         // Only update state if the stored value is different from default
         if (JSON.stringify(parsed) !== JSON.stringify(defaultValue)) {
-          setValue(parsed);
+          return parsed;
         }
       }
     } catch (error) {
       console.warn(`Error reading localStorage key "${key}":`, error);
+      return defaultValue;
     }
-  }, [key]); // Intentionally omitting defaultValue to run only once
+  });
 
   // Write to localStorage when value changes
   useEffect(() => {

@@ -17,28 +17,21 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "./sheet";
 import { Skeleton } from "./skeleton";
 
 // Dynamically import react-pdf components to avoid SSR issues
-const Document = dynamic(
-  () => import("react-pdf").then((mod) => ({ default: mod.Document })),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex flex-col gap-2">
-        <Skeleton className="w-full h-12" />
-        <Skeleton className="w-full h-12" />
-        <Skeleton className="w-full h-12" />
-      </div>
-    ),
-  }
-);
+const Document = dynamic(() => import("react-pdf").then((mod) => ({ default: mod.Document })), {
+  ssr: false,
+  loading: () => (
+    <div className="flex flex-col gap-2">
+      <Skeleton className="w-full h-12" />
+      <Skeleton className="w-full h-12" />
+      <Skeleton className="w-full h-12" />
+    </div>
+  ),
+});
 
-const Page = dynamic(
-  () => import("react-pdf").then((mod) => ({ default: mod.Page })),
-  {
-    ssr: false,
-    loading: () => <Skeleton className="w-full h-12" />,
-  }
-);
-
+const Page = dynamic(() => import("react-pdf").then((mod) => ({ default: mod.Page })), {
+  ssr: false,
+  loading: () => <Skeleton className="w-full h-12" />,
+});
 
 type PDFFile = string | File | Blob | null;
 
@@ -52,24 +45,27 @@ export default function PdfRenderer({ url, maxWidth, className }: PdfRendererPro
   const [file, setFile] = useState<PDFFile>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
-  const [isClient, setIsClient] = useState(false);
 
   const onDocumentLoadSuccess = ({ numPages: nextNumPages }: any): void => {
     setNumPages(nextNumPages);
   };
 
   useEffect(() => {
-    setIsClient(true);
-
+    let isMounted = true;
     fetch(url)
       .then((response) => response.blob())
       .then((blob) => {
-        setFile(blob);
+        if (isMounted) {
+          setFile(blob);
+        }
       });
+    return () => {
+      isMounted = false;
+    };
   }, [url]);
 
-  // Show loading skeleton during SSR
-  if (!isClient) {
+  // Show loading skeleton while file is being fetched (works for SSR too)
+  if (!file) {
     return (
       <div className={cn("flex flex-col space-y-2 px-1 pb-2", className)}>
         <div className="flex justify-between">
@@ -82,11 +78,7 @@ export default function PdfRenderer({ url, maxWidth, className }: PdfRendererPro
               variant="secondary"
               text="Download PDF"
             />
-            <Button
-              variant="ghost"
-              className="flex items-center mt-1.5 gap-1 text-secondary-foreground"
-              disabled
-            >
+            <Button variant="ghost" className="flex items-center mt-1.5 gap-1 text-secondary-foreground" disabled>
               loading...
             </Button>
           </div>

@@ -1,4 +1,4 @@
-import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -71,15 +71,11 @@ const TraceViewStoreProvider = ({
   initialTrace,
   storeKey,
 }: PropsWithChildren<{ initialTrace?: TraceViewTrace; storeKey?: string }>) => {
-  const storeRef = useRef<StoreApi<TraceViewStore>>(undefined);
-
-  if (!storeRef.current) {
-    storeRef.current = createTraceViewStore(initialTrace, storeKey);
-  }
+  const [storeState] = useState(createTraceViewStore(initialTrace, storeKey));
 
   return (
-    <TraceViewContext.Provider value={storeRef.current}>
-      <TraceViewStoreContext.Provider value={storeRef.current}>{children}</TraceViewStoreContext.Provider>
+    <TraceViewContext.Provider value={storeState}>
+      <TraceViewStoreContext.Provider value={storeState}>{children}</TraceViewStoreContext.Provider>
     </TraceViewContext.Provider>
   );
 };

@@ -1,5 +1,5 @@
 import { parseISO } from "date-fns";
-import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
 
 import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats";
@@ -120,10 +120,7 @@ export const useTracesStoreContext = <T,>(selector: (state: TracesStore) => T): 
 };
 
 export const TracesStoreProvider = ({ children, ...props }: PropsWithChildren<TracesProps>) => {
-  const storeRef = useRef<TracesStoreApi | undefined>(undefined);
-  if (!storeRef.current) {
-    storeRef.current = createTracesStore(props);
-  }
+  const [storeState] = useState(() => createTracesStore(props));
 
-  return <TracesContext.Provider value={storeRef.current}>{children}</TracesContext.Provider>;
+  return <TracesContext.Provider value={storeState}>{children}</TracesContext.Provider>;
 };

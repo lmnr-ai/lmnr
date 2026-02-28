@@ -2,8 +2,8 @@
 
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable, type ResizeCallback } from "re-resizable";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Resizable } from "re-resizable";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import Chart from "@/components/evaluation/chart";
@@ -12,12 +12,12 @@ import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapo
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
 import { useEvalStore } from "@/components/evaluation/store";
-import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
+import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
 import TraceView from "../traces/trace-view";
@@ -44,8 +44,10 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const sortDirection = searchParams.get("sortDirection");
 
   const [selectedScore, setSelectedScore] = useState<string | undefined>(undefined);
-  const [traceId, setTraceId] = useState<string | undefined>(undefined);
-  const [datapointId, setDatapointId] = useState<string | undefined>(undefined);
+  const [traceId, setTraceId] = useState<string | undefined>(() => searchParams.get("traceId") ?? undefined);
+  const [datapointId, setDatapointId] = useState<string | undefined>(
+    () => searchParams.get("datapointId") ?? undefined
+  );
 
   // Pagination state
   const pageSize = 50;
@@ -64,7 +66,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: EvaluationType;
@@ -80,7 +82,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params?.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const { data: targetStatsData } = useSWR<{
     evaluation: EvaluationType;
@@ -149,7 +151,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
       search,
       searchIn,
       filter,
-      params?.projectId,
+      params.projectId,
       evaluationId,
       pageSize,
       sortBy,
@@ -199,49 +201,22 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     setTraceId(id);
   };
 
-  useEffect(() => {
-    if (scores?.length > 0) {
+  const [prevScores, setPrevScores] = useState<string[]>([]);
+  if (scores !== prevScores) {
+    setPrevScores(scores);
+    if (scores.length > 0 && (!selectedScore || !scores.includes(selectedScore))) {
       setSelectedScore(scores[0]);
     }
-  }, [scores]);
+  }
 
-  useEffect(() => {
-    const traceId = searchParams.get("traceId");
-    const datapointId = searchParams.get("datapointId");
-    if (traceId) {
-      setTraceId(traceId);
-    }
-    if (datapointId) {
-      setDatapointId(datapointId);
-    }
-  }, []);
-
-  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
-
-  const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
-    const newWidth = defaultTraceViewWidth + delta.width;
-    setDefaultTraceViewWidth(newWidth);
-    setTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
-  };
-
-  const ref = useRef<Resizable>(null);
-
-  useEffect(() => {
-    if (!initialTraceViewWidth) {
-      setDefaultTraceViewWidth(getDefaultTraceViewWidth());
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (defaultTraceViewWidth > window.innerWidth - 180) {
-        const newWidth = window.innerWidth - 240;
-        setDefaultTraceViewWidth(newWidth);
-        setTraceViewWidthCookie(newWidth);
-        ref?.current?.updateSize({ width: newWidth });
-      }
-    }
-  }, []);
+  const {
+    width: defaultTraceViewWidth,
+    resizableRef: ref,
+    handleResizeStop,
+  } = useResizableTraceViewWidth({
+    initialWidth: initialTraceViewWidth,
+    onSaveWidth: setTraceViewWidthCookie,
+  });
 
   return (
     <>

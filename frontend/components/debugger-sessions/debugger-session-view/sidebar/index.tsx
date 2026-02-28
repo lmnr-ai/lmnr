@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 
 import { useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,14 +21,16 @@ export default function DebuggerSidebar({ onRun, onCancel, isLoading }: Debugger
   const sessionStatus = useDebuggerSessionStore((state) => state.sessionStatus);
 
   const [activeTab, setActiveTab] = useState<DebuggerSidebarTab>("run");
+  const [prevIsRunning, setPrevIsRunning] = useState(false);
 
   const isRunning = sessionStatus === "RUNNING";
 
-  useEffect(() => {
+  if (isRunning !== prevIsRunning) {
+    setPrevIsRunning(isRunning);
     if (isRunning) {
       setActiveTab("run");
     }
-  }, [isRunning]);
+  }
 
   return (
     <div className="flex flex-col gap-1 flex-1 overflow-hidden">
