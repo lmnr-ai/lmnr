@@ -44,11 +44,10 @@ const PROMPT_CARDS = [
 export function AutomaticTab() {
   return (
     <div className="flex flex-col gap-8">
-      <ApiKeyGenerator context="traces" />
+      <ApiKeyGenerator context="traces" title="1. Paste an API key into your .env" subtitle="" />
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-base font-medium">Prompts</h3>
-        <p className="text-xs text-muted-foreground">Copy and paste into your coding agent.</p>
+        <h3 className="text-base font-medium">2. Paste and run a prompt</h3>
         <div className="flex flex-col gap-2">
           {PROMPT_CARDS.map((card) => (
             <PromptCard key={card.title} {...card} />
@@ -57,8 +56,7 @@ export function AutomaticTab() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-base font-medium">Skills</h3>
-        <p className="text-xs text-muted-foreground">Run a command in your terminal to get started instantly.</p>
+        <h3 className="text-base font-medium">3. Or install and run a skill</h3>
         <div className="flex flex-col gap-2">
           {SKILLS_COMMANDS.map((item) => (
             <div key={item.command} className="rounded-lg border bg-background p-4">
