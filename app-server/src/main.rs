@@ -1403,6 +1403,11 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::traces::process_traces),
                             )
                             .service(
+                                web::scope("/v1/spans")
+                                    .wrap(project_ingestion_auth.clone())
+                                    .service(api::v1::spans::create_spans),
+                            )
+                            .service(
                                 web::scope("/v1/logs")
                                     .wrap(project_ingestion_auth.clone())
                                     .service(api::v1::logs::process_logs),
