@@ -15,13 +15,16 @@ import ApiKeyGenerator from "../../onboarding/api-key-generator";
 import Header from "../../ui/header";
 import { LAMINAR_BASIC_INSTALL_PROMPT, LAMINAR_INSTRUMENTATION_PROMPT, LAMINAR_MIGRATION_PROMPT } from "./prompts";
 
-const InstallTabsSection = dynamic(() => import("./tabs-section").then((mod) => mod.InstallTabsSection), {
+const InstallTabsSection = dynamic(() => import("./tabs-section.tsx").then((mod) => mod.InstallTabsSection), {
   ssr: false,
 });
 
-const InitializationTabsSection = dynamic(() => import("./tabs-section").then((mod) => mod.InitializationTabsSection), {
-  ssr: false,
-});
+const InitializationTabsSection = dynamic(
+  () => import("./tabs-section.tsx").then((mod) => mod.InitializationTabsSection),
+  {
+    ssr: false,
+  }
+);
 
 const SKILLS_COMMANDS = [
   {
@@ -40,18 +43,18 @@ const SKILLS_COMMANDS = [
 
 const PROMPT_CARDS = [
   {
-    title: "Instrument an existing product",
-    subtitle: "Existing LLM/agent pipelines",
+    title: "Incorporate Laminar into an existing product",
+    subtitle: "Best if you already have an LLM/agent pipeline and want high-quality traces.",
     prompt: LAMINAR_INSTRUMENTATION_PROMPT,
   },
   {
     title: "Basic install + auto-instrumentation",
-    subtitle: "Minimal code changes",
+    subtitle: "Best if you just want traces to show up quickly with minimal code changes.",
     prompt: LAMINAR_BASIC_INSTALL_PROMPT,
   },
   {
-    title: "Migrate from another platform",
-    subtitle: "Langfuse, LangSmith, Helicone, etc.",
+    title: "Migrate from another observability platform",
+    subtitle: "Best if you already use Langfuse, LangSmith, Helicone, or custom OpenTelemetry.",
     prompt: LAMINAR_MIGRATION_PROMPT,
   },
 ];
@@ -61,10 +64,14 @@ function PromptCard({ title, subtitle, prompt }: { title: string; subtitle: stri
 
   return (
     <div className="flex flex-col">
-      <div className="group flex items-center gap-3 rounded-lg border bg-background px-4 py-2.5 transition-colors hover:bg-muted/30">
-        <span className="text-sm flex-1">{title}</span>
-        <span className="text-xs text-muted-foreground hidden sm:block">{subtitle}</span>
-        <CopyButton text={prompt} variant="ghost" size="icon" className="shrink-0 text-muted-foreground" />
+      <div className="group rounded-lg border bg-background p-4 transition-colors hover:bg-muted/30">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-1 min-w-0">
+            <span className="text-sm font-medium">{title}</span>
+            <span className="text-xs text-muted-foreground">{subtitle}</span>
+          </div>
+          <CopyButton text={prompt} variant="ghost" size="icon" className="shrink-0 text-muted-foreground" />
+        </div>
       </div>
       {expanded && (
         <div className="max-h-64 overflow-auto rounded-b-md border border-t-0 bg-background p-3">
@@ -86,34 +93,24 @@ function AutomaticTab() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <h3 className="text-sm font-medium">Skills</h3>
-        <div className="rounded-lg border divide-y overflow-hidden">
+        <p className="text-xs text-muted-foreground">Run a command in your terminal to get started instantly.</p>
+        <div className="flex flex-col gap-2">
           {SKILLS_COMMANDS.map((item) => (
-            <div
-              key={item.command}
-              className="group flex items-center gap-3 bg-background px-4 py-2.5 hover:bg-muted/30 transition-colors"
-            >
-              <span className="text-xs text-muted-foreground w-40 shrink-0">{item.label}</span>
-              <code className="text-sm font-mono flex-1 min-w-0">{item.command}</code>
-              <CopyButton
-                text={item.command}
-                variant="ghost"
-                size="icon"
-                className="shrink-0 invisible group-hover:visible text-muted-foreground"
-              />
+            <div key={item.command} className="rounded-lg border bg-background p-4">
+              <span className="text-sm font-medium text-primary">{item.label}</span>
+              <div className="mt-2 flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2">
+                <Terminal className="w-3.5 h-3.5 text-primary/70 shrink-0" />
+                <code className="text-sm font-mono flex-1 min-w-0 truncate">{item.command}</code>
+                <CopyButton
+                  text={item.command}
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-muted-foreground"
+                />
+              </div>
             </div>
           ))}
         </div>
-        <span className="text-xs text-muted-foreground">
-          Browse more at{" "}
-          <a
-            href="https://skills.sh"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-foreground transition-colors"
-          >
-            skills.sh
-          </a>
-        </span>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -214,7 +211,7 @@ export default function TracesPagePlaceholder() {
             )}
           </div>
 
-          <Tabs defaultValue="automatic" className="gap-4">
+          <Tabs defaultValue="manual" className="gap-4">
             <TabsList className="border-none">
               <TabsTrigger value="automatic" className="gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
