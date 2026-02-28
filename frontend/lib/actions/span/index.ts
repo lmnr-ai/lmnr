@@ -52,7 +52,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   }
 
   const mainQuery = `
-    SELECT 
+    SELECT
       span_id as spanId,
       parent_span_id as parentSpanId,
       name,
@@ -81,32 +81,53 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   // spans table. ClickHouse JSON format serializes named tuples as objects and Int64 as unquoted
   // numbers (output_format_json_quote_64bit_integers = 0), so each event arrives as
   // { timestamp: number, name: string, attributes: string }.
-  const [span] = await executeQuery<
-    Omit<Span, "attributes" | "events"> & {
-      attributes: string;
-      events: { timestamp: number; name: string; attributes: string }[];
-    }
-  >({
-    query: mainQuery,
-    parameters,
-    projectId,
-  });
 
-  if (!span) {
-    throw new Error("Span not found");
+  // Retry with exponential backoff up to 2 seconds to handle transient ClickHouse errors.
+  const MAX_ELAPSED_MS = 2000;
+  const INITIAL_DELAY_MS = 100;
+  let lastError: unknown;
+  let elapsed = 0;
+  let delay = INITIAL_DELAY_MS;
+
+  while (elapsed < MAX_ELAPSED_MS) {
+    try {
+      const [span] = await executeQuery<
+        Omit<Span, "attributes" | "events"> & {
+          attributes: string;
+          events: { timestamp: number; name: string; attributes: string }[];
+        }
+      >({
+        query: mainQuery,
+        parameters,
+        projectId,
+      });
+
+      if (!span) {
+        throw new Error("Span not found");
+      }
+
+      return {
+        ...span,
+        input: tryParseJson(span.input),
+        output: tryParseJson(span.output),
+        attributes: tryParseJson(span.attributes) || {},
+        events: (span.events || []).map((event) => ({
+          timestamp: event.timestamp,
+          name: event.name,
+          attributes: tryParseJson(event.attributes) || {},
+        })),
+      };
+    } catch (e) {
+      lastError = e;
+      const sleepTime = Math.min(delay, MAX_ELAPSED_MS - elapsed);
+      if (sleepTime <= 0) break;
+      await new Promise((resolve) => setTimeout(resolve, sleepTime));
+      elapsed += sleepTime;
+      delay *= 2;
+    }
   }
 
-  return {
-    ...span,
-    input: tryParseJson(span.input),
-    output: tryParseJson(span.output),
-    attributes: tryParseJson(span.attributes) || {},
-    events: (span.events || []).map((event) => ({
-      timestamp: event.timestamp,
-      name: event.name,
-      attributes: tryParseJson(event.attributes) || {},
-    })),
-  };
+  throw lastError;
 }
 
 export async function updateSpanOutput(input: z.infer<typeof UpdateSpanOutputSchema>) {
