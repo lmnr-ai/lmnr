@@ -7,10 +7,11 @@ use uuid::Uuid;
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
-    db::{project_api_keys::ProjectApiKey, spans::{Span, SpanType}},
-    mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
+    cache::Cache,
+    db::{DB, project_api_keys::ProjectApiKey, spans::{Span, SpanType}},
+    mq::MessageQueue,
     routes::types::ResponseResult,
-    traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
+    traces::{producer::publish_span_messages, spans::SpanAttributes},
 };
 
 #[derive(Deserialize)]
@@ -41,6 +42,8 @@ pub async fn create_spans(
     request: web::Json<Vec<CreateSpanRequest>>,
     project_api_key: ProjectApiKey,
     spans_message_queue: web::Data<Arc<MessageQueue>>,
+    db: web::Data<DB>,
+    cache: web::Data<Cache>,
 ) -> ResponseResult {
     let project_id = project_api_key.project_id;
     let requests = request.into_inner();
@@ -76,28 +79,18 @@ pub async fn create_spans(
         messages.push(RabbitMqSpanMessage { span });
     }
 
-    let mq_message = serde_json::to_vec(&messages).unwrap();
-
-    if mq_message.len() >= mq_max_payload() {
-        log::warn!(
-            "[SPANS V1 ROUTE] MQ payload limit exceeded. Project ID: [{}], payload size: [{}]",
-            project_id,
-            mq_message.len()
-        );
-    } else {
-        spans_message_queue
-            .publish(
-                &mq_message,
-                OBSERVATIONS_EXCHANGE,
-                OBSERVATIONS_ROUTING_KEY,
-                None,
-            )
-            .await
-            .map_err(|e| {
-                log::error!("Failed to publish spans to queue: {:?}", e);
-                anyhow::anyhow!("Failed to publish spans")
-            })?;
-    }
+    publish_span_messages(
+        messages,
+        project_id,
+        spans_message_queue.as_ref().clone(),
+        db.into_inner(),
+        cache.into_inner(),
+    )
+    .await
+    .map_err(|e| {
+        log::error!("Failed to publish spans to queue: {:?}", e);
+        anyhow::anyhow!("Failed to publish spans")
+    })?;
 
     Ok(HttpResponse::Ok().json(responses))
 }
