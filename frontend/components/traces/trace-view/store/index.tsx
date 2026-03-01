@@ -71,7 +71,7 @@ const TraceViewStoreProvider = ({
   initialTrace,
   storeKey,
 }: PropsWithChildren<{ initialTrace?: TraceViewTrace; storeKey?: string }>) => {
-  const [storeState] = useState(createTraceViewStore(initialTrace, storeKey));
+  const [storeState] = useState(() => createTraceViewStore(initialTrace, storeKey));
 
   return (
     <TraceViewContext.Provider value={storeState}>
