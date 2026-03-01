@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 import { type z } from "zod/v4";
 
+import PdfRenderer from "@/components/ui/pdf-renderer";
 import { type AnthropicContentBlockSchema, type AnthropicMessageSchema } from "@/lib/spans/types/anthropic";
 
 import {
@@ -97,6 +98,19 @@ const AnthropicPartRenderer = ({
       );
 
     case "document": {
+      if (
+        block.source.type === "base64" &&
+        block.source.media_type === "application/pdf" &&
+        typeof block.source.data === "string"
+      ) {
+        return (
+          <div className="flex flex-col gap-2 my-2 w-full">
+            {block.title && <div className="text-sm font-medium px-2">{block.title}]</div>}
+            <PdfRenderer base64={block.source.data} className="w-full min-h-[400px] border rounded-md" />
+          </div>
+        );
+      }
+
       const docLabel = block.title ? `[Document: ${block.title}]` : "[Document]";
       return (
         <TextContentPart

@@ -6,27 +6,37 @@ import "react-pdf/dist/Page/TextLayer.css";
 
 import { ChevronDown, ChevronUp, Maximize } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
 import { Button } from "./button";
-import DownloadButton from "./download-button";
 import { ScrollArea } from "./scroll-area";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "./sheet";
 import { Skeleton } from "./skeleton";
 
 // Dynamically import react-pdf components to avoid SSR issues
-const Document = dynamic(() => import("react-pdf").then((mod) => ({ default: mod.Document })), {
-  ssr: false,
-  loading: () => (
-    <div className="flex flex-col gap-2">
-      <Skeleton className="w-full h-12" />
-      <Skeleton className="w-full h-12" />
-      <Skeleton className="w-full h-12" />
-    </div>
-  ),
-});
+const Document = dynamic(
+  () =>
+    import("react-pdf").then((mod) => {
+      try {
+        mod.pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${mod.pdfjs.version}/build/pdf.worker.min.mjs`;
+      } catch {
+        console.error("Failed to load pdfjs worker");
+      }
+      return { default: mod.Document };
+    }),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex flex-col gap-2">
+        <Skeleton className="w-full h-12" />
+        <Skeleton className="w-full h-12" />
+        <Skeleton className="w-full h-12" />
+      </div>
+    ),
+  }
+);
 
 const Page = dynamic(() => import("react-pdf").then((mod) => ({ default: mod.Page })), {
   ssr: false,
@@ -36,12 +46,27 @@ const Page = dynamic(() => import("react-pdf").then((mod) => ({ default: mod.Pag
 type PDFFile = string | File | Blob | null;
 
 interface PdfRendererProps {
-  url: string;
+  url?: string;
+  base64?: string;
   maxWidth?: number;
   className?: string;
 }
 
-export default function PdfRenderer({ url, maxWidth, className }: PdfRendererProps) {
+/**
+ * Manual base64 to Blob conversion to avoid CSP connect-src restrictions on data: URIs
+ */
+const base64ToBlob = (base64: string, type = "application/pdf") => {
+  const base64Data = base64.includes(";base64,") ? base64.split(";base64,")[1] : base64;
+  const binaryString = window.atob(base64Data);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return new Blob([bytes], { type });
+};
+
+export default function PdfRenderer({ url, base64, className }: PdfRendererProps) {
   const [file, setFile] = useState<PDFFile>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
@@ -50,19 +75,52 @@ export default function PdfRenderer({ url, maxWidth, className }: PdfRendererPro
     setNumPages(nextNumPages);
   };
 
+  const handleDownload = useCallback(() => {
+    if (!file) return;
+
+    const blobUrl = URL.createObjectURL(file instanceof Blob ? file : new Blob([file]));
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = url ? url.split("/").pop() || "document.pdf" : "document.pdf";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
+  }, [file, url]);
+
   useEffect(() => {
     let isMounted = true;
-    fetch(url)
-      .then((response) => response.blob())
-      .then((blob) => {
-        if (isMounted) {
-          setFile(blob);
+
+    const loadFile = async () => {
+      if (base64) {
+        try {
+          // Offload to microtask to ensure asynchronous state update
+          const blob = base64ToBlob(base64);
+          if (isMounted) {
+            setFile(blob);
+          }
+        } catch (e) {
+          console.error("Failed to decode base64 PDF", e);
         }
-      });
+      } else if (url) {
+        try {
+          const response = await fetch(url);
+          const blob = await response.blob();
+          if (isMounted) {
+            setFile(blob);
+          }
+        } catch (e) {
+          console.error("Failed to fetch PDF URL", e);
+        }
+      }
+    };
+
+    loadFile();
+
     return () => {
       isMounted = false;
     };
-  }, [url]);
+  }, [url, base64]);
 
   // Show loading skeleton while file is being fetched (works for SSR too)
   if (!file) {
@@ -70,14 +128,9 @@ export default function PdfRenderer({ url, maxWidth, className }: PdfRendererPro
       <div className={cn("flex flex-col space-y-2 px-1 pb-2", className)}>
         <div className="flex justify-between">
           <div className="flex space-x-2">
-            <DownloadButton
-              uri={url}
-              filenameFallback={url}
-              className="mt-1.5 w-28 flex justify-center"
-              supportedFormats={[]}
-              variant="secondary"
-              text="Download PDF"
-            />
+            <Button variant="secondary" className="mt-1.5 w-28 flex justify-center" disabled>
+              Download PDF
+            </Button>
             <Button variant="ghost" className="flex items-center mt-1.5 gap-1 text-secondary-foreground" disabled>
               loading...
             </Button>
@@ -96,14 +149,9 @@ export default function PdfRenderer({ url, maxWidth, className }: PdfRendererPro
     <div className={cn("flex flex-col space-y-2 px-1 pb-2", className, isCollapsed && "h-8")}>
       <div className="flex justify-between">
         <div className="flex space-x-2">
-          <DownloadButton
-            uri={url}
-            filenameFallback={url}
-            className="mt-1.5 w-28 flex justify-center"
-            supportedFormats={[]}
-            variant="secondary"
-            text="Download PDF"
-          />
+          <Button variant="secondary" className="mt-1.5 w-28 flex justify-center" onClick={handleDownload}>
+            Download PDF
+          </Button>
           <Button
             variant="ghost"
             className="flex items-center mt-1.5 gap-1 text-secondary-foreground"

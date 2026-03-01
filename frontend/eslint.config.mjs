@@ -117,8 +117,9 @@ export default tseslint.config(
   },
 
   // API routes and webhooks - allow console for debugging
+  // instrumentation.ts - executed once on server startup
   {
-    files: ["app/api/**/*.ts", "app/webhook/**/*.ts"],
+    files: ["app/api/**/*.ts", "app/webhook/**/*.ts", "instrumentation.ts"],
     rules: {
       "no-console": "off",
     },
