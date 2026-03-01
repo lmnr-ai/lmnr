@@ -26,8 +26,8 @@ pub struct CreateSpanRequest {
     pub input: Option<serde_json::Value>,
     pub output: Option<serde_json::Value>,
     pub attributes: Option<HashMap<String, serde_json::Value>>,
-    pub trace_id: Option<Uuid>,
-    pub span_id: Option<Uuid>,
+    pub trace_id: Uuid,
+    pub span_id: Uuid,
     pub parent_span_id: Option<Uuid>,
 }
 
@@ -75,12 +75,9 @@ pub async fn create_spans(
     let mut messages = Vec::with_capacity(requests.len());
 
     for req in requests {
-        let span_id = req.span_id.unwrap_or_else(Uuid::new_v4);
-        let trace_id = req.trace_id.unwrap_or_else(Uuid::new_v4);
-
         let span = Span {
-            span_id,
-            trace_id,
+            span_id: req.span_id,
+            trace_id: req.trace_id,
             project_id,
             parent_span_id: req.parent_span_id,
             name: req.name,
@@ -98,7 +95,10 @@ pub async fn create_spans(
             size_bytes: 0,
         };
 
-        responses.push(CreateSpanResponse { span_id, trace_id });
+        responses.push(CreateSpanResponse {
+            span_id: req.span_id,
+            trace_id: req.trace_id,
+        });
         messages.push(RabbitMqSpanMessage { span });
     }
 
