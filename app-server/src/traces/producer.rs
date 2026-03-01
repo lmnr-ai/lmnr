@@ -21,57 +21,27 @@ use crate::{
     },
 };
 
-// TODO: Implement partial_success
-pub async fn push_spans_to_queue(
-    request: ExportTraceServiceRequest,
+/// Publish pre-built span messages to the appropriate queue based on workspace deployment mode.
+///
+/// Returns the number of rejected spans (0 on success).
+pub async fn publish_span_messages(
+    messages: Vec<RabbitMqSpanMessage>,
     project_id: Uuid,
     queue: Arc<MessageQueue>,
     db: Arc<DB>,
     cache: Arc<Cache>,
-) -> Result<ExportTraceServiceResponse> {
-    let messages = request
-        .resource_spans
-        .into_iter()
-        .flat_map(|resource_span| {
-            resource_span
-                .scope_spans
-                .into_iter()
-                .flat_map(|scope_span| {
-                    scope_span.spans.into_iter().filter_map(|otel_span| {
-                        let span = Span::from_otel_span(otel_span, project_id);
-
-                        if span.should_save() {
-                            Some(RabbitMqSpanMessage { span })
-                        } else {
-                            None
-                        }
-                    })
-                })
-        })
-        .collect::<Vec<_>>();
-
-    let mq_message = serde_json::to_vec(&messages).unwrap();
+) -> Result<usize> {
     let span_count = messages.len();
+    let mq_message = serde_json::to_vec(&messages).unwrap();
 
     if mq_message.len() >= mq_max_payload() {
         log::warn!(
             "[SPANS] MQ payload limit exceeded. Project ID: [{}], payload size: [{}]. Span count: [{}]",
             project_id,
             mq_message.len(),
-            messages.len()
+            span_count
         );
-
-        // Return partial success to inform client that logs were rejected
-        return Ok(ExportTraceServiceResponse {
-            partial_success: Some(ExportTracePartialSuccess {
-                rejected_spans: span_count as i64,
-                error_message: format!(
-                    "Payload size {} exceeds limit. All {} spans rejected.",
-                    mq_message.len(),
-                    span_count
-                ),
-            }),
-        });
+        return Ok(span_count);
     }
 
     let workspace_deployment = get_workspace_deployment(&db.pool, cache.clone(), project_id)
@@ -101,9 +71,54 @@ pub async fn push_spans_to_queue(
         }
     }
 
-    let response = ExportTraceServiceResponse {
-        partial_success: None,
-    };
+    Ok(0)
+}
 
-    Ok(response)
+// TODO: Implement partial_success
+pub async fn push_spans_to_queue(
+    request: ExportTraceServiceRequest,
+    project_id: Uuid,
+    queue: Arc<MessageQueue>,
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+) -> Result<ExportTraceServiceResponse> {
+    let messages = request
+        .resource_spans
+        .into_iter()
+        .flat_map(|resource_span| {
+            resource_span
+                .scope_spans
+                .into_iter()
+                .flat_map(|scope_span| {
+                    scope_span.spans.into_iter().filter_map(|otel_span| {
+                        let span = Span::from_otel_span(otel_span, project_id);
+
+                        if span.should_save() {
+                            Some(RabbitMqSpanMessage { span })
+                        } else {
+                            None
+                        }
+                    })
+                })
+        })
+        .collect::<Vec<_>>();
+
+    let span_count = messages.len();
+    let rejected = publish_span_messages(messages, project_id, queue, db, cache).await?;
+
+    if rejected > 0 {
+        return Ok(ExportTraceServiceResponse {
+            partial_success: Some(ExportTracePartialSuccess {
+                rejected_spans: span_count as i64,
+                error_message: format!(
+                    "Payload size exceeds limit. All {} spans rejected.",
+                    span_count
+                ),
+            }),
+        });
+    }
+
+    Ok(ExportTraceServiceResponse {
+        partial_success: None,
+    })
 }
