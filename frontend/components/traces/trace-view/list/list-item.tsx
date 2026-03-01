@@ -53,13 +53,9 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
     span.spanType === "EXECUTOR" ||
     span.spanType === "EVALUATOR";
 
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [prevSpanId, setPrevSpanId] = useState(span.spanId);
+  const [expandOverride, setExpandOverride] = useState<{ spanId: string; expanded: boolean } | null>(null);
 
-  if (span.spanId !== prevSpanId) {
-    setPrevSpanId(span.spanId);
-    setIsExpanded(defaultExpanded);
-  }
+  const isExpanded = expandOverride?.spanId === span.spanId ? expandOverride.expanded : defaultExpanded;
 
   const isPending = span.pending;
   const isLoadingOutput = output === undefined;
@@ -110,7 +106,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
                 variant="ghost"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsExpanded((prevState) => !prevState);
+                  setExpandOverride({ spanId: span.spanId, expanded: !isExpanded });
                 }}
                 className="h-5 py-0 px-0.5 hover:bg-muted rounded transition-colors"
               >
