@@ -12,9 +12,7 @@ use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
 use crate::{
     cache::Cache,
     db::{DB, spans::Span, trace::Trace},
-    language_model::costs::{
-        ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs,
-    },
+    language_model::costs::{ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs},
 };
 
 use super::span_attributes::{
@@ -73,8 +71,7 @@ pub async fn get_llm_usage_for_span(
 
     if let Some(model) = model_name.as_deref() {
         let region = attributes.string_attr(CLOUD_REGION);
-        let model_info =
-            ModelInfo::extract(model, provider_name.as_deref(), region.as_deref());
+        let model_info = ModelInfo::extract(model, provider_name.as_deref(), region.as_deref());
 
         if let Some(model_costs) = get_model_costs(db.clone(), cache.clone(), &model_info).await {
             let span_cost_input = build_span_cost_input(attributes, &input_tokens, output_tokens);

@@ -152,16 +152,20 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     // === INPUT COST ===
     let mut total_input_cost = 0.0;
 
+    // prompt_tokens includes audio_input_tokens per API convention;
+    // subtract them so they're only charged at their specific rate below.
+    let base_input_tokens = (input.prompt_tokens - input.audio_input_tokens).max(0);
+
     if input.is_batch {
         // Batch pricing
         let batch_input_cost = resolve_cost_key(costs, "input_cost_per_token_batches", tier)
             .unwrap_or_else(|| input_cost_per_token.unwrap_or(0.0) / 2.0);
-        total_input_cost += input.prompt_tokens as f64 * batch_input_cost;
+        total_input_cost += base_input_tokens as f64 * batch_input_cost;
     } else {
         // Regular input tokens
         let resolved_input_cost =
             resolve_cost_key(costs, &input_key, tier).or(input_cost_per_token);
-        total_input_cost += input.prompt_tokens as f64 * resolved_input_cost.unwrap_or(0.0);
+        total_input_cost += base_input_tokens as f64 * resolved_input_cost.unwrap_or(0.0);
     }
 
     // Cache read tokens
@@ -215,16 +219,21 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     // === OUTPUT COST ===
     let mut total_output_cost = 0.0;
 
+    // completion_tokens includes reasoning_tokens and audio_output_tokens per API convention;
+    // subtract them so they're only charged at their specific rates below.
+    let base_output_tokens =
+        (input.completion_tokens - input.reasoning_tokens - input.audio_output_tokens).max(0);
+
     if input.is_batch {
         // Batch pricing
         let batch_output_cost = resolve_cost_key(costs, "output_cost_per_token_batches", tier)
             .unwrap_or_else(|| output_cost_per_token.unwrap_or(0.0) / 2.0);
-        total_output_cost += input.completion_tokens as f64 * batch_output_cost;
+        total_output_cost += base_output_tokens as f64 * batch_output_cost;
     } else {
         // Regular output tokens
         let resolved_output_cost =
             resolve_cost_key(costs, &output_key, tier).or(output_cost_per_token);
-        total_output_cost += input.completion_tokens as f64 * resolved_output_cost.unwrap_or(0.0);
+        total_output_cost += base_output_tokens as f64 * resolved_output_cost.unwrap_or(0.0);
     }
 
     // Reasoning tokens

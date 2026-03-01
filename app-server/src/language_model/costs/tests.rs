@@ -488,13 +488,15 @@ fn test_audio_tokens() {
         ..default_input()
     };
     let result = calculate_span_cost(&costs, &input);
+    // prompt_tokens includes audio_input_tokens, so base = 1000 - 200 = 800
+    // completion_tokens includes audio_output_tokens, so base = 500 - 100 = 400
     assert_float_eq(
         result.input_cost,
-        1000.0 * 0.000003 + 200.0 * 0.00011,
+        800.0 * 0.000003 + 200.0 * 0.00011,
     );
     assert_float_eq(
         result.output_cost,
-        500.0 * 0.000015 + 100.0 * 0.00022,
+        400.0 * 0.000015 + 100.0 * 0.00022,
     );
 }
 
@@ -504,7 +506,9 @@ fn test_audio_tokens_fallback() {
         "input_cost_per_token": 0.000003,
         "output_cost_per_token": 0.000015,
     }));
-    // No audio-specific costs, fallback to regular
+    // No audio-specific costs, fallback to regular rate.
+    // Since audio tokens are subtracted from base and then re-added at the same rate,
+    // the total equals prompt_tokens * rate (no double-counting).
     let input = SpanCostInput {
         prompt_tokens: 1000,
         completion_tokens: 500,
@@ -513,13 +517,15 @@ fn test_audio_tokens_fallback() {
         ..default_input()
     };
     let result = calculate_span_cost(&costs, &input);
+    // (1000 - 200) * rate + 200 * rate = 1000 * rate
     assert_float_eq(
         result.input_cost,
-        1000.0 * 0.000003 + 200.0 * 0.000003,
+        1000.0 * 0.000003,
     );
+    // (500 - 100) * rate + 100 * rate = 500 * rate
     assert_float_eq(
         result.output_cost,
-        500.0 * 0.000015 + 100.0 * 0.000015,
+        500.0 * 0.000015,
     );
 }
 
@@ -540,9 +546,10 @@ fn test_reasoning_tokens() {
     };
     let result = calculate_span_cost(&costs, &input);
     assert_float_eq(result.input_cost, 1000.0 * 0.000003);
+    // completion_tokens includes reasoning_tokens, so base = 500 - 300 = 200
     assert_float_eq(
         result.output_cost,
-        500.0 * 0.000015 + 300.0 * 0.00001,
+        200.0 * 0.000015 + 300.0 * 0.00001,
     );
 }
 
@@ -552,6 +559,9 @@ fn test_reasoning_tokens_fallback() {
         "input_cost_per_token": 0.000003,
         "output_cost_per_token": 0.000015,
     }));
+    // No reasoning-specific cost, fallback to regular rate.
+    // Since reasoning tokens are subtracted then re-added at the same rate,
+    // total = completion_tokens * rate (no double-counting).
     let input = SpanCostInput {
         prompt_tokens: 1000,
         completion_tokens: 500,
@@ -560,9 +570,10 @@ fn test_reasoning_tokens_fallback() {
     };
     let result = calculate_span_cost(&costs, &input);
     assert_float_eq(result.input_cost, 1000.0 * 0.000003);
+    // (500 - 300) * rate + 300 * rate = 500 * rate
     assert_float_eq(
         result.output_cost,
-        500.0 * 0.000015 + 300.0 * 0.000015,
+        500.0 * 0.000015,
     );
 }
 
@@ -698,9 +709,10 @@ fn test_gemini_flash_above_128k_with_audio() {
         ..default_input()
     };
     let result = calculate_span_cost(&costs, &input);
+    // prompt_tokens includes audio_input_tokens, so base = 200_000 - 1000 = 199_000
     assert_float_eq(
         result.input_cost,
-        200_000.0 * 0.000001 + 1000.0 * 0.000002,
+        199_000.0 * 0.000001 + 1000.0 * 0.000002,
     );
     assert_float_eq(result.output_cost, 5000.0 * 0.0000006);
 }
@@ -714,6 +726,10 @@ fn test_realtime_model_with_audio_io() {
         "output_cost_per_audio_token": 0.00022,
         "cache_read_input_token_cost": 0.00000275,
     }));
+    // prompt_tokens (5000) includes audio_input_tokens (10_000 > 5000),
+    // so base_input = max(5000 - 10_000, 0) = 0 (all tokens are audio)
+    // completion_tokens (2000) includes audio_output_tokens (8000 > 2000),
+    // so base_output = max(2000 - 8000, 0) = 0
     let input = SpanCostInput {
         prompt_tokens: 5000,
         completion_tokens: 2000,
@@ -725,11 +741,11 @@ fn test_realtime_model_with_audio_io() {
     let result = calculate_span_cost(&costs, &input);
     assert_float_eq(
         result.input_cost,
-        5000.0 * 0.0000055 + 10_000.0 * 0.00011 + 3000.0 * 0.00000275,
+        0.0 * 0.0000055 + 10_000.0 * 0.00011 + 3000.0 * 0.00000275,
     );
     assert_float_eq(
         result.output_cost,
-        2000.0 * 0.000022 + 8000.0 * 0.00022,
+        0.0 * 0.000022 + 8000.0 * 0.00022,
     );
 }
 
@@ -742,6 +758,8 @@ fn test_reasoning_with_priority_tier() {
         "output_cost_per_token_priority": 0.00003,
         "output_cost_per_reasoning_token": 0.00001,
     }));
+    // completion_tokens (5000) includes reasoning_tokens (20_000 > 5000),
+    // base_output = max(5000 - 20_000, 0) = 0 (all output is reasoning)
     let input = SpanCostInput {
         prompt_tokens: 10_000,
         completion_tokens: 5000,
@@ -751,10 +769,9 @@ fn test_reasoning_with_priority_tier() {
     };
     let result = calculate_span_cost(&costs, &input);
     assert_float_eq(result.input_cost, 10_000.0 * 0.000006);
-    // Output uses priority pricing, reasoning uses reasoning cost
     assert_float_eq(
         result.output_cost,
-        5000.0 * 0.00003 + 20_000.0 * 0.00001,
+        0.0 * 0.00003 + 20_000.0 * 0.00001,
     );
 }
 
