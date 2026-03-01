@@ -3,7 +3,7 @@
 import { type ColumnDef } from "@tanstack/react-table";
 import { format, subDays } from "date-fns";
 import { isDate, isEmpty, isNil, isObject } from "lodash";
-import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
 
 import { ChartType } from "@/components/chart-builder/types.ts";
@@ -248,13 +248,7 @@ export const useDashboardEditorStoreContext = <T,>(selector: (store: DashboardEd
 };
 
 export const DashboardEditorStoreProvider = ({ children, ...props }: PropsWithChildren<DashboardEditorProps>) => {
-  const storeRef = useRef<DashboardEditorStoreApi | undefined>(undefined);
+  const [storeState] = useState(() => createDashboardEditorStore(props));
 
-  if (!storeRef.current) {
-    storeRef.current = createDashboardEditorStore(props);
-  }
-
-  return (
-    <DashboardEditorStoreContext.Provider value={storeRef.current}>{children}</DashboardEditorStoreContext.Provider>
-  );
+  return <DashboardEditorStoreContext.Provider value={storeState}>{children}</DashboardEditorStoreContext.Provider>;
 };

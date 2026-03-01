@@ -60,9 +60,13 @@ const ScreenshotToggleButton = ({
   const rafRef = useRef<number | null>(null);
   const hasCompletedRef = useRef(false);
 
-  useEffect(() => {
-    // Reset on any change
+  const [prevKey, setPrevKey] = useState(`${isActive}-${activeImageIndex}`);
+  if (prevKey !== `${isActive}-${activeImageIndex}`) {
+    setPrevKey(`${isActive}-${activeImageIndex}`);
     setProgress(0);
+  }
+
+  useEffect(() => {
     startTimeRef.current = null;
     hasCompletedRef.current = false;
 

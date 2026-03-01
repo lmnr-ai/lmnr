@@ -3,7 +3,7 @@
 import { isEqual, uniqueId } from "lodash";
 import { type AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { type ReadonlyURLSearchParams, useSearchParams } from "next/navigation";
-import { createContext, type PropsWithChildren, type RefObject, useContext, useMemo, useRef } from "react";
+import { createContext, type PropsWithChildren, type RefObject, useContext, useMemo, useRef, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 
 import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
@@ -445,18 +445,14 @@ export const AdvancedSearchStoreProvider = ({
     };
   }, [searchParams, filters, mode, initialFilters, initialSearch]);
 
-  const storeRef = useRef<StoreApi<AdvancedSearchStore>>(null);
+  const [storeState] = useState(() => createAdvancedSearchStore(filters, tags, search, mode, onSubmit, suggestions));
   const mainInputRef = useRef<HTMLInputElement>(null);
   const tagHandlesRef = useRef<Map<string, FilterTagRef>>(new Map());
-
-  if (!storeRef.current) {
-    storeRef.current = createAdvancedSearchStore(filters, tags, search, mode, onSubmit, suggestions);
-  }
 
   const refsValue = useMemo(() => ({ mainInputRef, tagHandlesRef }), []);
 
   return (
-    <AdvancedSearchStoreContext.Provider value={storeRef.current}>
+    <AdvancedSearchStoreContext.Provider value={storeState}>
       <AdvancedSearchRefsContext.Provider value={refsValue}>{children}</AdvancedSearchRefsContext.Provider>
     </AdvancedSearchStoreContext.Provider>
   );

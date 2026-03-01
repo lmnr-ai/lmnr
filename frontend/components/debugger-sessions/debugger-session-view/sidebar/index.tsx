@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 
 import { useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,21 +20,16 @@ type DebuggerSidebarTab = "run" | "runs" | "traces";
 export default function DebuggerSidebar({ onRun, onCancel, isLoading }: DebuggerSidebarProps) {
   const sessionStatus = useDebuggerSessionStore((state) => state.sessionStatus);
 
-  const [activeTab, setActiveTab] = useState<DebuggerSidebarTab>("run");
+  const [selectedTab, setSelectedTab] = useState<DebuggerSidebarTab>("run");
 
   const isRunning = sessionStatus === "RUNNING";
-
-  useEffect(() => {
-    if (isRunning) {
-      setActiveTab("run");
-    }
-  }, [isRunning]);
+  const activeTab = isRunning ? "run" : selectedTab;
 
   return (
     <div className="flex flex-col gap-1 flex-1 overflow-hidden">
       <Tabs
         value={activeTab}
-        onValueChange={(v) => setActiveTab(v as DebuggerSidebarTab)}
+        onValueChange={(v) => setSelectedTab(v as DebuggerSidebarTab)}
         className="flex flex-col flex-1 overflow-hidden"
       >
         <div className="px-4 pt-4">
