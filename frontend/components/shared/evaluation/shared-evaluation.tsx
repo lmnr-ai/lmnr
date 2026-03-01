@@ -69,6 +69,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
+    // columnDefs used internally in buildStatParams via store
   }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{

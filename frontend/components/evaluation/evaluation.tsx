@@ -66,6 +66,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
+    // columnDefs used internally in buildStatParams via store
   }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
@@ -82,6 +83,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
+    // columnDefs used internally in buildStatParams via store
   }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
 
   const { data: targetStatsData } = useSWR<{
