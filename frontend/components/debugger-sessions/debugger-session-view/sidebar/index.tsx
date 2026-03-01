@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { useDebuggerSessionStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,6 +24,13 @@ export default function DebuggerSidebar({ onRun, onCancel, isLoading }: Debugger
 
   const isRunning = sessionStatus === "RUNNING";
   const activeTab = isRunning ? "run" : selectedTab;
+
+  useEffect(() => {
+    if (isRunning) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedTab("run");
+    }
+  }, [isRunning]);
 
   return (
     <div className="flex flex-col gap-1 flex-1 overflow-hidden">

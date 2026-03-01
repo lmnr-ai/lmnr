@@ -201,7 +201,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           window.removeEventListener("keydown", handleKeyDown as any);
         }
       };
-    }, [props.onClick]);
+    }, [handleKeyDown, handleKeysUp.length]);
 
     // Get the icon component from the map
     const IconComponent = icon ? iconMap[icon] : null;

@@ -105,7 +105,7 @@ const AnthropicPartRenderer = ({
       ) {
         return (
           <div className="flex flex-col gap-2 my-2 w-full">
-            {block.title && <div className="text-sm font-medium px-2">{block.title}]</div>}
+            {block.title && <div className="text-sm font-medium px-2">{block.title}</div>}
             <PdfRenderer base64={block.source.data} className="w-full min-h-[400px] border rounded-md" />
           </div>
         );
