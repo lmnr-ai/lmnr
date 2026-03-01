@@ -82,9 +82,29 @@ Conditional value: if(total_cost > 0.01, 'expensive', 'cheap')
 </examples>`,
 };
 
+const dashboardExpressionMode: ModeConfig = {
+  tables: ["spans", "traces", "events", "tags"],
+  prompt: `<task>
+Generate a ClickHouse SQL expression (NOT a full query).
+This expression will be used as a custom metric column in a dashboard chart: SELECT expression FROM table
+
+Output only the expression - no SELECT, FROM, or WHERE clauses.
+The expression should be an aggregation or computed value suitable for a chart metric.
+</task>
+
+<examples>
+Average cost per trace: sum(total_cost) / count(*)
+Error rate percentage: round(countIf(status = 'ERROR') * 100.0 / count(*), 2)
+Average tokens per LLM span: avg(total_tokens)
+Cost weighted by duration: sum(total_cost * duration) / sum(duration)
+Unique models used: uniqExact(model)
+</examples>`,
+};
+
 const MODE_CONFIGS: Record<GenerationMode, ModeConfig> = {
   query: queryMode,
   "eval-expression": evalExpressionMode,
+  "dashboard-expression": dashboardExpressionMode,
 };
 
 export function getGenerationPrompts(mode: GenerationMode = "query", currentQuery?: string) {

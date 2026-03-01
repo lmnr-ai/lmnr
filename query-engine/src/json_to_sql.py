@@ -178,6 +178,12 @@ class JsonToSqlConverter:
 
     def _metric_sql(self, metric: dict[str, Any]) -> str:
         fn = metric['fn']
+
+        # Handle raw SQL expression metrics
+        if fn.lower() == 'custom' and metric.get('raw_expression'):
+            alias = metric.get('alias', 'custom')
+            return f"{metric['raw_expression']} AS {alias}"
+
         col = metric['column']
         alias = metric.get('alias', col)
 

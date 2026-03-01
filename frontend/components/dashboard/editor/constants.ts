@@ -49,9 +49,15 @@ export const METRIC_FUNCTION_OPTIONS: MetricFunctionOption[] = [
     label: "P99",
     createMetric: (column) => ({ fn: "quantile", column, args: [0.99], alias: `p99_${column}` }),
   },
+  {
+    value: "custom",
+    label: "Custom SQL",
+    createMetric: () => ({ fn: "custom", column: "*", alias: "custom", args: [], rawExpression: "" }),
+  },
 ];
 
 export const getMetricFunctionValue = (metric: Metric): string => {
+  if (metric.fn === "custom") return "custom";
   if (metric.fn === "quantile") {
     if (metric.args?.[0] === 0.9) return "p90";
     if (metric.args?.[0] === 0.95) return "p95";
