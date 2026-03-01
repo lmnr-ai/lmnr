@@ -13,52 +13,52 @@ import {
 
 export const getSidebarMenus = (projectId: string) => [
   {
-    name: "dashboards",
+    name: "Dashboards",
     href: `/project/${projectId}/dashboard`,
     icon: LayoutGrid,
   },
   {
-    name: "traces",
+    name: "Traces",
     href: `/project/${projectId}/traces`,
     icon: Rows4,
   },
   {
-    name: "signals",
+    name: "Signals",
     href: `/project/${projectId}/signals`,
     icon: Radio,
   },
   {
-    name: "evaluations",
+    name: "Evaluations",
     href: `/project/${projectId}/evaluations`,
     icon: FlaskConical,
   },
   {
-    name: "datasets",
+    name: "Datasets",
     href: `/project/${projectId}/datasets`,
     icon: Database,
   },
   {
-    name: "labeling",
+    name: "Labeling",
     href: `/project/${projectId}/labeling-queues`,
     icon: Pen,
   },
   {
-    name: "sql editor",
+    name: "SQL editor",
     href: `/project/${projectId}/sql`,
     icon: SquareTerminal,
   },
   {
-    name: "playgrounds",
+    name: "Playgrounds",
     href: `/project/${projectId}/playgrounds`,
     icon: PlayCircle,
   },
   {
-    name: "debugger",
+    name: "Debugger",
     href: `/project/${projectId}/debugger-sessions`,
     icon: GitFork,
   },
   {
-    name: "settings",
+    name: "Settings",
     href: `/project/${projectId}/settings`,
     icon: Settings,
   },
