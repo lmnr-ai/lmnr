@@ -66,7 +66,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
+  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: EvaluationType;
@@ -82,7 +82,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
+  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
 
   const { data: targetStatsData } = useSWR<{
     evaluation: EvaluationType;
