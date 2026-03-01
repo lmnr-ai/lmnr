@@ -908,8 +908,10 @@ impl Span {
         // 8 bytes for start_time,
         // 8 bytes for end_time,
 
-        // everything else is in attributes
-        // because right after creation attributes contain all span data
+        // For OTel spans, input/output start inside raw_attributes and are
+        // parsed out later, so raw_attributes alone captures the payload.
+        // For /v1/spans, input/output are set directly on the Span and must
+        // be counted separately.
         let size_bytes = 16
             + 16
             + 16
@@ -922,6 +924,14 @@ impl Span {
                 .iter()
                 .map(|(k, v)| k.len() + estimate_json_size(v))
                 .sum::<usize>()
+            + self
+                .input
+                .as_ref()
+                .map_or(0, |v| estimate_json_size(v))
+            + self
+                .output
+                .as_ref()
+                .map_or(0, |v| estimate_json_size(v))
             + self
                 .events
                 .iter()
