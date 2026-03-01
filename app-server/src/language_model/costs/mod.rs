@@ -69,12 +69,12 @@ impl ModelInfo {
 
         if let (Some(provider), Some(region)) = (&self.provider, &self.region) {
             // 1. provider/region/model
-            keys.push(format!("{}/{}/{}", provider, region, self.model));
+            keys.push(format!("{}/{}/{}", provider, region, self.raw_model));
         }
 
         if let Some(provider) = &self.provider {
             // 2. provider/model
-            keys.push(format!("{}/{}", provider, self.model));
+            keys.push(format!("{}/{}", provider, self.raw_model));
         }
 
         // 3. model (full string as-is)
@@ -105,7 +105,11 @@ pub async fn get_model_costs(
             Ok(Some(costs)) => return Some(costs),
             Ok(None) => {} // Cache miss, try DB
             Err(e) => {
-                log::warn!("Cache error looking up model costs for key {}: {:?}", key, e);
+                log::warn!(
+                    "Cache error looking up model costs for key {}: {:?}",
+                    key,
+                    e
+                );
             }
         }
 
