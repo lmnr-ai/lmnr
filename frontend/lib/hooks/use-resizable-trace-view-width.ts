@@ -45,9 +45,13 @@ export function useResizableTraceViewWidth({ initialWidth, onSaveWidth }: UseRes
     if (resizableRef.current && windowWidth > 0) {
       resizableRef.current.updateSize({ width });
 
-      // If we had to snap the width due to window being too small, persist that choice
+      // If we had to snap the width due to window being too small, persist that choice.
+      // Debounce to avoid flooding the server/cookies during active window resizing.
       if (width === windowWidth - snappedPadding) {
-        onSaveWidth?.(width);
+        const timeout = setTimeout(() => {
+          onSaveWidth?.(width);
+        }, 500);
+        return () => clearTimeout(timeout);
       }
     }
   }, [windowWidth, width, onSaveWidth]);
