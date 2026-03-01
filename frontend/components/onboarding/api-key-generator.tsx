@@ -13,9 +13,16 @@ import { cn } from "@/lib/utils.ts";
 interface ApiKeyGeneratorProps {
   context: "traces" | "evaluations";
   title?: string;
+  titleClassName?: string;
+  subtitle?: string;
 }
 
-export default function ApiKeyGenerator({ context, title = "Get your API Key" }: ApiKeyGeneratorProps) {
+export default function ApiKeyGenerator({
+  context,
+  title = "Get your API Key",
+  titleClassName,
+  subtitle,
+}: ApiKeyGeneratorProps) {
   const { projectId } = useParams();
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -55,8 +62,11 @@ export default function ApiKeyGenerator({ context, title = "Get your API Key" }:
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <h2 className="text-lg font-medium">{title}</h2>
+      <div className="flex flex-row justify-between items-center">
+        <div className="flex flex-col gap-1">
+          <h2 className={cn("text-lg font-medium", titleClassName)}>{title}</h2>
+          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        </div>
         {!generatedKey && (
           <Button onClick={handleGenerateKey} disabled={isLoading}>
             <Loader2 className={cn("mr-2 hidden", isLoading ? "animate-spin block" : "")} size={14} />

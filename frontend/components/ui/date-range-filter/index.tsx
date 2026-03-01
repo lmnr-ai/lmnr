@@ -11,21 +11,36 @@ import { Calendar, type CalendarProps } from "@/components/ui/calendar.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { cn } from "@/lib/utils.ts";
 
 import { DateRangeFilterProvider, useDateRangeFilterContext } from "./store";
 import { getTimeDifference, QUICK_RANGES } from "./utils.ts";
 
-const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } }) => (
-  <div className="flex items-center space-x-2">
-    <Badge className="text-xs bg-accent hover:bg-secondary py-px px-2 mr-2">
-      {getTimeDifference(displayRange.from, displayRange.to)}
-    </Badge>
-    <span className="text-muted-foreground">
-      {formatDate(displayRange.from, "MMM d, h:mm a")} - {formatDate(displayRange.to, "MMM d, h:mm a")}
-    </span>
-  </div>
-);
+const DateRangeButton = ({ displayRange }: { displayRange: { from: Date; to: Date } }) => {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center space-x-2">
+        <Skeleton className="h-4 w-8 rounded-full" />
+        <Skeleton className="h-4 w-48" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center space-x-2">
+      <Badge className="text-xs bg-accent hover:bg-secondary py-px px-2 mr-2">
+        {getTimeDifference(displayRange.from, displayRange.to)}
+      </Badge>
+      <span className="text-muted-foreground">
+        {formatDate(displayRange.from, "MMM d, h:mm a")} - {formatDate(displayRange.to, "MMM d, h:mm a")}
+      </span>
+    </div>
+  );
+};
 
 const QuickRangesList = ({
   pastHours,

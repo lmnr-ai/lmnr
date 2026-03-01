@@ -87,13 +87,13 @@ const TracesContent = () => {
   );
 
   return (
-    <div className="flex flex-col gap-3 px-4 py-2">
+    <div className="flex flex-col flex-1 gap-3 px-4 py-2 overflow-hidden">
       <span className="text-secondary-foreground text-xs px-1">
         Select a trace to rerun in debugger. Trace structure must match the agent you are running locally.
       </span>
 
       <InfiniteDataTable<TraceRow>
-        className="w-full"
+        className="w-full flex-1"
         columns={sidebarTraceColumns}
         data={traces}
         getRowId={(t) => t.id}
