@@ -1,19 +1,24 @@
 import { z } from "zod/v4";
 
-export type GenerationMode = "query" | "eval-expression";
+export type GenerationMode = "query" | "eval-expression" | "dashboard-expression";
 
 export type GenerationResult = { success: true; result: string } | { success: false; error: string };
 
 export const MetricSchema = z
   .object({
-    fn: z.enum(["count", "sum", "avg", "min", "max", "quantile"]),
+    fn: z.enum(["count", "sum", "avg", "min", "max", "quantile", "custom"]),
     column: z.string(),
     args: z.array(z.number()),
     alias: z.string().optional().nullable(),
+    rawExpression: z.string().optional().nullable(),
   })
-  .refine((data) => data.fn === "count" || data.column.trim().length > 0, {
+  .refine((data) => data.fn === "count" || data.fn === "custom" || data.column.trim().length > 0, {
     message: "Column is required for this metric function",
     path: ["column"],
+  })
+  .refine((data) => data.fn !== "custom" || (data.rawExpression?.trim().length ?? 0) > 0, {
+    message: "SQL expression is required for custom metrics",
+    path: ["rawExpression"],
   });
 
 export const FilterStringSchema = z.object({

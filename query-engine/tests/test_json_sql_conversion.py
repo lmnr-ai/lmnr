@@ -72,6 +72,44 @@ LIMIT 5"""
         assert "ORDER BY time WITH FILL" in sql
         assert "STEP toInterval(1, {interval_unit:String})" in sql
 
+    def test_custom_sql_metric(self):
+        """Test custom raw SQL expression metric"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "custom", "column": "*", "alias": "cost_per_trace", "raw_expression": "sum(total_cost) / count(*)"},
+            ],
+            "dimensions": [],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+            "order_by": []
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "sum(total_cost) / count(*) AS cost_per_trace" in sql
+        assert "FROM spans" in sql
+
+    def test_custom_sql_metric_with_standard_metrics(self):
+        """Test custom raw SQL metric alongside standard metrics"""
+        query_json = {
+            "table": "traces",
+            "metrics": [
+                {"fn": "count", "column": "*", "alias": "total"},
+                {"fn": "custom", "column": "*", "alias": "error_rate", "raw_expression": "round(countIf(status = 'ERROR') * 100.0 / count(*), 2)"},
+            ],
+            "dimensions": [],
+            "filters": [],
+            "order_by": []
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "count(*) AS total" in sql
+        assert "round(countIf(status = 'ERROR') * 100.0 / count(*), 2) AS error_rate" in sql
+
     def test_empty_query_validation(self):
         """Test that queries with no metrics, dimensions, or time_range are rejected"""
         query_json = {
