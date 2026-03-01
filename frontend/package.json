@@ -100,6 +100,7 @@
     "d3-scale": "^4.0.2",
     "dagre": "^0.8.5",
     "date-fns": "^3.6.0",
+    "diff": "^8.0.3",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.45.1",
     "framer-motion": "^11.18.2",

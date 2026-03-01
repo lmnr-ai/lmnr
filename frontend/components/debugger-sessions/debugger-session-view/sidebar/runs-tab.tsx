@@ -4,13 +4,13 @@ import { type Row } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 
+import { FETCH_SIZE, tracePickerColumnOrder, tracePickerColumns } from "@/components/traces/trace-picker/columns";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
 import type { TraceRow } from "@/lib/traces/types";
 
 import { useDebuggerSessionStore } from "../store";
-import { FETCH_SIZE, sidebarColumnOrder, sidebarTraceColumns } from "./columns";
 
 const RunsContent = () => {
   const { projectId, id: sessionId } = useParams<{ projectId: string; id: string }>();
@@ -70,7 +70,7 @@ const RunsContent = () => {
   return (
     <InfiniteDataTable<TraceRow>
       className="w-full px-4 py-2"
-      columns={sidebarTraceColumns}
+      columns={tracePickerColumns}
       data={historyRuns}
       getRowId={(t) => t.id}
       onRowClick={handleRowClick}
@@ -91,7 +91,7 @@ const RunsContent = () => {
 
 export default function RunsTab() {
   return (
-    <DataTableStateProvider defaultColumnOrder={sidebarColumnOrder} pageSize={FETCH_SIZE}>
+    <DataTableStateProvider defaultColumnOrder={tracePickerColumnOrder} pageSize={FETCH_SIZE}>
       <RunsContent />
     </DataTableStateProvider>
   );

@@ -7,14 +7,14 @@ import { SpanType, type TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
-export const sidebarTraceColumns: ColumnDef<TraceRow, any>[] = [
+export const tracePickerColumns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
       <div
         className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
           "bg-destructive-bright": row.getValue() === "error",
-          "": row.getValue() === "info", // temporary color values
-          "bg-yellow-400": row.getValue() === "warning", // temporary color values
+          "": row.getValue() === "info",
+          "bg-yellow-400": row.getValue() === "warning",
         })}
       />
     ),
@@ -95,6 +95,6 @@ export const sidebarTraceColumns: ColumnDef<TraceRow, any>[] = [
   },
 ];
 
-export const sidebarColumnOrder = ["status", "top_span_type", "start_time", "duration", "total_tokens"];
+export const tracePickerColumnOrder = ["status", "top_span_type", "start_time", "duration", "total_tokens"];
 
 export const FETCH_SIZE = 30;
