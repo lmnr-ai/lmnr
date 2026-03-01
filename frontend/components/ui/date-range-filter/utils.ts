@@ -13,6 +13,7 @@ export const QUICK_RANGES: DateRange[] = [
   { name: "1 week", value: (24 * 7).toString() },
   { name: "2 weeks", value: (24 * 7 * 2).toString() },
   { name: "1 month", value: (24 * 7 * 4).toString() },
+  { name: "3 months", value: (24 * 7 * 4 * 3).toString() },
 ];
 
 export const getTimeDifference = (from: Date, to: Date): string => {
