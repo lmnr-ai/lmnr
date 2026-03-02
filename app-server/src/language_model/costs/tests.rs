@@ -20,6 +20,7 @@ fn test_model_info_basic() {
     assert_eq!(info.provider.as_deref(), Some("openai"));
     assert_eq!(info.raw_model, "gpt-4o");
     assert!(info.region.is_none());
+    assert_eq!(info.model_without_snapshot, "gpt-4o");
 }
 
 #[test]
@@ -60,6 +61,35 @@ fn test_model_info_bedrock_with_region() {
     assert_eq!(info.region.as_deref(), Some("us-east-1"));
     assert_eq!(info.raw_model, "us-east-1/anthropic.claude-v2");
     assert_eq!(info.model, "bedrock/us-east-1/anthropic.claude-v2");
+}
+
+// ===== Snapshot suffix stripping tests =====
+
+#[test]
+fn test_model_info_openai_snapshot_suffix() {
+    let info = ModelInfo::extract("gpt-4.1-nano-2025-04-14", Some("openai"), None);
+    assert_eq!(info.raw_model, "gpt-4.1-nano-2025-04-14");
+    assert_eq!(info.model_without_snapshot, "gpt-4.1-nano");
+}
+
+#[test]
+fn test_model_info_anthropic_snapshot_suffix() {
+    let info = ModelInfo::extract("claude-sonnet-4-5-20250514", Some("anthropic"), None);
+    assert_eq!(info.raw_model, "claude-sonnet-4-5-20250514");
+    assert_eq!(info.model_without_snapshot, "claude-sonnet-4-5");
+}
+
+#[test]
+fn test_model_info_no_snapshot_suffix() {
+    let info = ModelInfo::extract("gpt-4o", Some("openai"), None);
+    assert_eq!(info.model_without_snapshot, "gpt-4o");
+}
+
+#[test]
+fn test_model_info_snapshot_with_provider_prefix() {
+    let info = ModelInfo::extract("openai/gpt-4o-2024-08-06", None, None);
+    assert_eq!(info.raw_model, "gpt-4o-2024-08-06");
+    assert_eq!(info.model_without_snapshot, "gpt-4o");
 }
 
 // ===== Lookup key generation tests =====
@@ -104,6 +134,34 @@ fn test_lookup_keys_inferred_provider() {
         keys,
         vec![
             "anthropic/claude-sonnet-4-5",
+            "claude-sonnet-4-5",
+        ]
+    );
+}
+
+#[test]
+fn test_lookup_keys_with_openai_snapshot() {
+    let info = ModelInfo::extract("gpt-4.1-nano-2025-04-14", Some("openai"), None);
+    let keys = info.lookup_keys();
+    assert_eq!(
+        keys,
+        vec![
+            "openai/gpt-4.1-nano-2025-04-14",
+            "gpt-4.1-nano-2025-04-14",
+            "gpt-4.1-nano",
+        ]
+    );
+}
+
+#[test]
+fn test_lookup_keys_with_anthropic_snapshot() {
+    let info = ModelInfo::extract("anthropic/claude-sonnet-4-5-20250514", None, None);
+    let keys = info.lookup_keys();
+    assert_eq!(
+        keys,
+        vec![
+            "anthropic/claude-sonnet-4-5-20250514",
+            "claude-sonnet-4-5-20250514",
             "claude-sonnet-4-5",
         ]
     );

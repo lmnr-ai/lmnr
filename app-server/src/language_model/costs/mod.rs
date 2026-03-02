@@ -1,4 +1,6 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+
+use regex::Regex;
 
 use crate::{
     cache::{Cache, CacheTrait, keys::MODEL_COSTS_CACHE_KEY},
@@ -6,6 +8,10 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+/// Matches date snapshot suffixes: `-2025-04-14` (OpenAI) or `-20250514` (Anthropic)
+static SNAPSHOT_SUFFIX_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"-(\d{4}-\d{2}-\d{2}|\d{8})$").unwrap());
 
 mod cost_calculator;
 #[cfg(test)]
@@ -30,6 +36,9 @@ pub struct ModelInfo {
     pub region: Option<String>,
     /// The model name with provider prefix stripped
     pub raw_model: String,
+    /// The raw model name with date snapshot suffix stripped
+    /// (e.g. `gpt-4.1-nano-2025-04-14` → `gpt-4.1-nano`)
+    pub model_without_snapshot: String,
 }
 
 impl ModelInfo {
@@ -54,11 +63,15 @@ impl ModelInfo {
 
         let region = region.map(|r| r.to_string());
 
+        // Extract model name without date snapshot suffix
+        let model_without_snapshot = SNAPSHOT_SUFFIX_REGEX.replace(&raw_model, "").into_owned();
+
         ModelInfo {
             model: model.to_string(),
             provider,
             region,
             raw_model,
+            model_without_snapshot,
         }
     }
 
@@ -81,9 +94,10 @@ impl ModelInfo {
         keys.push(self.model.clone());
 
         // 4. raw model name (with provider prefix stripped)
-        if self.raw_model != self.model {
-            keys.push(self.raw_model.clone());
-        }
+        keys.push(self.raw_model.clone());
+
+        // 5. raw model name without date snapshot suffix
+        keys.push(self.model_without_snapshot.clone());
 
         keys.dedup();
         keys
