@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -303,13 +303,9 @@ export interface QueueStoreProviderProps {
 }
 
 export function QueueStoreProvider({ children, queue }: PropsWithChildren<QueueStoreProviderProps>) {
-  const storeRef = useRef<QueueStoreApi | undefined>(undefined);
+  const [storeState] = useState(() => createQueueStore(queue));
 
-  if (!storeRef.current) {
-    storeRef.current = createQueueStore(queue);
-  }
-
-  return <QueueStoreContext.Provider value={storeRef.current}>{children}</QueueStoreContext.Provider>;
+  return <QueueStoreContext.Provider value={storeState}>{children}</QueueStoreContext.Provider>;
 }
 
 export function useQueueStore<T>(selector: (store: QueueStore) => T): T {

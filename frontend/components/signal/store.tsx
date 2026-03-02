@@ -1,5 +1,5 @@
 "use client";
-import { createContext, type Dispatch, type PropsWithChildren, type SetStateAction, useContext, useRef } from "react";
+import { createContext, type Dispatch, type PropsWithChildren, type SetStateAction, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
 
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet.tsx";
@@ -138,10 +138,7 @@ export const useSignalStoreContext = <T,>(selector: (state: Store) => T): T => {
 };
 
 export const SignalStoreProvider = ({ children, ...props }: PropsWithChildren<EventsProps>) => {
-  const storeRef = useRef<SignalStoreApi | undefined>(undefined);
-  if (!storeRef.current) {
-    storeRef.current = createSignalStore(props);
-  }
+  const [storeState] = useState(() => createSignalStore(props));
 
-  return <SignalContext.Provider value={storeRef.current}>{children}</SignalContext.Provider>;
+  return <SignalContext.Provider value={storeState}>{children}</SignalContext.Provider>;
 };

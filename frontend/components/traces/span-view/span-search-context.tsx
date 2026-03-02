@@ -100,7 +100,13 @@ export function SpanSearchProvider({ children }: PropsWithChildren) {
       editor.matchCount = count;
       total += count;
     });
+
     setTotalMatches(total);
+    setCurrentGlobalIndex((prev) => {
+      if (total === 0) return 0;
+      if (prev === 0) return 1;
+      return Math.min(prev, total);
+    });
   }, [searchTerm]);
 
   const scheduleUpdate = useCallback(() => {
@@ -229,14 +235,6 @@ export function SpanSearchProvider({ children }: PropsWithChildren) {
       }
     };
   }, [searchTerm, updateTotalMatches]);
-
-  useEffect(() => {
-    if (totalMatches > 0 && currentGlobalIndex === 0) {
-      setCurrentGlobalIndex(1);
-    } else if (totalMatches === 0) {
-      setCurrentGlobalIndex(0);
-    }
-  }, [totalMatches, currentGlobalIndex]);
 
   const value = useMemo(
     () => ({
