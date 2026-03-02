@@ -63,10 +63,17 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
         <div className="border rounded-md overflow-hidden text-sm">
           {groups.map((group, gi) => (
             <div key={group.key} className={cn(gi > 0 && "border-t")}>
-              <div className="flex items-center gap-1.5 px-3 pt-2 pb-1.5 bg-secondary/40 text-[11px] font-medium text-muted-foreground">
-                <Calendar className="h-3 w-3 shrink-0 mb-0.5" />
-                {formatShortDate(group.periodStart)} – {formatShortDate(group.periodEnd)}
-              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5 px-3 pt-2 pb-1.5 bg-secondary/40 text-[11px] font-medium text-muted-foreground cursor-default w-fit">
+                    <Calendar className="h-3 w-3 shrink-0 mb-0.5" />
+                    {formatShortDate(group.periodStart)} – {formatShortDate(group.periodEnd)}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="start" className="bg-background">
+                  {formatDate(group.periodStart)} – {formatDate(group.periodEnd)}
+                </TooltipContent>
+              </Tooltip>
               <div>
                 {group.lines.map((line, i) => {
                   const displayName = line.lookupKey
