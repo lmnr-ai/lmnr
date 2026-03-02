@@ -39,7 +39,7 @@ const integrations: Integration[] = [
   {
     name: "CrewAI",
     icon: <IconCrewAI className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/crewai",
+    link: "https://docs.lmnr.ai/tracing/integrations/overview",
   },
   {
     name: "AI SDK",
@@ -84,17 +84,17 @@ const integrations: Integration[] = [
   {
     name: "Mistral",
     icon: <IconMistral className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/mistral",
+    link: "https://docs.lmnr.ai/tracing/integrations/overview",
   },
   {
     name: "Bedrock",
     icon: <IconAmazonBedrock className="w-6 h-6 text-white" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/bedrock",
+    link: "https://docs.lmnr.ai/tracing/integrations/overview",
   },
   {
     name: "Groq",
     icon: <IconGroq className="w-6 h-6" />,
-    link: "https://docs.lmnr.ai/tracing/integrations/groq",
+    link: "https://docs.lmnr.ai/tracing/integrations/overview",
   },
 ];
 
