@@ -1,0 +1,433 @@
+---
+title: "Laminar vs Braintrust: Benchmarked"
+date: "2026-03-02"
+description: "A hands-on benchmark comparing Laminar and Braintrust across tracing, evaluations, UI design, and developer experience — with real code, real data, and real screenshots."
+author:
+  name: Sam Komesarook
+  url: https://x.com/komesarook
+tags: ["laminar", "braintrust", "comparison", "benchmark", "observability", "tracing", "evaluations"]
+---
+
+We get asked how Laminar compares to Braintrust constantly. Last time we published a [feature-by-feature comparison](/blog/2026-02-17-laminar-vs-braintrust), but feature lists only tell half the story. This time, we ran the same workload through both platforms, measured what happened, took screenshots, and wrote down what we found.
+
+This is not a neutral benchmark. We built Laminar and we think it is the better tool for teams operating AI agents in production. But every claim here is backed by code you can run yourself and screenshots you can see with your own eyes.
+
+## The Setup
+
+We wrote two identical Python scripts — one instrumented with Laminar, one with Braintrust. Each script runs a three-step AI analysis pipeline using OpenAI's `gpt-4o-mini`:
+
+1. **Classify sentiment** — single LLM call, constrained output
+2. **Summarize text** — single LLM call, short generation
+3. **Generate analysis** — takes the sentiment and summary as context, produces a two-sentence analysis
+
+The pipeline runs across three test inputs, producing 9 total LLM calls and 3 parent trace spans per platform. Both scripts use the same model, same prompts, same temperature settings, and same test data.
+
+### Laminar instrumentation
+
+```python
+from lmnr import Laminar, observe
+from openai import OpenAI
+
+Laminar.initialize(project_api_key="<KEY>")
+client = OpenAI()
+
+@observe(name="classify_sentiment")
+def classify_sentiment(text: str) -> str:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "Respond with one word: positive, negative, or neutral."},
+            {"role": "user", "content": f"Classify: {text}"}
+        ],
+        temperature=0, max_tokens=10,
+    )
+    return response.choices[0].message.content.strip()
+
+@observe(name="generate_analysis")
+def generate_analysis(text: str) -> dict:
+    sentiment = classify_sentiment(text)
+    summary = summarize_text(text)
+    # ... final LLM call combining both
+    return {"sentiment": sentiment, "summary": summary, "analysis": analysis}
+```
+
+Two lines to initialize. One decorator per function. Every OpenAI call is automatically traced — no wrapping needed.
+
+### Braintrust instrumentation
+
+```python
+import braintrust
+from openai import OpenAI
+
+client = OpenAI()
+wrapped_client = braintrust.wrap_openai(client)
+logger = braintrust.init_logger(project="benchmark")
+
+def classify_sentiment(text: str) -> str:
+    response = wrapped_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[...],
+        temperature=0, max_tokens=10,
+    )
+    return response.choices[0].message.content.strip()
+
+# Logging requires explicit span management
+span = logger.start_span(name="generate_analysis", input=text)
+result = generate_analysis(text)
+span.log(output=result, scores={"completed": 1.0})
+span.end()
+```
+
+Braintrust requires wrapping your OpenAI client with `braintrust.wrap_openai()` and manually managing spans via `logger.start_span()` / `span.end()`. The automatic instrumentation only captures LLM calls — grouping them into logical traces requires explicit span management.
+
+Laminar's `@observe` decorator handles both: it creates the parent span, captures inputs and outputs, and nests child LLM calls automatically.
+
+## Benchmark Results
+
+We ran both scripts on the same machine, same network, same OpenAI API key. Here are the raw numbers:
+
+<div className="overflow-x-auto">
+  <table className="w-full text-left border-separate border-spacing-x-6 border-spacing-y-2">
+    <thead className="text-sm">
+      <tr>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Metric</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Laminar</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Braintrust</th>
+      </tr>
+    </thead>
+    <tbody className="font-light">
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Total pipeline time</td>
+        <td className="px-2 py-1">9.24s</td>
+        <td className="px-2 py-1">8.44s</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Average per analysis</td>
+        <td className="px-2 py-1">3.08s</td>
+        <td className="px-2 py-1">2.81s</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Test case 1</td>
+        <td className="px-2 py-1">3.18s</td>
+        <td className="px-2 py-1">3.06s</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Test case 2</td>
+        <td className="px-2 py-1">2.93s</td>
+        <td className="px-2 py-1">2.39s</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Test case 3</td>
+        <td className="px-2 py-1">3.13s</td>
+        <td className="px-2 py-1">2.99s</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Trace flush</td>
+        <td className="px-2 py-1">Instant (gRPC batch)</td>
+        <td className="px-2 py-1">~1s (HTTP batch)</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Traces visible in UI</td>
+        <td className="px-2 py-1">Immediate (realtime SSE)</td>
+        <td className="px-2 py-1">~2-5s after flush</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Trace export protocol</td>
+        <td className="px-2 py-1">gRPC (OTel-native)</td>
+        <td className="px-2 py-1">HTTP REST</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+The per-call execution times are nearly identical — both platforms add negligible overhead to the actual LLM calls. The variance between runs (0.1-0.5s) is dominated by OpenAI API response time, not instrumentation overhead. Both platforms batch their trace exports asynchronously, so they do not block your application's hot path.
+
+Where the difference shows up is **end-to-end ingestion**. Laminar uses gRPC for trace export (OpenTelemetry-native), which means trace data arrives at the backend with minimal serialization overhead. Combined with realtime SSE streaming, traces appear in the UI the moment they are ingested — while long-running agents are still executing. Braintrust uses HTTP-based batch export, which works well but introduces a small delay between flush and visibility.
+
+For a three-call benchmark, this difference is marginal. For a production agent that runs for minutes and makes dozens of tool calls, realtime visibility changes your debugging workflow entirely.
+
+## The UI Comparison: What You Actually See
+
+This is where the platforms diverge most sharply. Both have polished interfaces, but they are designed for different primary workflows.
+
+### Laminar: Trace-first design
+
+![Laminar traces list](/blog/2026-03-02-laminar-traces-list.png)
+
+Laminar's traces page shows you everything at a glance: trace ID, top-level span name, timestamp, duration, cost, token counts (input → output), tags, and metadata. The timeline chart at the top shows trace volume over time. You can filter, search by full text, and toggle realtime mode to watch traces arrive live.
+
+Click into a trace and you get the full picture:
+
+![Laminar trace detail](/blog/2026-03-02-laminar-trace-detail.png)
+
+The trace detail view shows:
+
+- **A timeline waterfall** at the top — every span visualized as a bar, showing exactly when each LLM call started and how long it took relative to the parent
+- **A hierarchical span tree** — `generate_analysis` contains `classify_sentiment` (with its `gpt-4o-mini` call), `summarize_text` (with its `gpt-4o-mini` call), and the final analysis call
+- **Per-span metrics** — duration, token count, and cost displayed inline on every span
+- **Tree and Content toggle** — switch between the structural view and the raw input/output content
+
+Every span is immediately expandable. You can see the exact prompts sent to the model, the exact responses received, and how they nest within the parent trace. The waterfall makes it obvious where time was spent — in our benchmark, the three sequential LLM calls are clearly visible as three horizontal bars.
+
+### Braintrust: Eval-first design
+
+![Braintrust project overview](/blog/2026-03-02-braintrust-project-overview.png)
+
+Braintrust's project overview leads with observability summary stats (traces, cost, latency, tokens, TTFT) alongside an **Evaluation** panel prompting you to add prompts, upload data, or create experiments. This reflects Braintrust's core philosophy: observability exists to serve the evaluation loop.
+
+![Braintrust logs](/blog/2026-03-02-braintrust-logs.png)
+
+The Logs view shows a flat table of all spans — both parent spans (`generate_analysis`) and child spans (`Chat Completion`) at the same level. You see Created time, Name, Input, Output, Expected, Tags, and various score columns (Classification, Task, Sentiment, Issues).
+
+A few things stand out when comparing the two:
+
+<div className="overflow-x-auto">
+  <table className="w-full text-left border-separate border-spacing-x-6 border-spacing-y-2">
+    <thead className="text-sm">
+      <tr>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">UI Dimension</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Laminar</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Braintrust</th>
+      </tr>
+    </thead>
+    <tbody className="font-light">
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Trace hierarchy</td>
+        <td className="px-2 py-1">Nested tree with collapsible spans</td>
+        <td className="px-2 py-1">Flat list — parent and child spans at same level</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Timeline visualization</td>
+        <td className="px-2 py-1">Waterfall chart showing span timing</td>
+        <td className="px-2 py-1">No waterfall — table only</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Cost visibility</td>
+        <td className="px-2 py-1">Per-span cost on every row and in detail view</td>
+        <td className="px-2 py-1">Aggregate cost on project overview</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Token breakdown</td>
+        <td className="px-2 py-1">Input → Output (Total) per span</td>
+        <td className="px-2 py-1">Aggregate tokens on project overview</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Search</td>
+        <td className="px-2 py-1">Full-text search across span content</td>
+        <td className="px-2 py-1">Filter-based search</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Realtime</td>
+        <td className="px-2 py-1">Toggle for live trace streaming</td>
+        <td className="px-2 py-1">Manual refresh</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Dark mode</td>
+        <td className="px-2 py-1">Native dark UI</td>
+        <td className="px-2 py-1">Light UI only</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Navigation sidebar</td>
+        <td className="px-2 py-1">
+          dashboards, traces, evaluations, datasets, labeling, sql editor, playgrounds, debugger, settings
+        </td>
+        <td className="px-2 py-1">
+          Overview, Logs, Topics, Monitor, Review, Playgrounds, Experiments, Datasets, Prompts, Scorers, Parameters,
+          Tools, SQL sandbox, Settings
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+### Why this matters for debugging
+
+When an agent fails in production, the first question is always: **what did it do?** You need to see the full sequence of actions, understand where it branched, and identify which specific step went wrong.
+
+Laminar's trace tree and waterfall give you that answer in one click. You open a trace, see the full hierarchy, and immediately identify the slow or failing span. The timeline waterfall makes latency bottlenecks visually obvious.
+
+Braintrust's flat log table is designed for a different workflow: scanning across many traces to find patterns, comparing inputs and outputs at scale, and feeding results into evaluations. It is a spreadsheet for AI data. That is powerful for eval workflows, but it means debugging a single complex agent run requires more clicks and more context-switching.
+
+## Developer Experience: Setup and Instrumentation
+
+### Lines of code to first trace
+
+**Laminar: 2 lines**
+
+```python
+from lmnr import Laminar
+Laminar.initialize(project_api_key="<KEY>")
+# That's it. All OpenAI/Anthropic/etc. calls are now traced.
+```
+
+**Braintrust: 3-4 lines + client wrapping**
+
+```python
+import braintrust
+from openai import OpenAI
+
+client = OpenAI()
+wrapped_client = braintrust.wrap_openai(client)
+# Must use wrapped_client for all LLM calls
+```
+
+The critical difference: Laminar instruments the OpenAI library globally via OpenTelemetry. You keep using `client = OpenAI()` and every call is captured. Braintrust requires you to wrap your client and use the wrapped version everywhere. If you forget to use `wrapped_client` somewhere, that call is invisible.
+
+### Structuring traces
+
+**Laminar:**
+
+```python
+@observe(name="my_pipeline")
+def my_pipeline(input):
+    # All LLM calls inside are automatically nested
+    step1 = classify(input)
+    step2 = summarize(input)
+    return combine(step1, step2)
+```
+
+**Braintrust:**
+
+```python
+span = logger.start_span(name="my_pipeline", input=input)
+step1 = classify(input)
+step2 = summarize(input)
+result = combine(step1, step2)
+span.log(output=result)
+span.end()  # Don't forget this
+```
+
+Laminar's decorator approach is less error-prone. You cannot forget to end a span or accidentally nest spans incorrectly. The decorator handles the OpenTelemetry context propagation automatically.
+
+### Auto-instrumentation breadth
+
+Laminar auto-instruments **35+ libraries** out of the box: OpenAI, Anthropic, Google GenAI, Groq, Mistral, Cohere, LangChain, LlamaIndex, Haystack, CrewAI, Browser Use, Playwright, Pinecone, Qdrant, Chroma, and more. You add `Instruments.OPENAI` to your initialize call (or leave it empty to instrument everything) and the library handles the rest.
+
+Braintrust provides `wrap_openai()` for OpenAI and integrations with Vercel AI SDK, LangChain.js, and CrewAI. The auto-instrumentation surface is narrower, which means more manual work for teams using less common LLM providers or vector databases.
+
+## Architecture: Why It Matters
+
+Both platforms are production-grade, but the architectural choices reflect different priorities:
+
+<div className="overflow-x-auto">
+  <table className="w-full text-left border-separate border-spacing-x-6 border-spacing-y-2">
+    <thead className="text-sm">
+      <tr>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Component</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Laminar</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Braintrust</th>
+      </tr>
+    </thead>
+    <tbody className="font-light">
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Backend</td>
+        <td className="px-2 py-1">Rust (Actix-web + Tonic gRPC)</td>
+        <td className="px-2 py-1">Proprietary (Brainstore OLAP engine)</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Ingestion protocol</td>
+        <td className="px-2 py-1">gRPC (OpenTelemetry OTLP)</td>
+        <td className="px-2 py-1">HTTP REST</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Analytics DB</td>
+        <td className="px-2 py-1">ClickHouse</td>
+        <td className="px-2 py-1">Brainstore (custom)</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Open source</td>
+        <td className="px-2 py-1">Fully open source (Apache-2.0)</td>
+        <td className="px-2 py-1">Closed source (proxy is MIT)</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Self-hosting</td>
+        <td className="px-2 py-1">Free, unrestricted, docker compose up</td>
+        <td className="px-2 py-1">Enterprise plan only (hybrid model)</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Realtime</td>
+        <td className="px-2 py-1">Server-Sent Events (SSE)</td>
+        <td className="px-2 py-1">Polling</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+Laminar's Rust backend with gRPC ingestion and ClickHouse analytics is designed for high-throughput, low-latency trace processing. The entire stack is open source and inspectable. Braintrust's Brainstore is a custom OLAP engine that they claim is 80x faster than alternatives — but it is closed source, so you cannot verify or modify it.
+
+For teams that care about **data sovereignty**, the open-source distinction is not academic. With Laminar, you `docker compose up -d` and have the full platform running behind your firewall. With Braintrust, self-hosting requires an Enterprise agreement, and even then the control plane stays in their cloud.
+
+## Pricing
+
+<div className="overflow-x-auto">
+  <table className="w-full text-left border-separate border-spacing-x-6 border-spacing-y-2">
+    <thead className="text-sm">
+      <tr>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Tier</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Laminar</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Braintrust</th>
+      </tr>
+    </thead>
+    <tbody className="font-light">
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Free</td>
+        <td className="px-2 py-1">1 GB data, 15-day retention</td>
+        <td className="px-2 py-1">1M spans, 1 GB storage, 10k scores, 14-day retention</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Paid entry</td>
+        <td className="px-2 py-1">$25/mo (Hobby — 2 GB, 30 days)</td>
+        <td className="px-2 py-1">$249/mo (Pro — unlimited spans, 5 GB, 30 days)</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Self-hosted</td>
+        <td className="px-2 py-1">Free, always</td>
+        <td className="px-2 py-1">Enterprise only (custom pricing)</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 font-medium whitespace-nowrap">Per-seat cost</td>
+        <td className="px-2 py-1">None</td>
+        <td className="px-2 py-1">None</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+The 10x pricing gap at the entry paid tier ($25 vs $249) is significant for startups and small teams. Braintrust bundles more into their platform (AI proxy, Loop assistant, CI/CD integration), which justifies the higher price for teams that use all of those features. But if you primarily need tracing and observability, Laminar gives you more value per dollar — or free, if you self-host.
+
+## Where Braintrust Wins
+
+To be direct about it: Braintrust has real strengths.
+
+- **Evaluation-first workflow.** If systematic prompt comparison and CI/CD-gated quality are your primary workflow, Braintrust's experiment comparison, Playground, and GitHub Actions integration are polished and purpose-built.
+- **Loop (AI assistant).** The ability to describe what you want in natural language and have the platform generate scorers and datasets is a genuinely useful feature. Laminar's Signals serve a similar purpose but operate differently — Signals extract structured data from traces, while Loop helps you build evaluation infrastructure.
+- **Brainstore performance.** For teams with massive trace volumes, Brainstore's custom OLAP engine may deliver faster query performance than standard ClickHouse. We have not benchmarked this at scale.
+- **Broader paid support ecosystem.** As a closed-source platform backed by $121M in funding, Braintrust can offer dedicated enterprise support, SLAs, and compliance certifications that open-source projects take longer to formalize.
+
+## Where Laminar Wins
+
+- **Trace debugging speed.** The hierarchical tree, timeline waterfall, per-span cost and token visibility, and realtime streaming make Laminar the faster tool when you need to understand what an agent did and why it failed.
+- **Developer experience.** Two lines to initialize, decorator-based span nesting, 35+ auto-instrumentations, no client wrapping required.
+- **Open source and self-hosted.** Full platform, zero licensing, no feature gating. You own your data completely.
+- **SQL-native analytics.** Built-in SQL editor for ad-hoc queries over trace data. No need to export to a separate analytics tool.
+- **Browser agent observability.** Screen recordings synchronized with trace spans. When debugging agents that navigate the web, you see exactly what they saw.
+- **Signals.** Define monitoring rules in natural language, run them across historical and live traces, extract structured data automatically.
+- **Pricing.** $25/month entry point vs $249/month. Free self-hosting vs Enterprise-only.
+
+## The Bottom Line
+
+Both platforms are competent. Both have good engineering behind them. The choice comes down to **what you spend most of your time doing**.
+
+If your workflow is: write prompt → run eval → compare results → ship — Braintrust is built for that loop.
+
+If your workflow is: agent broke → open trace → find the failing span → understand why → fix it → monitor for recurrence — Laminar is built for that loop.
+
+For teams operating AI agents in production, the second workflow dominates. And that is what we optimized for.
+
+```
+git clone https://github.com/lmnr-ai/lmnr
+cd lmnr
+docker compose up -d
+```
+
+Or sign up at [laminar.sh](https://laminar.sh) and start tracing immediately.
