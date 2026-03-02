@@ -15,7 +15,7 @@ import {
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange } from "@/lib/clickhouse/utils";
+import { SafeParseTimeRangeSchema } from "@/lib/time";
 import { type Span } from "@/lib/traces/types";
 
 import { searchSpans } from "../traces/search";
@@ -113,7 +113,7 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
         projectId,
         traceId: undefined,
         searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
+        timeRange: SafeParseTimeRangeSchema.parse(input),
         searchType: searchIn as SpanSearchType[],
       })
     : [];
@@ -244,8 +244,8 @@ const fetchTraceSpans = async ({
       "output_cost as outputCost",
       "total_cost as totalCost",
       "span_type as spanType",
-      "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
-      "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
+      "start_time as startTime",
+      "end_time as endTime",
       "attributes",
       "model",
       "status",
@@ -277,7 +277,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const { projectId, search, traceId, searchIn, filter: inputFilters, startDate, endDate, pastHours } = input;
   const filters: Filter[] = compact(inputFilters);
 
-  const timeRange = getTimeRange(pastHours, startDate, endDate);
+  const timeRange = SafeParseTimeRangeSchema.parse(input);
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
         projectId,

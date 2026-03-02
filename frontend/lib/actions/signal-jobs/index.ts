@@ -8,9 +8,9 @@ import { FiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types.ts";
 import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesIdsQueryWithParams, DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { signalJobs } from "@/lib/db/migrations/schema";
+import { SafeParseTimeRangeSchema } from "@/lib/time";
 import { fetcherJSON } from "@/lib/utils";
 
 export const GetSignalJobsSchema = z.object({
@@ -93,12 +93,12 @@ export async function createSignalJob(
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
-      projectId,
-      traceId: undefined,
-      searchQuery: search,
-      timeRange: getTimeRange(pastHours, startDate, endDate),
-      searchType: [] as SpanSearchType[],
-    })
+        projectId,
+        traceId: undefined,
+        searchQuery: search,
+        timeRange: SafeParseTimeRangeSchema.parse({ pastHours, startDate, endDate }),
+        searchType: [] as SpanSearchType[],
+      })
     : [];
   const traceIdsFromSearch = [...new Set(spanHits.map((span) => span.trace_id))];
 

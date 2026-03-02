@@ -4,6 +4,34 @@ import { z } from "zod/v4";
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
 import { isoToClickHouseParam } from "@/lib/time/timestamp";
 
+export type TimeRange = { start: Date; end: Date };
+
+/** Parse pastHours/startDate/endDate into a resolved { start, end } range. pastHours takes precedence. */
+export const SafeParseTimeRangeSchema = z
+  .object({
+    pastHours: z.string().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+  })
+  .transform(({ pastHours, startDate, endDate }): TimeRange | undefined => {
+    if (pastHours) {
+      const parsed = parseInt(pastHours);
+      if (!isNaN(parsed) && parsed > 0) {
+        const end = new Date();
+        const start = new Date(end.getTime() - parsed * 60 * 60 * 1000);
+        return { start, end };
+      }
+    }
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        return { start, end };
+      }
+    }
+    return undefined;
+  });
+
 const RelativeTimeInputSchema = z.object({
   pastHours: z.union([z.string(), z.number()]).refine(
     (hours) => {

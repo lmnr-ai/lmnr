@@ -4,7 +4,7 @@ import { prettifyError, ZodError } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { getTraceStats, GetTraceStatsSchema } from "@/lib/actions/traces/stats";
 import { generateEmptyTimeBuckets } from "@/lib/actions/traces/utils.ts";
-import { getTimeRange } from "@/lib/clickhouse/utils";
+import { SafeParseTimeRangeSchema } from "@/lib/time";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -13,11 +13,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
   const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTraceStatsSchema.omit({ projectId: true }));
 
   if (!parseResult.success) {
-    const timeRange = getTimeRange(
-      req.nextUrl.searchParams.get("pastHours") ?? undefined,
-      req.nextUrl.searchParams.get("startTime") ?? undefined,
-      req.nextUrl.searchParams.get("endTime") ?? undefined
-    ) ?? { pastHours: 24 };
+    const timeRange = SafeParseTimeRangeSchema.parse({
+      pastHours: req.nextUrl.searchParams.get("pastHours") ?? undefined,
+      startDate: req.nextUrl.searchParams.get("startTime") ?? undefined,
+      endDate: req.nextUrl.searchParams.get("endTime") ?? undefined,
+    }) ?? {
+      start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      end: new Date(),
+    };
     const items = generateEmptyTimeBuckets(timeRange);
     return Response.json({ items });
   }

@@ -8,7 +8,7 @@ import { searchTypeToQueryFilter } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange, type TimeRange } from "@/lib/clickhouse/utils";
+import { SafeParseTimeRangeSchema, type TimeRange } from "@/lib/time";
 import { toClickHouseParam } from "@/lib/time/timestamp";
 import { type SessionRow } from "@/lib/traces/types";
 
@@ -46,7 +46,7 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     ? await searchTraceIds({
         projectId,
         searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
+        timeRange: SafeParseTimeRangeSchema.parse(input),
         searchType: searchIn as SpanSearchType[],
       })
     : [];
@@ -99,14 +99,9 @@ const searchTraceIds = async ({
   };
 
   if (timeRange) {
-    if ("start" in timeRange && "end" in timeRange) {
-      query += ` AND start_time >= {startTime:String} AND start_time <= {endTime:String}`;
-      queryParams.startTime = toClickHouseParam(timeRange.start.toISOString());
-      queryParams.endTime = toClickHouseParam(timeRange.end.toISOString());
-    } else if ("pastHours" in timeRange) {
-      query += ` AND start_time >= now() - INTERVAL {pastHours:UInt32} HOUR`;
-      queryParams.pastHours = timeRange.pastHours;
-    }
+    query += ` AND start_time >= {startTime:String} AND start_time <= {endTime:String}`;
+    queryParams.startTime = toClickHouseParam(timeRange.start.toISOString());
+    queryParams.endTime = toClickHouseParam(timeRange.end.toISOString());
   }
 
   query += ` AND (${searchTypeToQueryFilter(searchType, "query")})`;

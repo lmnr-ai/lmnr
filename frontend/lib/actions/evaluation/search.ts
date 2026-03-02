@@ -1,6 +1,6 @@
 import { searchSpans } from "@/lib/actions/traces/search";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { type TimeRange } from "@/lib/clickhouse/utils";
+import { type TimeRange } from "@/lib/time";
 
 export async function getSearchTraceIds(
   projectId: string,
