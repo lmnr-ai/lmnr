@@ -1,4 +1,3 @@
-import { isNil } from "lodash";
 import { useCallback, useEffect, useState } from "react";
 
 const SIDEBAR_MIN_PADDING = 180;
@@ -26,36 +25,30 @@ function getDefaultWidth(): number {
  * */
 export function useResizableTraceViewWidth({ initialWidth, onSaveWidth }: UseResizableTraceViewWidthProps = {}) {
   const [width, setWidth] = useState(() => {
-    const base = !isNil(initialWidth) ? initialWidth : DEFAULT_MAX_WIDTH;
-    if (typeof window === "undefined") return base;
-    return clampToViewport(!isNil(initialWidth) ? base : getDefaultWidth(), window.innerWidth);
+    if (typeof window === "undefined") return initialWidth ?? DEFAULT_MAX_WIDTH;
+    return clampToViewport(initialWidth ?? getDefaultWidth(), window.innerWidth);
   });
 
   useEffect(() => {
-    const controller = new AbortController();
-
     const onResize = () => {
-      setWidth((current) => {
-        const clamped = clampToViewport(current, window.innerWidth);
-        if (clamped !== current) onSaveWidth?.(clamped);
-        return clamped;
-      });
+      const clamped = clampToViewport(width, window.innerWidth);
+      if (clamped !== width) {
+        setWidth(clamped);
+        onSaveWidth?.(clamped);
+      }
     };
 
-    window.addEventListener("resize", onResize, { signal: controller.signal });
-
-    return () => controller.abort();
-  }, [onSaveWidth]);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [width, onSaveWidth]);
 
   const handleResizeStop = useCallback(
     (_event: unknown, _direction: unknown, _elementRef: unknown, delta: { width: number }) => {
-      setWidth((prev) => {
-        const newWidth = clampToViewport(prev + delta.width, window.innerWidth);
-        onSaveWidth?.(newWidth);
-        return newWidth;
-      });
+      const newWidth = clampToViewport(width + delta.width, window.innerWidth);
+      setWidth(newWidth);
+      onSaveWidth?.(newWidth);
     },
-    [onSaveWidth]
+    [width, onSaveWidth]
   );
 
   return { width, handleResizeStop };
