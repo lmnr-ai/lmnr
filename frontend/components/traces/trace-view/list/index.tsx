@@ -150,8 +150,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     return (
       <div className="flex flex-1 items-center justify-center p-8 text-center">
         <span className="text-base text-secondary-foreground">
-          No LLM or tool call spans found. Reader mode only shows LLM and tool call spans. Switch to tree view to see
-          all spans.
+          No matching spans found. Reader mode omits default span types. Switch to tree view to see all spans.
         </span>
       </div>
     );
