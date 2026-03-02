@@ -65,3 +65,35 @@ export function formatDate(timestamp: number) {
     day: "numeric",
   });
 }
+
+export function formatShortDate(timestamp: number) {
+  return new Date(timestamp * 1000).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export interface InvoiceLineGroup {
+  key: string;
+  periodStart: number;
+  periodEnd: number;
+  lines: { lookupKey: string | null; amount: number; periodStart: number; periodEnd: number }[];
+}
+
+export function groupLinesByPeriod(
+  lines: { lookupKey: string | null; amount: number; periodStart: number; periodEnd: number }[]
+): InvoiceLineGroup[] {
+  const groups: InvoiceLineGroup[] = [];
+
+  for (const line of lines) {
+    const key = `${line.periodStart}-${line.periodEnd}`;
+    const existing = groups.find((g) => g.key === key);
+    if (existing) {
+      existing.lines.push(line);
+    } else {
+      groups.push({ key, periodStart: line.periodStart, periodEnd: line.periodEnd, lines: [line] });
+    }
+  }
+
+  return groups;
+}

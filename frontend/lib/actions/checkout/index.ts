@@ -103,6 +103,8 @@ export const getUpcomingInvoice = async (workspaceId: string): Promise<UpcomingI
         return {
           lookupKey,
           amount: line.amount,
+          periodStart: line.period.start,
+          periodEnd: line.period.end,
         };
       }),
     };
@@ -162,6 +164,8 @@ export const cancelSubscription = async (
         return {
           lookupKey,
           amount: line.amount,
+          periodStart: line.period.start,
+          periodEnd: line.period.end,
         };
       }),
     };

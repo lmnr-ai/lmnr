@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Info, Loader2 } from "lucide-react";
+import { Calendar, ExternalLink, Info, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -11,7 +11,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import WorkspaceAddons from "@/components/workspace/billing/addons";
 import CancelSubscriptionDialog from "@/components/workspace/billing/cancel-subscription-dialog";
 import SwitchTierDialog from "@/components/workspace/billing/switch-tier-dialog";
-import { formatCurrency, formatDate, type TierKey, TIERS } from "@/components/workspace/billing/utils";
+import {
+  formatCurrency,
+  formatDate,
+  formatShortDate,
+  groupLinesByPeriod,
+  type TierKey,
+  TIERS,
+} from "@/components/workspace/billing/utils";
 import {
   LOOKUP_KEY_DISPLAY_NAMES,
   type PaidTier,
@@ -31,6 +38,8 @@ interface WorkspaceBillingProps {
 }
 
 function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInvoiceInfo }) {
+  const groups = groupLinesByPeriod(upcomingInvoice.lines);
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -51,20 +60,32 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
         <CardDescription className="text-xs">Due {formatDate(upcomingInvoice.periodStart)}</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="border rounded-md divide-y text-sm">
-          {upcomingInvoice.lines.map((line, i) => {
-            const displayName = line.lookupKey ? (LOOKUP_KEY_DISPLAY_NAMES[line.lookupKey] ?? line.lookupKey) : "Other";
-            return (
-              <div
-                key={i}
-                className="flex justify-between items-center px-3 py-2 font-mono text-xs text-secondary-foreground"
-              >
-                <span className="truncate mr-2">{displayName}</span>
-                <span>{formatCurrency(line.amount, upcomingInvoice.currency)}</span>
+        <div className="border rounded-md overflow-hidden text-sm">
+          {groups.map((group, gi) => (
+            <div key={group.key} className={cn(gi > 0 && "border-t")}>
+              <div className="flex items-center gap-1.5 px-3 pt-2 pb-1.5 bg-secondary/40 text-[11px] font-medium text-muted-foreground">
+                <Calendar className="h-3 w-3 shrink-0 mb-0.5" />
+                {formatShortDate(group.periodStart)} – {formatShortDate(group.periodEnd)}
               </div>
-            );
-          })}
-          <div className="flex justify-between items-center px-3 py-2 font-semibold bg-secondary/30">
+              <div>
+                {group.lines.map((line, i) => {
+                  const displayName = line.lookupKey
+                    ? (LOOKUP_KEY_DISPLAY_NAMES[line.lookupKey] ?? line.lookupKey)
+                    : "Other";
+                  return (
+                    <div
+                      key={i}
+                      className="flex justify-between items-center px-3 py-1.5 font-mono text-xs text-secondary-foreground"
+                    >
+                      <span className="truncate mr-2">{displayName}</span>
+                      <span className="shrink-0">{formatCurrency(line.amount, upcomingInvoice.currency)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <div className="flex justify-between items-center px-3 py-2 font-semibold border-t bg-secondary/30">
             <span>Total</span>
             <span className="font-mono">{formatCurrency(upcomingInvoice.amountDue, upcomingInvoice.currency)}</span>
           </div>
