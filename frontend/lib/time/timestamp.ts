@@ -1,15 +1,11 @@
-// ClickHouse DateTime64 — up to nanosecond precision, no offset
+// ClickHouse DateTime64 — up to nanosecond precision, no offset (implicitly UTC).
 // https://clickhouse.com/docs/sql-reference/data-types/datetime64
 const DATETIME64_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
-// Postgres timestamptz — microsecond precision with timezone offset
-const TIMESTAMPTZ_RE = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?[-+]\d{2}(?::?\d{2})?$/;
 
-/** Normalize SQL datetime strings to ISO 8601 for native Date parsing. */
+/** Normalize ClickHouse DateTime64 to ISO 8601 for native Date parsing.
+ *  Postgres timestamptz and ISO strings are handled natively by `new Date()`. */
 function toISO(raw: string): string {
   if (DATETIME64_RE.test(raw)) return raw.replace(" ", "T") + "Z";
-  if (TIMESTAMPTZ_RE.test(raw)) {
-    return raw.replace(" ", "T").replace(/([-+]\d{2}):?(\d{2})?$/, (_, hh, mm) => `${hh}:${mm || "00"}`);
-  }
   return raw;
 }
 
@@ -37,6 +33,5 @@ export function isoToClickHouseParam(iso: string): string {
 /** Convert any timestamp string to a UTC SQL datetime query parameter. */
 export function toClickHouseParam(raw: string): string {
   if (DATETIME64_RE.test(raw)) return raw;
-  if (TIMESTAMPTZ_RE.test(raw)) return isoToCH(new Date(toISO(raw)));
-  return isoToClickHouseParam(raw);
+  return isoToCH(new Date(raw));
 }

@@ -87,16 +87,14 @@ export const createAxisFormatter = (data: Record<string, unknown>[], dataKey: st
   };
 };
 
-export const parseUtcTimestamp = (s: string): Date => parseTimestampToDate(s);
-
 export const selectNiceTicksFromData = (
   dataTimestamps: string[],
   targetTickCount: number = 8
 ): { ticks: string[]; formatter: (value: string) => string } | null => {
   if (dataTimestamps.length === 0) return null;
 
-  const startDate = parseUtcTimestamp(dataTimestamps[0]);
-  const endDate = parseUtcTimestamp(dataTimestamps[dataTimestamps.length - 1]);
+  const startDate = parseTimestampToDate(dataTimestamps[0]);
+  const endDate = parseTimestampToDate(dataTimestamps[dataTimestamps.length - 1]);
 
   if (!isValid(startDate) || !isValid(endDate)) return null;
 
@@ -106,8 +104,8 @@ export const selectNiceTicksFromData = (
 
   const findClosestTimestamp = (targetTime: number) =>
     dataTimestamps.reduce((closest, current) => {
-      const closestDiff = Math.abs(parseUtcTimestamp(closest).getTime() - targetTime);
-      const currentDiff = Math.abs(parseUtcTimestamp(current).getTime() - targetTime);
+      const closestDiff = Math.abs(parseTimestampToDate(closest).getTime() - targetTime);
+      const currentDiff = Math.abs(parseTimestampToDate(current).getTime() - targetTime);
       return currentDiff < closestDiff ? current : closest;
     });
 
