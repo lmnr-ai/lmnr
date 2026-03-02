@@ -108,10 +108,10 @@ Laminar.initialize(project_api_key="<LMNR_PROJECT_API_KEY>")
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-@observe()
+@observe()  # annotate all functions you want to trace
 def poem_writer(topic):
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=[
             {"role": "user", "content": f"write a poem about {topic}"},
         ],
