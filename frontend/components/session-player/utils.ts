@@ -1,6 +1,8 @@
 import pako from "pako";
 import { type eventWithTime as EventWithTime } from "rrweb";
 
+import { parseTimestampToMs } from "@/lib/time/timestamp";
+
 export interface ProcessedEvent {
   data: any;
   timestamp: number;
@@ -150,9 +152,12 @@ const processEvent = (data: SessionEventData): ProcessedEvent | null => {
     const eventData = JSON.parse(decompressedData) as EventWithTime["data"];
     const cleanedData = cleanEventCssMarkers(eventData, parsedEvent.type);
 
+    const timestamp =
+      typeof parsedEvent.timestamp === "string" ? parseTimestampToMs(parsedEvent.timestamp) : parsedEvent.timestamp;
+
     return {
       data: cleanedData,
-      timestamp: parsedEvent.timestamp,
+      timestamp,
       type: parsedEvent.type,
     };
   } catch (e) {

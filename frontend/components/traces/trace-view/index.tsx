@@ -463,7 +463,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               {browserSession && (
                 <>
                   <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
-                  <ResizablePanel>
+                  <ResizablePanel className="overflow-hidden">
                     {!isLoading && (
                       <SessionPlayer
                         onClose={() => setBrowserSession(false)}
