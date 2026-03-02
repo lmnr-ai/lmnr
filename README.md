@@ -1,89 +1,71 @@
-<a href="https://www.ycombinator.com/companies/laminar-ai">![Static Badge](https://img.shields.io/badge/Y%20Combinator-S24-orange)</a>
-<a href="https://x.com/lmnrai">![X (formerly Twitter) Follow](https://img.shields.io/twitter/follow/lmnrai)</a>
-<a href="https://discord.gg/nNFUUDAKub"> ![Static Badge](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2) </a>
+<a href="https://www.ycombinator.com/companies/laminar-ai">![Y Combinator S24](https://img.shields.io/badge/Y%20Combinator-S24-orange)</a>
+<a href="https://x.com/lmnrai">![Follow on X](https://img.shields.io/twitter/follow/lmnrai)</a>
+<a href="https://discord.gg/nNFUUDAKub">![Join Discord](https://img.shields.io/badge/Join_Discord-464646?&logo=discord&logoColor=5865F2)</a>
 
 ![Laminar banner](./images/laminar-banner.png)
 
 # Laminar
 
-[Laminar](https://laminar.sh) is an open-source observability platform purpose-built for AI agents.
+[Laminar](https://laminar.sh) is an open-source observability platform built for AI agents.
 
-- [x] Tracing. [Docs](https://docs.laminar.sh/tracing/introduction)
-    - [x] OpenTelemetry-native powerful tracing SDK - 1 line of code to automatically trace **Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more**.
-- [x] Evals. [Docs](https://docs.laminar.sh/evaluations/introduction)
-    - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
-    - [x] UI for visualizing evals and comparing results.
-- [x] AI monitoring. [Docs](https://docs.laminar.sh/signals)
-    - [x] Define events with natural language descriptions to track issues, logical errors, and custom behavior of your agent.
-- [x] SQL access to all data. [Docs](https://docs.laminar.sh/platform/sql-editor)
-    - [x] Query traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries. Available via API.
-- [x] Dashboards. [Docs](https://docs.laminar.sh/custom-dashboards/overview)
-    - [x] Powerful dashboard builder for traces, metrics, and events with support of custom SQL queries.
-- [x] Data annotation & Datasets. [Docs](https://docs.laminar.sh/datasets/introduction)
-    - [x] Custom data rendering UI for fast data annotation and dataset creation for evals.
-- [x] Extremely high performance.
-    - [x] Written in Rust 🦀
-    - [x] Custom realtime engine for viewing traces as they happen.
-    - [x] Ultra-fast full-text search over span data.
-    - [x] gRPC exporter for tracing data.
+- **Tracing** ([docs](https://docs.laminar.sh/tracing/introduction)) – OpenTelemetry-native SDK that auto-traces Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more with one line of code.
+- **Evals** ([docs](https://docs.laminar.sh/evaluations/introduction)) – Extensible SDK and CLI for running evaluations locally or in CI/CD. Includes a UI for visualizing and comparing results.
+- **AI monitoring** ([docs](https://docs.laminar.sh/signals)) – Define events with natural language descriptions to track issues, logical errors, and custom agent behavior.
+- **SQL access** ([docs](https://docs.laminar.sh/platform/sql-editor)) – Query traces, metrics, and events with a built-in SQL editor. Bulk-create datasets from queries. Available via API.
+- **Dashboards** ([docs](https://docs.laminar.sh/custom-dashboards/overview)) – Dashboard builder for traces, metrics, and events with support for custom SQL queries.
+- **Data annotation & Datasets** ([docs](https://docs.laminar.sh/datasets/introduction)) – Custom data rendering UI for fast annotation and dataset creation for evals.
+- **High performance** – Written in Rust. Custom realtime engine for live traces, fast full-text search, and gRPC exporter.
 
 ![Traces](./images/trace-screenshot.png)
 
 ## Documentation
 
-Check out full documentation here [docs.laminar.sh](https://docs.laminar.sh).
+Full documentation is available at [docs.laminar.sh](https://docs.laminar.sh).
 
 ## Getting started
 
-The fastest and easiest way to get started is with our managed platform -> [laminar.sh](https://laminar.sh)
+The fastest way to get started is with the managed platform at [laminar.sh](https://laminar.sh).
 
-### Self-hosting with Docker compose
+### Self-hosting with Docker Compose
 
-Laminar is very easy to self-host locally. For a quick start, clone the repo and start the services with docker compose:
+Clone the repo and start the services:
+
 ```sh
 git clone https://github.com/lmnr-ai/lmnr
 cd lmnr
 docker compose up -d
 ```
 
-This will spin up a lightweight but full-featured version of the stack. This is good for a quickstart 
-or for lightweight usage. You can access the UI at http://localhost:5667 in your browser.
+This spins up a lightweight version of the full stack. Access the UI at http://localhost:5667.
 
-You will also need to properly configure the SDK, with `baseUrl` and correct ports. See [guide on self-hosting](https://docs.laminar.sh/hosting-options#self-hosted-docker-compose).
+You will need to configure the SDK with `baseUrl` and the correct ports. See the [self-hosting guide](https://docs.laminar.sh/hosting-options#self-hosted-docker-compose).
 
-For production environment, we recommend using our [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
+For production, we recommend the [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
 
-### Enabling the Signals feature
+### Enabling Signals
 
-To enable [Signals / AI monitoring](https://docs.laminar.sh/signals) in self-hosted mode, set the `GOOGLE_GENERATIVE_AI_API_KEY` environment variable in your `.env` file. This key is required by both the app-server and the frontend.
+To enable [Signals / AI monitoring](https://docs.laminar.sh/signals) in self-hosted mode, set `GOOGLE_GENERATIVE_AI_API_KEY` in your `.env` file:
 
 ```sh
-# In .env at the repo root
 GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
 ```
 
-## Contributing
+## Quickstart
 
-For running and building Laminar locally, or to learn more about docker compose files,
-follow the guide in [Contributing](/CONTRIBUTING.md).
-
-## TS quickstart
-
-First, [create a project](https://laminar.sh/projects) and generate a project API key. Then,
+### TypeScript
 
 ```sh
 npm add @lmnr-ai/lmnr
 ```
 
-It will install Laminar TS SDK and all instrumentation packages (OpenAI, Anthropic, LangChain ...)
+Initialize Laminar to start tracing LLM calls:
 
-To start tracing LLM calls just add
 ```typescript
 import { Laminar } from '@lmnr-ai/lmnr';
 Laminar.initialize({ projectApiKey: process.env.LMNR_PROJECT_API_KEY });
 ```
 
-To trace inputs / outputs of functions use `observe` wrapper.
+Use the `observe` wrapper to trace function inputs and outputs:
 
 ```typescript
 import { OpenAI } from 'openai';
@@ -99,26 +81,23 @@ const poemWriter = observe({name: 'poemWriter'}, async (topic) => {
   return response.choices[0].message.content;
 });
 
-await poemWriter();
+await poemWriter("laminar flow");
 ```
 
-## Python quickstart
-
-First, [create a project](https://laminar.sh/projects) and generate a project API key. Then,
+### Python
 
 ```sh
 pip install --upgrade 'lmnr[all]'
 ```
-It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://docs.laminar.sh/installation)
 
+Initialize Laminar to start tracing LLM calls:
 
-To start tracing LLM calls just add
 ```python
 from lmnr import Laminar
 Laminar.initialize(project_api_key="<LMNR_PROJECT_API_KEY>")
 ```
 
-To trace inputs / outputs of functions use `@observe()` decorator.
+Use the `@observe()` decorator to trace function inputs and outputs:
 
 ```python
 import os
@@ -129,16 +108,15 @@ Laminar.initialize(project_api_key="<LMNR_PROJECT_API_KEY>")
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-@observe()  # annotate all functions you want to trace
+@observe()
 def poem_writer(topic):
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[
             {"role": "user", "content": f"write a poem about {topic}"},
         ],
     )
-    poem = response.choices[0].message.content
-    return poem
+    return response.choices[0].message.content
 
 if __name__ == "__main__":
     print(poem_writer(topic="laminar flow"))
@@ -146,7 +124,9 @@ if __name__ == "__main__":
 
 ## Client libraries
 
-To learn more about instrumenting your code, check out our client libraries:
+<a href="https://www.npmjs.com/package/@lmnr-ai/lmnr">![NPM Version](https://img.shields.io/npm/v/%40lmnr-ai%2Flmnr?label=lmnr&logo=npm&logoColor=CB3837)</a>
+<a href="https://pypi.org/project/lmnr/">![PyPI Version](https://img.shields.io/pypi/v/lmnr?label=lmnr&logo=pypi&logoColor=3775A9)</a>
 
- <a href="https://www.npmjs.com/package/@lmnr-ai/lmnr"> ![NPM Version](https://img.shields.io/npm/v/%40lmnr-ai%2Flmnr?label=lmnr&logo=npm&logoColor=CB3837) </a>
- <a href="https://pypi.org/project/lmnr/"> ![PyPI - Version](https://img.shields.io/pypi/v/lmnr?label=lmnr&logo=pypi&logoColor=3775A9) </a>
+## Contributing
+
+For running and building Laminar locally, see the [Contributing guide](/CONTRIBUTING.md).
