@@ -85,6 +85,7 @@ impl ModelInfo {
             keys.push(self.raw_model.clone());
         }
 
+        keys.dedup();
         keys
     }
 }
