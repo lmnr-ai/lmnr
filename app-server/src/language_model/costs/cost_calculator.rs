@@ -33,14 +33,17 @@ pub struct SpanCostInput {
 
 /// Regex to match threshold fields like `input_cost_per_token_above_200k_tokens`
 /// or `input_cost_per_token_above_128000_tokens`
-static THRESHOLD_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^input_cost_per_token_above_((\d+)(k?))_tokens$").unwrap()
-});
+static THRESHOLD_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^input_cost_per_token_above_((\d+)(k?))_tokens$").unwrap());
 
 /// Parse a threshold numeric value from a suffix like "200k" or "128000"
 fn parse_threshold_value(number_str: &str, has_k_suffix: bool) -> Option<i64> {
     let n: i64 = number_str.parse().ok()?;
-    if has_k_suffix { Some(n * 1000) } else { Some(n) }
+    if has_k_suffix {
+        Some(n * 1000)
+    } else {
+        Some(n)
+    }
 }
 
 /// A matched threshold with its original suffix string and numeric value
@@ -116,10 +119,7 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
             (
                 format!("input_cost_per_token_above_{}_tokens", suffix),
                 format!("output_cost_per_token_above_{}_tokens", suffix),
-                format!(
-                    "cache_creation_input_token_cost_above_{}_tokens",
-                    suffix
-                ),
+                format!("cache_creation_input_token_cost_above_{}_tokens", suffix),
                 format!("cache_read_input_token_cost_above_{}_tokens", suffix),
             )
         } else {
@@ -138,8 +138,8 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
         get_cost(costs, &output_key).or_else(|| get_cost(costs, "output_cost_per_token"));
     let cache_creation_cost_per_token = get_cost(costs, &cache_creation_key)
         .or_else(|| get_cost(costs, "cache_creation_input_token_cost"));
-    let cache_read_cost_per_token = get_cost(costs, &cache_read_key)
-        .or_else(|| get_cost(costs, "cache_read_input_token_cost"));
+    let cache_read_cost_per_token =
+        get_cost(costs, &cache_read_key).or_else(|| get_cost(costs, "cache_read_input_token_cost"));
 
     let service_tier = input.service_tier.as_deref().and_then(|t| {
         let t = t.to_lowercase();
@@ -159,7 +159,7 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     let base_input_tokens = (input.prompt_tokens - input.audio_input_tokens).max(0);
 
     if input.is_batch {
-        // Batch pricing
+        // Batch pricing, fallback to half base price if batch-specific costs not specified
         let batch_input_cost = resolve_cost_key(costs, "input_cost_per_token_batches", tier)
             .unwrap_or_else(|| input_cost_per_token.unwrap_or(0.0) / 2.0);
         total_input_cost += base_input_tokens as f64 * batch_input_cost;
@@ -172,8 +172,8 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
 
     // Cache read tokens
     if input.cache_read_tokens > 0 {
-        let resolved_cache_read = resolve_cost_key(costs, &cache_read_key, tier)
-            .or(cache_read_cost_per_token);
+        let resolved_cache_read =
+            resolve_cost_key(costs, &cache_read_key, tier).or(cache_read_cost_per_token);
         total_input_cost += input.cache_read_tokens as f64 * resolved_cache_read.unwrap_or(0.0);
     }
 
@@ -184,8 +184,7 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
             // 5-minute tokens use regular cache creation cost
             let cost_5m = resolve_cost_key(costs, &cache_creation_key, tier)
                 .or(cache_creation_cost_per_token);
-            total_input_cost +=
-                input.cache_creation_5m_tokens as f64 * cost_5m.unwrap_or(0.0);
+            total_input_cost += input.cache_creation_5m_tokens as f64 * cost_5m.unwrap_or(0.0);
 
             // 1-hour tokens use cache_creation_input_token_cost_above_1hr
             let hr_key = if let Some(suffix) = threshold_suffix {
@@ -201,8 +200,7 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
                     resolve_cost_key(costs, "cache_creation_input_token_cost_above_1hr", tier)
                 })
                 .or(cache_creation_cost_per_token);
-            total_input_cost +=
-                input.cache_creation_1h_tokens as f64 * cost_1h.unwrap_or(0.0);
+            total_input_cost += input.cache_creation_1h_tokens as f64 * cost_1h.unwrap_or(0.0);
         } else {
             let resolved_cache_create = resolve_cost_key(costs, &cache_creation_key, tier)
                 .or(cache_creation_cost_per_token);
@@ -213,8 +211,8 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
 
     // Audio input tokens
     if input.audio_input_tokens > 0 {
-        let audio_cost = resolve_cost_key(costs, "input_cost_per_audio_token", tier)
-            .or(input_cost_per_token);
+        let audio_cost =
+            resolve_cost_key(costs, "input_cost_per_audio_token", tier).or(input_cost_per_token);
         total_input_cost += input.audio_input_tokens as f64 * audio_cost.unwrap_or(0.0);
     }
 
@@ -247,8 +245,8 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
 
     // Audio output tokens
     if input.audio_output_tokens > 0 {
-        let audio_cost = resolve_cost_key(costs, "output_cost_per_audio_token", tier)
-            .or(output_cost_per_token);
+        let audio_cost =
+            resolve_cost_key(costs, "output_cost_per_audio_token", tier).or(output_cost_per_token);
         total_output_cost += input.audio_output_tokens as f64 * audio_cost.unwrap_or(0.0);
     }
 

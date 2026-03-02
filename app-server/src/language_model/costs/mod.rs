@@ -11,7 +11,7 @@ mod cost_calculator;
 #[cfg(test)]
 mod tests;
 
-pub use cost_calculator::{CostEntry, SpanCostInput, calculate_span_cost};
+pub use cost_calculator::{SpanCostInput, calculate_span_cost};
 
 const MODEL_COSTS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 
