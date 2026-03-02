@@ -81,7 +81,7 @@ const poemWriter = observe({name: 'poemWriter'}, async (topic) => {
   return response.choices[0].message.content;
 });
 
-await poemWriter("laminar flow");
+await poemWriter();
 ```
 
 ### Python
