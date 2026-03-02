@@ -2,9 +2,23 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { AnimatePresence,motion } from "framer-motion";
-import { ArrowUp, Database, Loader2, MessageCircleQuestion, RotateCcw, Sparkles, X } from "lucide-react";
-import { useParams, usePathname } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ArrowUp,
+  BarChart3,
+  Database,
+  GitBranch,
+  LayoutGrid,
+  Loader2,
+  MessageCircleQuestion,
+  PieChart,
+  RotateCcw,
+  Sparkles,
+  Star,
+  Table2,
+  X,
+} from "lucide-react";
+import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
@@ -13,6 +27,21 @@ import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { useAIChatStore } from "@/lib/ai-chat/store";
 import { cn } from "@/lib/utils";
+
+import {
+  CostBreakdownChart,
+  type CostBreakdownData,
+  EvalScoreCard,
+  type EvalScoreData,
+  MetricsGrid,
+  type MetricsGridData,
+  type SpanTreeData,
+  SpanTreeView,
+  type SQLResultsData,
+  SQLResultsTable,
+  TraceSummaryCard,
+  type TraceSummaryData,
+} from "./renderers";
 
 const EXAMPLE_QUESTIONS = [
   "What happened in this trace? Give me a summary.",
@@ -33,10 +62,127 @@ const EVAL_EXAMPLE_QUESTIONS = [
   "Summarize this evaluation's results.",
 ];
 
+function tryParseToolOutput(output: unknown): unknown | null {
+  if (typeof output === "string") {
+    try {
+      return JSON.parse(output);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof output === "object" && output !== null) {
+    return output;
+  }
+  return null;
+}
+
+function ToolLoadingIndicator({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
+  return (
+    <div className="bg-muted/50 rounded-lg p-3 border">
+      <div className="flex items-center gap-2">
+        <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <Loader2 className="w-3 h-3 animate-spin text-muted-foreground ml-auto" />
+      </div>
+    </div>
+  );
+}
+
+function ToolResultRenderer({ part }: { part: any }) {
+  const toolType = part.type as string;
+  const state = part.state as string;
+  const output = part.output;
+
+  // Show loading state for in-progress tools
+  if (state !== "output-available") {
+    switch (toolType) {
+      case "tool-getSpansData":
+        return <ToolLoadingIndicator icon={Database} label="Fetching spans data" />;
+      case "tool-executeSQL":
+        return <ToolLoadingIndicator icon={Database} label="Executing SQL query" />;
+      case "tool-renderTraceSummary":
+        return <ToolLoadingIndicator icon={Sparkles} label="Rendering trace summary" />;
+      case "tool-renderSpanTree":
+        return <ToolLoadingIndicator icon={GitBranch} label="Rendering span tree" />;
+      case "tool-renderMetrics":
+        return <ToolLoadingIndicator icon={LayoutGrid} label="Computing metrics" />;
+      case "tool-renderSQLResults":
+        return <ToolLoadingIndicator icon={Table2} label="Formatting results" />;
+      case "tool-renderEvalScores":
+        return <ToolLoadingIndicator icon={Star} label="Loading eval scores" />;
+      case "tool-renderCostBreakdown":
+        return <ToolLoadingIndicator icon={PieChart} label="Building breakdown chart" />;
+      default:
+        return <ToolLoadingIndicator icon={Database} label="Processing..." />;
+    }
+  }
+
+  const parsed = tryParseToolOutput(output);
+
+  // Render visualization components
+  switch (toolType) {
+    case "tool-renderTraceSummary": {
+      if (!parsed) break;
+      return <TraceSummaryCard data={parsed as TraceSummaryData} />;
+    }
+    case "tool-renderSpanTree": {
+      if (!parsed) break;
+      return <SpanTreeView data={parsed as SpanTreeData} />;
+    }
+    case "tool-renderMetrics": {
+      if (!parsed) break;
+      return <MetricsGrid data={parsed as MetricsGridData} />;
+    }
+    case "tool-renderSQLResults": {
+      if (!parsed) break;
+      return <SQLResultsTable data={parsed as SQLResultsData} />;
+    }
+    case "tool-renderEvalScores": {
+      if (!parsed) break;
+      return <EvalScoreCard data={parsed as EvalScoreData} />;
+    }
+    case "tool-renderCostBreakdown": {
+      if (!parsed) break;
+      return <CostBreakdownChart data={parsed as CostBreakdownData} />;
+    }
+    case "tool-getSpansData": {
+      // Data-only tool - show minimal indicator that data was fetched
+      return (
+        <div className="bg-muted/50 rounded-lg p-2 border">
+          <div className="flex items-center gap-2">
+            <Database className="w-3 h-3 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">Span data fetched</span>
+          </div>
+        </div>
+      );
+    }
+    case "tool-executeSQL": {
+      // Data-only tool - show minimal indicator
+      return (
+        <div className="bg-muted/50 rounded-lg p-2 border">
+          <div className="flex items-center gap-2">
+            <Database className="w-3 h-3 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">SQL query executed</span>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Fallback for unknown tool types
+  return (
+    <div className="bg-muted/50 rounded-lg p-3 border">
+      <div className="flex items-center gap-2">
+        <BarChart3 className="w-3.5 h-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground">Tool result</span>
+      </div>
+    </div>
+  );
+}
+
 export default function SidePanelChat() {
   const [input, setInput] = useState("");
   const { projectId } = useParams();
-  const pathname = usePathname();
   const { isOpen, setOpen, pageContext } = useAIChatStore((state) => ({
     isOpen: state.isOpen,
     setOpen: state.setOpen,
@@ -137,6 +283,8 @@ export default function SidePanelChat() {
     return null;
   }, [hasTraceContext, hasEvalContext, pageContext]);
 
+  const isToolPart = (partType: string) => partType.startsWith("tool-");
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -200,7 +348,7 @@ export default function SidePanelChat() {
                       )}
 
                       {messages.map((message) => (
-                        <div key={message.id} className={cn("flex", message.role === "user" ? "px-3" : "px-5")}>
+                        <div key={message.id} className={cn("flex", message.role === "user" ? "px-3" : "px-3")}>
                           <div
                             className={cn(
                               "w-full",
@@ -209,35 +357,21 @@ export default function SidePanelChat() {
                           >
                             <div className="text-sm text-foreground leading-relaxed space-y-2">
                               {message.parts.map((part, i) => {
-                                switch (part.type) {
-                                  case "text":
-                                    return (
-                                      <div key={`${message.id}-${i}`}>
-                                        <Response components={components}>{part.text}</Response>
-                                      </div>
-                                    );
-                                  case "tool-getSpansData":
-                                    return (
-                                      <div key={`${message.id}-${i}`} className="bg-muted/50 rounded-lg p-3 border">
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs font-medium text-muted-foreground">
-                                            Fetching spans data
-                                          </span>
-                                        </div>
-                                      </div>
-                                    );
-                                  case "tool-executeSQL":
-                                    return (
-                                      <div key={`${message.id}-${i}`} className="bg-muted/50 rounded-lg p-3 border">
-                                        <div className="flex items-center gap-2">
-                                          <Database className="w-3.5 h-3.5 text-muted-foreground" />
-                                          <span className="text-xs font-medium text-muted-foreground">
-                                            Executing SQL query
-                                          </span>
-                                        </div>
-                                      </div>
-                                    );
+                                if (part.type === "text") {
+                                  return (
+                                    <div key={`${message.id}-${i}`}>
+                                      <Response components={components}>{part.text}</Response>
+                                    </div>
+                                  );
                                 }
+                                if (isToolPart(part.type)) {
+                                  return (
+                                    <div key={`${message.id}-${i}`}>
+                                      <ToolResultRenderer part={part} />
+                                    </div>
+                                  );
+                                }
+                                return null;
                               })}
                             </div>
                           </div>
