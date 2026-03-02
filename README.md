@@ -116,7 +116,8 @@ def poem_writer(topic):
             {"role": "user", "content": f"write a poem about {topic}"},
         ],
     )
-    return response.choices[0].message.content
+    poem = response.choices[0].message.content
+    return poem
 
 if __name__ == "__main__":
     print(poem_writer(topic="laminar flow"))
