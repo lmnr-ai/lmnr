@@ -19,9 +19,9 @@ const datapointSelectColumnsWithSubstring = [
   "id",
   "dataset_id as datasetId",
   "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt",
-  "substring(data, 1, 1000) as data",
-  "substring(target, 1, 1000) as target",
-  "metadata",
+  "substring(data, 1, 200) as data",
+  "substring(target, 1, 200) as target",
+  "substring(metadata, 1, 200) as metadata",
 ];
 
 export interface BuildDatapointQueryOptions {
