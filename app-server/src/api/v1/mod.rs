@@ -7,6 +7,7 @@ pub mod mcp;
 pub mod metrics;
 pub mod payloads;
 pub mod rollouts;
+pub mod spans;
 pub mod sql;
 pub mod tag;
 pub mod traces;

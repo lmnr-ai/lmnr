@@ -1,27 +1,16 @@
 "use client";
 
-import { ArrowUpRight, Radio } from "lucide-react";
-import dynamic from "next/dynamic";
+import { ArrowUpRight, Sparkles, Terminal } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 
-import FrameworksGrid from "../../integrations/frameworks-grid";
-import ApiKeyGenerator from "../../onboarding/api-key-generator.tsx";
 import Header from "../../ui/header";
-
-const InstallTabsSection = dynamic(() => import("./tabs-section.tsx").then((mod) => mod.InstallTabsSection), {
-  ssr: false,
-});
-
-const InitializationTabsSection = dynamic(
-  () => import("./tabs-section.tsx").then((mod) => mod.InitializationTabsSection),
-  {
-    ssr: false,
-  }
-);
+import { AutomaticTab } from "./automatic-tab";
+import { ManualTab } from "./manual-tab";
 
 export default function TracesPagePlaceholder() {
   const router = useRouter();
@@ -59,43 +48,42 @@ export default function TracesPagePlaceholder() {
       <Header path={"traces"} />
       <ScrollArea>
         <div className="flex flex-col mx-auto p-6 max-w-3xl gap-8 pb-16">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold">Get started with Tracing</h1>
-            <p className="text-muted-foreground">
-              You don{"'"}t have any traces yet. Follow these steps to start sending traces.
-            </p>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <h1 className="text-2xl font-semibold">Get started with Tracing</h1>
+              <p className="text-sm text-muted-foreground">
+                You don{"'"}t have any traces yet. Choose how you{"'"}d like to set up.
+              </p>
+            </div>
             {isConnected && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-lg border border-border/50">
-                <Radio className="w-4 h-4 text-primary animate-pulse" />
-                <span className="text-sm text-muted-foreground">Waiting for incoming traces...</span>
+              <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+                </span>
+                <span className="text-sm">Listening for incoming traces&hellip;</span>
               </div>
             )}
           </div>
 
-          <div className="flex flex-col gap-3">
-            <h2 className="text-lg font-medium">Install Laminar SDK</h2>
-            <InstallTabsSection />
-          </div>
-
-          <ApiKeyGenerator context="traces" />
-
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-lg font-medium">Integrations</h2>
-              <p className="text-sm text-muted-foreground">
-                Learn how to integrate Laminar with your favorite frameworks and SDKs.
-              </p>
-            </div>
-            <FrameworksGrid gridClassName="grid grid-cols-7 gap-4" />
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-lg font-medium">Initialize Laminar</h2>
-              <p className="text-sm text-muted-foreground">Add 2 lines of code at the top of your project.</p>
-            </div>
-            <InitializationTabsSection />
-          </div>
+          <Tabs defaultValue="manual" className="gap-7">
+            <TabsList className="border-none">
+              <TabsTrigger value="automatic" className="gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Set up with AI
+              </TabsTrigger>
+              <TabsTrigger value="manual" className="gap-1.5">
+                <Terminal className="w-3.5 h-3.5" />
+                Manual
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="automatic">
+              <AutomaticTab />
+            </TabsContent>
+            <TabsContent value="manual">
+              <ManualTab />
+            </TabsContent>
+          </Tabs>
 
           <div className="flex items-center gap-6 text-sm">
             <a
