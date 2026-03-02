@@ -204,7 +204,7 @@ const NativeCombobox = ({
                 optionClassName
               )}
             >
-              {suggestion}
+              <span className="truncate">{suggestion}</span>
             </div>
           ))}
         </div>

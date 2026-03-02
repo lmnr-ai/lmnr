@@ -1,70 +1,62 @@
-import { type Resizable } from "re-resizable";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { isNil } from "lodash";
+import { useCallback, useEffect, useState } from "react";
 
-const subscribeWindow = (callback: () => void) => {
-  if (typeof window === "undefined") return () => {};
-  window.addEventListener("resize", callback);
-  return () => window.removeEventListener("resize", callback);
-};
-
-const getWindowWidth = () => (typeof window === "undefined" ? 1000 : window.innerWidth);
-const getServerWidth = () => 1000;
+const SIDEBAR_MIN_PADDING = 180;
+const SIDEBAR_SNAP_PADDING = 240;
+const DEFAULT_MAX_WIDTH = 1100;
+const DEFAULT_VIEWPORT_RATIO = 0.75;
 
 interface UseResizableTraceViewWidthProps {
   initialWidth?: number;
   onSaveWidth?: (width: number) => Promise<void> | void;
 }
 
-/**
- * A hook to manage the width of a resizable panel (typically TraceView).
- * It handles:
- * 1. Hydration-safe initial width calculation.
- * 2. Automatic shrinking when the window is resized.
- * 3. Synchronization with a Resizable component ref.
- * 4. Persistence via a callback (usually for cookies).
- */
+function clampToViewport(width: number, viewportWidth: number): number {
+  return viewportWidth > 0 && width > viewportWidth - SIDEBAR_MIN_PADDING
+    ? viewportWidth - SIDEBAR_SNAP_PADDING
+    : width;
+}
+
+function getDefaultWidth(): number {
+  return Math.min(window.innerWidth * DEFAULT_VIEWPORT_RATIO, DEFAULT_MAX_WIDTH);
+}
+
+/** Resizable trace-view width, clamped to the viewport on init and on resize.
+ *  Priority: cookie > viewport (0.75%) > const value
+ * */
 export function useResizableTraceViewWidth({ initialWidth, onSaveWidth }: UseResizableTraceViewWidthProps = {}) {
-  const resizableRef = useRef<Resizable>(null);
-  const windowWidth = useSyncExternalStore(subscribeWindow, getWindowWidth, getServerWidth);
-  const [userWidth, setUserWidth] = useState<number | null>(null);
+  const [width, setWidth] = useState(() => {
+    const base = !isNil(initialWidth) ? initialWidth : DEFAULT_MAX_WIDTH;
+    if (typeof window === "undefined") return base;
+    return clampToViewport(!isNil(initialWidth) ? base : getDefaultWidth(), window.innerWidth);
+  });
 
-  // Derive the width during render.
-  // Priority: User's current session resize > Persisted cookie > 75% of viewport
-  let width = userWidth ?? initialWidth ?? Math.min(windowWidth * 0.75, 1100);
-
-  // Constraints: Ensure the panel doesn't overflow the viewport
-  const minPadding = 180;
-  const snappedPadding = 240;
-
-  if (windowWidth > 0 && width > windowWidth - minPadding) {
-    width = windowWidth - snappedPadding;
-  }
-
-  // Effect to synchronize the Resizable DOM element when width changes (e.g. on window resize)
   useEffect(() => {
-    if (resizableRef.current && windowWidth > 0) {
-      resizableRef.current.updateSize({ width });
+    const controller = new AbortController();
 
-      // If we had to snap the width due to window being too small, persist that choice.
-      // Debounce to avoid flooding the server/cookies during active window resizing.
-      if (width === windowWidth - snappedPadding) {
-        const timeout = setTimeout(() => {
-          onSaveWidth?.(width);
-        }, 500);
-        return () => clearTimeout(timeout);
-      }
-    }
-  }, [windowWidth, width, onSaveWidth]);
+    const onResize = () => {
+      setWidth((current) => {
+        const clamped = clampToViewport(current, window.innerWidth);
+        if (clamped !== current) onSaveWidth?.(clamped);
+        return clamped;
+      });
+    };
 
-  const handleResizeStop = (_event: any, _direction: any, _elementRef: any, delta: { width: number }) => {
-    const newWidth = width + delta.width;
-    setUserWidth(newWidth);
-    onSaveWidth?.(newWidth);
-  };
+    window.addEventListener("resize", onResize, { signal: controller.signal });
 
-  return {
-    width,
-    resizableRef,
-    handleResizeStop,
-  };
+    return () => controller.abort();
+  }, [onSaveWidth]);
+
+  const handleResizeStop = useCallback(
+    (_event: unknown, _direction: unknown, _elementRef: unknown, delta: { width: number }) => {
+      setWidth((prev) => {
+        const newWidth = clampToViewport(prev + delta.width, window.innerWidth);
+        onSaveWidth?.(newWidth);
+        return newWidth;
+      });
+    },
+    [onSaveWidth]
+  );
+
+  return { width, handleResizeStop };
 }

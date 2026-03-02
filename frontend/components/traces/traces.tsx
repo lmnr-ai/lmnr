@@ -41,11 +41,7 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
     setSpanId: state.setSpanId,
   }));
 
-  const {
-    width: defaultTraceViewWidth,
-    resizableRef: ref,
-    handleResizeStop,
-  } = useResizableTraceViewWidth({
+  const { width, handleResizeStop } = useResizableTraceViewWidth({
     initialWidth: initialTraceViewWidth,
     onSaveWidth: setTraceViewWidthCookie,
   });
@@ -106,13 +102,12 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
       {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable
-            ref={ref}
             onResizeStop={handleResizeStop}
             enable={{
               left: true,
             }}
-            defaultSize={{
-              width: defaultTraceViewWidth,
+            size={{
+              width,
             }}
           >
             <TraceView

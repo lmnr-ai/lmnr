@@ -65,11 +65,7 @@ const CreateSignalJobContent = () => {
     initialTraceViewWidth: state.initialTraceViewWidth,
   }));
 
-  const {
-    width: defaultTraceViewWidth,
-    resizableRef: ref,
-    handleResizeStop,
-  } = useResizableTraceViewWidth({
+  const { width: defaultTraceViewWidth, handleResizeStop } = useResizableTraceViewWidth({
     initialWidth: initialTraceViewWidth,
     onSaveWidth: setEventsTraceViewWidthCookie,
   });
@@ -351,12 +347,11 @@ const CreateSignalJobContent = () => {
       {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-60 flex pointer-events-auto">
           <Resizable
-            ref={ref}
             onResizeStop={handleResizeStop}
             enable={{
               left: true,
             }}
-            defaultSize={{
+            size={{
               width: defaultTraceViewWidth,
             }}
           >

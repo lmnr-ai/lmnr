@@ -50,11 +50,7 @@ function SignalContent() {
     setSpanId: state.setSpanId,
   }));
 
-  const {
-    width: defaultTraceViewWidth,
-    resizableRef: ref,
-    handleResizeStop,
-  } = useResizableTraceViewWidth({
+  const { width, handleResizeStop } = useResizableTraceViewWidth({
     initialWidth: initialTraceViewWidth,
     onSaveWidth: setEventsTraceViewWidthCookie,
   });
@@ -130,15 +126,14 @@ function SignalContent() {
         </TabsContent>
       </Tabs>
       {traceId && (
-        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-60 flex pointer-events-auto">
+        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable
-            ref={ref}
             onResizeStop={handleResizeStop}
             enable={{
               left: true,
             }}
-            defaultSize={{
-              width: defaultTraceViewWidth,
+            size={{
+              width,
             }}
           >
             <TraceView
@@ -176,9 +171,8 @@ export default function Signal({ traceId }: { traceId?: string }) {
   );
 
   useEffect(() => {
-    if (traceId) setTraceId(traceId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setTraceId(traceId ?? null);
+  }, [setTraceId, traceId]);
 
   return (
     <TraceViewNavigationProvider<EventNavigationItem> config={getEventsConfig()} onNavigate={handleNavigate}>

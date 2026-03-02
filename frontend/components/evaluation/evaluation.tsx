@@ -211,11 +211,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     }
   }
 
-  const {
-    width: defaultTraceViewWidth,
-    resizableRef: ref,
-    handleResizeStop,
-  } = useResizableTraceViewWidth({
+  const { width: defaultTraceViewWidth, handleResizeStop } = useResizableTraceViewWidth({
     initialWidth: initialTraceViewWidth,
     onSaveWidth: setTraceViewWidthCookie,
   });
@@ -287,12 +283,11 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
       {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable
-            ref={ref}
             onResizeStop={handleResizeStop}
             enable={{
               left: true,
             }}
-            defaultSize={{
+            size={{
               width: defaultTraceViewWidth,
             }}
           >
