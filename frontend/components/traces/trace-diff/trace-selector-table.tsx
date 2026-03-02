@@ -22,7 +22,7 @@ export default function TraceSelectorTable({ onSelect, excludeTraceId }: TraceSe
     <TracePicker
       onTraceSelect={handleTraceSelect}
       excludeTraceId={excludeTraceId}
-      className="flex flex-col flex-1 gap-2 p-2 overflow-hidden"
+      className="flex flex-col flex-1 gap-2 overflow-hidden"
     />
   );
 }

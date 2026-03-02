@@ -248,8 +248,13 @@ export interface TraceStructureResult {
   traceString: string;
 }
 
-export const getTraceStructureAsString = async (projectId: string, traceId: string): Promise<TraceStructureResult> => {
-  const spanInfos = await fetchSpanInfos(projectId, traceId);
+export const getTraceStructureAsString = async (
+  projectId: string,
+  traceId: string,
+  { excludeDefault = false }: { excludeDefault?: boolean } = {}
+): Promise<TraceStructureResult> => {
+  const allSpanInfos = await fetchSpanInfos(projectId, traceId);
+  const spanInfos = excludeDefault ? allSpanInfos.filter((s) => s.type !== "DEFAULT") : allSpanInfos;
 
   const spanIdToSeqId: Record<string, number> = {};
   spanInfos.forEach((info, index) => {

@@ -1,31 +1,6 @@
-import { type TraceViewListSpan, type TraceViewSpan } from "@/components/traces/trace-view/store/base";
-import { computePathInfoMap } from "@/components/traces/trace-view/store/utils";
+import { type TraceViewListSpan } from "@/components/traces/trace-view/store/base";
 
 import { type DiffRow, type SpanMapping } from "./trace-diff-types";
-
-/**
- * Convert raw TraceViewSpan[] into the lightweight TraceViewListSpan[] format
- * used by the reader list view. Filters out DEFAULT spans and attaches pathInfo.
- */
-export function toListSpans(spans: TraceViewSpan[]): TraceViewListSpan[] {
-  const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
-  const pathInfoMap = computePathInfoMap(spans);
-
-  return listSpans.map((span) => ({
-    spanId: span.spanId,
-    parentSpanId: span.parentSpanId,
-    spanType: span.spanType,
-    name: span.name,
-    model: span.model,
-    startTime: span.startTime,
-    endTime: span.endTime,
-    totalTokens: span.totalTokens,
-    cacheReadInputTokens: span.cacheReadInputTokens,
-    totalCost: span.totalCost,
-    pending: span.pending,
-    pathInfo: pathInfoMap.get(span.spanId) ?? null,
-  }));
-}
 
 /**
  * Align two lists of spans into DiffRows based on the provided mapping.
@@ -103,14 +78,4 @@ export function computeAlignedRows(
   }
 
   return rows;
-}
-
-/**
- * Get display name for a span — model name for LLM spans, otherwise span name.
- */
-export function getSpanDisplayName(span: TraceViewListSpan): string {
-  if (span.spanType === "LLM" && span.model) {
-    return span.model;
-  }
-  return span.name;
 }

@@ -1,18 +1,19 @@
 "use client";
 
-import { ArrowRight, Loader } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
-import CopyTooltip from "@/components/ui/copy-tooltip";
 import Header from "@/components/ui/header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { generateSpanMapping } from "@/lib/actions/trace/diff";
 
-import DiffColumns from "./diff-columns";
+import DiffColumns, { type SelectingSide } from "./diff-columns";
 import MetricsBar from "./metrics-bar";
 import { TraceDiffStoreProvider, useTraceDiffStore } from "./trace-diff-store";
+import TraceIdPill from "./trace-id-pill";
 
 interface TraceDiffViewProps {
   leftTraceId: string;
@@ -124,36 +125,75 @@ function TraceDiffViewInner({ leftTraceId, rightTraceId }: TraceDiffViewProps) {
     [router, searchParams]
   );
 
+  const [selectingSide, setSelectingSide] = useState<SelectingSide>(null);
+
   if (isLeftLoading) {
     return (
-      <div className="flex items-center justify-center h-full gap-2 text-muted-foreground">
-        <Loader className="size-4 animate-spin" />
-        Loading trace...
+      <div className="flex flex-col h-full overflow-hidden">
+        {/* Header skeleton: h-12, pl-2.5 pr-4 */}
+        <div className="flex items-center flex-none h-12 pl-2.5 pr-4 gap-2">
+          <Skeleton className="h-7 w-7 rounded" />
+          <Skeleton className="h-5 w-16 rounded" />
+          <Skeleton className="h-5 w-3" />
+          <Skeleton className="h-6 w-56 rounded-md" />
+        </div>
+        {/* MetricsBar skeleton: px-4 pb-2 */}
+        <div className="flex items-center gap-2 px-4 pb-2">
+          <Skeleton className="h-7 w-24 rounded-md" />
+          <Skeleton className="h-7 w-20 rounded-md" />
+          <Skeleton className="h-7 w-20 rounded-md" />
+        </div>
+        {/* Two-column diff area */}
+        <div className="flex flex-1 overflow-hidden border-t gap-0.5 p-1">
+          <div className="flex-1 flex flex-col gap-0.5">
+            <Skeleton className="h-28 w-full rounded-sm" />
+            <Skeleton className="h-20 w-full rounded-sm" />
+            <Skeleton className="h-36 w-full rounded-sm" />
+            <Skeleton className="h-20 w-full rounded-sm" />
+          </div>
+          <div className="flex-1 flex flex-col gap-0.5">
+            <Skeleton className="h-28 w-full rounded-sm" />
+            <Skeleton className="h-20 w-full rounded-sm" />
+            <Skeleton className="h-36 w-full rounded-sm" />
+            <Skeleton className="h-20 w-full rounded-sm" />
+          </div>
+        </div>
       </div>
     );
   }
 
-  const breadcrumbSegments = [
-    { name: "traces", href: `/project/${projectId}/traces` },
-    { name: `${leftTraceId.slice(0, 8)}...`, copyValue: leftTraceId },
-  ];
+  const breadcrumbSegments = [{ name: "traces", href: `/project/${projectId}/traces` }];
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <Header path={breadcrumbSegments}>
+        <div className="text-secondary-foreground/40">/</div>
+        <TraceIdPill
+          traceId={leftTraceId}
+          projectId={projectId}
+          onSelectAnother={() => setSelectingSide("left")}
+          className="ml-2"
+        />
         {rightTraceId && (
           <>
-            <ArrowRight className="size-3.5 text-secondary-foreground" />
-            <CopyTooltip value={rightTraceId}>
-              <span className="px-2">{rightTraceId.slice(0, 8)}...</span>
-            </CopyTooltip>
+            <ArrowRight className="size-3.5 text-secondary-foreground mx-2" />
+            <TraceIdPill
+              traceId={rightTraceId}
+              projectId={projectId}
+              onSelectAnother={() => setSelectingSide("right")}
+            />
           </>
         )}
       </Header>
       <div className="px-4 pb-2">
         <MetricsBar />
       </div>
-      <DiffColumns onSelectLeft={handleSelectLeft} onSelectRight={handleSelectRight} />
+      <DiffColumns
+        onSelectLeft={handleSelectLeft}
+        onSelectRight={handleSelectRight}
+        selectingSide={selectingSide}
+        setSelectingSide={setSelectingSide}
+      />
     </div>
   );
 }

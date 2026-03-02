@@ -8,9 +8,10 @@ import {
   type TraceViewSpan,
   type TraceViewTrace,
 } from "@/components/traces/trace-view/store/base";
+import { toListSpans } from "@/components/traces/trace-view/store/utils";
 
 import { type DiffRow, type SpanMapping } from "./trace-diff-types";
-import { computeAlignedRows, toListSpans } from "./trace-diff-utils";
+import { computeAlignedRows } from "./trace-diff-utils";
 
 export type DiffPhase = "selecting" | "loading" | "ready";
 

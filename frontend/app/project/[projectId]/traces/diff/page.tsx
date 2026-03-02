@@ -1,6 +1,6 @@
 import { type Metadata } from "next";
 
-import TraceDiffView from "@/components/traces/trace-diff/trace-diff-view";
+import TraceDiffView from "@/components/traces/trace-diff";
 
 export const metadata: Metadata = {
   title: "Compare Traces",

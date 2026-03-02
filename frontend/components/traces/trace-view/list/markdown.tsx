@@ -5,7 +5,7 @@ import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { cn, tryParseJson } from "@/lib/utils.ts";
 
-const formatOutput = (output: any): string => {
+export const formatOutput = (output: any): string => {
   const PRIORITY_KEYS = ["content", "text", "message", "data", "output"];
   const METADATA_KEYS = ["role", "type", "id", "name", "model", "metadata"];
   const MAX_DEPTH = 10;
