@@ -75,8 +75,8 @@ fn test_lookup_keys_full() {
     assert_eq!(
         keys,
         vec![
-            "bedrock/us-east-1/bedrock/us-east-1/anthropic.claude-v2",
-            "bedrock/bedrock/us-east-1/anthropic.claude-v2",
+            "bedrock/us-east-1/us-east-1/anthropic.claude-v2",
+            "bedrock/us-east-1/anthropic.claude-v2",
             "bedrock/us-east-1/anthropic.claude-v2",
             "us-east-1/anthropic.claude-v2",
         ]
@@ -104,7 +104,7 @@ fn test_lookup_keys_inferred_provider() {
     assert_eq!(
         keys,
         vec![
-            "anthropic/anthropic/claude-sonnet-4-5",
+            "anthropic/claude-sonnet-4-5",
             "anthropic/claude-sonnet-4-5",
             "claude-sonnet-4-5",
         ]
