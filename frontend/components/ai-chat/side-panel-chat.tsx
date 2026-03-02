@@ -2,17 +2,34 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { AnimatePresence,motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, Database, Loader2, MessageCircleQuestion, RotateCcw, Sparkles, X } from "lucide-react";
 import { useParams, usePathname } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
+import { ChatWidget, TOOL_TO_WIDGET_TYPE, type WidgetData } from "@/components/ai-chat/widgets";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { useAIChatStore } from "@/lib/ai-chat/store";
 import { cn } from "@/lib/utils";
+
+const WIDGET_TOOL_NAMES = new Set(Object.keys(TOOL_TO_WIDGET_TYPE));
+
+function tryParseWidget(toolName: string, part: any): WidgetData | null {
+  const widgetType = TOOL_TO_WIDGET_TYPE[toolName];
+  if (!widgetType) return null;
+  if (part.state !== "output-available" || !part.output) return null;
+  try {
+    const parsed = typeof part.output === "string" ? JSON.parse(part.output) : part.output;
+    if (!parsed || !parsed._widget) return null;
+    const { _widget, ...data } = parsed;
+    return { type: widgetType, data } as WidgetData;
+  } catch {
+    return null;
+  }
+}
 
 const EXAMPLE_QUESTIONS = [
   "What happened in this trace? Give me a summary.",
@@ -52,15 +69,23 @@ export default function SidePanelChat() {
     return EXAMPLE_QUESTIONS;
   }, [hasTraceContext, hasEvalContext]);
 
+  // Use a ref to always pass the latest pageContext to the transport.
+  // DefaultChatTransport resolves `body` as a function on each request,
+  // so this ensures context updates (trace view, eval) are included
+  // even though useChat stores the transport instance once.
+  const pageContextRef = useRef(pageContext);
+  pageContextRef.current = pageContext;
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: `/api/projects/${projectId}/ai-chat`,
-        body: {
-          pageContext,
-        },
+        body: () => ({
+          pageContext: pageContextRef.current,
+        }),
       }),
-    [projectId, pageContext]
+     
+    [projectId]
   );
 
   const { messages, sendMessage, setMessages, status } = useChat({
@@ -209,11 +234,41 @@ export default function SidePanelChat() {
                           >
                             <div className="text-sm text-foreground leading-relaxed space-y-2">
                               {message.parts.map((part, i) => {
-                                switch (part.type) {
+                                // Check if this is a widget tool part
+                                const partType = (part as any).type as string;
+                                if (partType?.startsWith("tool-render")) {
+                                  const toolName = partType.replace("tool-", "");
+                                  if (WIDGET_TOOL_NAMES.has(toolName)) {
+                                    const widget = tryParseWidget(toolName, part);
+                                    if (widget) {
+                                      return (
+                                        <div key={`${message.id}-${i}`}>
+                                          <ChatWidget widget={widget} />
+                                        </div>
+                                      );
+                                    }
+                                    // Still loading / input-streaming
+                                    return (
+                                      <div
+                                        key={`${message.id}-${i}`}
+                                        className="bg-muted/50 rounded-lg p-2 border animate-pulse"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                                          <span className="text-xs text-muted-foreground">
+                                            Generating visualization...
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                }
+
+                                switch (partType) {
                                   case "text":
                                     return (
                                       <div key={`${message.id}-${i}`}>
-                                        <Response components={components}>{part.text}</Response>
+                                        <Response components={components}>{(part as any).text}</Response>
                                       </div>
                                     );
                                   case "tool-getSpansData":
