@@ -31,3 +31,20 @@ pub const SPAN_IDS_PATH: &str = "lmnr.span.ids_path";
 
 pub const GEN_AI_CACHE_WRITE_INPUT_TOKENS: &str = "gen_ai.usage.cache_creation_input_tokens";
 pub const GEN_AI_CACHE_READ_INPUT_TOKENS: &str = "gen_ai.usage.cache_read_input_tokens";
+
+// Resource attributes
+pub const CLOUD_REGION: &str = "cloud.region";
+
+// Additional usage attributes for cost calculation
+pub const GEN_AI_USAGE_AUDIO_INPUT_TOKENS: &str = "gen_ai.usage.audio_input_tokens";
+pub const GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: &str = "gen_ai.usage.audio_output_tokens";
+pub const GEN_AI_USAGE_REASONING_TOKENS: &str = "gen_ai.usage.reasoning_tokens";
+pub const GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS: &str =
+    "gen_ai.usage.cache_creation_ephemeral_5m_input_tokens";
+pub const GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS: &str =
+    "gen_ai.usage.cache_creation_ephemeral_1h_input_tokens";
+
+// Service tier and batch attributes
+pub const OPENAI_RESPONSE_SERVICE_TIER: &str = "openai.response.service_tier";
+pub const OPENAI_REQUEST_SERVICE_TIER: &str = "openai.request.service_tier";
+pub const GEN_AI_REQUEST_BATCH: &str = "gen_ai.request.batch";
