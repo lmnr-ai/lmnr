@@ -52,7 +52,7 @@ GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
 
 ## Quickstart
 
-### TypeScript
+### TypeScript quickstart
 
 ```sh
 npm add @lmnr-ai/lmnr
