@@ -1,0 +1,25 @@
+{
+  "name": "laminar-browser-agent-video",
+  "version": "1.0.0",
+  "description": "Remotion video explaining how to use Laminar with browser agents",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render LaminarBrowserAgent out/video.mp4",
+    "build": "remotion render LaminarBrowserAgent out/video.mp4 --codec=h264"
+  },
+  "keywords": [],
+  "author": "Laminar",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@remotion/bundler": "4.0.431",
+    "@remotion/cli": "4.0.431",
+    "@remotion/renderer": "4.0.431",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "remotion": "4.0.431",
+    "typescript": "5.9.3"
+  }
+}
