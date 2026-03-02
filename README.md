@@ -84,7 +84,7 @@ const poemWriter = observe({name: 'poemWriter'}, async (topic) => {
 await poemWriter();
 ```
 
-### Python
+### Python quickstart
 
 ```sh
 pip install --upgrade 'lmnr[all]'
@@ -130,4 +130,4 @@ if __name__ == "__main__":
 
 ## Contributing
 
-For running and building Laminar locally, see the [Contributing guide](/CONTRIBUTING.md).
+Want to contribute to Laminar? Check out the [Contributing guide](/CONTRIBUTING.md) to get started with local development.
