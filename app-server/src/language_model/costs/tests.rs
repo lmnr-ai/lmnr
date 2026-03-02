@@ -775,6 +775,85 @@ fn test_reasoning_with_priority_tier() {
     );
 }
 
+// ===== Threshold with cached tokens tests =====
+
+#[test]
+fn test_threshold_triggered_by_cached_tokens() {
+    let costs = make_costs(json!({
+        "input_cost_per_token": 0.000003,
+        "output_cost_per_token": 0.000015,
+        "cache_read_input_token_cost": 0.0000003,
+        "input_cost_per_token_above_200k_tokens": 0.000006,
+        "output_cost_per_token_above_200k_tokens": 0.00003,
+        "cache_read_input_token_cost_above_200k_tokens": 0.0000006,
+    }));
+    // prompt_tokens alone (50k) is below 200k, but total context
+    // (50k + 200k cached = 250k) exceeds the threshold.
+    let input = SpanCostInput {
+        prompt_tokens: 50_000,
+        completion_tokens: 1000,
+        cache_read_tokens: 200_000,
+        ..default_input()
+    };
+    let result = calculate_span_cost(&costs, &input);
+    // Should use above-200k pricing for all token types
+    assert_float_eq(
+        result.input_cost,
+        50_000.0 * 0.000006 + 200_000.0 * 0.0000006,
+    );
+    assert_float_eq(result.output_cost, 1000.0 * 0.00003);
+}
+
+#[test]
+fn test_threshold_not_triggered_when_total_below() {
+    let costs = make_costs(json!({
+        "input_cost_per_token": 0.000003,
+        "output_cost_per_token": 0.000015,
+        "cache_read_input_token_cost": 0.0000003,
+        "input_cost_per_token_above_200k_tokens": 0.000006,
+        "output_cost_per_token_above_200k_tokens": 0.00003,
+    }));
+    // Total context (50k + 100k cached = 150k) is still below 200k threshold
+    let input = SpanCostInput {
+        prompt_tokens: 50_000,
+        completion_tokens: 1000,
+        cache_read_tokens: 100_000,
+        ..default_input()
+    };
+    let result = calculate_span_cost(&costs, &input);
+    // Should use base pricing
+    assert_float_eq(
+        result.input_cost,
+        50_000.0 * 0.000003 + 100_000.0 * 0.0000003,
+    );
+    assert_float_eq(result.output_cost, 1000.0 * 0.000015);
+}
+
+#[test]
+fn test_threshold_triggered_by_cache_creation_tokens() {
+    let costs = make_costs(json!({
+        "input_cost_per_token": 0.000003,
+        "output_cost_per_token": 0.000015,
+        "cache_creation_input_token_cost": 0.00000375,
+        "input_cost_per_token_above_200k_tokens": 0.000006,
+        "output_cost_per_token_above_200k_tokens": 0.00003,
+        "cache_creation_input_token_cost_above_200k_tokens": 0.0000075,
+    }));
+    // prompt_tokens (100k) + cache_creation_tokens (150k) = 250k > 200k
+    let input = SpanCostInput {
+        prompt_tokens: 100_000,
+        completion_tokens: 500,
+        cache_creation_tokens: 150_000,
+        ..default_input()
+    };
+    let result = calculate_span_cost(&costs, &input);
+    assert_float_eq(
+        result.input_cost,
+        100_000.0 * 0.000006 + 150_000.0 * 0.0000075,
+    );
+    assert_float_eq(result.output_cost, 500.0 * 0.00003);
+}
+
 // ===== Edge case tests =====
 
 #[test]

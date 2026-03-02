@@ -104,8 +104,10 @@ fn resolve_cost_key(costs: &Value, base_key: &str, service_tier: Option<&str>) -
 pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> CostEntry {
     let costs = &model_costs.0;
 
-    // Determine if threshold pricing applies
-    let threshold = find_applicable_threshold(costs, input.prompt_tokens);
+    // Threshold pricing is based on total context length including cached tokens
+    let total_input_tokens =
+        input.prompt_tokens + input.cache_read_tokens + input.cache_creation_tokens;
+    let threshold = find_applicable_threshold(costs, total_input_tokens);
     let threshold_suffix = threshold.as_ref().map(|t| t.suffix.as_str());
 
     // Build the base cost key names, potentially with threshold suffix
