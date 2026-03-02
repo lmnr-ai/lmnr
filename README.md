@@ -8,11 +8,11 @@
 
 [Laminar](https://laminar.sh) is an open-source observability platform built for AI agents.
 
-- **Tracing** ([docs](https://docs.laminar.sh/tracing/introduction)) – OpenTelemetry-native SDK that auto-traces Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more with one line of code.
+- **Tracing** ([docs](https://docs.laminar.sh/tracing/introduction)) – OpenTelemetry-native SDK that auto-traces Vercel AI SDK, Browser Use, Stagehand, OpenHands, LangChain, OpenAI, Anthropic, Gemini, and more with one line of code.
 - **Evals** ([docs](https://docs.laminar.sh/evaluations/introduction)) – Extensible SDK and CLI for running evaluations locally or in CI/CD. Includes a UI for visualizing and comparing results.
-- **AI monitoring** ([docs](https://docs.laminar.sh/signals)) – Define events with natural language descriptions to track issues, logical errors, and custom agent behavior.
+- **Signals** ([docs](https://docs.laminar.sh/signals)) – Define events with natural language descriptions to track issues, logical errors, and custom agent behavior.
 - **SQL access** ([docs](https://docs.laminar.sh/platform/sql-editor)) – Query traces, metrics, and events with a built-in SQL editor. Bulk-create datasets from queries. Available via API.
-- **Dashboards** ([docs](https://docs.laminar.sh/custom-dashboards/overview)) – Dashboard builder for traces, metrics, and events with support for custom SQL queries.
+- **Dashboards** ([docs](https://docs.laminar.sh/custom-dashboards/overview)) – Build custom dashboards over traces, metrics, and events. Supports custom SQL queries.
 - **Data annotation & Datasets** ([docs](https://docs.laminar.sh/datasets/introduction)) – Custom data rendering UI for fast annotation and dataset creation for evals.
 - **High performance** – Written in Rust. Custom realtime engine for live traces, fast full-text search, and gRPC exporter.
 
