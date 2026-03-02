@@ -333,6 +333,7 @@ async fn get_trace_spans(
 
 #[derive(clickhouse::Row, Deserialize)]
 pub struct SpanIdAndEndTime {
+    #[serde(with = "clickhouse::serde::uuid")]
     pub span_id: Uuid,
     pub end_time: i64,
 }
