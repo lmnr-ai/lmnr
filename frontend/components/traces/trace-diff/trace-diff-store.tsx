@@ -93,6 +93,17 @@ function createTraceDiffStore() {
 
     setMapping: (mapping) => {
       const { leftListSpans, rightListSpans } = get();
+
+      const leftById = new Map(leftListSpans.map((s) => [s.spanId, s]));
+      const rightById = new Map(rightListSpans.map((s) => [s.spanId, s]));
+      console.log(
+        "[trace-diff] Span mapping:",
+        mapping.map(([leftId, rightId]) => ({
+          left: { id: leftId, name: leftById.get(leftId)?.name },
+          right: { id: rightId, name: rightById.get(rightId)?.name },
+        }))
+      );
+
       const alignedRows = computeAlignedRows(leftListSpans, rightListSpans, mapping);
       set({
         spanMapping: mapping,

@@ -2,7 +2,7 @@
 
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { compact } from "lodash";
-import { Loader } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 
@@ -173,7 +173,7 @@ export default function DiffColumns({ onSelectLeft, onSelectRight }: DiffColumns
         />
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
-            <Loader className="size-5 animate-spin" />
+            <Loader2 className="size-5 animate-spin" />
             <span className="text-sm">Calculating diff...</span>
           </div>
         </div>
