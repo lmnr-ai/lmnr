@@ -42,6 +42,7 @@ export default async function SignInPage(props: {
       enableGithub={isFeatureEnabled(Feature.GITHUB_AUTH)}
       enableGoogle={isFeatureEnabled(Feature.GOOGLE_AUTH)}
       enableAzure={isFeatureEnabled(Feature.AZURE_AUTH)}
+      enableOkta={isFeatureEnabled(Feature.OKTA_AUTH)}
       callbackUrl={callbackUrl}
     />
   );

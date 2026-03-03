@@ -3,6 +3,7 @@ export const enum Feature {
   GITHUB_AUTH = "GITHUB_AUTH",
   GOOGLE_AUTH = "GOOGLE_AUTH",
   AZURE_AUTH = "AZURE_AUTH",
+  OKTA_AUTH = "OKTA_AUTH",
   EMAIL_AUTH = "EMAIL_AUTH",
   POSTHOG = "POSTHOG",
   LOCAL_DB = "LOCAL_DB",
@@ -38,6 +39,10 @@ export const isFeatureEnabled = (feature: Feature) => {
       !!process.env.AUTH_AZURE_AD_CLIENT_SECRET &&
       !!process.env.AUTH_AZURE_AD_TENANT_ID
     );
+  }
+
+  if (feature === Feature.OKTA_AUTH) {
+    return !!process.env.AUTH_OKTA_CLIENT_ID && !!process.env.AUTH_OKTA_CLIENT_SECRET && !!process.env.AUTH_OKTA_ISSUER;
   }
 
   if (feature === Feature.FULL_BUILD) {
