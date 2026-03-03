@@ -2,7 +2,7 @@ import { differenceInHours, parseISO } from "date-fns";
 import { z } from "zod/v4";
 
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
-import { isoToClickHouseParam } from "@/lib/time/timestamp";
+import { isoToClickHouseParam, parseTimestampToDate } from "@/lib/time/timestamp";
 
 export type TimeRange = { start: Date; end: Date };
 
@@ -23,8 +23,8 @@ export const SafeParseTimeRangeSchema = z
       }
     }
     if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+      const start = parseTimestampToDate(startDate);
+      const end = parseTimestampToDate(endDate);
       if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
         return { start, end };
       }
@@ -51,8 +51,8 @@ const AbsoluteTimeInputSchema = z
   })
   .refine(
     (data) => {
-      const start = new Date(data.startTime);
-      const end = new Date(data.endTime);
+      const start = parseTimestampToDate(data.startTime);
+      const end = parseTimestampToDate(data.endTime);
 
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
         return false;
