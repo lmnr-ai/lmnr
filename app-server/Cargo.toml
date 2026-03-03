@@ -10,8 +10,8 @@ actix-web-httpauth = "0.8.2"
 anyhow = "1"
 async-stream = "0.3.6"
 async-trait = "0.1"
-aws-config = "1.8.12"
-aws-sdk-s3 = "1.120.0"
+aws-config = "1.8.14"
+aws-sdk-s3 = "1.124.0"
 backoff = {version = "0.4.0", features = ["tokio"]}
 base64 = "0.22.1"
 bytes = "1.11.1"
@@ -40,7 +40,7 @@ regex = "1.12.2"
 reqwest = {version = "0.12.22", features = ["json"]}
 rmcp = {version = "0.14", features = ["server", "transport-streamable-http-server"]}
 rmcp-actix-web = "0.11"
-rustls = {version = "0.23", features = ["ring"]}
+rustls = {version = "0.23.37", features = ["ring"]}
 # Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.46.0, opentelemetry = 0.29
 sentry = {version = "0.46.0", features = ["opentelemetry"]}
 schemars = {version = "1", features = ["uuid1"]}
