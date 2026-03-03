@@ -2,7 +2,7 @@
 
 import { isNil } from "lodash";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
 import { type DateRange as ReactDateRange } from "react-day-picker";
 import { createStore, type StoreApi, useStore } from "zustand";
 
@@ -184,16 +184,14 @@ export const DateRangeFilterProvider = ({
     };
   }, [searchParams, mode, initialPastHours, initialStartDate, initialEndDate]);
 
-  const storeRef = useRef<StoreApi<DateRangeFilterStore>>(null);
-
-  if (!storeRef.current) {
-    storeRef.current = createDateRangeFilterStore(pastHours, startDate, endDate, mode, onChange, router, pathname);
-  }
+  const [storeState] = useState(() =>
+    createDateRangeFilterStore(pastHours, startDate, endDate, mode, onChange, router, pathname)
+  );
 
   useEffect(() => {
     if (mode === "state") return;
 
-    const store = storeRef.current?.getState();
+    const store = storeState?.getState();
     if (!store) return;
 
     const urlPastHours = searchParams.get("pastHours");
@@ -201,7 +199,7 @@ export const DateRangeFilterProvider = ({
     const urlEndDate = searchParams.get("endDate");
 
     if (store.pastHours !== urlPastHours || store.startDate !== urlStartDate || store.endDate !== urlEndDate) {
-      storeRef.current?.setState({
+      storeState.setState({
         pastHours: urlPastHours,
         startDate: urlStartDate,
         endDate: urlEndDate,
@@ -209,9 +207,7 @@ export const DateRangeFilterProvider = ({
           urlStartDate && urlEndDate ? { from: new Date(urlStartDate), to: new Date(urlEndDate) } : undefined,
       });
     }
-  }, [searchParams, mode]);
+  }, [searchParams, mode, storeState]);
 
-  return (
-    <DateRangeFilterStoreContext.Provider value={storeRef.current}>{children}</DateRangeFilterStoreContext.Provider>
-  );
+  return <DateRangeFilterStoreContext.Provider value={storeState}>{children}</DateRangeFilterStoreContext.Provider>;
 };

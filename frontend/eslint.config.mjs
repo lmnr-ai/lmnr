@@ -59,12 +59,9 @@ const eslintRulesReact = {
 
 // TODO: remove this block after actually fixing these
 // linting errors
-const tmpRuleOverrides = {
-  "react-hooks/purity": ["warn"],
-  "react-hooks/set-state-in-effect": ["warn"],
+const hooksRulesOverrides = {
+  // https://github.com/facebook/react/issues/35577
   "react-hooks/preserve-manual-memoization": ["warn"],
-  "react-hooks/refs": ["warn"],
-  "react-hooks/error-boundaries": ["warn"],
 };
 
 // Language Options
@@ -96,7 +93,7 @@ export default tseslint.config(
       ...eslintRulesTs,
       ...eslintRulesNext,
       ...eslintRulesReact,
-      ...tmpRuleOverrides,
+      ...hooksRulesOverrides,
     },
   },
 
@@ -120,8 +117,9 @@ export default tseslint.config(
   },
 
   // API routes and webhooks - allow console for debugging
+  // instrumentation.ts - executed once on server startup
   {
-    files: ["app/api/**/*.ts", "app/webhook/**/*.ts"],
+    files: ["app/api/**/*.ts", "app/webhook/**/*.ts", "instrumentation.ts"],
     rules: {
       "no-console": "off",
     },

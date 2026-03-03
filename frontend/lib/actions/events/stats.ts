@@ -51,7 +51,7 @@ export async function getEventStats(
       startTime,
       endTime,
       pastHours,
-      timeColumn: "timestamp",
+      timeColumn: "signal_events.timestamp",
     },
     filters,
     columnFilterConfig: eventsColumnFilterConfig,
@@ -62,7 +62,7 @@ export async function getEventStats(
     startTime,
     endTime,
     pastHours,
-    timeColumn: "timestamp",
+    timeColumn: "signal_events.timestamp",
     intervalValue,
     intervalUnit,
   });

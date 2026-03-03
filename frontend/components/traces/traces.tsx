@@ -1,12 +1,12 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable, type ResizeCallback } from "re-resizable";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Resizable } from "re-resizable";
+import { useCallback } from "react";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
-import { getDefaultTraceViewWidth } from "@/components/traces/trace-view/utils";
 import { setTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
+import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
@@ -34,7 +34,6 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
   const router = useRouter();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
-  const ref = useRef<Resizable>(null);
   const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext((state) => ({
     spanId: state.spanId,
     traceId: state.traceId,
@@ -42,13 +41,10 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
     setSpanId: state.setSpanId,
   }));
 
-  const [defaultTraceViewWidth, setDefaultTraceViewWidth] = useState(initialTraceViewWidth || 1000);
-
-  useEffect(() => {
-    if (!initialTraceViewWidth) {
-      setDefaultTraceViewWidth(getDefaultTraceViewWidth());
-    }
-  }, []);
+  const { width, handleResizeStop } = useResizableTraceViewWidth({
+    initialWidth: initialTraceViewWidth,
+    onSaveWidth: setTraceViewWidthCookie,
+  });
 
   const resetUrlParams = (newView: string) => {
     const params = new URLSearchParams(searchParams);
@@ -59,12 +55,6 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
     params.set("view", newView);
     setTraceId(null);
     router.push(`${pathName}?${params.toString()}`);
-  };
-
-  const handleResizeStop: ResizeCallback = (_event, _direction, _elementRef, delta) => {
-    const newWidth = defaultTraceViewWidth + delta.width;
-    setDefaultTraceViewWidth(newWidth);
-    setTraceViewWidthCookie(newWidth).catch((e) => console.warn(`Failed to save value to cookies. ${e}`));
   };
 
   const handleNavigate = useCallback(
@@ -80,17 +70,6 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
     },
     [setSpanId, setTraceId]
   );
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (defaultTraceViewWidth > window.innerWidth - 180) {
-        const newWidth = window.innerWidth - 240;
-        setDefaultTraceViewWidth(newWidth);
-        setTraceViewWidthCookie(newWidth);
-        ref?.current?.updateSize({ width: newWidth });
-      }
-    }
-  }, [defaultTraceViewWidth, setDefaultTraceViewWidth]);
 
   return (
     <TraceViewNavigationProvider<NavigationItem> config={getTracesConfig()} onNavigate={handleNavigate}>
@@ -123,13 +102,12 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
       {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable
-            ref={ref}
             onResizeStop={handleResizeStop}
             enable={{
               left: true,
             }}
-            defaultSize={{
-              width: defaultTraceViewWidth,
+            size={{
+              width,
             }}
           >
             <TraceView

@@ -41,7 +41,7 @@ use super::{
     postprocess::process_event_notifications_and_clustering,
     push_to_signals_queue,
     queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_waiting_queue},
-    spans::{get_trace_spans, span_short_id},
+    spans::{get_trace_span_ids_and_end_time, span_short_id},
     tools::get_full_spans,
     utils::{
         InternalSpan, emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links,
@@ -1170,9 +1170,13 @@ async fn handle_create_event(
 ) -> anyhow::Result<Uuid> {
     let create_event_start_time = chrono::Utc::now();
 
-    // Get trace spans
-    let ch_spans =
-        get_trace_spans(clickhouse.clone(), signal_message.project_id, run.trace_id).await?;
+    // get only basic span info, no need to fetch entire span
+    let ch_spans = get_trace_span_ids_and_end_time(
+        clickhouse.clone(),
+        signal_message.project_id,
+        run.trace_id,
+    )
+    .await?;
 
     if ch_spans.is_empty() {
         anyhow::bail!("No spans found for trace {}", run.trace_id);

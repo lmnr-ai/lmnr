@@ -5,13 +5,28 @@ import useSWR from "swr";
 
 import { type AggregationFunction } from "@/lib/clickhouse/types";
 import { type EvaluationTimeProgression } from "@/lib/evaluation/types";
-import { formatTimestamp, swrFetcher } from "@/lib/utils";
+import { formatTimestamp } from "@/lib/utils";
 
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../ui/chart";
 import { Label } from "../ui/label";
 import { Skeleton } from "../ui/skeleton";
 
 const ADDITIONAL_NAME = "Total Average";
+
+const postFetcher = async ([url, body]: [string, object]) => {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errorText = (await res.json()) as { error: string };
+    throw new Error(errorText.error);
+  }
+
+  return res.json();
+};
 
 interface ProgressionChartProps {
   className?: string;
@@ -25,14 +40,17 @@ export default function ProgressionChart({ className, aggregationFunction, evalu
   const groupId = searchParams.get("groupId");
   const params = useParams();
 
-  const evaluationsSearchParams = useMemo(
-    () => new URLSearchParams([...evaluations.map(({ id }) => ["id", id]), ["aggregate", aggregationFunction]]),
+  const requestBody = useMemo(
+    () => ({ ids: evaluations.map(({ id }) => id), aggregate: aggregationFunction }),
     [evaluations, aggregationFunction]
   );
 
   const { data, isLoading } = useSWR<EvaluationTimeProgression[]>(
-    `/api/projects/${params?.projectId}/evaluation-groups/${encodeURIComponent(groupId ?? "")}/progression?${evaluationsSearchParams}`,
-    swrFetcher
+    [
+      `/api/projects/${params?.projectId}/evaluation-groups/${encodeURIComponent(groupId ?? "")}/progression`,
+      requestBody,
+    ],
+    postFetcher
   );
 
   const keys = useMemo(() => new Set(data?.flatMap(({ names }) => names) ?? []), [data]);

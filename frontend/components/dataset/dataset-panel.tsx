@@ -1,6 +1,6 @@
 import { ChevronsRight, Loader2, Save } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
@@ -89,17 +89,69 @@ export default function DatasetPanel({
   const [saving, setSaving] = useState<boolean>(false);
 
   // Track original values to detect changes
-  const originalDataRef = useRef<any>(null);
-  const originalTargetRef = useRef<any>(null);
-  const originalMetadataRef = useRef<Record<string, any>>({});
+  const [originalData, setOriginalData] = useState<any>(datapoint ? safeParseJSON(datapoint.data, null) : null);
+  const [originalTarget, setOriginalTarget] = useState<any>(datapoint ? safeParseJSON(datapoint.target, null) : null);
+  const [originalMetadata, setOriginalMetadata] = useState<Record<string, any>>(
+    datapoint ? safeParseJSON(datapoint.metadata, {}) : {}
+  );
+
+  const [prevDatapoint, setPrevDatapoint] = useState<Datapoint | undefined>(undefined);
+  const [prevVersions, setPrevVersions] = useState<Datapoint[] | undefined>(undefined);
+  const [prevCreatedAtParam, setPrevCreatedAtParam] = useState<string | null>(null);
+
+  const createdAtFromUrl = searchParams.get("createdAt");
+
+  if (
+    datapoint &&
+    versions &&
+    (datapoint !== prevDatapoint || versions !== prevVersions || createdAtFromUrl !== prevCreatedAtParam)
+  ) {
+    setPrevDatapoint(datapoint);
+    setPrevVersions(versions);
+    setPrevCreatedAtParam(createdAtFromUrl);
+
+    const versionToLoad = createdAtFromUrl ? versions.find((v) => v.createdAt === createdAtFromUrl) : null;
+
+    if (versionToLoad) {
+      const parsedData = safeParseJSON(versionToLoad.data, null);
+      const parsedTarget = safeParseJSON(versionToLoad.target, null);
+      const parsedMetadata = safeParseJSON(versionToLoad.metadata, {});
+
+      setNewData(parsedData);
+      setNewTarget(parsedTarget);
+      setNewMetadata(parsedMetadata);
+      setIsValidJsonData(true);
+      setIsValidJsonTarget(true);
+      setIsValidJsonMetadata(true);
+      setOriginalData(parsedData);
+      setOriginalTarget(parsedTarget);
+      setOriginalMetadata(parsedMetadata);
+      setSelectedVersionCreatedAt(createdAtFromUrl);
+    } else {
+      const parsedData = safeParseJSON(datapoint.data, null);
+      const parsedTarget = safeParseJSON(datapoint.target, null);
+      const parsedMetadata = safeParseJSON(datapoint.metadata, {});
+
+      setNewData(parsedData);
+      setNewTarget(parsedTarget);
+      setNewMetadata(parsedMetadata);
+      setIsValidJsonData(true);
+      setIsValidJsonTarget(true);
+      setIsValidJsonMetadata(true);
+      setOriginalData(parsedData);
+      setOriginalTarget(parsedTarget);
+      setOriginalMetadata(parsedMetadata);
+      setSelectedVersionCreatedAt(null);
+    }
+  }
 
   // Check if current values differ from original values
   const hasChanges = useCallback(
     () =>
-      JSON.stringify(newData) !== JSON.stringify(originalDataRef.current) ||
-      JSON.stringify(newTarget) !== JSON.stringify(originalTargetRef.current) ||
-      JSON.stringify(newMetadata) !== JSON.stringify(originalMetadataRef.current),
-    [newData, newTarget, newMetadata]
+      JSON.stringify(newData) !== JSON.stringify(originalData) ||
+      JSON.stringify(newTarget) !== JSON.stringify(originalTarget) ||
+      JSON.stringify(newMetadata) !== JSON.stringify(originalMetadata),
+    [newData, newTarget, newMetadata, originalData, originalTarget, originalMetadata]
   );
 
   const saveChanges = useCallback(async () => {
@@ -157,9 +209,9 @@ export default function DatasetPanel({
     mutate(updatedDatapoint, false);
 
     // Update original values after successful save
-    originalDataRef.current = newData;
-    originalTargetRef.current = newTarget;
-    originalMetadataRef.current = newMetadata;
+    setOriginalData(newData);
+    setOriginalTarget(newTarget);
+    setOriginalMetadata(newMetadata);
 
     // Reset version selector to latest and refresh list
     setSelectedVersionCreatedAt(null);
@@ -212,9 +264,9 @@ export default function DatasetPanel({
     setIsValidJsonMetadata(true);
 
     // Update refs to track changes from this version
-    originalDataRef.current = parsedData;
-    originalTargetRef.current = parsedTarget;
-    originalMetadataRef.current = parsedMetadata;
+    setOriginalData(parsedData);
+    setOriginalTarget(parsedTarget);
+    setOriginalMetadata(parsedMetadata);
   }, []);
 
   // Handler for when user selects a different version from dropdown
@@ -240,46 +292,15 @@ export default function DatasetPanel({
     [versions, loadVersion, searchParams, pathname, router]
   );
 
-  // Initialize with specific version from URL or latest version when datapoint first loads
-  useEffect(() => {
-    if (!datapoint || !versions) return;
-
-    const createdAtFromUrl = searchParams.get("createdAt");
-
-    // If there's a createdAt in the URL and it matches a version, load that version
-    if (createdAtFromUrl && versions.some((v) => v.createdAt === createdAtFromUrl)) {
-      const version = versions.find((v) => v.createdAt === createdAtFromUrl);
-      if (version) {
-        loadVersion(version);
-        setSelectedVersionCreatedAt(createdAtFromUrl);
-        return;
-      }
-    }
-
-    // Otherwise, load the latest version (current datapoint)
-    const parsedData = safeParseJSON(datapoint.data, null);
-    const parsedTarget = safeParseJSON(datapoint.target, null);
-    const parsedMetadata = safeParseJSON(datapoint.metadata, {});
-
-    setNewData(parsedData);
-    setNewTarget(parsedTarget);
-    setNewMetadata(parsedMetadata);
-
-    // Update original values when datapoint changes
-    originalDataRef.current = parsedData;
-    originalTargetRef.current = parsedTarget;
-    originalMetadataRef.current = parsedMetadata;
-  }, [datapoint, versions, searchParams, loadVersion]);
-
   const discardChanges = useCallback(() => {
-    // Restore to the original values (from refs)
-    setNewData(originalDataRef.current);
-    setNewTarget(originalTargetRef.current);
-    setNewMetadata(originalMetadataRef.current);
+    // Restore to the original values
+    setNewData(originalData);
+    setNewTarget(originalTarget);
+    setNewMetadata(originalMetadata);
     setIsValidJsonData(true);
     setIsValidJsonTarget(true);
     setIsValidJsonMetadata(true);
-  }, []);
+  }, [originalData, originalTarget, originalMetadata]);
 
   const handleClose = useCallback(() => {
     // Discard any unsaved changes when closing

@@ -149,7 +149,11 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   if (isEmpty(listSpans)) {
     return (
       <div className="flex flex-1 items-center justify-center p-8 text-center">
-        <span className="text-base text-secondary-foreground">No spans found.</span>
+        <span className="text-base text-secondary-foreground">
+          {isEmpty(spans)
+            ? "No spans found."
+            : "No matching spans found. Reader mode omits default span types. Switch to tree view to see all spans."}
+        </span>
       </div>
     );
   }
