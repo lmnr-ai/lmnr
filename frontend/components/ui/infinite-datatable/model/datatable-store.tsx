@@ -1,7 +1,7 @@
 "use client";
 
 import { intersection, pick, uniqBy } from "lodash";
-import { createContext, type ReactNode, useContext, useRef } from "react";
+import { createContext, type ReactNode, useContext, useState } from "react";
 import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -201,12 +201,9 @@ export function DataTableStateProvider<TData>({
   pageSize = 50,
   defaultColumnOrder = [],
 }: DataTableStateProviderProps) {
-  const storeRef = useRef<DataTableStoreApi<TData> | undefined>(undefined);
-  if (!storeRef.current) {
-    storeRef.current = createDataTableStore<TData>(uniqueKey, storageKey, defaultColumnOrder, pageSize);
-  }
+  const [store] = useState(() => createDataTableStore<TData>(uniqueKey, storageKey, defaultColumnOrder, pageSize));
 
-  return <DataTableContext.Provider value={storeRef.current}>{children}</DataTableContext.Provider>;
+  return <DataTableContext.Provider value={store}>{children}</DataTableContext.Provider>;
 }
 
 export function useDataTableStore<TData>() {

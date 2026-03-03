@@ -232,7 +232,7 @@ export const onRealtimeUpdateSpans =
         });
       }
 
-      newSpans.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      newSpans.sort((a, b) => parseTimestampToMs(a.startTime) - parseTimestampToMs(b.startTime));
 
       return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
     });

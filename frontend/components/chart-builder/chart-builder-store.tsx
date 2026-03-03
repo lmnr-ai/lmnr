@@ -1,4 +1,4 @@
-import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -168,10 +168,7 @@ export const useChartBuilderStoreContext = <T,>(selector: (store: ChartBuilderSt
 };
 
 export const ChartBuilderStoreProvider = ({ children, ...props }: PropsWithChildren<ChartBuilderProps>) => {
-  const storeRef = useRef<ChartBuilderStoreApi | undefined>(undefined);
+  const [storeState] = useState(() => createChartBuilderStore(props));
 
-  if (!storeRef.current) {
-    storeRef.current = createChartBuilderStore(props);
-  }
-  return <ChartBuilderStoreContext.Provider value={storeRef.current}>{children}</ChartBuilderStoreContext.Provider>;
+  return <ChartBuilderStoreContext.Provider value={storeState}>{children}</ChartBuilderStoreContext.Provider>;
 };
