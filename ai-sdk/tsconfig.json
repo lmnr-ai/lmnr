@@ -14,6 +14,7 @@
   },
   "include": [
     "api.ts",
+    "aisdk.ts",
     "types.ts",
     "crypto.ts"
   ],

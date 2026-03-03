@@ -28,7 +28,7 @@ export interface GenerateRequest<T extends ToolSet = ToolSet> {
   tools?: string;
   toolChoice?: ToolChoice<T>;
   structuredOutput?: string;
-  provider_api_key: ProviderApiKey;
+  providerApiKey: ProviderApiKey;
 }
 
 export type GenerateResponse = {

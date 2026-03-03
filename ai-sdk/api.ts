@@ -26,9 +26,9 @@ const zJsonObject = z
   });
 
 const providerApiKeySchema = z.object({
-  name: z.string().min(1, 'provider_api_key.name is required'),
-  nonce: z.string().min(1, 'provider_api_key.nonce is required'),
-  value: z.string().min(1, 'provider_api_key.value is required'),
+  name: z.string().min(1, 'providerApiKey.name is required'),
+  nonce: z.string().min(1, 'providerApiKey.nonce is required'),
+  value: z.string().min(1, 'providerApiKey.value is required'),
 });
 
 const requestSchema = z.object({
@@ -58,7 +58,7 @@ const requestSchema = z.object({
     }),
   toolChoice: z.any().optional(),
   structuredOutput: zJsonObject,
-  provider_api_key: providerApiKeySchema,
+  providerApiKey: providerApiKeySchema,
 });
 
 const app = express();

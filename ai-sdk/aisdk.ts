@@ -36,9 +36,10 @@ export function parseTools(tools?: string): ToolSet | undefined {
   try {
     const parsed = JSON.parse(tools) as Record<string, { description?: string; parameters: object }>;
     return Object.entries(parsed).reduce((acc, [toolName, toolItem]) => {
+      const { parameters, ...rest } = toolItem;
       acc[toolName] = tool({
-        ...toolItem,
-        inputSchema: jsonSchema(toolItem.parameters ?? {}),
+        ...rest,
+        inputSchema: jsonSchema(parameters ?? {}),
       });
       return acc;
     }, {} as ToolSet);
@@ -58,9 +59,9 @@ export async function runAiSdkRequest(params: {
   toolChoice?: ToolChoice<ToolSet>;
   structuredOutput?: StructuredOutput;
   providerOptions?: unknown;
-  provider_api_key: ProviderApiKey;
+  providerApiKey: ProviderApiKey;
 }): Promise<GenerateResponse> {
-  const decryptedKey = await decryptProviderApiKey(params.provider_api_key);
+  const decryptedKey = await decryptProviderApiKey(params.providerApiKey);
   const modelInstance = resolveModel(params.model, decryptedKey);
 
   const baseParams = createBaseParams(modelInstance, params.messages, {
