@@ -11,6 +11,7 @@ import { AzureButton } from "@/components/auth/azure-button";
 import { EmailSignInButton } from "@/components/auth/email-sign-in";
 import { GitHubButton } from "@/components/auth/github-button";
 import { GoogleButton } from "@/components/auth/google-button";
+import { OktaButton } from "@/components/auth/okta-button";
 import { cn } from "@/lib/utils";
 
 interface SignInProps {
@@ -18,14 +19,22 @@ interface SignInProps {
   enableGoogle?: boolean;
   enableGithub?: boolean;
   enableAzure?: boolean;
+  enableOkta?: boolean;
   enableCredentials?: boolean;
 }
 
-type Provider = "github" | "google" | "azure-ad";
+type Provider = "github" | "google" | "azure-ad" | "okta";
 
 const defaultErrorMessage = `Failed to sign in. Please try again.`;
 
-const SignIn = ({ callbackUrl, enableGoogle, enableGithub, enableAzure, enableCredentials }: SignInProps) => {
+const SignIn = ({
+  callbackUrl,
+  enableGoogle,
+  enableGithub,
+  enableAzure,
+  enableOkta,
+  enableCredentials,
+}: SignInProps) => {
   const searchParams = useSearchParams();
   const [error, setError] = useState(searchParams.get("error"));
   const [isLoading, setIsLoading] = useState<Provider | string>("");
@@ -76,6 +85,16 @@ const SignIn = ({ callbackUrl, enableGoogle, enableGithub, enableAzure, enableCr
             <AzureButton
               onClick={() => handleSignIn("azure-ad")}
               isLoading={isLoading === "azure-ad"}
+              isDisabled={!!isLoading}
+              className={cn({
+                "w-full": enableCredentials,
+              })}
+            />
+          )}
+          {enableOkta && (
+            <OktaButton
+              onClick={() => handleSignIn("okta")}
+              isLoading={isLoading === "okta"}
               isDisabled={!!isLoading}
               className={cn({
                 "w-full": enableCredentials,
