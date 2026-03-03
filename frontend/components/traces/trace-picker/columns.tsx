@@ -7,17 +7,68 @@ import { SpanType, type TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
+const StatusCell = ({ value }: { value: unknown }) => (
+  <div
+    className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
+      "bg-destructive-bright": value === "error",
+      "": value === "info",
+      "bg-yellow-400": value === "warning",
+    })}
+  />
+);
+
+const TopSpanCell = ({ row }: { row: TraceRow }) => {
+  const topSpanId = row.topSpanId;
+  const hasTopSpan = !!topSpanId && topSpanId !== "00000000-0000-0000-0000-000000000000";
+  const isOld = isStringDateOld(row.endTime);
+  const shouldAnimate = !hasTopSpan && !isOld;
+
+  return (
+    <div className="cursor-pointer flex gap-2 items-center">
+      <div className="flex items-center gap-2">
+        {hasTopSpan ? (
+          <SpanTypeIcon className="z-10" spanType={row.topSpanType ?? SpanType.DEFAULT} />
+        ) : (
+          <SpanTypeIcon className={cn("z-10", shouldAnimate && "animate-pulse")} spanType={SpanType.DEFAULT} />
+        )}
+      </div>
+      {hasTopSpan ? (
+        <div title={row.topSpanName} className="text-sm truncate">
+          {row.topSpanName}
+        </div>
+      ) : row.topSpanName ? (
+        <div
+          title={row.topSpanName}
+          className={cn("text-sm truncate text-muted-foreground", shouldAnimate && "animate-pulse")}
+        >
+          {row.topSpanName}
+        </div>
+      ) : (
+        <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm" />
+      )}
+    </div>
+  );
+};
+
+const DurationCell = ({ startTime, endTime }: { startTime: string; endTime: string }) => {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return <>-</>;
+  return <>{`${((end.getTime() - start.getTime()) / 1000).toFixed(2)}s`}</>;
+};
+
+const TokensCell = ({ row }: { row: TraceRow }) => (
+  <div className="truncate">
+    {`${row.inputTokens ?? "-"}`}
+    {" → "}
+    {`${row.outputTokens ?? "-"}`}
+    {` (${row.totalTokens ?? "-"})`}
+  </div>
+);
+
 export const tracePickerColumns: ColumnDef<TraceRow, any>[] = [
   {
-    cell: (row) => (
-      <div
-        className={cn("min-h-6 w-1.5 rounded-[2.5px] bg-success-bright", {
-          "bg-destructive-bright": row.getValue() === "error",
-          "": row.getValue() === "info",
-          "bg-yellow-400": row.getValue() === "warning",
-        })}
-      />
-    ),
+    cell: (row) => <StatusCell value={row.getValue()} />,
     accessorFn: (row) => (row.status === "error" ? "error" : row.analysis_status),
     header: () => <div />,
     id: "status",
@@ -27,38 +78,7 @@ export const tracePickerColumns: ColumnDef<TraceRow, any>[] = [
     accessorKey: "topSpanType",
     header: "Top level span",
     id: "top_span_type",
-    cell: (row) => {
-      const topSpanId = row.row.original.topSpanId;
-      const hasTopSpan = !!topSpanId && topSpanId !== "00000000-0000-0000-0000-000000000000";
-      const isOld = isStringDateOld(row.row.original.endTime);
-      const shouldAnimate = !hasTopSpan && !isOld;
-
-      return (
-        <div className="cursor-pointer flex gap-2 items-center">
-          <div className="flex items-center gap-2">
-            {hasTopSpan ? (
-              <SpanTypeIcon className="z-10" spanType={row.getValue()} />
-            ) : (
-              <SpanTypeIcon className={cn("z-10", shouldAnimate && "animate-pulse")} spanType={SpanType.DEFAULT} />
-            )}
-          </div>
-          {hasTopSpan ? (
-            <div title={row.row.original.topSpanName} className="text-sm truncate">
-              {row.row.original.topSpanName}
-            </div>
-          ) : row.row.original.topSpanName ? (
-            <div
-              title={row.row.original.topSpanName}
-              className={cn("text-sm truncate text-muted-foreground", shouldAnimate && "animate-pulse")}
-            >
-              {row.row.original.topSpanName}
-            </div>
-          ) : (
-            <Skeleton className="w-14 h-4 text-secondary-foreground py-0.5 bg-secondary rounded-full text-sm" />
-          )}
-        </div>
-      );
-    },
+    cell: (row) => <TopSpanCell row={row.row.original} />,
     size: 150,
   },
   {
@@ -83,14 +103,7 @@ export const tracePickerColumns: ColumnDef<TraceRow, any>[] = [
     accessorFn: (row) => row.totalTokens ?? "-",
     header: "Tokens",
     id: "total_tokens",
-    cell: (row) => (
-      <div className="truncate">
-        {`${row.row.original.inputTokens ?? "-"}`}
-        {" → "}
-        {`${row.row.original.outputTokens ?? "-"}`}
-        {` (${row.row.original.totalTokens ?? "-"})`}
-      </div>
-    ),
+    cell: (row) => <TokensCell row={row.row.original} />,
     size: 150,
   },
 ];

@@ -4,12 +4,12 @@ import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 
 import { getDuration } from "@/lib/utils";
 
+import { useTraceDiffStore } from "../trace-diff-store";
 import MetricDelta from "./metric-delta";
-import { useTraceDiffStore } from "./trace-diff-store";
 
 const numberFormatter = new Intl.NumberFormat("en-US", { notation: "compact" });
 
-export default function MetricsBar() {
+const MetricsBar = () => {
   const { leftTrace, rightTrace } = useTraceDiffStore((s) => ({
     leftTrace: s.leftTrace,
     rightTrace: s.rightTrace,
@@ -42,4 +42,6 @@ export default function MetricsBar() {
       />
     </div>
   );
-}
+};
+
+export default MetricsBar;

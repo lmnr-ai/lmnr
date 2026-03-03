@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 import DiffSpanPanel from "./diff-span-panel";
+import MappingError from "./mapping-error";
 import SingleColumnSpanList from "./single-column-span-list";
 import { useTraceDiffStore } from "./trace-diff-store";
 import TraceSelector from "./trace-selector";
@@ -23,12 +24,7 @@ interface DiffColumnsProps {
   setSelectingSide: (side: SelectingSide) => void;
 }
 
-export default function DiffColumns({
-  onSelectLeft,
-  onSelectRight,
-  selectingSide,
-  setSelectingSide,
-}: DiffColumnsProps) {
+const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingSide }: DiffColumnsProps) => {
   const {
     phase,
     leftListSpans,
@@ -39,6 +35,8 @@ export default function DiffColumns({
     leftTrace,
     rightTrace,
     isMappingLoading,
+    mappingError,
+    retryMapping,
   } = useTraceDiffStore((s) => ({
     phase: s.phase,
     leftListSpans: s.leftListSpans,
@@ -49,6 +47,8 @@ export default function DiffColumns({
     leftTrace: s.leftTrace,
     rightTrace: s.rightTrace,
     isMappingLoading: s.isMappingLoading,
+    mappingError: s.mappingError,
+    retryMapping: s.retryMapping,
   }));
 
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
@@ -155,11 +155,28 @@ export default function DiffColumns({
     );
   }
 
+  // Phase: error (mapping failed)
+  if (phase === "error" && mappingError) {
+    return (
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <MappingError error={mappingError} onRetry={retryMapping} />
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden pl-4">
+            <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
+          </div>
+          <div className="flex-1 flex flex-col overflow-hidden pr-4">
+            <SingleColumnSpanList spans={rightListSpans} traceRef={rightTraceRef} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Phase: loading (right trace selected, mapping in progress)
   if (phase === "loading" || isMappingLoading) {
     return (
       <div className="flex flex-col flex-1 overflow-hidden">
-        <div className="flex-none flex items-center justify-center py-2 bg-muted/65">
+        <div className="flex-none flex items-center justify-center py-2 bg-secondary">
           <span className="text-sm text-muted-foreground shimmer">Analyzing trace diff</span>
         </div>
         <div className="flex flex-1 overflow-hidden">
@@ -200,4 +217,6 @@ export default function DiffColumns({
       )}
     </div>
   );
-}
+};
+
+export default DiffColumns;

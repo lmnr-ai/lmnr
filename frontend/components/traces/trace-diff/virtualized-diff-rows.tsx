@@ -16,7 +16,7 @@ interface TraceRef {
   endTime: string;
 }
 
-export default function VirtualizedDiffRows({
+const VirtualizedDiffRows = ({
   scrollRef,
   alignedRows,
   selectedRowIndex,
@@ -30,7 +30,7 @@ export default function VirtualizedDiffRows({
   onRowClick: (index: number) => void;
   leftTrace?: TraceRef;
   rightTrace?: TraceRef;
-}) {
+}) => {
   const { projectId } = useParams<{ projectId: string }>();
 
   const virtualizer = useVirtualizer({
@@ -74,22 +74,8 @@ export default function VirtualizedDiffRows({
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto styled-scrollbar pt-2">
-      <div
-        style={{
-          height: virtualizer.getTotalSize(),
-          width: "100%",
-          position: "relative",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            transform: `translateY(${items[0]?.start ?? 0}px)`,
-          }}
-        >
+      <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+        <div className="absolute top-0 left-0 w-full" style={{ transform: `translateY(${items[0]?.start ?? 0}px)` }}>
           {items.map((virtualRow) => {
             const row = alignedRows[virtualRow.index];
             if (!row) return null;
@@ -114,4 +100,6 @@ export default function VirtualizedDiffRows({
       </div>
     </div>
   );
-}
+};
+
+export default VirtualizedDiffRows;

@@ -5,7 +5,7 @@ import { SpanView } from "@/components/traces/span-view";
 import MatchedSpanDiff from "./matched-span-diff";
 import { useTraceDiffStore } from "./trace-diff-store";
 
-export default function DiffSpanPanel() {
+const DiffSpanPanel = () => {
   const { selectedRowIndex, alignedRows, clearSelection, leftTrace, rightTrace } = useTraceDiffStore((s) => ({
     selectedRowIndex: s.selectedRowIndex,
     alignedRows: s.alignedRows,
@@ -47,4 +47,6 @@ export default function DiffSpanPanel() {
       <SpanView spanId={span.spanId} traceId={traceId} />
     </div>
   );
-}
+};
+
+export default DiffSpanPanel;

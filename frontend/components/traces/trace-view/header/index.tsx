@@ -108,7 +108,16 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
-                      window.open(`/project/${projectId}/traces/diff?left=${trace?.id}`, "_blank");
+                      const diffParams = new URLSearchParams();
+                      diffParams.set("left", trace?.id ?? "");
+                      for (const key of ["pastHours", "startDate", "endDate", "search"] as const) {
+                        const val = searchParams.get(key);
+                        if (val) diffParams.set(key, val);
+                      }
+                      for (const f of searchParams.getAll("filter")) {
+                        diffParams.append("filter", f);
+                      }
+                      window.open(`/project/${projectId}/traces/diff?${diffParams.toString()}`, "_blank");
                     }}
                   >
                     <ArrowLeftRight className="size-3.5" />

@@ -24,7 +24,7 @@ const swrFetcher = async (url: string) => {
 /**
  * Recursively expand JSON strings nested within a value.
  */
-function deepParseJson(value: unknown): unknown {
+const deepParseJson = (value: unknown): unknown => {
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
@@ -47,9 +47,9 @@ function deepParseJson(value: unknown): unknown {
     return result;
   }
   return value;
-}
+};
 
-function prettyPrint(value: unknown): string {
+const prettyPrint = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") {
     try {
@@ -60,11 +60,11 @@ function prettyPrint(value: unknown): string {
     }
   }
   return JSON.stringify(deepParseJson(value), null, 2);
-}
+};
 
 const compactNumberFormat = new Intl.NumberFormat("en-US", { notation: "compact" });
 
-function ComparisonStat({
+const ComparisonStat = ({
   icon,
   leftValue,
   rightValue,
@@ -72,18 +72,16 @@ function ComparisonStat({
   icon: React.ReactNode;
   leftValue: string;
   rightValue: string;
-}) {
-  return (
-    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-muted text-xs font-mono">
-      {icon}
-      <Label className="text-xs text-white">{leftValue}</Label>
-      <ArrowRight className="size-3 text-secondary-foreground" />
-      <Label className="text-xs text-white">{rightValue}</Label>
-    </div>
-  );
-}
+}) => (
+  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-muted text-xs font-mono">
+    {icon}
+    <Label className="text-xs text-white">{leftValue}</Label>
+    <ArrowRight className="size-3 text-secondary-foreground" />
+    <Label className="text-xs text-white">{rightValue}</Label>
+  </div>
+);
 
-export default function MatchedSpanDiff({
+const MatchedSpanDiff = ({
   leftTraceId,
   leftSpanId,
   rightTraceId,
@@ -95,7 +93,7 @@ export default function MatchedSpanDiff({
   rightTraceId: string;
   rightSpanId: string;
   onClose: () => void;
-}) {
+}) => {
   const { projectId } = useParams<{ projectId: string }>();
 
   const { data: leftSpan, isLoading: leftLoading } = useSWR<Span>(
@@ -148,8 +146,8 @@ export default function MatchedSpanDiff({
           />
           <ComparisonStat
             icon={<CircleDollarSign size={12} className="min-w-3" />}
-            leftValue={`$${leftSpan.totalCost?.toFixed(2)}`}
-            rightValue={`$${rightSpan.totalCost?.toFixed(2)}`}
+            leftValue={leftSpan.totalCost != null ? `$${leftSpan.totalCost.toFixed(2)}` : "-"}
+            rightValue={rightSpan.totalCost != null ? `$${rightSpan.totalCost.toFixed(2)}` : "-"}
           />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -198,4 +196,6 @@ export default function MatchedSpanDiff({
       </Tabs>
     </>
   );
-}
+};
+
+export default MatchedSpanDiff;

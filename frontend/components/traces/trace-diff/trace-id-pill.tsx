@@ -12,17 +12,19 @@ import {
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-export default function TraceIdPill({
+const TraceIdPill = ({
   traceId,
   projectId,
   onSelectAnother,
+  selectAnotherDisabled,
   className,
 }: {
   traceId: string;
   projectId: string;
   onSelectAnother: () => void;
+  selectAnotherDisabled?: boolean;
   className?: string;
-}) {
+}) => {
   const { toast } = useToast();
 
   return (
@@ -39,7 +41,7 @@ export default function TraceIdPill({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={onSelectAnother}>
+        <DropdownMenuItem onClick={onSelectAnother} disabled={selectAnotherDisabled}>
           <ArrowLeftRight className="size-3.5" />
           Select another trace
         </DropdownMenuItem>
@@ -64,4 +66,6 @@ export default function TraceIdPill({
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
+};
+
+export default TraceIdPill;

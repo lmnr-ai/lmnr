@@ -8,11 +8,11 @@ import { type DiffRow, type SpanMapping } from "./trace-diff-types";
  * Two-pointer merge: walks both lists in order. Matched pairs are aligned
  * on the same row; unmatched spans become left-only or right-only rows.
  */
-export function computeAlignedRows(
+export const computeAlignedRows = (
   leftSpans: TraceViewListSpan[],
   rightSpans: TraceViewListSpan[],
   mapping: SpanMapping
-): DiffRow[] {
+): DiffRow[] => {
   const leftIdToRight = new Map<string, string>();
   const rightIdToLeft = new Map<string, string>();
 
@@ -62,15 +62,7 @@ export function computeAlignedRows(
     }
   }
 
-  // Emit any remaining right-only spans
-  for (; ri < rightSpans.length; ri++) {
-    const r = rightSpans[ri];
-    if (!emittedRight.has(r.spanId)) {
-      rows.push({ type: "right-only", right: r });
-    }
-  }
-
-  // Also catch any right spans that were skipped entirely
+  // Emit any remaining unmatched right spans
   for (const r of rightSpans) {
     if (!emittedRight.has(r.spanId) && !rightIdToLeft.has(r.spanId)) {
       rows.push({ type: "right-only", right: r });
@@ -78,4 +70,4 @@ export function computeAlignedRows(
   }
 
   return rows;
-}
+};

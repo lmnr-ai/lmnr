@@ -10,7 +10,7 @@ interface DiffTextViewProps {
   rightText: string;
 }
 
-export default function DiffTextView({ leftText, rightText }: DiffTextViewProps) {
+const DiffTextView = ({ leftText, rightText }: DiffTextViewProps) => {
   const changes = useMemo(() => diffWords(leftText, rightText), [leftText, rightText]);
 
   return (
@@ -28,4 +28,6 @@ export default function DiffTextView({ leftText, rightText }: DiffTextViewProps)
       ))}
     </div>
   );
-}
+};
+
+export default DiffTextView;

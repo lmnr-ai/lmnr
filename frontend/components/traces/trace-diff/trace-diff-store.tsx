@@ -13,7 +13,7 @@ import { toListSpans } from "@/components/traces/trace-view/store/utils";
 import { type DiffRow, type SpanMapping } from "./trace-diff-types";
 import { computeAlignedRows } from "./trace-diff-utils";
 
-export type DiffPhase = "selecting" | "loading" | "ready";
+export type DiffPhase = "selecting" | "loading" | "error" | "ready";
 
 interface TraceDiffState {
   phase: DiffPhase;
@@ -30,6 +30,7 @@ interface TraceDiffState {
 
   spanMapping: SpanMapping;
   isMappingLoading: boolean;
+  mappingError: string | null;
   alignedRows: DiffRow[];
 
   selectedRowIndex: number | null;
@@ -42,6 +43,8 @@ interface TraceDiffActions {
   setIsRightLoading: (loading: boolean) => void;
   setIsMappingLoading: (loading: boolean) => void;
   setMapping: (mapping: SpanMapping) => void;
+  setMappingError: (error: string) => void;
+  retryMapping: () => void;
   selectRow: (index: number | null) => void;
   clearSelection: () => void;
   reset: () => void;
@@ -59,12 +62,13 @@ const initialState: TraceDiffState = {
   isRightLoading: false,
   spanMapping: [],
   isMappingLoading: false,
+  mappingError: null,
   alignedRows: [],
   selectedRowIndex: null,
 };
 
-function createTraceDiffStore() {
-  return createStore<TraceDiffStore>()((set, get) => ({
+const createTraceDiffStore = () =>
+  createStore<TraceDiffStore>()((set, get) => ({
     ...initialState,
 
     setLeftData: (trace, spans) => {
@@ -94,25 +98,29 @@ function createTraceDiffStore() {
 
     setMapping: (mapping) => {
       const { leftListSpans, rightListSpans } = get();
-
-      const leftById = new Map(leftListSpans.map((s) => [s.spanId, s]));
-      const rightById = new Map(rightListSpans.map((s) => [s.spanId, s]));
-      console.log(
-        "[trace-diff] Span mapping:",
-        mapping.map(([leftId, rightId]) => ({
-          left: { id: leftId, name: leftById.get(leftId)?.name },
-          right: { id: rightId, name: rightById.get(rightId)?.name },
-        }))
-      );
-
       const alignedRows = computeAlignedRows(leftListSpans, rightListSpans, mapping);
       set({
         spanMapping: mapping,
         alignedRows,
         isMappingLoading: false,
+        mappingError: null,
         phase: "ready",
       });
     },
+
+    setMappingError: (error) =>
+      set({
+        mappingError: error,
+        isMappingLoading: false,
+        phase: "error",
+      }),
+
+    retryMapping: () =>
+      set({
+        mappingError: null,
+        isMappingLoading: true,
+        phase: "loading",
+      }),
 
     selectRow: (index) => set({ selectedRowIndex: index }),
     clearSelection: () => set({ selectedRowIndex: null }),
@@ -126,11 +134,10 @@ function createTraceDiffStore() {
         isLeftLoading: false,
       }),
   }));
-}
 
 const TraceDiffStoreContext = createContext<StoreApi<TraceDiffStore> | undefined>(undefined);
 
-export function TraceDiffStoreProvider({ children }: PropsWithChildren) {
+export const TraceDiffStoreProvider = ({ children }: PropsWithChildren) => {
   const storeRef = useRef<StoreApi<TraceDiffStore>>(undefined);
 
   if (storeRef.current == null) {
@@ -138,12 +145,12 @@ export function TraceDiffStoreProvider({ children }: PropsWithChildren) {
   }
 
   return <TraceDiffStoreContext.Provider value={storeRef.current!}>{children}</TraceDiffStoreContext.Provider>;
-}
+};
 
-export function useTraceDiffStore<T>(selector: (store: TraceDiffStore) => T): T {
+export const useTraceDiffStore = <T,>(selector: (store: TraceDiffStore) => T): T => {
   const store = useContext(TraceDiffStoreContext);
   if (!store) {
     throw new Error("useTraceDiffStore must be used within a TraceDiffStoreProvider");
   }
   return useStore(store, selector);
-}
+};

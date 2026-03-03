@@ -1,6 +1,6 @@
 "use client";
 
-export default function MetricDelta({
+const MetricDelta = ({
   icon,
   leftValue,
   rightValue,
@@ -10,7 +10,7 @@ export default function MetricDelta({
   leftValue: number;
   rightValue: number | undefined;
   formatValue: (v: number) => string;
-}) {
+}) => {
   if (rightValue === undefined) {
     return (
       <div className="flex items-center gap-1.5 text-xs text-secondary-foreground bg-muted px-1.5 py-1 rounded-md">
@@ -39,4 +39,6 @@ export default function MetricDelta({
       )}
     </div>
   );
-}
+};
+
+export default MetricDelta;

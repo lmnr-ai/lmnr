@@ -9,9 +9,9 @@ import { cn } from "@/lib/utils";
 import SpanCell from "./span-cell";
 import { type DiffRow } from "./trace-diff-types";
 
-function VoidCell({ className }: { className?: string }) {
-  return <div className={cn("h-full min-h-[40px] rounded-sm", className)} />;
-}
+const VoidCell = ({ className }: { className?: string }) => (
+  <div className={cn("h-full min-h-[40px] rounded-sm", className)} />
+);
 
 interface DiffSpanRowProps {
   row: DiffRow;
@@ -22,7 +22,7 @@ interface DiffSpanRowProps {
   rightOutput: unknown;
 }
 
-export default function DiffSpanRow({ row, index, isSelected, onClick, leftOutput, rightOutput }: DiffSpanRowProps) {
+const DiffSpanRow = ({ row, index, isSelected, onClick, leftOutput, rightOutput }: DiffSpanRowProps) => {
   const diffChanges = useMemo(() => {
     if (row.type !== "matched") return undefined;
     if (leftOutput === undefined || rightOutput === undefined) return undefined;
@@ -68,4 +68,6 @@ export default function DiffSpanRow({ row, index, isSelected, onClick, leftOutpu
       </div>
     </div>
   );
-}
+};
+
+export default DiffSpanRow;

@@ -16,32 +16,30 @@ import { cn } from "@/lib/utils";
 
 const EXPANDABLE_TYPES = new Set(["LLM", "CACHED", "EXECUTOR", "EVALUATOR"]);
 
-function DiffContent({ changes, side }: { changes: Change[]; side: "left" | "right" }) {
-  return (
-    <div className="font-mono text-xs whitespace-pre-wrap break-all leading-5 max-h-60 overflow-hidden">
-      {changes.map((change, i) => {
-        if (side === "left" && change.added) return null;
-        if (side === "right" && change.removed) return null;
+const DiffContent = ({ changes, side }: { changes: Change[]; side: "left" | "right" }) => (
+  <div className="font-mono text-xs whitespace-pre-wrap break-all leading-5 max-h-60 overflow-hidden">
+    {changes.map((change, i) => {
+      if (side === "left" && change.added) return null;
+      if (side === "right" && change.removed) return null;
 
-        const isHighlighted = (side === "left" && change.removed) || (side === "right" && change.added);
+      const isHighlighted = (side === "left" && change.removed) || (side === "right" && change.added);
 
-        return (
-          <span
-            key={i}
-            className={cn(
-              isHighlighted && side === "left" && "bg-red-500/20 text-destructive",
-              isHighlighted && side === "right" && "bg-green-500/20 text-green-300"
-            )}
-          >
-            {change.value}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
+      return (
+        <span
+          key={i}
+          className={cn(
+            isHighlighted && side === "left" && "bg-red-500/20 text-destructive",
+            isHighlighted && side === "right" && "bg-green-500/20 text-green-300"
+          )}
+        >
+          {change.value}
+        </span>
+      );
+    })}
+  </div>
+);
 
-export default function SpanCell({
+const SpanCell = ({
   span,
   output,
   diffSide,
@@ -51,7 +49,7 @@ export default function SpanCell({
   output: unknown;
   diffSide?: "left" | "right";
   diffChanges?: Change[];
-}) {
+}) => {
   const isLoadingOutput = output === undefined;
   const [isExpanded, setIsExpanded] = useState(EXPANDABLE_TYPES.has(span.spanType));
 
@@ -103,4 +101,6 @@ export default function SpanCell({
       )}
     </div>
   );
-}
+};
+
+export default SpanCell;
