@@ -99,7 +99,7 @@ export const onRealtimeStartSpan =
         };
         newSpans.push(pendingSpan);
 
-        newSpans.sort((a, b) => a.startTime.localeCompare(b.startTime));
+        newSpans.sort((a, b) => parseTimestampToMs(a.startTime) - parseTimestampToMs(b.startTime));
 
         return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
       }
