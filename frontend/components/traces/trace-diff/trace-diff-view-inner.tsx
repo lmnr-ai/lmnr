@@ -100,13 +100,22 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     if (phase !== "loading") return;
     if (!rightTraceId) return;
 
+    let stale = false;
     setIsMappingLoading(true);
     generateSpanMapping(projectId, leftTraceId, rightTraceId)
-      .then((mapping) => setMapping(mapping))
+      .then((mapping) => {
+        if (!stale) setMapping(mapping);
+      })
       .catch((e) => {
-        console.error("Failed to compute mapping:", e);
-        setMappingError(e instanceof Error ? e.message : "Failed to analyze trace diff");
+        if (!stale) {
+          console.error("Failed to compute mapping:", e);
+          setMappingError(e instanceof Error ? e.message : "Failed to analyze trace diff");
+        }
       });
+
+    return () => {
+      stale = true;
+    };
   }, [phase, projectId, leftTraceId, rightTraceId, setIsMappingLoading, setMapping, setMappingError]);
 
   const handleSelectLeft = useCallback(
@@ -129,41 +138,6 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
 
   const [selectingSide, setSelectingSide] = useState<SelectingSide>(null);
 
-  if (isLeftLoading) {
-    return (
-      <div className="flex flex-col h-full overflow-hidden">
-        {/* Header skeleton: h-12, pl-2.5 pr-4 */}
-        <div className="flex items-center flex-none h-12 pl-2.5 pr-4 gap-2">
-          <Skeleton className="h-7 w-7 rounded" />
-          <Skeleton className="h-5 w-16 rounded" />
-          <Skeleton className="h-5 w-3" />
-          <Skeleton className="h-6 w-56 rounded-md" />
-        </div>
-        {/* MetricsBar skeleton: px-4 pb-2 */}
-        <div className="flex items-center gap-2 px-4 pb-2">
-          <Skeleton className="h-7 w-24 rounded-md" />
-          <Skeleton className="h-7 w-20 rounded-md" />
-          <Skeleton className="h-7 w-20 rounded-md" />
-        </div>
-        {/* Two-column diff area */}
-        <div className="flex flex-1 overflow-hidden border-t gap-0.5 p-1">
-          <div className="flex-1 flex flex-col gap-0.5">
-            <Skeleton className="h-28 w-full rounded-sm" />
-            <Skeleton className="h-20 w-full rounded-sm" />
-            <Skeleton className="h-36 w-full rounded-sm" />
-            <Skeleton className="h-20 w-full rounded-sm" />
-          </div>
-          <div className="flex-1 flex flex-col gap-0.5">
-            <Skeleton className="h-28 w-full rounded-sm" />
-            <Skeleton className="h-20 w-full rounded-sm" />
-            <Skeleton className="h-36 w-full rounded-sm" />
-            <Skeleton className="h-20 w-full rounded-sm" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const breadcrumbSegments = [{ name: "traces", href: `/project/${projectId}/traces` }];
 
   return (
@@ -174,7 +148,7 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
           traceId={leftTraceId}
           projectId={projectId}
           onSelectAnother={() => setSelectingSide("left")}
-          selectAnotherDisabled={selectingSide !== null}
+          selectAnotherDisabled={selectingSide !== null || isLeftLoading}
           className="ml-2"
         />
         {rightTraceId && (
@@ -184,20 +158,46 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
               traceId={rightTraceId}
               projectId={projectId}
               onSelectAnother={() => setSelectingSide("right")}
-              selectAnotherDisabled={selectingSide !== null}
+              selectAnotherDisabled={selectingSide !== null || isLeftLoading}
             />
           </>
         )}
       </Header>
-      <div className="px-4 pb-2">
-        <MetricsBar />
-      </div>
-      <DiffColumns
-        onSelectLeft={handleSelectLeft}
-        onSelectRight={handleSelectRight}
-        selectingSide={selectingSide}
-        setSelectingSide={setSelectingSide}
-      />
+      {isLeftLoading ? (
+        <>
+          <div className="flex items-center gap-2 px-4 pb-2">
+            <Skeleton className="h-7 w-24 rounded-md" />
+            <Skeleton className="h-7 w-20 rounded-md" />
+            <Skeleton className="h-7 w-20 rounded-md" />
+          </div>
+          <div className="flex flex-1 overflow-hidden border-t gap-0.5 p-1">
+            <div className="flex-1 flex flex-col gap-0.5">
+              <Skeleton className="h-28 w-full rounded-sm" />
+              <Skeleton className="h-20 w-full rounded-sm" />
+              <Skeleton className="h-36 w-full rounded-sm" />
+              <Skeleton className="h-20 w-full rounded-sm" />
+            </div>
+            <div className="flex-1 flex flex-col gap-0.5">
+              <Skeleton className="h-28 w-full rounded-sm" />
+              <Skeleton className="h-20 w-full rounded-sm" />
+              <Skeleton className="h-36 w-full rounded-sm" />
+              <Skeleton className="h-20 w-full rounded-sm" />
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="px-4 pb-2">
+            <MetricsBar />
+          </div>
+          <DiffColumns
+            onSelectLeft={handleSelectLeft}
+            onSelectRight={handleSelectRight}
+            selectingSide={selectingSide}
+            setSelectingSide={setSelectingSide}
+          />
+        </>
+      )}
     </div>
   );
 };

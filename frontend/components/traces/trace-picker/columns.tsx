@@ -50,13 +50,6 @@ const TopSpanCell = ({ row }: { row: TraceRow }) => {
   );
 };
 
-const DurationCell = ({ startTime, endTime }: { startTime: string; endTime: string }) => {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return <>-</>;
-  return <>{`${((end.getTime() - start.getTime()) / 1000).toFixed(2)}s`}</>;
-};
-
 const TokensCell = ({ row }: { row: TraceRow }) => (
   <div className="truncate">
     {`${row.inputTokens ?? "-"}`}

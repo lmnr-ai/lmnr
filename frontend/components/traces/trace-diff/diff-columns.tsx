@@ -105,7 +105,7 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
       }
       setSelectingSide(null);
     },
-    [selectingSide, onSelectLeft, onSelectRight]
+    [selectingSide, onSelectLeft, onSelectRight, setSelectingSide]
   );
 
   const excludeTraceId = selectingSide === "left" ? rightTrace?.id : leftTrace?.id;
@@ -117,7 +117,7 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     return (
       <div className="flex flex-1 overflow-hidden">
         {/* Left column */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden gap-2">
           {showSelectorOnLeft ? (
             <div className="size-full p-2">
               <TraceSelector onSelect={handleSelect} excludeTraceId={excludeTraceId} />
@@ -144,7 +144,7 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
   // Phase: selecting (initial state, no right trace yet)
   if (phase === "selecting") {
     return (
-      <div className="flex flex-1 overflow-hidden border-t">
+      <div className="flex flex-1 overflow-hidden border-t gap-2">
         <div className="flex-1 flex flex-col overflow-hidden">
           <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
         </div>
@@ -160,7 +160,7 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     return (
       <div className="flex flex-col flex-1 overflow-hidden">
         <MappingError error={mappingError} onRetry={retryMapping} />
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden gap-2">
           <div className="flex-1 flex flex-col overflow-hidden pl-4">
             <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
           </div>
@@ -176,10 +176,10 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
   if (phase === "loading" || isMappingLoading) {
     return (
       <div className="flex flex-col flex-1 overflow-hidden">
-        <div className="flex-none flex items-center justify-center py-2 bg-secondary">
+        <div className="flex-none flex items-center justify-center py-2 bg-secondary border-b border-b-background">
           <span className="text-sm text-muted-foreground shimmer">Analyzing trace diff</span>
         </div>
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden gap-2">
           <div className="flex-1 flex flex-col overflow-hidden pl-4">
             <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
           </div>

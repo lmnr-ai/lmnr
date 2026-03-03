@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 
 import {
@@ -73,11 +73,22 @@ const createTraceDiffStore = () =>
 
     setLeftData: (trace, spans) => {
       const listSpans = toListSpans(spans);
+      const hasRight = !!get().rightTrace;
       set({
         leftTrace: trace,
         leftSpans: spans,
         leftListSpans: listSpans,
         isLeftLoading: false,
+        // If right trace exists, reset mapping state so it re-runs
+        ...(hasRight
+          ? {
+              phase: "loading" as DiffPhase,
+              spanMapping: [],
+              alignedRows: [],
+              selectedRowIndex: null,
+              mappingError: null,
+            }
+          : {}),
       });
     },
 
@@ -138,13 +149,8 @@ const createTraceDiffStore = () =>
 const TraceDiffStoreContext = createContext<StoreApi<TraceDiffStore> | undefined>(undefined);
 
 export const TraceDiffStoreProvider = ({ children }: PropsWithChildren) => {
-  const storeRef = useRef<StoreApi<TraceDiffStore>>(undefined);
-
-  if (storeRef.current == null) {
-    storeRef.current = createTraceDiffStore();
-  }
-
-  return <TraceDiffStoreContext.Provider value={storeRef.current!}>{children}</TraceDiffStoreContext.Provider>;
+  const [store] = useState(createTraceDiffStore);
+  return <TraceDiffStoreContext.Provider value={store}>{children}</TraceDiffStoreContext.Provider>;
 };
 
 export const useTraceDiffStore = <T,>(selector: (store: TraceDiffStore) => T): T => {

@@ -40,7 +40,7 @@ const DiffSpanRow = ({ row, index, isSelected, onClick, leftOutput, rightOutput 
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") onClick(index);
       }}
-      className="group/row flex w-full gap-0.5 transition-colors cursor-pointer text-left pb-0.5"
+      className="group/row flex w-full gap-2 transition-colors cursor-pointer text-left pb-0.5"
     >
       <div
         className={cn(

@@ -33,7 +33,16 @@ export function useBatchedSpanOutputs(
 
   const fetchBatch = useCallback(
     async (spanIds: string[]) => {
-      if (spanIds.length === 0 || !trace?.id) return;
+      if (spanIds.length === 0 || !trace?.id) {
+        // If trace isn't ready yet, move IDs back to pending so they can be
+        // retried once the trace becomes available, instead of leaving them
+        // stuck in the fetching set forever.
+        spanIds.forEach((id) => {
+          fetching.current.delete(id);
+          pendingFetch.current.add(id);
+        });
+        return;
+      }
 
       try {
         const body: Record<string, any> = { spanIds };
@@ -63,18 +72,15 @@ export function useBatchedSpanOutputs(
 
         const data = (await response.json()) as { outputs: Record<string, any> };
 
+        const fetched: Record<string, any> = {};
         spanIds.forEach((id) => {
-          cache.current.set(id, get(data.outputs, id, null));
+          const value = get(data.outputs, id, null);
+          cache.current.set(id, value);
           fetching.current.delete(id);
+          fetched[id] = value;
         });
 
-        setOutputs((prev) => {
-          const next = { ...prev };
-          spanIds.forEach((id) => {
-            next[id] = cache.current.get(id);
-          });
-          return next;
-        });
+        setOutputs((prev) => ({ ...prev, ...fetched }));
       } catch (error) {
         toast({
           variant: "destructive",
@@ -99,6 +105,11 @@ export function useBatchedSpanOutputs(
     [projectId, toast, trace, isShared]
   );
 
+  // Keep a ref to always call the latest fetchBatch from the debounced timer,
+  // avoiding stale closures where an old fetchBatch has trace.id === undefined.
+  const fetchBatchRef = useRef(fetchBatch);
+  fetchBatchRef.current = fetchBatch;
+
   const scheduleFetch = useCallback(async () => {
     if (pendingFetch.current.size === 0) return;
 
@@ -106,8 +117,8 @@ export function useBatchedSpanOutputs(
     pendingFetch.current.clear();
 
     toFetch.forEach((id) => fetching.current.add(id));
-    await fetchBatch(toFetch);
-  }, [fetchBatch]);
+    await fetchBatchRef.current(toFetch);
+  }, []);
 
   useEffect(() => {
     const currentIdsKey = visibleSpanIds.join(",");
