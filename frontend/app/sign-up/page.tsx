@@ -8,8 +8,7 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
   title: "Sign Up - Laminar",
-  description:
-    "Create a free Laminar account. Start tracing and evaluating your AI agents in minutes.",
+  description: "Create a free Laminar account. Start tracing and evaluating your AI agents in minutes.",
 };
 
 export default async function SignUpPage(props: {
@@ -43,6 +42,7 @@ export default async function SignUpPage(props: {
       enableGithub={isFeatureEnabled(Feature.GITHUB_AUTH)}
       enableGoogle={isFeatureEnabled(Feature.GOOGLE_AUTH)}
       enableAzure={isFeatureEnabled(Feature.AZURE_AUTH)}
+      enableOkta={isFeatureEnabled(Feature.OKTA_AUTH)}
       callbackUrl={callbackUrl}
     />
   );

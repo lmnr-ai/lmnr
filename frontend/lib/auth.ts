@@ -3,6 +3,7 @@ import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GithubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
+import OktaProvider from "next-auth/providers/okta";
 
 import { createUser, getUserByEmail, updateUserAvatar } from "@/lib/db/auth";
 import { getEmailsConfig } from "@/lib/server-utils";
@@ -35,6 +36,15 @@ const getProviders = () => {
           clientId: process.env.AUTH_AZURE_AD_CLIENT_ID!,
           clientSecret: process.env.AUTH_AZURE_AD_CLIENT_SECRET!,
           tenantId: process.env.AUTH_AZURE_AD_TENANT_ID!,
+        }),
+    },
+    {
+      feature: Feature.OKTA_AUTH,
+      provider: () =>
+        OktaProvider({
+          clientId: process.env.AUTH_OKTA_CLIENT_ID!,
+          clientSecret: process.env.AUTH_OKTA_CLIENT_SECRET!,
+          issuer: process.env.AUTH_OKTA_ISSUER!,
         }),
     },
     {
