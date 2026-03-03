@@ -43,14 +43,17 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
     }
   }, [data]);
 
-  const showError = useCallback((message: string) => {
-    toast({
-      title: "Add datapoint error",
-      variant: "destructive",
-      description: message,
-      duration: 10000,
-    });
-  }, []);
+  const showError = useCallback(
+    (message: string) => {
+      toast({
+        title: "Add datapoint error",
+        variant: "destructive",
+        description: message,
+        duration: 10000,
+      });
+    },
+    [toast]
+  );
 
   const addDatapoint = async () => {
     setIsLoading(true);

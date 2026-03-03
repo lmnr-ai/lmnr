@@ -1,7 +1,7 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
@@ -47,21 +47,15 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
   const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
 
-  const [isExpanded, setIsExpanded] = useState(
+  const defaultExpanded =
     span.spanType === "LLM" ||
-      span.spanType === "CACHED" ||
-      span.spanType === "EXECUTOR" ||
-      span.spanType === "EVALUATOR"
-  );
+    span.spanType === "CACHED" ||
+    span.spanType === "EXECUTOR" ||
+    span.spanType === "EVALUATOR";
 
-  useEffect(() => {
-    const shouldBeExpanded =
-      span.spanType === "LLM" ||
-      span.spanType === "CACHED" ||
-      span.spanType === "EXECUTOR" ||
-      span.spanType === "EVALUATOR";
-    setIsExpanded(shouldBeExpanded);
-  }, [span.spanId, span.spanType]);
+  const [expandOverride, setExpandOverride] = useState<{ spanId: string; expanded: boolean } | null>(null);
+
+  const isExpanded = expandOverride?.spanId === span.spanId ? expandOverride.expanded : defaultExpanded;
 
   const isPending = span.pending;
   const isLoadingOutput = output === undefined;
@@ -112,7 +106,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
                 variant="ghost"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsExpanded((prevState) => !prevState);
+                  setExpandOverride({ spanId: span.spanId, expanded: !isExpanded });
                 }}
                 className="h-5 py-0 px-0.5 hover:bg-muted rounded transition-colors"
               >

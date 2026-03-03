@@ -1,5 +1,5 @@
 # Build stage with cargo chef for dependency caching
-FROM rust:1.90-slim-bullseye AS chef
+FROM rust:1.93-slim-trixie AS chef
 WORKDIR /app-server
 
 # Install build dependencies and cargo-chef
@@ -30,12 +30,12 @@ COPY . .
 RUN cargo build --release --all
 
 # Final runtime stage
-FROM debian:bullseye-slim AS runtime
+FROM debian:trixie-slim AS runtime
 WORKDIR /app-server
 
 # Install only runtime dependencies
 RUN apt-get update && apt-get install -y \
-    libssl1.1 \
+    libssl3 \
     libfontconfig1 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*

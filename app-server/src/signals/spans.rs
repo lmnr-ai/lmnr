@@ -276,23 +276,83 @@ pub fn spans_to_skeleton_string(spans: &[CompressedSpan]) -> String {
     skeleton
 }
 
+// TODO: move these two functions to CH Query engine for better integration
+// with hybrid deployment mode.
 /// Query trace spans from ClickHouse
-pub async fn get_trace_spans(
+async fn get_trace_spans(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
     trace_id: Uuid,
 ) -> Result<Vec<CHSpan>> {
-    let query = r#"
-        SELECT * FROM spans
+    let query = "
+        SELECT
+            span_id,
+            name,
+            span_type,
+            start_time,
+            end_time,
+            input_cost,
+            output_cost,
+            total_cost,
+            model,
+            session_id,
+            project_id,
+            trace_id,
+            provider,
+            input_tokens,
+            output_tokens,
+            total_tokens,
+            user_id,
+            path,
+            input,
+            output,
+            size_bytes,
+            status,
+            attributes,
+            request_model,
+            response_model,
+            parent_span_id,
+            trace_metadata,
+            trace_type,
+            tags_array,
+            events
+        FROM spans
         WHERE project_id = ? AND trace_id = ?
         ORDER BY start_time ASC
-    "#;
+    ";
 
     let spans = clickhouse
         .query(query)
         .bind(project_id)
         .bind(trace_id)
         .fetch_all::<CHSpan>()
+        .await?;
+
+    Ok(spans)
+}
+
+#[derive(clickhouse::Row, Deserialize)]
+pub struct SpanIdAndEndTime {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub span_id: Uuid,
+    pub end_time: i64,
+}
+
+pub async fn get_trace_span_ids_and_end_time(
+    clickhouse: clickhouse::Client,
+    project_id: Uuid,
+    trace_id: Uuid,
+) -> Result<Vec<SpanIdAndEndTime>> {
+    let query = "
+        SELECT span_id, end_time FROM spans
+        WHERE project_id = ? AND trace_id = ?
+        ORDER BY start_time ASC";
+
+    let spans = clickhouse
+        .query(query)
+        .bind(project_id)
+        .bind(trace_id)
+        .fetch_all()
         .await?;
 
     Ok(spans)

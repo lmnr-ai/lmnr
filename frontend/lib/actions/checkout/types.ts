@@ -108,6 +108,8 @@ export interface UpcomingInvoiceInfo {
   lines: {
     lookupKey: string | null;
     amount: number;
+    periodStart: number;
+    periodEnd: number;
   }[];
 }
 

@@ -2,7 +2,7 @@ import { closeSearchPanel, findNext, openSearchPanel, SearchQuery, setSearchQuer
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import Messages from "@/components/traces/span-view/messages";
 import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context.tsx";
@@ -75,7 +75,9 @@ const PureContentRenderer = ({
 }: ContentRendererProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const editorIdRef = useRef(`editor-${Math.random().toString(36).substring(7)}`);
+  const editorId = useId();
+
+  const editorIdRef = useRef(`editor-${editorId}`);
   const searchCoordinator = useSpanSearchContext();
 
   const [mode, setMode] = useState(() => {

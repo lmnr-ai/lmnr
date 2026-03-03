@@ -188,7 +188,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           props.onClick?.(e as any);
         }
       },
-      [props.onClick]
+      [props.onClick, props.disabled, isHandledKey]
     );
 
     React.useEffect(() => {
@@ -201,13 +201,18 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           window.removeEventListener("keydown", handleKeyDown as any);
         }
       };
-    }, [props.onClick]);
+    }, [props.onClick, props.disabled, isHandledKey, handleKeyDown, handleKeysUp]);
 
     // Get the icon component from the map
     const IconComponent = icon ? iconMap[icon] : null;
 
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...(!asChild && { type })} {...props}>
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...(!asChild && { type })}
+        {...props}
+      >
         {IconComponent && (
           <IconComponent className={cn(size === "sm" ? "size-3" : "size-3.5", { "mr-1": !!children })} />
         )}

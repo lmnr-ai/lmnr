@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import React, { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
@@ -74,13 +74,9 @@ const createSpanViewStore = () =>
 const SpanViewStoreContext = createContext<StoreApi<SpanViewStore> | null>(null);
 
 export function SpanViewStateProvider({ children }: PropsWithChildren) {
-  const storeRef = useRef<StoreApi<SpanViewStore> | undefined>(undefined);
+  const [storeState] = useState(() => createSpanViewStore());
 
-  if (!storeRef.current) {
-    storeRef.current = createSpanViewStore();
-  }
-
-  return <SpanViewStoreContext.Provider value={storeRef.current}>{children}</SpanViewStoreContext.Provider>;
+  return <SpanViewStoreContext.Provider value={storeState}>{children}</SpanViewStoreContext.Provider>;
 }
 
 export function useSpanViewStore<T>(selector: (store: SpanViewStore) => T): T {
