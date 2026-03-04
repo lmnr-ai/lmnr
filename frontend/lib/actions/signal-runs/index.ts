@@ -46,7 +46,7 @@ export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) 
     pastHours,
   });
 
-  const items = await executeQuery<SignalRunRow>({
+  const { data: items, meta } = await executeQuery<SignalRunRow>({
     query: mainQuery,
     parameters: mainParams,
     projectId,
@@ -54,5 +54,6 @@ export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) 
 
   return {
     items,
+    meta,
   };
 };

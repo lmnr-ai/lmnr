@@ -23,7 +23,9 @@ export const getSharedSpan = async (input: z.infer<typeof GetSharedSpanSchema>) 
     throw new Error("No shared trace found.");
   }
 
-  const [span] = await executeQuery<
+  const {
+    data: [span],
+  } = await executeQuery<
     Omit<Span, "attributes" | "events"> & {
       attributes: string;
       events: { timestamp: number; name: string; attributes: string }[];

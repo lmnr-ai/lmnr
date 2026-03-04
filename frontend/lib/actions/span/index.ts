@@ -81,7 +81,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   // spans table. ClickHouse JSON format serializes named tuples as objects and Int64 as unquoted
   // numbers (output_format_json_quote_64bit_integers = 0), so each event arrives as
   // { timestamp: number, name: string, attributes: string }.
-  const [span] = await executeQuery<
+  const { data } = await executeQuery<
     Omit<Span, "attributes" | "events"> & {
       attributes: string;
       events: { timestamp: number; name: string; attributes: string }[];
@@ -91,6 +91,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     parameters,
     projectId,
   });
+  const [span] = data;
 
   if (!span) {
     throw new Error("Span not found");

@@ -8,9 +8,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json();
     const projectId = (await params).projectId;
 
-    const data = await executeQuery({ ...body, projectId });
+    const result = await executeQuery({ ...body, projectId });
 
-    return Response.json(data);
+    return Response.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });

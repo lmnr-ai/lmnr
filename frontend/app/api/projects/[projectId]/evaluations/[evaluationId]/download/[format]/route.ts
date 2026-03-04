@@ -30,19 +30,21 @@ export async function GET(
     return Response.json({ error: "Evaluation not found" }, { status: 404 });
   }
 
-  const chDatapoints = (await executeQuery({
-    projectId,
-    query: `
+  const chDatapoints = (
+    await executeQuery({
+      projectId,
+      query: `
         SELECT id, index, executor_output executorOutput, data, target, metadata, scores, created_at createdAt
         FROM evaluation_datapoints
         WHERE evaluation_id = {evaluationId: UUID}
         ORDER BY index ASC, created_at ASC
       `,
-    parameters: {
-      projectId,
-      evaluationId,
-    },
-  })) as {
+      parameters: {
+        projectId,
+        evaluationId,
+      },
+    })
+  ).data as {
     id: string;
     index: number;
     executorOutput: string;

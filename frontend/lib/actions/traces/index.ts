@@ -38,7 +38,7 @@ export const GetTracesByIdsSchema = z.object({
   traceIds: z.array(z.string()).min(1),
 });
 
-export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise<{ items: TraceRow[] }> {
+export async function getTraces(input: z.infer<typeof GetTracesSchema>) {
   const {
     projectId,
     pastHours,
@@ -90,7 +90,11 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     pastHours,
   });
 
-  const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
+  const { data: items, meta } = await executeQuery<TraceRow>({
+    query: mainQuery,
+    parameters: mainParams,
+    projectId,
+  });
 
   // If we have traceIds from search, sort items to match the search order
   if (search && traceIds.length > 0) {
@@ -104,6 +108,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
 
   return {
     items,
+    meta,
   };
 }
 
@@ -146,14 +151,14 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
     pastHours,
   });
 
-  const result = await executeQuery<{ count: number }>({
+  const { data } = await executeQuery<{ count: number }>({
     query: countQuery,
     parameters: countParams,
     projectId,
   });
 
   return {
-    count: result[0]?.count ?? 0,
+    count: data[0]?.count ?? 0,
   };
 }
 
@@ -177,11 +182,12 @@ export async function getTracesByIds(input: z.infer<typeof GetTracesByIdsSchema>
     WHERE id IN ({traceIds:Array(UUID)})
   `;
 
-  return await executeQuery<TraceRow>({
+  const { data } = await executeQuery<TraceRow>({
     query,
     parameters: { projectId, traceIds },
     projectId,
   });
+  return data;
 }
 
 export async function deleteTraces(input: z.infer<typeof DeleteTracesSchema>) {

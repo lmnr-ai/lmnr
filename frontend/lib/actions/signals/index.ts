@@ -331,7 +331,9 @@ export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) =>
       LIMIT 1
   `;
 
-  const [result] = await executeQuery<{ id: string; timestamp: string }>({
+  const {
+    data: [result],
+  } = await executeQuery<{ id: string; timestamp: string }>({
     projectId,
     query,
     parameters: {

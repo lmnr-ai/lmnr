@@ -20,7 +20,7 @@ export const getSharedSpans = async (input: z.infer<typeof GetSharedTraceSchema>
     throw new Error("No shared trace found.");
   }
 
-  const spans = await executeQuery<
+  const { data: spans } = await executeQuery<
     Omit<TraceViewSpan, "attributes" | "events"> & {
       attributes: string;
       events: { timestamp: number; name: string; attributes: string }[];

@@ -23,7 +23,7 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
 
   const projectId = sharedTrace.projectId;
 
-  const [[trace], [cacheTokens]] = await Promise.all([
+  const [traceResult, cacheTokensResult] = await Promise.all([
     executeQuery<Omit<TraceViewTrace, "visibility">>({
       query: `
       SELECT
@@ -63,6 +63,8 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
       },
     }),
   ]);
+  const [trace] = traceResult.data;
+  const [cacheTokens] = cacheTokensResult.data;
 
   if (!trace) {
     return undefined;

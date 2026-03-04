@@ -9,7 +9,7 @@ import { createExtensions, type SQLSchemaConfig, theme } from "@/components/sql/
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import type { GenerationMode } from "@/lib/actions/sql";
+import { type GenerationMode } from "@/lib/actions/sql/types.ts";
 import { toast } from "@/lib/hooks/use-toast";
 
 export interface SQLEditorProps {

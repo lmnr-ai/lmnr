@@ -82,7 +82,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     }
 
     // Get counts from ClickHouse for these evaluations
-    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>({
+    const { data: datapointCounts } = await executeQuery<{ evaluation_id: string; count: number }>({
       projectId,
       query: `
         SELECT 
@@ -92,7 +92,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
         WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
       `,
-      parameters: { 
+      parameters: {
         projectId,
         evaluationIds: allEvaluationIds,
       },
@@ -156,7 +156,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   // Fetch counts for the returned evaluations to include in the response
   let itemsWithCounts = result.items;
   if (result.items.length > 0) {
-    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>({
+    const { data: datapointCounts } = await executeQuery<{ evaluation_id: string; count: number }>({
       projectId,
       query: `
         SELECT 

@@ -19,6 +19,7 @@ import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-fil
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
+import { type QueryResultMeta } from "@/lib/actions/sql/types";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
@@ -141,8 +142,8 @@ function TracesTableContent() {
           throw new Error(text.error);
         }
 
-        const data = (await res.json()) as { items: TraceRow[] };
-        return { items: data.items, count: 0 };
+        const data = (await res.json()) as { items: TraceRow[]; meta?: QueryResultMeta };
+        return { items: data.items, count: 0, meta: data.meta };
       } catch (error) {
         toast({
           title: "Error",

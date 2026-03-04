@@ -6,8 +6,14 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { useDataTableStore } from "../model/datatable-store.tsx";
 
+export interface FetchResult<TData> {
+  items: TData[];
+  count?: number;
+  meta?: { warning?: string };
+}
+
 export interface InfiniteScrollOptions<TData> {
-  fetchFn: (pageParam: number) => Promise<{ items: TData[]; count?: number }>;
+  fetchFn: (pageParam: number) => Promise<FetchResult<TData>>;
   enabled?: boolean;
   deps?: DependencyList;
 }
@@ -36,6 +42,7 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
     appendData,
     setError,
     setData,
+    setWarning,
     resetInfiniteScroll,
   } = useStoreWithEqualityFn(
     store,
@@ -47,6 +54,7 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
       appendData: state.appendData,
       setData: state.setData,
       setError: state.setError,
+      setWarning: state.setWarning,
       resetInfiniteScroll: state.resetInfiniteScroll,
     }),
     shallow
@@ -66,6 +74,8 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
 
         const result = await fetchFn(pageNumber);
 
+        setWarning(result.meta?.warning);
+
         if (shouldReset) {
           replaceData(result.items, result.count);
         } else {
@@ -78,7 +88,7 @@ export function useInfiniteScroll<TData>({ fetchFn, enabled = true, deps = [] }:
         setIsLoading(false);
       }
     },
-    [enabled, setIsFetching, fetchFn, setCurrentPage, setIsLoading, replaceData, appendData, setError]
+    [enabled, setIsFetching, fetchFn, setCurrentPage, setIsLoading, replaceData, appendData, setError, setWarning]
   );
 
   const fetchNextPage = useCallback(() => {

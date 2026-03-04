@@ -23,7 +23,7 @@ export async function getSpanOutputs(input: z.infer<typeof GetSpanOutputsSchema>
     whereConditions.push("start_time <= {endDate: String}");
   }
 
-  const results = await executeQuery<{ spanId: string; output: string }>({
+  const { data: results } = await executeQuery<{ spanId: string; output: string }>({
     projectId,
     query: `
         SELECT
@@ -49,4 +49,3 @@ export async function getSpanOutputs(input: z.infer<typeof GetSpanOutputsSchema>
 
   return outputsMap;
 }
-

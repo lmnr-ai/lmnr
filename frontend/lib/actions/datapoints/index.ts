@@ -67,7 +67,7 @@ export async function countDatapoints(input: z.infer<typeof CountDatapointsSchem
     datasetId,
   });
 
-  const countResult = await executeQuery<{ count: number }>({
+  const { data: countResult } = await executeQuery<{ count: number }>({
     query: countQuery,
     parameters: countParams,
     projectId,
@@ -91,11 +91,13 @@ export async function getDatapoints(input: z.infer<typeof ListDatapointsSchema>)
     offset,
   });
 
-  const datapointsData = (await executeQuery<Record<string, unknown>>({
-    query: datapointsQuery,
-    parameters: datapointsParams,
-    projectId,
-  })) as unknown as DatapointResult[];
+  const datapointsData = (
+    await executeQuery<Record<string, unknown>>({
+      query: datapointsQuery,
+      parameters: datapointsParams,
+      projectId,
+    })
+  ).data as unknown as DatapointResult[];
 
   return {
     items: datapointsData,
@@ -117,11 +119,13 @@ export async function pushDatapointsToQueue(input: z.infer<typeof PushDatapoints
     datasetId,
   });
 
-  const datapoints = (await executeQuery<Record<string, unknown>>({
-    query,
-    parameters,
-    projectId,
-  })) as unknown as DatapointResult[];
+  const datapoints = (
+    await executeQuery<Record<string, unknown>>({
+      query,
+      parameters,
+      projectId,
+    })
+  ).data as unknown as DatapointResult[];
 
   const queueItems = datapoints.map((datapoint) => ({
     payload: {
@@ -180,11 +184,13 @@ export async function getAllDatapointsForDataset(projectId: string, datasetId: s
     datasetId,
   });
 
-  const datapoints = (await executeQuery<Record<string, unknown>>({
-    query,
-    parameters,
-    projectId,
-  })) as unknown as DatapointResult[];
+  const datapoints = (
+    await executeQuery<Record<string, unknown>>({
+      query,
+      parameters,
+      projectId,
+    })
+  ).data as unknown as DatapointResult[];
 
   return datapoints;
 }

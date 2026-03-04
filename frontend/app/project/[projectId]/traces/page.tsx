@@ -15,21 +15,23 @@ export default async function TracesPage(props: { params: Promise<{ projectId: s
   const params = await props.params;
   const projectId = params.projectId;
 
-  const [result] = await executeQuery<{ exists: number }>({
-    query: `
+  const [result] = (
+    await executeQuery<{ exists: number }>({
+      query: `
         SELECT 1 as exists
         FROM traces
         WHERE trace_type = {traceType:String}
         LIMIT 1
     `,
-    parameters: {
-      traceType: "DEFAULT",
-    },
-    projectId,
-  }).catch((e) => {
-    console.error(e);
-    return [{ exists: 1 }];
-  });
+      parameters: {
+        traceType: "DEFAULT",
+      },
+      projectId,
+    }).catch((e) => {
+      console.error(e);
+      return Promise.resolve({ data: [{ exists: 1 }] });
+    })
+  ).data;
 
   const cookieStore = await cookies();
   const traceViewWidthCookie = cookieStore.get(TRACES_TRACE_VIEW_WIDTH);

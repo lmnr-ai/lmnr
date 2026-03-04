@@ -148,7 +148,7 @@ export const getEvaluationDatapoints = async (
     targetId: targetId ?? undefined,
   });
 
-  const results = await executeQuery<Record<string, unknown>>({
+  const { data: results } = await executeQuery<Record<string, unknown>>({
     query,
     parameters,
     projectId,
@@ -208,7 +208,7 @@ export const getEvaluationStatistics = async (
     columns,
   });
 
-  const rawResults = await executeQuery<{ scores: string }>({
+  const { data: rawResults } = await executeQuery<{ scores: string }>({
     query: statsQuery,
     parameters: statsParams,
     projectId,
@@ -274,7 +274,7 @@ export const getEvaluationCellValue = async (input: z.infer<typeof GetEvaluation
   const query = `SELECT ${col.sql} as ${col.id} FROM evaluation_datapoints WHERE evaluation_id = {evaluation_id:UUID} AND id = {datapoint_id:UUID} LIMIT 1`;
   const parameters = { evaluation_id: evaluationId, datapoint_id: datapointId };
 
-  const results = await executeQuery<Record<string, unknown>>({
+  const { data: results } = await executeQuery<Record<string, unknown>>({
     query,
     parameters,
     projectId,

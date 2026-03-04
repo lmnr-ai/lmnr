@@ -86,7 +86,7 @@ export async function getEventStats(
     ${withFillClause}
   `;
 
-  const items = await executeQuery<EventsStatsDataPoint>({
+  const { data: items } = await executeQuery<EventsStatsDataPoint>({
     query,
     parameters: {
       ...whereResult.parameters,

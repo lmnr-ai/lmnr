@@ -70,3 +70,12 @@ export const JsonToSqlResponseSchema = z.object({
   sql: z.string().nullable(),
   error: z.string().nullable(),
 });
+
+export interface QueryResultMeta {
+  warning?: string;
+}
+
+export interface QueryResult<T> {
+  data: T[];
+  meta: QueryResultMeta;
+}

@@ -111,7 +111,7 @@ export async function getTraceStats(
     intervalUnit,
   };
 
-  const items = await executeQuery<TracesStatsDataPoint>({
+  const { data: items } = await executeQuery<TracesStatsDataPoint>({
     query,
     parameters,
     projectId,

@@ -16,6 +16,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import { type QueryResultMeta } from "@/lib/actions/sql/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type SessionRow, type TraceRow } from "@/lib/traces/types";
 
@@ -95,8 +96,8 @@ function SessionsTableContent() {
           throw new Error(text.error);
         }
 
-        const data = (await res.json()) as { items: SessionRow[] };
-        return { items: data.items, count: 0 };
+        const data = (await res.json()) as { items: SessionRow[]; meta?: QueryResultMeta };
+        return { items: data.items, count: 0, meta: data.meta };
       } catch (error) {
         toast({
           title: error instanceof Error ? error.message : "Failed to load sessions. Please try again.",

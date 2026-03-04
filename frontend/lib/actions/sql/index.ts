@@ -2,12 +2,18 @@ import { z } from "zod/v4";
 
 import { fetcherJSON } from "@/lib/utils";
 
-import { JsonToSqlResponseSchema, type QueryStructure, QueryStructureSchema, SqlToJsonResponseSchema } from "./types";
+import { applyRetentionLimits } from "./retention";
+import {
+  JsonToSqlResponseSchema,
+  type QueryResult,
+  type QueryStructure,
+  QueryStructureSchema,
+  SqlToJsonResponseSchema,
+} from "./types";
 
 export * from "./export-job";
 export { generateSql } from "./generate";
 export * from "./templates";
-export type { GenerationMode, GenerationResult } from "./types";
 
 const ExecuteQuerySchema = z.object({
   projectId: z.string(),
@@ -21,18 +27,21 @@ const ExecuteQuerySchema = z.object({
     .optional(),
 });
 
-export const executeQuery = async <T extends object>(input: z.infer<typeof ExecuteQuerySchema>) => {
+export const executeQuery = async <T extends object>(
+  input: z.infer<typeof ExecuteQuerySchema>
+): Promise<QueryResult<T>> => {
   const { parameters, query, projectId } = ExecuteQuerySchema.parse(input);
+  const { parameters: effectiveParams, meta } = await applyRetentionLimits(projectId, parameters);
 
-  const res = (await fetcherJSON(`/projects/${projectId}/sql/query`, {
+  const data = (await fetcherJSON(`/projects/${projectId}/sql/query`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query, parameters }),
+    body: JSON.stringify({ query, parameters: effectiveParams }),
   })) as T[];
 
-  return res;
+  return { data, meta };
 };
 
 const SqlToJsonInputSchema = z.object({

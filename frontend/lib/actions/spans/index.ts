@@ -13,6 +13,7 @@ import {
   transformSpanWithEvents,
 } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
+import { type QueryResultMeta } from "@/lib/actions/sql/types";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
@@ -84,7 +85,9 @@ function buildTraceSubquery({
   };
 }
 
-export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{ items: Span[] }> {
+export async function getSpans(
+  input: z.infer<typeof GetSpansSchema>
+): Promise<{ items: Span[]; meta: QueryResultMeta }> {
   const {
     projectId,
     pastHours,
@@ -121,7 +124,7 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
 
   if (search) {
     if (spanIds?.length === 0) {
-      return { items: [] };
+      return { items: [], meta: {} };
     } else {
       // no pagination for search results, use default limit
       limit = DEFAULT_SEARCH_MAX_HITS;
@@ -141,10 +144,11 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     customConditions: [traceSubquery],
   });
 
-  const items = await executeQuery<Span>({ query: mainQuery, parameters: mainParams, projectId });
+  const { data: items, meta } = await executeQuery<Span>({ query: mainQuery, parameters: mainParams, projectId });
 
   return {
     items,
+    meta,
   };
 }
 
@@ -205,11 +209,12 @@ const getTraceTreeStructure = async ({
     filters: [{ value: traceId, operator: Operator.Eq, column: "trace_id" }],
   });
 
-  return await executeQuery<{ spanId: string; parentSpanId: string }>({
+  const { data } = await executeQuery<{ spanId: string; parentSpanId: string }>({
     query,
     parameters,
     projectId,
   });
+  return data;
 };
 
 const fetchTraceSpans = async ({
@@ -261,7 +266,7 @@ const fetchTraceSpans = async ({
     orderBy,
   });
 
-  return executeQuery<
+  const { data } = await executeQuery<
     Omit<TraceViewSpan, "attributes" | "events"> & {
       attributes: string;
       events: { timestamp: number; name: string; attributes: string }[];
@@ -271,6 +276,7 @@ const fetchTraceSpans = async ({
     parameters,
     projectId,
   });
+  return data;
 };
 
 export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>): Promise<TraceViewSpan[]> {

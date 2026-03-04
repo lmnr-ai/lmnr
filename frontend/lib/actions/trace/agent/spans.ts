@@ -96,7 +96,7 @@ export interface Span extends SpanInfo {
 }
 
 const fetchSpanInfos = async (projectId: string, traceId: string): Promise<SpanInfo[]> => {
-  const spans = await executeQuery({
+  const { data: spans } = await executeQuery({
     projectId,
     query: `
       SELECT
@@ -128,7 +128,7 @@ const fetchSpans = async (projectId: string, traceId: string, spanIds: string[])
     return new Map();
   }
 
-  const spans = await executeQuery({
+  const { data: spans } = await executeQuery({
     projectId,
     query: `
       SELECT
@@ -152,7 +152,7 @@ const fetchSpans = async (projectId: string, traceId: string, spanIds: string[])
     },
   });
 
-  const events = await executeQuery({
+  const { data: events } = await executeQuery({
     projectId,
     query: `
       SELECT span_id, attributes
@@ -213,7 +213,10 @@ function calculateDuration(start: string, end: string): number {
 /** Format a ClickHouse DateTime64 string to a readable UTC string. */
 function formatUtcTimestamp(chTimestamp: string): string {
   const d = new Date(chTimestamp + "Z"); // CH returns UTC without the Z suffix
-  return d.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
+  return d
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d{3}Z$/, " UTC");
 }
 
 function spanInfosToSkeletonString(spanInfos: SpanInfo[], spanIdToSeqId: Record<string, number>): string {
@@ -296,14 +299,10 @@ export const getTraceStructureAsString = async (projectId: string, traceId: stri
     if (!seenPaths.has(info.path)) {
       seenPaths.add(info.path);
       // Truncate tool span input; strip base64 images and truncate LLM input
-      spanView.input = isTool
-        ? truncateValue(span.input)
-        : truncateLlmInput(replaceBase64Images(span.input));
+      spanView.input = isTool ? truncateValue(span.input) : truncateLlmInput(replaceBase64Images(span.input));
     }
     // Truncate tool span output; strip base64 images from LLM output
-    spanView.output = isTool
-      ? truncateValue(span.output)
-      : replaceBase64Images(span.output);
+    spanView.output = isTool ? truncateValue(span.output) : replaceBase64Images(span.output);
 
     if (span.exception) {
       spanView.exception = span.exception;
@@ -336,7 +335,7 @@ export const resolveSpanId = async (
   traceId: string,
   sequentialId: number
 ): Promise<string | null> => {
-  const spans = await executeQuery({
+  const { data: spans } = await executeQuery({
     projectId,
     query: `
       SELECT span_id

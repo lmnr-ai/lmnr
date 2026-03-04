@@ -102,7 +102,7 @@ export async function getSharedEvaluationDatapoints({
     sortDirection,
   });
 
-  const results = await executeQuery<Record<string, unknown>>({
+  const { data: results } = await executeQuery<Record<string, unknown>>({
     query,
     parameters,
     projectId,
@@ -158,7 +158,7 @@ export async function getSharedEvaluationStatistics({
     columns,
   });
 
-  const rawResults = await executeQuery<{ scores: string }>({
+  const { data: rawResults } = await executeQuery<{ scores: string }>({
     query: statsQuery,
     parameters: statsParams,
     projectId,

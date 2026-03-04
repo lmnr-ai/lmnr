@@ -27,7 +27,7 @@ interface BillingInfo {
   workspaceProjectIds: string[];
 }
 
-async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | null> {
+export async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | null> {
   const projectCacheKey = `${PROJECT_CACHE_KEY}:${projectId}`;
   try {
     const cached = await cache.get<ProjectBillingInfo>(projectCacheKey);

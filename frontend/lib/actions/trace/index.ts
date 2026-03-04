@@ -175,7 +175,7 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
     where: and(eq(sharedTraces.projectId, projectId), eq(sharedTraces.id, traceId)),
   });
 
-  const [[trace], [cacheTokens]] = await Promise.all([
+  const [{ data: traceData }, { data: cacheData }] = await Promise.all([
     executeQuery<Omit<TraceViewTrace, "visibility">>({
       query: `
       SELECT
@@ -215,6 +215,8 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
       },
     }),
   ]);
+  const [trace] = traceData;
+  const [cacheTokens] = cacheData;
 
   if (!trace) {
     return undefined;

@@ -65,7 +65,9 @@ export async function getLatestTraceBySessionId(
 ): Promise<TraceViewTrace | undefined> {
   const { projectId, sessionId } = GetLatestTraceBySessionIdSchema.parse(input);
 
-  const [trace] = await executeQuery<Omit<TraceViewTrace, "visibility">>({
+  const {
+    data: [trace],
+  } = await executeQuery<Omit<TraceViewTrace, "visibility">>({
     query: `
       SELECT
         id,

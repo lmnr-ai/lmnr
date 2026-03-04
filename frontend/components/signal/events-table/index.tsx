@@ -18,6 +18,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
+import { type QueryResultMeta } from "@/lib/actions/sql/types.ts";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -102,8 +103,9 @@ function PureEventsTable() {
           throw new Error("Failed to fetch events");
         }
 
-        const data: { items: EventRow[]; count: number } = await response.json();
-        return { items: data.items, count: data.count };
+        const data: { items: EventRow[]; count: number; meta: QueryResultMeta } = await response.json();
+
+        return { items: data.items, count: data.count, meta: data.meta };
       } catch (error) {
         toast({
           title: error instanceof Error ? error.message : "Failed to load events. Please try again.",

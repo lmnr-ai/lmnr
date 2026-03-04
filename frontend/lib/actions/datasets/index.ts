@@ -71,7 +71,7 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
       },
     });
 
-    const countRows = await executeQuery<{ datasetId: string; count: number }>({
+    const { data: countRows } = await executeQuery<{ datasetId: string; count: number }>({
       query: countQuery.query,
       parameters: countQuery.parameters,
       projectId,
@@ -153,7 +153,7 @@ export async function getDatasets(input: z.infer<typeof getDatasetsSchema>) {
     groupBy: ["datasetId"],
   });
 
-  const rows = await executeQuery<{ datasetId: string; count: number }>({
+  const { data: rows } = await executeQuery<{ datasetId: string; count: number }>({
     query: countQuery.query,
     parameters: countQuery.parameters,
     projectId,

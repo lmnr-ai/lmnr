@@ -35,7 +35,7 @@ export async function getSharedSpanOutputs(
     whereConditions.push("start_time <= {endDate: String}");
   }
 
-  const results = await executeQuery<{ spanId: string; output: string }>({
+  const { data: results } = await executeQuery<{ spanId: string; output: string }>({
     projectId: sharedTrace.projectId,
     query: `
         SELECT

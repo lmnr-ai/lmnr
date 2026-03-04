@@ -14,6 +14,7 @@ export interface InfiniteScrollState<TData> {
   uniqueKey: string;
   hasMore: boolean;
   pageSize: number;
+  warning: string | undefined;
 }
 
 export interface InfiniteScrollActions<TData> {
@@ -23,6 +24,7 @@ export interface InfiniteScrollActions<TData> {
   setIsLoading: (loading: boolean) => void;
   setError: (error: Error | null) => void;
   setHasMore: (hasMore: boolean) => void;
+  setWarning: (warning: string | undefined) => void;
   appendData: (items: TData[], count?: number) => void;
   replaceData: (items: TData[], count?: number) => void;
   resetInfiniteScroll: () => void;
@@ -71,6 +73,7 @@ function createDataTableStore<TData>(
     uniqueKey,
     hasMore: true,
     pageSize,
+    warning: undefined,
     columnVisibility: {},
     columnOrder: defaultColumnOrder,
     draggingColumnId: null,
@@ -80,6 +83,7 @@ function createDataTableStore<TData>(
     setIsLoading: (isLoading) => set({ isLoading }),
     setError: (error) => set({ error }),
     setHasMore: (hasMore) => set({ hasMore }),
+    setWarning: (warning) => set({ warning }),
     setColumnVisibility: (visibility) => set({ columnVisibility: visibility }),
     setColumnOrder: (order) => set({ columnOrder: order }),
     setDraggingColumnId: (columnId) => set({ draggingColumnId: columnId }),
@@ -118,6 +122,7 @@ function createDataTableStore<TData>(
         isFetching: false,
         isLoading: false,
         error: null,
+        warning: undefined,
         uniqueKey: state.uniqueKey,
         hasMore: true,
         pageSize: state.pageSize,

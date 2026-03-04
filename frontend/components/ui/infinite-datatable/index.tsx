@@ -26,6 +26,7 @@ import React, { type PropsWithChildren, useEffect, useId, useMemo, useRef, useSt
 import { useStore } from "zustand";
 
 import { DraggingTableHeadOverlay } from "@/components/ui/infinite-datatable/ui/head.tsx";
+import { Warning } from "@/components/ui/infinite-datatable/ui/warning.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
@@ -90,15 +91,23 @@ export function InfiniteDataTable<TData extends RowData>({
   );
 
   const store = useDataTableStore();
-  const { columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, draggingColumnId, setDraggingColumnId } =
-    useStore(store, (state) => ({
-      columnOrder: state.columnOrder,
-      setColumnOrder: state.setColumnOrder,
-      columnVisibility: state.columnVisibility,
-      setColumnVisibility: state.setColumnVisibility,
-      draggingColumnId: state.draggingColumnId,
-      setDraggingColumnId: state.setDraggingColumnId,
-    }));
+  const {
+    columnOrder,
+    setColumnOrder,
+    columnVisibility,
+    setColumnVisibility,
+    draggingColumnId,
+    setDraggingColumnId,
+    warning,
+  } = useStore(store, (state) => ({
+    columnOrder: state.columnOrder,
+    setColumnOrder: state.setColumnOrder,
+    columnVisibility: state.columnVisibility,
+    setColumnVisibility: state.setColumnVisibility,
+    draggingColumnId: state.draggingColumnId,
+    setDraggingColumnId: state.setDraggingColumnId,
+    warning: state.warning,
+  }));
 
   // Handle drag start
   function handleDragStart(event: DragStartEvent) {
@@ -258,6 +267,7 @@ export function InfiniteDataTable<TData extends RowData>({
         className={cn("flex relative overflow-auto styled-scrollbar bg-secondary", scrollContentClassName)}
       >
         <div className="size-full">
+          {warning && <Warning warning={warning} />}
           <DndContext
             id={dndContextId}
             collisionDetection={closestCenter}

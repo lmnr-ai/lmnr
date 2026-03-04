@@ -61,7 +61,7 @@ export const executeSignal = async (input: z.infer<typeof ExecuteSignalSchema>) 
   const { SEMANTIC_EVENT_SERVICE_SECRET_KEY, SEMANTIC_EVENT_SERVICE_URL } = getEnvironmentVariables();
   const { projectId, traceId, signal } = ExecuteSignalSchema.parse(input);
 
-  const [trace] = await executeQuery<{ exists: number }>({
+  const { data } = await executeQuery<{ exists: number }>({
     query: `
       SELECT 1 as exists
       FROM traces
@@ -73,6 +73,7 @@ export const executeSignal = async (input: z.infer<typeof ExecuteSignalSchema>) 
       traceId,
     },
   });
+  const [trace] = data;
 
   if (!trace || trace.exists === 0) {
     throw new Error("Trace not found or does not belong to this project.");

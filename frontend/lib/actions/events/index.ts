@@ -38,13 +38,15 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     pastHours,
   });
 
-  const [items, [countResult]] = await Promise.all([
+  const [{ data: items, meta }, { data: countData }] = await Promise.all([
     executeQuery<EventRow>({ query: mainQuery, parameters: mainParams, projectId }),
     executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
   ]);
+  const [countResult] = countData;
 
   return {
     items,
+    meta,
     count: countResult?.count || 0,
   };
 }

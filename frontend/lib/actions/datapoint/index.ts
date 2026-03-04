@@ -29,11 +29,13 @@ export async function getDatapoint(input: z.infer<typeof GetDatapointSchema>) {
     datasetId,
   });
 
-  const datapoints = (await executeQuery<Record<string, unknown>>({
-    query,
-    parameters,
-    projectId,
-  })) as unknown as DatapointResult[];
+  const datapoints = (
+    await executeQuery<Record<string, unknown>>({
+      query,
+      parameters,
+      projectId,
+    })
+  ).data as unknown as DatapointResult[];
 
   if (datapoints.length === 0) {
     throw new Error("Datapoint not found");

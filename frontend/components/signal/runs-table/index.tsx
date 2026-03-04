@@ -17,6 +17,7 @@ import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators.ts";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
+import { type QueryResultMeta } from "@/lib/actions/sql/types.ts";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { defaultRunsColumnOrder, getSignalRunsColumns, signalRunsFilters } from "./columns";
@@ -132,8 +133,8 @@ function RunsTableContent() {
           throw new Error("Failed to fetch signal runs");
         }
 
-        const data: { items: SignalRunRow[] } = await response.json();
-        return { items: data.items };
+        const data: { items: SignalRunRow[]; meta: QueryResultMeta } = await response.json();
+        return { items: data.items, meta: data.meta };
       } catch (error) {
         toast({
           title: error instanceof Error ? error.message : "Failed to load signal runs. Please try again.",

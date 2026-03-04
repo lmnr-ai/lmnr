@@ -10,7 +10,7 @@ export const getEvaluationTimeProgression = async (
   ids: string[]
 ): Promise<EvaluationTimeProgression[]> => {
   // Query all datapoints with their scores for the given evaluations
-  const datapoints = await executeQuery<{
+  const { data: datapoints } = await executeQuery<{
     evaluation_id: string;
     created_at: string;
     scores: string;
@@ -34,10 +34,13 @@ export const getEvaluationTimeProgression = async (
   });
 
   // Group by evaluation_id and aggregate scores in memory
-  const evaluationMap = new Map<string, {
-    timestamp: string;
-    scoresByName: Map<string, number[]>;
-  }>();
+  const evaluationMap = new Map<
+    string,
+    {
+      timestamp: string;
+      scoresByName: Map<string, number[]>;
+    }
+  >();
 
   for (const dp of datapoints) {
     const scores = (dp.scores ? JSON.parse(dp.scores) : {}) as Record<string, number | null>;
@@ -90,9 +93,7 @@ export const getEvaluationTimeProgression = async (
           {
             const sorted = [...scoreValues].sort((a, b) => a - b);
             const mid = Math.floor(sorted.length / 2);
-            aggregatedValue = sorted.length % 2 === 0
-              ? (sorted[mid - 1] + sorted[mid]) / 2
-              : sorted[mid];
+            aggregatedValue = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
           }
           break;
         case "p90":

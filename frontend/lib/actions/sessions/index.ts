@@ -5,6 +5,7 @@ import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { buildSessionsQueryWithParams } from "@/lib/actions/sessions/utils";
 import { executeQuery } from "@/lib/actions/sql";
+import { type QueryResultMeta } from "@/lib/actions/sql/types";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
@@ -23,7 +24,9 @@ export const DeleteSessionsSchema = z.object({
   sessionIds: z.array(z.string()).min(1),
 });
 
-export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Promise<{ items: SessionRow[] }> {
+export async function getSessions(
+  input: z.infer<typeof GetSessionsSchema>
+): Promise<{ items: SessionRow[]; meta: QueryResultMeta }> {
   const {
     projectId,
     pastHours,
@@ -51,7 +54,7 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     : [];
 
   if (search && traceIds?.length === 0) {
-    return { items: [] };
+    return { items: [], meta: {} };
   }
 
   const { query: mainQuery, parameters: mainParams } = buildSessionsQueryWithParams({
@@ -64,7 +67,7 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     pastHours,
   });
 
-  const items = await executeQuery<Omit<SessionRow, "subRows">>({
+  const { data: items, meta } = await executeQuery<Omit<SessionRow, "subRows">>({
     query: mainQuery,
     parameters: mainParams,
     projectId,
@@ -72,6 +75,7 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
 
   return {
     items: items.map((item) => ({ ...item, subRows: [] })),
+    meta,
   };
 }
 
