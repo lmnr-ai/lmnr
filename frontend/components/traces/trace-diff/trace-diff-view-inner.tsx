@@ -12,6 +12,7 @@ import { generateSpanMapping } from "@/lib/actions/trace/diff";
 
 import DiffColumns, { type SelectingSide } from "./diff-columns";
 import MetricsBar from "./metrics-bar";
+import ViewModeToggle from "./timeline/view-mode-toggle";
 import { useTraceDiffStore } from "./trace-diff-store";
 import TraceIdPill from "./trace-id-pill";
 
@@ -221,8 +222,9 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
         </>
       ) : (
         <>
-          <div className="px-4 pb-2">
+          <div className="px-4 pb-2 flex items-center gap-2">
             <MetricsBar />
+            <ViewModeToggle />
           </div>
           <DiffColumns
             onSelectLeft={handleSelectLeft}

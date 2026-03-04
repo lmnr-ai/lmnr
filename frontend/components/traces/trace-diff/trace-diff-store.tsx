@@ -10,6 +10,8 @@ import {
 } from "@/components/traces/trace-view/store/base";
 import { toListSpans } from "@/components/traces/trace-view/store/utils";
 
+import { type BlockSummary, type CondensedBlock, type SpanTreeNode } from "./timeline/timeline-types";
+import { assignBlockRows, buildSpanTree, computeMaxDepth, getBlocksAtDepth } from "./timeline/timeline-utils";
 import { type DiffRow, type SpanMapping } from "./trace-diff-types";
 import { computeAlignedRows } from "./trace-diff-utils";
 
@@ -35,6 +37,19 @@ interface TraceDiffState {
   retryCounter: number;
 
   selectedRowIndex: number | null;
+
+  // Timeline state
+  viewMode: "list" | "timeline";
+  timelineDepth: number;
+  maxTreeDepth: number;
+  leftTree: SpanTreeNode[] | null;
+  rightTree: SpanTreeNode[] | null;
+  leftBlocks: CondensedBlock[];
+  rightBlocks: CondensedBlock[];
+  blockSummaries: Record<string, BlockSummary>;
+  isSummarizationLoading: boolean;
+  selectedBlockSpanId: string | null;
+  selectedBlockSide: "left" | "right" | null;
 }
 
 interface TraceDiffActions {
@@ -49,6 +64,15 @@ interface TraceDiffActions {
   toggleRow: (index: number) => void;
   clearSelection: () => void;
   reset: () => void;
+
+  // Timeline actions
+  setViewMode: (mode: "list" | "timeline") => void;
+  setTimelineDepth: (depth: number) => void;
+  expandOneLevel: () => void;
+  addBlockSummaries: (summaries: Record<string, BlockSummary>) => void;
+  setIsSummarizationLoading: (loading: boolean) => void;
+  selectBlock: (spanId: string, side: "left" | "right") => void;
+  clearBlockSelection: () => void;
 }
 
 export type TraceDiffStore = TraceDiffState & TraceDiffActions;
@@ -67,6 +91,19 @@ const initialState: TraceDiffState = {
   alignedRows: [],
   retryCounter: 0,
   selectedRowIndex: null,
+
+  // Timeline
+  viewMode: "list",
+  timelineDepth: 0,
+  maxTreeDepth: 0,
+  leftTree: null,
+  rightTree: null,
+  leftBlocks: [],
+  rightBlocks: [],
+  blockSummaries: {},
+  isSummarizationLoading: false,
+  selectedBlockSpanId: null,
+  selectedBlockSide: null,
 };
 
 const createTraceDiffStore = () =>
@@ -76,11 +113,21 @@ const createTraceDiffStore = () =>
     setLeftData: (trace, spans) => {
       const listSpans = toListSpans(spans);
       const hasRight = !!get().rightTrace;
+      const leftTree = buildSpanTree(spans);
+      const rightTree = get().rightTree;
+      const maxTreeDepth = Math.max(computeMaxDepth(leftTree), rightTree ? computeMaxDepth(rightTree) : 0);
+      const timelineDepth = maxTreeDepth;
+
       set({
         leftTrace: trace,
         leftSpans: spans,
         leftListSpans: listSpans,
         isLeftLoading: false,
+        leftTree,
+        maxTreeDepth,
+        timelineDepth,
+        leftBlocks: assignBlockRows(getBlocksAtDepth(leftTree, timelineDepth)),
+        rightBlocks: rightTree ? assignBlockRows(getBlocksAtDepth(rightTree, timelineDepth)) : [],
         // If right trace exists, reset mapping state so it re-runs
         ...(hasRight
           ? {
@@ -96,12 +143,22 @@ const createTraceDiffStore = () =>
 
     setRightData: (trace, spans) => {
       const listSpans = toListSpans(spans);
+      const rightTree = buildSpanTree(spans);
+      const leftTree = get().leftTree;
+      const maxTreeDepth = Math.max(leftTree ? computeMaxDepth(leftTree) : 0, computeMaxDepth(rightTree));
+      const timelineDepth = maxTreeDepth;
+
       set({
         rightTrace: trace,
         rightSpans: spans,
         rightListSpans: listSpans,
         isRightLoading: false,
         phase: "loading",
+        rightTree,
+        maxTreeDepth,
+        timelineDepth,
+        leftBlocks: leftTree ? assignBlockRows(getBlocksAtDepth(leftTree, timelineDepth)) : [],
+        rightBlocks: assignBlockRows(getBlocksAtDepth(rightTree, timelineDepth)),
       });
     },
 
@@ -147,6 +204,50 @@ const createTraceDiffStore = () =>
         leftListSpans: get().leftListSpans,
         isLeftLoading: false,
       }),
+
+    // Timeline actions
+    setViewMode: (mode) => {
+      const s = get();
+      if (mode === "timeline" && s.leftTree) {
+        // Recompute blocks at current depth when switching to timeline
+        set({
+          viewMode: mode,
+          leftBlocks: assignBlockRows(getBlocksAtDepth(s.leftTree, s.timelineDepth)),
+          rightBlocks: s.rightTree ? assignBlockRows(getBlocksAtDepth(s.rightTree, s.timelineDepth)) : [],
+          selectedBlockSpanId: null,
+          selectedBlockSide: null,
+        });
+      } else {
+        set({ viewMode: mode });
+      }
+    },
+
+    setTimelineDepth: (depth) => {
+      const { leftTree, rightTree } = get();
+      set({
+        timelineDepth: depth,
+        leftBlocks: leftTree ? assignBlockRows(getBlocksAtDepth(leftTree, depth)) : [],
+        rightBlocks: rightTree ? assignBlockRows(getBlocksAtDepth(rightTree, depth)) : [],
+      });
+    },
+
+    expandOneLevel: () => {
+      const { timelineDepth, maxTreeDepth } = get();
+      if (timelineDepth < maxTreeDepth) {
+        get().setTimelineDepth(timelineDepth + 1);
+      }
+    },
+
+    addBlockSummaries: (summaries) =>
+      set((s) => ({
+        blockSummaries: { ...s.blockSummaries, ...summaries },
+      })),
+
+    setIsSummarizationLoading: (loading) => set({ isSummarizationLoading: loading }),
+
+    selectBlock: (spanId, side) => set({ selectedBlockSpanId: spanId, selectedBlockSide: side }),
+
+    clearBlockSelection: () => set({ selectedBlockSpanId: null, selectedBlockSide: null }),
   }));
 
 const TraceDiffStoreContext = createContext<StoreApi<TraceDiffStore> | undefined>(undefined);

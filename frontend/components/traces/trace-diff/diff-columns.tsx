@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import DiffSpanPanel from "./diff-span-panel";
 import MappingError from "./mapping-error";
 import SingleColumnSpanList from "./single-column-span-list";
+import Timeline from "./timeline";
 import { useTraceDiffStore } from "./trace-diff-store";
 import TraceSelector from "./trace-selector";
 import VirtualizedDiffRows from "./virtualized-diff-rows";
@@ -37,6 +38,8 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     isMappingLoading,
     mappingError,
     retryMapping,
+    viewMode,
+    selectedBlockSpanId,
   } = useTraceDiffStore((s) => ({
     phase: s.phase,
     leftListSpans: s.leftListSpans,
@@ -49,12 +52,14 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     isMappingLoading: s.isMappingLoading,
     mappingError: s.mappingError,
     retryMapping: s.retryMapping,
+    viewMode: s.viewMode,
+    selectedBlockSpanId: s.selectedBlockSpanId,
   }));
 
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const hasPanel = selectedRowIndex !== null;
+  const hasPanel = viewMode === "list" ? selectedRowIndex !== null : selectedBlockSpanId !== null;
 
   const leftTraceRef = useMemo(
     () => (leftTrace ? { id: leftTrace.id, startTime: leftTrace.startTime, endTime: leftTrace.endTime } : undefined),
@@ -194,15 +199,19 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
   // Phase: ready
   return (
     <div className="flex flex-1 overflow-hidden border-t">
-      <div className={cn("flex flex-col flex-1 overflow-hidden min-w-0", { "px-4": !hasPanel })}>
-        <VirtualizedDiffRows
-          scrollRef={scrollRef}
-          alignedRows={alignedRows}
-          selectedRowIndex={selectedRowIndex}
-          onRowClick={handleRowClick}
-          leftTrace={leftTraceRef}
-          rightTrace={rightTraceRef}
-        />
+      <div className={cn("flex flex-col flex-1 overflow-hidden min-w-0", { "px-4": !hasPanel && viewMode === "list" })}>
+        {viewMode === "timeline" ? (
+          <Timeline />
+        ) : (
+          <VirtualizedDiffRows
+            scrollRef={scrollRef}
+            alignedRows={alignedRows}
+            selectedRowIndex={selectedRowIndex}
+            onRowClick={handleRowClick}
+            leftTrace={leftTraceRef}
+            rightTrace={rightTraceRef}
+          />
+        )}
       </div>
       {hasPanel && (
         <div className="flex-none h-full overflow-hidden relative border-l" style={{ width: panelWidth }}>
