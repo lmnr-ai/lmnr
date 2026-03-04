@@ -160,7 +160,29 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     );
   }
 
-  // Phase: error (mapping failed)
+  // Timeline mode works independently of mapping — show it regardless of phase
+  if (viewMode === "timeline") {
+    return (
+      <div className="flex flex-1 overflow-hidden border-t">
+        <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+          <Timeline />
+        </div>
+        {hasPanel && (
+          <div className="flex-none h-full overflow-hidden relative border-l" style={{ width: panelWidth }}>
+            <div
+              className="absolute top-0 left-0 h-full cursor-col-resize z-50 group w-2"
+              onMouseDown={handlePanelResize}
+            >
+              <div className="absolute top-0 left-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
+            </div>
+            <DiffSpanPanel />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Phase: error (mapping failed) — list mode only
   if (phase === "error") {
     return (
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -177,7 +199,7 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     );
   }
 
-  // Phase: loading (right trace selected, mapping in progress)
+  // Phase: loading (right trace selected, mapping in progress) — list mode only
   if (phase === "loading" || isMappingLoading) {
     return (
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -196,22 +218,18 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     );
   }
 
-  // Phase: ready
+  // Phase: ready — list mode
   return (
     <div className="flex flex-1 overflow-hidden border-t">
-      <div className={cn("flex flex-col flex-1 overflow-hidden min-w-0", { "px-4": !hasPanel && viewMode === "list" })}>
-        {viewMode === "timeline" ? (
-          <Timeline />
-        ) : (
-          <VirtualizedDiffRows
-            scrollRef={scrollRef}
-            alignedRows={alignedRows}
-            selectedRowIndex={selectedRowIndex}
-            onRowClick={handleRowClick}
-            leftTrace={leftTraceRef}
-            rightTrace={rightTraceRef}
-          />
-        )}
+      <div className={cn("flex flex-col flex-1 overflow-hidden min-w-0", { "px-4": !hasPanel })}>
+        <VirtualizedDiffRows
+          scrollRef={scrollRef}
+          alignedRows={alignedRows}
+          selectedRowIndex={selectedRowIndex}
+          onRowClick={handleRowClick}
+          leftTrace={leftTraceRef}
+          rightTrace={rightTraceRef}
+        />
       </div>
       {hasPanel && (
         <div className="flex-none h-full overflow-hidden relative border-l" style={{ width: panelWidth }}>

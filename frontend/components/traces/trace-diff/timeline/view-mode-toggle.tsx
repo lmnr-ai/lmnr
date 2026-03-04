@@ -7,13 +7,14 @@ import { cn } from "@/lib/utils";
 import { useTraceDiffStore } from "../trace-diff-store";
 
 const ViewModeToggle = () => {
-  const { viewMode, setViewMode, phase } = useTraceDiffStore((s) => ({
+  const { viewMode, setViewMode, rightTrace } = useTraceDiffStore((s) => ({
     viewMode: s.viewMode,
     setViewMode: s.setViewMode,
-    phase: s.phase,
+    rightTrace: s.rightTrace,
   }));
 
-  if (phase !== "ready") return null;
+  // Show toggle once both traces are loaded (right trace exists)
+  if (!rightTrace) return null;
 
   return (
     <div className="flex items-center rounded-md border border-secondary-foreground/20 overflow-hidden">
