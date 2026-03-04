@@ -223,8 +223,8 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
       ) : (
         <>
           <div className="px-4 pb-2 flex items-center gap-2">
-            <MetricsBar />
             <ViewModeToggle />
+            <MetricsBar />
           </div>
           <DiffColumns
             onSelectLeft={handleSelectLeft}
