@@ -1,6 +1,6 @@
 "use client";
 
-import { Slider } from "@/components/ui/slider";
+import { cn } from "@/lib/utils";
 
 import { useTraceDiffStore } from "../trace-diff-store";
 
@@ -14,17 +14,25 @@ const DepthSliderBar = () => {
   if (maxTreeDepth === 0) return null;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 border-b bg-background sticky top-0 z-10">
-      <span className="text-xs text-muted-foreground whitespace-nowrap">Collapse</span>
-      <Slider
-        min={0}
-        max={maxTreeDepth}
-        step={1}
-        value={[timelineDepth]}
-        onValueChange={([value]) => setTimelineDepth(value)}
-        className="flex-1 max-w-xs"
-      />
-      <span className="text-xs text-muted-foreground whitespace-nowrap">Expand</span>
+    <div className="flex items-center gap-0.5 px-2 py-1.5 border-b bg-background">
+      {Array.from({ length: maxTreeDepth + 1 }, (_, i) => (
+        <button
+          key={i}
+          className={cn(
+            "size-4 rounded transition-colors flex items-center justify-center",
+            i === timelineDepth ? "bg-foreground" : "bg-muted-foreground/20 hover:bg-muted-foreground/40"
+          )}
+          onClick={() => setTimelineDepth(i)}
+          title={`Depth ${i}`}
+        >
+          <div
+            className={cn(
+              "rounded-full transition-colors",
+              i === timelineDepth ? "bg-background size-1.5" : "bg-muted-foreground/60 size-1"
+            )}
+          />
+        </button>
+      ))}
     </div>
   );
 };

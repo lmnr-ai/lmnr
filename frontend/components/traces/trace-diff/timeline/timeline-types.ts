@@ -11,20 +11,17 @@ export interface SpanTreeNode {
 }
 
 export interface CondensedBlock {
-  /** The span that roots this block (may group its subtree) */
   parentSpanId: string;
-  /** All span IDs grouped into this block (including the root span) */
   spanIds: string[];
   startTimeMs: number;
   endTimeMs: number;
   spanCount: number;
   depth: number;
-  row: number;
+  topRow: number;
+  heightInRows: number;
   primarySpanType: SpanType;
   spanName: string;
-  /** Names of direct children (for summarization context) */
   childNames: string[];
-  /** Types of direct children */
   childTypes: SpanType[];
 }
 
@@ -32,5 +29,3 @@ export interface BlockSummary {
   summary: string;
   icon: string;
 }
-
-export const ROW_HEIGHT = 36;
