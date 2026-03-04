@@ -28,6 +28,7 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
   const {
     phase,
     isLeftLoading,
+    retryCounter,
     setLeftData,
     setIsLeftLoading,
     setRightData,
@@ -38,6 +39,7 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
   } = useTraceDiffStore((s) => ({
     phase: s.phase,
     isLeftLoading: s.isLeftLoading,
+    retryCounter: s.retryCounter,
     setLeftData: s.setLeftData,
     setIsLeftLoading: s.setIsLeftLoading,
     setRightData: s.setRightData,
@@ -116,7 +118,7 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     return () => {
       stale = true;
     };
-  }, [phase, projectId, leftTraceId, rightTraceId, setIsMappingLoading, setMapping, setMappingError]);
+  }, [phase, projectId, leftTraceId, rightTraceId, retryCounter, setIsMappingLoading, setMapping, setMappingError]);
 
   const handleSelectLeft = useCallback(
     (traceId: string) => {

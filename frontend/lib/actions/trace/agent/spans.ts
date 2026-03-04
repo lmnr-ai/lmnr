@@ -95,7 +95,7 @@ export interface Span extends SpanInfo {
   exception?: unknown;
 }
 
-export const fetchSpanInfos = async (projectId: string, traceId: string): Promise<SpanInfo[]> => {
+const fetchSpanInfos = async (projectId: string, traceId: string): Promise<SpanInfo[]> => {
   const spans = await executeQuery({
     projectId,
     query: `
@@ -270,7 +270,8 @@ export const getTraceStructureAsString = async (
     for (const s of allSpanInfos) {
       if (s.parent) allSpanParent[s.spanId] = s.parent;
     }
-    // For each filtered span, resolve its parent to the nearest non-DEFAULT ancestor
+    // For each filtered span, resolve its parent to the nearest non-DEFAULT ancestor.
+    // Safe to mutate in-place: spanInfos are fresh objects from the DB query, not shared.
     for (const info of spanInfos) {
       let parentId = info.parent;
       while (parentId && !(parentId in spanIdToSeqId)) {

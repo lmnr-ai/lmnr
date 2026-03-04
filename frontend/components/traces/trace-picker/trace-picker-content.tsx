@@ -64,11 +64,11 @@ const TracePickerContent = ({
 
   const effectiveDateRange = useMemo(() => {
     if (mode === "url") {
-      return {
-        pastHours: searchParams.get("pastHours") ?? undefined,
-        startDate: searchParams.get("startDate") ?? undefined,
-        endDate: searchParams.get("endDate") ?? undefined,
-      };
+      const startDate = searchParams.get("startDate") ?? undefined;
+      const endDate = searchParams.get("endDate") ?? undefined;
+      // If explicit start/end dates are set, ignore pastHours to avoid conflicts
+      const pastHours = startDate && endDate ? undefined : (searchParams.get("pastHours") ?? undefined);
+      return { pastHours, startDate, endDate };
     }
     return stateDateRange;
   }, [mode, searchParams, stateDateRange]);

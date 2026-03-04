@@ -181,16 +181,10 @@ const MatchedSpanDiff = ({
             <DiffTextView leftText={prettyPrint(leftSpan.output)} rightText={prettyPrint(rightSpan.output)} />
           </TabsContent>
           <TabsContent value="attributes" className="w-full h-full">
-            <DiffTextView
-              leftText={JSON.stringify(leftSpan.attributes, null, 2)}
-              rightText={JSON.stringify(rightSpan.attributes, null, 2)}
-            />
+            <DiffTextView leftText={prettyPrint(leftSpan.attributes)} rightText={prettyPrint(rightSpan.attributes)} />
           </TabsContent>
           <TabsContent value="events" className="w-full h-full">
-            <DiffTextView
-              leftText={JSON.stringify(leftSpan.events, null, 2)}
-              rightText={JSON.stringify(rightSpan.events, null, 2)}
-            />
+            <DiffTextView leftText={prettyPrint(leftSpan.events)} rightText={prettyPrint(rightSpan.events)} />
           </TabsContent>
         </div>
       </Tabs>

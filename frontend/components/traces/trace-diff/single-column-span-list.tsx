@@ -17,7 +17,7 @@ const SingleColumnSpanList = ({
 }) => {
   const { projectId } = useParams<{ projectId: string }>();
   const spanIds = useMemo(() => spans.map((s) => s.spanId), [spans]);
-  const { outputs } = useBatchedSpanOutputs(projectId, spanIds, traceRef ?? {});
+  const { outputs } = useBatchedSpanOutputs(projectId, traceRef ? spanIds : [], traceRef ?? {});
 
   return (
     <div className="flex-1 overflow-y-auto styled-scrollbar pt-2 flex flex-col gap-0.5">

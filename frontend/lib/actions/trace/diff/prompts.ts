@@ -31,7 +31,7 @@ The two possible outcomes would be:
 
 (LLM-A-1, null)
 (TOOL-B-1, TOOL-B-2)
-(null, LLM-B-2)
+(null, LLM-A-2)
 (LLM-C-1, LLM-C-2)
 
 These two both satisfy the invariant but in situations like this I would like you to prioritize matching the tool calls. The matches that MUST be prioritized are TOOL CALLS OF THE SAME TYPE WITH SIMILAR INTENT.

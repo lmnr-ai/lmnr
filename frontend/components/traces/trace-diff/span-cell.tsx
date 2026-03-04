@@ -3,7 +3,7 @@
 import { type Change } from "diff";
 import { isNil } from "lodash";
 import { ChevronDown } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import Markdown from "@/components/traces/trace-view/list/markdown";
@@ -51,11 +51,14 @@ const SpanCell = ({
   diffChanges?: Change[];
 }) => {
   const isLoadingOutput = output === undefined;
-  const [isExpanded, setIsExpanded] = useState(EXPANDABLE_TYPES.has(span.spanType));
-
-  useEffect(() => {
-    setIsExpanded(EXPANDABLE_TYPES.has(span.spanType));
-  }, [span.spanId, span.spanType]);
+  const defaultExpanded = EXPANDABLE_TYPES.has(span.spanType);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  // Reset when the span type changes (e.g. virtualizer reuse)
+  const [prevDefault, setPrevDefault] = useState(defaultExpanded);
+  if (defaultExpanded !== prevDefault) {
+    setPrevDefault(defaultExpanded);
+    setIsExpanded(defaultExpanded);
+  }
 
   return (
     <div className="flex flex-col min-w-0">
