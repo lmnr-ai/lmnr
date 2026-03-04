@@ -75,26 +75,42 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
 
   // Fetch left trace on mount
   useEffect(() => {
+    let stale = false;
     setIsLeftLoading(true);
     fetchTraceData(leftTraceId)
-      .then(({ trace, spans }) => setLeftData(trace, spans))
+      .then(({ trace, spans }) => {
+        if (!stale) setLeftData(trace, spans);
+      })
       .catch((e) => {
-        console.error("Failed to fetch left trace:", e);
-        setIsLeftLoading(false);
+        if (!stale) {
+          console.error("Failed to fetch left trace:", e);
+          setIsLeftLoading(false);
+        }
       });
+    return () => {
+      stale = true;
+    };
   }, [leftTraceId, fetchTraceData, setLeftData, setIsLeftLoading]);
 
   // Fetch right trace when specified
   useEffect(() => {
     if (!rightTraceId) return;
 
+    let stale = false;
     setIsRightLoading(true);
     fetchTraceData(rightTraceId)
-      .then(({ trace, spans }) => setRightData(trace, spans))
+      .then(({ trace, spans }) => {
+        if (!stale) setRightData(trace, spans);
+      })
       .catch((e) => {
-        console.error("Failed to fetch right trace:", e);
-        setIsRightLoading(false);
+        if (!stale) {
+          console.error("Failed to fetch right trace:", e);
+          setIsRightLoading(false);
+        }
       });
+    return () => {
+      stale = true;
+    };
   }, [rightTraceId, fetchTraceData, setRightData, setIsRightLoading]);
 
   // Trigger mapping when both sides have data and phase is 'loading'
