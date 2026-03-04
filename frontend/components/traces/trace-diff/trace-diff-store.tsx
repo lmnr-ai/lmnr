@@ -47,6 +47,7 @@ interface TraceDiffActions {
   setMappingError: (error: string) => void;
   retryMapping: () => void;
   selectRow: (index: number | null) => void;
+  toggleRow: (index: number) => void;
   clearSelection: () => void;
   reset: () => void;
 }
@@ -137,6 +138,7 @@ const createTraceDiffStore = () =>
       })),
 
     selectRow: (index) => set({ selectedRowIndex: index }),
+    toggleRow: (index) => set((s) => ({ selectedRowIndex: s.selectedRowIndex === index ? null : index })),
     clearSelection: () => set({ selectedRowIndex: null }),
 
     reset: () =>
