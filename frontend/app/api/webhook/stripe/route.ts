@@ -48,16 +48,22 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
 
   const tierConfig = TIER_CONFIG[tierEntry[0] as PaidTier];
 
+  const s = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
+  // Fetch the subscription fresh from Stripe so the idempotency check sees
+  // the current state, not the stale snapshot from the webhook event payload.
+  const freshSubscription = await s.subscriptions.retrieve(subscription.id, {
+    expand: ["items.data.price"],
+  });
+
   // Check if overage items already exist (idempotency – e.g. if the webhook is retried)
-  const existingLookupKeys = new Set(subscription.items.data.map((item) => item.price.lookup_key));
+  const existingLookupKeys = new Set(freshSubscription.items.data.map((item) => item.price.lookup_key));
   if (
     existingLookupKeys.has(tierConfig.overageBytesLookupKey) &&
     existingLookupKeys.has(tierConfig.overageSignalRunsLookupKey)
   ) {
     return;
   }
-
-  const s = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
   const overagePrices = await s.prices.list({
     lookup_keys: [tierConfig.overageBytesLookupKey, tierConfig.overageSignalRunsLookupKey],
