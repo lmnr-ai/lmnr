@@ -136,7 +136,10 @@ const createTraceDiffStore = () =>
         retryCounter: s.retryCounter + 1,
       })),
 
-    selectRow: (index) => set({ selectedRowIndex: index }),
+    selectRow: (index) =>
+      set((state) => ({
+        selectedRowIndex: state.selectedRowIndex === index ? null : index,
+      })),
     clearSelection: () => set({ selectedRowIndex: null }),
 
     reset: () =>

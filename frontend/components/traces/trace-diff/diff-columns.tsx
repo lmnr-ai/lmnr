@@ -91,9 +91,9 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
 
   const handleRowClick = useCallback(
     (index: number) => {
-      selectRow(selectedRowIndex === index ? null : index);
+      selectRow(index);
     },
-    [selectRow, selectedRowIndex]
+    [selectRow]
   );
 
   const handleSelect = useCallback(
@@ -156,10 +156,10 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
   }
 
   // Phase: error (mapping failed)
-  if (phase === "error" && mappingError) {
+  if (phase === "error") {
     return (
       <div className="flex flex-col flex-1 overflow-hidden">
-        <MappingError error={mappingError} onRetry={retryMapping} />
+        <MappingError error={mappingError || "Failed to analyze trace diff"} onRetry={retryMapping} />
         <div className="flex flex-1 overflow-hidden gap-2">
           <div className="flex-1 flex flex-col overflow-hidden pl-4">
             <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
