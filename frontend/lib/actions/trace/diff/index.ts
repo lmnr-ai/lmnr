@@ -5,7 +5,7 @@ import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { generateObject } from "ai";
 import { z } from "zod";
 
-import { fetchSpanInfos, getTraceStructureAsString } from "@/lib/actions/trace/agent/spans";
+import { getTraceStructureAsString } from "@/lib/actions/trace/agent/spans";
 import { type SpanMapping } from "@/lib/traces/types";
 
 import { SPAN_MATCHING_SYSTEM_PROMPT } from "./prompts";
@@ -25,15 +25,13 @@ export const generateSpanMapping = async (
   leftTraceId: string,
   rightTraceId: string
 ): Promise<SpanMapping> => {
-  const [leftStructure, rightStructure, allLeftSpanInfos, allRightSpanInfos] = await Promise.all([
+  const [leftStructure, rightStructure] = await Promise.all([
     getTraceStructureAsString(projectId, leftTraceId, { excludeDefault: true }),
     getTraceStructureAsString(projectId, rightTraceId, { excludeDefault: true }),
-    fetchSpanInfos(projectId, leftTraceId),
-    fetchSpanInfos(projectId, rightTraceId),
   ]);
 
-  const leftSpanInfos = allLeftSpanInfos.filter((s) => s.type !== "DEFAULT");
-  const rightSpanInfos = allRightSpanInfos.filter((s) => s.type !== "DEFAULT");
+  const leftSpanInfos = leftStructure.spanInfos;
+  const rightSpanInfos = rightStructure.spanInfos;
 
   const { object } = await observe(
     { name: "generateSpanMapping" },

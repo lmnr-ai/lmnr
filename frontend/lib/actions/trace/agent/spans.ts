@@ -246,6 +246,7 @@ interface DetailedSpanView {
 
 export interface TraceStructureResult {
   traceString: string;
+  spanInfos: SpanInfo[];
 }
 
 export const getTraceStructureAsString = async (
@@ -256,10 +257,28 @@ export const getTraceStructureAsString = async (
   const allSpanInfos = await fetchSpanInfos(projectId, traceId);
   const spanInfos = excludeDefault ? allSpanInfos.filter((s) => s.type !== "DEFAULT") : allSpanInfos;
 
+  // Build seqId map from the filtered spans
   const spanIdToSeqId: Record<string, number> = {};
   spanInfos.forEach((info, index) => {
     spanIdToSeqId[info.spanId] = index + 1;
   });
+
+  // When excluding DEFAULT spans, build a parent lookup from ALL spans
+  // so we can walk up past filtered-out DEFAULT parents to the nearest included ancestor
+  if (excludeDefault) {
+    const allSpanParent: Record<string, string> = {};
+    for (const s of allSpanInfos) {
+      if (s.parent) allSpanParent[s.spanId] = s.parent;
+    }
+    // For each filtered span, resolve its parent to the nearest non-DEFAULT ancestor
+    for (const info of spanInfos) {
+      let parentId = info.parent;
+      while (parentId && !(parentId in spanIdToSeqId)) {
+        parentId = allSpanParent[parentId] ?? "";
+      }
+      info.parent = parentId || "";
+    }
+  }
 
   // Only fetch full details for LLM and TOOL spans
   const detailedSpanIds = spanInfos.filter((s) => s.type === "LLM" || s.type === "TOOL").map((s) => s.spanId);
@@ -329,7 +348,7 @@ ${traceYaml}
 </spans>
 `;
 
-  return { traceString };
+  return { traceString, spanInfos };
 };
 
 /**
