@@ -2,7 +2,7 @@
 
 import { ArrowRight } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
@@ -120,22 +120,27 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     };
   }, [phase, projectId, leftTraceId, rightTraceId, retryCounter, setIsMappingLoading, setMapping, setMappingError]);
 
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  }, [searchParams]);
+
   const handleSelectLeft = useCallback(
     (traceId: string) => {
-      const params = new URLSearchParams(searchParams);
+      const params = new URLSearchParams(searchParamsRef.current);
       params.set("left", traceId);
       router.replace(`?${params.toString()}`);
     },
-    [router, searchParams]
+    [router]
   );
 
   const handleSelectRight = useCallback(
     (traceId: string) => {
-      const params = new URLSearchParams(searchParams);
+      const params = new URLSearchParams(searchParamsRef.current);
       params.set("right", traceId);
       router.replace(`?${params.toString()}`);
     },
-    [router, searchParams]
+    [router]
   );
 
   const [selectingSide, setSelectingSide] = useState<SelectingSide>(null);

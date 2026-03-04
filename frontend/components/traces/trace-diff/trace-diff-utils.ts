@@ -32,15 +32,12 @@ export const computeAlignedRows = (
     const matchedRightId = leftIdToRight.get(left.spanId);
 
     if (matchedRightId) {
-      // Emit any unmatched right spans that come before the matched right span
+      // Emit unmatched right spans before the match; skip matched-to-other right spans
       while (ri < rightSpans.length && rightSpans[ri].spanId !== matchedRightId) {
         const r = rightSpans[ri];
         if (!rightIdToLeft.has(r.spanId)) {
           rows.push({ type: "right-only", right: r });
           emittedRight.add(r.spanId);
-        } else {
-          // This right span is matched to a later left span — skip for now
-          break;
         }
         ri++;
       }
@@ -61,17 +58,9 @@ export const computeAlignedRows = (
     }
   }
 
-  // Emit any remaining right spans not yet emitted (unmatched ones)
+  // Emit any remaining unmatched right spans
   for (; ri < rightSpans.length; ri++) {
     const r = rightSpans[ri];
-    if (!emittedRight.has(r.spanId) && !rightIdToLeft.has(r.spanId)) {
-      rows.push({ type: "right-only", right: r });
-      emittedRight.add(r.spanId);
-    }
-  }
-
-  // Catch any unmatched right spans that were skipped earlier (before ri's position)
-  for (const r of rightSpans) {
     if (!emittedRight.has(r.spanId) && !rightIdToLeft.has(r.spanId)) {
       rows.push({ type: "right-only", right: r });
     }

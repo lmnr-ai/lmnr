@@ -58,12 +58,12 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
 
   const leftTraceRef = useMemo(
     () => (leftTrace ? { id: leftTrace.id, startTime: leftTrace.startTime, endTime: leftTrace.endTime } : undefined),
-    [leftTrace]
+    [leftTrace?.id, leftTrace?.startTime, leftTrace?.endTime]
   );
   const rightTraceRef = useMemo(
     () =>
       rightTrace ? { id: rightTrace.id, startTime: rightTrace.startTime, endTime: rightTrace.endTime } : undefined,
-    [rightTrace]
+    [rightTrace?.id, rightTrace?.startTime, rightTrace?.endTime]
   );
 
   const handlePanelResize = useCallback(
@@ -100,7 +100,7 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     (traceId: string) => {
       if (selectingSide === "left") {
         onSelectLeft(traceId);
-      } else {
+      } else if (selectingSide === "right") {
         onSelectRight(traceId);
       }
       setSelectingSide(null);
@@ -149,7 +149,7 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
           <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
         </div>
         <div className="flex-1 flex flex-col overflow-hidden">
-          <TraceSelector onSelect={handleSelect} excludeTraceId={leftTrace?.id} />
+          <TraceSelector onSelect={onSelectRight} excludeTraceId={leftTrace?.id} />
         </div>
       </div>
     );

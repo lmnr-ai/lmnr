@@ -1,7 +1,6 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { compact } from "lodash";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 
@@ -15,6 +14,8 @@ interface TraceRef {
   startTime: string;
   endTime: string;
 }
+
+const EMPTY_TRACE_REF: { id?: string; startTime?: string; endTime?: string } = {};
 
 const VirtualizedDiffRows = ({
   scrollRef,
@@ -57,20 +58,12 @@ const VirtualizedDiffRows = ({
         rightIds.push(row.right.spanId);
       }
     }
-    return { leftVisibleIds: compact(leftIds), rightVisibleIds: compact(rightIds) };
+    return { leftVisibleIds: leftIds, rightVisibleIds: rightIds };
   }, [items, alignedRows]);
 
-  const { outputs: leftOutputs } = useBatchedSpanOutputs(projectId, leftVisibleIds, {
-    id: leftTrace?.id,
-    startTime: leftTrace?.startTime,
-    endTime: leftTrace?.endTime,
-  });
+  const { outputs: leftOutputs } = useBatchedSpanOutputs(projectId, leftVisibleIds, leftTrace ?? EMPTY_TRACE_REF);
 
-  const { outputs: rightOutputs } = useBatchedSpanOutputs(projectId, rightVisibleIds, {
-    id: rightTrace?.id,
-    startTime: rightTrace?.startTime,
-    endTime: rightTrace?.endTime,
-  });
+  const { outputs: rightOutputs } = useBatchedSpanOutputs(projectId, rightVisibleIds, rightTrace ?? EMPTY_TRACE_REF);
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto styled-scrollbar pt-2">
