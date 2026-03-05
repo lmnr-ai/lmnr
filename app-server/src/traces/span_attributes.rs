@@ -31,3 +31,10 @@ pub const SPAN_IDS_PATH: &str = "lmnr.span.ids_path";
 
 pub const GEN_AI_CACHE_WRITE_INPUT_TOKENS: &str = "gen_ai.usage.cache_creation_input_tokens";
 pub const GEN_AI_CACHE_READ_INPUT_TOKENS: &str = "gen_ai.usage.cache_read_input_tokens";
+
+// Mastra / AI SDK stream attributes
+pub const STREAM_USAGE_INPUT_TOKENS: &str = "stream.usage.inputTokens";
+pub const STREAM_USAGE_OUTPUT_TOKENS: &str = "stream.usage.outputTokens";
+pub const STREAM_USAGE_CACHED_INPUT_TOKENS: &str = "stream.usage.cachedInputTokens";
+pub const AISDK_MODEL_ID: &str = "aisdk.model.id";
+pub const AISDK_MODEL_PROVIDER: &str = "aisdk.model.provider";
