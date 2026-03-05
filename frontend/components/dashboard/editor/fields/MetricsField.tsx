@@ -10,7 +10,6 @@ import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas
 import SQLEditor from "@/components/sql/sql-editor";
 import type { SQLSchemaConfig } from "@/components/sql/utils";
 import { Badge } from "@/components/ui/badge.tsx";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type QueryStructure } from "@/lib/actions/sql/types";
@@ -52,33 +51,18 @@ const RawSqlMetricRow = ({ index, table }: { index: number; table: string }) => 
 
   return (
     <div className="grid gap-2 border rounded p-2 bg-secondary/50">
-      <div className="flex gap-2 items-center">
-        <Select value={getMetricFunctionValue(field)} onValueChange={handleFnChange}>
-          <SelectTrigger className="w-28">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {METRIC_FUNCTION_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Controller
-          control={control}
-          name={`metrics.${index}.alias`}
-          render={({ field }) => (
-            <Input
-              placeholder="Alias"
-              value={field.value ?? ""}
-              onChange={field.onChange}
-              onBlur={field.onBlur}
-              className="h-8 text-xs flex-1"
-            />
-          )}
-        />
-      </div>
+      <Select value={getMetricFunctionValue(field)} onValueChange={handleFnChange}>
+        <SelectTrigger className="w-28">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {METRIC_FUNCTION_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <div className="grid gap-1">
         <div className="flex items-center justify-between">
           <Label className="text-xs text-muted-foreground">SQL expression</Label>
@@ -109,7 +93,7 @@ const RawSqlMetricRow = ({ index, table }: { index: number; table: string }) => 
           )}
         />
         <p className="text-[10px] text-muted-foreground">
-          {"Expression is added as: SELECT <expr> AS <alias> FROM "}
+          {"Expression is added as: SELECT <expr> FROM "}
           {table}
         </p>
       </div>

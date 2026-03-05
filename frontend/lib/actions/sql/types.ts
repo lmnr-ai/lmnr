@@ -14,10 +14,6 @@ export const MetricSchema = z
   .refine((data) => data.fn === "count" || data.column.trim().length > 0, {
     message: "Column is required for this metric function",
     path: ["column"],
-  })
-  .refine((data) => data.fn !== "raw" || (data.alias != null && data.alias.trim().length > 0), {
-    message: "Alias is required for custom SQL metrics",
-    path: ["alias"],
   });
 
 export const FilterStringSchema = z.object({
