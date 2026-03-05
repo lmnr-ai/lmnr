@@ -32,7 +32,9 @@ export async function loadOgFonts(): Promise<OgFont[]> {
     })
   );
 
-  cachedFonts = fonts;
+  if (fonts.length > 0) {
+    cachedFonts = fonts;
+  }
   return fonts;
 }
 
