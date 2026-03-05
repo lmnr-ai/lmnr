@@ -13,11 +13,20 @@ import { cn } from "@/lib/utils";
 import { PostHogProvider } from "./providers";
 
 const OGPLUS_BASE_URL = "https://orxlznqh.ogplus.net";
+const DEFAULT_OG_IMAGE = "https://laminar.sh/opengraph-image.png";
+
+const shouldUseOgPlus = (pathname: string) => {
+  if (pathname === "/") {
+    return true;
+  }
+  const prefixes = ["/blog", "/pricing", "/support", "/policies", "/checkout", "/sign-in", "/sign-up"];
+  return prefixes.some((prefix) => pathname.startsWith(prefix));
+};
 
 export const generateMetadata = async (): Promise<Metadata> => {
   const headerStore = await headers();
   const pathname = headerStore.get("x-invoke-path") ?? "/";
-  const ogImage = `${OGPLUS_BASE_URL}${pathname}`;
+  const ogImage = shouldUseOgPlus(pathname) ? `${OGPLUS_BASE_URL}${pathname}` : DEFAULT_OG_IMAGE;
   const canonicalUrl = `https://laminar.sh${pathname}`;
 
   return {
