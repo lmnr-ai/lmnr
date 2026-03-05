@@ -1,4 +1,4 @@
-import { format, isBefore, parseISO, subDays } from "date-fns";
+import { isBefore, parseISO, subDays } from "date-fns";
 
 import { getProjectBillingInfo } from "@/lib/actions/usage/limits.ts";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
@@ -86,5 +86,7 @@ function clampDateString(dateStr: unknown, cutoff: Date): string | null {
 
   if (isNaN(parsed.getTime()) || !isBefore(parsed, cutoff)) return null;
 
-  return hasIsoSeparator ? format(cutoff, "yyyy-MM-dd'T'HH:mm:ss.SSS") : format(cutoff, "yyyy-MM-dd HH:mm:ss.SSS");
+  return hasIsoSeparator
+    ? cutoff.toISOString().replace("Z", "")
+    : cutoff.toISOString().replace("T", " ").replace("Z", "");
 }
