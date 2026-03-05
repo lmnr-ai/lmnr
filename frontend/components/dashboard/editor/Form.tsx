@@ -178,6 +178,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     setLoading,
     setError,
     chartType,
+    parameters,
   ]);
 
   useEffect(() => {
@@ -196,7 +197,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     return () => {
       debouncedExecution.cancel();
     };
-  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart, parameters]);
+  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart]);
 
   return (
     <div className="grid grid-cols-4 h-full gap-4 overflow-hidden">
