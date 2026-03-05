@@ -13,8 +13,17 @@ import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button"
 import type { Filter } from "@/lib/actions/common/filters";
 import type { TraceRow } from "@/lib/traces/types";
 
-import { type TracePickerProps } from ".";
 import { FETCH_SIZE, tracePickerColumns } from "./columns";
+
+export interface TracePickerProps {
+  onTraceSelect: (trace: TraceRow) => void;
+  focusedTraceId?: string | null;
+  excludeTraceId?: string;
+  description?: string;
+  fetchParams?: Record<string, string>;
+  className?: string;
+  mode?: "url" | "state";
+}
 
 const TracePickerContent = ({
   onTraceSelect,
