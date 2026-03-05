@@ -45,7 +45,6 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
       ? Math.min(Math.abs(upcomingInvoice.startingBalance), Math.max(subtotal, 0))
       : 0;
 
-  console.log(upcomingInvoice);
   return (
     <Card>
       <CardHeader className="pb-3">
