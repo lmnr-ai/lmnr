@@ -74,6 +74,12 @@ What it will do:
    Laminar.setTraceSessionId(sessionId);
    Laminar.setTraceMetadata({ env: 'production' });
    ```
+   ```python
+   # After: Laminar context (inside an active span)
+   Laminar.set_trace_user_id(user_id)
+   Laminar.set_trace_session_id(session_id)
+   Laminar.set_trace_metadata({"env": "production"})
+   ```
 6. Verify in the UI.
    Run a single request. You should see a trace with LLM spans, tool spans, and a clear tree. If you only see a root span, wrap your agent entrypoint with `observe(...)` or `@observe()`. See [Viewing Traces](https://docs.laminar.sh/platform/viewing-traces).
 
