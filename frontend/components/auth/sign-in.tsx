@@ -11,21 +11,26 @@ import { AzureButton } from "@/components/auth/azure-button";
 import { EmailSignInButton } from "@/components/auth/email-sign-in";
 import { GitHubButton } from "@/components/auth/github-button";
 import { GoogleButton } from "@/components/auth/google-button";
+import { OktaButton } from "@/components/auth/okta-button";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
 interface SignInProps {
   callbackUrl: string;
-  enableGoogle?: boolean;
-  enableGithub?: boolean;
-  enableAzure?: boolean;
-  enableCredentials?: boolean;
 }
 
-type Provider = "github" | "google" | "azure-ad";
+type Provider = "github" | "google" | "azure-ad" | "okta";
 
 const defaultErrorMessage = `Failed to sign in. Please try again.`;
 
-const SignIn = ({ callbackUrl, enableGoogle, enableGithub, enableAzure, enableCredentials }: SignInProps) => {
+const SignIn = ({ callbackUrl }: SignInProps) => {
+  const featureFlags = useFeatureFlags();
+  const enableCredentials = featureFlags[Feature.EMAIL_AUTH];
+  const enableGithub = featureFlags[Feature.GITHUB_AUTH];
+  const enableGoogle = featureFlags[Feature.GOOGLE_AUTH];
+  const enableAzure = featureFlags[Feature.AZURE_AUTH];
+  const enableOkta = featureFlags[Feature.OKTA_AUTH];
   const searchParams = useSearchParams();
   const [error, setError] = useState(searchParams.get("error"));
   const [isLoading, setIsLoading] = useState<Provider | string>("");
@@ -76,6 +81,16 @@ const SignIn = ({ callbackUrl, enableGoogle, enableGithub, enableAzure, enableCr
             <AzureButton
               onClick={() => handleSignIn("azure-ad")}
               isLoading={isLoading === "azure-ad"}
+              isDisabled={!!isLoading}
+              className={cn({
+                "w-full": enableCredentials,
+              })}
+            />
+          )}
+          {enableOkta && (
+            <OktaButton
+              onClick={() => handleSignIn("okta")}
+              isLoading={isLoading === "okta"}
               isDisabled={!!isLoading}
               className={cn({
                 "w-full": enableCredentials,

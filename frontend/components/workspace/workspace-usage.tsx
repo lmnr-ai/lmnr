@@ -9,11 +9,12 @@ import { PolarGrid, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts"
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
 import { ChartContainer } from "@/components/ui/chart";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
+import { Feature } from "@/lib/features/features";
 
 interface WorkspaceUsageProps {
   workspaceStats: WorkspaceStats;
-  isSubscription: boolean;
 }
 
 const TIER_USAGE_HINTS: Record<
@@ -68,8 +69,9 @@ const getUsageDescription = (tierName?: string): string => {
   return `${tierHint} ${tierHintOverages}`;
 };
 
-export default function WorkspaceUsage({ workspaceStats, isSubscription }: WorkspaceUsageProps) {
+export default function WorkspaceUsage({ workspaceStats }: WorkspaceUsageProps) {
   const { setMenu } = useWorkspaceMenuContext();
+  const featureFlags = useFeatureFlags();
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
   const gbLimit = workspaceStats?.gbLimit ?? 0;
   const signalRunsUsed = workspaceStats?.signalRunsUsedThisMonth ?? 0;
@@ -162,7 +164,7 @@ export default function WorkspaceUsage({ workspaceStats, isSubscription }: Works
         </div>
       </SettingsSection>
 
-      {isSubscription && (
+      {featureFlags[Feature.SUBSCRIPTION] && (
         <SettingsSection>
           <div className="flex items-center gap-2 text-sm text-secondary-foreground">
             <span>Need to upgrade or manage your subscription?</span>

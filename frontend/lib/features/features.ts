@@ -1,8 +1,9 @@
-export const enum Feature {
+export enum Feature {
   SEND_EMAIL = "SEND_EMAIL",
   GITHUB_AUTH = "GITHUB_AUTH",
   GOOGLE_AUTH = "GOOGLE_AUTH",
   AZURE_AUTH = "AZURE_AUTH",
+  OKTA_AUTH = "OKTA_AUTH",
   EMAIL_AUTH = "EMAIL_AUTH",
   POSTHOG = "POSTHOG",
   LOCAL_DB = "LOCAL_DB",
@@ -40,12 +41,13 @@ export const isFeatureEnabled = (feature: Feature) => {
     );
   }
 
+  if (feature === Feature.OKTA_AUTH) {
+    return !!process.env.AUTH_OKTA_CLIENT_ID && !!process.env.AUTH_OKTA_CLIENT_SECRET && !!process.env.AUTH_OKTA_ISSUER;
+  }
+
   if (feature === Feature.FULL_BUILD) {
     const environment = process.env.ENVIRONMENT;
-    if (!environment) {
-      throw new Error("ENVIRONMENT is not set");
-    }
-    return ["FULL", "PRODUCTION"].includes(environment);
+    return !!environment && ["FULL", "PRODUCTION"].includes(environment);
   }
 
   if (feature === Feature.SUBSCRIPTION) {

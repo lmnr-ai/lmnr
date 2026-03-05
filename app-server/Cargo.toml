@@ -10,8 +10,8 @@ actix-web-httpauth = "0.8.2"
 anyhow = "1"
 async-stream = "0.3.6"
 async-trait = "0.1"
-aws-config = "1.8.12"
-aws-sdk-s3 = "1.120.0"
+aws-config = "1.8.14"
+aws-sdk-s3 = "1.124.0"
 backoff = {version = "0.4.0", features = ["tokio"]}
 base64 = "0.22.1"
 bytes = "1.11.1"
@@ -28,7 +28,7 @@ indexmap = {version = "2.13.0", features = ["serde"]}
 itertools = "0.14.0"
 lapin = "3.7"
 log = "0.4.29"
-moka = {version = "0.12.12", features = ["sync", "future"]}
+moka = {version = "0.12", features = ["sync", "future"]}
 num_cpus = "1.17.0"
 opentelemetry = {version = "0.29.1", features = ["trace"]}
 opentelemetry_sdk = {version = "0.29.0", features = ["trace"]}
