@@ -24,11 +24,13 @@ export const generateMetadata = async (props: { params: Promise<{ evaluationId: 
         description,
         type: "website",
         url: `https://laminar.sh/shared/evals/${evaluationId}`,
+        images: { url: "/opengraph-image.png", alt: "Laminar", width: 1200, height: 630 },
       },
       twitter: {
         card: "summary_large_image",
         title,
         description,
+        images: { url: "/twitter-image.png", alt: "Laminar", width: 1200, height: 630 },
       },
     };
   } catch {
