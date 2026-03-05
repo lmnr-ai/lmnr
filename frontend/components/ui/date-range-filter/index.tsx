@@ -210,7 +210,7 @@ const AbsoluteDatePicker = ({
 );
 
 export const DateRangeFilterInner = ({
-  disabled = { after: new Date(), before: subYears(new Date(), 1) },
+  disabled = [{ after: new Date() }, { before: subYears(new Date(), 1) }],
   buttonDisabled = false,
   className,
 }: {
@@ -229,7 +229,7 @@ export const DateRangeFilterInner = ({
   const maxHours = isSubscriptionEnabled && logRetentionDays != null ? logRetentionDays * 24 : undefined;
   const retentionDisabled =
     isSubscriptionEnabled && logRetentionDays != null
-      ? { after: new Date(), before: subDays(new Date(), logRetentionDays) }
+      ? [{ after: new Date() }, { before: subDays(new Date(), logRetentionDays) }]
       : disabled;
 
   const pastHours = useDateRangeFilterContext((state) => state.pastHours);
@@ -303,7 +303,7 @@ export const DateRangeFilterInner = ({
 DateRangeFilterInner.displayName = "DateRangeFilterInner";
 
 export default function DateRangeFilter({
-  disabled = { after: new Date(), before: subYears(new Date(), 1) },
+  disabled = [{ after: new Date() }, { before: subYears(new Date(), 1) }],
   buttonDisabled = false,
   className,
   mode = "url",
