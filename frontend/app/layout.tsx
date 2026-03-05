@@ -48,11 +48,11 @@ export const metadata: Metadata = {
     },
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     description: "Understand why your agent failed. Iterate fast to fix it.",
     title: "Laminar",
     images: {
-      url: "/opengraph-image.png",
+      url: "/twitter-image.png",
       alt: "Laminar",
     },
   },

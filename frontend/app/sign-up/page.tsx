@@ -9,18 +9,6 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 export const metadata: Metadata = {
   title: "Sign Up - Laminar",
   description: "Create a free Laminar account. Start tracing and evaluating your AI agents in minutes.",
-  openGraph: {
-    title: "Sign Up - Laminar",
-    description: "Create a free Laminar account. Start tracing and evaluating your AI agents in minutes.",
-    url: "https://laminar.sh/sign-up",
-    images: ["https://orxlznqh.ogplus.net/sign-up"],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Sign Up - Laminar",
-    description: "Create a free Laminar account. Start tracing and evaluating your AI agents in minutes.",
-    images: ["https://orxlznqh.ogplus.net/sign-up"],
-  },
 };
 
 export default async function SignUpPage(props: {

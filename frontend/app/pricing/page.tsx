@@ -9,20 +9,6 @@ export const metadata: Metadata = {
   title: "Pricing - Laminar",
   description:
     "Transparent pricing for Laminar. Start free with generous limits, scale as your AI agents grow.",
-  openGraph: {
-    title: "Pricing - Laminar",
-    description:
-      "Transparent pricing for Laminar. Start free with generous limits, scale as your AI agents grow.",
-    url: "https://laminar.sh/pricing",
-    images: ["https://orxlznqh.ogplus.net/pricing"],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Pricing - Laminar",
-    description:
-      "Transparent pricing for Laminar. Start free with generous limits, scale as your AI agents grow.",
-    images: ["https://orxlznqh.ogplus.net/pricing"],
-  },
 };
 
 export default async function PricingPage() {

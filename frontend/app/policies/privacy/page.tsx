@@ -3,18 +3,6 @@ import { type Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy Policy - Laminar",
   description: "How Laminar collects, uses, and protects your data.",
-  openGraph: {
-    title: "Privacy Policy - Laminar",
-    description: "How Laminar collects, uses, and protects your data.",
-    url: "https://laminar.sh/policies/privacy",
-    images: ["https://orxlznqh.ogplus.net/policies/privacy"],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Privacy Policy - Laminar",
-    description: "How Laminar collects, uses, and protects your data.",
-    images: ["https://orxlznqh.ogplus.net/policies/privacy"],
-  },
 };
 
 export default function PrivacyPage() {

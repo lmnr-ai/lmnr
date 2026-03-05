@@ -9,18 +9,6 @@ import { Feature, isFeatureEnabled } from "@/lib/features/features";
 export const metadata: Metadata = {
   title: "Sign In - Laminar",
   description: "Sign in to your Laminar account.",
-  openGraph: {
-    title: "Sign In - Laminar",
-    description: "Sign in to your Laminar account.",
-    url: "https://laminar.sh/sign-in",
-    images: ["https://orxlznqh.ogplus.net/sign-in"],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Sign In - Laminar",
-    description: "Sign in to your Laminar account.",
-    images: ["https://orxlznqh.ogplus.net/sign-in"],
-  },
 };
 
 export default async function SignInPage(props: {

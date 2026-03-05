@@ -3,18 +3,6 @@ import { type Metadata } from "next";
 export const metadata: Metadata = {
   title: "Cookie Policy - Laminar",
   description: "How Laminar uses cookies and similar technologies.",
-  openGraph: {
-    title: "Cookie Policy - Laminar",
-    description: "How Laminar uses cookies and similar technologies.",
-    url: "https://laminar.sh/policies/cookies",
-    images: ["https://orxlznqh.ogplus.net/policies/cookies"],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Cookie Policy - Laminar",
-    description: "How Laminar uses cookies and similar technologies.",
-    images: ["https://orxlznqh.ogplus.net/policies/cookies"],
-  },
 };
 
 export default function CookiesPage() {

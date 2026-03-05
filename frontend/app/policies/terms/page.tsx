@@ -3,18 +3,6 @@ import { type Metadata } from "next";
 export const metadata: Metadata = {
   title: "Terms of Service - Laminar",
   description: "Terms and conditions for using the Laminar platform.",
-  openGraph: {
-    title: "Terms of Service - Laminar",
-    description: "Terms and conditions for using the Laminar platform.",
-    url: "https://laminar.sh/policies/terms",
-    images: ["https://orxlznqh.ogplus.net/policies/terms"],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Terms of Service - Laminar",
-    description: "Terms and conditions for using the Laminar platform.",
-    images: ["https://orxlznqh.ogplus.net/policies/terms"],
-  },
 };
 
 export default function TermsPage() {

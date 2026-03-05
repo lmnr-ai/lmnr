@@ -12,24 +12,50 @@ Traceloop has announced it is joining ServiceNow (March 2026), with OpenLLMetry 
 
 ## Fastest Path: Swap the OTLP Exporter (OTel Users)
 
-If you're already emitting OpenTelemetry spans (the main reason many teams picked Traceloop), you can keep your span structure and just point your exporter at Laminar. For many teams, this is the entire migration.
+If you're already emitting OpenTelemetry spans (the main reason many teams picked Traceloop), you can keep your span structure and just point your exporter at Laminar. Traceloop defaults to OTLP/HTTP, while Laminar defaults to OTLP/gRPC. You can stay on HTTP, but we recommend gRPC for stability. For HTTP, `Authorization` is fine; for gRPC metadata, use lowercase `authorization`.
 
 ```python
-# Just change the endpoint and headers
+# OTLP/HTTP (Traceloop default)
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 import os
 
 exporter = OTLPSpanExporter(
     endpoint="https://api.lmnr.ai/v1/traces",
-    headers={"authorization": f"Bearer {os.environ['LMNR_PROJECT_API_KEY']}"},
+    headers={"Authorization": f"Bearer {os.environ['LMNR_PROJECT_API_KEY']}"},
 )
 ```
 
-If you're using OTLP/gRPC, see [OpenTelemetry](/tracing/otel) for the Laminar endpoint and header format.
+```typescript
+// OTLP/HTTP (Traceloop default)
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+
+const exporter = new OTLPTraceExporter({
+  url: "https://api.lmnr.ai/v1/traces",
+  headers: {
+    Authorization: `Bearer ${process.env.LMNR_PROJECT_API_KEY}`,
+  },
+});
+```
+
+```typescript
+// OTLP/gRPC (recommended for Laminar)
+import { Metadata } from "@grpc/grpc-js";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc";
+
+const metadata = new Metadata();
+metadata.set("authorization", `Bearer ${process.env.LMNR_PROJECT_API_KEY}`);
+
+const exporter = new OTLPTraceExporter({
+  url: "https://api.lmnr.ai:8443/v1/traces",
+  metadata,
+});
+```
+
+See [OpenTelemetry](https://docs.laminar.sh/tracing/otel) for more context and Python gRPC examples.
 
 ## Fast Path: Let the Agent Migrate It
 
-If you use Claude Code, Cursor, Codex, or another coding agent that supports skills, this is the fastest route. Run the `laminar-instrument-codebase` skill (see [Skills setup](/getting-started#set-up-with-ai)) with the following prompt:
+If you use Claude Code, Cursor, Codex, or another coding agent that supports skills, this is the fastest route. Run the `laminar-instrument-codebase` skill (see [Skills setup](https://docs.laminar.sh/getting-started#set-up-with-ai)) with the following prompt:
 
 ```text
 Use the laminar-instrument-codebase skill to migrate this repo from Traceloop to Laminar.
@@ -48,7 +74,7 @@ What it will do:
 ## Manual Migration (Full Control)
 
 1. Create a Laminar project and set `LMNR_PROJECT_API_KEY`.
-2. Install the SDK (TypeScript: `npm add @lmnr-ai/lmnr`; Python: `pip install lmnr`). See [Hosting Options](/hosting-options) if you are self-hosting.
+2. Install the SDK (TypeScript: `npm add @lmnr-ai/lmnr`; Python: `pip install lmnr`). See [Hosting Options](https://docs.laminar.sh/hosting-options) if you are self-hosting.
 3. Replace Traceloop initialization with Laminar initialization.
 
 ```typescript
@@ -70,7 +96,7 @@ Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"])
 5. If you use decorators or manual spans, map them to Laminar equivalents. Laminar collapses workflow/task into a single `@observe()` decorator - a simpler mental model with the same trace fidelity. Use the mapping table below.
 
 6. Verify in the UI.
-   Run a single request. You should see a full trace tree with LLM and tool spans. If you only see a root span, add `observe(...)` or `@observe()` around your agent entrypoint. See [Viewing Traces](/platform/viewing-traces).
+   Run a single request. You should see a full trace tree with LLM and tool spans. If you only see a root span, add `observe(...)` or `@observe()` around your agent entrypoint. See [Viewing Traces](https://docs.laminar.sh/platform/viewing-traces).
 
 ## Traceloop to Laminar Mapping
 
@@ -145,12 +171,12 @@ Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"])
 
 ## What You Gain with Laminar
 
-- [Browser session recordings synced to traces](/tracing/browser-agent-observability)
-- [SQL editor for ad-hoc analysis](/platform/sql-editor)
-- [Signals for natural language monitoring](/signals)
-- [Evals you can run locally or in CI](/evaluations/introduction)
+- [Browser session recordings synced to traces](https://docs.laminar.sh/tracing/browser-agent-observability)
+- [SQL editor for ad-hoc analysis](https://docs.laminar.sh/platform/sql-editor)
+- [Signals for natural language monitoring](https://docs.laminar.sh/signals)
+- [Evals you can run locally or in CI](https://docs.laminar.sh/evaluations/introduction)
 - Fully open source and self-hostable, independent of enterprise platform roadmaps
 
-Once you're set up, explore [Signals](/signals), [SQL analysis](/platform/sql-editor), and [real-time agent tracing](/platform/viewing-traces) in the docs.
+Once you're set up, explore [Signals](https://docs.laminar.sh/signals), [SQL analysis](https://docs.laminar.sh/platform/sql-editor), and [real-time agent tracing](https://docs.laminar.sh/platform/viewing-traces) in the docs.
 
 If anything doesn't map cleanly, drop into our [Discord](https://discord.gg/nNFUUDAKub) and we'll help you sort it out.
