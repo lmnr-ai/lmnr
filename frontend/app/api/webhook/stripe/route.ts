@@ -170,11 +170,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       break;
     case "customer.subscription.created":
       await handleSubscriptionChange(event);
-      try {
-        await addOveragePricesToSubscription(event.data.object);
-      } catch (err) {
-        console.error("Failed to add overage prices to subscription", err);
-      }
+      await addOveragePricesToSubscription(event.data.object);
       break;
     case "customer.subscription.updated":
       await handleSubscriptionChange(event);
