@@ -3,7 +3,7 @@ import { useParams } from "next/navigation";
 import { useCallback } from "react";
 
 import { useEvalStore } from "@/components/evaluation/store";
-import JsonTooltip from "@/components/ui/json-tooltip";
+import FetchableJsonTooltip from "@/components/ui/fetchable-json-tooltip";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { ComparisonCell } from "./comparison-cell";
@@ -27,10 +27,8 @@ export const DataCell = ({ getValue, column, row }: CellContext<EvalRow, unknown
   const evaluationId = row.original["evaluationId"] as string | undefined;
 
   const value = getValue();
-  const valueStr = typeof value === "string" ? value : JSON.stringify(value);
-  const isDataTruncated = isTruncatedColumn && valueStr?.length === 200;
 
-  const canFetch = !!(isDataTruncated && !isShared && fullSql && datapointId && evaluationId && projectId);
+  const canFetch = !!(isTruncatedColumn && !isShared && fullSql && datapointId && evaluationId && projectId);
 
   const onFetchFull = useCallback(async () => {
     if (!canFetch) return null;
@@ -57,5 +55,7 @@ export const DataCell = ({ getValue, column, row }: CellContext<EvalRow, unknown
     );
   }
 
-  return <JsonTooltip data={getValue()} columnSize={column.getSize()} onOpen={canFetch ? onFetchFull : undefined} />;
+  return (
+    <FetchableJsonTooltip data={value} columnSize={column.getSize()} onFetchFull={canFetch ? onFetchFull : undefined} />
+  );
 };
