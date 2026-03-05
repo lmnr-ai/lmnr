@@ -44,13 +44,12 @@ pub async fn get_llm_usage_for_span(
     let input_cost = attributes.input_cost();
     let output_cost = attributes.output_cost();
     let total_cost = attributes.total_cost();
-    let provider_name = attributes.provider_name(span_name);
+    let response_model = attributes.response_model();
+    let request_model = attributes.request_model();
+    let mut model_name = response_model.clone().or(request_model.clone());
+    let mut provider_name = attributes.provider_name(span_name);
 
-    let mut response_model = attributes.response_model();
-    let mut request_model = attributes.request_model();
-    response_model = tranform_model_name(response_model, provider_name.clone());
-    request_model = tranform_model_name(request_model, provider_name.clone());
-    let model_name = response_model.clone().or(request_model.clone());
+    (model_name, provider_name) = tranform_model_and_provider(model_name, provider_name);
 
     if input_cost.is_some_and(|c| c > 0.0)
         || output_cost.is_some_and(|c| c > 0.0)
@@ -275,51 +274,43 @@ pub fn group_traces_by_project(traces: &[Trace]) -> HashMap<Uuid, Vec<&Trace>> {
     grouped
 }
 
-/// Custom logic to transform model not covered by main flow
-fn tranform_model_name(
+/// Custom logic to transform model/provider not covered by main flow
+fn tranform_model_and_provider(
     model_name: Option<String>,
     provider_name: Option<String>,
-) -> Option<String> {
-    // Old versions of laminar sdk were removing provider prefix from model names when using openrout
-    // Remove this logic when we stop supporting old versions of laminar sdk
+) -> (Option<String>, Option<String>) {
     match provider_name.as_deref() {
-        Some("openrouter") => model_name.map(|model| {
-            let prefix = if model.starts_with("gpt-")
-                || model.starts_with("o1")
-                || model.starts_with("o3")
-                || model.starts_with("o4")
-            {
-                "openai"
-            } else if model.starts_with("claude-") {
-                "anthropic"
-            } else if model.starts_with("gemini-") || model.starts_with("gemma-") {
-                "google"
-            } else if model.starts_with("llama-") || model.starts_with("llama3") {
-                "meta-llama"
-            } else if model.starts_with("mistral-")
-                || model.starts_with("mixtral-")
-                || model.starts_with("codestral-")
-            {
-                "mistralai"
-            } else if model.starts_with("deepseek-") {
-                "deepseek"
-            } else if model.starts_with("grok-") {
-                "x-ai"
-            } else if model.starts_with("command-") {
-                "cohere"
-            } else if model.starts_with("sonar-") || model.starts_with("r1-1776") {
-                "perplexity"
-            } else if model.starts_with("qwen-") || model.starts_with("qwq-") {
-                "qwen"
-            } else if model.starts_with("phi-") {
-                "microsoft"
-            } else if model.starts_with("nemotron-") {
-                "nvidia"
-            } else {
-                return model;
-            };
-            format!("{prefix}/{model}")
-        }),
-        _ => model_name,
+        // Old versions of laminar sdk were removing provider prefix from model names when using openrouter.
+        // Remove this logic when we stop supporting old versions of laminar sdk
+        Some("openrouter") => {
+            let new_model = model_name.map(|model| {
+                const MODEL_PREFIX_TO_PROVIDER: &[(&[&str], &str)] = &[
+                    (&["gpt-", "o1", "o3", "o4"], "openai"),
+                    (&["claude-"], "anthropic"),
+                    (&["gemini-", "gemma-"], "google"),
+                    (&["llama-", "llama3"], "meta-llama"),
+                    (&["mistral-", "mixtral-", "codestral-"], "mistralai"),
+                    (&["deepseek-"], "deepseek"),
+                    (&["grok-"], "x-ai"),
+                    (&["command-"], "cohere"),
+                    (&["sonar-", "r1-1776"], "perplexity"),
+                    (&["qwen-", "qwq-"], "qwen"),
+                    (&["phi-"], "microsoft"),
+                    (&["nemotron-"], "nvidia"),
+                ];
+
+                match MODEL_PREFIX_TO_PROVIDER
+                    .iter()
+                    .find(|(prefixes, _)| prefixes.iter().any(|p| model.starts_with(p)))
+                {
+                    Some((_, provider)) => format!("{provider}/{model}"),
+                    None => model,
+                }
+            });
+            (new_model, provider_name)
+        }
+        // LiteLLM stores "gateway" as "vercel_ai_gateway"
+        Some("gateway") => (model_name, Some("vercel_ai_gateway".to_string())),
+        _ => (model_name, provider_name),
     }
 }

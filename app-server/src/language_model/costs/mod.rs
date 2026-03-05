@@ -39,6 +39,9 @@ pub struct ModelInfo {
     /// The raw model name with date snapshot suffix stripped
     /// (e.g. `gpt-4.1-nano-2025-04-14` → `gpt-4.1-nano`)
     pub model_without_snapshot: String,
+    /// The model name with dots replaced by dashes
+    /// (e.g. `gpt-4.1-nano` → `gpt-4-1-nano`)
+    pub model_without_dots: String,
 }
 
 impl ModelInfo {
@@ -66,12 +69,15 @@ impl ModelInfo {
         // Extract model name without date snapshot suffix
         let model_without_snapshot = SNAPSHOT_SUFFIX_REGEX.replace(&raw_model, "").into_owned();
 
+        let model_without_dots = model_without_snapshot.replace('.', "-");
+
         ModelInfo {
             model: model.to_string(),
             provider,
             region,
             raw_model,
             model_without_snapshot,
+            model_without_dots,
         }
     }
 
@@ -84,12 +90,22 @@ impl ModelInfo {
             // 1. provider/region/model
             keys.push(format!("{}/{}/{}", provider, region, self.raw_model));
             keys.push(format!("{}/{}/{}", provider, region, self.model));
+            keys.push(format!(
+                "{}/{}/{}",
+                provider, region, self.model_without_snapshot
+            ));
+            keys.push(format!(
+                "{}/{}/{}",
+                provider, region, self.model_without_dots
+            ));
         }
 
         if let Some(provider) = &self.provider {
             // 2. provider/model
             keys.push(format!("{}/{}", provider, self.raw_model));
             keys.push(format!("{}/{}", provider, self.model));
+            keys.push(format!("{}/{}", provider, self.model_without_snapshot));
+            keys.push(format!("{}/{}", provider, self.model_without_dots));
         }
 
         // 3. model (full string as-is)
@@ -100,6 +116,9 @@ impl ModelInfo {
 
         // 5. raw model name without date snapshot suffix
         keys.push(self.model_without_snapshot.clone());
+
+        // 6. raw model name without dots
+        keys.push(self.model_without_dots.clone());
 
         keys.dedup();
         keys
