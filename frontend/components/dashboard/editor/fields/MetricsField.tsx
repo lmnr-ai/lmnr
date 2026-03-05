@@ -17,12 +17,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { type QueryStructure } from "@/lib/actions/sql/types";
 import { cn } from "@/lib/utils.ts";
 
-const RawSqlMetricRow = ({ index, table, onRemove }: { index: number; table: string; onRemove: () => void }) => {
-  const { control, setValue, getValues } = useFormContext<QueryStructure>();
+const useMetricFnChange = (index: number) => {
+  const { setValue, getValues } = useFormContext<QueryStructure>();
 
-  const schema: SQLSchemaConfig = { tables: [table] };
-
-  const handleFnChange = useCallback(
+  return useCallback(
     (fnValue: string) => {
       const currentMetric = getValues(`metrics.${index}`);
       const newMetric = createMetricFromOption(fnValue, currentMetric.column || "count");
@@ -36,6 +34,14 @@ const RawSqlMetricRow = ({ index, table, onRemove }: { index: number; table: str
     },
     [index, setValue, getValues]
   );
+};
+
+const RawSqlMetricRow = ({ index, table, onRemove }: { index: number; table: string; onRemove: () => void }) => {
+  const { control, setValue, getValues } = useFormContext<QueryStructure>();
+
+  const schema: SQLSchemaConfig = { tables: [table] };
+
+  const handleFnChange = useMetricFnChange(index);
 
   const handleSqlChange = useCallback(
     (sql: string) => {
@@ -122,20 +128,7 @@ const StandardMetricRow = ({ index, table, onRemove }: { index: number; table: s
   const { control, setValue, getValues } = useFormContext<QueryStructure>();
   const field = useWatch({ control, name: `metrics.${index}` });
 
-  const handleFnChange = useCallback(
-    (fnValue: string) => {
-      const currentMetric = getValues(`metrics.${index}`);
-      const newMetric = createMetricFromOption(fnValue, currentMetric.column || "count");
-      if (newMetric.fn === "count") {
-        setValue(`metrics.${index}`, { ...newMetric, column: "*", alias: "count" }, { shouldValidate: true });
-      } else if (newMetric.fn === "raw") {
-        setValue(`metrics.${index}`, { ...newMetric }, { shouldValidate: true });
-      } else {
-        setValue(`metrics.${index}`, { ...newMetric, column: "" }, { shouldValidate: true });
-      }
-    },
-    [index, setValue, getValues]
-  );
+  const handleFnChange = useMetricFnChange(index);
 
   return (
     <div className="flex gap-2">
