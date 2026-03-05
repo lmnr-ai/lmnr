@@ -488,6 +488,7 @@ async fn process_run(
             input_tokens: None,
             input_cached_tokens: None,
             output_tokens: None,
+            reasoning_tokens: None,
             model: model.to_string(),
             provider: provider.to_string(),
             internal_project_id,

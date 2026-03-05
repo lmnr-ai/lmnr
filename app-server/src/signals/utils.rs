@@ -30,6 +30,7 @@ pub struct InternalSpan {
     pub input_tokens: Option<i32>,
     pub input_cached_tokens: Option<i64>,
     pub output_tokens: Option<i32>,
+    pub reasoning_tokens: Option<i64>,
     pub model: String,
     pub provider: String,
     pub internal_project_id: Option<Uuid>,
@@ -178,8 +179,12 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
     );
     attrs.insert("gen_ai.system".to_string(), Value::String(span.provider));
 
-    // set batch attribute to true because signal runs always use batch api
-    attrs.insert("gen_ai.request.batch".to_string(), Value::Bool(true));
+    if let Some(tokens) = span.reasoning_tokens {
+        attrs.insert(
+            "gen_ai.usage.reasoning_tokens".to_string(),
+            Value::Number(tokens.into()),
+        );
+    }
 
     if let Some(parent_span_id) = span.parent_span_id {
         attrs.insert(

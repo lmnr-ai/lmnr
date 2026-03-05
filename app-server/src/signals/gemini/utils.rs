@@ -29,6 +29,8 @@ pub struct ParsedInlineResponse {
 
     /// Output tokens (candidates_token_count in Gemini)
     pub output_tokens: Option<i32>,
+    /// Reasoning/thinking tokens (thoughts_token_count in Gemini)
+    pub reasoning_tokens: Option<i64>,
     /// Finish reason if present
     pub finish_reason: Option<FinishReason>,
     /// Finish message if present
@@ -62,7 +64,7 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
     let finish_reason = candidate.and_then(|c| c.finish_reason.clone());
 
     // Include thoughts tokens in output tokens.
-    let (input_tokens, input_cached_tokens, output_tokens) = inline_response
+    let (input_tokens, input_cached_tokens, output_tokens, reasoning_tokens) = inline_response
         .response
         .as_ref()
         .and_then(|r| r.usage_metadata.as_ref())
@@ -80,13 +82,19 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
                     })
                     .sum()
             });
+            let thoughts = u.thoughts_token_count.unwrap_or(0);
             let output = u
                 .candidates_token_count
                 .unwrap_or(0)
-                .saturating_add(u.thoughts_token_count.unwrap_or(0));
-            (input, input_cached_tokens, Some(output))
+                .saturating_add(thoughts);
+            let reasoning = if thoughts > 0 {
+                Some(thoughts as i64)
+            } else {
+                None
+            };
+            (input, input_cached_tokens, Some(output), reasoning)
         })
-        .unwrap_or((None, None, None));
+        .unwrap_or((None, None, None, None));
 
     let finish_message = candidate.and_then(|c| c.finish_message.clone());
     let model_version = inline_response
@@ -105,6 +113,7 @@ pub fn parse_inline_response(inline_response: &InlineResponse) -> ParsedInlineRe
         input_tokens,
         input_cached_tokens,
         output_tokens,
+        reasoning_tokens,
         finish_reason,
         finish_message,
         model_version,

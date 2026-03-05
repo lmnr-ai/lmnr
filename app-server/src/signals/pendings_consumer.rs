@@ -807,6 +807,7 @@ async fn process_single_response(
             input_tokens: response.input_tokens,
             input_cached_tokens: response.input_cached_tokens,
             output_tokens: response.output_tokens,
+            reasoning_tokens: response.reasoning_tokens,
             model: format!(
                 "{}-batch",
                 response.model_version.as_ref().unwrap_or(&LLM_MODEL)
@@ -872,6 +873,7 @@ async fn process_single_response(
                 input_tokens: None,
                 input_cached_tokens: None,
                 output_tokens: None,
+                reasoning_tokens: None,
                 model: LLM_MODEL.clone(),
                 provider: LLM_PROVIDER.clone(),
                 internal_project_id: config.internal_project_id,
@@ -1250,6 +1252,7 @@ async fn handle_create_event(
             input_tokens: None,
             input_cached_tokens: None,
             output_tokens: None,
+            reasoning_tokens: None,
             model: LLM_MODEL.clone(),
             provider: LLM_PROVIDER.clone(),
             internal_project_id,
