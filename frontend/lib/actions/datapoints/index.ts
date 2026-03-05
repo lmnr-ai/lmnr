@@ -1,4 +1,3 @@
-import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -14,8 +13,6 @@ import {
   type DatapointResult,
   deleteDatapoints as deleteClickHouseDatapoints,
 } from "@/lib/clickhouse/datapoints";
-import { db } from "@/lib/db/drizzle.ts";
-import { datasets } from "@/lib/db/migrations/schema.ts";
 import { generateSequentialUuidsV7 } from "@/lib/utils";
 
 export const ListDatapointsSchema = z.object({
@@ -87,35 +84,23 @@ export async function getDatapoints(input: z.infer<typeof ListDatapointsSchema>)
 
   const offset = Math.max(0, pageNumber * pageSize);
 
-  const dataset = await db.query.datasets.findFirst({
-    where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
-    columns: {
-      id: true,
-      createdAt: true,
-    },
-  });
-
-  if (!dataset) {
-    throw new Error("Dataset not found.");
-  }
-
   // Get datapoints using SQL endpoint
   const { query: datapointsQuery, parameters: datapointsParams } = buildDatapointsQueryWithParams({
     datasetId,
     pageSize,
     offset,
-    startTime: dataset.createdAt,
   });
 
-  const result = await executeQuery<Record<string, unknown>>({
-    query: datapointsQuery,
-    parameters: datapointsParams,
-    projectId,
-  });
+  const datapointsData = (
+    await executeQuery<Record<string, unknown>>({
+      query: datapointsQuery,
+      parameters: datapointsParams,
+      projectId,
+    })
+  ).data as unknown as DatapointResult[];
 
   return {
-    items: result.data,
-    meta: result.meta,
+    items: datapointsData,
     pageNumber,
     pageSize,
   };
@@ -199,11 +184,13 @@ export async function getAllDatapointsForDataset(projectId: string, datasetId: s
     datasetId,
   });
 
-  const result = await executeQuery<Record<string, unknown>>({
-    query,
-    parameters,
-    projectId,
-  });
+  const datapoints = (
+    await executeQuery<Record<string, unknown>>({
+      query,
+      parameters,
+      projectId,
+    })
+  ).data as unknown as DatapointResult[];
 
-  return result.data as unknown as DatapointResult[];
+  return datapoints;
 }

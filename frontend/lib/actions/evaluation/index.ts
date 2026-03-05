@@ -16,6 +16,7 @@ import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 import {
   type Evaluation,
+  type EvaluationResultsInfo,
   type EvaluationScoreDistributionBucket,
   type EvaluationScoreStatistics,
 } from "@/lib/evaluation/types.ts";
@@ -75,7 +76,9 @@ export const RenameEvaluationSchema = z.object({
   name: z.string().min(1, "Name is required"),
 });
 
-export const getEvaluationDatapoints = async (input: z.infer<typeof GetEvaluationDatapointsSchema>) => {
+export const getEvaluationDatapoints = async (
+  input: z.infer<typeof GetEvaluationDatapointsSchema>
+): Promise<EvaluationResultsInfo> => {
   const {
     projectId,
     evaluationId,
@@ -143,21 +146,17 @@ export const getEvaluationDatapoints = async (input: z.infer<typeof GetEvaluatio
     sortSql,
     sortDirection,
     targetId: targetId ?? undefined,
-    startTime: new Date(new Date(evaluation.createdAt).getTime() - 1000).toISOString(),
   });
-  const { data: results, meta } = await executeQuery<Record<string, unknown>>({
+
+  const { data: results } = await executeQuery<Record<string, unknown>>({
     query,
-    parameters: {
-      ...parameters,
-      start_time: evaluation.createdAt,
-    },
+    parameters,
     projectId,
   });
 
   return {
     evaluation: evaluation as Evaluation,
     results,
-    meta,
   };
 };
 
@@ -207,15 +206,11 @@ export const getEvaluationStatistics = async (
     traceIds: searchTraceIds,
     filters: allFilters,
     columns,
-    startTime: new Date(new Date(evaluation.createdAt).getTime() - 1000).toISOString(),
   });
 
   const { data: rawResults } = await executeQuery<{ scores: string }>({
     query: statsQuery,
-    parameters: {
-      ...statsParams,
-      start_time: evaluation.createdAt,
-    },
+    parameters: statsParams,
     projectId,
   });
 

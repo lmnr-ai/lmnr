@@ -24,21 +24,13 @@ const datapointSelectColumnsWithSubstring = [
   "metadata",
 ];
 
-function buildStartTimeCondition(startTime: string): { condition: string; params: QueryParams } {
-  return {
-    condition: `created_at >= {startTime:String}`,
-    params: { startTime: startTime.replace(/\+00$/, "").replace(/Z$/, "") },
-  };
-}
-
 export interface BuildDatapointQueryOptions {
   datapointId: string;
   datasetId: string;
-  startTime?: string;
 }
 
 export const buildDatapointQueryWithParams = (options: BuildDatapointQueryOptions): QueryResult => {
-  const { datapointId, datasetId, startTime } = options;
+  const { datapointId, datasetId } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -53,10 +45,6 @@ export const buildDatapointQueryWithParams = (options: BuildDatapointQueryOption
       params: { datasetId },
     },
   ];
-
-  if (startTime) {
-    customConditions.push(buildStartTimeCondition(startTime));
-  }
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -125,11 +113,10 @@ export interface BuildDatapointsQueryOptions {
   searchQuery?: string;
   pageSize: number;
   offset: number;
-  startTime?: string;
 }
 
 export const buildDatapointsQueryWithParams = (options: BuildDatapointsQueryOptions): QueryResult => {
-  const { datasetId, searchQuery, pageSize, offset, startTime } = options;
+  const { datasetId, searchQuery, pageSize, offset } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -148,10 +135,6 @@ export const buildDatapointsQueryWithParams = (options: BuildDatapointsQueryOpti
       condition: `(data LIKE {searchQuery:String} OR target LIKE {searchQuery:String})`,
       params: { searchQuery: `%${searchQuery}%` },
     });
-  }
-
-  if (startTime) {
-    customConditions.push(buildStartTimeCondition(startTime));
   }
 
   const queryOptions: SelectQueryOptions = {

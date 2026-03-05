@@ -52,9 +52,7 @@ interface EvalStoreState {
   updateCustomColumn: (oldName: string, column: CustomColumn) => void;
   removeCustomColumn: (name: string) => void;
   buildStatsParams: (raw: RawUrlParams) => URLSearchParams;
-  buildFetchParams: (
-    raw: RawUrlParams & { pageNumber: number; pageSize: number; evaluationCreatedAt?: string }
-  ) => URLSearchParams;
+  buildFetchParams: (raw: RawUrlParams & { pageNumber: number; pageSize: number }) => URLSearchParams;
 }
 
 /** Selector: visible columns, excluding output in comparison mode */
@@ -170,7 +168,6 @@ export const useEvalStore = create<EvalStoreState>()(
         }
         if (raw.sortDirection) urlParams.set("sortDirection", raw.sortDirection);
         if (raw.targetId) urlParams.set("targetId", raw.targetId);
-        if (raw.evaluationCreatedAt) urlParams.set("evaluationCreatedAt", raw.evaluationCreatedAt);
 
         return urlParams;
       },

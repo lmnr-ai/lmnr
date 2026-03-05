@@ -1,8 +1,7 @@
 import { type Row } from "@tanstack/react-table";
-import { type DependencyList, useMemo } from "react";
+import { useMemo } from "react";
 
 import { useEvalStore } from "@/components/evaluation/store";
-import { type FetchResult } from "@/components/ui/infinite-datatable/hooks/use-infinite-scroll";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -10,26 +9,31 @@ import EvalTableSkeleton from "./eval-table-skeleton";
 import EvaluationDatapointsTableContent from "./evaluation-datapoints-table-content";
 
 export interface EvaluationDatapointsTableProps {
-  isStatsLoading: boolean;
+  isLoading: boolean;
   datapointId?: string;
+  data: EvalRow[] | undefined;
   scores: string[];
   handleRowClick: (row: Row<EvalRow>) => void;
   getRowHref?: (row: Row<EvalRow>) => string;
-  fetchFn: (pageNumber: number) => Promise<FetchResult<EvalRow>>;
-  fetchDeps: DependencyList;
+  hasMore: boolean;
+  isFetching: boolean;
+  fetchNextPage: () => void;
 }
 
 const baseColumnOrder = ["status", "index", "data", "target", "metadata", "output", "duration", "cost"];
 
 const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
-  const { scores, isStatsLoading } = props;
+  const { scores, isLoading } = props;
   const customColumns = useEvalStore((s) => s.customColumns);
   const defaultColumnOrder = useMemo(
     () => [...baseColumnOrder, ...scores.map((s) => `score:${s}`), ...customColumns.map((cc) => `custom:${cc.name}`)],
     [scores, customColumns]
   );
 
-  if (isStatsLoading) {
+  // Delay mounting the store until scores are known, otherwise the store
+  // is created with an incomplete defaultColumnOrder and score columns
+  // won't be reorderable.
+  if (isLoading) {
     return <EvalTableSkeleton />;
   }
 
