@@ -334,6 +334,24 @@ class QueryValidator:
         "demangle",
     }
 
+    @staticmethod
+    def check_for_blocked_functions(node: sqlglot.exp.Expression) -> str | None:
+        """Check an AST node tree for blocked functions.
+
+        Returns the blocked function name if found, or None if clean.
+        For Anonymous nodes, .name is the literal SQL function name.
+        For recognized Func subclasses (Count, Sum, etc.), .name resolves
+        to the first argument (column name), so we use sql_name() instead.
+        """
+        for func in node.find_all(sqlglot.exp.Anonymous, sqlglot.exp.Func):
+            if isinstance(func, sqlglot.exp.Anonymous):
+                func_name = func.name.lower()
+            else:
+                func_name = func.sql_name().lower()
+            if func_name in QueryValidator.BLOCKED_FUNCTIONS:
+                return func_name
+        return None
+
     def _validate_security(self, query: sqlglot.exp.Expression):
         """Validate that query is secure (only SELECT, no writes)"""
         if not isinstance(query, sqlglot.exp.Select):
@@ -348,18 +366,9 @@ class QueryValidator:
             )
 
         # Block dangerous functions that can access external resources.
-        # For Anonymous nodes, .name is the literal SQL function name.
-        # For recognized Func subclasses (Count, Sum, etc.), .name resolves
-        # to the first argument (column name), so we use the class key instead.
-        for func in query.find_all(sqlglot.exp.Anonymous, sqlglot.exp.Func):
-            if isinstance(func, sqlglot.exp.Anonymous):
-                func_name = func.name.lower()
-            else:
-                func_name = func.sql_name().lower()
-            if func_name in self.BLOCKED_FUNCTIONS:
-                raise QueryValidationError(
-                    f"Function '{func_name}' is not allowed"
-                )
+        blocked = self.check_for_blocked_functions(query)
+        if blocked:
+            raise QueryValidationError(f"Function '{blocked}' is not allowed")
 
     def _validate_tables_and_columns(self, query: sqlglot.exp.Expression):
         """Validate that all tables and columns are allowed"""

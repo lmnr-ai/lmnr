@@ -211,14 +211,10 @@ class JsonToSqlConverter:
             if node is not parsed:
                 raise QueryBuilderError("Subqueries are not allowed in raw SQL expressions")
 
-        # Block dangerous functions using the same blocklist as the query validator
-        for func in parsed.find_all(sqlglot.exp.Anonymous, sqlglot.exp.Func):
-            if isinstance(func, sqlglot.exp.Anonymous):
-                func_name = func.name.lower()
-            else:
-                func_name = func.sql_name().lower()
-            if func_name in QueryValidator.BLOCKED_FUNCTIONS:
-                raise QueryBuilderError(f"Function '{func_name}' is not allowed in raw SQL expressions")
+        # Block dangerous functions using the shared helper from the query validator
+        blocked = QueryValidator.check_for_blocked_functions(parsed)
+        if blocked:
+            raise QueryBuilderError(f"Function '{blocked}' is not allowed in raw SQL expressions")
 
     def _metric_sql(self, metric: dict[str, Any]) -> str:
         fn = metric['fn']
