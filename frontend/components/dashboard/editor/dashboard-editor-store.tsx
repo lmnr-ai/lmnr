@@ -9,6 +9,7 @@ import { createStore, useStore } from "zustand";
 import { ChartType } from "@/components/chart-builder/types.ts";
 import { type DashboardChart } from "@/components/dashboard/types";
 import { type SQLParameter } from "@/components/sql/sql-editor-store";
+import { type QueryResultMeta } from "@/lib/actions/sql/types.ts";
 
 type DashboardEditorState = {
   chart: { id?: string; createdAt?: string } & Omit<DashboardChart, "id" | "createdAt">;
@@ -197,11 +198,12 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
           body: JSON.stringify({ query: chart.query, parameters }),
         });
 
-        const data = await response.json();
-
         if (!response.ok) {
-          throw new Error(data?.error || `Query failed with status ${response.status}`);
+          const errorData = (await response.json()) as { error: string };
+          throw new Error(errorData?.error || `Query failed with status ${response.status}`);
         }
+
+        const { data } = (await response.json()) as { data: Record<any, any>; meta: QueryResultMeta };
 
         setData(Array.isArray(data) ? data : []);
         if (!isEmpty(data)) {

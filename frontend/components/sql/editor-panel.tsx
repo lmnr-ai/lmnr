@@ -29,6 +29,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { type QueryResultMeta } from "@/lib/actions/sql/types.ts";
 import { useToast } from "@/lib/hooks/use-toast";
 
 export default function EditorPanel() {
@@ -127,7 +128,7 @@ export default function EditorPanel() {
         throw new Error(error);
       }
 
-      const data = await response.json();
+      const { data } = (await response.json()) as { data: Record<string, any>; meta: QueryResultMeta };
 
       setResults(Array.isArray(data) ? data : []);
     } catch (err) {
