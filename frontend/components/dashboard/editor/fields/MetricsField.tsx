@@ -31,7 +31,7 @@ const useMetricFnChange = (index: number) => {
         setValue(`metrics.${index}`, { ...newMetric, column: "" }, { shouldValidate: true });
       }
     },
-    [index, setValue, getValues]
+    [index]
   );
 };
 
@@ -118,7 +118,7 @@ const RawSqlMetricRow = ({ index, table }: { index: number; table: string }) => 
 };
 
 const StandardMetricRow = ({ index, table }: { index: number; table: string }) => {
-  const { control, setValue, getValues } = useFormContext<QueryStructure>();
+  const { control, setValue } = useFormContext<QueryStructure>();
   const field = useWatch({ control, name: `metrics.${index}` });
 
   const handleFnChange = useMetricFnChange(index);
@@ -140,8 +140,7 @@ const StandardMetricRow = ({ index, table }: { index: number; table: string }) =
       <Select
         value={field.column}
         onValueChange={(column) => {
-          const currentMetric = getValues(`metrics.${index}`);
-          setValue(`metrics.${index}`, { ...currentMetric, column }, { shouldValidate: true });
+          setValue(`metrics.${index}`, { ...field, column }, { shouldValidate: true });
         }}
         disabled={field.fn === "count"}
       >
