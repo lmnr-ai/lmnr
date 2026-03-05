@@ -13,6 +13,18 @@ import { users, userSubscriptionInfo } from "@/lib/db/migrations/schema";
 export const metadata: Metadata = {
   title: "Checkout - Laminar",
   description: "Complete your Laminar subscription.",
+  openGraph: {
+    title: "Checkout - Laminar",
+    description: "Complete your Laminar subscription.",
+    url: "https://laminar.sh/checkout",
+    images: ["https://orxlznqh.ogplus.net/checkout"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Checkout - Laminar",
+    description: "Complete your Laminar subscription.",
+    images: ["https://orxlznqh.ogplus.net/checkout"],
+  },
 };
 
 export default async function CheckoutPage(props: {

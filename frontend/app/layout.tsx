@@ -2,7 +2,6 @@ import "@/app/globals.css";
 import "@/app/scroll.css";
 
 import { type Metadata } from "next";
-import { headers } from "next/headers";
 import { type PropsWithChildren } from "react";
 
 import { Toaster } from "@/components/ui/toaster";
@@ -12,64 +11,51 @@ import { cn } from "@/lib/utils";
 
 import { PostHogProvider } from "./providers";
 
-const OGPLUS_BASE_URL = "https://orxlznqh.ogplus.net";
-const DEFAULT_OG_IMAGE = "https://laminar.sh/opengraph-image.png";
-
-const shouldUseOgPlus = (pathname: string) => {
-  if (pathname === "/") {
-    return true;
-  }
-  const prefixes = ["/blog", "/pricing", "/support", "/policies", "/checkout", "/sign-in", "/sign-up"];
-  return prefixes.some((prefix) => pathname.startsWith(prefix));
-};
-
-export const generateMetadata = async (): Promise<Metadata> => {
-  const headerStore = await headers();
-  const pathname = headerStore.get("x-invoke-path") ?? "/";
-  const ogImage = shouldUseOgPlus(pathname) ? `${OGPLUS_BASE_URL}${pathname}` : DEFAULT_OG_IMAGE;
-  const canonicalUrl = `https://laminar.sh${pathname}`;
-
-  return {
-    metadataBase: new URL("https://laminar.sh"),
+export const metadata: Metadata = {
+  metadataBase: new URL("https://laminar.sh"),
+  title: "Laminar",
+  keywords: [
+    "laminar",
+    "evals",
+    "label",
+    "analyze",
+    "ai",
+    "ai agent",
+    "eval",
+    "llm ops",
+    "ai ops",
+    "observability",
+    "tracing",
+    "ai sdk tracing",
+    "ai tracing",
+    "llm",
+    "llm observability",
+    "ai observability",
+    "agent observability",
+    "ai agent observability",
+    "ai agent tracing",
+    "ai agent evals",
+    "ai agent evaluation",
+  ],
+  openGraph: {
+    type: "website",
     title: "Laminar",
-    keywords: [
-      "laminar",
-      "evals",
-      "label",
-      "analyze",
-      "ai",
-      "ai agent",
-      "eval",
-      "llm ops",
-      "ai ops",
-      "observability",
-      "tracing",
-      "ai sdk tracing",
-      "ai tracing",
-      "llm",
-      "llm observability",
-      "ai observability",
-      "agent observability",
-      "ai agent observability",
-      "ai agent tracing",
-      "ai agent evals",
-      "ai agent evaluation",
-    ],
-    openGraph: {
-      type: "website",
-      title: "Laminar",
-      description: "Understand why your agent failed. Iterate fast to fix it.",
-      siteName: "Laminar",
-      url: canonicalUrl,
-      images: [ogImage],
+    description: "Understand why your agent failed. Iterate fast to fix it.",
+    siteName: "Laminar",
+    images: {
+      url: "/opengraph-image.png",
+      alt: "Laminar",
     },
-    twitter: {
-      card: "summary_large_image",
-      description: "Understand why your agent failed. Iterate fast to fix it.",
-      title: "Laminar",
-      images: [ogImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    description: "Understand why your agent failed. Iterate fast to fix it.",
+    title: "Laminar",
+    images: {
+      url: "/opengraph-image.png",
+      alt: "Laminar",
     },
-  };
+  },
 };
 
 export default async function RootLayout({ children }: PropsWithChildren) {

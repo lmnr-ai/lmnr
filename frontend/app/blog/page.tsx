@@ -15,11 +15,15 @@ export const metadata: Metadata = {
     title: "Laminar Blog",
     description:
       "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
+    url: "https://laminar.sh/blog",
+    images: ["https://orxlznqh.ogplus.net/blog"],
   },
   twitter: {
+    card: "summary_large_image",
     title: "Laminar Blog",
     description:
       "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
+    images: ["https://orxlznqh.ogplus.net/blog"],
   },
 };
 
