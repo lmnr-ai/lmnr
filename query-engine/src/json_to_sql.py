@@ -184,7 +184,7 @@ class JsonToSqlConverter:
     def _metric_sql(self, metric: dict[str, Any]) -> str:
         fn = metric['fn']
         col = metric['column']
-        alias = metric.get('alias', col)
+        alias = metric.get('alias') or col
         safe_alias = self._escape_alias(alias)
 
         if fn.lower() == 'raw':
