@@ -180,6 +180,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     chartType,
   ]);
 
+  // Single debounced effect that re-executes when form values or
+  // parameters (time range, interval) change. Parameters live in the
+  // zustand store and are read at execution time via getFormattedParameters().
   useEffect(() => {
     if (isLoadingChart) {
       return;
@@ -196,27 +199,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     return () => {
       debouncedExecution.cancel();
     };
-  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart]);
-
-  // Re-execute when parameters (time range, interval) change.
-  // Parameters live in the zustand store and are read at execution time
-  // via getFormattedParameters(), so the callback doesn't reference them
-  // directly — this separate effect triggers re-execution.
-  useEffect(() => {
-    if (isLoadingChart || !formState.isValid) {
-      return;
-    }
-
-    const debouncedExecution = debounce(() => {
-      generateAndExecuteQuery();
-    }, 300);
-
-    debouncedExecution();
-
-    return () => {
-      debouncedExecution.cancel();
-    };
-  }, [parameters, isLoadingChart, formState.isValid, generateAndExecuteQuery]);
+  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart, parameters]);
 
   return (
     <div className="grid grid-cols-4 h-full gap-4 overflow-hidden">
