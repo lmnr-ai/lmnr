@@ -47,10 +47,7 @@ export const isFeatureEnabled = (feature: Feature) => {
 
   if (feature === Feature.FULL_BUILD) {
     const environment = process.env.ENVIRONMENT;
-    if (!environment) {
-      throw new Error("ENVIRONMENT is not set");
-    }
-    return ["FULL", "PRODUCTION"].includes(environment);
+    return !!environment && ["FULL", "PRODUCTION"].includes(environment);
   }
 
   if (feature === Feature.SUBSCRIPTION) {
