@@ -52,7 +52,7 @@ export async function applyRetentionLimits(
     parameters: clamped.params,
     meta: clamped.wasClamped
       ? {
-          warning: `Your current subscription tier retains only the last ${retentionDays} days of data. To see more,`,
+          warning: `Your current subscription tier retains only the last ${retentionDays} days of data.`,
         }
       : {},
   };

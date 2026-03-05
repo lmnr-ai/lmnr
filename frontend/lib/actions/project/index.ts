@@ -175,6 +175,7 @@ export interface ProjectDetails {
   gbLimit: number;
   signalRunsUsedThisMonth: number;
   signalRunsLimit: number;
+  logRetentionDays: number;
   isFreeTier: boolean;
 }
 
@@ -214,6 +215,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       name: subscriptionTiers.name,
       bytesLimit: subscriptionTiers.bytesIngested,
       signalRunsLimit: subscriptionTiers.signalRuns,
+      logRetentionDays: subscriptionTiers.logRetentionDays,
     })
     .from(subscriptionTiers)
     .where(eq(subscriptionTiers.id, workspace.tierId))
@@ -234,6 +236,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
       id: project.id,
       name: project.name,
       workspaceId: project.workspaceId,
+      logRetentionDays: tier.logRetentionDays,
       // not used in ui
       gbUsedThisMonth: 0,
       gbLimit,
@@ -254,6 +257,7 @@ export const getProjectDetails = async (projectId: string): Promise<ProjectDetai
     gbUsedThisMonth,
     gbLimit,
     signalRunsUsedThisMonth,
+    logRetentionDays: tier.logRetentionDays,
     signalRunsLimit,
     isFreeTier,
   };

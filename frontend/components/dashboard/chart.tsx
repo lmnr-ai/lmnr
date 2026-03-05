@@ -7,6 +7,7 @@ import ChartHeader from "@/components/dashboard/chart-header";
 import { type DashboardChart } from "@/components/dashboard/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
+import { type QueryResultMeta } from "@/lib/actions/sql/types.ts";
 import { type GroupByInterval } from "@/lib/clickhouse/modifiers";
 import { convertToTimeParameters } from "@/lib/time";
 
@@ -73,8 +74,8 @@ const Chart = ({ chart }: ChartProps) => {
         throw new Error("Failed to execute SQL query");
       }
 
-      const result = await response.json();
-      setData(result);
+      const result = (await response.json()) as { data: Record<string, any>[]; meta: QueryResultMeta };
+      setData(result.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "An error occurred");
       setData([]);

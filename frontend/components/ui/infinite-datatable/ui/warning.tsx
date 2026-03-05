@@ -23,6 +23,7 @@ export function Warning({ warning, className }: RetentionWarningProps) {
           {workspace && (
             <>
               {" "}
+              To see more,{" "}
               <Link
                 href={`/workspace/${workspace.id}?tab=billing`}
                 className="underline font-medium hover:text-warning"
