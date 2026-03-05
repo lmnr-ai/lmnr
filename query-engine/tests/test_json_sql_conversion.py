@@ -72,6 +72,31 @@ LIMIT 5"""
         assert "ORDER BY time WITH FILL" in sql
         assert "STEP toInterval(1, {interval_unit:String})" in sql
 
+    def test_raw_sql_metric(self):
+        """Test raw SQL metric expression is passed through directly"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "raw", "column": "countIf(status = 'ERROR')", "alias": "error_count"},
+                {"fn": "COUNT", "column": "*", "alias": "total"},
+            ],
+            "dimensions": ["name"],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+            "order_by": [{"field": "error_count", "dir": "desc"}],
+            "limit": 10
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "countIf(status = 'ERROR') AS `error_count`" in sql
+        assert "COUNT(*) AS total" in sql
+        assert "GROUP BY name" in sql
+        assert "ORDER BY error_count DESC" in sql
+        assert "LIMIT 10" in sql
+
     def test_empty_query_validation(self):
         """Test that queries with no metrics, dimensions, or time_range are rejected"""
         query_json = {

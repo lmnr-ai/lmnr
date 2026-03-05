@@ -181,6 +181,9 @@ class JsonToSqlConverter:
         col = metric['column']
         alias = metric.get('alias', col)
 
+        if fn.lower() == 'raw':
+            return f"{col} AS `{alias}`"
+
         if fn.lower() == 'quantile' and metric.get('args'):
             return f"quantile({metric['args'][0]})({col}) AS {alias}"
 

@@ -6,7 +6,7 @@ export type GenerationResult = { success: true; result: string } | { success: fa
 
 export const MetricSchema = z
   .object({
-    fn: z.enum(["count", "sum", "avg", "min", "max", "quantile"]),
+    fn: z.enum(["count", "sum", "avg", "min", "max", "quantile", "raw"]),
     column: z.string(),
     args: z.array(z.number()),
     alias: z.string().optional().nullable(),
@@ -14,6 +14,10 @@ export const MetricSchema = z
   .refine((data) => data.fn === "count" || data.column.trim().length > 0, {
     message: "Column is required for this metric function",
     path: ["column"],
+  })
+  .refine((data) => data.fn !== "raw" || (data.alias != null && data.alias.trim().length > 0), {
+    message: "Alias is required for custom SQL metrics",
+    path: ["alias"],
   });
 
 export const FilterStringSchema = z.object({
