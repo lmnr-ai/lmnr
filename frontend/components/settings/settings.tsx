@@ -5,8 +5,10 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
 
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
+import { Feature } from "@/lib/features/features";
 
 import Header from "../ui/header";
 import {
@@ -27,7 +29,6 @@ import { SettingsSectionHeader } from "./settings-section";
 
 interface SettingsProps {
   apiKeys: ProjectApiKey[];
-  isSlackEnabled: boolean;
   slackClientId?: string;
   slackRedirectUri?: string;
 }
@@ -43,16 +44,18 @@ const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
 
 const sidebarStyle = { "--sidebar-width": "auto" } as CSSProperties;
 
-export default function Settings({ apiKeys, isSlackEnabled, slackClientId, slackRedirectUri }: SettingsProps) {
+export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: SettingsProps) {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<SettingsTab>((searchParams.get("tab") as SettingsTab) || "general");
   const pathName = usePathname();
 
   const { workspace } = useProjectContext();
+  const featureFlags = useFeatureFlags();
 
   const menuTabs = useMemo(
-    () => tabs.filter((t) => !(t.id === "integrations" && (workspace?.tierName !== "Pro" || !isSlackEnabled))),
-    [workspace, isSlackEnabled]
+    () =>
+      tabs.filter((t) => !(t.id === "integrations" && (workspace?.tierName !== "Pro" || !featureFlags[Feature.SLACK]))),
+    [workspace, featureFlags]
   );
 
   const renderContent = () => {
@@ -72,7 +75,7 @@ export default function Settings({ apiKeys, isSlackEnabled, slackClientId, slack
       case "provider-api-keys":
         return <ProviderApiKeys />;
       case "integrations":
-        if (workspace?.tierName === "Pro" && isSlackEnabled) {
+        if (workspace?.tierName === "Pro" && featureFlags[Feature.SLACK]) {
           return <Integrations slackClientId={slackClientId} slackRedirectUri={slackRedirectUri} />;
         }
         return null;
