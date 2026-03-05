@@ -285,6 +285,41 @@ class QueryValidator:
         except Exception as e:
             raise QueryValidationError(f"Query validation failed: {str(e)}")
 
+    # ClickHouse functions that can access the filesystem, network, or
+    # other external resources.  Checked against all function calls in the
+    # parsed AST to prevent injection via raw SQL expressions or any other
+    # user-controlled SQL path.
+    BLOCKED_FUNCTIONS: set[str] = {
+        # Filesystem access
+        "file",
+        # Network / remote table access
+        "url",
+        "remote",
+        "remotesecure",
+        # S3 / cloud storage
+        "s3",
+        "s3cluster",
+        "gcs",
+        "oss",
+        "cosn",
+        "hdfs",
+        # Other table functions that can read external data
+        "jdbc",
+        "odbc",
+        "mysql",
+        "postgresql",
+        "mongodb",
+        "redis",
+        "sqlite",
+        "input",
+        # Cluster execution
+        "cluster",
+        "clusterallreplicas",
+        # Misc dangerous
+        "executable",
+        "azureblobstorage",
+    }
+
     def _validate_security(self, query: sqlglot.exp.Expression):
         """Validate that query is secure (only SELECT, no writes)"""
         if not isinstance(query, sqlglot.exp.Select):
@@ -297,6 +332,14 @@ class QueryValidator:
             raise QueryValidationError(
                 f"{type(node).__name__} statements are not allowed"
             )
+
+        # Block dangerous functions that can access external resources
+        for func in query.find_all(sqlglot.exp.Anonymous, sqlglot.exp.Func):
+            func_name = (func.name if hasattr(func, 'name') else '').lower()
+            if func_name in self.BLOCKED_FUNCTIONS:
+                raise QueryValidationError(
+                    f"Function '{func_name}' is not allowed"
+                )
 
     def _validate_tables_and_columns(self, query: sqlglot.exp.Expression):
         """Validate that all tables and columns are allowed"""
