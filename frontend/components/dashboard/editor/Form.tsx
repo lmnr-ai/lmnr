@@ -222,17 +222,18 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
               className="w-fit"
               mode="state"
               onChange={(value) => {
-                if (value.startDate) {
-                  setParameterValue("start_time", new Date(value.startDate));
-                }
-                if (value.endDate) {
-                  setParameterValue("end_time", new Date(value.endDate));
-                }
                 if (value.pastHours) {
                   const now = new Date();
                   const start = new Date(now.getTime() - Number(value.pastHours) * 60 * 60 * 1000);
                   setParameterValue("start_time", start);
                   setParameterValue("end_time", now);
+                } else {
+                  if (value.startDate) {
+                    setParameterValue("start_time", new Date(value.startDate));
+                  }
+                  if (value.endDate) {
+                    setParameterValue("end_time", new Date(value.endDate));
+                  }
                 }
               }}
             />
