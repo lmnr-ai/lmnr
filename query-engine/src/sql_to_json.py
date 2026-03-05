@@ -118,19 +118,23 @@ class SqlToJsonConverter:
                 str(expr.this).upper() == 'TOSTARTOFINTERVAL')
 
     def _extract_metric(self, expr, alias: str) -> dict[str, Any]:
-        for node in expr.walk():
-            if hasattr(sqlglot.exp, 'Quantile') and isinstance(node, sqlglot.exp.Quantile):
-                return self._parse_quantile(node, alias)
-
-            if isinstance(node, (sqlglot.exp.Count, sqlglot.exp.Sum, sqlglot.exp.Avg,
-                                 sqlglot.exp.Min, sqlglot.exp.Max)):
-                return self._parse_standard_agg(node, alias)
-
         # Unwrap parentheses so that round-tripping through json_to_sql
         # (which wraps in parens) does not accumulate extra layers.
         inner = expr
         while isinstance(inner, sqlglot.exp.Paren):
             inner = inner.this
+
+        # Only check the top-level expression itself, not its descendants.
+        # Using walk() would match nested aggregates inside complex expressions
+        # like "countIf(status = 'ERROR') / count(*)" and incorrectly reduce
+        # the whole expression to just the first sub-aggregate found.
+        if hasattr(sqlglot.exp, 'Quantile') and isinstance(inner, sqlglot.exp.Quantile):
+            return self._parse_quantile(inner, alias)
+
+        if isinstance(inner, (sqlglot.exp.Count, sqlglot.exp.Sum, sqlglot.exp.Avg,
+                              sqlglot.exp.Min, sqlglot.exp.Max)):
+            return self._parse_standard_agg(inner, alias)
+
         return {'fn': 'raw', 'column': inner.sql(dialect="clickhouse"), 'alias': alias}
 
     def _parse_quantile(self, node, alias: str) -> dict[str, Any]:

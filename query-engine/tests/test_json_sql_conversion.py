@@ -186,6 +186,29 @@ STEP toInterval(1, {interval_unit:String})
         assert result["metrics"][0]["alias"] == "value"
 
 
+    def test_complex_raw_expression_not_reduced_to_sub_aggregate(self):
+        """Test that complex expressions with nested aggregates are preserved as raw,
+        not incorrectly reduced to a single sub-aggregate."""
+        import sqlglot
+        from src.sql_to_json import SqlToJsonConverter
+
+        converter = SqlToJsonConverter()
+
+        # Parse a division of two aggregates — should be treated as raw, not
+        # reduced to the first nested aggregate found.
+        expr = sqlglot.parse_one("countIf(status = 'ERROR') / count(*)", dialect="clickhouse")
+        result = converter._extract_metric(expr, "error_rate")
+
+        assert result["fn"] == "raw", f"Expected 'raw', got '{result['fn']}'"
+        assert "countIf" in result["column"], f"Expected countIf in column, got '{result['column']}'"
+        assert result["alias"] == "error_rate"
+
+        # A simple top-level aggregate should still be recognized normally.
+        simple_expr = sqlglot.parse_one("count(*)", dialect="clickhouse")
+        simple_result = converter._extract_metric(simple_expr, "total")
+        assert simple_result["fn"] == "count", f"Expected 'count', got '{simple_result['fn']}'"
+
+
 class TestRoundTripConversion:
     """Test that queries survive round-trip conversion: JSON -> SQL -> JSON"""
 
