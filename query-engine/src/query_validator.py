@@ -319,6 +319,19 @@ class QueryValidator:
         # Misc dangerous
         "executable",
         "azureblobstorage",
+        # DoS via server-side delays
+        "sleep",
+        "sleepeachrow",
+        # Dictionary access (bypasses table validation)
+        "dictget",
+        "dictgetordefault",
+        "dictgetornull",
+        "dicthas",
+        # Server memory layout disclosure
+        "addresstoline",
+        "addresstolinewithinlines",
+        "addresstosymbol",
+        "demangle",
     }
 
     def _validate_security(self, query: sqlglot.exp.Expression):
