@@ -334,9 +334,15 @@ class QueryValidator:
                 f"{type(node).__name__} statements are not allowed"
             )
 
-        # Block dangerous functions that can access external resources
+        # Block dangerous functions that can access external resources.
+        # For Anonymous nodes, .name is the literal SQL function name.
+        # For recognized Func subclasses (Count, Sum, etc.), .name resolves
+        # to the first argument (column name), so we use the class key instead.
         for func in query.find_all(sqlglot.exp.Anonymous, sqlglot.exp.Func):
-            func_name = (func.name if hasattr(func, 'name') else '').lower()
+            if isinstance(func, sqlglot.exp.Anonymous):
+                func_name = func.name.lower()
+            else:
+                func_name = func.sql_name().lower()
             if func_name in self.BLOCKED_FUNCTIONS:
                 raise QueryValidationError(
                     f"Function '{func_name}' is not allowed"
