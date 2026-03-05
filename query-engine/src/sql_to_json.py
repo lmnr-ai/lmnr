@@ -126,7 +126,12 @@ class SqlToJsonConverter:
                                  sqlglot.exp.Min, sqlglot.exp.Max)):
                 return self._parse_standard_agg(node, alias)
 
-        return {'fn': 'raw', 'column': expr.sql(dialect="clickhouse"), 'alias': alias}
+        # Unwrap parentheses so that round-tripping through json_to_sql
+        # (which wraps in parens) does not accumulate extra layers.
+        inner = expr
+        while isinstance(inner, sqlglot.exp.Paren):
+            inner = inner.this
+        return {'fn': 'raw', 'column': inner.sql(dialect="clickhouse"), 'alias': alias}
 
     def _parse_quantile(self, node, alias: str) -> dict[str, Any]:
         column = self._extract_column(node.this) if node.this else 'unknown'
@@ -158,7 +163,10 @@ class SqlToJsonConverter:
                 column = self._extract_column(node.this) if node.this else '*'
                 return {'fn': fn_name, 'column': column, 'alias': alias}
 
-        return {'fn': 'raw', 'column': node.sql(dialect="clickhouse"), 'alias': alias}
+        inner = node
+        while isinstance(inner, sqlglot.exp.Paren):
+            inner = inner.this
+        return {'fn': 'raw', 'column': inner.sql(dialect="clickhouse"), 'alias': alias}
 
     def _extract_column(self, expr) -> str:
         if isinstance(expr, sqlglot.exp.Column):
