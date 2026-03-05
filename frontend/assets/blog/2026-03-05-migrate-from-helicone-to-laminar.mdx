@@ -1,0 +1,177 @@
+---
+title: "Migrate from Helicone to Laminar"
+date: "2026-03-05"
+description: "A practical migration guide from Helicone to Laminar, with an agent-driven path and a manual checklist."
+author:
+  name: Sam Komesarook
+  url: https://x.com/raymondmarkable
+tags: ["laminar", "helicone", "migration", "observability", "agents", "tracing", "open-source"]
+---
+
+Helicone has announced it is joining Mintlify (March 2026) and will remain in maintenance mode, so you have time to migrate properly. If you picked Helicone because it was the simplest way to get LLM observability running, Laminar is the same story - one initialization call, no proxy, no routing changes. Helicone was both a gateway and an observability layer; Laminar replaces the observability side with deeper, agent-focused tracing. This guide covers two migration paths: let a coding agent handle it, or do it manually in about 15 minutes.
+
+## Fast Path: Let the Agent Migrate It
+
+If you use Claude Code, Cursor, Codex, or another coding agent that supports skills, this is the fastest route. Run the `laminar-instrument-codebase` skill (see [Skills setup](/getting-started#set-up-with-ai)) with the following prompt:
+
+```text
+Use the laminar-instrument-codebase skill to migrate this repo from Helicone to Laminar.
+Replace Helicone proxying and headers with Laminar.initialize, keep request/user/session metadata
+as tags/metadata, and verify traces in Laminar.
+```
+
+What it will do:
+
+- Install the Laminar SDK in the right package
+- Add `Laminar.initialize(...)` at the earliest safe startup point
+- Remove Helicone-specific headers or base URL overrides
+- Move Helicone metadata into Laminar tags and trace metadata
+- Verify traces show up in the Laminar UI
+
+## Manual Migration (15 Minutes)
+
+1. Create a Laminar project and set `LMNR_PROJECT_API_KEY`.
+2. Install the SDK (TypeScript: `npm add @lmnr-ai/lmnr`; Python: `pip install lmnr`). See [Hosting Options](/hosting-options) if you are self-hosting.
+3. Initialize Laminar as early as possible in your app entrypoint.
+
+   ```typescript
+   import { Laminar } from '@lmnr-ai/lmnr';
+
+   Laminar.initialize({
+     projectApiKey: process.env.LMNR_PROJECT_API_KEY!,
+   });
+   ```
+
+   ```python
+   import os
+   from lmnr import Laminar
+
+   Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"])
+   ```
+
+4. Remove Helicone proxying.
+   ```typescript
+   // Before: Helicone proxy
+   const openai = new OpenAI({
+     baseURL: 'https://oai.helicone.ai/v1',
+     defaultHeaders: { 'Helicone-Auth': process.env.HELICONE_API_KEY },
+   });
+
+   // After: native endpoint, Laminar instruments automatically
+   const openai = new OpenAI();
+   ```
+5. Move Helicone metadata into Laminar context.
+   ```typescript
+   // Before: Helicone headers
+   headers: {
+     'Helicone-User-Id': userId,
+     'Helicone-Session-Id': sessionId,
+     'Helicone-Property-Env': 'production',
+   }
+
+   // After: Laminar context
+   Laminar.setTraceUserId(userId);
+   Laminar.setTraceSessionId(sessionId);
+   Laminar.setTraceMetadata({ env: 'production' });
+   ```
+6. Verify in the UI.
+   Run a single request. You should see a trace with LLM spans, tool spans, and a clear tree. If you only see a root span, wrap your agent entrypoint with `observe(...)` or `@observe()`. See [Viewing Traces](/platform/viewing-traces).
+
+## If You Already Have OpenTelemetry
+
+Laminar is OTel-native. If you already emit OTel spans, keep your span structure and point the OTLP exporter to Laminar. OTLP/gRPC is recommended.
+
+```typescript
+import { Metadata } from '@grpc/grpc-js';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
+
+const metadata = new Metadata();
+metadata.set('authorization', `Bearer ${process.env.LMNR_PROJECT_API_KEY}`);
+
+const exporter = new OTLPTraceExporter({
+  url: 'https://api.lmnr.ai:8443/v1/traces',
+  metadata,
+});
+```
+
+See [OpenTelemetry](/tracing/otel) for HTTP exporters and Python examples.
+
+## What Maps and What Doesn't
+
+Laminar replaces Helicone's observability and tracing - and gives you significantly more depth with agent-focused tracing, browser session recordings, Signals, and SQL analysis. If you were also using Helicone as an AI gateway for caching, provider routing, or rate limiting, you'll need a separate solution for that layer (LiteLLM, Portkey, or your provider's native SDK).
+
+<div className="overflow-x-auto">
+  <table className="min-w-[920px] w-full table-fixed text-left border-separate border-spacing-x-6 border-spacing-y-3">
+    <colgroup>
+      <col className="w-[28%]" />
+      <col className="w-[28%]" />
+      <col className="w-[44%]" />
+    </colgroup>
+    <thead className="text-sm text-white/70">
+      <tr>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">What You Used in Helicone</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Laminar Equivalent</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Notes</th>
+      </tr>
+    </thead>
+    <tbody className="font-light text-white/85">
+      <tr>
+        <td className="px-2 py-1 align-top">Request logging &amp; cost tracking</td>
+        <td className="px-2 py-1 align-top">Trace viewer + dashboards</td>
+        <td className="px-2 py-1 align-top">Laminar auto-tracks tokens, latency, and cost per span for instrumented providers.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Session tracing</td>
+        <td className="px-2 py-1 align-top"><code>observe()</code> + session IDs</td>
+        <td className="px-2 py-1 align-top">Deeper agent trace trees, not just request logs.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Custom properties (headers)</td>
+        <td className="px-2 py-1 align-top"><code>Laminar.setTraceMetadata()</code></td>
+        <td className="px-2 py-1 align-top">Same concept, SDK-based instead of header-based.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">User/session tracking</td>
+        <td className="px-2 py-1 align-top"><code>Laminar.setTraceUserId()</code> / <code>Laminar.setTraceSessionId()</code></td>
+        <td className="px-2 py-1 align-top">Direct mapping.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Prompt playground</td>
+        <td className="px-2 py-1 align-top">Laminar Playground</td>
+        <td className="px-2 py-1 align-top">Similar capability. See <a href="/playground">Playground</a>.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Response caching</td>
+        <td className="px-2 py-1 align-top">No equivalent</td>
+        <td className="px-2 py-1 align-top">Use provider-native caching or a separate gateway.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Provider routing / fallbacks</td>
+        <td className="px-2 py-1 align-top">No equivalent</td>
+        <td className="px-2 py-1 align-top">Use LiteLLM or direct provider SDKs.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Rate limiting</td>
+        <td className="px-2 py-1 align-top">No equivalent</td>
+        <td className="px-2 py-1 align-top">Handle at the application or gateway layer.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Prompt versioning / management</td>
+        <td className="px-2 py-1 align-top">No equivalent</td>
+        <td className="px-2 py-1 align-top">Handle in code or use a prompt registry.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+## What You Gain with Laminar
+
+- [Browser session recordings synced to traces](/tracing/browser-agent-observability)
+- [Signals for natural language pattern detection across traces](/signals)
+- [SQL access to all trace data](/platform/sql-editor)
+- [Evals you can run locally or in CI](/evaluations/introduction)
+- [Replay and rollout workflows from traced spans](/overview)
+
+Once you're set up, explore [Signals](/signals), [SQL analysis](/platform/sql-editor), and [real-time agent tracing](/platform/viewing-traces) in the docs.
+
+If anything doesn't map cleanly, drop into our [Discord](https://discord.gg/nNFUUDAKub) and we'll help you sort it out.

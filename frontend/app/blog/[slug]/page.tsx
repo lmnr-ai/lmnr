@@ -13,22 +13,27 @@ import { getBlogPost } from "@/lib/blog/utils";
 
 export const generateMetadata = async (props: { params: Promise<{ slug: string }> }): Promise<Metadata> => {
   const params = await props.params;
+  const ogPlusBaseUrl = "https://orxlznqh.ogplus.net";
   try {
     const { data } = getBlogPost(params.slug);
+    const ogPlusImage = `${ogPlusBaseUrl}/blog/${params.slug}`;
+    const fallbackImage = data.image ? "https://www.lmnr.ai" + data.image : ogPlusImage;
     return {
       title: data.title,
       description: data.description,
       authors: data.coAuthors ? [data.author, ...data.coAuthors] : [data.author],
       icons: ["https://www.lmnr.ai/favicon.ico"],
       openGraph: {
-        images: data.image ? ["https://www.lmnr.ai" + data.image] : ["https://www.lmnr.ai/favicon.ico"],
+        images: [fallbackImage],
         type: "article",
         publishedTime: data.date,
+        url: `https://laminar.sh/blog/${params.slug}`,
       },
       twitter: {
         title: data.title,
         description: data.description,
-        images: data.image ? ["https://www.lmnr.ai" + data.image] : ["https://www.lmnr.ai/favicon.ico"],
+        card: "summary_large_image",
+        images: [fallbackImage],
       },
     };
   } catch {
