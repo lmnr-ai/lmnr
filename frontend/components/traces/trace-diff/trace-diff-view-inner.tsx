@@ -9,9 +9,12 @@ import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import Header from "@/components/ui/header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { generateSpanMapping } from "@/lib/actions/trace/diff";
+import { generateBlockSummaries } from "@/lib/actions/trace/diff/summarize";
 
 import DiffColumns, { type SelectingSide } from "./diff-columns";
+import MappingError from "./mapping-error";
 import MetricsBar from "./metrics-bar";
+import { getAllCondensedBlockInputs } from "./timeline/timeline-utils";
 import ViewModeToggle from "./timeline/view-mode-toggle";
 import { useTraceDiffStore } from "./trace-diff-store";
 import TraceIdPill from "./trace-id-pill";
@@ -37,6 +40,15 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     setIsMappingLoading,
     setMapping,
     setMappingError,
+    leftTree,
+    rightTree,
+    maxTreeDepth,
+    addBlockSummaries,
+    setIsSummarizationLoading,
+    isMappingLoading,
+    isSummarizationLoading,
+    mappingError,
+    retryMapping,
   } = useTraceDiffStore((s) => ({
     phase: s.phase,
     isLeftLoading: s.isLeftLoading,
@@ -48,6 +60,15 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     setIsMappingLoading: s.setIsMappingLoading,
     setMapping: s.setMapping,
     setMappingError: s.setMappingError,
+    leftTree: s.leftTree,
+    rightTree: s.rightTree,
+    maxTreeDepth: s.maxTreeDepth,
+    addBlockSummaries: s.addBlockSummaries,
+    setIsSummarizationLoading: s.setIsSummarizationLoading,
+    isMappingLoading: s.isMappingLoading,
+    isSummarizationLoading: s.isSummarizationLoading,
+    mappingError: s.mappingError,
+    retryMapping: s.retryMapping,
   }));
 
   // Fetch a trace + its spans
@@ -148,6 +169,65 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     setMappingError,
   ]);
 
+  // Prefetch AI summaries for all condensed blocks at all depth levels
+  const requestedBlockIdsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (maxTreeDepth === 0) return;
+
+    // Collect new blocks per trace side, filtering out already-requested ones
+    const leftBlocks = leftTree
+      ? getAllCondensedBlockInputs(leftTree, maxTreeDepth).filter((b) => !requestedBlockIdsRef.current.has(b.blockId))
+      : [];
+    const rightBlocks = rightTree
+      ? getAllCondensedBlockInputs(rightTree, maxTreeDepth).filter((b) => !requestedBlockIdsRef.current.has(b.blockId))
+      : [];
+
+    if (leftBlocks.length === 0 && rightBlocks.length === 0) return;
+
+    for (const b of [...leftBlocks, ...rightBlocks]) {
+      requestedBlockIdsRef.current.add(b.blockId);
+    }
+
+    setIsSummarizationLoading(true);
+
+    // Fire calls independently so each merges results as soon as it resolves
+    let pending = 0;
+    const mergeSummaries = (results: { blockId: string; summary: string; icon: string }[]) => {
+      const summaryMap: Record<string, { summary: string; icon: string }> = {};
+      for (const r of results) {
+        summaryMap[r.blockId] = { summary: r.summary, icon: r.icon };
+      }
+      addBlockSummaries(summaryMap);
+      pending--;
+      if (pending === 0) setIsSummarizationLoading(false);
+    };
+    const handleError = (e: unknown) => {
+      console.error("Failed to prefetch block summaries:", e);
+      pending--;
+      if (pending === 0) setIsSummarizationLoading(false);
+    };
+
+    if (leftBlocks.length > 0) {
+      pending++;
+      generateBlockSummaries(projectId, leftTraceId, leftBlocks).then(mergeSummaries).catch(handleError);
+    }
+    if (rightBlocks.length > 0 && rightTraceId) {
+      pending++;
+      generateBlockSummaries(projectId, rightTraceId, rightBlocks).then(mergeSummaries).catch(handleError);
+    }
+    if (pending === 0) setIsSummarizationLoading(false);
+  }, [
+    leftTree,
+    rightTree,
+    maxTreeDepth,
+    projectId,
+    leftTraceId,
+    rightTraceId,
+    addBlockSummaries,
+    setIsSummarizationLoading,
+  ]);
+
   const searchParamsRef = useRef(searchParams);
   useEffect(() => {
     searchParamsRef.current = searchParams;
@@ -226,6 +306,14 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
             <ViewModeToggle />
             <MetricsBar />
           </div>
+          {(phase === "loading" || isMappingLoading || isSummarizationLoading) && (
+            <div className="flex-none flex items-center justify-center py-2 bg-secondary border-b border-b-background">
+              <span className="text-sm text-muted-foreground shimmer">Analyzing traces</span>
+            </div>
+          )}
+          {phase === "error" && (
+            <MappingError error={mappingError ?? "Failed to analyze traces"} onRetry={retryMapping} />
+          )}
           <DiffColumns
             onSelectLeft={handleSelectLeft}
             onSelectRight={handleSelectRight}

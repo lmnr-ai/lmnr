@@ -5,7 +5,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 import DiffSpanPanel from "./diff-span-panel";
-import MappingError from "./mapping-error";
 import SingleColumnSpanList from "./single-column-span-list";
 import Timeline from "./timeline";
 import { useTraceDiffStore } from "./trace-diff-store";
@@ -35,9 +34,6 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     toggleRow,
     leftTrace,
     rightTrace,
-    isMappingLoading,
-    mappingError,
-    retryMapping,
     viewMode,
     selectedBlockSpanId,
   } = useTraceDiffStore((s) => ({
@@ -49,9 +45,6 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     toggleRow: s.toggleRow,
     leftTrace: s.leftTrace,
     rightTrace: s.rightTrace,
-    isMappingLoading: s.isMappingLoading,
-    mappingError: s.mappingError,
-    retryMapping: s.retryMapping,
     viewMode: s.viewMode,
     selectedBlockSpanId: s.selectedBlockSpanId,
   }));
@@ -182,37 +175,15 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     );
   }
 
-  // Phase: error (mapping failed) — list mode only
-  if (phase === "error") {
+  // Phase: error or loading — show span lists side by side (status bar is in parent)
+  if (phase === "error" || phase === "loading") {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <MappingError error={mappingError ?? "Failed to analyze trace diff"} onRetry={retryMapping} />
-        <div className="flex flex-1 overflow-hidden gap-2">
-          <div className="flex-1 flex flex-col overflow-hidden pl-4">
-            <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
-          </div>
-          <div className="flex-1 flex flex-col overflow-hidden pr-4">
-            <SingleColumnSpanList spans={rightListSpans} traceRef={rightTraceRef} />
-          </div>
+      <div className="flex flex-1 overflow-hidden gap-2">
+        <div className="flex-1 flex flex-col overflow-hidden pl-4">
+          <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
         </div>
-      </div>
-    );
-  }
-
-  // Phase: loading (right trace selected, mapping in progress) — list mode only
-  if (phase === "loading" || isMappingLoading) {
-    return (
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <div className="flex-none flex items-center justify-center py-2 bg-secondary border-b border-b-background">
-          <span className="text-sm text-muted-foreground shimmer">Analyzing trace diff</span>
-        </div>
-        <div className="flex flex-1 overflow-hidden gap-2">
-          <div className="flex-1 flex flex-col overflow-hidden pl-4">
-            <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
-          </div>
-          <div className="flex-1 flex flex-col overflow-hidden pr-4">
-            <SingleColumnSpanList spans={rightListSpans} traceRef={rightTraceRef} />
-          </div>
+        <div className="flex-1 flex flex-col overflow-hidden pr-4">
+          <SingleColumnSpanList spans={rightListSpans} traceRef={rightTraceRef} />
         </div>
       </div>
     );

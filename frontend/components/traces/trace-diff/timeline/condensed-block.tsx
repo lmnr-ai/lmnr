@@ -35,7 +35,7 @@ const CondensedBlockComponent = ({
 
   const IconComponent = summary?.icon ? ICON_MAP[summary.icon] : null;
 
-  // At full expansion (single span): identical to condensed timeline element
+  // Single span: identical to condensed timeline element
   if (!isCondensed) {
     return (
       <div
@@ -54,7 +54,7 @@ const CondensedBlockComponent = ({
     );
   }
 
-  // Condensed block: taller bar spanning its subtree's rows
+  // Condensed block: taller bar spanning subtree rows, visually muted
   return (
     <div
       className={cn("absolute rounded-xs cursor-pointer hover:brightness-110 overflow-hidden", {
@@ -66,15 +66,18 @@ const CondensedBlockComponent = ({
         top: block.topRow * ROW_HEIGHT + 1,
         height: heightPx,
         backgroundColor,
+        opacity: 0.6,
       }}
       onClick={onClick}
       title={summary?.summary ?? block.spanName}
     >
       {heightPx >= 20 && (
-        <div className="flex items-center gap-0.5 px-1 h-full text-[10px] leading-tight truncate">
-          {IconComponent && <IconComponent className="size-3 flex-none" />}
-          <span className="truncate">{summary?.summary ?? block.spanName}</span>
-          <span className="flex-none opacity-70">{block.spanCount}</span>
+        <div className="flex items-start justify-between gap-0.5 px-1 pt-0.5 h-full text-[10px] leading-tight">
+          <div className="flex items-center gap-0.5 truncate min-w-0">
+            {IconComponent && <IconComponent className="size-3 flex-none" />}
+            <span className="truncate">{summary?.summary ?? block.spanName}</span>
+          </div>
+          <span className="flex-none opacity-70 text-[9px]">{block.spanCount}</span>
         </div>
       )}
     </div>

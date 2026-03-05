@@ -1,53 +1,53 @@
 "use client";
 
 import { Minus, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { ROW_HEIGHT } from "@/components/traces/trace-view/condensed-timeline/condensed-timeline-element";
 import {
   formatTimeMarkerLabel,
   useDynamicTimeIntervals,
 } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
-import { useHoverNeedle } from "@/components/traces/trace-view/condensed-timeline/use-hover-needle";
-import { useWheelZoom } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
 import { Button } from "@/components/ui/button";
-import { type BlockSummaryInput, generateBlockSummaries } from "@/lib/actions/trace/diff/summarize";
 import { cn } from "@/lib/utils";
 
 import { useTraceDiffStore } from "../trace-diff-store";
-import CondensedBlockComponent from "./condensed-block";
+import { DIFF_ROW_HEIGHT } from "./constants";
 import DepthSliderBar from "./depth-slider-bar";
+import SpanNodeRenderer from "./span-node-renderer";
+import { computeSubtreeRowRanges } from "./timeline-utils";
 
-const MAX_ZOOM = 18;
+const MAX_ZOOM = 72;
 const MIN_ZOOM = 1;
 const ZOOM_INCREMENT = 0.5;
 
 const Timeline = () => {
   const {
-    leftBlocks,
-    rightBlocks,
-    leftTrace,
-    rightTrace,
+    leftTree,
+    rightTree,
+    leftExpandedRowMap,
+    rightExpandedRowMap,
     leftTotalRows,
     rightTotalRows,
+    leftTrace,
+    rightTrace,
+    timelineDepth,
     blockSummaries,
-    addBlockSummaries,
-    setIsSummarizationLoading,
     expandOneLevel,
     selectBlock,
     selectedBlockSpanId,
     timelineZoom,
     setTimelineZoom,
   } = useTraceDiffStore((s) => ({
-    leftBlocks: s.leftBlocks,
-    rightBlocks: s.rightBlocks,
-    leftTrace: s.leftTrace,
-    rightTrace: s.rightTrace,
+    leftTree: s.leftTree,
+    rightTree: s.rightTree,
+    leftExpandedRowMap: s.leftExpandedRowMap,
+    rightExpandedRowMap: s.rightExpandedRowMap,
     leftTotalRows: s.leftTotalRows,
     rightTotalRows: s.rightTotalRows,
+    leftTrace: s.leftTrace,
+    rightTrace: s.rightTrace,
+    timelineDepth: s.timelineDepth,
     blockSummaries: s.blockSummaries,
-    addBlockSummaries: s.addBlockSummaries,
-    setIsSummarizationLoading: s.setIsSummarizationLoading,
     expandOneLevel: s.expandOneLevel,
     selectBlock: s.selectBlock,
     selectedBlockSpanId: s.selectedBlockSpanId,
@@ -56,6 +56,17 @@ const Timeline = () => {
   }));
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Pre-compute subtree row ranges for overlay positioning
+  const leftSubtreeRanges = useMemo(
+    () => (leftTree ? computeSubtreeRowRanges(leftTree, leftExpandedRowMap) : new Map()),
+    [leftTree, leftExpandedRowMap]
+  );
+  const rightSubtreeRanges = useMemo(
+    () => (rightTree ? computeSubtreeRowRanges(rightTree, rightExpandedRowMap) : new Map()),
+    [rightTree, rightExpandedRowMap]
+  );
 
   // Compute durations
   const leftStartMs = leftTrace ? new Date(leftTrace.startTime).getTime() : 0;
@@ -83,10 +94,88 @@ const Timeline = () => {
   );
 
   // Hover needle
-  const { needleLeft, hoverTimeMs, handleMouseMove, handleMouseLeave } = useHoverNeedle(scrollRef, sharedDurationMs);
+  const [needleLeft, setNeedleLeft] = useState<number | null>(null);
+  const [hoverTimeMs, setHoverTimeMs] = useState<number | null>(null);
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      const el = scrollRef.current;
+      if (!el) return;
+
+      const rect = el.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+
+      if (mouseX < 0 || mouseX > rect.width) {
+        setNeedleLeft(null);
+        setHoverTimeMs(null);
+        return;
+      }
+
+      setNeedleLeft((mouseX / rect.width) * 100);
+
+      const absoluteX = mouseX + el.scrollLeft;
+      const timePercent = absoluteX / el.scrollWidth;
+      setHoverTimeMs(timePercent * sharedDurationMs);
+    },
+    [sharedDurationMs]
+  );
+
+  const handleMouseLeave = useCallback(() => {
+    setNeedleLeft(null);
+    setHoverTimeMs(null);
+  }, []);
 
   // Cmd/Ctrl+scroll zoom
-  useWheelZoom(scrollRef, timelineZoom, setTimelineZoom);
+  const zoomRef = useRef(timelineZoom);
+  const setZoomRef = useRef(setTimelineZoom);
+  useEffect(() => {
+    zoomRef.current = timelineZoom;
+  }, [timelineZoom]);
+  useEffect(() => {
+    setZoomRef.current = setTimelineZoom;
+  }, [setTimelineZoom]);
+
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      e.preventDefault();
+
+      const direction = e.deltaY < 0 ? "in" : e.deltaY > 0 ? "out" : null;
+      if (!direction) return;
+
+      const el = scrollRef.current;
+      if (!el) return;
+
+      const currentZoom = zoomRef.current;
+      const oldScrollLeft = el.scrollLeft;
+      const oldScrollWidth = el.scrollWidth;
+      const containerRect = el.getBoundingClientRect();
+      const mouseX = e.clientX - containerRect.left;
+      const contentX = oldScrollLeft + mouseX;
+      const fraction = contentX / oldScrollWidth;
+
+      const newZoom = direction === "in" ? currentZoom + ZOOM_INCREMENT : currentZoom - ZOOM_INCREMENT;
+      if (newZoom < MIN_ZOOM || newZoom > MAX_ZOOM) return;
+
+      setZoomRef.current(newZoom);
+
+      const zoomRatio = newZoom / currentZoom;
+      const newScrollWidth = oldScrollWidth * zoomRatio;
+      const newScrollLeft = fraction * newScrollWidth - mouseX;
+
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollLeft = Math.max(0, Math.min(newScrollLeft, newScrollWidth - containerRect.width));
+        }
+      });
+    };
+
+    wrapper.addEventListener("wheel", handleWheel, { passive: false });
+    return () => wrapper.removeEventListener("wheel", handleWheel);
+  }, []);
 
   // Scroll state for sticky header
   const [isScrolled, setIsScrolled] = useState(false);
@@ -95,170 +184,159 @@ const Timeline = () => {
   }, []);
 
   // Content heights
-  const leftContentHeight = (leftTotalRows + 1) * ROW_HEIGHT;
-  const rightContentHeight = (rightTotalRows + 1) * ROW_HEIGHT;
+  const leftContentHeight = (leftTotalRows + 1) * DIFF_ROW_HEIGHT;
+  const rightContentHeight = (rightTotalRows + 1) * DIFF_ROW_HEIGHT;
 
-  // Fetch AI summaries for condensed blocks
-  const prevBlockKeyRef = useRef<string>("");
-
-  useEffect(() => {
-    const allBlocks = [...leftBlocks, ...rightBlocks];
-    const unsummarized = allBlocks.filter((b) => !blockSummaries[b.parentSpanId] && b.spanCount > 1);
-    if (unsummarized.length === 0) return;
-
-    const uniqueBlocks = new Map<string, (typeof unsummarized)[0]>();
-    for (const b of unsummarized) {
-      uniqueBlocks.set(b.parentSpanId, b);
-    }
-
-    const blockKey = [...uniqueBlocks.keys()].sort().join(",");
-    if (blockKey === prevBlockKeyRef.current) return;
-    prevBlockKeyRef.current = blockKey;
-
-    const inputs: BlockSummaryInput[] = [...uniqueBlocks.values()].map((b) => ({
-      blockId: b.parentSpanId,
-      spanName: b.spanName,
-      spanType: b.primarySpanType,
-      childNames: b.childNames,
-      childTypes: b.childTypes,
-    }));
-
-    setIsSummarizationLoading(true);
-    generateBlockSummaries(inputs)
-      .then((results) => {
-        const summaryMap: Record<string, { summary: string; icon: string }> = {};
-        for (const r of results) {
-          summaryMap[r.blockId] = { summary: r.summary, icon: r.icon };
-        }
-        addBlockSummaries(summaryMap);
-      })
-      .catch((e) => {
-        console.error("Failed to generate block summaries:", e);
-      })
-      .finally(() => {
-        setIsSummarizationLoading(false);
-      });
-  }, [leftBlocks, rightBlocks, blockSummaries, addBlockSummaries, setIsSummarizationLoading]);
-
-  const handleBlockClick = useCallback(
-    (spanId: string, side: "left" | "right") => {
-      selectBlock(spanId, side);
-      expandOneLevel();
+  // Click handlers per side
+  const handleLeftClick = useCallback(
+    (spanId: string, isCondensed: boolean) => {
+      selectBlock(spanId, "left");
+      if (isCondensed) expandOneLevel();
     },
     [selectBlock, expandOneLevel]
   );
 
+  const handleRightClick = useCallback(
+    (spanId: string, isCondensed: boolean) => {
+      selectBlock(spanId, "right");
+      if (isCondensed) expandOneLevel();
+    },
+    [selectBlock, expandOneLevel]
+  );
+
+  // Shared time markers renderer
+  const renderMarkers = useCallback(
+    () =>
+      timeMarkers.map((marker, index) => (
+        <div
+          key={`marker-${index}`}
+          className="absolute top-0 bottom-0 w-px pointer-events-none bg-muted"
+          style={{ left: `${marker.positionPercent}%` }}
+        />
+      )),
+    [timeMarkers]
+  );
+
   return (
-    <div className="flex flex-col flex-1 overflow-hidden relative">
+    <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Depth slider bar — outside scroll area */}
       <DepthSliderBar />
 
-      {/* Scrollable timeline — matches condensed timeline structure */}
-      <div
-        ref={combinedScrollRef}
-        className="flex-1 overflow-auto relative min-h-0 bg-muted/50 h-full minimal-scrollbar"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        onScroll={handleScroll}
-      >
-        <div className="px-2 h-full">
-          <div className="relative h-full" style={{ width: `${100 * timelineZoom}%` }}>
-            {/* Vertical time marker lines */}
-            {timeMarkers.map((marker, index) => (
+      {/* Shared horizontal scroll container */}
+      <div ref={wrapperRef} className="flex-1 min-h-0 relative">
+        <div
+          ref={combinedScrollRef}
+          className="overflow-x-auto overflow-y-hidden h-full minimal-scrollbar"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+        >
+          <div className="px-2 h-full" style={{ width: `${100 * timelineZoom}%` }}>
+            <div className="relative h-full flex flex-col">
+              {/* Vertical marker lines — full height */}
+              {renderMarkers()}
+
+              {/* Sticky time labels */}
               <div
-                key={`marker-${index}`}
-                className="absolute top-0 bottom-0 w-px pointer-events-none bg-muted"
-                style={{ left: `${marker.positionPercent}%` }}
-              />
-            ))}
-
-            {/* Sticky time labels */}
-            <div
-              className={cn(
-                "sticky top-0 z-30 h-6 text-xs pointer-events-none select-none",
-                isScrolled && "bg-gradient-to-b from-[hsla(240,4%,9%,90%)] via-[hsla(240,4%,9%,80%)] to-transparent"
-              )}
-            >
-              {timeMarkers.map((marker, index) => (
-                <div
-                  key={index}
-                  className="absolute flex items-center h-full"
-                  style={{ left: `${marker.positionPercent}%` }}
-                >
-                  <div className="text-secondary-foreground truncate text-[10px] whitespace-nowrap pl-1">
-                    {marker.label}
+                className={cn(
+                  "sticky top-0 z-30 h-6 text-xs pointer-events-none select-none flex-shrink-0",
+                  isScrolled && "bg-gradient-to-b from-transparent to-muted/50"
+                )}
+              >
+                {timeMarkers.map((marker, index) => (
+                  <div
+                    key={index}
+                    className="absolute flex items-center h-full"
+                    style={{ left: `${marker.positionPercent}%` }}
+                  >
+                    <div className="text-secondary-foreground truncate text-[10px] whitespace-nowrap pl-1">
+                      {marker.label}
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              {/* Top half — left trace (independent vertical scroll) */}
+              <div
+                className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-muted/50 minimal-scrollbar"
+                onScroll={handleScroll}
+              >
+                <div className="relative" style={{ minHeight: leftContentHeight }}>
+                  {leftTree?.map((rootNode) => (
+                    <SpanNodeRenderer
+                      key={rootNode.span.spanId}
+                      node={rootNode}
+                      timelineDepth={timelineDepth}
+                      expandedRowMap={leftExpandedRowMap}
+                      subtreeRowRanges={leftSubtreeRanges}
+                      totalDurationMs={sharedDurationMs}
+                      traceStartMs={leftStartMs}
+                      blockSummaries={blockSummaries}
+                      selectedBlockSpanId={selectedBlockSpanId}
+                      onSpanClick={handleLeftClick}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
 
-            {/* Left trace blocks */}
-            <div className="relative" style={{ minHeight: leftContentHeight }}>
-              {leftBlocks.map((block) => (
-                <CondensedBlockComponent
-                  key={block.parentSpanId}
-                  block={block}
-                  summary={blockSummaries[block.parentSpanId]}
-                  totalDurationMs={sharedDurationMs}
-                  traceStartMs={leftStartMs}
-                  isSelected={selectedBlockSpanId === block.parentSpanId}
-                  onClick={() => handleBlockClick(block.parentSpanId, "left")}
-                />
-              ))}
-            </div>
+              {/* Divider */}
+              <div className="h-px bg-border flex-shrink-0" />
 
-            {/* Divider */}
-            <div className="h-px bg-border my-1" />
-
-            {/* Right trace blocks */}
-            <div className="relative" style={{ minHeight: rightContentHeight }}>
-              {rightBlocks.map((block) => (
-                <CondensedBlockComponent
-                  key={block.parentSpanId}
-                  block={block}
-                  summary={blockSummaries[block.parentSpanId]}
-                  totalDurationMs={sharedDurationMs}
-                  traceStartMs={rightStartMs}
-                  isSelected={selectedBlockSpanId === block.parentSpanId}
-                  onClick={() => handleBlockClick(block.parentSpanId, "right")}
-                />
-              ))}
+              {/* Bottom half — right trace (independent vertical scroll) */}
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-muted/50 minimal-scrollbar">
+                <div className="relative" style={{ minHeight: rightContentHeight }}>
+                  {rightTree?.map((rootNode) => (
+                    <SpanNodeRenderer
+                      key={rootNode.span.spanId}
+                      node={rootNode}
+                      timelineDepth={timelineDepth}
+                      expandedRowMap={rightExpandedRowMap}
+                      subtreeRowRanges={rightSubtreeRanges}
+                      totalDurationMs={sharedDurationMs}
+                      traceStartMs={rightStartMs}
+                      blockSummaries={blockSummaries}
+                      selectedBlockSpanId={selectedBlockSpanId}
+                      onSpanClick={handleRightClick}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Hover Needle */}
-      {needleLeft !== null && (
-        <div className="absolute inset-y-0 pointer-events-none z-[35]" style={{ left: `${needleLeft}%` }}>
-          <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
-            <div className="px-1.5 py-0.5 bg-primary text-white text-[10px] rounded whitespace-nowrap">
-              {hoverTimeMs !== null ? formatTimeMarkerLabel(Math.round(hoverTimeMs)) : ""}
+        {/* Hover Needle */}
+        {needleLeft !== null && (
+          <div className="absolute inset-y-0 pointer-events-none z-[35]" style={{ left: `${needleLeft}%` }}>
+            <div className="absolute top-0 h-6 flex items-center -translate-x-1/2">
+              <div className="px-1.5 py-0.5 bg-primary text-white text-[10px] rounded whitespace-nowrap">
+                {hoverTimeMs !== null ? formatTimeMarkerLabel(Math.round(hoverTimeMs)) : ""}
+              </div>
             </div>
+            <div className="absolute top-[6px] bottom-0 w-px bg-primary/50" />
           </div>
-          <div className="absolute top-[6px] bottom-0 w-px bg-primary/50" />
-        </div>
-      )}
+        )}
 
-      {/* Zoom controls — bottom right, matching condensed timeline */}
-      <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center bg-muted border rounded-md px-0.5 h-[24px]">
-        <Button
-          disabled={timelineZoom >= MAX_ZOOM}
-          className="size-5 min-w-5"
-          variant="ghost"
-          size="icon"
-          onClick={() => setTimelineZoom(timelineZoom + ZOOM_INCREMENT)}
-        >
-          <Plus className="size-3" />
-        </Button>
-        <Button
-          disabled={timelineZoom <= MIN_ZOOM}
-          className="size-5 min-w-5"
-          variant="ghost"
-          size="icon"
-          onClick={() => setTimelineZoom(timelineZoom - ZOOM_INCREMENT)}
-        >
-          <Minus className="size-3" />
-        </Button>
+        {/* Zoom controls — bottom right */}
+        <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center bg-muted border rounded-md px-0.5 h-[24px]">
+          <Button
+            disabled={timelineZoom >= MAX_ZOOM}
+            className="size-5 min-w-5"
+            variant="ghost"
+            size="icon"
+            onClick={() => setTimelineZoom(timelineZoom + ZOOM_INCREMENT)}
+          >
+            <Plus className="size-3" />
+          </Button>
+          <Button
+            disabled={timelineZoom <= MIN_ZOOM}
+            className="size-5 min-w-5"
+            variant="ghost"
+            size="icon"
+            onClick={() => setTimelineZoom(timelineZoom - ZOOM_INCREMENT)}
+          >
+            <Minus className="size-3" />
+          </Button>
+        </div>
       </div>
     </div>
   );

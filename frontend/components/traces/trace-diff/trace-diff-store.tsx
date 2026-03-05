@@ -10,13 +10,8 @@ import {
 } from "@/components/traces/trace-view/store/base";
 import { toListSpans } from "@/components/traces/trace-view/store/utils";
 
-import { type BlockSummary, type CondensedBlock, type SpanTreeNode } from "./timeline/timeline-types";
-import {
-  buildSpanTree,
-  computeBlocksWithLayout,
-  computeExpandedLayout,
-  computeMaxDepth,
-} from "./timeline/timeline-utils";
+import { type BlockSummary, type SpanTreeNode } from "./timeline/timeline-types";
+import { buildSpanTree, computeExpandedLayout, computeMaxDepth } from "./timeline/timeline-utils";
 import { type DiffRow, type SpanMapping } from "./trace-diff-types";
 import { computeAlignedRows } from "./trace-diff-utils";
 
@@ -53,8 +48,6 @@ interface TraceDiffState {
   rightExpandedRowMap: Map<string, number>;
   leftTotalRows: number;
   rightTotalRows: number;
-  leftBlocks: CondensedBlock[];
-  rightBlocks: CondensedBlock[];
   blockSummaries: Record<string, BlockSummary>;
   timelineZoom: number;
   isSummarizationLoading: boolean;
@@ -113,8 +106,6 @@ const initialState: TraceDiffState = {
   rightExpandedRowMap: new Map(),
   leftTotalRows: 0,
   rightTotalRows: 0,
-  leftBlocks: [],
-  rightBlocks: [],
   blockSummaries: {},
   timelineZoom: 1,
   isSummarizationLoading: false,
@@ -130,9 +121,8 @@ const createTraceDiffStore = () =>
       const listSpans = toListSpans(spans);
       const hasRight = !!get().rightTrace;
       const leftTree = buildSpanTree(spans);
-      const { rowMap: leftExpandedRowMap, totalRows: leftTotalRows } = computeExpandedLayout(leftTree);
+      const { rowMap: leftExpandedRowMap, totalRows: leftTotalRows } = computeExpandedLayout(spans);
       const rightTree = get().rightTree;
-      const rightExpandedRowMap = get().rightExpandedRowMap;
       const maxTreeDepth = Math.max(computeMaxDepth(leftTree), rightTree ? computeMaxDepth(rightTree) : 0);
       const timelineDepth = maxTreeDepth;
 
@@ -146,8 +136,6 @@ const createTraceDiffStore = () =>
         leftTotalRows,
         maxTreeDepth,
         timelineDepth,
-        leftBlocks: computeBlocksWithLayout(leftTree, timelineDepth, leftExpandedRowMap),
-        rightBlocks: rightTree ? computeBlocksWithLayout(rightTree, timelineDepth, rightExpandedRowMap) : [],
         ...(hasRight
           ? {
               phase: "loading" as DiffPhase,
@@ -163,9 +151,8 @@ const createTraceDiffStore = () =>
     setRightData: (trace, spans) => {
       const listSpans = toListSpans(spans);
       const rightTree = buildSpanTree(spans);
-      const { rowMap: rightExpandedRowMap, totalRows: rightTotalRows } = computeExpandedLayout(rightTree);
+      const { rowMap: rightExpandedRowMap, totalRows: rightTotalRows } = computeExpandedLayout(spans);
       const leftTree = get().leftTree;
-      const leftExpandedRowMap = get().leftExpandedRowMap;
       const maxTreeDepth = Math.max(leftTree ? computeMaxDepth(leftTree) : 0, computeMaxDepth(rightTree));
       const timelineDepth = maxTreeDepth;
 
@@ -180,8 +167,6 @@ const createTraceDiffStore = () =>
         rightTotalRows,
         maxTreeDepth,
         timelineDepth,
-        leftBlocks: leftTree ? computeBlocksWithLayout(leftTree, timelineDepth, leftExpandedRowMap) : [],
-        rightBlocks: computeBlocksWithLayout(rightTree, timelineDepth, rightExpandedRowMap),
       });
     },
 
@@ -228,35 +213,19 @@ const createTraceDiffStore = () =>
         isLeftLoading: false,
       }),
 
-    // Timeline actions
-    setViewMode: (mode) => {
-      const s = get();
-      if (mode === "timeline" && s.leftTree) {
-        set({
-          viewMode: mode,
-          leftBlocks: computeBlocksWithLayout(s.leftTree, s.timelineDepth, s.leftExpandedRowMap),
-          rightBlocks: s.rightTree ? computeBlocksWithLayout(s.rightTree, s.timelineDepth, s.rightExpandedRowMap) : [],
-          selectedBlockSpanId: null,
-          selectedBlockSide: null,
-        });
-      } else {
-        set({ viewMode: mode });
-      }
-    },
-
-    setTimelineDepth: (depth) => {
-      const { leftTree, rightTree, leftExpandedRowMap, rightExpandedRowMap } = get();
+    // Timeline actions — depth only controls overlay visibility, no block recomputation
+    setViewMode: (mode) =>
       set({
-        timelineDepth: depth,
-        leftBlocks: leftTree ? computeBlocksWithLayout(leftTree, depth, leftExpandedRowMap) : [],
-        rightBlocks: rightTree ? computeBlocksWithLayout(rightTree, depth, rightExpandedRowMap) : [],
-      });
-    },
+        viewMode: mode,
+        ...(mode === "timeline" ? { selectedBlockSpanId: null, selectedBlockSide: null } : {}),
+      }),
+
+    setTimelineDepth: (depth) => set({ timelineDepth: depth }),
 
     expandOneLevel: () => {
       const { timelineDepth, maxTreeDepth } = get();
       if (timelineDepth < maxTreeDepth) {
-        get().setTimelineDepth(timelineDepth + 1);
+        set({ timelineDepth: timelineDepth + 1 });
       }
     },
 
@@ -267,7 +236,7 @@ const createTraceDiffStore = () =>
 
     setIsSummarizationLoading: (loading) => set({ isSummarizationLoading: loading }),
 
-    setTimelineZoom: (zoom) => set({ timelineZoom: Math.max(1, Math.min(18, zoom)) }),
+    setTimelineZoom: (zoom) => set({ timelineZoom: Math.max(1, Math.min(72, zoom)) }),
 
     selectBlock: (spanId, side) => set({ selectedBlockSpanId: spanId, selectedBlockSide: side }),
 
