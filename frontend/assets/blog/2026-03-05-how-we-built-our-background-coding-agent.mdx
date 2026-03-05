@@ -1,0 +1,127 @@
+---
+title: "How We Built Our Background Coding Agent"
+date: "2026-03-05"
+description: "A concrete, code-backed breakdown of the Laminar background coding agent: architecture, integrations, and the sharp edges we hit while building it."
+author:
+  name: Sam Komesarook
+  url: https://x.com/raymondmarkable
+tags: ["laminar", "agents", "engineering", "observability", "tooling"]
+---
+
+We built a background coding agent that works on our own various codebases. It runs in a sandboxed cloud environment with our full build toolchain (Rust backend, Next.js frontend, the works) and streams every action back in real time. When it's done, the code is sitting in the repo ready for review.
+
+Ramp's [post about Inspect](https://builders.ramp.com/post/why-we-built-our-background-agent) inspired us. It was the right vision, but it stayed high-level. We wanted to know how to actually build one. So we did, instrumented it with our own observability platform, and shipped it. This post covers the exact architecture, the integrations, what broke, and what we'd tell you to do if you're building your own.
+
+## The core idea
+
+An integrated coding agent has all of your application context. It has the compiler, the test suite, the staging databases, the build system. When it runs `cargo build` and gets a type error, it feeds that error back into its next edit. When it runs `pnpm build` and the Next.js compilation fails, it reads the error and fixes the route. A `CLAUDE.md` can say "run `pnpm test` to verify changes." An integrated agent can actually run it, read the output, and iterate until the tests pass.
+
+The other thing: it plugs into where your team already works. Assign a Linear ticket, check the PR later. Comment on a GitHub PR, the agent makes the change. No one has to open a separate tool or write a separate prompt.
+
+## What it looks like in practice
+
+Here's a real example. We had a simple Linear ticket:
+
+![linear ticket](/blog/2026-03-05-linear.png)
+
+By assigning the ticket to the agent, it picked it up, explored the codebase, discovered that Next.js has built-in `ImageResponse` from `next/og` (no external packages needed), and built the whole thing: updated the root layout metadata, added canonical URLs, created dynamic OG image routes for blog posts and shared traces that render branded 1200×630 PNGs on the fly with title, description, author, date, and tags. For shared traces, the OG image shows status, token count, cost, and duration.
+
+It ran the type checker, the linter, and the production build. Eleven commits. [The PR](https://github.com/lmnr-ai/lmnr/pull/1333) was ready for review.
+
+![github pr](/blog/2026-03-05-github.png)
+
+Well-scoped, touches multiple files across the frontend, requires actually building the project to verify the routes work. A human would spend an afternoon on it. The agent did it while we were doing other things.
+
+## The stack
+
+Two pieces: the **app** (agent UI and runtime) and the **control plane** (infrastructure that provisions environments, handles integrations, and keeps sandboxes warm).
+
+The app is Next.js. The agent runtime is the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk). The control plane is Python on [Modal](https://modal.com). Tracing goes through [Laminar](https://www.laminar.sh).
+
+## The app
+
+The backend is a single API route. It receives a POST with a prompt and optional working directory, spins up the agent, and streams progress back as newline-delimited JSON. Each line is a self-contained event: a text chunk, a tool invocation, a result, or an error. When the agent finishes, it posts back to the control plane via a callback URL so external systems (Linear, GitHub) can be updated.
+
+The agent runs through the Claude Agent SDK with a fixed system prompt and these tools: Read, Edit, Write, MultiEdit, Bash, Glob, Grep, Skill, WebSearch, WebFetch, plus an MCP server for uploading files to Supabase Storage (so the agent can attach screenshots and artifacts to PRs). The system prompt sets boundaries: it can work in the main repos but can't edit the agent's own code. No Docker in the sandbox. Staging databases and in-memory services handle what you'd normally containerize.
+
+Laminar tracing wraps the entire agent call. Every tool invocation, every LLM turn, every token shows up in the dashboard.
+
+## The control plane
+
+The control plane runs on Modal. It does three things: keeps warm sandboxes ready, handles integrations, and manages session lifecycle.
+
+**Snapshots.** A cron job runs every hour: clone our repos (the main Laminar monorepo, the Python SDK, instrumentation tests, and the agent app itself), build the Rust backend, build the Next.js frontend, build the agent, then snapshot the entire filesystem and store the snapshot ID in a Modal Dict. When someone kicks off a session, a FastAPI endpoint creates a new sandbox from the latest snapshot, pulls any changes, does an incremental rebuild if needed, starts the agent, and returns a URL. Seconds, not minutes.
+
+**Linear integration.** We handle Linear webhooks with OAuth and signature verification. When a ticket is assigned to the agent, the control plane spins up a sandbox and feeds the ticket description as the prompt. When the agent finishes, it posts the result back to the Linear ticket. This is the primary way our team uses the agent day-to-day. Assign a ticket, check the PR later.
+
+**GitHub integration.** We handle PR review comments and issue comments via webhooks. Comment on a PR with a request, and the agent picks it up, makes the change in the existing branch, and pushes. The control plane generates GitHub App installation tokens for API calls, so PRs are opened on behalf of the user, not a generic bot account.
+
+The sandbox includes everything you need to develop on our codebase: Node.js 24, pnpm, Rust stable (≥1.90), git, ripgrep, protobuf compiler, and all system libraries our builds depend on. The agent's working directory is set to our repo root by default.
+
+## What broke (and how we fixed it)
+
+Building a background agent is straightforward in concept and full of sharp edges in practice. Here's what bit us.
+
+**The bot kept replying to itself.** Our GitHub webhook handler didn't filter out the agent's own comments. So it would post a comment, receive the webhook for that comment, and respond to itself in a loop. Simple fix, embarrassing debugging session. Filter out your bot's own events before processing.
+
+**Race conditions in webhook processing.** When multiple GitHub comments arrive close together, you get concurrent sandbox operations that step on each other. We tightened the locking and queue logic around webhook handling. Every session needs a lock, and incoming prompts should be queued, not processed in parallel.
+
+**Truncated responses to Linear.** The agent's response was being truncated before posting back to Linear, so tickets would get partial or cut-off updates. We removed the truncation and let the full response through. Seems obvious in retrospect, but it was masked by the fact that the chat UI showed the complete response. Only the Linear callback was clipped.
+
+**Non-agent PRs couldn't get sandboxes.** If someone commented on a PR that wasn't created by the agent, the control plane tried to restore a branch snapshot that didn't exist. We added a fallback to the base snapshot for PRs not originally created by the agent, so it can still pick up review comments on human-authored PRs.
+
+Each of these took longer to diagnose than to fix. If you're building this, invest in verbose sandbox logging early (we expose it via Modal's `verbose=True` flag) and make sure your webhook handlers are idempotent.
+
+## How to build your own
+
+Here's what we'd tell you:
+
+### Use NDJSON for streaming
+
+One JSON object per line, over a standard HTTP response. It's trivial to debug (you can curl it), trivial to parse, and works through every proxy and CDN without special configuration. We considered SSE and WebSockets. We're glad we didn't.
+
+Keep the event vocabulary small. Ours has four types: `text`, `tool_call`, `result`, `error`. You can always add more later. You can't easily take them away.
+
+### Constrain the toolset (then expand deliberately)
+
+We started with fewer tools and added more as we hit real needs. The core loop is: Read, Edit, Write, MultiEdit, Bash, Glob, Grep. That covers most coding tasks.
+
+We added WebSearch and WebFetch because the agent sometimes needs to look up API docs or check how a library works. We added an MCP server for Supabase Storage so the agent can upload screenshots and artifacts to include in PRs. Each addition was motivated by a specific failure mode, not a hypothetical need.
+
+Give the agent a compiler and a test runner. Everything else should earn its place.
+
+### Invest in the system prompt
+
+Most of our iteration has been on the system prompt, not the infrastructure. Telling the agent to always run tests after editing. To read surrounding code before making changes. To check compilation before declaring success. To keep diffs minimal. To use the Skill tool for project-specific conventions.
+
+These instructions have more impact on output quality than any architectural decision we made. Treat the system prompt as production code: version it, review changes, measure the effect.
+
+### Snapshot aggressively
+
+Hourly snapshots plus incremental pulls at session start give a good balance between freshness and build cost. Modal's filesystem snapshots are stored as diffs, so only changed files add to the cost.
+
+Move as much as you can into the snapshot build. Clone repos, install dependencies, run initial builds, even run the test suite once to populate caches. It doesn't matter if the build takes 20 minutes. Users start from the last completed snapshot, so they never see the build time.
+
+We also snapshot the sandbox when a task completes and terminate it to free resources. If the user sends a follow-up, we restore from that snapshot instead of starting fresh. This preserves the agent's work while keeping costs down.
+
+### Observe the agent
+
+Every agent run shows up as a structured trace in Laminar. We can see how many tool calls it takes to complete a task, where the agent backtracks, which errors cause the most retries, how token spend correlates with task complexity.
+
+Without this, you're flying blind. You know the agent produced a PR. You don't know if it took 3 attempts or 30, whether it wasted tokens reading irrelevant files, or whether a different system prompt would have gotten there in half the time.
+
+We've used trace data to refine our system prompt significantly. The learning compounds.
+
+### Wire it into where your team already works
+
+The chat UI is useful for ad-hoc tasks, but the real adoption driver is integration with existing workflow tools. For us, that's Linear and GitHub.
+
+The Linear integration means anyone on the team can assign a ticket and get a PR back. The GitHub integration means review feedback turns into code changes without waiting for someone to pick up the comment.
+
+Ramp's point about virality loops is right: when the agent works in public spaces (PR threads, Linear tickets), people see it working and start using it themselves. Put it where people already are.
+
+### Wrapping up
+
+The whole thing took us a few weeks to get to a useful state, and most of that time was spent on the sharp edges, not the core architecture. The agent loop itself is simple: Claude Agent SDK, a system prompt, a handful of tools, a sandbox with your build toolchain. The hard part is everything around it. Webhooks that don't race. Snapshots that stay fresh. Integrations that don't silently truncate. Error handling that degrades gracefully instead of crashing. None of it is conceptually difficult. It's just the kind of work that only surfaces once you're running the thing for real.
+
+If you're thinking about building one, just start. The gap between "Claude Code on my laptop" and "an agent that picks up Linear tickets and ships PRs while I sleep" is smaller than it looks. Most of the tools you need are off the shelf. The rest is plumbing, and this post is the plumbing manual we wish we'd had.
