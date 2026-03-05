@@ -2,8 +2,9 @@ import pytest
 import sys
 import os
 
-# Add the src directory to the path
+# Add the project root and src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 
 from src.json_to_sql import convert_json_to_sql, QueryBuilderError as JsonToSqlError
 from src.sql_to_json import convert_sql_to_json, QueryBuilderError as SqlToJsonError
@@ -114,6 +115,58 @@ LIMIT 5"""
         sql = convert_json_to_sql(query_json)
 
         assert "(count()) AS `my``alias`" in sql
+
+    def test_raw_sql_metric_without_alias_uses_default(self):
+        """Test that raw SQL metric without alias defaults to 'value'"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "raw", "column": "countIf(status = 'ERROR')"},
+            ],
+            "dimensions": ["name"],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "(countIf(status = 'ERROR')) AS `value`" in sql
+
+    def test_raw_sql_metric_rejects_subquery(self):
+        """Test that subqueries in raw SQL expressions are rejected"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "raw", "column": "(SELECT 1)", "alias": "bad"},
+            ],
+            "dimensions": ["name"],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+
+        with pytest.raises(JsonToSqlError, match="Subqueries are not allowed"):
+            convert_json_to_sql(query_json)
+
+    def test_raw_sql_metric_rejects_blocked_functions(self):
+        """Test that blocked functions in raw SQL expressions are rejected"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "raw", "column": "url('http://evil.com')", "alias": "bad"},
+            ],
+            "dimensions": ["name"],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+
+        with pytest.raises(JsonToSqlError, match="not allowed"):
+            convert_json_to_sql(query_json)
 
     def test_empty_query_validation(self):
         """Test that queries with no metrics, dimensions, or time_range are rejected"""

@@ -1,6 +1,10 @@
 from typing import Any
 import logging
 
+import sqlglot
+
+from query_validator import QueryValidator
+
 logger = logging.getLogger(__name__)
 
 
@@ -181,13 +185,40 @@ class JsonToSqlConverter:
         """Escape and backtick-quote an alias to prevent SQL injection."""
         return f"`{alias.replace('`', '``')}`"
 
+    @staticmethod
+    def _validate_raw_expression(expr: str) -> None:
+        """Validate a raw SQL expression to prevent injection."""
+        if not expr or not expr.strip():
+            raise QueryBuilderError("Raw SQL expression cannot be empty")
+
+        # Parse the expression as part of a SELECT to check it's a valid expression
+        try:
+            parsed = sqlglot.parse_one(f"SELECT {expr} FROM t", read="clickhouse")
+        except sqlglot.errors.ParseError as e:
+            raise QueryBuilderError(f"Invalid SQL expression: {e}")
+
+        # Block subqueries inside the expression
+        for node in parsed.find_all(sqlglot.exp.Subquery, sqlglot.exp.Select):
+            if node is not parsed:
+                raise QueryBuilderError("Subqueries are not allowed in raw SQL expressions")
+
+        # Block dangerous functions using the same blocklist as the query validator
+        for func in parsed.find_all(sqlglot.exp.Anonymous, sqlglot.exp.Func):
+            if isinstance(func, sqlglot.exp.Anonymous):
+                func_name = func.name.lower()
+            else:
+                func_name = func.sql_name().lower()
+            if func_name in QueryValidator.BLOCKED_FUNCTIONS:
+                raise QueryBuilderError(f"Function '{func_name}' is not allowed in raw SQL expressions")
+
     def _metric_sql(self, metric: dict[str, Any]) -> str:
         fn = metric['fn']
         col = metric['column']
-        alias = metric.get('alias') or col
+        alias = metric.get('alias') or 'value'
         safe_alias = self._escape_alias(alias)
 
         if fn.lower() == 'raw':
+            self._validate_raw_expression(col)
             return f"({col}) AS {safe_alias}"
 
         if fn.lower() == 'quantile' and metric.get('args'):
