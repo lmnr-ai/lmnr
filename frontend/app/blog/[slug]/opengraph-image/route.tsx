@@ -26,7 +26,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Use defaults
   }
 
-  const fonts = await loadOgFonts();
+  let fonts: Awaited<ReturnType<typeof loadOgFonts>> = [];
+  try {
+    fonts = await loadOgFonts();
+  } catch {
+    // Fall back to system fonts if Google Fonts is unreachable
+  }
 
   return new ImageResponse(
     (
