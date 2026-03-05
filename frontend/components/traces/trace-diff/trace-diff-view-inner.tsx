@@ -116,6 +116,7 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
   // Trigger mapping when both sides have data and phase is 'loading'
   useEffect(() => {
     if (phase !== "loading") return;
+    if (isLeftLoading) return;
     if (!rightTraceId) return;
 
     let stale = false;
@@ -134,7 +135,17 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     return () => {
       stale = true;
     };
-  }, [phase, projectId, leftTraceId, rightTraceId, retryCounter, setIsMappingLoading, setMapping, setMappingError]);
+  }, [
+    phase,
+    isLeftLoading,
+    projectId,
+    leftTraceId,
+    rightTraceId,
+    retryCounter,
+    setIsMappingLoading,
+    setMapping,
+    setMappingError,
+  ]);
 
   const searchParamsRef = useRef(searchParams);
   useEffect(() => {
