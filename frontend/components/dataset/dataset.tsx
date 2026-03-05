@@ -12,6 +12,7 @@ import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
+import { type QueryResultMeta } from "@/lib/actions/sql/types.ts";
 import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -112,7 +113,12 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
       try {
-        const url = `/api/projects/${projectId}/datasets/${dataset.id}/datapoints?pageNumber=${pageNumber}&pageSize=${FETCH_SIZE}`;
+        const params = new URLSearchParams({
+          pageNumber: String(pageNumber),
+          pageSize: String(FETCH_SIZE),
+        });
+
+        const url = `/api/projects/${projectId}/datasets/${dataset.id}/datapoints?${params.toString()}`;
         const res = await fetch(url, {
           method: "GET",
           headers: {
@@ -125,8 +131,8 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
           throw new Error(text.error || "Failed to fetch datapoints");
         }
 
-        const data = await res.json();
-        return { items: data.items, count: data.totalCount };
+        const data = (await res.json()) as { items: Datapoint[]; totalCount: number; meta: QueryResultMeta };
+        return { items: data.items, count: data.totalCount, meta: data.meta };
       } catch (error) {
         toast({
           title: error instanceof Error ? error.message : "Failed to load datapoints. Please try again.",
@@ -135,7 +141,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         throw error;
       }
     },
-    [projectId, dataset.id, toast]
+    [dataset?.createdAt, dataset.id, projectId, toast]
   );
 
   const {

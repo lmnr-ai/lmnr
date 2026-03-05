@@ -14,8 +14,6 @@ import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapo
 import ScoreCard from "@/components/evaluation/score-card";
 import { useEvalStore } from "@/components/evaluation/store";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   type EvalRow,
@@ -123,17 +121,10 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection, buildFetchParams]
   );
 
-  const {
-    data: allDatapoints,
-    hasMore: hasMorePages,
-    isFetching: isFetchingPage,
-    isLoading: isLoadingDatapoints,
-    fetchNextPage,
-  } = useInfiniteScroll<EvalRow>({
-    fetchFn: fetchDatapoints,
-    enabled: !isStatsLoading,
-    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection, columnSqls],
-  });
+  const fetchDeps = useMemo(
+    () => [search, filter, searchIn, evaluationId, sortBy, sortDirection, columnSqls],
+    [search, filter, searchIn, evaluationId, sortBy, sortDirection, columnSqls]
+  );
 
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
     setTraceId(row.original["traceId"] as string);
@@ -212,15 +203,13 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
           )}
         </div>
         <EvaluationDatapointsTable
-          isLoading={isStatsLoading || isLoadingDatapoints}
+          isStatsLoading={isStatsLoading}
           datapointId={datapointId}
-          data={allDatapoints}
           scores={scores}
           handleRowClick={handleRowClick}
           getRowHref={getRowHref}
-          hasMore={hasMorePages}
-          isFetching={isFetchingPage}
-          fetchNextPage={fetchNextPage}
+          fetchFn={fetchDatapoints}
+          fetchDeps={fetchDeps}
         />
       </div>
       {traceId && (
@@ -245,9 +234,5 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 }
 
 export default function SharedEvaluation(props: SharedEvaluationProps) {
-  return (
-    <DataTableStateProvider storageKey="shared-evaluation-datapoints">
-      <SharedEvaluationContent {...props} />
-    </DataTableStateProvider>
-  );
+  return <SharedEvaluationContent {...props} />;
 }

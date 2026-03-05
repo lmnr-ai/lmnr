@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { Switch } from "@/components/ui/switch";
@@ -24,15 +25,13 @@ import { type EvalRow } from "@/lib/evaluation/types";
 import { type EvaluationDatapointsTableProps } from ".";
 
 const EvaluationDatapointsTableContent = ({
-  data,
   scores,
   handleRowClick,
   getRowHref,
   datapointId,
-  isLoading,
-  hasMore,
-  isFetching,
-  fetchNextPage,
+  isStatsLoading,
+  fetchFn,
+  fetchDeps,
 }: EvaluationDatapointsTableProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -55,6 +54,12 @@ const EvaluationDatapointsTableContent = ({
     columnOrder: s.columnOrder,
     setColumnOrder: s.setColumnOrder,
   }));
+
+  const { data, hasMore, isFetching, isLoading, fetchNextPage } = useInfiniteScroll<EvalRow>({
+    fetchFn,
+    enabled: !isStatsLoading,
+    deps: fetchDeps,
+  });
 
   // Sync datatable columnOrder with eval store columnDefs
   useEffect(() => {
@@ -148,7 +153,7 @@ const EvaluationDatapointsTableContent = ({
         data={data ?? []}
         hasMore={!searchParams.get("search") && hasMore}
         isFetching={isFetching}
-        isLoading={isLoading}
+        isLoading={isLoading || isStatsLoading}
         fetchNextPage={fetchNextPage}
         getRowId={(row) => row["id"] as string}
         focusedRowId={datapointId}

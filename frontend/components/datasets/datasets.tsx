@@ -2,7 +2,7 @@
 
 import { type ColumnDef, type RowSelectionState } from "@tanstack/react-table";
 import { SquareArrowOutUpRight } from "lucide-react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -99,7 +99,6 @@ const EmptyRow = (
 
 function DatasetsContent() {
   const { projectId } = useParams();
-  const router = useRouter();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});

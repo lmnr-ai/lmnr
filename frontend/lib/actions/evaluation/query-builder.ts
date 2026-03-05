@@ -16,7 +16,7 @@ export interface EvalQueryColumn {
 
 export const EvalFilterSchema = z.object({
   column: z.string(),
-  operator: z.nativeEnum(Operator),
+  operator: z.enum(Operator),
   value: z.union([z.string(), z.number()]),
 });
 
@@ -33,6 +33,7 @@ export interface EvalQueryOptions {
   sortSql?: string;
   sortDirection?: "ASC" | "DESC";
   targetId?: string;
+  startTime?: string;
 }
 
 export interface EvalStatsQueryOptions {
@@ -40,6 +41,7 @@ export interface EvalStatsQueryOptions {
   traceIds: string[];
   filters: EvalFilter[];
   columns?: EvalQueryColumn[];
+  startTime?: string;
 }
 
 // -- Helpers --
@@ -99,7 +101,19 @@ function buildFilterConditions(
 // -- Main builder --
 
 export function buildEvalQuery(options: EvalQueryOptions): QueryResult {
-  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } = options;
+  const {
+    evaluationId,
+    columns,
+    traceIds,
+    filters,
+    limit,
+    offset,
+    sortBy,
+    sortSql,
+    sortDirection,
+    targetId,
+    startTime,
+  } = options;
 
   if (columns.length === 0) {
     throw new Error("columns must not be empty");
@@ -120,6 +134,7 @@ export function buildEvalQuery(options: EvalQueryOptions): QueryResult {
     sortSql,
     sortDirection,
     evalIdParam: "evaluationId",
+    startTime,
   });
 }
 
@@ -135,11 +150,23 @@ interface SingleEvalQueryOptions {
   sortDirection?: "ASC" | "DESC";
   evalIdParam: string; // parameter name for the evaluation ID
   paramPrefix?: string; // prefix for all parameter names to avoid collisions
+  startTime?: string;
 }
 
 function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
-  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, evalIdParam } =
-    options;
+  const {
+    evaluationId,
+    columns,
+    traceIds,
+    filters,
+    limit,
+    offset,
+    sortBy,
+    sortSql,
+    sortDirection,
+    evalIdParam,
+    startTime,
+  } = options;
 
   const prefix = options.paramPrefix || "";
   const parameters: QueryParams = {};
@@ -154,6 +181,13 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
   // Always filter by evaluation_id
   whereConditions.push(`evaluation_id = {${evalIdParam}:UUID}`);
   parameters[evalIdParam] = evaluationId;
+
+  // Only include datapoints updated after the evaluation was created
+  if (startTime) {
+    const startTimeKey = `${prefix}startTime`;
+    whereConditions.push(`updated_at >= {${startTimeKey}:String}`);
+    parameters[startTimeKey] = startTime.replace(/\+00$/, "").replace(/Z$/, "");
+  }
 
   // Pre-filter by trace IDs (from search)
   if (traceIds.length > 0) {
@@ -177,7 +211,7 @@ function buildSingleEvalQuery(options: SingleEvalQueryOptions): QueryResult {
     const direction = sortDirection ?? "ASC";
     orderByStr = `ORDER BY ${sortColumn} ${direction}`;
   } else {
-    orderByStr = "ORDER BY `index` ASC, created_at ASC";
+    orderByStr = "ORDER BY `index` ASC, updated_at ASC";
   }
 
   // PAGINATION
@@ -210,7 +244,19 @@ function resolveSortExpression(sortBy: string, sortSql?: string, columns?: EvalQ
 // -- Comparison builder --
 
 function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
-  const { evaluationId, columns, traceIds, filters, limit, offset, sortBy, sortSql, sortDirection, targetId } = options;
+  const {
+    evaluationId,
+    columns,
+    traceIds,
+    filters,
+    limit,
+    offset,
+    sortBy,
+    sortSql,
+    sortDirection,
+    targetId,
+    startTime,
+  } = options;
 
   // Build primary subquery (with pagination)
   const primaryResult = buildSingleEvalQuery({
@@ -225,6 +271,7 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
     sortDirection,
     evalIdParam: "evaluationId",
     paramPrefix: "p_",
+    startTime,
   });
 
   // Comparison subquery must fetch all rows (unpaginated) because the two evaluations
@@ -272,13 +319,18 @@ function buildComparisonQuery(options: EvalQueryOptions): QueryResult {
 // -- Stats query builder --
 
 export function buildEvalStatsQuery(options: EvalStatsQueryOptions): QueryResult {
-  const { evaluationId, traceIds, filters, columns } = options;
+  const { evaluationId, traceIds, filters, columns, startTime } = options;
   const parameters: QueryParams = {};
 
   const whereConditions: string[] = [];
 
   whereConditions.push(`evaluation_id = {evaluationId:UUID}`);
   parameters.evaluationId = evaluationId;
+
+  if (startTime) {
+    whereConditions.push(`updated_at >= {startTime:String}`);
+    parameters.startTime = startTime.replace(/\+00$/, "").replace(/Z$/, "");
+  }
 
   if (traceIds.length > 0) {
     whereConditions.push(`trace_id IN ({traceIds:Array(UUID)})`);

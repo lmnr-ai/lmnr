@@ -12,10 +12,9 @@ import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapo
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
 import { useEvalStore } from "@/components/evaluation/store";
-import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
+import { type QueryResultMeta } from "@/lib/actions/sql/types.ts";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
@@ -108,14 +107,11 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const customColumns = useEvalStore((s) => s.customColumns);
 
   // Rebuild column defs when scores or custom columns change.
-  // This must run before useInfiniteScroll's effect (declaration order).
   useEffect(() => {
     rebuildColumns(scores);
   }, [scores, customColumns, rebuildColumns]);
 
   // SQL strings from column defs — only changes when columns structurally change.
-  // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
-  // produce the same string → no spurious re-fetch.
   const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
 
   const onClose = useCallback(() => {
@@ -145,9 +141,8 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
       if (!response.ok) {
         throw new Error("Failed to fetch datapoints.");
       }
-      const data: EvaluationResultsInfo = await response.json();
-
-      return { items: data.results, count: 0 };
+      const data: EvaluationResultsInfo & { meta: QueryResultMeta } = await response.json();
+      return { items: data.results, count: 0, meta: data.meta };
     },
     [
       search,
@@ -163,18 +158,13 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     ]
   );
 
-  // Use infinite scroll hook — data is now EvalRow (Record<string, unknown>)
-  const {
-    data: allDatapoints,
-    hasMore: hasMorePages,
-    isFetching: isFetchingPage,
-    isLoading: isLoadingDatapoints,
-    fetchNextPage,
-  } = useInfiniteScroll<EvalRow>({
-    fetchFn: fetchDatapoints,
-    enabled: !isStatsLoading,
-    deps: [search, filter, searchIn, evaluationId, sortBy, sortDirection, targetId, columnSqls],
-  });
+  const fetchDeps = useMemo(
+    () => [search, filter, searchIn, evaluationId, sortBy, sortDirection, targetId, columnSqls],
+    [search, filter, searchIn, evaluationId, sortBy, sortDirection, targetId, columnSqls]
+  );
+
+  // Read data from the table's infinite scroll for the trace comparison selector
+  const [allDatapoints, setAllDatapoints] = useState<EvalRow[]>([]);
 
   const selectedRow = useMemo<EvalRow | undefined>(
     () => allDatapoints?.find((row) => row["id"] === searchParams.get("datapointId")),
@@ -184,6 +174,10 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const handleRowClick = useCallback((row: Row<EvalRow>) => {
     setTraceId(row.original["traceId"] as string);
     setDatapointId(row.original["id"] as string);
+    setAllDatapoints((prev) => {
+      if (prev.some((r) => r["id"] === row.original["id"])) return prev;
+      return [...prev, row.original];
+    });
   }, []);
 
   const getRowHref = useCallback(
@@ -268,15 +262,13 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
             )}
           </div>
           <EvaluationDatapointsTable
-            isLoading={isStatsLoading || isLoadingDatapoints}
+            isStatsLoading={isStatsLoading}
             datapointId={datapointId}
-            data={allDatapoints}
             scores={scores}
             handleRowClick={handleRowClick}
             getRowHref={getRowHref}
-            hasMore={hasMorePages}
-            isFetching={isFetchingPage}
-            fetchNextPage={fetchNextPage}
+            fetchFn={fetchDatapoints}
+            fetchDeps={fetchDeps}
           />
         </div>
       </div>
@@ -333,9 +325,5 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
 }
 
 export default function Evaluation(props: EvaluationProps) {
-  return (
-    <DataTableStateProvider storageKey="evaluation-datapoints-pagination">
-      <EvaluationContent {...props} />
-    </DataTableStateProvider>
-  );
+  return <EvaluationContent {...props} />;
 }
