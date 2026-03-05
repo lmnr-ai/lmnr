@@ -7,7 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
-  title: "Laminar - Open-source observability for AI agents",
+  title: { absolute: "Laminar - Open-source observability for AI agents" },
   description:
     "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
   openGraph: {
