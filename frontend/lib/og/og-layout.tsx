@@ -17,16 +17,25 @@ export async function loadOgFonts(): Promise<OgFont[]> {
   }
 
   const css = await (await fetch(INTER_FONT_URL)).text();
-  const fontUrls = [...css.matchAll(/src: url\((.+?)\) format\('(?:opentype|truetype)'\)/g)].map((m) => m[1]);
-  const fontWeights = [...css.matchAll(/font-weight: (\d+)/g)].map((m) => Number(m[1]));
+
+  // Parse each @font-face block individually to keep URL and weight paired
+  const fontFaceBlocks = [...css.matchAll(/@font-face\s*\{([^}]+)\}/g)].map((m) => m[1]);
+  const parsed = fontFaceBlocks
+    .map((block) => {
+      const urlMatch = block.match(/src: url\((.+?)\) format\('(?:opentype|truetype)'\)/);
+      const weightMatch = block.match(/font-weight: (\d+)/);
+      if (!urlMatch || !weightMatch) return null;
+      return { url: urlMatch[1], weight: Number(weightMatch[1]) as 400 | 500 | 600 | 700 };
+    })
+    .filter((entry): entry is { url: string; weight: 400 | 500 | 600 | 700 } => entry !== null);
 
   const fonts = await Promise.all(
-    fontUrls.map(async (url, i) => {
+    parsed.map(async ({ url, weight }) => {
       const data = await (await fetch(url)).arrayBuffer();
       return {
         name: "Inter" as const,
         data,
-        weight: fontWeights[i] as 400 | 500 | 600 | 700,
+        weight,
         style: "normal" as const,
       };
     })
