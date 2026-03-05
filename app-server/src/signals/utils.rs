@@ -169,6 +169,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
             "signal.batch_id".to_string(),
             Value::String(provider_batch_id.to_string()),
         );
+        attrs.insert("gen_ai.request.batch".to_string(), Value::Bool(true));
     }
 
     attrs.insert(
@@ -176,7 +177,6 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         Value::String(span.model),
     );
     attrs.insert("gen_ai.system".to_string(), Value::String(span.provider));
-    attrs.insert("gen_ai.request.batch".to_string(), Value::Bool(true));
 
     if let Some(parent_span_id) = span.parent_span_id {
         attrs.insert(
