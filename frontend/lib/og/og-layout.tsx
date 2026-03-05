@@ -4,7 +4,7 @@ const INTER_FONT_URL = "https://fonts.googleapis.com/css2?family=Inter:wght@400;
 
 export async function loadOgFonts() {
   const css = await (await fetch(INTER_FONT_URL)).text();
-  const fontUrls = [...css.matchAll(/src: url\((.+?)\) format\('woff2'\)/g)].map((m) => m[1]);
+  const fontUrls = [...css.matchAll(/src: url\((.+?)\) format\('(?:opentype|truetype)'\)/g)].map((m) => m[1]);
   const fontWeights = [...css.matchAll(/font-weight: (\d+)/g)].map((m) => Number(m[1]));
 
   const fonts = await Promise.all(
