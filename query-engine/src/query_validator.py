@@ -149,6 +149,7 @@ class TableRegistry:
             "name",
             "payload",
             "timestamp",
+            "summary",
         }
 
         logs_columns = {
