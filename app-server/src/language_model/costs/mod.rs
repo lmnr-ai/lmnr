@@ -112,7 +112,12 @@ impl ModelInfo {
         // 4. raw model name (with provider prefix stripped)
         keys.push(self.raw_model.clone());
 
-        // 5. raw model name without date snapshot suffix
+        // 5. provider/model_without_snapshot (provider-prefixed base name)
+        if let Some(provider) = &self.provider {
+            keys.push(format!("{}/{}", provider, self.model_without_snapshot));
+        }
+
+        // 6. raw model name without date snapshot suffix
         keys.push(self.model_without_snapshot.clone());
 
         // 6. raw model name without dots
