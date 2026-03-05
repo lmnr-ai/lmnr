@@ -52,7 +52,7 @@ export const METRIC_FUNCTION_OPTIONS: MetricFunctionOption[] = [
   {
     value: "raw",
     label: "Custom SQL",
-    createMetric: () => ({ fn: "raw", column: "", alias: "", args: [] }),
+    createMetric: () => ({ fn: "raw", column: "", alias: "value", args: [] }),
   },
 ];
 
@@ -72,7 +72,7 @@ export const createMetricFromOption = (functionValue: string, column: string, al
     return { fn: "count", column: "*", alias: alias || "count", args: [] };
   }
   if (functionValue === "raw") {
-    return { ...option.createMetric(column), alias: alias || "" } as Metric;
+    return { ...option.createMetric(column), alias: alias || "value" } as Metric;
   }
   return { ...option.createMetric(column), column, alias } as Metric;
 };
