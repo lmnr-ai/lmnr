@@ -60,7 +60,7 @@ What it will do:
    // After: native endpoint, Laminar instruments automatically
    const openai = new OpenAI();
    ```
-5. Move Helicone metadata into Laminar context.
+5. Move Helicone metadata into Laminar context (inside an active span).
    ```typescript
    // Before: Helicone headers
    headers: {
@@ -69,7 +69,7 @@ What it will do:
      'Helicone-Property-Env': 'production',
    }
 
-   // After: Laminar context
+   // After: Laminar context (inside an active span)
    Laminar.setTraceUserId(userId);
    Laminar.setTraceSessionId(sessionId);
    Laminar.setTraceMetadata({ env: 'production' });
@@ -80,8 +80,33 @@ What it will do:
    Laminar.set_trace_session_id(session_id)
    Laminar.set_trace_metadata({"env": "production"})
    ```
+   Active span means you're already inside an `observe(...)` block or a Laminar span. For example:
+
+   **TypeScript**
+   ```typescript
+   import { Laminar, observe } from '@lmnr-ai/lmnr';
+
+   await observe({ name: 'handle_request' }, async () => {
+     Laminar.setTraceUserId(userId);
+     Laminar.setTraceSessionId(sessionId);
+     Laminar.setTraceMetadata({ env: 'production' });
+     // ...rest of your request/agent logic
+   });
+   ```
+
+   **Python**
+   ```python
+   from lmnr import Laminar, observe
+
+   @observe()
+   def handle_request(user_id: str, session_id: str):
+       Laminar.set_trace_user_id(user_id)
+       Laminar.set_trace_session_id(session_id)
+       Laminar.set_trace_metadata({"env": "production"})
+       # ...rest of your request/agent logic
+   ```
 6. Verify in the UI.
-   Run a single request. You should see a trace with LLM spans, tool spans, and a clear tree. If you only see a root span, wrap your agent entrypoint with `observe(...)` or `@observe()`. See [Viewing Traces](https://docs.laminar.sh/platform/viewing-traces).
+   Run a single request. You should see a trace with LLM spans and a clear tree. Tool spans will appear if your tool layer is instrumented (e.g., LangChain/LlamaIndex) or if you wrap tool calls with `observe({ spanType: 'TOOL' })` (TypeScript) or `Laminar.start_as_current_span(..., span_type="TOOL")` (Python). If you only see a root span, wrap your agent entrypoint with `observe(...)` or `@observe()`. See [Viewing Traces](https://docs.laminar.sh/platform/viewing-traces).
 
 ## If You Already Have OpenTelemetry
 

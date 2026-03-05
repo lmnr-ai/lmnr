@@ -96,7 +96,7 @@ Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"])
 5. If you use decorators or manual spans, map them to Laminar equivalents. Laminar collapses workflow/task into a single `@observe()` decorator - a simpler mental model with the same trace fidelity. Use the mapping table below.
 
 6. Verify in the UI.
-   Run a single request. You should see a full trace tree with LLM and tool spans. If you only see a root span, add `observe(...)` or `@observe()` around your agent entrypoint. See [Viewing Traces](https://docs.laminar.sh/platform/viewing-traces).
+   Run a single request. You should see a full trace tree with LLM spans. Tool spans will appear if your tool layer is instrumented (e.g., LangChain/LlamaIndex) or if you wrap tool calls with `observe({ spanType: 'TOOL' })` (TypeScript) or `Laminar.start_as_current_span(..., span_type="TOOL")` (Python). If you only see a root span, add `observe(...)` or `@observe()` around your agent entrypoint. See [Viewing Traces](https://docs.laminar.sh/platform/viewing-traces).
 
 ## Traceloop to Laminar Mapping
 
