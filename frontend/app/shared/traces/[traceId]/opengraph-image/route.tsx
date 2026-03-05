@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
 
 import { getSharedTrace } from "@/lib/actions/shared/trace";
-import { OgContainer, OgHeader } from "@/lib/og/og-layout";
+import { loadOgFonts, OgContainer, OgHeader } from "@/lib/og/og-layout";
 
 export const runtime = "nodejs";
 
@@ -41,6 +41,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   const statusColor = status === "ok" ? "#22c55e" : status === "error" ? "#ef4444" : "#a3a3a3";
+
+  const fonts = await loadOgFonts();
 
   return new ImageResponse(
     (
@@ -133,6 +135,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     {
       width: 1200,
       height: 630,
+      fonts,
     }
   );
 }
