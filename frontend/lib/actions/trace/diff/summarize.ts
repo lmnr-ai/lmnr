@@ -5,16 +5,14 @@ import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { generateObject } from "ai";
 import { z } from "zod";
 
-import { getTraceStructureAsString } from "@/lib/actions/trace/agent/spans";
-
 import { BLOCK_SUMMARY_SYSTEM_PROMPT } from "./summarize-prompt";
 
 const BlockSummaryResultSchema = z.object({
   results: z.array(
     z.object({
-      blockId: z.string().describe("The block ID from the input"),
-      summary: z.string().describe("A 2-7 word unique summary of what this block does"),
-      icon: z.string().describe("Icon name from the available set that best represents this block"),
+      blockId: z.string(),
+      summary: z.string(),
+      icon: z.string(),
     })
   ),
 });
@@ -30,13 +28,10 @@ export interface BlockSummaryInput {
 export type BlockSummaryResult = z.infer<typeof BlockSummaryResultSchema>["results"][number];
 
 export async function generateBlockSummaries(
-  projectId: string,
-  traceId: string,
+  traceString: string,
   blocks: BlockSummaryInput[]
 ): Promise<BlockSummaryResult[]> {
   if (blocks.length === 0) return [];
-
-  const { traceString } = await getTraceStructureAsString(projectId, traceId);
 
   const blockDescriptions = blocks
     .map(
@@ -50,20 +45,28 @@ ${traceString}
 </trace_context>
 
 Label these blocks:
-${blockDescriptions}`;
+${blockDescriptions}
 
-  const { object } = await observe({ name: "generateBlockSummaries" }, async () =>
-    generateObject({
-      model: google("gemini-3-flash-preview"),
-      schema: BlockSummaryResultSchema,
-      system: BLOCK_SUMMARY_SYSTEM_PROMPT,
-      prompt,
-      experimental_telemetry: {
-        isEnabled: true,
-        tracer: getTracer(),
-      },
-    })
-  );
+Respond with ONLY a JSON object in this exact format, no other text:
+{"results": [{"blockId": "<id>", "summary": "<2-7 word label>", "icon": "<icon name>"}]}`;
 
-  return object.results;
+  try {
+    const { object } = await observe({ name: "generateBlockSummaries" }, async () =>
+      generateObject({
+        model: google("gemini-3-flash-preview"),
+        schema: BlockSummaryResultSchema,
+        system: BLOCK_SUMMARY_SYSTEM_PROMPT,
+        prompt,
+        experimental_telemetry: {
+          isEnabled: true,
+          tracer: getTracer(),
+        },
+      })
+    );
+
+    return object.results;
+  } catch (e: unknown) {
+    console.error("generateBlockSummaries failed:", e);
+    throw e;
+  }
 }

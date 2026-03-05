@@ -13,18 +13,24 @@ import { SPAN_MATCHING_SYSTEM_PROMPT } from "./prompts";
 const SpanMatchSchema = z.object({
   mappings: z.array(
     z.object({
-      spanA: z.number().describe("Sequential ID (1-indexed) of the span in Trace A"),
-      spanB: z.number().describe("Sequential ID (1-indexed) of the span in Trace B"),
-      description: z.string().optional().describe("Brief explanation of why these spans match"),
+      spanA: z.number(),
+      spanB: z.number(),
+      description: z.string().optional(),
     })
   ),
 });
+
+export interface SpanMappingResult {
+  mapping: SpanMapping;
+  leftTraceString: string;
+  rightTraceString: string;
+}
 
 export const generateSpanMapping = async (
   projectId: string,
   leftTraceId: string,
   rightTraceId: string
-): Promise<SpanMapping> => {
+): Promise<SpanMappingResult> => {
   const [leftStructure, rightStructure] = await Promise.all([
     getTraceStructureAsString(projectId, leftTraceId, { excludeDefault: true }),
     getTraceStructureAsString(projectId, rightTraceId, { excludeDefault: true }),
@@ -33,14 +39,16 @@ export const generateSpanMapping = async (
   const leftSpanInfos = leftStructure.spanInfos;
   const rightSpanInfos = rightStructure.spanInfos;
 
-  const { object } = await observe(
-    { name: "generateSpanMapping" },
-    async () =>
-      await generateObject({
-        model: google("gemini-3-flash-preview"),
-        schema: SpanMatchSchema,
-        system: SPAN_MATCHING_SYSTEM_PROMPT,
-        prompt: `Here is Trace A (left):
+  let mappings: { spanA: number; spanB: number }[] = [];
+  try {
+    const { object } = await observe(
+      { name: "generateSpanMapping" },
+      async () =>
+        await generateObject({
+          model: google("gemini-3-flash-preview"),
+          schema: SpanMatchSchema,
+          system: SPAN_MATCHING_SYSTEM_PROMPT,
+          prompt: `Here is Trace A (left):
 <trace_a>
 ${leftStructure.traceString}
 </trace_a>
@@ -49,16 +57,22 @@ Here is Trace B (right):
 <trace_b>
 ${rightStructure.traceString}
 </trace_b>`,
-        experimental_telemetry: {
-          isEnabled: true,
-          tracer: getTracer(),
-        },
-      })
-  );
+          experimental_telemetry: {
+            isEnabled: true,
+            tracer: getTracer(),
+          },
+        })
+    );
+
+    mappings = object.mappings;
+  } catch (e: unknown) {
+    console.error("generateSpanMapping failed:", e);
+    throw e;
+  }
 
   // Resolve 1-indexed sequential IDs to span UUIDs
   const mapping: SpanMapping = [];
-  for (const { spanA, spanB } of object.mappings) {
+  for (const { spanA, spanB } of mappings) {
     const leftIdx = spanA - 1;
     const rightIdx = spanB - 1;
 
@@ -67,5 +81,9 @@ ${rightStructure.traceString}
     }
   }
 
-  return mapping;
+  return {
+    mapping,
+    leftTraceString: leftStructure.traceString,
+    rightTraceString: rightStructure.traceString,
+  };
 };

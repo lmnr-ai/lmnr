@@ -49,6 +49,8 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     isSummarizationLoading,
     mappingError,
     retryMapping,
+    leftTraceString,
+    rightTraceString,
   } = useTraceDiffStore((s) => ({
     phase: s.phase,
     isLeftLoading: s.isLeftLoading,
@@ -69,6 +71,8 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     isSummarizationLoading: s.isSummarizationLoading,
     mappingError: s.mappingError,
     retryMapping: s.retryMapping,
+    leftTraceString: s.leftTraceString,
+    rightTraceString: s.rightTraceString,
   }));
 
   // Fetch a trace + its spans
@@ -144,8 +148,8 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     let stale = false;
     setIsMappingLoading(true);
     generateSpanMapping(projectId, leftTraceId, rightTraceId)
-      .then((mapping) => {
-        if (!stale) setMapping(mapping);
+      .then(({ mapping, leftTraceString: lts, rightTraceString: rts }) => {
+        if (!stale) setMapping(mapping, lts, rts);
       })
       .catch((e) => {
         if (!stale) {
@@ -208,22 +212,21 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
       if (pending === 0) setIsSummarizationLoading(false);
     };
 
-    if (leftBlocks.length > 0) {
+    if (leftBlocks.length > 0 && leftTraceString) {
       pending++;
-      generateBlockSummaries(projectId, leftTraceId, leftBlocks).then(mergeSummaries).catch(handleError);
+      generateBlockSummaries(leftTraceString, leftBlocks).then(mergeSummaries).catch(handleError);
     }
-    if (rightBlocks.length > 0 && rightTraceId) {
+    if (rightBlocks.length > 0 && rightTraceString) {
       pending++;
-      generateBlockSummaries(projectId, rightTraceId, rightBlocks).then(mergeSummaries).catch(handleError);
+      generateBlockSummaries(rightTraceString, rightBlocks).then(mergeSummaries).catch(handleError);
     }
     if (pending === 0) setIsSummarizationLoading(false);
   }, [
     leftTree,
     rightTree,
     maxTreeDepth,
-    projectId,
-    leftTraceId,
-    rightTraceId,
+    leftTraceString,
+    rightTraceString,
     addBlockSummaries,
     setIsSummarizationLoading,
   ]);

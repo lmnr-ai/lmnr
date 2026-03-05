@@ -35,6 +35,8 @@ interface TraceDiffState {
   mappingError: string | null;
   alignedRows: DiffRow[];
   retryCounter: number;
+  leftTraceString: string | null;
+  rightTraceString: string | null;
 
   selectedRowIndex: number | null;
 
@@ -61,7 +63,7 @@ interface TraceDiffActions {
   setIsLeftLoading: (loading: boolean) => void;
   setIsRightLoading: (loading: boolean) => void;
   setIsMappingLoading: (loading: boolean) => void;
-  setMapping: (mapping: SpanMapping) => void;
+  setMapping: (mapping: SpanMapping, leftTraceString: string, rightTraceString: string) => void;
   setMappingError: (error: string) => void;
   retryMapping: () => void;
   toggleRow: (index: number) => void;
@@ -94,6 +96,8 @@ const initialState: TraceDiffState = {
   mappingError: null,
   alignedRows: [],
   retryCounter: 0,
+  leftTraceString: null,
+  rightTraceString: null,
   selectedRowIndex: null,
 
   // Timeline
@@ -174,7 +178,7 @@ const createTraceDiffStore = () =>
     setIsRightLoading: (loading) => set({ isRightLoading: loading }),
     setIsMappingLoading: (loading) => set({ isMappingLoading: loading }),
 
-    setMapping: (mapping) => {
+    setMapping: (mapping, leftTraceString, rightTraceString) => {
       const { leftListSpans, rightListSpans } = get();
       const alignedRows = computeAlignedRows(leftListSpans, rightListSpans, mapping);
       set({
@@ -183,6 +187,8 @@ const createTraceDiffStore = () =>
         isMappingLoading: false,
         mappingError: null,
         phase: "ready",
+        leftTraceString,
+        rightTraceString,
       });
     },
 
