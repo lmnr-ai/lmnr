@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Controller, useFieldArray, useFormContext, useWatch } from "react-hook-form";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 
 import {
   createMetricFromOption,
@@ -10,7 +10,6 @@ import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas
 import SQLEditor from "@/components/sql/sql-editor";
 import type { SQLSchemaConfig } from "@/components/sql/utils";
 import { Badge } from "@/components/ui/badge.tsx";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,7 +35,7 @@ const useMetricFnChange = (index: number) => {
   );
 };
 
-const RawSqlMetricRow = ({ index, table, onRemove }: { index: number; table: string; onRemove: () => void }) => {
+const RawSqlMetricRow = ({ index, table }: { index: number; table: string }) => {
   const { control, setValue } = useFormContext<QueryStructure>();
   const field = useWatch({ control, name: `metrics.${index}` });
 
@@ -79,7 +78,6 @@ const RawSqlMetricRow = ({ index, table, onRemove }: { index: number; table: str
             />
           )}
         />
-        <Button className="text-secondary-foreground" icon="x" size="icon" variant="ghost" onClick={onRemove} />
       </div>
       <div className="grid gap-1">
         <div className="flex items-center justify-between">
@@ -119,7 +117,7 @@ const RawSqlMetricRow = ({ index, table, onRemove }: { index: number; table: str
   );
 };
 
-const StandardMetricRow = ({ index, table, onRemove }: { index: number; table: string; onRemove: () => void }) => {
+const StandardMetricRow = ({ index, table }: { index: number; table: string }) => {
   const { control, setValue, getValues } = useFormContext<QueryStructure>();
   const field = useWatch({ control, name: `metrics.${index}` });
 
@@ -173,44 +171,21 @@ const StandardMetricRow = ({ index, table, onRemove }: { index: number; table: s
           ))}
         </SelectContent>
       </Select>
-      <Button className="text-secondary-foreground" icon="x" size="icon" variant="ghost" onClick={onRemove} />
     </div>
   );
 };
 
 const MetricsField = () => {
   const { control } = useFormContext<QueryStructure>();
-  const { fields, append, remove } = useFieldArray({
-    control,
-    keyName: "key",
-    name: "metrics",
-  });
-
   const table = useWatch({ control, name: "table" });
   const metrics = useWatch({ control, name: "metrics" });
 
+  const isRaw = metrics?.[0]?.fn === "raw";
+
   return (
     <div className="grid gap-2">
-      <Label className="font-semibold text-xs">Metrics</Label>
-      <div className="space-y-2">
-        {fields.map((field, index) => {
-          const isRaw = metrics?.[index]?.fn === "raw";
-          return isRaw ? (
-            <RawSqlMetricRow key={field.key} index={index} table={table} onRemove={() => remove(index)} />
-          ) : (
-            <StandardMetricRow key={field.key} index={index} table={table} onRemove={() => remove(index)} />
-          );
-        })}
-        <Button
-          icon="plus"
-          size="sm"
-          className="text-primary hover:text-primary/80"
-          variant="ghost"
-          onClick={() => append(createMetricFromOption("count", "*", "count"))}
-        >
-          Add metric
-        </Button>
-      </div>
+      <Label className="font-semibold text-xs">Metric</Label>
+      {isRaw ? <RawSqlMetricRow index={0} table={table} /> : <StandardMetricRow index={0} table={table} />}
     </div>
   );
 };

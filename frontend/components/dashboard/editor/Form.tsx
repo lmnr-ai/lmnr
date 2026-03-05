@@ -15,7 +15,7 @@ import { getTimeColumn } from "@/components/dashboard/editor/table-schemas";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Label } from "@/components/ui/label.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { type QueryStructure, type TimeRange } from "@/lib/actions/sql/types.ts";
 
 const needsTimeSeries = (chartType?: ChartType): boolean =>
@@ -37,18 +37,31 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const { projectId } = useParams();
   const { control, formState, getValues, handleSubmit } = useFormContext<QueryStructure>();
 
-  const { chart, setQuery, setChartConfig, executeQuery, isLoading, error, data, setLoading, setError } =
-    useDashboardEditorStoreContext((state) => ({
-      chart: state.chart,
-      setQuery: state.setQuery,
-      setChartConfig: state.setChartConfig,
-      executeQuery: state.executeQuery,
-      isLoading: state.isLoading,
-      error: state.error,
-      data: state.data,
-      setLoading: state.setLoading,
-      setError: state.setError,
-    }));
+  const {
+    chart,
+    setQuery,
+    setChartConfig,
+    executeQuery,
+    isLoading,
+    error,
+    data,
+    setLoading,
+    setError,
+    parameters,
+    setParameterValue,
+  } = useDashboardEditorStoreContext((state) => ({
+    chart: state.chart,
+    setQuery: state.setQuery,
+    setChartConfig: state.setChartConfig,
+    executeQuery: state.executeQuery,
+    isLoading: state.isLoading,
+    error: state.error,
+    data: state.data,
+    setLoading: state.setLoading,
+    setError: state.setError,
+    parameters: state.parameters,
+    setParameterValue: state.setParameterValue,
+  }));
 
   const formValues = useWatch({ control });
 
@@ -183,7 +196,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     return () => {
       debouncedExecution.cancel();
     };
-  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart]);
+  }, [formValues, formState.isValid, generateAndExecuteQuery, handleSubmit, isLoadingChart, parameters]);
 
   return (
     <div className="grid grid-cols-4 h-full gap-4 overflow-hidden">
@@ -202,14 +215,39 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         <div className="flex items-center gap-4">
           <div className="grid gap-1">
             <Label className="text-xs text-secondary-foreground/80">Time range</Label>
-            <DateRangeFilter buttonDisabled className="w-fit" />
+            <DateRangeFilter
+              className="w-fit"
+              mode="state"
+              onChange={(value) => {
+                if (value.startDate) {
+                  setParameterValue("start_time", new Date(value.startDate));
+                }
+                if (value.endDate) {
+                  setParameterValue("end_time", new Date(value.endDate));
+                }
+                if (value.pastHours) {
+                  const now = new Date();
+                  const start = new Date(now.getTime() - Number(value.pastHours) * 60 * 60 * 1000);
+                  setParameterValue("start_time", start);
+                  setParameterValue("end_time", now);
+                }
+              }}
+            />
           </div>
           <div className="grid gap-1">
             <Label className="text-xs text-secondary-foreground/80">Group by</Label>
-            <Select value="1 hour">
-              <SelectTrigger className="w-fit text-secondary-foreground" disabled>
-                <SelectValue placeholder="select group by">1 hour</SelectValue>
+            <Select
+              value={String(parameters.find((p) => p.name === "interval_unit")?.value ?? "HOUR")}
+              onValueChange={(value) => setParameterValue("interval_unit", value)}
+            >
+              <SelectTrigger className="w-fit text-secondary-foreground">
+                <SelectValue />
               </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MINUTE">By minute</SelectItem>
+                <SelectItem value="HOUR">By hour</SelectItem>
+                <SelectItem value="DAY">By day</SelectItem>
+              </SelectContent>
             </Select>
           </div>
         </div>
