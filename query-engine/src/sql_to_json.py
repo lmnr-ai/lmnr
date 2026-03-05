@@ -158,7 +158,7 @@ class SqlToJsonConverter:
                 column = self._extract_column(node.this) if node.this else '*'
                 return {'fn': fn_name, 'column': column, 'alias': alias}
 
-        return {'fn': 'unknown', 'column': str(node), 'alias': alias}
+        return {'fn': 'raw', 'column': node.sql(dialect="clickhouse"), 'alias': alias}
 
     def _extract_column(self, expr) -> str:
         if isinstance(expr, sqlglot.exp.Column):
