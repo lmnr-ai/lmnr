@@ -167,10 +167,9 @@ class SqlToJsonConverter:
                 column = self._extract_column(node.this) if node.this else '*'
                 return {'fn': fn_name, 'column': column, 'alias': alias}
 
-        inner = node
-        while isinstance(inner, sqlglot.exp.Paren):
-            inner = inner.this
-        return {'fn': 'raw', 'column': inner.sql(dialect="clickhouse"), 'alias': alias}
+        # This is unreachable since callers only pass nodes matching agg_map,
+        # but kept as a defensive fallback.
+        return {'fn': 'raw', 'column': node.sql(dialect="clickhouse"), 'alias': alias}
 
     def _extract_column(self, expr) -> str:
         if isinstance(expr, sqlglot.exp.Column):
