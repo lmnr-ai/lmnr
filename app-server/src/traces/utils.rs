@@ -50,7 +50,7 @@ pub async fn get_llm_usage_for_span(
     let mut request_model = attributes.request_model();
     response_model = tranform_model_name(response_model, provider_name.clone());
     request_model = tranform_model_name(request_model, provider_name.clone());
-    let model_name = response_model.clone().or(attributes.request_model());
+    let model_name = response_model.clone().or(request_model.clone());
 
     if input_cost.is_some_and(|c| c > 0.0)
         || output_cost.is_some_and(|c| c > 0.0)
