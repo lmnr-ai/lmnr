@@ -4,7 +4,8 @@ import { Book, X } from "lucide-react";
 import Link from "next/link";
 import React from "react";
 
-import DiscordLogo from "@/assets/logo/discord.tsx";
+import GitHubStarsButton from "@/components/landing/header/github-stars-button.tsx";
+import { IconGitHub } from "@/components/ui/icons";
 import { LaminarIcon, LaminarLogo } from "@/components/ui/icons.tsx";
 import {
   SidebarFooter,
@@ -33,14 +34,11 @@ const SidebarFooterComponent = () => {
                 <X size={16} />
               </button>
             </div>
-            <a
-              href="https://github.com/lmnr-ai/lmnr"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-foreground hover:underline"
-            >
-              ⭐ Star it on GitHub
-            </a>
+            <GitHubStarsButton
+              owner="lmnr-ai"
+              repo="lmnr"
+              className="bg-landing-surface-700 hover:bg-landing-surface-700 w-fit"
+            />
           </div>
         </SidebarGroupContent>
       </SidebarGroup>
@@ -49,9 +47,9 @@ const SidebarFooterComponent = () => {
           <SidebarMenu>
             <SidebarMenuItem className="h-7">
               <SidebarMenuButton tooltip="Discord" asChild>
-                <Link href="https://discord.gg/nNFUUDAKub" target="_blank" rel="noopener noreferrer">
-                  <DiscordLogo className="w-4 h-4" />
-                  <span>Support</span>
+                <Link href="https://github.com/lmnr-ai/lmnr" target="_blank" rel="noopener noreferrer">
+                  <IconGitHub className="w-4 h-4" />
+                  <span>Github</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
