@@ -30,7 +30,7 @@ class TestJsonToSqlConversion:
         
         expected_sql = """SELECT
     name,
-    COUNT(span_id) AS value
+    COUNT(span_id) AS `value`
 FROM spans
 WHERE
     start_time >= {start_time:DateTime64}
@@ -65,7 +65,7 @@ LIMIT 5"""
         
         # Verify key components are present
         assert "toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time" in sql
-        assert "quantile(0.9)(end_time - start_time) AS value" in sql
+        assert "quantile(0.9)(end_time - start_time) AS `value`" in sql
         assert "model != '<null>'" in sql
         assert "span_type = 'LLM'" in sql
         assert "GROUP BY time, model" in sql
@@ -92,7 +92,7 @@ LIMIT 5"""
         sql = convert_json_to_sql(query_json)
 
         assert "(countIf(status = 'ERROR')) AS `error_count`" in sql
-        assert "COUNT(*) AS total" in sql
+        assert "COUNT(*) AS `total`" in sql
         assert "GROUP BY name" in sql
         assert "ORDER BY error_count DESC" in sql
         assert "LIMIT 10" in sql

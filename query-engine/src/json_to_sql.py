@@ -176,19 +176,24 @@ class JsonToSqlConverter:
         interval_expr = self._get_interval_expr(time_range)
         return f"toStartOfInterval({col}, {interval_expr}) AS time"
 
+    @staticmethod
+    def _escape_alias(alias: str) -> str:
+        """Escape and backtick-quote an alias to prevent SQL injection."""
+        return f"`{alias.replace('`', '``')}`"
+
     def _metric_sql(self, metric: dict[str, Any]) -> str:
         fn = metric['fn']
         col = metric['column']
         alias = metric.get('alias', col)
+        safe_alias = self._escape_alias(alias)
 
         if fn.lower() == 'raw':
-            safe_alias = alias.replace('`', '``')
-            return f"({col}) AS `{safe_alias}`"
+            return f"({col}) AS {safe_alias}"
 
         if fn.lower() == 'quantile' and metric.get('args'):
-            return f"quantile({metric['args'][0]})({col}) AS {alias}"
+            return f"quantile({metric['args'][0]})({col}) AS {safe_alias}"
 
-        return f"{fn}({col}) AS {alias}"
+        return f"{fn}({col}) AS {safe_alias}"
 
     def _filter_sql(self, filter_spec: dict[str, Any]) -> str:
         field = filter_spec['field']
