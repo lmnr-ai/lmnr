@@ -97,6 +97,24 @@ LIMIT 5"""
         assert "ORDER BY error_count DESC" in sql
         assert "LIMIT 10" in sql
 
+    def test_raw_sql_metric_backtick_alias_escaping(self):
+        """Test that backticks in raw metric aliases are escaped to prevent SQL injection"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "raw", "column": "count()", "alias": "my`alias"},
+            ],
+            "dimensions": ["name"],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "count() AS `my``alias`" in sql
+
     def test_empty_query_validation(self):
         """Test that queries with no metrics, dimensions, or time_range are rejected"""
         query_json = {
