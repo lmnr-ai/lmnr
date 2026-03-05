@@ -35,19 +35,12 @@ const useMetricFnChange = (index: number) => {
 };
 
 const RawSqlMetricRow = ({ index, table }: { index: number; table: string }) => {
-  const { control, setValue } = useFormContext<QueryStructure>();
+  const { control } = useFormContext<QueryStructure>();
   const field = useWatch({ control, name: `metrics.${index}` });
 
   const schema: SQLSchemaConfig = { tables: [table] };
 
   const handleFnChange = useMetricFnChange(index);
-
-  const handleSqlChange = useCallback(
-    (sql: string) => {
-      setValue(`metrics.${index}.column`, sql, { shouldValidate: true });
-    },
-    [index, setValue]
-  );
 
   return (
     <div className="grid gap-2 border rounded p-2 bg-secondary/50">
@@ -82,7 +75,7 @@ const RawSqlMetricRow = ({ index, table }: { index: number; table: string }) => 
             <div className="h-20 flex flex-1 border rounded-md overflow-hidden">
               <SQLEditor
                 value={field.value}
-                onChange={handleSqlChange}
+                onChange={field.onChange}
                 editable
                 placeholder={`e.g. countIf(status = 'ERROR')`}
                 schema={schema}
