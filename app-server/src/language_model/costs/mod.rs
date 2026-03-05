@@ -89,7 +89,6 @@ impl ModelInfo {
         if let (Some(provider), Some(region)) = (&self.provider, &self.region) {
             // 1. provider/region/model
             keys.push(format!("{}/{}/{}", provider, region, self.raw_model));
-            keys.push(format!("{}/{}/{}", provider, region, self.model));
             keys.push(format!(
                 "{}/{}/{}",
                 provider, region, self.model_without_snapshot
@@ -103,7 +102,6 @@ impl ModelInfo {
         if let Some(provider) = &self.provider {
             // 2. provider/model
             keys.push(format!("{}/{}", provider, self.raw_model));
-            keys.push(format!("{}/{}", provider, self.model));
             keys.push(format!("{}/{}", provider, self.model_without_snapshot));
             keys.push(format!("{}/{}", provider, self.model_without_dots));
         }
@@ -120,7 +118,6 @@ impl ModelInfo {
         // 6. raw model name without dots
         keys.push(self.model_without_dots.clone());
 
-        // dedup keys
         let mut seen = Vec::with_capacity(keys.len());
         for key in keys {
             if !seen.contains(&key) {

@@ -106,8 +106,11 @@ fn test_lookup_keys_full() {
         keys,
         vec![
             "bedrock/us-east-1/us-east-1/anthropic.claude-v2",
+            "bedrock/us-east-1/us-east-1/anthropic-claude-v2",
             "bedrock/us-east-1/anthropic.claude-v2",
+            "bedrock/us-east-1/anthropic-claude-v2",
             "us-east-1/anthropic.claude-v2",
+            "us-east-1/anthropic-claude-v2",
         ]
     );
 }
@@ -144,8 +147,11 @@ fn test_lookup_keys_with_openai_snapshot() {
         keys,
         vec![
             "openai/gpt-4.1-nano-2025-04-14",
+            "openai/gpt-4.1-nano",
+            "openai/gpt-4-1-nano",
             "gpt-4.1-nano-2025-04-14",
             "gpt-4.1-nano",
+            "gpt-4-1-nano",
         ]
     );
 }
@@ -158,6 +164,7 @@ fn test_lookup_keys_with_anthropic_snapshot() {
         keys,
         vec![
             "anthropic/claude-sonnet-4-5-20250514",
+            "anthropic/claude-sonnet-4-5",
             "claude-sonnet-4-5-20250514",
             "claude-sonnet-4-5",
         ]
