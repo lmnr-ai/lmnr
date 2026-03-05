@@ -77,7 +77,7 @@ export function OgHeader({ label }: { label: string }) {
   );
 }
 
-export function OgAccentLine() {
+function OgAccentLine() {
   return (
     <div
       style={{
