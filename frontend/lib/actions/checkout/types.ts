@@ -105,6 +105,8 @@ export interface UpcomingInvoiceInfo {
   amountDue: number;
   currency: string;
   periodStart: number;
+  /** Negative when the customer has a credit balance (e.g. from a prorated downgrade). */
+  startingBalance: number;
   lines: {
     lookupKey: string | null;
     amount: number;

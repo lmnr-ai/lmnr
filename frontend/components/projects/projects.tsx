@@ -9,16 +9,18 @@ import ProjectCard from "@/components/projects/project-card.tsx";
 import ProjectCreateDialog from "@/components/projects/project-create-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
 import { type Project, type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 interface ProjectsProps {
   workspace: Workspace;
-  isSubscription: boolean;
 }
 
-export default function Projects({ workspace, isSubscription }: ProjectsProps) {
+export default function Projects({ workspace }: ProjectsProps) {
+  const featureFlags = useFeatureFlags();
   const { data, mutate, isLoading, error } = useSWR<Project[]>(`/api/workspaces/${workspace.id}/projects`, swrFetcher);
 
   const { toast } = useToast();
@@ -48,7 +50,7 @@ export default function Projects({ workspace, isSubscription }: ProjectsProps) {
         <ProjectCreateDialog
           workspaceId={workspace.id}
           onProjectCreate={mutate}
-          isFreeTier={isSubscription && workspace.tierName === WorkspaceTier.FREE}
+          isFreeTier={featureFlags[Feature.SUBSCRIPTION] && workspace.tierName === WorkspaceTier.FREE}
           projectCount={data.length}
         />
       )}
