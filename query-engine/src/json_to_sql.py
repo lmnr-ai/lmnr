@@ -214,12 +214,15 @@ class JsonToSqlConverter:
     def _metric_sql(self, metric: dict[str, Any]) -> str:
         fn = metric['fn']
         col = metric['column']
-        alias = metric.get('alias') or 'value'
-        safe_alias = self._escape_alias(alias)
 
         if fn.lower() == 'raw':
+            alias = metric.get('alias') or 'value'
+            safe_alias = self._escape_alias(alias)
             self._validate_raw_expression(col)
             return f"({col}) AS {safe_alias}"
+
+        alias = metric.get('alias') or col
+        safe_alias = self._escape_alias(alias)
 
         if fn.lower() == 'quantile' and metric.get('args'):
             return f"quantile({metric['args'][0]})({col}) AS {safe_alias}"
