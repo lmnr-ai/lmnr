@@ -37,7 +37,8 @@ const useMetricFnChange = (index: number) => {
 };
 
 const RawSqlMetricRow = ({ index, table, onRemove }: { index: number; table: string; onRemove: () => void }) => {
-  const { control, setValue, getValues } = useFormContext<QueryStructure>();
+  const { control, setValue } = useFormContext<QueryStructure>();
+  const field = useWatch({ control, name: `metrics.${index}` });
 
   const schema: SQLSchemaConfig = { tables: [table] };
 
@@ -53,24 +54,18 @@ const RawSqlMetricRow = ({ index, table, onRemove }: { index: number; table: str
   return (
     <div className="grid gap-2 border rounded p-2 bg-secondary/50">
       <div className="flex gap-2 items-center">
-        <Controller
-          control={control}
-          name={`metrics.${index}.fn`}
-          render={({ field }) => (
-            <Select value={getMetricFunctionValue(getValues(`metrics.${index}`))} onValueChange={handleFnChange}>
-              <SelectTrigger className="w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {METRIC_FUNCTION_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        />
+        <Select value={getMetricFunctionValue(field)} onValueChange={handleFnChange}>
+          <SelectTrigger className="w-28">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {METRIC_FUNCTION_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Controller
           control={control}
           name={`metrics.${index}.alias`}
