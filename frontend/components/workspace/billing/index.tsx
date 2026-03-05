@@ -39,7 +39,13 @@ interface WorkspaceBillingProps {
 
 function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInvoiceInfo }) {
   const groups = groupLinesByPeriod(upcomingInvoice.lines);
+  const subtotal = upcomingInvoice.lines.reduce((sum, l) => sum + l.amount, 0);
+  const appliedCredit =
+    upcomingInvoice.startingBalance < 0
+      ? Math.min(Math.abs(upcomingInvoice.startingBalance), Math.max(subtotal, 0))
+      : 0;
 
+  console.log(upcomingInvoice);
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -92,6 +98,24 @@ function UpcomingInvoiceCard({ upcomingInvoice }: { upcomingInvoice: UpcomingInv
               </div>
             </div>
           ))}
+          {appliedCredit > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex justify-between items-center px-3 py-1.5 border-t text-xs cursor-help">
+                  <span className="text-emerald-500 font-medium flex items-center gap-1">
+                    <Info className="h-3 w-3" />
+                    Applied credit
+                  </span>
+                  <span className="font-mono text-emerald-500">
+                    −{formatCurrency(appliedCredit, upcomingInvoice.currency)}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" align="start" className="bg-background max-w-60">
+                <p>Credit from prorated refund of your previous plan, applied to this invoice.</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
           <div className="flex justify-between items-center px-3 py-2 font-semibold border-t bg-secondary/30">
             <span>Total</span>
             <span className="font-mono">{formatCurrency(upcomingInvoice.amountDue, upcomingInvoice.currency)}</span>
