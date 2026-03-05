@@ -183,7 +183,7 @@ class JsonToSqlConverter:
 
         if fn.lower() == 'raw':
             safe_alias = alias.replace('`', '``')
-            return f"{col} AS `{safe_alias}`"
+            return f"({col}) AS `{safe_alias}`"
 
         if fn.lower() == 'quantile' and metric.get('args'):
             return f"quantile({metric['args'][0]})({col}) AS {alias}"

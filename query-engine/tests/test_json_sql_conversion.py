@@ -91,7 +91,7 @@ LIMIT 5"""
 
         sql = convert_json_to_sql(query_json)
 
-        assert "countIf(status = 'ERROR') AS `error_count`" in sql
+        assert "(countIf(status = 'ERROR')) AS `error_count`" in sql
         assert "COUNT(*) AS total" in sql
         assert "GROUP BY name" in sql
         assert "ORDER BY error_count DESC" in sql
@@ -113,7 +113,7 @@ LIMIT 5"""
 
         sql = convert_json_to_sql(query_json)
 
-        assert "count() AS `my``alias`" in sql
+        assert "(count()) AS `my``alias`" in sql
 
     def test_empty_query_validation(self):
         """Test that queries with no metrics, dimensions, or time_range are rejected"""
