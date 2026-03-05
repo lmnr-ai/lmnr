@@ -2,7 +2,20 @@ import type { ReactNode } from "react";
 
 const INTER_FONT_URL = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
 
-export async function loadOgFonts() {
+type OgFont = {
+  name: string;
+  data: ArrayBuffer;
+  weight: 400 | 500 | 600 | 700;
+  style: "normal";
+};
+
+let cachedFonts: OgFont[] | null = null;
+
+export async function loadOgFonts(): Promise<OgFont[]> {
+  if (cachedFonts) {
+    return cachedFonts;
+  }
+
   const css = await (await fetch(INTER_FONT_URL)).text();
   const fontUrls = [...css.matchAll(/src: url\((.+?)\) format\('(?:opentype|truetype)'\)/g)].map((m) => m[1]);
   const fontWeights = [...css.matchAll(/font-weight: (\d+)/g)].map((m) => Number(m[1]));
@@ -19,6 +32,7 @@ export async function loadOgFonts() {
     })
   );
 
+  cachedFonts = fonts;
   return fonts;
 }
 
