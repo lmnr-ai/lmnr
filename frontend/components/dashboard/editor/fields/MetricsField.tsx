@@ -10,6 +10,7 @@ import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas
 import SQLEditor from "@/components/sql/sql-editor";
 import type { SQLSchemaConfig } from "@/components/sql/utils";
 import { Badge } from "@/components/ui/badge.tsx";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type QueryStructure } from "@/lib/actions/sql/types";
@@ -89,6 +90,21 @@ const RawSqlMetricRow = ({ index, table }: { index: number; table: string }) => 
           {"Expression is added as: SELECT <expr> FROM "}
           {table}
         </p>
+      </div>
+      <div className="grid gap-1">
+        <Label className="text-xs text-muted-foreground">Alias</Label>
+        <Controller
+          control={control}
+          name={`metrics.${index}.alias`}
+          render={({ field }) => (
+            <Input
+              value={field.value ?? ""}
+              onChange={(e) => field.onChange(e.target.value)}
+              placeholder="value"
+              className="text-xs"
+            />
+          )}
+        />
       </div>
     </div>
   );
