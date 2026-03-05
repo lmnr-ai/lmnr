@@ -150,7 +150,6 @@ fn test_lookup_keys_with_openai_snapshot() {
             "openai/gpt-4.1-nano",
             "openai/gpt-4-1-nano",
             "gpt-4.1-nano-2025-04-14",
-            "openai/gpt-4.1-nano",
             "gpt-4.1-nano",
             "gpt-4-1-nano",
         ]
@@ -167,7 +166,6 @@ fn test_lookup_keys_with_anthropic_snapshot() {
             "anthropic/claude-sonnet-4-5-20250514",
             "anthropic/claude-sonnet-4-5",
             "claude-sonnet-4-5-20250514",
-            "anthropic/claude-sonnet-4-5",
             "claude-sonnet-4-5",
         ]
     );
