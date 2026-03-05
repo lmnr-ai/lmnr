@@ -4,7 +4,6 @@ import { getServerSession } from "next-auth";
 
 import SignIn from "@/components/auth/sign-in";
 import { authOptions } from "@/lib/auth.ts";
-import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 export const metadata: Metadata = {
   title: "Sign In - Laminar",
@@ -36,14 +35,5 @@ export default async function SignInPage(props: {
     }
   }
 
-  return (
-    <SignIn
-      enableCredentials={isFeatureEnabled(Feature.EMAIL_AUTH)}
-      enableGithub={isFeatureEnabled(Feature.GITHUB_AUTH)}
-      enableGoogle={isFeatureEnabled(Feature.GOOGLE_AUTH)}
-      enableAzure={isFeatureEnabled(Feature.AZURE_AUTH)}
-      enableOkta={isFeatureEnabled(Feature.OKTA_AUTH)}
-      callbackUrl={callbackUrl}
-    />
-  );
+  return <SignIn callbackUrl={callbackUrl} />;
 }
