@@ -202,6 +202,23 @@ LIMIT 5"""
         with pytest.raises(JsonToSqlError, match="comments are not allowed"):
             convert_json_to_sql(query_json)
 
+    def test_raw_sql_metric_allows_comment_chars_in_strings(self):
+        """Test that -- or /* inside string literals are not falsely rejected"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "raw", "column": "countIf(path LIKE '--%')", "alias": "prefixed"},
+            ],
+            "dimensions": ["name"],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+
+        sql = convert_json_to_sql(query_json)
+        assert "(countIf(path LIKE '--%'))" in sql
+
     def test_empty_query_validation(self):
         """Test that queries with no metrics, dimensions, or time_range are rejected"""
         query_json = {

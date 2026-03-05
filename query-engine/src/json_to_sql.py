@@ -191,15 +191,16 @@ class JsonToSqlConverter:
         if not expr or not expr.strip():
             raise QueryBuilderError("Raw SQL expression cannot be empty")
 
-        # Block SQL comments that could neutralize the synthetic FROM clause
-        if '--' in expr or '/*' in expr:
-            raise QueryBuilderError("SQL comments are not allowed in raw SQL expressions")
-
         # Parse the expression as part of a SELECT to check it's a valid expression
         try:
             parsed = sqlglot.parse_one(f"SELECT {expr} FROM t", read="clickhouse")
         except sqlglot.errors.ParseError as e:
             raise QueryBuilderError(f"Invalid SQL expression: {e}")
+
+        # Block SQL comments (AST-aware: ignores -- or /* inside string literals)
+        for node in parsed.find_all(sqlglot.exp.Expression):
+            if node.comments:
+                raise QueryBuilderError("SQL comments are not allowed in raw SQL expressions")
 
         # Enforce exactly one select expression (reject multi-column like "count(*), name")
         select_exprs = parsed.args.get("expressions", [])
