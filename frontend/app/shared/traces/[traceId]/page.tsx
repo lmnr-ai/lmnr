@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import TraceView from "@/components/shared/traces/trace-view";
 import { getSharedSpans } from "@/lib/actions/shared/spans";
 import { getSharedTrace } from "@/lib/actions/shared/trace";
 
+const getCachedSharedTrace = cache((traceId: string) => getSharedTrace({ traceId }));
+
 export const generateMetadata = async (props: { params: Promise<{ traceId: string }> }): Promise<Metadata> => {
   const { traceId } = await props.params;
   try {
-    const trace = await getSharedTrace({ traceId });
+    const trace = await getCachedSharedTrace(traceId);
     if (!trace || trace.visibility !== "public") {
       return { title: "Shared Trace" };
     }
@@ -54,7 +57,7 @@ export default async function SharedTracePage(props: {
 }) {
   const { traceId } = await props.params;
 
-  const trace = await getSharedTrace({ traceId });
+  const trace = await getCachedSharedTrace(traceId);
 
   if (!trace || trace.visibility !== "public") {
     return notFound();

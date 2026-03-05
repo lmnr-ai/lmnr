@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import SharedEvaluation from "@/components/shared/evaluation/shared-evaluation";
 import { getSharedEvaluation } from "@/lib/actions/shared/evaluation";
 
+const getCachedSharedEvaluation = cache((evaluationId: string) => getSharedEvaluation({ evaluationId }));
+
 export const generateMetadata = async (props: { params: Promise<{ evaluationId: string }> }): Promise<Metadata> => {
   const { evaluationId } = await props.params;
   try {
-    const shared = await getSharedEvaluation({ evaluationId });
+    const shared = await getCachedSharedEvaluation(evaluationId);
     if (!shared) {
       return { title: "Shared Evaluation" };
     }
@@ -36,7 +39,7 @@ export const generateMetadata = async (props: { params: Promise<{ evaluationId: 
 export default async function SharedEvaluationPage(props: { params: Promise<{ evaluationId: string }> }) {
   const { evaluationId } = await props.params;
 
-  const shared = await getSharedEvaluation({ evaluationId });
+  const shared = await getCachedSharedEvaluation(evaluationId);
 
   if (!shared) {
     return notFound();
