@@ -120,8 +120,14 @@ impl ModelInfo {
         // 6. raw model name without dots
         keys.push(self.model_without_dots.clone());
 
-        keys.dedup();
-        keys
+        // dedup keys
+        let mut seen = Vec::with_capacity(keys.len());
+        for key in keys {
+            if !seen.contains(&key) {
+                seen.push(key);
+            }
+        }
+        seen
     }
 }
 
