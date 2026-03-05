@@ -17,12 +17,14 @@ interface ProjectBillingInfo {
   workspaceProjectIds: string[];
   bytesLimit: number;
   signalRunsLimit: number;
+  logRetentionDays: number;
 }
 
 interface BillingInfo {
   workspaceId: string;
   tierName: string;
   signalRunsLimit: number;
+  logRetentionDays: number;
   resetTime: string;
   workspaceProjectIds: string[];
 }
@@ -36,6 +38,7 @@ export async function getProjectBillingInfo(projectId: string): Promise<BillingI
         workspaceId: cached.workspaceId,
         tierName: cached.tierName,
         signalRunsLimit: Number(cached.signalRunsLimit),
+        logRetentionDays: Number(cached.logRetentionDays),
         resetTime: cached.resetTime,
         workspaceProjectIds: cached.workspaceProjectIds,
       };
@@ -48,6 +51,7 @@ export async function getProjectBillingInfo(projectId: string): Promise<BillingI
     .select({
       workspaceId: workspaces.id,
       signalRunsLimit: subscriptionTiers.signalRuns,
+      logRetentionDays: subscriptionTiers.logRetentionDays,
       resetTime: workspaces.resetTime,
       tierName: subscriptionTiers.name,
     })
@@ -72,6 +76,7 @@ export async function getProjectBillingInfo(projectId: string): Promise<BillingI
     workspaceId: row.workspaceId,
     tierName: row.tierName,
     signalRunsLimit: Number(row.signalRunsLimit),
+    logRetentionDays: Number(row.logRetentionDays),
     resetTime: row.resetTime,
     workspaceProjectIds: projectRows.map((p) => p.id),
   };

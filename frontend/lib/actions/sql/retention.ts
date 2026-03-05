@@ -2,7 +2,6 @@ import { format, isBefore, parseISO, subDays } from "date-fns";
 
 import { getProjectBillingInfo } from "@/lib/actions/usage/limits.ts";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
-import { WorkspaceTier } from "@/lib/workspaces/types.ts";
 
 import type { QueryResultMeta } from "./types";
 
@@ -11,17 +10,7 @@ interface RetentionResult {
   meta: QueryResultMeta;
 }
 
-const TIER_RETENTION_DAYS: Record<string, number> = {
-  [WorkspaceTier.FREE]: 15,
-  [WorkspaceTier.HOBBY]: 30,
-  [WorkspaceTier.PRO]: 90,
-};
-
 const TIME_PARAM_KEYS = ["start_time", "startTime"] as const;
-
-export function getRetentionDaysForTier(tierName: string): number | null {
-  return TIER_RETENTION_DAYS[tierName] ?? null;
-}
 
 export async function getRetentionDaysForProject(projectId: string): Promise<number | null> {
   if (!isFeatureEnabled(Feature.SUBSCRIPTION)) {
@@ -32,7 +21,7 @@ export async function getRetentionDaysForProject(projectId: string): Promise<num
 
   if (!info) return null;
 
-  return getRetentionDaysForTier(info.tierName);
+  return info.logRetentionDays > 0 ? info.logRetentionDays : null;
 }
 
 export async function applyRetentionLimits(
