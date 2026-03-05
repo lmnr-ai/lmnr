@@ -102,6 +102,10 @@ const createTraceDiffStore = () =>
         rightListSpans: listSpans,
         isRightLoading: false,
         phase: "loading",
+        spanMapping: [],
+        alignedRows: [],
+        selectedRowIndex: null,
+        mappingError: null,
       });
     },
 
