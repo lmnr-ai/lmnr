@@ -168,6 +168,40 @@ LIMIT 5"""
         with pytest.raises(JsonToSqlError, match="not allowed"):
             convert_json_to_sql(query_json)
 
+    def test_raw_sql_metric_rejects_multiple_expressions(self):
+        """Test that multi-column expressions in raw SQL are rejected"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "raw", "column": "count(*), name", "alias": "bad"},
+            ],
+            "dimensions": ["name"],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+
+        with pytest.raises(JsonToSqlError, match="single expression"):
+            convert_json_to_sql(query_json)
+
+    def test_raw_sql_metric_rejects_comments(self):
+        """Test that SQL comments in raw SQL expressions are rejected"""
+        query_json = {
+            "table": "spans",
+            "metrics": [
+                {"fn": "raw", "column": "1 FROM other_table\n--", "alias": "bad"},
+            ],
+            "dimensions": ["name"],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+
+        with pytest.raises(JsonToSqlError, match="comments are not allowed"):
+            convert_json_to_sql(query_json)
+
     def test_empty_query_validation(self):
         """Test that queries with no metrics, dimensions, or time_range are rejected"""
         query_json = {
