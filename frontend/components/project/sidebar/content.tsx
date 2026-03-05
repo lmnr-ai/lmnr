@@ -97,7 +97,7 @@ const ProjectSidebarContent = ({
 }) => {
   const pathname = usePathname();
   const options = useMemo(
-    () => getSidebarMenus(details.id).filter((m) => m.name !== "signals" || isSignals),
+    () => getSidebarMenus(details.id).filter((m) => m.name !== "Signals" || isSignals),
     [details.id, isSignals]
   );
   const { open, openMobile } = useSidebar();
