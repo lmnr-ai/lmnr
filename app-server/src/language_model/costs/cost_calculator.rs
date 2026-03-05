@@ -114,13 +114,15 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     let threshold_suffix = threshold.as_ref().map(|t| t.suffix.as_str());
 
     // Build the base cost key names, potentially with threshold suffix
-    let (input_key, output_key, cache_creation_key, cache_read_key) =
+    let (input_key, output_key, cache_creation_key, cache_read_key, batch_input_key, batch_output_key) =
         if let Some(suffix) = threshold_suffix {
             (
                 format!("input_cost_per_token_above_{}_tokens", suffix),
                 format!("output_cost_per_token_above_{}_tokens", suffix),
                 format!("cache_creation_input_token_cost_above_{}_tokens", suffix),
                 format!("cache_read_input_token_cost_above_{}_tokens", suffix),
+                format!("input_cost_per_token_batches_above_{}_tokens", suffix),
+                format!("output_cost_per_token_batches_above_{}_tokens", suffix),
             )
         } else {
             (
@@ -128,6 +130,8 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
                 "output_cost_per_token".to_string(),
                 "cache_creation_input_token_cost".to_string(),
                 "cache_read_input_token_cost".to_string(),
+                "input_cost_per_token_batches".to_string(),
+                "output_cost_per_token_batches".to_string(),
             )
         };
 
@@ -159,9 +163,10 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     let base_input_tokens = (input.prompt_tokens - input.audio_input_tokens).max(0);
 
     if input.is_batch {
-        // Batch pricing, fallback to half base price if batch-specific costs not specified
-        let batch_input_cost = resolve_cost_key(costs, "input_cost_per_token_batches", tier)
-            .unwrap_or_else(|| input_cost_per_token.unwrap_or(0.0) / 2.0);
+        // Batch pricing: try threshold-aware batch key, then base batch key, then half base price
+        let batch_input_cost = resolve_cost_key(costs, &batch_input_key, tier)
+            .or_else(|| resolve_cost_key(costs, "input_cost_per_token_batches", tier))
+            .unwrap_or_else(|| get_cost(costs, "input_cost_per_token").unwrap_or(0.0) / 2.0);
         total_input_cost += base_input_tokens as f64 * batch_input_cost;
     } else {
         // Regular input tokens
@@ -225,9 +230,10 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
         (input.completion_tokens - input.reasoning_tokens - input.audio_output_tokens).max(0);
 
     if input.is_batch {
-        // Batch pricing
-        let batch_output_cost = resolve_cost_key(costs, "output_cost_per_token_batches", tier)
-            .unwrap_or_else(|| output_cost_per_token.unwrap_or(0.0) / 2.0);
+        // Batch pricing: try threshold-aware batch key, then base batch key, then half base price
+        let batch_output_cost = resolve_cost_key(costs, &batch_output_key, tier)
+            .or_else(|| resolve_cost_key(costs, "output_cost_per_token_batches", tier))
+            .unwrap_or_else(|| get_cost(costs, "output_cost_per_token").unwrap_or(0.0) / 2.0);
         total_output_cost += base_output_tokens as f64 * batch_output_cost;
     } else {
         // Regular output tokens
