@@ -9,7 +9,12 @@ import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import Header from "@/components/ui/header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { generateSpanMapping } from "@/lib/actions/trace/diff";
-import { generateBlockSummaries } from "@/lib/actions/trace/diff/summarize";
+import {
+  type BlockSummaryInput,
+  type BlockSummaryResult,
+  type PartitionPlan,
+  type PartitionSummaryResult,
+} from "@/lib/actions/trace/diff/summarize";
 
 import DiffColumns, { type SelectingSide } from "./diff-columns";
 import MappingError from "./mapping-error";
@@ -49,8 +54,6 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     isSummarizationLoading,
     mappingError,
     retryMapping,
-    leftTraceString,
-    rightTraceString,
   } = useTraceDiffStore((s) => ({
     phase: s.phase,
     isLeftLoading: s.isLeftLoading,
@@ -71,8 +74,6 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     isSummarizationLoading: s.isSummarizationLoading,
     mappingError: s.mappingError,
     retryMapping: s.retryMapping,
-    leftTraceString: s.leftTraceString,
-    rightTraceString: s.rightTraceString,
   }));
 
   // Fetch a trace + its spans
@@ -195,38 +196,143 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
 
     setIsSummarizationLoading(true);
 
-    // Fire calls independently so each merges results as soon as it resolves
-    let pending = 0;
-    const mergeSummaries = (results: { blockId: string; summary: string; icon: string }[]) => {
+    const mergeSummaries = (results: BlockSummaryResult[]) => {
+      if (results.length === 0) return;
       const summaryMap: Record<string, { summary: string; icon: string }> = {};
       for (const r of results) {
         summaryMap[r.blockId] = { summary: r.summary, icon: r.icon };
       }
       addBlockSummaries(summaryMap);
-      pending--;
-      if (pending === 0) setIsSummarizationLoading(false);
-    };
-    const handleError = (e: unknown) => {
-      console.error("Failed to prefetch block summaries:", e);
-      pending--;
-      if (pending === 0) setIsSummarizationLoading(false);
     };
 
-    if (leftBlocks.length > 0 && leftTraceString) {
-      pending++;
-      generateBlockSummaries(leftTraceString, leftBlocks).then(mergeSummaries).catch(handleError);
+    const summarizeUrl = (traceId: string) => `/api/projects/${projectId}/traces/${traceId}/summarize`;
+
+    // Orchestrate per trace: plan → fire ALL requests in parallel (partitions + top-level).
+    // Top-level fires immediately with placeholder summaries so it doesn't wait for partitions.
+    const summarizeTrace = async (traceId: string, blocks: BlockSummaryInput[]) => {
+      const shortId = traceId.slice(0, 8);
+      const t0 = performance.now();
+
+      console.log(`[client] plan-partitions FIRE trace=${shortId}`);
+      const planRes = await fetch(summarizeUrl(traceId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "plan-partitions", blocks }),
+      });
+      if (!planRes.ok) throw new Error(await planRes.text());
+      const { plan } = (await planRes.json()) as { plan: PartitionPlan | null };
+      console.log(
+        `[client] plan-partitions DONE trace=${shortId} ${(performance.now() - t0).toFixed(0)}ms partitions=${plan?.partitions.length ?? 0}`
+      );
+
+      if (!plan) {
+        // Small trace — single fetch
+        const t1 = performance.now();
+        console.log(`[client] summarize-blocks FIRE trace=${shortId}`);
+        const res = await fetch(summarizeUrl(traceId), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "summarize-blocks", blocks }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const { results } = (await res.json()) as { results: BlockSummaryResult[] };
+        console.log(
+          `[client] summarize-blocks DONE trace=${shortId} ${(performance.now() - t1).toFixed(0)}ms results=${results.length}`
+        );
+        mergeSummaries(results);
+        return;
+      }
+
+      // Fire ALL requests in parallel — partitions + top-level simultaneously.
+      // Top-level gets empty deepSummaries (collapsed skeleton uses placeholder text).
+      const blocksById = new Map(blocks.map((b) => [b.blockId, b]));
+      const allPromises: Promise<void>[] = [];
+
+      console.log(
+        `[client] Firing ${plan.partitions.length} partition + top-level requests in parallel trace=${shortId}`
+      );
+
+      // Partition requests
+      for (const partition of plan.partitions) {
+        const partShort = partition.rootSpanId.slice(0, 8);
+        allPromises.push(
+          (async () => {
+            const tp = performance.now();
+            console.log(`[client] summarize-partition[${partShort}] FIRE trace=${shortId}`);
+            const partitionBlocks = partition.blockIds.map((id) => blocksById.get(id)!).filter(Boolean);
+            const res = await fetch(summarizeUrl(traceId), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "summarize-partition",
+                partitionRootSpanId: partition.rootSpanId,
+                blocks: partitionBlocks,
+              }),
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const result = (await res.json()) as PartitionSummaryResult;
+            console.log(
+              `[client] summarize-partition[${partShort}] DONE trace=${shortId} ${(performance.now() - tp).toFixed(0)}ms results=${result.results.length}`
+            );
+            mergeSummaries(result.results);
+          })()
+        );
+      }
+
+      // Top-level request — fires in parallel, no need to wait for deepSummaries
+      if (plan.topLevelBlockIds.length > 0) {
+        allPromises.push(
+          (async () => {
+            const tt = performance.now();
+            console.log(`[client] summarize-top-level FIRE trace=${shortId}`);
+            const topLevelBlocks = plan.topLevelBlockIds.map((id) => blocksById.get(id)!).filter(Boolean);
+            const partitionRootIds = plan.partitions.map((p) => p.rootSpanId);
+            const res = await fetch(summarizeUrl(traceId), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "summarize-top-level",
+                blocks: topLevelBlocks,
+                deepSummaries: {},
+                partitionRootIds,
+              }),
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const { results } = (await res.json()) as { results: BlockSummaryResult[] };
+            console.log(
+              `[client] summarize-top-level DONE trace=${shortId} ${(performance.now() - tt).toFixed(0)}ms results=${results.length}`
+            );
+            mergeSummaries(results);
+          })()
+        );
+      }
+
+      await Promise.all(allPromises);
+      console.log(`[client] summarizeTrace TOTAL trace=${shortId} ${(performance.now() - t0).toFixed(0)}ms`);
+    };
+
+    const promises: Promise<void>[] = [];
+    if (leftBlocks.length > 0) {
+      promises.push(summarizeTrace(leftTraceId, leftBlocks));
     }
-    if (rightBlocks.length > 0 && rightTraceString) {
-      pending++;
-      generateBlockSummaries(rightTraceString, rightBlocks).then(mergeSummaries).catch(handleError);
+    if (rightBlocks.length > 0 && rightTraceId) {
+      promises.push(summarizeTrace(rightTraceId, rightBlocks));
     }
-    if (pending === 0) setIsSummarizationLoading(false);
+
+    if (promises.length === 0) {
+      setIsSummarizationLoading(false);
+    } else {
+      Promise.all(promises)
+        .catch((e) => console.error("Failed to prefetch block summaries:", e))
+        .finally(() => setIsSummarizationLoading(false));
+    }
   }, [
     leftTree,
     rightTree,
     maxTreeDepth,
-    leftTraceString,
-    rightTraceString,
+    projectId,
+    leftTraceId,
+    rightTraceId,
     addBlockSummaries,
     setIsSummarizationLoading,
   ]);

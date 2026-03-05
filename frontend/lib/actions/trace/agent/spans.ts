@@ -14,7 +14,7 @@ const LLM_INPUT_MAX_CHARS = 3000;
  * Truncates a value if its string representation exceeds TRUNCATE_THRESHOLD.
  * Shows preview of start and end for long values.
  */
-function truncateValue(value: unknown): unknown {
+export function truncateValue(value: unknown): unknown {
   if (value === null || value === undefined) {
     return value;
   }
@@ -34,7 +34,7 @@ function truncateValue(value: unknown): unknown {
 /**
  * Recursively replace data:image base64 URLs with a placeholder.
  */
-function replaceBase64Images(value: unknown): unknown {
+export function replaceBase64Images(value: unknown): unknown {
   if (typeof value === "string") {
     const idx = value.indexOf("base64,");
     if (idx !== -1) {
@@ -62,7 +62,7 @@ function replaceBase64Images(value: unknown): unknown {
  * Truncate an LLM input to LLM_INPUT_MAX_CHARS.
  * Serializes to JSON, keeps first N chars, appends truncation notice.
  */
-function truncateLlmInput(value: unknown): unknown {
+export function truncateLlmInput(value: unknown): unknown {
   if (value === null || value === undefined) {
     return "";
   }
@@ -77,7 +77,7 @@ function truncateLlmInput(value: unknown): unknown {
 }
 
 // Lightweight span info for skeleton view (no input/output)
-interface SpanInfo {
+export interface SpanInfo {
   spanId: string;
   name: string;
   type: string;
@@ -95,7 +95,7 @@ export interface Span extends SpanInfo {
   exception?: unknown;
 }
 
-const fetchSpanInfos = async (projectId: string, traceId: string): Promise<SpanInfo[]> => {
+export const fetchSpanInfos = async (projectId: string, traceId: string): Promise<SpanInfo[]> => {
   const spans = await executeQuery({
     projectId,
     query: `
@@ -123,7 +123,7 @@ const fetchSpanInfos = async (projectId: string, traceId: string): Promise<SpanI
 /**
  * Fetches full span details for specific span IDs.
  */
-const fetchSpans = async (projectId: string, traceId: string, spanIds: string[]): Promise<Map<string, Span>> => {
+export const fetchSpans = async (projectId: string, traceId: string, spanIds: string[]): Promise<Map<string, Span>> => {
   if (spanIds.length === 0) {
     return new Map();
   }
@@ -206,12 +206,12 @@ export const getSpansByIds = async (projectId: string, traceId: string, ids: num
     .filter(Boolean);
 };
 
-function calculateDuration(start: string, end: string): number {
+export function calculateDuration(start: string, end: string): number {
   return (new Date(end).getTime() - new Date(start).getTime()) / 1000;
 }
 
 /** Format a ClickHouse DateTime64 string to a readable UTC string. */
-function formatUtcTimestamp(chTimestamp: string): string {
+export function formatUtcTimestamp(chTimestamp: string): string {
   const d = new Date(chTimestamp + "Z"); // CH returns UTC without the Z suffix
   return d
     .toISOString()
@@ -219,7 +219,7 @@ function formatUtcTimestamp(chTimestamp: string): string {
     .replace(/\.\d{3}Z$/, " UTC");
 }
 
-function spanInfosToSkeletonString(spanInfos: SpanInfo[], spanIdToSeqId: Record<string, number>): string {
+export function spanInfosToSkeletonString(spanInfos: SpanInfo[], spanIdToSeqId: Record<string, number>): string {
   let result = "legend: span_name (id, parent_id, type)\n";
   for (let i = 0; i < spanInfos.length; i++) {
     const info = spanInfos[i];
