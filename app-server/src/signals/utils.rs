@@ -178,6 +178,9 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
     );
     attrs.insert("gen_ai.system".to_string(), Value::String(span.provider));
 
+    // set batch attribute to true because signal runs always use batch api
+    attrs.insert("gen_ai.request.batch".to_string(), Value::Bool(true));
+
     if let Some(parent_span_id) = span.parent_span_id {
         attrs.insert(
             "lmnr.span.ids_path".to_string(),
