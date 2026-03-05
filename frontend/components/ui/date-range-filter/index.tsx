@@ -14,7 +14,9 @@ import { Label } from "@/components/ui/label.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context.tsx";
+import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils.ts";
 
 import { DateRangeFilterProvider, useDateRangeFilterContext } from "./store";
@@ -220,11 +222,15 @@ export const DateRangeFilterInner = ({
   const [showCalendar, setShowCalendar] = useState(false);
   const searchParams = useSearchParams();
   const { project, workspace } = useProjectContext();
+  const featureFlags = useFeatureFlags();
 
+  const isSubscriptionEnabled = featureFlags[Feature.SUBSCRIPTION];
   const logRetentionDays = project?.logRetentionDays;
-  const maxHours = logRetentionDays != null ? logRetentionDays * 24 : undefined;
+  const maxHours = isSubscriptionEnabled && logRetentionDays != null ? logRetentionDays * 24 : undefined;
   const retentionDisabled =
-    logRetentionDays != null ? { after: new Date(), before: subDays(new Date(), logRetentionDays) } : disabled;
+    isSubscriptionEnabled && logRetentionDays != null
+      ? { after: new Date(), before: subDays(new Date(), logRetentionDays) }
+      : disabled;
 
   const pastHours = useDateRangeFilterContext((state) => state.pastHours);
   const calendarDate = useDateRangeFilterContext((state) => state.calendarDate);
