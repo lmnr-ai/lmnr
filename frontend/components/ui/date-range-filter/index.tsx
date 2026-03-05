@@ -101,7 +101,7 @@ const QuickRangesList = ({
                   <TooltipTrigger asChild>{item}</TooltipTrigger>
                   <TooltipContent side="right" className="flex flex-col gap-1 p-2">
                     <p className="text-xs">
-                      Data renention is limited to {maxHours != null ? Math.floor(maxHours / 24) : 0} days on your
+                      Data retention is limited to {maxHours != null ? Math.floor(maxHours / 24) : 0} days on your
                       current plan.
                     </p>
                     {workspaceId && (
