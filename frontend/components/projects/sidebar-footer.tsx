@@ -34,11 +34,7 @@ const SidebarFooterComponent = () => {
                 <X size={16} />
               </button>
             </div>
-            <GitHubStarsButton
-              owner="lmnr-ai"
-              repo="lmnr"
-              className="bg-landing-surface-700 hover:bg-landing-surface-700 w-fit"
-            />
+            <GitHubStarsButton owner="lmnr-ai" repo="lmnr" className="w-fit" />
           </div>
         </SidebarGroupContent>
       </SidebarGroup>
@@ -46,7 +42,7 @@ const SidebarFooterComponent = () => {
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem className="h-7">
-              <SidebarMenuButton tooltip="Discord" asChild>
+              <SidebarMenuButton tooltip="Github" asChild>
                 <Link href="https://github.com/lmnr-ai/lmnr" target="_blank" rel="noopener noreferrer">
                   <IconGitHub className="w-4 h-4" />
                   <span>Github</span>
