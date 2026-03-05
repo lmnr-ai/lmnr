@@ -1,11 +1,13 @@
 import { DropdownMenuLabel } from "@radix-ui/react-dropdown-menu";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpLeft, ChevronsUpDown, LogOut } from "lucide-react";
+import { ChevronsUpDown, LogOut, Plus } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import React from "react";
+import useSWR from "swr";
 
 import { useSessionSync } from "@/components/auth/session-sync-provider";
+import WorkspaceCreateDialog from "@/components/projects/workspace-create-dialog.tsx";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import {
   DropdownMenu,
@@ -24,14 +26,16 @@ import {
 import { useProjectContext } from "@/contexts/project-context.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
 import { deleteLastProjectIdCookie, setLastProjectIdCookie } from "@/lib/actions/project/cookies";
-import { deleteLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
-import { cn } from "@/lib/utils.ts";
+import { deleteLastWorkspaceIdCookie, setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
+import { cn, swrFetcher } from "@/lib/utils.ts";
+import { type Workspace } from "@/lib/workspaces/types.ts";
 
 const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string; projectId: string }) => {
   const { isMobile, openMobile, open } = useSidebar();
-  const { projects, project, workspace } = useProjectContext();
+  const { projects, project } = useProjectContext();
   const user = useUserContext();
   const { broadcastLogout } = useSessionSync();
+  const { data: workspaces } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
 
   const handleLogout = async () => {
     try {
@@ -114,23 +118,38 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                 </Link>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-muted-foreground p-1">Workspace</DropdownMenuLabel>
-              <Link passHref href={`/workspace/${workspaceId}`}>
-                <DropdownMenuItem className="cursor-pointer">
-                  <ArrowUpLeft />
-                  <span className="text-xs truncate">{workspace?.name}</span>
-                  <span
-                    className={cn(
-                      "text-xs text-secondary-foreground py-0 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
-                      {
-                        "border-primary bg-primary/10 text-primary": workspace?.tierName === "Pro",
-                      }
-                    )}
+              <DropdownMenuLabel className="text-muted-foreground p-1">Workspaces</DropdownMenuLabel>
+              {workspaces?.map((w) => (
+                <Link key={w.id} passHref href={`/workspace/${w.id}`}>
+                  <DropdownMenuItem
+                    onSelect={() => setLastWorkspaceIdCookie(w.id)}
+                    className={cn("cursor-pointer", {
+                      "bg-accent": w.id === workspaceId,
+                    })}
                   >
-                    {workspace?.tierName}
-                  </span>
+                    <div title={w.name} className="text-xs text-sidebar-foreground font-medium truncate">
+                      {w.name}
+                    </div>
+                    <span
+                      className={cn(
+                        "text-xs text-secondary-foreground py-0 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
+                        {
+                          "border-primary bg-primary/10 text-primary": w.tierName === "Pro",
+                        }
+                      )}
+                    >
+                      {w.tierName}
+                    </span>
+                  </DropdownMenuItem>
+                </Link>
+              ))}
+              <DropdownMenuSeparator />
+              <WorkspaceCreateDialog>
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                  <Plus size={16} />
+                  <span className="text-xs">Create Workspace</span>
                 </DropdownMenuItem>
-              </Link>
+              </WorkspaceCreateDialog>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut />
