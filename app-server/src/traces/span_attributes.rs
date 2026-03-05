@@ -43,8 +43,12 @@ pub const GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS: &str =
     "gen_ai.usage.cache_creation_ephemeral_5m_input_tokens";
 pub const GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS: &str =
     "gen_ai.usage.cache_creation_ephemeral_1h_input_tokens";
+pub const GEN_AI_REQUEST_BATCH: &str = "gen_ai.request.batch";
 
 // Service tier and batch attributes
+pub const GEN_AI_RESPONSE_SERVICE_TIER: &str = "gen_ai.response.service_tier";
+pub const GEN_AI_REQUEST_SERVICE_TIER: &str = "gen_ai.request.service_tier";
 pub const OPENAI_RESPONSE_SERVICE_TIER: &str = "openai.response.service_tier";
 pub const OPENAI_REQUEST_SERVICE_TIER: &str = "openai.request.service_tier";
-pub const GEN_AI_REQUEST_BATCH: &str = "gen_ai.request.batch";
+pub const ANTHROPIC_RESPONSE_SERVICE_TIER: &str = "anthropic.response.service_tier";
+pub const ANTHROPIC_REQUEST_SERVICE_TIER: &str = "anthropic.request.service_tier";

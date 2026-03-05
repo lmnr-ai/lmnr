@@ -83,11 +83,13 @@ impl ModelInfo {
         if let (Some(provider), Some(region)) = (&self.provider, &self.region) {
             // 1. provider/region/model
             keys.push(format!("{}/{}/{}", provider, region, self.raw_model));
+            keys.push(format!("{}/{}/{}", provider, region, self.model));
         }
 
         if let Some(provider) = &self.provider {
             // 2. provider/model
             keys.push(format!("{}/{}", provider, self.raw_model));
+            keys.push(format!("{}/{}", provider, self.model));
         }
 
         // 3. model (full string as-is)
@@ -110,6 +112,11 @@ pub async fn get_model_costs(
     cache: Arc<Cache>,
     model_info: &ModelInfo,
 ) -> Option<ModelCosts> {
+    log::debug!(
+        "Getting model costs for model: {}, provider: {:?}",
+        model_info.model,
+        model_info.provider,
+    );
     let keys = model_info.lookup_keys();
 
     for key in &keys {
@@ -117,7 +124,10 @@ pub async fn get_model_costs(
 
         // Try cache first
         match cache.get::<ModelCosts>(&cache_key).await {
-            Ok(Some(costs)) => return Some(costs),
+            Ok(Some(costs)) => {
+                log::debug!("Found costs in cache for key: {}", key);
+                return Some(costs);
+            }
             Ok(None) => {} // Cache miss, try DB
             Err(e) => {
                 log::warn!(
@@ -131,6 +141,7 @@ pub async fn get_model_costs(
         // Try DB
         match get_model_cost(&db.pool, key).await {
             Ok(Some(entry)) => {
+                log::debug!("Found costs in DB for key: {}", key);
                 let costs = ModelCosts(entry.costs);
                 // Store in cache for future lookups
                 let _ = cache

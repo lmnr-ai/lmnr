@@ -16,8 +16,10 @@ use crate::{
 };
 
 use super::span_attributes::{
-    CLOUD_REGION, GEN_AI_REQUEST_BATCH, GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
-    GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
+    ANTHROPIC_REQUEST_SERVICE_TIER, ANTHROPIC_RESPONSE_SERVICE_TIER, CLOUD_REGION,
+    GEN_AI_REQUEST_BATCH, GEN_AI_REQUEST_SERVICE_TIER, GEN_AI_RESPONSE_SERVICE_TIER,
+    GEN_AI_USAGE_AUDIO_INPUT_TOKENS, GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
     GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS, GEN_AI_USAGE_REASONING_TOKENS,
     OPENAI_REQUEST_SERVICE_TIER, OPENAI_RESPONSE_SERVICE_TIER,
 };
@@ -42,10 +44,13 @@ pub async fn get_llm_usage_for_span(
     let input_cost = attributes.input_cost();
     let output_cost = attributes.output_cost();
     let total_cost = attributes.total_cost();
-    let response_model = attributes.response_model();
-    let request_model = attributes.request_model();
-    let model_name = response_model.clone().or(attributes.request_model());
     let provider_name = attributes.provider_name(span_name);
+
+    let mut response_model = attributes.response_model();
+    let mut request_model = attributes.request_model();
+    response_model = tranform_model_name(response_model, provider_name.clone());
+    request_model = tranform_model_name(request_model, provider_name.clone());
+    let model_name = response_model.clone().or(attributes.request_model());
 
     if input_cost.is_some_and(|c| c > 0.0)
         || output_cost.is_some_and(|c| c > 0.0)
@@ -118,8 +123,12 @@ fn build_span_cost_input(
         .unwrap_or(0);
 
     let service_tier = attributes
-        .string_attr(OPENAI_RESPONSE_SERVICE_TIER)
-        .or_else(|| attributes.string_attr(OPENAI_REQUEST_SERVICE_TIER));
+        .string_attr(GEN_AI_RESPONSE_SERVICE_TIER)
+        .or_else(|| attributes.string_attr(GEN_AI_REQUEST_SERVICE_TIER))
+        .or_else(|| attributes.string_attr(OPENAI_RESPONSE_SERVICE_TIER))
+        .or_else(|| attributes.string_attr(OPENAI_REQUEST_SERVICE_TIER))
+        .or_else(|| attributes.string_attr(ANTHROPIC_RESPONSE_SERVICE_TIER))
+        .or_else(|| attributes.string_attr(ANTHROPIC_REQUEST_SERVICE_TIER));
 
     let is_batch = attributes.bool_attr(GEN_AI_REQUEST_BATCH).unwrap_or(false);
 
@@ -264,4 +273,53 @@ pub fn group_traces_by_project(traces: &[Trace]) -> HashMap<Uuid, Vec<&Trace>> {
         grouped.entry(trace.project_id()).or_default().push(trace);
     }
     grouped
+}
+
+/// Custom logic to transform model not covered by main flow
+fn tranform_model_name(
+    model_name: Option<String>,
+    provider_name: Option<String>,
+) -> Option<String> {
+    // Old versions of laminar sdk were removing provider prefix from model names when using openrout
+    // Remove this logic when we stop supporting old versions of laminar sdk
+    match provider_name.as_deref() {
+        Some("openrouter") => model_name.map(|model| {
+            let prefix = if model.starts_with("gpt-")
+                || model.starts_with("o1")
+                || model.starts_with("o3")
+                || model.starts_with("o4")
+            {
+                "openai"
+            } else if model.starts_with("claude-") {
+                "anthropic"
+            } else if model.starts_with("gemini-") || model.starts_with("gemma-") {
+                "google"
+            } else if model.starts_with("llama-") || model.starts_with("llama3") {
+                "meta-llama"
+            } else if model.starts_with("mistral-")
+                || model.starts_with("mixtral-")
+                || model.starts_with("codestral-")
+            {
+                "mistralai"
+            } else if model.starts_with("deepseek-") {
+                "deepseek"
+            } else if model.starts_with("grok-") {
+                "x-ai"
+            } else if model.starts_with("command-") {
+                "cohere"
+            } else if model.starts_with("sonar-") || model.starts_with("r1-1776") {
+                "perplexity"
+            } else if model.starts_with("qwen-") || model.starts_with("qwq-") {
+                "qwen"
+            } else if model.starts_with("phi-") {
+                "microsoft"
+            } else if model.starts_with("nemotron-") {
+                "nvidia"
+            } else {
+                return model;
+            };
+            format!("{prefix}/{model}")
+        }),
+        _ => model_name,
+    }
 }

@@ -92,8 +92,7 @@ pub fn replace_span_tags_with_links(
     let json_str = serde_json::to_string(&attributes)?;
 
     // Pattern to match <span id='...' name='...' ... />
-    let pattern =
-        Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#)?;
+    let pattern = Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#)?;
 
     // Replace all span tags
     let replaced_str = pattern.replace_all(&json_str, |caps: &regex::Captures| {
@@ -177,6 +176,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         Value::String(span.model),
     );
     attrs.insert("gen_ai.system".to_string(), Value::String(span.provider));
+    attrs.insert("gen_ai.request.batch".to_string(), Value::Bool(true));
 
     if let Some(parent_span_id) = span.parent_span_id {
         attrs.insert(

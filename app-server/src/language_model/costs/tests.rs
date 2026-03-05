@@ -132,10 +132,7 @@ fn test_lookup_keys_inferred_provider() {
     let keys = info.lookup_keys();
     assert_eq!(
         keys,
-        vec![
-            "anthropic/claude-sonnet-4-5",
-            "claude-sonnet-4-5",
-        ]
+        vec!["anthropic/claude-sonnet-4-5", "claude-sonnet-4-5",]
     );
 }
 
@@ -226,10 +223,7 @@ fn test_cache_read_tokens() {
         ..default_input()
     };
     let result = calculate_span_cost(&costs, &input);
-    assert_float_eq(
-        result.input_cost,
-        1000.0 * 0.000003 + 2000.0 * 0.0000003,
-    );
+    assert_float_eq(result.input_cost, 1000.0 * 0.000003 + 2000.0 * 0.0000003);
 }
 
 #[test]
@@ -246,10 +240,7 @@ fn test_cache_creation_tokens() {
         ..default_input()
     };
     let result = calculate_span_cost(&costs, &input);
-    assert_float_eq(
-        result.input_cost,
-        1000.0 * 0.000003 + 3000.0 * 0.00000375,
-    );
+    assert_float_eq(result.input_cost, 1000.0 * 0.000003 + 3000.0 * 0.00000375);
 }
 
 #[test]
@@ -546,14 +537,8 @@ fn test_audio_tokens() {
     let result = calculate_span_cost(&costs, &input);
     // prompt_tokens includes audio_input_tokens, so base = 1000 - 200 = 800
     // completion_tokens includes audio_output_tokens, so base = 500 - 100 = 400
-    assert_float_eq(
-        result.input_cost,
-        800.0 * 0.000003 + 200.0 * 0.00011,
-    );
-    assert_float_eq(
-        result.output_cost,
-        400.0 * 0.000015 + 100.0 * 0.00022,
-    );
+    assert_float_eq(result.input_cost, 800.0 * 0.000003 + 200.0 * 0.00011);
+    assert_float_eq(result.output_cost, 400.0 * 0.000015 + 100.0 * 0.00022);
 }
 
 #[test]
@@ -574,15 +559,9 @@ fn test_audio_tokens_fallback() {
     };
     let result = calculate_span_cost(&costs, &input);
     // (1000 - 200) * rate + 200 * rate = 1000 * rate
-    assert_float_eq(
-        result.input_cost,
-        1000.0 * 0.000003,
-    );
+    assert_float_eq(result.input_cost, 1000.0 * 0.000003);
     // (500 - 100) * rate + 100 * rate = 500 * rate
-    assert_float_eq(
-        result.output_cost,
-        500.0 * 0.000015,
-    );
+    assert_float_eq(result.output_cost, 500.0 * 0.000015);
 }
 
 // ===== Reasoning token pricing tests =====
@@ -603,10 +582,7 @@ fn test_reasoning_tokens() {
     let result = calculate_span_cost(&costs, &input);
     assert_float_eq(result.input_cost, 1000.0 * 0.000003);
     // completion_tokens includes reasoning_tokens, so base = 500 - 300 = 200
-    assert_float_eq(
-        result.output_cost,
-        200.0 * 0.000015 + 300.0 * 0.00001,
-    );
+    assert_float_eq(result.output_cost, 200.0 * 0.000015 + 300.0 * 0.00001);
 }
 
 #[test]
@@ -627,10 +603,7 @@ fn test_reasoning_tokens_fallback() {
     let result = calculate_span_cost(&costs, &input);
     assert_float_eq(result.input_cost, 1000.0 * 0.000003);
     // (500 - 300) * rate + 300 * rate = 500 * rate
-    assert_float_eq(
-        result.output_cost,
-        500.0 * 0.000015,
-    );
+    assert_float_eq(result.output_cost, 500.0 * 0.000015);
 }
 
 // ===== Combined scenario tests =====
@@ -742,10 +715,7 @@ fn test_batch_with_cache_tokens() {
     };
     let result = calculate_span_cost(&costs, &input);
     // Batch pricing for prompt/completion, regular cache pricing
-    assert_float_eq(
-        result.input_cost,
-        10_000.0 * 0.0000015 + 2000.0 * 0.0000003,
-    );
+    assert_float_eq(result.input_cost, 10_000.0 * 0.0000015 + 2000.0 * 0.0000003);
     assert_float_eq(result.output_cost, 5000.0 * 0.0000075);
 }
 
@@ -766,10 +736,7 @@ fn test_gemini_flash_above_128k_with_audio() {
     };
     let result = calculate_span_cost(&costs, &input);
     // prompt_tokens includes audio_input_tokens, so base = 200_000 - 1000 = 199_000
-    assert_float_eq(
-        result.input_cost,
-        199_000.0 * 0.000001 + 1000.0 * 0.000002,
-    );
+    assert_float_eq(result.input_cost, 199_000.0 * 0.000001 + 1000.0 * 0.000002);
     assert_float_eq(result.output_cost, 5000.0 * 0.0000006);
 }
 
@@ -799,10 +766,7 @@ fn test_realtime_model_with_audio_io() {
         result.input_cost,
         0.0 * 0.0000055 + 10_000.0 * 0.00011 + 3000.0 * 0.00000275,
     );
-    assert_float_eq(
-        result.output_cost,
-        0.0 * 0.000022 + 8000.0 * 0.00022,
-    );
+    assert_float_eq(result.output_cost, 0.0 * 0.000022 + 8000.0 * 0.00022);
 }
 
 #[test]
@@ -825,10 +789,7 @@ fn test_reasoning_with_priority_tier() {
     };
     let result = calculate_span_cost(&costs, &input);
     assert_float_eq(result.input_cost, 10_000.0 * 0.000006);
-    assert_float_eq(
-        result.output_cost,
-        0.0 * 0.00003 + 20_000.0 * 0.00001,
-    );
+    assert_float_eq(result.output_cost, 0.0 * 0.00003 + 20_000.0 * 0.00001);
 }
 
 // ===== Threshold with cached tokens tests =====
