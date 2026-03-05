@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-const INTER_FONT_URL = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap";
+const INTER_FONT_URL = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&subset=latin&display=swap";
 
 type OgFont = {
   name: string;
