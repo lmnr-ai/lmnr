@@ -270,7 +270,7 @@ export const findSpanToSelect = (
   return spans?.[0];
 };
 
-export const getSpanDisplayName = (span: TraceViewSpan) => {
+export const getSpanDisplayName = (span: Pick<TraceViewSpan, "spanType" | "model" | "name">) => {
   const modelName = span.model;
   return (span.spanType === "LLM" || span.spanType === "CACHED") && modelName ? modelName : span.name;
 };

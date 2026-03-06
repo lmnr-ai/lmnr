@@ -1,4 +1,4 @@
-import { type TraceViewSpan } from "./base";
+import { type TraceViewListSpan, type TraceViewSpan } from "./base";
 
 export type PathInfo = {
   display: Array<{ spanId: string; name: string; count?: number }>;
@@ -456,3 +456,27 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
     totalDurationMs: totalDuration,
   };
 };
+
+/**
+ * Convert raw TraceViewSpan[] into the lightweight TraceViewListSpan[] format
+ * used by the list view. Filters out DEFAULT spans and attaches pathInfo.
+ */
+export function toListSpans(spans: TraceViewSpan[]): TraceViewListSpan[] {
+  const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
+  const pathInfoMap = computePathInfoMap(spans);
+
+  return listSpans.map((span) => ({
+    spanId: span.spanId,
+    parentSpanId: span.parentSpanId,
+    spanType: span.spanType,
+    name: span.name,
+    model: span.model,
+    startTime: span.startTime,
+    endTime: span.endTime,
+    totalTokens: span.totalTokens,
+    cacheReadInputTokens: span.cacheReadInputTokens,
+    totalCost: span.totalCost,
+    pending: span.pending,
+    pathInfo: pathInfoMap.get(span.spanId) ?? null,
+  }));
+}

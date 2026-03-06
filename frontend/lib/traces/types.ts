@@ -206,3 +206,5 @@ export type SessionRow = {
 
   userId?: string;
 };
+
+export type { SpanMapping } from "@/lib/actions/trace/diff/types";

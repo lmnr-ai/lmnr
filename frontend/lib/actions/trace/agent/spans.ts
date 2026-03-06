@@ -213,7 +213,10 @@ function calculateDuration(start: string, end: string): number {
 /** Format a ClickHouse DateTime64 string to a readable UTC string. */
 function formatUtcTimestamp(chTimestamp: string): string {
   const d = new Date(chTimestamp + "Z"); // CH returns UTC without the Z suffix
-  return d.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
+  return d
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d{3}Z$/, " UTC");
 }
 
 function spanInfosToSkeletonString(spanInfos: SpanInfo[], spanIdToSeqId: Record<string, number>): string {
@@ -243,15 +246,40 @@ interface DetailedSpanView {
 
 export interface TraceStructureResult {
   traceString: string;
+  spanInfos: SpanInfo[];
 }
 
-export const getTraceStructureAsString = async (projectId: string, traceId: string): Promise<TraceStructureResult> => {
-  const spanInfos = await fetchSpanInfos(projectId, traceId);
+export const getTraceStructureAsString = async (
+  projectId: string,
+  traceId: string,
+  { excludeDefault = false }: { excludeDefault?: boolean } = {}
+): Promise<TraceStructureResult> => {
+  const allSpanInfos = await fetchSpanInfos(projectId, traceId);
+  const spanInfos = excludeDefault ? allSpanInfos.filter((s) => s.type !== "DEFAULT") : allSpanInfos;
 
+  // Build seqId map from the filtered spans
   const spanIdToSeqId: Record<string, number> = {};
   spanInfos.forEach((info, index) => {
     spanIdToSeqId[info.spanId] = index + 1;
   });
+
+  // When excluding DEFAULT spans, build a parent lookup from ALL spans
+  // so we can walk up past filtered-out DEFAULT parents to the nearest included ancestor
+  if (excludeDefault) {
+    const allSpanParent: Record<string, string> = {};
+    for (const s of allSpanInfos) {
+      if (s.parent) allSpanParent[s.spanId] = s.parent;
+    }
+    // For each filtered span, resolve its parent to the nearest non-DEFAULT ancestor.
+    // Safe to mutate in-place: spanInfos are fresh objects from the DB query, not shared.
+    for (const info of spanInfos) {
+      let parentId = info.parent;
+      while (parentId && !(parentId in spanIdToSeqId)) {
+        parentId = allSpanParent[parentId] ?? "";
+      }
+      info.parent = parentId || "";
+    }
+  }
 
   // Only fetch full details for LLM and TOOL spans
   const detailedSpanIds = spanInfos.filter((s) => s.type === "LLM" || s.type === "TOOL").map((s) => s.spanId);
@@ -296,14 +324,10 @@ export const getTraceStructureAsString = async (projectId: string, traceId: stri
     if (!seenPaths.has(info.path)) {
       seenPaths.add(info.path);
       // Truncate tool span input; strip base64 images and truncate LLM input
-      spanView.input = isTool
-        ? truncateValue(span.input)
-        : truncateLlmInput(replaceBase64Images(span.input));
+      spanView.input = isTool ? truncateValue(span.input) : truncateLlmInput(replaceBase64Images(span.input));
     }
     // Truncate tool span output; strip base64 images from LLM output
-    spanView.output = isTool
-      ? truncateValue(span.output)
-      : replaceBase64Images(span.output);
+    spanView.output = isTool ? truncateValue(span.output) : replaceBase64Images(span.output);
 
     if (span.exception) {
       spanView.exception = span.exception;
@@ -325,7 +349,7 @@ ${traceYaml}
 </spans>
 `;
 
-  return { traceString };
+  return { traceString, spanInfos };
 };
 
 /**
