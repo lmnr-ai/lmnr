@@ -12,9 +12,16 @@ use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
 use crate::{
     cache::Cache,
     db::{DB, spans::Span, trace::Trace},
-    language_model::costs::estimate_cost_by_provider_name,
+    language_model::costs::{ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs},
 };
 
+use super::span_attributes::{
+    ANTHROPIC_REQUEST_SERVICE_TIER, ANTHROPIC_RESPONSE_SERVICE_TIER, GEN_AI_REQUEST_BATCH,
+    GEN_AI_REQUEST_SERVICE_TIER, GEN_AI_RESPONSE_SERVICE_TIER, GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+    GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
+    GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS, GEN_AI_USAGE_REASONING_TOKENS,
+    OPENAI_REQUEST_SERVICE_TIER, OPENAI_RESPONSE_SERVICE_TIER,
+};
 use super::spans::{SpanAttributes, SpanUsage};
 
 static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
@@ -38,8 +45,10 @@ pub async fn get_llm_usage_for_span(
     let total_cost = attributes.total_cost();
     let response_model = attributes.response_model();
     let request_model = attributes.request_model();
-    let model_name = response_model.clone().or(attributes.request_model());
-    let provider_name = attributes.provider_name(span_name);
+    let mut model_name = response_model.clone().or(request_model.clone());
+    let mut provider_name = attributes.provider_name(span_name);
+
+    (model_name, provider_name) = tranform_model_and_provider(model_name, provider_name);
 
     if input_cost.is_some_and(|c| c > 0.0)
         || output_cost.is_some_and(|c| c > 0.0)
@@ -64,21 +73,14 @@ pub async fn get_llm_usage_for_span(
     let mut total_cost = total_cost.unwrap_or(input_cost + output_cost);
 
     if let Some(model) = model_name.as_deref() {
-        if let Some(provider) = &provider_name {
-            let cost_entry = estimate_cost_by_provider_name(
-                db.clone(),
-                cache.clone(),
-                provider,
-                model,
-                input_tokens,
-                output_tokens,
-            )
-            .await;
-            if let Some(cost_entry) = cost_entry {
-                input_cost = cost_entry.input_cost;
-                output_cost = cost_entry.output_cost;
-                total_cost = input_cost + output_cost;
-            }
+        let model_info = ModelInfo::extract(model, provider_name.as_deref());
+
+        if let Some(model_costs) = get_model_costs(db.clone(), cache.clone(), &model_info).await {
+            let span_cost_input = build_span_cost_input(attributes, &input_tokens, output_tokens);
+            let cost_entry = calculate_span_cost(&model_costs, &span_cost_input);
+            input_cost = cost_entry.input_cost;
+            output_cost = cost_entry.output_cost;
+            total_cost = input_cost + output_cost;
         }
     }
 
@@ -92,6 +94,53 @@ pub async fn get_llm_usage_for_span(
         response_model,
         request_model,
         provider_name,
+    }
+}
+
+/// Build SpanCostInput from span attributes
+fn build_span_cost_input(
+    attributes: &SpanAttributes,
+    input_tokens: &super::spans::InputTokens,
+    output_tokens: i64,
+) -> SpanCostInput {
+    let audio_input_tokens = attributes
+        .int_attr(GEN_AI_USAGE_AUDIO_INPUT_TOKENS)
+        .unwrap_or(0);
+    let audio_output_tokens = attributes
+        .int_attr(GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS)
+        .unwrap_or(0);
+    let reasoning_tokens = attributes
+        .int_attr(GEN_AI_USAGE_REASONING_TOKENS)
+        .unwrap_or(0);
+    let cache_creation_5m_tokens = attributes
+        .int_attr(GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS)
+        .unwrap_or(0);
+    let cache_creation_1h_tokens = attributes
+        .int_attr(GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS)
+        .unwrap_or(0);
+
+    let service_tier = attributes
+        .string_attr(GEN_AI_RESPONSE_SERVICE_TIER)
+        .or_else(|| attributes.string_attr(GEN_AI_REQUEST_SERVICE_TIER))
+        .or_else(|| attributes.string_attr(OPENAI_RESPONSE_SERVICE_TIER))
+        .or_else(|| attributes.string_attr(OPENAI_REQUEST_SERVICE_TIER))
+        .or_else(|| attributes.string_attr(ANTHROPIC_RESPONSE_SERVICE_TIER))
+        .or_else(|| attributes.string_attr(ANTHROPIC_REQUEST_SERVICE_TIER));
+
+    let is_batch = attributes.bool_attr(GEN_AI_REQUEST_BATCH).unwrap_or(false);
+
+    SpanCostInput {
+        prompt_tokens: input_tokens.regular_input_tokens,
+        completion_tokens: output_tokens,
+        cache_read_tokens: input_tokens.cache_read_tokens,
+        cache_creation_tokens: input_tokens.cache_write_tokens,
+        cache_creation_5m_tokens,
+        cache_creation_1h_tokens,
+        audio_input_tokens,
+        audio_output_tokens,
+        reasoning_tokens,
+        service_tier,
+        is_batch,
     }
 }
 
@@ -221,4 +270,45 @@ pub fn group_traces_by_project(traces: &[Trace]) -> HashMap<Uuid, Vec<&Trace>> {
         grouped.entry(trace.project_id()).or_default().push(trace);
     }
     grouped
+}
+
+/// Custom logic to transform model/provider not covered by main flow
+fn tranform_model_and_provider(
+    model_name: Option<String>,
+    provider_name: Option<String>,
+) -> (Option<String>, Option<String>) {
+    match provider_name.as_deref() {
+        // Old versions of laminar sdk were removing provider prefix from model names when using openrouter.
+        // Remove this logic when we stop supporting old versions of laminar sdk
+        Some("openrouter") => {
+            let new_model = model_name.map(|model| {
+                const MODEL_PREFIX_TO_PROVIDER: &[(&[&str], &str)] = &[
+                    (&["gpt-", "o1", "o3", "o4"], "openai"),
+                    (&["claude-"], "anthropic"),
+                    (&["gemini-", "gemma-"], "google"),
+                    (&["llama-", "llama3"], "meta-llama"),
+                    (&["mistral-", "mixtral-", "codestral-"], "mistralai"),
+                    (&["deepseek-"], "deepseek"),
+                    (&["grok-"], "x-ai"),
+                    (&["command-"], "cohere"),
+                    (&["sonar-", "r1-1776"], "perplexity"),
+                    (&["qwen-", "qwq-"], "qwen"),
+                    (&["phi-"], "microsoft"),
+                    (&["nemotron-"], "nvidia"),
+                ];
+
+                match MODEL_PREFIX_TO_PROVIDER
+                    .iter()
+                    .find(|(prefixes, _)| prefixes.iter().any(|p| model.starts_with(p)))
+                {
+                    Some((_, provider)) => format!("{provider}/{model}"),
+                    None => model,
+                }
+            });
+            (new_model, provider_name)
+        }
+        // LiteLLM stores "gateway" as "vercel_ai_gateway"
+        Some("gateway") => (model_name, Some("vercel_ai_gateway".to_string())),
+        _ => (model_name, provider_name),
+    }
 }

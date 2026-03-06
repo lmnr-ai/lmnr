@@ -7,7 +7,7 @@ pub mod datasets;
 pub mod evaluations;
 pub mod events;
 pub mod labeling_queues;
-pub mod prices;
+pub mod model_costs;
 pub mod project_api_keys;
 pub mod projects;
 pub mod rollout_sessions;
