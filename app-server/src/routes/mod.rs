@@ -1,3 +1,4 @@
+pub mod custom_model_costs;
 pub mod error;
 pub mod probes;
 pub mod realtime;
