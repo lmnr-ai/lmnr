@@ -807,10 +807,11 @@ async fn process_single_response(
             input_tokens: response.input_tokens,
             input_cached_tokens: response.input_cached_tokens,
             output_tokens: response.output_tokens,
-            model: format!(
-                "{}-batch",
-                response.model_version.as_ref().unwrap_or(&LLM_MODEL)
-            ),
+            model: response
+                .model_version
+                .as_ref()
+                .unwrap_or(&LLM_MODEL)
+                .clone(),
             provider: LLM_PROVIDER.clone(),
             internal_project_id: config.internal_project_id,
             job_id: run.job_id,

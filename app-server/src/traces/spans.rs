@@ -105,6 +105,32 @@ impl SpanAttributes {
         }
     }
 
+    pub fn string_attr(&self, key: &str) -> Option<String> {
+        match self.raw_attributes.get(key) {
+            Some(Value::String(s)) => Some(s.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn int_attr(&self, key: &str) -> Option<i64> {
+        match self.raw_attributes.get(key) {
+            Some(Value::Number(n)) => n.as_i64(),
+            _ => None,
+        }
+    }
+
+    pub fn bool_attr(&self, key: &str) -> Option<bool> {
+        match self.raw_attributes.get(key) {
+            Some(Value::Bool(b)) => Some(*b),
+            Some(Value::String(s)) => match s.to_lowercase().as_str() {
+                "true" | "1" => Some(true),
+                "false" | "0" => Some(false),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     pub fn to_value(&self) -> Value {
         Value::Object(
             self.raw_attributes
