@@ -302,6 +302,29 @@ export const modelCosts = pgTable(
   (table) => [unique("model_costs_model_unique").on(table.model)]
 );
 
+export const customModelCosts = pgTable(
+  "custom_model_costs",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").notNull(),
+    provider: text(),
+    model: text().notNull(),
+    costs: jsonb().default({}).notNull(),
+  },
+  (table) => [
+    unique("custom_model_costs_project_id_model_unique").on(table.projectId, table.model),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "custom_model_costs_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
 export const renderTemplates = pgTable(
   "render_templates",
   {
