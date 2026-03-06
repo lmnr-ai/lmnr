@@ -62,7 +62,7 @@ impl ModelInfo {
         // If provider is missing, try to infer from model name
         let provider = provider.or_else(|| {
             if model.contains('/') {
-                model.split('/').next().map(|s| s.to_lowercase())
+                model.split('/').next().map(|s| s.to_string())
             } else {
                 None
             }
