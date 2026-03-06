@@ -13,7 +13,7 @@ import { type SpanMapping } from "@/lib/actions/trace/diff/types";
 import DiffColumns, { type SelectingSide } from "./diff-list";
 import MetricsBar from "./metrics-bar";
 import { useTraceDiffStore } from "./store";
-import TraceIdPill from "./trace-picker/trace-id-pill";
+import TraceIdPill from "./trace-id-pill";
 
 interface TraceDiffViewInnerProps {
   leftTraceId: string;

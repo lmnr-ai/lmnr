@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import MappingError from "../mapping-error";
 import DiffSpanPanel from "../panel";
 import { useTraceDiffStore } from "../store";
-import TraceSelector from "../trace-picker/trace-selector";
+import TraceSelector from "../trace-selector";
 import SingleColumnSpanList from "./single-column-span-list";
 import VirtualizedDiffRows from "./virtualized-rows";
 
