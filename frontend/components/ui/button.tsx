@@ -50,29 +50,29 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm leading-none font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-[13px] leading-none font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-primary/90 primary text-primary-foreground/90 hover:bg-primary border border-white/25",
+        default: "bg-primary/90 text-primary-foreground hover:bg-primary border border-primary/40",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         destructiveOutline:
-          "border border-destructive text-destructive shadow-sm hover:bg-destructive/90 hover:text-destructive-foreground",
-        warning: "bg-amber-600 text-white shadow-sm hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600",
-        warningOutline: "border border-amber-500 text-amber-600 dark:text-amber-500 shadow-sm hover:bg-amber-500/10",
-        outline: "border border-input bg-background hover:bg-accent",
-        outlinePrimary: "border border-primary bg-background hover:bg-primary/10 text-primary",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/60 border border-secondary-foreground/20",
-        secondaryLight: "bg-secondary text-secondary-foreground hover:bg-secondary/60",
-        ghost: "hover:text-accent-foreground/80",
+          "border border-destructive/60 text-destructive shadow-sm hover:bg-destructive/10 hover:text-destructive",
+        warning: "bg-amber-700 text-white shadow-sm hover:bg-amber-800",
+        warningOutline: "border border-amber-600/50 text-amber-500 shadow-sm hover:bg-amber-600/10",
+        outline: "border border-border bg-transparent hover:bg-accent hover:text-accent-foreground",
+        outlinePrimary: "border border-primary/50 bg-transparent hover:bg-primary/10 text-primary",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-muted border border-border",
+        secondaryLight: "bg-secondary text-secondary-foreground hover:bg-muted",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
         light: "bg-white/90 text-black/90 hover:bg-white/60 border-white/20 border hover:border-white/50",
         lightSecondary: "bg-white/10 text-white/80 hover:bg-white/20 border-white/20 border hover:border-white/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-7 px-2 text-xs py-2",
+        default: "h-7 px-2.5 text-xs py-1.5",
         sm: "h-[22px] rounded-md px-2 text-xs",
-        lg: "h-10 rounded-md px-8",
+        lg: "h-9 rounded-md px-6",
         icon: "h-7 w-7",
       },
     },

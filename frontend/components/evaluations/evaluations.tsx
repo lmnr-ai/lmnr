@@ -208,7 +208,7 @@ function EvaluationsContent() {
         <EvaluationsGroupsBar />
         <div className="flex flex-col w-full gap-2 overflow-hidden">
           <div className="flex gap-4 items-center">
-            <div className="font-medium text-lg">{searchParams.get("groupId")}</div>
+            <div className="font-medium text-base">{searchParams.get("groupId")}</div>
             <Select
               value={aggregationFunction}
               onValueChange={(value) => setAggregationFunction(value as AggregationFunction)}

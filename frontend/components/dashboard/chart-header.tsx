@@ -127,7 +127,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
           onClick={(e) => e.preventDefault()}
         />
       ) : (
-        <span title={name} className="font-medium text-lg text-secondary-foreground truncate">
+        <span title={name} className="font-medium text-base text-secondary-foreground truncate">
           {name}
         </span>
       )}

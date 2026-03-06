@@ -1,38 +1,38 @@
 export const defaultColors: { color: string; name: string }[] = [
   {
-    color: "rgb(190, 194, 200)",
+    color: "rgb(160, 165, 175)",
     name: "Grey",
   },
   {
-    color: "rgb(149, 162, 179)",
+    color: "rgb(120, 130, 150)",
     name: "Dark Grey",
   },
   {
-    color: "lch(48 59.31 288.43)",
+    color: "rgb(140, 110, 190)",
     name: "Purple",
   },
   {
-    color: "rgb(38, 181, 206)",
+    color: "rgb(70, 165, 185)",
     name: "Teal",
   },
   {
-    color: "rgb(76, 183, 130)",
+    color: "rgb(75, 168, 125)",
     name: "Green",
   },
   {
-    color: "lch(80 90 85)",
+    color: "rgb(200, 170, 60)",
     name: "Yellow",
   },
   {
-    color: "rgb(242, 153, 74)",
+    color: "rgb(210, 140, 80)",
     name: "Orange",
   },
   {
-    color: "rgb(247, 200, 193)",
+    color: "rgb(200, 150, 155)",
     name: "Pink",
   },
   {
-    color: "rgb(235, 87, 87)",
+    color: "rgb(195, 80, 80)",
     name: "Red",
   },
 ];

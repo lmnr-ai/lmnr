@@ -29,10 +29,10 @@ export const formatScoreValue = (value: number) => {
 export const isValidScore = (value: unknown): value is number => isNumber(value) && !isNaN(value) && isFinite(value);
 
 const SCORE_COLORS = {
-  red: [204, 51, 51] as RGBColor, // Pure, vivid red (poor scores)
-  yellow: [245, 158, 11] as RGBColor, // amber-500 (average scores)
-  green: [34, 197, 94] as RGBColor, // green-500 (good scores)
-  gray: [243, 244, 246] as RGBColor, // gray-100 (fallback)
+  red: [190, 70, 65] as RGBColor,
+  yellow: [195, 150, 55] as RGBColor,
+  green: [65, 170, 110] as RGBColor,
+  gray: [200, 202, 208] as RGBColor,
 } as const;
 
 const getColorByNormalizedValue = (normalized: number): RGBColor => {

@@ -40,9 +40,8 @@ const DebuggerSession = ({
         { name: "debugger sessions", href: `/project/${projectId}/debugger-sessions` },
         { name: session.name ?? "-", copyValue: session.id },
       ]}
-      childrenContainerClassName="flex-none mr-2 h-12"
+      childrenContainerClassName="flex-none mr-2 h-10"
     />
-    <div className="flex-none border-t" />
     <DebuggerSessionStoreProvider
       trace={trace}
       params={params}

@@ -39,7 +39,12 @@ export default function Header({
       : path;
 
   return (
-    <div className={cn("font-medium flex items-center justify-between flex-none h-12 w-full pl-2.5 pr-4", className)}>
+    <div
+      className={cn(
+        "font-medium flex items-center justify-between flex-none h-10 w-full pl-2 pr-3 border-b border-border/60",
+        className
+      )}
+    >
       <div className={cn("flex flex-1 items-center", childrenContainerClassName)}>
         {showSidebarTrigger && <SidebarTrigger className="hover:bg-secondary size-7" />}
         {segments.map((segment, index) => (

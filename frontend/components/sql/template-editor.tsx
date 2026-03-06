@@ -126,7 +126,7 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
           <div className="text-center space-y-4">
             <SquareTerminal className="w-12 h-12 text-muted-foreground mx-auto" />
             <div>
-              <h3 className="text-lg font-medium text-foreground mb-2">No query selected</h3>
+              <h3 className="text-sm font-semibold text-foreground mb-2">No query selected</h3>
               <p className="text-sm text-muted-foreground">Create a new query or select one from the sidebar</p>
             </div>
             <Button onClick={handleCreate} variant="secondaryLight" size="sm" className="gap-2">

@@ -337,7 +337,7 @@ export default function DatasetPanel({
     return (
       <>
         <div className="flex flex-col h-full w-full">
-          <div className="h-12 flex flex-none space-x-2 px-3 items-center border-b">
+          <div className="h-10 flex flex-none space-x-2 px-3 items-center border-b">
             <Button variant="ghost" className="px-1" onClick={handleClose}>
               <ChevronsRight />
             </Button>

@@ -12,8 +12,8 @@ interface SettingsSectionHeaderProps {
 export function SettingsSectionHeader({ title, description, size = "lg" }: SettingsSectionHeaderProps) {
   return (
     <div className="flex flex-col gap-2">
-      <h1 className={size === "lg" ? "text-2xl font-semibold" : "text-base font-semibold"}>{title}</h1>
-      <p className="text-sm text-muted-foreground">{description}</p>
+      <h1 className={size === "lg" ? "text-lg font-semibold" : "text-sm font-semibold"}>{title}</h1>
+      <p className="text-xs text-muted-foreground">{description}</p>
     </div>
   );
 }
@@ -65,5 +65,5 @@ export function SettingsTable({
 }
 
 export function SettingsTableRow({ children }: PropsWithChildren) {
-  return <tr className="border-b last:border-b-0 h-12">{children}</tr>;
+  return <tr className="border-b last:border-b-0 h-10">{children}</tr>;
 }

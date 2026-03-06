@@ -43,7 +43,7 @@ export default function Projects({ workspace }: ProjectsProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-medium">Projects</h1>
+      <h1 className="text-lg font-medium">Projects</h1>
       {!data ? (
         <Skeleton className="w-36 h-6" />
       ) : (
@@ -63,7 +63,7 @@ export default function Projects({ workspace }: ProjectsProps) {
           <div className="flex flex-col items-center gap-4 max-w-md text-center">
             <FolderOpen className="size-12 text-secondary-foreground/60" />
             <div className="flex flex-col gap-2">
-              <h3 className="text-xl font-semibold">No projects yet</h3>
+              <h3 className="text-lg font-semibold">No projects yet</h3>
               <p className="text-sm text-muted-foreground">Create your first project to get started.</p>
             </div>
           </div>
