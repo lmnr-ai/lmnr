@@ -37,17 +37,17 @@ export const METRIC_FUNCTION_OPTIONS: MetricFunctionOption[] = [
   {
     value: "p90",
     label: "P90",
-    createMetric: (column) => ({ fn: "quantile", column, args: [0.9] }),
+    createMetric: (column) => ({ fn: "quantile", column, args: [0.9], alias: `p90_${column}` }),
   },
   {
     value: "p95",
     label: "P95",
-    createMetric: (column) => ({ fn: "quantile", column, args: [0.95] }),
+    createMetric: (column) => ({ fn: "quantile", column, args: [0.95], alias: `p95_${column}` }),
   },
   {
     value: "p99",
     label: "P99",
-    createMetric: (column) => ({ fn: "quantile", column, args: [0.99] }),
+    createMetric: (column) => ({ fn: "quantile", column, args: [0.99], alias: `p99_${column}` }),
   },
   {
     value: "raw",
