@@ -71,7 +71,12 @@ export const createMetricFromOption = (functionValue: string, column: string): M
   if (!option) {
     return { fn: "count", column: "*", args: [] };
   }
-  return { ...option.createMetric(column), column } as Metric;
+  const metric = option.createMetric(column);
+  // Don't override column for raw metrics — createMetric intentionally returns column: ""
+  if (functionValue === "raw") {
+    return metric as Metric;
+  }
+  return { ...metric, column } as Metric;
 };
 
 export const FILTER_OPERATOR_OPTIONS = [
