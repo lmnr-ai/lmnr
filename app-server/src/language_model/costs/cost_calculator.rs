@@ -106,6 +106,22 @@ fn resolve_cost_key(costs: &Value, base_key: &str, service_tier: Option<&str>) -
     get_cost(costs, base_key)
 }
 
+/// For batch requests, try the batch-specific key first, falling back to base_rate / 2.
+/// For non-batch, return base_rate as-is.
+fn resolve_batch_or_base(
+    costs: &Value,
+    batch_key: &str,
+    base_rate: f64,
+    tier: Option<&str>,
+    is_batch: bool,
+) -> f64 {
+    if is_batch {
+        resolve_cost_key(costs, batch_key, tier).unwrap_or(base_rate / 2.0)
+    } else {
+        base_rate
+    }
+}
+
 /// Calculate cost for a span given the costs JSON and span input tokens/attributes.
 pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> CostEntry {
     let costs = &model_costs.0;
@@ -144,8 +160,7 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     let cache_read_cost_per_token =
         get_cost(costs, &cache_read_key).or_else(|| get_cost(costs, "cache_read_input_token_cost"));
 
-    let service_tier = input.service_tier.as_deref().filter(|t| !t.is_empty());
-    let tier = service_tier;
+    let tier = input.service_tier.as_deref().filter(|t| !t.is_empty());
 
     // === INPUT COST ===
     let mut total_input_cost = 0.0;
@@ -154,23 +169,19 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     // subtract them so they're only charged at their specific rate below.
     let base_input_tokens = (input.prompt_tokens - input.audio_input_tokens).max(0);
 
-    if input.is_batch {
-        // Batch pricing, fallback to half base price if batch-specific costs not specified
-        let batch_input_cost = resolve_cost_key(costs, "input_cost_per_token_batches", tier)
-            .unwrap_or(input_cost_per_token.unwrap_or(0.0) / 2.0);
-        total_input_cost += base_input_tokens as f64 * batch_input_cost;
-    } else {
-        // Regular input tokens
-        let resolved_input_cost =
-            resolve_cost_key(costs, &input_key, tier).or(input_cost_per_token);
-        total_input_cost += base_input_tokens as f64 * resolved_input_cost.unwrap_or(0.0);
-    }
+    let input_rate = resolve_cost_key(costs, &input_key, tier)
+        .or(input_cost_per_token)
+        .unwrap_or(0.0);
+    let input_cost =
+        resolve_batch_or_base(costs, "input_cost_per_token_batches", input_rate, tier, input.is_batch);
+    total_input_cost += base_input_tokens as f64 * input_cost;
 
     // Cache read tokens
     if input.cache_read_tokens > 0 {
-        let resolved_cache_read =
-            resolve_cost_key(costs, &cache_read_key, tier).or(cache_read_cost_per_token);
-        total_input_cost += input.cache_read_tokens as f64 * resolved_cache_read.unwrap_or(0.0);
+        let cache_read_rate = resolve_cost_key(costs, &cache_read_key, tier)
+            .or(cache_read_cost_per_token)
+            .unwrap_or(0.0);
+        total_input_cost += input.cache_read_tokens as f64 * cache_read_rate;
     }
 
     // Cache creation tokens
@@ -179,8 +190,9 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
         if input.cache_creation_5m_tokens > 0 || input.cache_creation_1h_tokens > 0 {
             // 5-minute tokens use regular cache creation cost
             let cost_5m = resolve_cost_key(costs, &cache_creation_key, tier)
-                .or(cache_creation_cost_per_token);
-            total_input_cost += input.cache_creation_5m_tokens as f64 * cost_5m.unwrap_or(0.0);
+                .or(cache_creation_cost_per_token)
+                .unwrap_or(0.0);
+            total_input_cost += input.cache_creation_5m_tokens as f64 * cost_5m;
 
             // 1-hour tokens use cache_creation_input_token_cost_above_1hr
             let hr_key = if let Some(suffix) = threshold_suffix {
@@ -195,30 +207,25 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
                 .or_else(|| {
                     resolve_cost_key(costs, "cache_creation_input_token_cost_above_1hr", tier)
                 })
-                .or(cache_creation_cost_per_token);
-            total_input_cost += input.cache_creation_1h_tokens as f64 * cost_1h.unwrap_or(0.0);
+                .or(cache_creation_cost_per_token)
+                .unwrap_or(0.0);
+            total_input_cost += input.cache_creation_1h_tokens as f64 * cost_1h;
         } else {
-            let resolved_cache_create = resolve_cost_key(costs, &cache_creation_key, tier)
-                .or(cache_creation_cost_per_token);
-            total_input_cost +=
-                input.cache_creation_tokens as f64 * resolved_cache_create.unwrap_or(0.0);
+            let cache_create_rate = resolve_cost_key(costs, &cache_creation_key, tier)
+                .or(cache_creation_cost_per_token)
+                .unwrap_or(0.0);
+            total_input_cost += input.cache_creation_tokens as f64 * cache_create_rate;
         }
     }
 
     // Audio input tokens
     if input.audio_input_tokens > 0 {
-        let audio_cost = if input.is_batch {
-            resolve_cost_key(costs, "input_cost_per_audio_token_batches", tier).unwrap_or(
-                resolve_cost_key(costs, "input_cost_per_audio_token", tier)
-                    .or(input_cost_per_token)
-                    .unwrap_or(0.0)
-                    / 2.0,
-            )
-        } else {
-            resolve_cost_key(costs, "input_cost_per_audio_token", tier)
-                .or(input_cost_per_token)
-                .unwrap_or(0.0)
-        };
+        let audio_rate = resolve_cost_key(costs, "input_cost_per_audio_token", tier)
+            .or(input_cost_per_token)
+            .unwrap_or(0.0);
+        let audio_cost = resolve_batch_or_base(
+            costs, "input_cost_per_audio_token_batches", audio_rate, tier, input.is_batch,
+        );
         total_input_cost += input.audio_input_tokens as f64 * audio_cost;
     }
 
@@ -230,49 +237,33 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     let base_output_tokens =
         (input.completion_tokens - input.reasoning_tokens - input.audio_output_tokens).max(0);
 
-    if input.is_batch {
-        // Batch pricing
-        let batch_output_cost = resolve_cost_key(costs, "output_cost_per_token_batches", tier)
-            .unwrap_or(output_cost_per_token.unwrap_or(0.0) / 2.0);
-        total_output_cost += base_output_tokens as f64 * batch_output_cost;
-    } else {
-        // Regular output tokens
-        let resolved_output_cost =
-            resolve_cost_key(costs, &output_key, tier).or(output_cost_per_token);
-        total_output_cost += base_output_tokens as f64 * resolved_output_cost.unwrap_or(0.0);
-    }
+    let output_rate = resolve_cost_key(costs, &output_key, tier)
+        .or(output_cost_per_token)
+        .unwrap_or(0.0);
+    let output_cost = resolve_batch_or_base(
+        costs, "output_cost_per_token_batches", output_rate, tier, input.is_batch,
+    );
+    total_output_cost += base_output_tokens as f64 * output_cost;
 
     // Reasoning tokens
     if input.reasoning_tokens > 0 {
-        let reasoning_cost = if input.is_batch {
-            resolve_cost_key(costs, "output_cost_per_reasoning_token_batches", tier).unwrap_or(
-                resolve_cost_key(costs, "output_cost_per_reasoning_token", tier)
-                    .or(output_cost_per_token)
-                    .unwrap_or(0.0)
-                    / 2.0,
-            )
-        } else {
-            resolve_cost_key(costs, "output_cost_per_reasoning_token", tier)
-                .or(output_cost_per_token)
-                .unwrap_or(0.0)
-        };
+        let reasoning_rate = resolve_cost_key(costs, "output_cost_per_reasoning_token", tier)
+            .or(output_cost_per_token)
+            .unwrap_or(0.0);
+        let reasoning_cost = resolve_batch_or_base(
+            costs, "output_cost_per_reasoning_token_batches", reasoning_rate, tier, input.is_batch,
+        );
         total_output_cost += input.reasoning_tokens as f64 * reasoning_cost;
     }
 
     // Audio output tokens
     if input.audio_output_tokens > 0 {
-        let audio_cost = if input.is_batch {
-            resolve_cost_key(costs, "output_cost_per_audio_token_batches", tier).unwrap_or(
-                resolve_cost_key(costs, "output_cost_per_audio_token", tier)
-                    .or(output_cost_per_token)
-                    .unwrap_or(0.0)
-                    / 2.0,
-            )
-        } else {
-            resolve_cost_key(costs, "output_cost_per_audio_token", tier)
-                .or(output_cost_per_token)
-                .unwrap_or(0.0)
-        };
+        let audio_rate = resolve_cost_key(costs, "output_cost_per_audio_token", tier)
+            .or(output_cost_per_token)
+            .unwrap_or(0.0);
+        let audio_cost = resolve_batch_or_base(
+            costs, "output_cost_per_audio_token_batches", audio_rate, tier, input.is_batch,
+        );
         total_output_cost += input.audio_output_tokens as f64 * audio_cost;
     }
 

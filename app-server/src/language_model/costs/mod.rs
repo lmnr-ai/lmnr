@@ -176,7 +176,7 @@ pub async fn get_model_costs(
         .find_map(|key| db_results.get(key))
         .map(|entry| ModelCosts(entry.costs.clone()));
 
-    // Cache hit (24h) or negative (10min) under the canonical key
+    // Cache hit (24h) or negative (30min) under the canonical key
     if result.is_some() {
         log::debug!("Found costs in DB for model: {}", model_info.model);
         let _ = cache

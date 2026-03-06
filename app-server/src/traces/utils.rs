@@ -287,7 +287,19 @@ fn tranform_model_and_provider(
                     (&["claude-"], "anthropic"),
                     (&["gemini-", "gemma-"], "google"),
                     (&["llama-", "llama3"], "meta-llama"),
-                    (&["mistral-", "mixtral-", "codestral-"], "mistralai"),
+                    (
+                        &[
+                            "mistral-",
+                            "mixtral-",
+                            "codestral-",
+                            "devstral-",
+                            "pixtral-",
+                            "voxtral-",
+                            "magistral-",
+                            "ministral-",
+                        ],
+                        "mistralai",
+                    ),
                     (&["deepseek-"], "deepseek"),
                     (&["grok-"], "x-ai"),
                     (&["command-"], "cohere"),
@@ -295,6 +307,7 @@ fn tranform_model_and_provider(
                     (&["qwen-", "qwq-"], "qwen"),
                     (&["phi-"], "microsoft"),
                     (&["nemotron-"], "nvidia"),
+                    (&["kimi-"], "moonshot"),
                 ];
 
                 match MODEL_PREFIX_TO_PROVIDER
