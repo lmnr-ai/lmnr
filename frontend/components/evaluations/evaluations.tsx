@@ -25,6 +25,14 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../ui/resi
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import EvaluationsGroupsBar from "./evaluations-groups-bar";
 
+function AverageScoreCell({ scores, columnSize }: { scores: Record<string, number> | null; columnSize: number }) {
+  if (!scores || Object.keys(scores).length === 0) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  const rounded = Object.fromEntries(Object.entries(scores).map(([k, v]) => [k, Number(v.toFixed(4))]));
+  return <JsonTooltip data={rounded} columnSize={columnSize} />;
+}
+
 const columns: ColumnDef<Evaluation>[] = [
   {
     accessorKey: "id",
@@ -43,6 +51,15 @@ const columns: ColumnDef<Evaluation>[] = [
     id: "dataPointsCount",
     accessorKey: "dataPointsCount",
     header: "Datapoints",
+  },
+  {
+    id: "averageScores",
+    accessorKey: "averageScores",
+    header: "Score",
+    accessorFn: (row) => row.averageScores,
+    cell: (row) => (
+      <AverageScoreCell scores={row.getValue() as Record<string, number> | null} columnSize={row.column.getSize()} />
+    ),
   },
   {
     id: "metadata",
@@ -64,6 +81,7 @@ export const defaultEvaluationsColumnOrder = [
   "id",
   "name",
   "dataPointsCount",
+  "averageScores",
   "metadata",
   "createdAt",
 ];

@@ -92,7 +92,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
         WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
       `,
-      parameters: { 
+      parameters: {
         projectId,
         evaluationIds: allEvaluationIds,
       },
@@ -153,36 +153,74 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     orderBy: [desc(evaluations.createdAt)],
   });
 
-  // Fetch counts for the returned evaluations to include in the response
-  let itemsWithCounts = result.items;
+  // Fetch counts and scores for the returned evaluations to include in the response
+  let itemsWithCountsAndScores = result.items;
   if (result.items.length > 0) {
-    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>({
-      projectId,
-      query: `
-        SELECT 
-          evaluation_id,
-          COUNT(*) as count
-        FROM evaluation_datapoints
-        WHERE evaluation_id IN {evaluationIds:Array(String)}
-        GROUP BY evaluation_id
-      `,
-      parameters: {
+    const evaluationIds = result.items.map((e: Evaluation) => e.id);
+
+    const [datapointCounts, averageScoreRows] = await Promise.all([
+      executeQuery<{ evaluation_id: string; count: number }>({
         projectId,
-        evaluationIds: result.items.map((e: Evaluation) => e.id),
-      },
-    });
+        query: `
+          SELECT
+            evaluation_id,
+            COUNT(*) as count
+          FROM evaluation_datapoints
+          WHERE evaluation_id IN {evaluationIds:Array(String)}
+          GROUP BY evaluation_id
+        `,
+        parameters: {
+          projectId,
+          evaluationIds,
+        },
+      }),
+      executeQuery<{ evaluation_id: string; score_name: string; avg_score: number }>({
+        projectId,
+        query: `
+          SELECT
+            evaluation_id,
+            score_name,
+            avg(score_value) as avg_score
+          FROM (
+            SELECT
+              evaluation_id,
+              kv.1 as score_name,
+              kv.2 as score_value
+            FROM evaluation_datapoints FINAL
+            ARRAY JOIN JSONExtractKeysAndValues(scores, 'Float64') as kv
+            WHERE evaluation_id IN {evaluationIds:Array(String)}
+              AND scores != '' AND scores != '{}'
+          )
+          GROUP BY evaluation_id, score_name
+        `,
+        parameters: {
+          projectId,
+          evaluationIds,
+        },
+      }),
+    ]);
 
     const countMap = new Map(datapointCounts.map((row) => [row.evaluation_id, row.count]));
 
-    itemsWithCounts = result.items.map((evaluation: Evaluation) => ({
+    // Build average scores map from pre-aggregated ClickHouse results
+    const averageScoresMap = new Map<string, Record<string, number>>();
+    for (const row of averageScoreRows) {
+      if (!averageScoresMap.has(row.evaluation_id)) {
+        averageScoresMap.set(row.evaluation_id, {});
+      }
+      averageScoresMap.get(row.evaluation_id)![row.score_name] = row.avg_score;
+    }
+
+    itemsWithCountsAndScores = result.items.map((evaluation: Evaluation) => ({
       ...evaluation,
       dataPointsCount: countMap.get(evaluation.id) || 0,
+      averageScores: averageScoresMap.get(evaluation.id) || null,
     }));
   }
 
   return {
     ...result,
-    items: itemsWithCounts,
+    items: itemsWithCountsAndScores,
   };
 }
 
