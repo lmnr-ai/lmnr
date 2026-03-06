@@ -59,7 +59,10 @@ pub(super) struct ThresholdMatch {
 /// Scans the costs JSON for keys matching `input_cost_per_token_above_{N}_tokens`
 /// and returns the highest threshold that is exceeded by prompt_tokens,
 /// preserving the exact suffix string from the key.
-pub(super) fn find_applicable_threshold(costs: &Value, prompt_tokens: i64) -> Option<ThresholdMatch> {
+pub(super) fn find_applicable_threshold(
+    costs: &Value,
+    prompt_tokens: i64,
+) -> Option<ThresholdMatch> {
     let obj = costs.as_object()?;
 
     let mut matches: Vec<ThresholdMatch> = obj
@@ -154,7 +157,7 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     if input.is_batch {
         // Batch pricing, fallback to half base price if batch-specific costs not specified
         let batch_input_cost = resolve_cost_key(costs, "input_cost_per_token_batches", tier)
-            .unwrap_or_else(|| input_cost_per_token.unwrap_or(0.0) / 2.0);
+            .unwrap_or(input_cost_per_token.unwrap_or(0.0) / 2.0);
         total_input_cost += base_input_tokens as f64 * batch_input_cost;
     } else {
         // Regular input tokens
@@ -232,7 +235,7 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     if input.is_batch {
         // Batch pricing
         let batch_output_cost = resolve_cost_key(costs, "output_cost_per_token_batches", tier)
-            .unwrap_or_else(|| output_cost_per_token.unwrap_or(0.0) / 2.0);
+            .unwrap_or(output_cost_per_token.unwrap_or(0.0) / 2.0);
         total_output_cost += base_output_tokens as f64 * batch_output_cost;
     } else {
         // Regular output tokens
