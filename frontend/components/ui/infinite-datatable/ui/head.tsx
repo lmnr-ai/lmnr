@@ -193,7 +193,7 @@ export const DraggingTableHeadOverlay = <TData,>({ header }: { header: Header<TD
         height: 32,
       }}
     >
-      <div className="h-full flex items-center justify-between px-4 text-xs text-secondary-foreground truncate">
+      <div className="h-full flex items-center justify-between px-4 text-xs text-muted-foreground truncate">
         <div className="truncate">{flexRender(header.column.columnDef.header, header.getContext())}</div>
       </div>
     </div>
