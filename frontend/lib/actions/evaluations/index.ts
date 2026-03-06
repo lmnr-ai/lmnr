@@ -92,7 +92,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
         WHERE evaluation_id IN {evaluationIds:Array(String)}
         GROUP BY evaluation_id
       `,
-      parameters: { 
+      parameters: {
         projectId,
         evaluationIds: allEvaluationIds,
       },
@@ -153,36 +153,86 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
     orderBy: [desc(evaluations.createdAt)],
   });
 
-  // Fetch counts for the returned evaluations to include in the response
-  let itemsWithCounts = result.items;
+  // Fetch counts and scores for the returned evaluations to include in the response
+  let itemsWithCountsAndScores = result.items;
   if (result.items.length > 0) {
-    const datapointCounts = await executeQuery<{ evaluation_id: string; count: number }>({
-      projectId,
-      query: `
-        SELECT 
-          evaluation_id,
-          COUNT(*) as count
-        FROM evaluation_datapoints
-        WHERE evaluation_id IN {evaluationIds:Array(String)}
-        GROUP BY evaluation_id
-      `,
-      parameters: {
+    const evaluationIds = result.items.map((e: Evaluation) => e.id);
+
+    const [datapointCounts, scoreRows] = await Promise.all([
+      executeQuery<{ evaluation_id: string; count: number }>({
         projectId,
-        evaluationIds: result.items.map((e: Evaluation) => e.id),
-      },
-    });
+        query: `
+          SELECT
+            evaluation_id,
+            COUNT(*) as count
+          FROM evaluation_datapoints
+          WHERE evaluation_id IN {evaluationIds:Array(String)}
+          GROUP BY evaluation_id
+        `,
+        parameters: {
+          projectId,
+          evaluationIds,
+        },
+      }),
+      executeQuery<{ evaluation_id: string; scores: string }>({
+        projectId,
+        query: `
+          SELECT
+            evaluation_id,
+            scores
+          FROM evaluation_datapoints FINAL
+          WHERE evaluation_id IN {evaluationIds:Array(String)}
+        `,
+        parameters: {
+          projectId,
+          evaluationIds,
+        },
+      }),
+    ]);
 
     const countMap = new Map(datapointCounts.map((row) => [row.evaluation_id, row.count]));
 
-    itemsWithCounts = result.items.map((evaluation: Evaluation) => ({
+    // Aggregate scores per evaluation: compute average of each score name across datapoints
+    const scoreAggregates = new Map<string, Record<string, number>>();
+    const scoreCounts = new Map<string, Record<string, number>>();
+
+    for (const row of scoreRows) {
+      const scores = (row.scores ? JSON.parse(row.scores) : {}) as Record<string, number | null>;
+      if (!scoreAggregates.has(row.evaluation_id)) {
+        scoreAggregates.set(row.evaluation_id, {});
+        scoreCounts.set(row.evaluation_id, {});
+      }
+      const agg = scoreAggregates.get(row.evaluation_id)!;
+      const cnt = scoreCounts.get(row.evaluation_id)!;
+      for (const [name, value] of Object.entries(scores)) {
+        if (value !== null && !isNaN(value)) {
+          agg[name] = (agg[name] || 0) + value;
+          cnt[name] = (cnt[name] || 0) + 1;
+        }
+      }
+    }
+
+    // Compute averages
+    const averageScoresMap = new Map<string, Record<string, number>>();
+    for (const [evalId, agg] of scoreAggregates.entries()) {
+      const cnt = scoreCounts.get(evalId)!;
+      const averages: Record<string, number> = {};
+      for (const [name, sum] of Object.entries(agg)) {
+        averages[name] = sum / cnt[name];
+      }
+      averageScoresMap.set(evalId, averages);
+    }
+
+    itemsWithCountsAndScores = result.items.map((evaluation: Evaluation) => ({
       ...evaluation,
       dataPointsCount: countMap.get(evaluation.id) || 0,
+      averageScores: averageScoresMap.get(evaluation.id) || null,
     }));
   }
 
   return {
     ...result,
-    items: itemsWithCounts,
+    items: itemsWithCountsAndScores,
   };
 }
 
