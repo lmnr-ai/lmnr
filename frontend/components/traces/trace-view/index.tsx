@@ -336,7 +336,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     return (
       <div className="flex flex-col flex-1">
         <div className="flex items-center gap-x-2 p-2 border-b h-10">
-          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-6 w-full" />
         </div>
         <div className="flex flex-col p-2 gap-2">
           <Skeleton className="h-8 w-full" />
