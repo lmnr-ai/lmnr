@@ -13,6 +13,8 @@ class QueryBuilderError(Exception):
 
 
 class JsonToSqlConverter:
+    ALLOWED_METRIC_FNS = {'count', 'sum', 'avg', 'min', 'max', 'quantile'}
+
     COMPARISON_OPS = {
         'eq': '=',
         'ne': '!=',
@@ -224,6 +226,11 @@ class JsonToSqlConverter:
         # Regenerate from the validated AST to close any parse/interpret gap
         return select_exprs[0].sql(dialect="clickhouse")
 
+    @staticmethod
+    def _escape_identifier(name: str) -> str:
+        """Backtick-quote an identifier (column name) to prevent SQL injection."""
+        return f"`{name.replace('`', '``')}`"
+
     def _metric_sql(self, metric: dict[str, Any]) -> str:
         fn = metric['fn']
         col = metric['column']
@@ -234,13 +241,19 @@ class JsonToSqlConverter:
             safe_expr = self._validate_raw_expression(col)
             return f"({safe_expr}) AS {safe_alias}"
 
+        fn_lower = fn.lower()
+        if fn_lower not in self.ALLOWED_METRIC_FNS:
+            raise QueryBuilderError(f"Unsupported metric function: {fn}")
+
         alias = metric.get('alias') or col
         safe_alias = self._escape_alias(alias)
+        safe_col = col if col == '*' else self._escape_identifier(col)
 
-        if fn.lower() == 'quantile' and metric.get('args'):
-            return f"quantile({metric['args'][0]})({col}) AS {safe_alias}"
+        if fn_lower == 'quantile' and metric.get('args'):
+            q = float(metric['args'][0])
+            return f"quantile({q})({safe_col}) AS {safe_alias}"
 
-        return f"{fn}({col}) AS {safe_alias}"
+        return f"{fn_lower}({safe_col}) AS {safe_alias}"
 
     def _filter_sql(self, filter_spec: dict[str, Any]) -> str:
         field = filter_spec['field']
