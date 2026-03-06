@@ -80,8 +80,9 @@ export const createMetricFromOption = (functionValue: string, column: string): M
     return { fn: "count", column: "*", args: [] };
   }
   const metric = option.createMetric(column);
-  // Don't override column for raw metrics — createMetric intentionally returns column: ""
-  if (functionValue === "raw") {
+  // Don't override column for count or raw — createMetric intentionally
+  // returns column: "*" for count and column: "" for raw.
+  if (functionValue === "count" || functionValue === "raw") {
     return metric as Metric;
   }
   return { ...metric, column } as Metric;
