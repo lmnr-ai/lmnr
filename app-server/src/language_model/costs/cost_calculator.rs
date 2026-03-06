@@ -208,13 +208,11 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     // Audio input tokens
     if input.audio_input_tokens > 0 {
         let audio_cost = if input.is_batch {
-            resolve_cost_key(costs, "input_cost_per_audio_token_batches", tier).unwrap_or_else(
-                || {
-                    resolve_cost_key(costs, "input_cost_per_audio_token", tier)
-                        .or(input_cost_per_token)
-                        .unwrap_or(0.0)
-                        / 2.0
-                },
+            resolve_cost_key(costs, "input_cost_per_audio_token_batches", tier).unwrap_or(
+                resolve_cost_key(costs, "input_cost_per_audio_token", tier)
+                    .or(input_cost_per_token)
+                    .unwrap_or(0.0)
+                    / 2.0,
             )
         } else {
             resolve_cost_key(costs, "input_cost_per_audio_token", tier)
@@ -247,13 +245,11 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     // Reasoning tokens
     if input.reasoning_tokens > 0 {
         let reasoning_cost = if input.is_batch {
-            resolve_cost_key(costs, "output_cost_per_reasoning_token_batches", tier).unwrap_or_else(
-                || {
-                    resolve_cost_key(costs, "output_cost_per_reasoning_token", tier)
-                        .or(output_cost_per_token)
-                        .unwrap_or(0.0)
-                        / 2.0
-                },
+            resolve_cost_key(costs, "output_cost_per_reasoning_token_batches", tier).unwrap_or(
+                resolve_cost_key(costs, "output_cost_per_reasoning_token", tier)
+                    .or(output_cost_per_token)
+                    .unwrap_or(0.0)
+                    / 2.0,
             )
         } else {
             resolve_cost_key(costs, "output_cost_per_reasoning_token", tier)
@@ -266,13 +262,11 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     // Audio output tokens
     if input.audio_output_tokens > 0 {
         let audio_cost = if input.is_batch {
-            resolve_cost_key(costs, "output_cost_per_audio_token_batches", tier).unwrap_or_else(
-                || {
-                    resolve_cost_key(costs, "output_cost_per_audio_token", tier)
-                        .or(output_cost_per_token)
-                        .unwrap_or(0.0)
-                        / 2.0
-                },
+            resolve_cost_key(costs, "output_cost_per_audio_token_batches", tier).unwrap_or(
+                resolve_cost_key(costs, "output_cost_per_audio_token", tier)
+                    .or(output_cost_per_token)
+                    .unwrap_or(0.0)
+                    / 2.0,
             )
         } else {
             resolve_cost_key(costs, "output_cost_per_audio_token", tier)
