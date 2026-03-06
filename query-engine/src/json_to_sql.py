@@ -227,9 +227,25 @@ class JsonToSqlConverter:
         return select_exprs[0].sql(dialect="clickhouse")
 
     @staticmethod
-    def _escape_identifier(name: str) -> str:
-        """Backtick-quote an identifier (column name) to prevent SQL injection."""
-        return f"`{name.replace('`', '``')}`"
+    def _safe_column_expr(col: str) -> str:
+        """Sanitize a metric column by parsing and regenerating via sqlglot.
+
+        Handles both simple identifiers (e.g. ``latency``) and expressions
+        (e.g. ``end_time - start_time``) safely.  The ``*`` literal is
+        passed through as-is for COUNT(*).
+        """
+        if col == '*':
+            return col
+        try:
+            parsed = sqlglot.parse_one(f"SELECT {col} FROM t", read="clickhouse")
+        except sqlglot.errors.ParseError as e:
+            raise QueryBuilderError(f"Invalid column expression: {e}")
+
+        select_exprs = parsed.args.get("expressions", [])
+        if len(select_exprs) != 1:
+            raise QueryBuilderError("Column must be a single expression")
+
+        return select_exprs[0].sql(dialect="clickhouse")
 
     def _metric_sql(self, metric: dict[str, Any]) -> str:
         fn = metric['fn']
@@ -247,7 +263,7 @@ class JsonToSqlConverter:
 
         alias = metric.get('alias') or col
         safe_alias = self._escape_alias(alias)
-        safe_col = col if col == '*' else self._escape_identifier(col)
+        safe_col = self._safe_column_expr(col)
 
         if fn_lower == 'quantile' and metric.get('args'):
             q = float(metric['args'][0])
