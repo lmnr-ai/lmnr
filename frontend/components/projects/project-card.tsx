@@ -29,7 +29,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
       <div className="h-44 rounded-md bg-secondary hover:bg-muted border transition-all duration-100">
         <div className="p-4 flex flex-col justify-between h-full">
           <div className="flex items-center justify-between">
-            <p className="text-lg font-medium">{project.name}</p>
+            <p className="text-sm font-medium">{project.name}</p>
             <ChevronRightIcon className="w-4 text-secondary-foreground" />
           </div>
           <div className="flex gap-8">

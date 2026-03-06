@@ -14,7 +14,7 @@ export default function Dashboard() {
   return (
     <>
       <Header path={"dashboard"}>
-        <div className="h-12 flex gap-2 w-full items-center">
+        <div className="h-10 flex gap-2 w-full items-center">
           <DateRangeFilter />
           <GroupByPeriodSelect />
           <Link passHref className="ml-auto" href={{ pathname: "dashboard/new" }}>

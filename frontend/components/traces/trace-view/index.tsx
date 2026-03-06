@@ -335,7 +335,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   if (isLoading) {
     return (
       <div className="flex flex-col flex-1">
-        <div className="flex items-center gap-x-2 p-2 border-b h-12">
+        <div className="flex items-center gap-x-2 p-2 border-b h-10">
           <Skeleton className="h-8 w-full" />
         </div>
         <div className="flex flex-col p-2 gap-2">
@@ -360,7 +360,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
           <div className="max-w-md mx-auto">
             <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-destructive mb-4">Error Loading Trace</h3>
+            <h3 className="text-sm font-semibold text-destructive mb-4">Error Loading Trace</h3>
             <p className="text-sm text-muted-foreground">{traceError}</p>
           </div>
         </div>

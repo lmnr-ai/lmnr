@@ -293,7 +293,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
           >
             <div className="w-full h-full flex flex-col">
               {targetId && (
-                <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
+                <div className="h-10 flex flex-none items-center border-b space-x-2 px-4">
                   <Select value={traceId} onValueChange={handleTraceChange}>
                     <SelectTrigger className="flex font-medium text-secondary-foreground">
                       <SelectValue placeholder="Select evaluation" />

@@ -1,14 +1,14 @@
 import { SpanType } from "./types";
 
 export const SPAN_TYPE_TO_COLOR = {
-  [SpanType.DEFAULT]: "rgba(96, 165, 250, 0.7)", // 70% opacity blue
-  [SpanType.LLM]: "hsl(var(--llm))", // 90% opacity purple
-  [SpanType.EXECUTOR]: "rgba(245, 158, 11, 0.7)", // 70% opacity yellow
-  [SpanType.EVALUATOR]: "rgba(6, 182, 212, 0.7)", // 70% opacity cyan
-  [SpanType.EVALUATION]: "rgba(16, 185, 129, 0.7)", // 70% opacity green
-  [SpanType.HUMAN_EVALUATOR]: "rgba(244, 114, 182, 0.7)",
-  [SpanType.TOOL]: "rgba(227, 160, 8, 0.9)",
-  [SpanType.EVENT]: "rgba(204, 51, 51, 0.7)",
+  [SpanType.DEFAULT]: "rgba(100, 160, 230, 0.7)",
+  [SpanType.LLM]: "hsl(var(--llm))",
+  [SpanType.EXECUTOR]: "rgba(200, 150, 50, 0.7)",
+  [SpanType.EVALUATOR]: "rgba(60, 170, 190, 0.7)",
+  [SpanType.EVALUATION]: "rgba(60, 170, 130, 0.7)",
+  [SpanType.HUMAN_EVALUATOR]: "rgba(200, 120, 165, 0.7)",
+  [SpanType.TOOL]: "rgba(200, 155, 50, 0.85)",
+  [SpanType.EVENT]: "rgba(190, 70, 70, 0.7)",
   [SpanType.CACHED]: "hsl(var(--llm))",
 };
 

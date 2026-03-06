@@ -69,7 +69,7 @@ const InvitationsTable = ({ workspaceId, invitations }: InvitationsTableProps) =
           {invitations
             .filter((invitation) => invitation.email !== null)
             .map((invitation) => (
-              <TableRow className="border-b last:border-b-0 h-12" key={invitation.id}>
+              <TableRow className="border-b last:border-b-0 h-10" key={invitation.id}>
                 <TableCell className="font-medium px-3">{invitation.email}</TableCell>
                 <TableCell className="text-muted-foreground px-3">{formatTimestamp(invitation.createdAt)}</TableCell>
                 <TableCell className="px-3">

@@ -156,7 +156,7 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
 
   if (!isOwner) {
     return (
-      <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">
+      <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-6">
         <p className="text-muted-foreground">Only workspace owners can access workspace settings.</p>
       </div>
     );

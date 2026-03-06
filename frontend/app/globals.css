@@ -72,7 +72,6 @@
   --color-llm: hsl(var(--llm));
   --color-llm-foreground: hsl(var(--llm-foreground));
 
-  /*TODO: unify landing and platform colors*/
   --color-landing-primary-200: rgb(218 135 95);
   --color-landing-primary-300: rgb(213 126 87);
   --color-landing-primary-400: rgb(208 117 78);
@@ -119,59 +118,75 @@
 
 @layer base {
   :root {
-    --radius: 0.5rem;
+    --radius: 0.375rem;
 
-    --background: 0 0% 4%;
-    --foreground: 0 8% 90%;
+    /*
+     * Surface hierarchy — inspired by Zed's layered approach + landing surface scale.
+     * From deepest to most elevated:
+     *   background (9%) → card/sidebar (11%) → muted (14.5%) → accent (17%) → popover (15%)
+     * This replaces the flat black (#0a0a0a) with warmer, subtly differentiated grays.
+     */
+    --background: 240 2% 9%;
+    --foreground: 220 10% 86%;
 
-    --card: 0 0% 7%;
-    --card-foreground: 240 8% 80%;
+    --card: 240 2% 11%;
+    --card-foreground: 220 8% 78%;
 
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 8% 90%;
+    --popover: 240 3% 13%;
+    --popover-foreground: 220 10% 86%;
 
+    /* Brand primary — orange (unchanged) */
     --primary: 18 59% 55%;
-    --primary-foreground: 16 0% 91%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 0 0% 7%;
-    --secondary-foreground: 0 0% 71%;
+    /* Secondary — recessed inputs and subtle containers */
+    --secondary: 240 2% 12%;
+    --secondary-foreground: 220 6% 64%;
 
-    --muted: 240 6% 14%;
-    --muted-foreground: 0 0% 52%;
+    /* Muted — subdued backgrounds and de-emphasized text */
+    --muted: 240 3% 15%;
+    --muted-foreground: 220 5% 48%;
 
-    --accent: 232 9% 17%;
-    --accent-foreground: 210 100% 100%;
+    /* Accent — hover states and highlighted rows */
+    --accent: 220 6% 17%;
+    --accent-foreground: 220 10% 92%;
 
-    --destructive: 0 60% 50%;
-    --destructive-foreground: 210 40% 98%;
-    --destructive-bright: 0 72% 60%;
+    /* Destructive — refined, slightly desaturated red */
+    --destructive: 0 55% 48%;
+    --destructive-foreground: 0 0% 98%;
+    --destructive-bright: 0 62% 58%;
 
-    --success: 142.1 76.2% 36.3%;
-    --success-foreground: 355.7 100% 97.3%;
-    --success-bright: 158 64% 52%;
+    /* Success — teal-shifted green, cleaner on dark backgrounds */
+    --success: 152 56% 38%;
+    --success-foreground: 0 0% 98%;
+    --success-bright: 160 48% 48%;
 
-    --border: 240 6% 18%;
-    --input: 240 6% 18%;
-    --ring: 212 96% 78%;
+    /* Borders & inputs */
+    --border: 220 4% 18%;
+    --input: 220 4% 18%;
+    --ring: 18 50% 55%;
 
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    /* Chart palette — desaturated for cohesion, still distinct */
+    --chart-1: 215 50% 52%;
+    --chart-2: 160 40% 44%;
+    --chart-3: 25 60% 52%;
+    --chart-4: 270 38% 56%;
+    --chart-5: 340 45% 52%;
 
-    --sidebar-background: 0 0% 7%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    /* Sidebar — matches background for seamless integration */
+    --sidebar-background: 240 2% 9%;
+    --sidebar-foreground: 220 8% 82%;
+    --sidebar-primary: 18 59% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 220 5% 15%;
+    --sidebar-accent-foreground: 220 8% 90%;
+    --sidebar-border: 220 4% 16%;
+    --sidebar-ring: 18 50% 55%;
 
-    --tool: 42 93% 46%;
-    --llm: 262 83% 58%;
-    --llm-foreground: 272 100% 74%;
+    /* Span-type semantic colors — desaturated, tasteful */
+    --tool: 40 72% 50%;
+    --llm: 265 52% 58%;
+    --llm-foreground: 270 60% 70%;
   }
 
   .dark {
@@ -187,7 +202,8 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
   button {
@@ -199,4 +215,3 @@
     color: white;
   }
 }
-

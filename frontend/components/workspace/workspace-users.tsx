@@ -250,7 +250,7 @@ export default function WorkspaceUsers({ invitations, workspace, isOwner, curren
             </TableHeader>
             <TableBody>
               {users.map((user) => (
-                <TableRow className="border-b last:border-b-0 h-12" key={user.id}>
+                <TableRow className="border-b last:border-b-0 h-10" key={user.id}>
                   <TableCell className="font-medium px-3">{user.email}</TableCell>
                   <TableCell className="px-3">{renderRoleCell(user)}</TableCell>
                   <TableCell className="text-muted-foreground px-3">{formatTimestamp(user.createdAt)}</TableCell>
