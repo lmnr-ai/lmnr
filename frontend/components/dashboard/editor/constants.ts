@@ -66,13 +66,12 @@ export const getMetricFunctionValue = (metric: Metric): string => {
   return metric.fn;
 };
 
-/** Compute the correct alias for a metric given its function value and column. */
+/** Compute the correct alias for a metric given its function value and column.
+ *  Delegates to the createMetric factory in METRIC_FUNCTION_OPTIONS to avoid
+ *  duplicating alias derivation logic. */
 export const getMetricAlias = (functionValue: string, column: string): string | undefined => {
-  if (functionValue === "count") return "count";
-  if (functionValue === "p90") return `p90_${column}`;
-  if (functionValue === "p95") return `p95_${column}`;
-  if (functionValue === "p99") return `p99_${column}`;
-  return undefined;
+  const option = METRIC_FUNCTION_OPTIONS.find((opt) => opt.value === functionValue);
+  return option?.createMetric(column).alias ?? undefined;
 };
 
 export const createMetricFromOption = (functionValue: string, column: string): Metric => {
