@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronsUpDown, LogOut } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import React from "react";
+import React, { useEffect } from "react";
 import useSWR from "swr";
 
 import { useSessionSync } from "@/components/auth/session-sync-provider";
@@ -28,6 +28,7 @@ import { useProjectContext } from "@/contexts/project-context.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
 import { deleteLastProjectIdCookie, setLastProjectIdCookie } from "@/lib/actions/project/cookies";
 import { deleteLastWorkspaceIdCookie, setLastWorkspaceIdCookie } from "@/lib/actions/workspace/cookies";
+import { useToast } from "@/lib/hooks/use-toast.ts";
 import { cn, swrFetcher } from "@/lib/utils.ts";
 import { type Workspace } from "@/lib/workspaces/types.ts";
 
@@ -36,8 +37,15 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
   const { projects, project } = useProjectContext();
   const user = useUserContext();
   const { broadcastLogout } = useSessionSync();
-  const { data: workspaces } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
+  const { data: workspaces, error } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
+  const { toast } = useToast();
   const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
+
+  useEffect(() => {
+    if (error) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    }
+  }, [error, toast]);
 
   const handleLogout = async () => {
     try {
