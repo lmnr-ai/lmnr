@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 
 import {
@@ -38,7 +38,7 @@ const RawSqlMetricRow = ({ index, table }: { index: number; table: string }) => 
   const { control } = useFormContext<QueryStructure>();
   const field = useWatch({ control, name: `metrics.${index}` });
 
-  const schema: SQLSchemaConfig = { tables: [table] };
+  const schema: SQLSchemaConfig = useMemo(() => ({ tables: [table] }), [table]);
 
   const handleFnChange = useMetricFnChange(index);
 
