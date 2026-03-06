@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
-import { customModelCosts, projects } from "@/lib/db/migrations/schema";
+import { customModelCosts } from "@/lib/db/migrations/schema";
 
 const GetCustomModelCostsSchema = z.object({
   projectId: z.string(),
@@ -108,17 +108,6 @@ export async function copyCustomModelCosts(
 ): Promise<CustomModelCost[]> {
   const { sourceProjectId, targetProjectId } = CopyCustomModelCostsSchema.parse(input);
 
-  // Verify target project exists
-  const targetProject = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.id, targetProjectId))
-    .limit(1);
-
-  if (targetProject.length === 0) {
-    throw new Error("Target project not found");
-  }
-
   // Get source costs
   const sourceCosts = await getCustomModelCosts({
     projectId: sourceProjectId,
@@ -128,21 +117,22 @@ export async function copyCustomModelCosts(
     throw new Error("No custom model costs found in source project");
   }
 
-  // Delete existing costs in target project
-  await db.delete(customModelCosts).where(eq(customModelCosts.projectId, targetProjectId));
+  // Delete + insert in a transaction so target data is not lost if insert fails
+  const newRows = await db.transaction(async (tx) => {
+    await tx.delete(customModelCosts).where(eq(customModelCosts.projectId, targetProjectId));
 
-  // Insert source costs into target project
-  const newRows = await db
-    .insert(customModelCosts)
-    .values(
-      sourceCosts.map((cost) => ({
-        projectId: targetProjectId,
-        provider: cost.provider,
-        model: cost.model,
-        costs: cost.costs,
-      }))
-    )
-    .returning();
+    return await tx
+      .insert(customModelCosts)
+      .values(
+        sourceCosts.map((cost) => ({
+          projectId: targetProjectId,
+          provider: cost.provider,
+          model: cost.model,
+          costs: cost.costs,
+        }))
+      )
+      .returning();
+  });
 
   return newRows as CustomModelCost[];
 }

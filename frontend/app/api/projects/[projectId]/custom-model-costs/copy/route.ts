@@ -1,8 +1,11 @@
 import { type NextRequest } from "next/server";
+import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { copyCustomModelCosts, getCustomModelCosts } from "@/lib/actions/custom-model-costs";
 import { invalidateCustomModelCostsCache } from "@/lib/actions/custom-model-costs/invalidate-cache";
+import { authOptions } from "@/lib/auth";
+import { isUserMemberOfProject } from "@/lib/authorization";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -13,6 +16,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
 
     if (!targetProjectId) {
       return new Response("targetProjectId is required", { status: 400 });
+    }
+
+    // Verify the caller has access to the target project
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+    const hasAccess = await isUserMemberOfProject(targetProjectId, session.user.id);
+    if (!hasAccess) {
+      return new Response("Forbidden: no access to target project", { status: 403 });
     }
 
     // Fetch existing target costs before copy so we can invalidate their cache entries
