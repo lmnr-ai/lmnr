@@ -20,7 +20,7 @@ const TraceSelector = ({
   );
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-muted/50 rounded-md p-3 gap-2">
+    <div className="flex-1 flex flex-col overflow-hidden border border-secondary-muted-foreground bg-muted/25 rounded-md p-3 gap-2 m-0.5">
       <span className="flex-none text-sm font-medium pl-1">Select a trace to compare</span>
       <TracePicker
         onTraceSelect={handleTraceSelect}

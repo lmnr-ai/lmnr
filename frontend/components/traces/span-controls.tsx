@@ -1,4 +1,4 @@
-import { ChevronDown, Copy, Database, Loader, PlayCircle, X } from "lucide-react";
+import { ChevronDown, Copy, Database, Loader, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useMemo } from "react";
@@ -30,10 +30,9 @@ import { extractToolsFromAttributes, ToolList } from "./tool-list";
 
 interface SpanControlsProps {
   span: Span;
-  onClose?: () => void;
 }
 
-export function SpanControls({ children, span, onClose }: PropsWithChildren<SpanControlsProps>) {
+export function SpanControls({ children, span }: PropsWithChildren<SpanControlsProps>) {
   const { projectId } = useParams();
 
   const errorEventAttributes = useMemo(
@@ -81,20 +80,17 @@ export function SpanControls({ children, span, onClose }: PropsWithChildren<Span
             </DropdownMenuContent>
           </DropdownMenu>
           {span.spanType === SpanType.LLM && (
-            <Link
-              href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
-              passHref
-            >
-              <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
-                <PlayCircle className="mr-1" size={14} />
-                Experiment in playground
-              </Button>
-            </Link>
-          )}
-          {onClose && (
-            <Button variant="ghost" size="icon" className="size-6 flex-shrink-0 ml-auto" onClick={onClose}>
-              <X className="size-3.5" />
-            </Button>
+            <>
+              <Link
+                href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
+                passHref
+              >
+                <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
+                  <PlayCircle className="mr-1" size={14} />
+                  Experiment in playground
+                </Button>
+              </Link>
+            </>
           )}
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">

@@ -4,9 +4,9 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-import MappingError from "../mapping-error";
 import DiffSpanPanel from "../panel";
 import { useTraceDiffStore } from "../store";
+import Timeline from "../timeline";
 import TraceSelector from "../trace-selector";
 import SingleColumnSpanList from "./single-column-span-list";
 import VirtualizedDiffRows from "./virtualized-rows";
@@ -34,9 +34,8 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     toggleRow,
     leftTrace,
     rightTrace,
-    isMappingLoading,
-    mappingError,
-    retryMapping,
+    viewMode,
+    selectedBlockSpanId,
   } = useTraceDiffStore((s) => ({
     phase: s.phase,
     leftListSpans: s.leftListSpans,
@@ -46,15 +45,14 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     toggleRow: s.toggleRow,
     leftTrace: s.leftTrace,
     rightTrace: s.rightTrace,
-    isMappingLoading: s.isMappingLoading,
-    mappingError: s.mappingError,
-    retryMapping: s.retryMapping,
+    viewMode: s.viewMode,
+    selectedBlockSpanId: s.selectedBlockSpanId,
   }));
 
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const hasPanel = selectedRowIndex !== null;
+  const hasPanel = viewMode === "list" ? selectedRowIndex !== null : selectedBlockSpanId !== null;
 
   const leftTraceRef = useMemo(
     () => (leftTrace ? { id: leftTrace.id, startTime: leftTrace.startTime, endTime: leftTrace.endTime } : undefined),
@@ -108,65 +106,111 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     [selectingSide, onSelectLeft, onSelectRight, setSelectingSide]
   );
 
-  const isReady = phase === "ready" && selectingSide === null;
-  const showBanner = selectingSide === null && (phase === "loading" || isMappingLoading);
-  const showLeftSelector = selectingSide === "left";
-  const showRightSelector = selectingSide === "right" || (phase === "selecting" && selectingSide === null);
+  const excludeTraceId = selectingSide === "left" ? rightTrace?.id : leftTrace?.id;
 
-  return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      {phase === "error" && (
-        <MappingError error={mappingError ?? "Failed to analyze trace diff"} onRetry={retryMapping} />
-      )}
-      {showBanner && (
-        <div className="flex-none flex items-center justify-center py-2 bg-secondary border-b border-b-background">
-          <span className="text-sm text-muted-foreground shimmer">Analyzing trace diff</span>
-        </div>
-      )}
+  // Actively selecting a trace on one side
+  if (selectingSide !== null) {
+    const showSelectorOnLeft = selectingSide === "left";
 
-      {isReady ? (
-        <div className="flex flex-1 overflow-hidden border-t">
-          <div className={cn("flex flex-col flex-1 overflow-hidden min-w-0", { "px-4": !hasPanel })}>
-            <VirtualizedDiffRows
-              scrollRef={scrollRef}
-              alignedRows={alignedRows}
-              selectedRowIndex={selectedRowIndex}
-              onRowClick={handleRowClick}
-              leftTrace={leftTraceRef}
-              rightTrace={rightTraceRef}
-            />
-          </div>
-          {hasPanel && (
-            <div className="flex-none h-full overflow-hidden relative border-l" style={{ width: panelWidth }}>
-              <div
-                className="absolute top-0 left-0 h-full cursor-col-resize z-50 group w-2"
-                onMouseDown={handlePanelResize}
-              >
-                <div className="absolute top-0 left-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
-              </div>
-              <DiffSpanPanel />
+    return (
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left column */}
+        <div className="flex-1 flex flex-col overflow-hidden gap-2">
+          {showSelectorOnLeft ? (
+            <div className="size-full p-2">
+              <TraceSelector onSelect={handleSelect} excludeTraceId={excludeTraceId} />
             </div>
+          ) : (
+            <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
           )}
         </div>
-      ) : (
-        <div className={cn("flex flex-1 overflow-hidden gap-2", phase === "selecting" && "border-t")}>
-          <div className="flex-1 flex flex-col overflow-hidden pl-4">
-            {showLeftSelector ? (
-              <TraceSelector onSelect={handleSelect} excludeTraceId={rightTrace?.id} />
-            ) : leftListSpans.length > 0 ? (
-              <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
-            ) : null}
+
+        {/* Right column */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {!showSelectorOnLeft ? (
+            <div className="size-full p-2">
+              <TraceSelector onSelect={handleSelect} excludeTraceId={excludeTraceId} />
+            </div>
+          ) : rightListSpans.length > 0 ? (
+            <SingleColumnSpanList spans={rightListSpans} traceRef={rightTraceRef} />
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  // Phase: selecting (initial state, no right trace yet)
+  if (phase === "selecting") {
+    return (
+      <div className="flex flex-1 overflow-hidden border-t gap-2">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
+        </div>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <TraceSelector onSelect={onSelectRight} excludeTraceId={leftTrace?.id} />
+        </div>
+      </div>
+    );
+  }
+
+  // Timeline mode works independently of mapping — show it regardless of phase
+  if (viewMode === "timeline") {
+    return (
+      <div className="flex flex-1 overflow-hidden border-t">
+        <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+          <Timeline />
+        </div>
+        {hasPanel && (
+          <div className="flex-none h-full overflow-hidden relative border-l" style={{ width: panelWidth }}>
+            <div
+              className="absolute top-0 left-0 h-full cursor-col-resize z-50 group w-2"
+              onMouseDown={handlePanelResize}
+            >
+              <div className="absolute top-0 left-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
+            </div>
+            <DiffSpanPanel />
           </div>
-          <div className="flex-1 flex flex-col overflow-hidden pr-4">
-            {showRightSelector ? (
-              <TraceSelector
-                onSelect={showRightSelector && selectingSide === null ? onSelectRight : handleSelect}
-                excludeTraceId={leftTrace?.id}
-              />
-            ) : rightListSpans.length > 0 ? (
-              <SingleColumnSpanList spans={rightListSpans} traceRef={rightTraceRef} />
-            ) : null}
+        )}
+      </div>
+    );
+  }
+
+  // Phase: error or loading — show span lists side by side (status bar is in parent)
+  if (phase === "error" || phase === "loading") {
+    return (
+      <div className="flex flex-1 overflow-hidden gap-2">
+        <div className="flex-1 flex flex-col overflow-hidden pl-4">
+          <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
+        </div>
+        <div className="flex-1 flex flex-col overflow-hidden pr-4">
+          <SingleColumnSpanList spans={rightListSpans} traceRef={rightTraceRef} />
+        </div>
+      </div>
+    );
+  }
+
+  // Phase: ready — list mode
+  return (
+    <div className="flex flex-1 overflow-hidden border-t">
+      <div className={cn("flex flex-col flex-1 overflow-hidden min-w-0", { "px-4": !hasPanel })}>
+        <VirtualizedDiffRows
+          scrollRef={scrollRef}
+          alignedRows={alignedRows}
+          selectedRowIndex={selectedRowIndex}
+          onRowClick={handleRowClick}
+          leftTrace={leftTraceRef}
+          rightTrace={rightTraceRef}
+        />
+      </div>
+      {hasPanel && (
+        <div className="flex-none h-full overflow-hidden relative border-l" style={{ width: panelWidth }}>
+          <div
+            className="absolute top-0 left-0 h-full cursor-col-resize z-50 group w-2"
+            onMouseDown={handlePanelResize}
+          >
+            <div className="absolute top-0 left-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
           </div>
+          <DiffSpanPanel />
         </div>
       )}
     </div>

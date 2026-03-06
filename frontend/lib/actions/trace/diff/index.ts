@@ -1,69 +1,84 @@
+"use server";
+
 import { google } from "@ai-sdk/google";
 import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { generateObject } from "ai";
 import { z } from "zod";
 
-import { getTraceStructureAsString } from "@/lib/actions/trace/agent/spans";
+import { type SpanMapping } from "@/lib/traces/types";
 
 import { SPAN_MATCHING_SYSTEM_PROMPT } from "./prompts";
-import { type SpanMapping } from "./types";
 
 const SpanMatchSchema = z.object({
   mappings: z.array(
     z.object({
-      spanA: z.number().describe("Sequential ID (1-indexed) of the span in Trace A"),
-      spanB: z.number().describe("Sequential ID (1-indexed) of the span in Trace B"),
-      description: z.string().optional().describe("Brief explanation of why these spans match"),
+      spanA: z.number(),
+      spanB: z.number(),
+      description: z.string().optional(),
     })
   ),
 });
 
+export interface SpanMappingResult {
+  mapping: SpanMapping;
+}
+
+/**
+ * Pure LLM call: match spans between two traces.
+ * Takes pre-built trace context strings and spanInfos for ID resolution.
+ */
 export const generateSpanMapping = async (
-  projectId: string,
-  leftTraceId: string,
-  rightTraceId: string
-): Promise<SpanMapping> => {
-  const [leftStructure, rightStructure] = await Promise.all([
-    getTraceStructureAsString(projectId, leftTraceId, { excludeDefault: true }),
-    getTraceStructureAsString(projectId, rightTraceId, { excludeDefault: true }),
-  ]);
-
-  const leftSpanInfos = leftStructure.spanInfos;
-  const rightSpanInfos = rightStructure.spanInfos;
-
-  const { object } = await observe(
-    { name: "generateSpanMapping" },
-    async () =>
-      await generateObject({
-        model: google("gemini-3-flash-preview"),
-        schema: SpanMatchSchema,
-        system: SPAN_MATCHING_SYSTEM_PROMPT,
-        prompt: `Here is Trace A (left):
+  leftTraceString: string,
+  rightTraceString: string,
+  leftSpanIds: string[],
+  rightSpanIds: string[]
+): Promise<SpanMappingResult> => {
+  const t0 = performance.now();
+  console.log(`[DIFF-TIMING] generateSpanMapping START t=${new Date().toISOString()}`);
+  let mappings: { spanA: number; spanB: number }[] = [];
+  try {
+    const { object } = await observe(
+      { name: "generateSpanMapping" },
+      async () =>
+        await generateObject({
+          model: google("gemini-3-flash-preview"),
+          schema: SpanMatchSchema,
+          system: SPAN_MATCHING_SYSTEM_PROMPT,
+          prompt: `Here is Trace A (left):
 <trace_a>
-${leftStructure.traceString}
+${leftTraceString}
 </trace_a>
 
 Here is Trace B (right):
 <trace_b>
-${rightStructure.traceString}
+${rightTraceString}
 </trace_b>`,
-        experimental_telemetry: {
-          isEnabled: true,
-          tracer: getTracer(),
-        },
-      })
-  );
+          experimental_telemetry: {
+            isEnabled: true,
+            tracer: getTracer(),
+          },
+        })
+    );
+
+    mappings = object.mappings;
+  } catch (e: unknown) {
+    console.error("generateSpanMapping failed:", e);
+    throw e;
+  }
 
   // Resolve 1-indexed sequential IDs to span UUIDs
   const mapping: SpanMapping = [];
-  for (const { spanA, spanB } of object.mappings) {
+  for (const { spanA, spanB } of mappings) {
     const leftIdx = spanA - 1;
     const rightIdx = spanB - 1;
 
-    if (leftIdx >= 0 && leftIdx < leftSpanInfos.length && rightIdx >= 0 && rightIdx < rightSpanInfos.length) {
-      mapping.push([leftSpanInfos[leftIdx].spanId, rightSpanInfos[rightIdx].spanId]);
+    if (leftIdx >= 0 && leftIdx < leftSpanIds.length && rightIdx >= 0 && rightIdx < rightSpanIds.length) {
+      mapping.push([leftSpanIds[leftIdx], rightSpanIds[rightIdx]]);
     }
   }
 
-  return mapping;
+  console.log(
+    `[DIFF-TIMING] generateSpanMapping END   duration=${(performance.now() - t0).toFixed(0)}ms mappings=${mapping.length}`
+  );
+  return { mapping };
 };

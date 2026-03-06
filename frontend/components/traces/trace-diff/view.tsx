@@ -8,11 +8,13 @@ import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/tra
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import Header from "@/components/ui/header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type SpanMapping } from "@/lib/actions/trace/diff/types";
 
 import DiffColumns, { type SelectingSide } from "./diff-list";
+import MappingError from "./mapping-error";
 import MetricsBar from "./metrics-bar";
 import { useTraceDiffStore } from "./store";
+import { getAllCondensedBlockInputs } from "./timeline/timeline-utils";
+import ViewModeToggle from "./timeline/view-mode-toggle";
 import TraceIdPill from "./trace-id-pill";
 
 interface TraceDiffViewInnerProps {
@@ -25,35 +27,29 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const {
-    phase,
-    isLeftLoading,
-    retryCounter,
-    setLeftData,
-    setIsLeftLoading,
-    setRightData,
-    setIsRightLoading,
-    setIsMappingLoading,
-    setMapping,
-    setMappingError,
-    getCachedMapping,
-    setCachedMapping,
-  } = useTraceDiffStore((s) => ({
-    phase: s.phase,
-    isLeftLoading: s.isLeftLoading,
-    retryCounter: s.retryCounter,
-    setLeftData: s.setLeftData,
-    setIsLeftLoading: s.setIsLeftLoading,
-    setRightData: s.setRightData,
-    setIsRightLoading: s.setIsRightLoading,
-    setIsMappingLoading: s.setIsMappingLoading,
-    setMapping: s.setMapping,
-    setMappingError: s.setMappingError,
-    getCachedMapping: s.getCachedMapping,
-    setCachedMapping: s.setCachedMapping,
-  }));
+  const phase = useTraceDiffStore((s) => s.phase);
+  const isLeftLoading = useTraceDiffStore((s) => s.isLeftLoading);
+  const isMappingLoading = useTraceDiffStore((s) => s.isMappingLoading);
+  const isSummarizationLoading = useTraceDiffStore((s) => s.isSummarizationLoading);
+  const mappingError = useTraceDiffStore((s) => s.mappingError);
+  const leftTree = useTraceDiffStore((s) => s.leftTree);
+  const rightTree = useTraceDiffStore((s) => s.rightTree);
+  const maxTreeDepth = useTraceDiffStore((s) => s.maxTreeDepth);
+  const retryCounter = useTraceDiffStore((s) => s.retryCounter);
 
-  // Fetch a trace + its spans
+  const setLeftData = useTraceDiffStore((s) => s.setLeftData);
+  const setIsLeftLoading = useTraceDiffStore((s) => s.setIsLeftLoading);
+  const setRightData = useTraceDiffStore((s) => s.setRightData);
+  const setIsRightLoading = useTraceDiffStore((s) => s.setIsRightLoading);
+  const setMapping = useTraceDiffStore((s) => s.setMapping);
+  const setMappingError = useTraceDiffStore((s) => s.setMappingError);
+  const setIsMappingLoading = useTraceDiffStore((s) => s.setIsMappingLoading);
+  const addBlockSummaries = useTraceDiffStore((s) => s.addBlockSummaries);
+  const setIsSummarizationLoading = useTraceDiffStore((s) => s.setIsSummarizationLoading);
+  const retryMapping = useTraceDiffStore((s) => s.retryMapping);
+
+  // ── Fetch trace data (trace metadata + spans) ────────────────────────
+
   const fetchTraceData = useCallback(
     async (traceId: string) => {
       const traceRes = await fetch(`/api/projects/${projectId}/traces/${traceId}`);
@@ -77,7 +73,8 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     [projectId]
   );
 
-  // Fetch left trace on mount
+  // ── Effect 1: Fetch left trace ───────────────────────────────────────
+
   useEffect(() => {
     let stale = false;
     setIsLeftLoading(true);
@@ -96,10 +93,10 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     };
   }, [leftTraceId, fetchTraceData, setLeftData, setIsLeftLoading]);
 
-  // Fetch right trace when specified
+  // ── Effect 2: Fetch right trace ──────────────────────────────────────
+
   useEffect(() => {
     if (!rightTraceId) return;
-
     let stale = false;
     setIsRightLoading(true);
     fetchTraceData(rightTraceId)
@@ -117,64 +114,119 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     };
   }, [rightTraceId, fetchTraceData, setRightData, setIsRightLoading]);
 
-  // Trigger mapping when both sides have data and phase is 'loading'
+  // ── Effect 3: Run analysis when both trees are ready ─────────────────
+  //
+  // Triggers when leftTree or rightTree change (set by setLeftData/setRightData),
+  // or on retry. Fires parallel HTTP requests for context, mapping, and summaries.
+
   useEffect(() => {
-    if (phase !== "loading") return;
-    if (isLeftLoading) return;
-    if (!rightTraceId) return;
+    if (!leftTree || !rightTree || !rightTraceId || maxTreeDepth === 0) return;
 
-    // Use cached mapping unless retrying
-    if (retryCounter === 0) {
-      const cached = getCachedMapping(leftTraceId, rightTraceId);
-      if (cached) {
-        setMapping(cached);
-        return;
-      }
-    }
-
-    let stale = false;
+    const abort = new AbortController();
     setIsMappingLoading(true);
-    fetch(`/api/projects/${projectId}/traces/diff`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ leftTraceId, rightTraceId }),
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error ?? "Failed to analyze trace diff");
-        }
-        return res.json() as Promise<SpanMapping>;
-      })
-      .then((mapping) => {
-        if (!stale) {
-          setCachedMapping(leftTraceId, rightTraceId, mapping);
-          setMapping(mapping);
-        }
+    setIsSummarizationLoading(true);
+
+    const leftBlocks = getAllCondensedBlockInputs(leftTree, maxTreeDepth);
+    const rightBlocks = getAllCondensedBlockInputs(rightTree, maxTreeDepth);
+
+    const diffBase = `/api/projects/${projectId}/traces/diff`;
+    const post = (url: string, body: unknown) =>
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: abort.signal,
+      });
+
+    // Step 1: Build context for both traces in parallel
+    Promise.all([
+      post(`${diffBase}/build-context`, { traceId: leftTraceId, excludeDefault: true }).then((r) => {
+        if (!r.ok) throw new Error("Failed to build left trace context");
+        return r.json();
+      }),
+      post(`${diffBase}/build-context`, { traceId: rightTraceId, excludeDefault: true }).then((r) => {
+        if (!r.ok) throw new Error("Failed to build right trace context");
+        return r.json();
+      }),
+    ])
+      .then(([leftCtx, rightCtx]) => {
+        if (abort.signal.aborted) return;
+
+        const leftSpanIds = leftCtx.spanInfos.map((s: { spanId: string }) => s.spanId);
+        const rightSpanIds = rightCtx.spanInfos.map((s: { spanId: string }) => s.spanId);
+
+        // Step 2: Fire mapping + summarization in parallel
+        post(`${diffBase}/mapping`, {
+          leftTraceString: leftCtx.traceString,
+          rightTraceString: rightCtx.traceString,
+          leftSpanIds,
+          rightSpanIds,
+        })
+          .then(async (r) => {
+            if (!r.ok) throw new Error((await r.json()).error ?? "Mapping failed");
+            return r.json();
+          })
+          .then(({ mapping }: { mapping: [string, string][] }) => {
+            if (!abort.signal.aborted) setMapping(mapping);
+          })
+          .catch((e: unknown) => {
+            if (abort.signal.aborted) return;
+            console.error("Mapping failed:", e);
+            setMappingError(e instanceof Error ? e.message : "Failed to analyze trace diff");
+          });
+
+        const mergeSummaries = (results: { blockId: string; summary: string; icon: string }[]) => {
+          if (abort.signal.aborted) return;
+          const map: Record<string, { summary: string; icon: string }> = {};
+          for (const r of results) map[r.blockId] = { summary: r.summary, icon: r.icon };
+          addBlockSummaries(map);
+        };
+
+        let pending = 2;
+        const onDone = () => {
+          if (--pending === 0 && !abort.signal.aborted) setIsSummarizationLoading(false);
+        };
+
+        const summarize = (traceString: string, blocks: unknown[]) =>
+          blocks.length > 0
+            ? post(`${diffBase}/summarize`, { traceString, blocks })
+                .then(async (r) => {
+                  if (!r.ok) throw new Error((await r.json()).error ?? "Summarize failed");
+                  return r.json();
+                })
+                .then(mergeSummaries)
+                .catch((e: unknown) => console.error("Summarization failed:", e))
+                .finally(onDone)
+            : Promise.resolve(onDone());
+
+        summarize(leftCtx.traceString, leftBlocks);
+        summarize(rightCtx.traceString, rightBlocks);
       })
       .catch((e) => {
-        if (!stale) {
-          console.error("Failed to compute mapping:", e);
-          setMappingError(e instanceof Error ? e.message : "Failed to analyze trace diff");
-        }
+        if (abort.signal.aborted) return;
+        console.error("Failed to fetch trace context:", e);
+        setMappingError(e instanceof Error ? e.message : "Failed to build trace context");
       });
 
     return () => {
-      stale = true;
+      abort.abort();
     };
   }, [
-    phase,
-    isLeftLoading,
+    leftTree,
+    rightTree,
+    maxTreeDepth,
     projectId,
     leftTraceId,
     rightTraceId,
     retryCounter,
     setIsMappingLoading,
+    setIsSummarizationLoading,
     setMapping,
     setMappingError,
-    getCachedMapping,
-    setCachedMapping,
+    addBlockSummaries,
   ]);
+
+  // ── Trace selection handlers ─────────────────────────────────────────
 
   const searchParamsRef = useRef(searchParams);
   useEffect(() => {
@@ -250,9 +302,18 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
         </>
       ) : (
         <>
-          <div className="px-4 pb-2">
+          <div className="px-4 pb-2 flex items-center gap-2">
+            <ViewModeToggle />
             <MetricsBar />
           </div>
+          {(phase === "loading" || isMappingLoading || isSummarizationLoading) && (
+            <div className="flex-none flex items-center justify-center py-2 bg-secondary border-b border-b-background">
+              <span className="text-sm text-muted-foreground shimmer">Analyzing traces</span>
+            </div>
+          )}
+          {phase === "error" && (
+            <MappingError error={mappingError ?? "Failed to analyze traces"} onRetry={retryMapping} />
+          )}
           <DiffColumns
             onSelectLeft={handleSelectLeft}
             onSelectRight={handleSelectRight}
