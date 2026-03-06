@@ -5,8 +5,6 @@
       {
         "id": 1,
         "name": "unlimited",
-        "members_per_workspace": -1,
-        "storage_mib": -1,
         "log_retention_days": 365
       }
     ]
