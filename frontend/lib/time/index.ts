@@ -2,6 +2,35 @@ import { differenceInHours, parseISO } from "date-fns";
 import { z } from "zod/v4";
 
 import { GroupByInterval } from "@/lib/clickhouse/modifiers";
+import { isoToClickHouseParam, parseTimestampToDate } from "@/lib/time/timestamp";
+
+export type TimeRange = { start: Date; end: Date };
+
+/** Parse pastHours/startDate/endDate into a resolved { start, end } range. pastHours takes precedence. */
+export const SafeParseTimeRangeSchema = z
+  .object({
+    pastHours: z.string().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+  })
+  .transform(({ pastHours, startDate, endDate }): TimeRange | undefined => {
+    if (pastHours) {
+      const parsed = parseInt(pastHours);
+      if (!isNaN(parsed) && parsed > 0) {
+        const end = new Date();
+        const start = new Date(end.getTime() - parsed * 60 * 60 * 1000);
+        return { start, end };
+      }
+    }
+    if (startDate && endDate) {
+      const start = parseTimestampToDate(startDate);
+      const end = parseTimestampToDate(endDate);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        return { start, end };
+      }
+    }
+    return undefined;
+  });
 
 const RelativeTimeInputSchema = z.object({
   pastHours: z.union([z.string(), z.number()]).refine(
@@ -22,8 +51,8 @@ const AbsoluteTimeInputSchema = z
   })
   .refine(
     (data) => {
-      const start = new Date(data.startTime);
-      const end = new Date(data.endTime);
+      const start = parseTimestampToDate(data.startTime);
+      const end = parseTimestampToDate(data.endTime);
 
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
         return false;
@@ -69,8 +98,8 @@ export const convertToTimeParameters = (input: TimeInput, groupByInterval?: Grou
     const interval = groupByInterval || inferGroupByInterval(start, end);
 
     return TimeParametersSchema.parse({
-      start_time: start.toISOString().replace("T", " ").replace("Z", ""),
-      end_time: end.toISOString().replace("T", " ").replace("Z", ""),
+      start_time: isoToClickHouseParam(start.toISOString()),
+      end_time: isoToClickHouseParam(end.toISOString()),
       interval_unit: interval.toUpperCase(),
     });
   }
@@ -84,8 +113,8 @@ export const convertToTimeParameters = (input: TimeInput, groupByInterval?: Grou
   const interval = groupByInterval || inferGroupByInterval(start, now);
 
   return TimeParametersSchema.parse({
-    start_time: start.toISOString().replace("T", " ").replace("Z", ""),
-    end_time: now.toISOString().replace("T", " ").replace("Z", ""),
+    start_time: isoToClickHouseParam(start.toISOString()),
+    end_time: isoToClickHouseParam(now.toISOString()),
     interval_unit: interval.toUpperCase(),
   });
 };

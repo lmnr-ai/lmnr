@@ -1,3 +1,5 @@
+import { parseTimestampToDate } from "@/lib/time/timestamp";
+
 import { SpanType } from "./types";
 
 export const SPAN_TYPE_TO_COLOR = {
@@ -16,6 +18,6 @@ export const SPAN_TYPE_TO_COLOR = {
 const MILLISECONDS_DATE_THRESHOLD = 1000 * 60 * 60; // 1 hour
 
 export const isStringDateOld = (date: string) => {
-  const d = new Date(date);
+  const d = parseTimestampToDate(date);
   return d < new Date(Date.now() - MILLISECONDS_DATE_THRESHOLD);
 };

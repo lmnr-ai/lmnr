@@ -7,6 +7,7 @@ import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { type Datapoint } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 import { isValidJsonObject, swrFetcher } from "@/lib/utils";
 
 import { Button } from "../ui/button";
@@ -71,7 +72,7 @@ export default function DatasetPanel({
   const isViewingOldVersion = useMemo(() => {
     if (!versions || versions.length === 0 || !selectedVersionCreatedAt) return false;
     const sortedVersions = [...versions].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      (a, b) => parseTimestampToMs(b.createdAt) - parseTimestampToMs(a.createdAt)
     );
     const latestVersion = sortedVersions[0];
     return selectedVersionCreatedAt !== latestVersion.createdAt;

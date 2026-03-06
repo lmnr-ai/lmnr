@@ -1,8 +1,8 @@
-import { type NextRequest } from 'next/server';
-import Papa from 'papaparse';
+import { type NextRequest } from "next/server";
+import Papa from "papaparse";
 
-import { createDatapoints } from '@/lib/clickhouse/datapoints';
-import { generateSequentialUuidsV7 } from '@/lib/utils';
+import { createDatapoints } from "@/lib/actions/datapoints/clickhouse";
+import { generateSequentialUuidsV7 } from "@/lib/utils";
 
 // 25MB file size limit
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -17,10 +17,10 @@ export async function POST(
 
   try {
     const formData = await req.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get("file") as File;
 
     if (!file) {
-      return Response.json({ error: 'No file provided' }, { status: 400 });
+      return Response.json({ error: "No file provided" }, { status: 400 });
     }
 
     // Check file size limit
@@ -32,13 +32,10 @@ export async function POST(
     }
 
     const filename = file.name;
-    const extension = filename.split('.').pop()?.toLowerCase();
+    const extension = filename.split(".").pop()?.toLowerCase();
 
-    if (!['json', 'jsonl', 'csv'].includes(extension || '')) {
-      return Response.json(
-        { error: 'Unsupported file format. Supported formats: json, jsonl, csv' },
-        { status: 400 }
-      );
+    if (!["json", "jsonl", "csv"].includes(extension || "")) {
+      return Response.json({ error: "Unsupported file format. Supported formats: json, jsonl, csv" }, { status: 400 });
     }
 
     // Read file content
@@ -48,31 +45,26 @@ export async function POST(
     let records: any[] = [];
 
     try {
-      if (extension === 'json') {
+      if (extension === "json") {
         const parsed = JSON.parse(fileContent);
         records = Array.isArray(parsed) ? parsed : [parsed];
-      } else if (extension === 'jsonl') {
+      } else if (extension === "jsonl") {
         records = fileContent
-          .split('\n')
-          .filter(line => line.trim())
-          .map(line => JSON.parse(line));
-      } else if (extension === 'csv') {
+          .split("\n")
+          .filter((line) => line.trim())
+          .map((line) => JSON.parse(line));
+      } else if (extension === "csv") {
         // Use PapaParse for robust CSV parsing
         const parseResult = Papa.parse(fileContent, {
           header: true,
           skipEmptyLines: true,
           transformHeader: (header: string) => header.trim(),
-          transform: (value: string) => value.trim()
+          transform: (value: string) => value.trim(),
         });
 
         if (parseResult.errors && parseResult.errors.length > 0) {
-          const errorMessages = parseResult.errors.map((error: any) =>
-            `Row ${error.row}: ${error.message}`
-          ).join('; ');
-          return Response.json(
-            { error: `CSV parsing errors: ${errorMessages}` },
-            { status: 400 }
-          );
+          const errorMessages = parseResult.errors.map((error: any) => `Row ${error.row}: ${error.message}`).join("; ");
+          return Response.json({ error: `CSV parsing errors: ${errorMessages}` }, { status: 400 });
         }
 
         records = parseResult.data;
@@ -81,7 +73,7 @@ export async function POST(
         records = records.map((record: any) => {
           const parsedRecord: any = {};
           for (const [key, value] of Object.entries(record)) {
-            if (typeof value === 'string' && value.trim()) {
+            if (typeof value === "string" && value.trim()) {
               try {
                 parsedRecord[key] = JSON.parse(value);
               } catch {
@@ -97,13 +89,15 @@ export async function POST(
       }
     } catch (parseError) {
       return Response.json(
-        { error: `Failed to parse ${extension} file: ${parseError instanceof Error ? parseError.message : 'Unknown error'}` },
+        {
+          error: `Failed to parse ${extension} file: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
+        },
         { status: 400 }
       );
     }
 
     if (records.length === 0) {
-      return Response.json({ error: 'No valid records found in file' }, { status: 400 });
+      return Response.json({ error: "No valid records found in file" }, { status: 400 });
     }
 
     const ids = generateSequentialUuidsV7(records.length);
@@ -116,7 +110,7 @@ export async function POST(
 
       return {
         id: ids[index],
-        data: data !== undefined ? data : (Object.keys(rest).length > 0 ? rest : record),
+        data: data !== undefined ? data : Object.keys(rest).length > 0 ? rest : record,
         target: target || {},
         metadata: metadata || {},
         createdAt: new Date().toISOString(),
@@ -131,12 +125,8 @@ export async function POST(
       message: `Successfully uploaded ${records.length} datapoints`,
       count: records.length,
     });
-
   } catch (error) {
-    console.error('Error uploading file:', error);
-    return Response.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    );
+    console.error("Error uploading file:", error);
+    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
 }

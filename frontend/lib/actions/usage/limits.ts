@@ -7,6 +7,7 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { isoToClickHouseParam } from "@/lib/time/timestamp";
 
 interface ProjectBillingInfo {
   id: string;
@@ -113,7 +114,7 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
 
     const resetTimeDate = new Date(resetTime);
     const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
-    const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
+    const latestResetTimeStr = isoToClickHouseParam(latestResetTime.toISOString());
 
     const signalRunsQuery = `SELECT COUNT(*) as total_signal_runs
     FROM signal_runs

@@ -4,6 +4,7 @@ import { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 import { type RealtimeSpan, SpanType } from "@/lib/traces/types";
 
 export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
@@ -32,8 +33,8 @@ export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceVie
         continue;
       }
 
-      const startTime = new Date(span.startTime);
-      const endTime = new Date(span.endTime);
+      const startTimeMs = parseTimestampToMs(span.startTime);
+      const endTimeMs = parseTimestampToMs(span.endTime);
       for (let i = 0; i < parentSpanIds.length; i++) {
         const spanId = parentSpanIds[i];
         const spanName = parentSpanNames[i];
@@ -44,13 +45,12 @@ export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceVie
         }
 
         if (pendingSpans.has(spanId)) {
-          // Update the time range of the pending span to cover all its children
-          const existingStartTime = new Date(pendingSpans.get(spanId)!.startTime);
-          const existingEndTime = new Date(pendingSpans.get(spanId)!.endTime);
+          const existingStartMs = parseTimestampToMs(pendingSpans.get(spanId)!.startTime);
+          const existingEndMs = parseTimestampToMs(pendingSpans.get(spanId)!.endTime);
           pendingSpans.set(spanId, {
             ...pendingSpans.get(spanId)!,
-            startTime: (startTime < existingStartTime ? startTime : existingStartTime).toISOString(),
-            endTime: (endTime > existingEndTime ? endTime : existingEndTime).toISOString(),
+            startTime: startTimeMs < existingStartMs ? span.startTime : pendingSpans.get(spanId)!.startTime,
+            endTime: endTimeMs > existingEndMs ? span.endTime : pendingSpans.get(spanId)!.endTime,
           });
           continue;
         }
@@ -60,8 +60,8 @@ export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceVie
           spanId,
           name: spanName,
           parentSpanId,
-          startTime: new Date(span.startTime).toISOString(),
-          endTime: new Date(span.endTime).toISOString(),
+          startTime: span.startTime,
+          endTime: span.endTime,
           attributes: {},
           events: [],
           inputCost: 0,
@@ -181,11 +181,11 @@ export const onRealtimeUpdateSpans =
       const newTrace = { ...trace };
 
       newTrace.startTime =
-        new Date(newTrace.startTime).getTime() < new Date(newSpan.startTime).getTime()
+        parseTimestampToMs(newTrace.startTime) < parseTimestampToMs(newSpan.startTime)
           ? newTrace.startTime
           : newSpan.startTime;
       newTrace.endTime =
-        new Date(newTrace.endTime).getTime() > new Date(newSpan.endTime).getTime() ? newTrace.endTime : newSpan.endTime;
+        parseTimestampToMs(newTrace.endTime) > parseTimestampToMs(newSpan.endTime) ? newTrace.endTime : newSpan.endTime;
       newTrace.totalTokens += totalTokens;
       newTrace.inputTokens += inputTokens;
       newTrace.outputTokens += outputTokens;
@@ -232,7 +232,7 @@ export const onRealtimeUpdateSpans =
         });
       }
 
-      newSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      newSpans.sort((a, b) => parseTimestampToMs(a.startTime) - parseTimestampToMs(b.startTime));
 
       return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
     });

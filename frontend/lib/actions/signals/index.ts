@@ -6,9 +6,9 @@ import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/t
 import { executeQuery } from "@/lib/actions/sql";
 import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { signals, signalTriggers } from "@/lib/db/migrations/schema";
+import { SafeParseTimeRangeSchema } from "@/lib/time";
 
 export type SignalRow = {
   id: string;
@@ -77,19 +77,10 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
 
   const whereConditions = [eq(signals.projectId, projectId)];
 
-  if (pastHours || (startDate && endDate)) {
-    const timeRange = getTimeRange(pastHours, startDate, endDate);
-
-    if ("start" in timeRange && timeRange.start) {
-      whereConditions.push(gte(signals.createdAt, timeRange.start.toISOString()));
-    }
-    if ("end" in timeRange && timeRange.end) {
-      whereConditions.push(lte(signals.createdAt, timeRange.end.toISOString()));
-    }
-    if ("pastHours" in timeRange && typeof timeRange.pastHours === "number") {
-      const start = new Date(Date.now() - timeRange.pastHours * 60 * 60 * 1000);
-      whereConditions.push(gte(signals.createdAt, start.toISOString()));
-    }
+  const timeRange = SafeParseTimeRangeSchema.parse({ pastHours, startDate, endDate });
+  if (timeRange) {
+    whereConditions.push(gte(signals.createdAt, timeRange.start.toISOString()));
+    whereConditions.push(lte(signals.createdAt, timeRange.end.toISOString()));
   }
 
   if (search) {
@@ -168,7 +159,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       query: `
         SELECT
           signal_id,
-          formatDateTime(max(timestamp), '%Y-%m-%dT%H:%i:%S.%fZ') as last_event_at
+          max(timestamp) as last_event_at
         FROM signal_events
         WHERE project_id = {projectId: UUID}
           AND signal_id IN ({signalIds: Array(UUID)})
@@ -324,7 +315,7 @@ export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) =>
   const query = `
       SELECT
           id,
-          formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp
+          timestamp
       FROM signal_events
       WHERE signal_id = {signalId: UUID}
       ORDER BY timestamp DESC

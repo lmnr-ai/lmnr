@@ -1,3 +1,5 @@
+import { parseTimestampToMs } from "@/lib/time/timestamp";
+
 import { type TraceViewSpan } from "./base";
 
 export type PathInfo = {
@@ -309,8 +311,8 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
   let endTime = -Infinity;
 
   for (const span of spans) {
-    startTime = Math.min(startTime, new Date(span.startTime).getTime());
-    endTime = Math.max(endTime, new Date(span.endTime).getTime());
+    startTime = Math.min(startTime, parseTimestampToMs(span.startTime));
+    endTime = Math.max(endTime, parseTimestampToMs(span.endTime));
   }
 
   const totalDuration = endTime - startTime;
@@ -347,8 +349,8 @@ export const transformSpansToCondensedTimeline = (spans: TraceViewSpan[]): Conde
   }> = [];
 
   for (const span of spans) {
-    const spanStartMs = new Date(span.startTime).getTime();
-    const spanEndMs = new Date(span.endTime).getTime();
+    const spanStartMs = parseTimestampToMs(span.startTime);
+    const spanEndMs = parseTimestampToMs(span.endTime);
     const spanDuration = spanEndMs - spanStartMs;
 
     const left = ((spanStartMs - startTime) / upperIntervalInMilliseconds) * 100;

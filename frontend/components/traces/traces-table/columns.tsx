@@ -10,6 +10,7 @@ import JsonTooltip from "@/components/ui/json-tooltip";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 import { SpanType, type TraceRow } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
 import { cn } from "@/lib/utils";
@@ -97,12 +98,12 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   },
   {
     accessorFn: (row) => {
-      const start = new Date(row.startTime);
-      const end = new Date(row.endTime);
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+      const startMs = parseTimestampToMs(row.startTime);
+      const endMs = parseTimestampToMs(row.endTime);
+      if (isNaN(startMs) || isNaN(endMs) || endMs < startMs) {
         return "-";
       }
-      const duration = end.getTime() - start.getTime();
+      const duration = endMs - startMs;
       return `${(duration / 1000).toFixed(2)}s`;
     },
     header: "Duration",

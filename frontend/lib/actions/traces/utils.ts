@@ -14,7 +14,7 @@ import {
   type SelectQueryOptions,
 } from "@/lib/actions/common/query-builder";
 import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats.ts";
-import { type TimeRange } from "@/lib/clickhouse/utils.ts";
+import { type TimeRange } from "@/lib/time";
 
 export const tracesColumnFilterConfig: ColumnFilterConfig = {
   processors: new Map([
@@ -102,8 +102,8 @@ export const tracesColumnFilterConfig: ColumnFilterConfig = {
 // Traces table column mapping
 const tracesSelectColumns = [
   "id",
-  "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
-  "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
+  "start_time as startTime",
+  "end_time as endTime",
   "session_id as sessionId",
   "metadata",
   "tags",
@@ -324,18 +324,7 @@ export const buildTracesStatsWhereConditions = (options: {
 };
 
 export const generateEmptyTimeBuckets = (timeRange: TimeRange): TracesStatsDataPoint[] => {
-  let start: Date;
-  let end: Date;
-
-  if ("pastHours" in timeRange) {
-    end = new Date();
-    start = new Date(end.getTime() - timeRange.pastHours * 60 * 60 * 1000);
-  } else {
-    start = timeRange.start;
-    end = timeRange.end;
-  }
-
-  const scale = scaleUtc().domain([start, end]);
+  const scale = scaleUtc().domain([timeRange.start, timeRange.end]);
   const ticks = scale.ticks(24);
 
   return ticks.map(

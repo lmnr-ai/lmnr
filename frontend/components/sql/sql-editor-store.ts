@@ -1,6 +1,8 @@
-import { format, startOfToday, subDays } from "date-fns";
+import { startOfToday, subDays } from "date-fns";
 import { isDate, isNil } from "lodash";
 import { create } from "zustand";
+
+import { isoToCH } from "@/lib/time/timestamp";
 
 export interface SQLTemplate {
   id: string;
@@ -79,7 +81,7 @@ export const useSqlEditorStore = create<SqlEditorStore>()((set, get) => ({
       (formatted, param) => {
         if (!isNil(param.value)) {
           if (isDate(param.value)) {
-            formatted[param.name] = format(param.value, "yyyy-MM-dd HH:mm:ss.SSS");
+            formatted[param.name] = isoToCH(param.value);
           } else if (param.type === "number") {
             formatted[param.name] = Number(param.value);
           } else {

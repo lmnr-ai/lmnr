@@ -5,6 +5,7 @@ import { memo, useMemo } from "react";
 
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 import { type Span } from "@/lib/traces/types.ts";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -47,8 +48,8 @@ function computeSpanStats(
     };
   }
 
-  let minStart = new Date(spans[0].startTime).getTime();
-  let maxEnd = new Date(spans[0].endTime).getTime();
+  let minStart = parseTimestampToMs(spans[0].startTime);
+  let maxEnd = parseTimestampToMs(spans[0].endTime);
   let inputTokens = 0;
   let outputTokens = 0;
   let totalTokens = 0;
@@ -58,8 +59,8 @@ function computeSpanStats(
   let cacheReadInputTokens = 0;
 
   for (const span of spans) {
-    const start = new Date(span.startTime).getTime();
-    const end = new Date(span.endTime).getTime();
+    const start = parseTimestampToMs(span.startTime);
+    const end = parseTimestampToMs(span.endTime);
     if (start < minStart) minStart = start;
     if (end > maxEnd) maxEnd = end;
 

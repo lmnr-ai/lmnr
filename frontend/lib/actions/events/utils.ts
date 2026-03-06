@@ -42,13 +42,7 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
   ]),
 };
 
-const eventsSelectColumns = [
-  "id",
-  "signal_id signalId",
-  "trace_id traceId",
-  "formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp",
-  "payload",
-];
+const eventsSelectColumns = ["id", "signal_id signalId", "trace_id traceId", "timestamp", "payload"];
 
 export interface BuildEventsQueryOptions {
   signalId: string;

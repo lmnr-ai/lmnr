@@ -1,13 +1,5 @@
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
-export interface DatapointSearchParams {
-  projectId: string;
-  datasetId?: string;
-  searchQuery?: string;
-  pageSize?: number;
-  offset?: number;
-}
-
 export interface DatapointResult {
   id: string;
   datasetId: string;
@@ -27,27 +19,26 @@ export const createDatapoints = async (
     target?: any;
     metadata: any;
     createdAt: string;
-  }>,
+  }>
 ): Promise<void> => {
   if (datapoints.length === 0) {
     return;
   }
 
-  // Prepare the data for batch insert
   const rows = datapoints.map((dp) => ({
     id: dp.id,
     dataset_id: datasetId,
     project_id: projectId,
     created_at: dp.createdAt,
-    data: dp.data !== undefined && dp.data !== null ? JSON.stringify(dp.data) : '{}',
-    target: dp.target !== undefined && dp.target !== null ? JSON.stringify(dp.target) : '{}',
-    metadata: dp.metadata !== undefined && dp.metadata !== null ? JSON.stringify(dp.metadata) : '{}',
+    data: dp.data !== undefined && dp.data !== null ? JSON.stringify(dp.data) : "{}",
+    target: dp.target !== undefined && dp.target !== null ? JSON.stringify(dp.target) : "{}",
+    metadata: dp.metadata !== undefined && dp.metadata !== null ? JSON.stringify(dp.metadata) : "{}",
   }));
 
   await clickhouseClient.insert({
-    table: 'dataset_datapoints',
+    table: "dataset_datapoints",
     values: rows,
-    format: 'JSONEachRow',
+    format: "JSONEachRow",
     clickhouse_settings: {
       wait_for_async_insert: 1,
       async_insert: 1,
@@ -55,11 +46,7 @@ export const createDatapoints = async (
   });
 };
 
-export const deleteDatapoints = async (
-  projectId: string,
-  datasetId: string,
-  datapointIds: string[]
-): Promise<void> => {
+export const deleteDatapoints = async (projectId: string, datasetId: string, datapointIds: string[]): Promise<void> => {
   if (datapointIds.length === 0) {
     return;
   }
