@@ -19,6 +19,8 @@ pub struct LabelingQueueItemRequest {
     /// Optional metadata for the payload (not the queue item metadata).
     #[serde(default)]
     pub metadata: HashMap<String, serde_json::Value>,
+    /// Optional idempotency key to prevent duplicate items in the queue.
+    pub idempotency_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,6 +75,7 @@ pub async fn create_labeling_queues_items(
                 "target": item.target,
                 "metadata": item.metadata,
             }),
+            idempotency_key: item.idempotency_key,
         })
         .collect();
 

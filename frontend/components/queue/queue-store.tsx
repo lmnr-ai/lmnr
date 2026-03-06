@@ -122,6 +122,7 @@ const getDefaultQueueItem = (queueId: string): QueueState["currentItem"] => ({
   createdAt: "",
   queueId,
   metadata: "{}",
+  idempotencyKey: null,
   payload: {
     data: {},
     target: {},
