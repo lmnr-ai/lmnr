@@ -4,7 +4,7 @@
 
 import * as Sentry from "@sentry/nextjs";
 
-if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.FRONTEND_SENTRY_DSN) {
+if (process.env.LAMINAR_CLOUD === "true" && process.env.FRONTEND_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.FRONTEND_SENTRY_DSN,
 
