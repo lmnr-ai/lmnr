@@ -128,6 +128,7 @@ const createTraceDiffStore = () =>
             isMappingLoading: false,
             mappingError: null,
             phase: "ready",
+            selectedRowIndex: null,
           });
         },
 
