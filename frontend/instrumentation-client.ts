@@ -11,10 +11,6 @@ if (process.env.LAMINAR_CLOUD === "true") {
     tracesSampleRate: 1,
 
     integrations: [Sentry.browserTracingIntegration()],
-
-    profileSessionSampleRate: 1.0,
-    profileLifecycle: "trace",
-
     beforeSendTransaction(event) {
       if (
         event.transaction &&
