@@ -2,6 +2,9 @@ import { withSentryConfig } from "@sentry/nextjs";
 import { type NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  env: {
+    LAMINAR_CLOUD: process.env.LAMINAR_CLOUD,
+  },
   experimental: {
     turbopackFileSystemCacheForDev: true,
   },
@@ -42,6 +45,10 @@ const nextConfig: NextConfig = {
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(self), interest-cohort=()",
+          },
+          {
+            key: "Document-Policy",
+            value: "js-profiling",
           },
         ],
       },
@@ -86,6 +93,7 @@ if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.FRONTEND_SENTRY_DSN)
 
     org: process.env.SENTRY_ORG,
     project: process.env.FRONTEND_SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
 
     // Only print logs for uploading source maps in CI
     silent: true,
@@ -103,7 +111,11 @@ if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.FRONTEND_SENTRY_DSN)
     tunnelRoute: "/monitoring",
 
     // Automatically tree-shake Sentry logger statements to reduce bundle size
-    disableLogger: true,
+    webpack: {
+      treeshake: {
+        removeDebugLogging: true,
+      },
+    },
   });
 } else {
   module.exports = nextConfig;
