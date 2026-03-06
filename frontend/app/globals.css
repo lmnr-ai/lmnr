@@ -197,11 +197,6 @@
     --llm: 262 48% 58%;
     --llm-foreground: 268 56% 68%;
   }
-
-  .dark {
-    --background: 240 4% 6%;
-    --foreground: 220 6% 90%;
-  }
 }
 
 @layer base {
