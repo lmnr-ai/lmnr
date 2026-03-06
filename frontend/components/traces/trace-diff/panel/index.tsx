@@ -44,7 +44,7 @@ const DiffSpanPanel = () => {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <SpanView spanId={span.spanId} traceId={traceId} />
+      <SpanView spanId={span.spanId} traceId={traceId} onClose={clearSelection} />
     </div>
   );
 };

@@ -108,24 +108,23 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
     [selectingSide, onSelectLeft, onSelectRight, setSelectingSide]
   );
 
-  const excludeTraceId = selectingSide === "left" ? rightTrace?.id : leftTrace?.id;
   const isReady = phase === "ready" && selectingSide === null;
-  const showSelectorOnLeft = selectingSide === "left";
+  const showBanner = selectingSide === null && (phase === "loading" || isMappingLoading);
+  const showLeftSelector = selectingSide === "left";
+  const showRightSelector = selectingSide === "right" || (phase === "selecting" && selectingSide === null);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-      {/* Banner: error or loading shimmer */}
       {phase === "error" && (
         <MappingError error={mappingError ?? "Failed to analyze trace diff"} onRetry={retryMapping} />
       )}
-      {(phase === "loading" || isMappingLoading) && selectingSide === null && (
+      {showBanner && (
         <div className="flex-none flex items-center justify-center py-2 bg-secondary border-b border-b-background">
           <span className="text-sm text-muted-foreground shimmer">Analyzing trace diff</span>
         </div>
       )}
 
       {isReady ? (
-        /* Phase: ready — virtualized diff rows + optional panel */
         <div className="flex flex-1 overflow-hidden border-t">
           <div className={cn("flex flex-col flex-1 overflow-hidden min-w-0", { "px-4": !hasPanel })}>
             <VirtualizedDiffRows
@@ -150,24 +149,19 @@ const DiffColumns = ({ onSelectLeft, onSelectRight, selectingSide, setSelectingS
           )}
         </div>
       ) : (
-        /* Two-column layout: selectors or span lists */
         <div className={cn("flex flex-1 overflow-hidden gap-2", phase === "selecting" && "border-t")}>
           <div className="flex-1 flex flex-col overflow-hidden pl-4">
-            {selectingSide === "left" ? (
-              <div className="size-full p-2 flex flex-col overflow-hidden">
-                <TraceSelector onSelect={handleSelect} excludeTraceId={excludeTraceId} />
-              </div>
-            ) : phase === "selecting" ? (
+            {showLeftSelector ? (
+              <TraceSelector onSelect={handleSelect} excludeTraceId={rightTrace?.id} />
+            ) : leftListSpans.length > 0 ? (
               <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
-            ) : (
-              <SingleColumnSpanList spans={leftListSpans} traceRef={leftTraceRef} />
-            )}
+            ) : null}
           </div>
           <div className="flex-1 flex flex-col overflow-hidden pr-4">
-            {selectingSide === "right" || (phase === "selecting" && selectingSide === null) ? (
+            {showRightSelector ? (
               <TraceSelector
-                onSelect={selectingSide === "right" ? handleSelect : onSelectRight}
-                excludeTraceId={selectingSide === "right" ? excludeTraceId : leftTrace?.id}
+                onSelect={showRightSelector && selectingSide === null ? onSelectRight : handleSelect}
+                excludeTraceId={leftTrace?.id}
               />
             ) : rightListSpans.length > 0 ? (
               <SingleColumnSpanList spans={rightListSpans} traceRef={rightTraceRef} />

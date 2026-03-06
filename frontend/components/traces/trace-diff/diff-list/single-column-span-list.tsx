@@ -20,7 +20,7 @@ const SingleColumnSpanList = ({
   const { outputs } = useBatchedSpanOutputs(projectId, traceRef ? spanIds : [], traceRef ?? {});
 
   return (
-    <div className="flex-1 overflow-y-auto styled-scrollbar pt-2 flex flex-col gap-0.5">
+    <div className="flex-1 overflow-y-auto styled-scrollbar flex flex-col gap-0.5">
       {spans.map((span) => (
         <div key={span.spanId} className="bg-secondary rounded-sm">
           <SpanCell span={span} output={outputs[span.spanId]} />
