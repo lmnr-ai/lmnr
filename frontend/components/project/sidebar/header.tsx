@@ -37,6 +37,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
   const user = useUserContext();
   const { broadcastLogout } = useSessionSync();
   const { data: workspaces } = useSWR<Workspace[]>("/api/workspaces", swrFetcher);
+  const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
 
   const handleLogout = async () => {
     try {
@@ -101,7 +102,9 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-muted-foreground p-1">Projects</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-muted-foreground p-1">
+                Projects{currentWorkspace ? ` in ${currentWorkspace.name}` : ""}
+              </DropdownMenuLabel>
               {projects.map((project) => (
                 <Link
                   key={project.id}
