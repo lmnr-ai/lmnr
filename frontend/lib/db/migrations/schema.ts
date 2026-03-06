@@ -10,6 +10,7 @@ import {
   jsonb,
   bigint,
   doublePrecision,
+  uniqueIndex,
   boolean,
   integer,
   real,
@@ -174,14 +175,16 @@ export const tracesAgentMessages = pgTable(
 
 export const userSubscriptionTiers = pgTable("user_subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-    name: "user_subscription_tiers_id_seq",
-    startWith: 1,
-    increment: 1,
-    minValue: 1,
-    maxValue: 9223372036854775807,
-    cache: 1,
-  }),
+  id: bigint({ mode: "number" })
+    .primaryKey()
+    .generatedByDefaultAsIdentity({
+      name: "user_subscription_tiers_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   stripeProductId: text("stripe_product_id").default("").notNull(),
@@ -341,33 +344,6 @@ export const tracesAgentChats = pgTable(
   ]
 );
 
-export const labelingQueueItems = pgTable(
-  "labeling_queue_items",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    queueId: uuid("queue_id").defaultRandom().notNull(),
-    metadata: jsonb().default({}),
-    payload: jsonb().default({}),
-  },
-  (table) => [
-    index("labeling_queue_items_queue_id_idx").using("btree", table.queueId.asc().nullsLast().op("uuid_ops")),
-    index("labeling_queue_items_queue_ordering_idx").using(
-      "btree",
-      table.queueId.asc().nullsLast().op("timestamptz_ops"),
-      table.createdAt.asc().nullsLast().op("uuid_ops"),
-      table.id.asc().nullsLast().op("uuid_ops")
-    ),
-    foreignKey({
-      columns: [table.queueId],
-      foreignColumns: [labelingQueues.id],
-      name: "labelling_queue_items_queue_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
 export const agentSessions = pgTable(
   "agent_sessions",
   {
@@ -383,6 +359,41 @@ export const agentSessions = pgTable(
   (table) => [
     index("agent_sessions_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
     index("agent_sessions_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
+  ]
+);
+
+export const labelingQueueItems = pgTable(
+  "labeling_queue_items",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    queueId: uuid("queue_id").defaultRandom().notNull(),
+    metadata: jsonb().default({}),
+    payload: jsonb().default({}),
+    idempotencyKey: text("idempotency_key"),
+  },
+  (table) => [
+    uniqueIndex("labeling_queue_items_queue_id_idempotency_key_idx")
+      .using(
+        "btree",
+        table.queueId.asc().nullsLast().op("uuid_ops"),
+        table.idempotencyKey.asc().nullsLast().op("text_ops")
+      )
+      .where(sql`(idempotency_key IS NOT NULL)`),
+    index("labeling_queue_items_queue_id_idx").using("btree", table.queueId.asc().nullsLast().op("uuid_ops")),
+    index("labeling_queue_items_queue_ordering_idx").using(
+      "btree",
+      table.queueId.asc().nullsLast().op("uuid_ops"),
+      table.createdAt.asc().nullsLast().op("uuid_ops"),
+      table.id.asc().nullsLast().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.queueId],
+      foreignColumns: [labelingQueues.id],
+      name: "labelling_queue_items_queue_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
   ]
 );
 
@@ -1057,14 +1068,16 @@ export const workspaceAddons = pgTable(
 
 export const subscriptionTiers = pgTable("subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-    name: "subscription_tiers_id_seq",
-    startWith: 1,
-    increment: 1,
-    minValue: 1,
-    maxValue: 9223372036854775807,
-    cache: 1,
-  }),
+  id: bigint({ mode: "number" })
+    .primaryKey()
+    .generatedByDefaultAsIdentity({
+      name: "subscription_tiers_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
