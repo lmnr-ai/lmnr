@@ -20,7 +20,8 @@ export const generateMetadata = async (props: { params: Promise<{ traceId: strin
       timeStyle: "short",
     });
     const title = `Shared Trace - ${startTime}`;
-    const description = `Trace with ${trace.totalTokens.toLocaleString()} tokens, ${trace.traceType} type. View the full trace on Laminar.`;
+    const typePart = trace.traceType ? `, ${trace.traceType} type` : "";
+    const description = `Trace with ${trace.totalTokens.toLocaleString()} tokens${typePart}. View the full trace on Laminar.`;
     const ogImageUrl = `/shared/traces/${traceId}/opengraph-image`;
     return {
       title,
