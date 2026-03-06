@@ -14,7 +14,12 @@ import { PostHogProvider } from "./providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://laminar.sh"),
-  title: "Laminar",
+  title: {
+    default: "Laminar - Open-source observability for AI agents",
+    template: "%s | Laminar",
+  },
+  description:
+    "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
   keywords: [
     "laminar",
     "evals",
@@ -40,21 +45,27 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    title: "Laminar",
-    description: "Understand why your agent failed. Iterate fast to fix it.",
+    title: "Laminar - Open-source observability for AI agents",
+    description:
+      "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
     siteName: "Laminar",
     images: {
       url: "/opengraph-image.png",
-      alt: "Laminar",
+      alt: "Laminar - Open-source observability for AI agents",
+      width: 1200,
+      height: 630,
     },
   },
   twitter: {
-    card: "summary",
-    description: "Understand why your agent failed. Iterate fast to fix it.",
-    title: "Laminar",
+    card: "summary_large_image",
+    title: "Laminar - Open-source observability for AI agents",
+    description:
+      "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
     images: {
       url: "/twitter-image.png",
-      alt: "Laminar",
+      alt: "Laminar - Open-source observability for AI agents",
+      width: 1200,
+      height: 630,
     },
   },
 };

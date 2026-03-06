@@ -8,18 +8,18 @@ import { getBlogPosts } from "@/lib/blog/utils";
 import { formatUTCDate } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Laminar Blog",
-  description:
-    "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
+  title: "Blog",
+  description: "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
   openGraph: {
     title: "Laminar Blog",
-    description:
-      "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
+    description: "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
+    url: "https://laminar.sh/blog",
+    type: "website",
   },
   twitter: {
+    card: "summary_large_image",
     title: "Laminar Blog",
-    description:
-      "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
+    description: "Articles on AI agent development, LLM observability, tracing, and evaluations from the Laminar team.",
   },
 };
 
