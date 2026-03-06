@@ -1,14 +1,12 @@
-"use server";
-
 import { google } from "@ai-sdk/google";
 import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { generateObject } from "ai";
 import { z } from "zod";
 
 import { getTraceStructureAsString } from "@/lib/actions/trace/agent/spans";
-import { type SpanMapping } from "@/lib/traces/types";
 
 import { SPAN_MATCHING_SYSTEM_PROMPT } from "./prompts";
+import { type SpanMapping } from "./types";
 
 const SpanMatchSchema = z.object({
   mappings: z.array(

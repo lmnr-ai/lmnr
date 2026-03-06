@@ -11,15 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type Span } from "@/lib/traces/types";
-import { getDurationString } from "@/lib/utils";
+import { getDurationString, swrFetcher } from "@/lib/utils";
 
 import DiffTextView from "./diff-text-view";
-
-const swrFetcher = async (url: string) => {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Failed to fetch span");
-  return res.json();
-};
 
 /**
  * Recursively expand JSON strings nested within a value.

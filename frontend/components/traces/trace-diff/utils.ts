@@ -1,6 +1,6 @@
 import { type TraceViewListSpan } from "@/components/traces/trace-view/store/base";
 
-import { type DiffRow, type SpanMapping } from "./trace-diff-types";
+import { type DiffRow, type SpanMapping } from "./types";
 
 /**
  * Align two lists of spans into DiffRows based on the provided mapping.

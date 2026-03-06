@@ -4,7 +4,7 @@ import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 
 import { getDuration } from "@/lib/utils";
 
-import { useTraceDiffStore } from "../trace-diff-store";
+import { useTraceDiffStore } from "../store";
 import MetricDelta from "./metric-delta";
 
 const numberFormatter = new Intl.NumberFormat("en-US", { notation: "compact" });

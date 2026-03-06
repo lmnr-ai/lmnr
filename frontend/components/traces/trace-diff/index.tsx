@@ -1,7 +1,7 @@
 "use client";
 
-import { TraceDiffStoreProvider } from "./trace-diff-store";
-import TraceDiffViewInner from "./trace-diff-view-inner";
+import { TraceDiffStoreProvider } from "./store";
+import TraceDiffViewInner from "./view";
 
 interface TraceDiffViewProps {
   leftTraceId: string;

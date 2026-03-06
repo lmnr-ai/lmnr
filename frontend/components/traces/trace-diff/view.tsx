@@ -8,12 +8,12 @@ import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/tra
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils";
 import Header from "@/components/ui/header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { generateSpanMapping } from "@/lib/actions/trace/diff";
+import { type SpanMapping } from "@/lib/actions/trace/diff/types";
 
-import DiffColumns, { type SelectingSide } from "./diff-columns";
+import DiffColumns, { type SelectingSide } from "./diff-list";
 import MetricsBar from "./metrics-bar";
-import { useTraceDiffStore } from "./trace-diff-store";
-import TraceIdPill from "./trace-id-pill";
+import { useTraceDiffStore } from "./store";
+import TraceIdPill from "./trace-picker/trace-id-pill";
 
 interface TraceDiffViewInnerProps {
   leftTraceId: string;
@@ -36,6 +36,8 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     setIsMappingLoading,
     setMapping,
     setMappingError,
+    getCachedMapping,
+    setCachedMapping,
   } = useTraceDiffStore((s) => ({
     phase: s.phase,
     isLeftLoading: s.isLeftLoading,
@@ -47,6 +49,8 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     setIsMappingLoading: s.setIsMappingLoading,
     setMapping: s.setMapping,
     setMappingError: s.setMappingError,
+    getCachedMapping: s.getCachedMapping,
+    setCachedMapping: s.setCachedMapping,
   }));
 
   // Fetch a trace + its spans
@@ -119,11 +123,34 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     if (isLeftLoading) return;
     if (!rightTraceId) return;
 
+    // Use cached mapping unless retrying
+    if (retryCounter === 0) {
+      const cached = getCachedMapping(leftTraceId, rightTraceId);
+      if (cached) {
+        setMapping(cached);
+        return;
+      }
+    }
+
     let stale = false;
     setIsMappingLoading(true);
-    generateSpanMapping(projectId, leftTraceId, rightTraceId)
+    fetch(`/api/projects/${projectId}/traces/diff`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leftTraceId, rightTraceId }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? "Failed to analyze trace diff");
+        }
+        return res.json() as Promise<SpanMapping>;
+      })
       .then((mapping) => {
-        if (!stale) setMapping(mapping);
+        if (!stale) {
+          setCachedMapping(leftTraceId, rightTraceId, mapping);
+          setMapping(mapping);
+        }
       })
       .catch((e) => {
         if (!stale) {
@@ -145,6 +172,8 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     setIsMappingLoading,
     setMapping,
     setMappingError,
+    getCachedMapping,
+    setCachedMapping,
   ]);
 
   const searchParamsRef = useRef(searchParams);

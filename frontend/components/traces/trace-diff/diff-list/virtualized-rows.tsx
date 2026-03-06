@@ -6,8 +6,8 @@ import { useMemo } from "react";
 
 import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
 
-import DiffSpanRow from "./diff-span-row";
-import { type DiffRow } from "./trace-diff-types";
+import { type DiffRow } from "../types";
+import DiffSpanRow from "./diff-row";
 
 interface TraceRef {
   id: string;

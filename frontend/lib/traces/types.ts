@@ -207,5 +207,4 @@ export type SessionRow = {
   userId?: string;
 };
 
-// Array of [leftSpanId, rightSpanId] pairs for trace diff matching
-export type SpanMapping = Array<[string, string]>;
+export type { SpanMapping } from "@/lib/actions/trace/diff/types";

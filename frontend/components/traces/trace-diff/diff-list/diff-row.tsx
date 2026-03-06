@@ -6,8 +6,8 @@ import { useMemo } from "react";
 import { formatOutput } from "@/components/traces/trace-view/list/markdown";
 import { cn } from "@/lib/utils";
 
+import { type DiffRow } from "../types";
 import SpanCell from "./span-cell";
-import { type DiffRow } from "./trace-diff-types";
 
 const VoidCell = ({ className }: { className?: string }) => (
   <div className={cn("h-full min-h-[40px] rounded-sm", className)} />
