@@ -49,22 +49,15 @@ export const tableSchemas: Record<string, ColumnDefinition[]> = {
     { name: "top_span_name", type: "string", description: "Name of the top-level span" },
     { name: "top_span_type", type: "string", description: "Type of the top-level span" },
   ],
-  events: [
-    { name: "id", type: "string", description: "Unique identifier for the event" },
-    { name: "span_id", type: "string", description: "Identifier of the span" },
-    { name: "name", type: "string", description: "Name of the event" },
-    { name: "timestamp", type: "number", description: "When the event occurred" },
-    { name: "attributes", type: "string", description: "Attributes of the event" },
-    { name: "trace_id", type: "string", description: "Identifier of the trace" },
-    { name: "user_id", type: "string", description: "User ID associated with the event" },
-    { name: "session_id", type: "string", description: "Session ID associated with the event" },
-  ],
-  tags: [
-    { name: "id", type: "string", description: "Unique identifier for the tag" },
-    { name: "span_id", type: "string", description: "Identifier of the span" },
-    { name: "name", type: "string", description: "Name of the tag" },
-    { name: "created_at", type: "number", description: "When the tag was created" },
-    { name: "source", type: "string", description: "Source of the tag" },
+  signal_events: [
+    { name: "id", type: "string", description: "Unique identifier for the signal event" },
+    { name: "signal_id", type: "string", description: "Unique identifier for the signal" },
+    { name: "trace_id", type: "string", description: "Unique identifier for the trace" },
+    { name: "run_id", type: "string", description: "Unique identifier for the run" },
+    { name: "name", type: "string", description: "Name of the signal event" },
+    { name: "payload", type: "string", description: "Payload of the signal event as stringified JSON" },
+    { name: "timestamp", type: "number", description: "When the signal event occurred" },
+    { name: "summary", type: "string", description: "Summary of the signal event" },
   ],
 };
 
@@ -90,8 +83,7 @@ export const getTimeColumn = (table: string): string => {
   const timeColumnMap: Record<string, string> = {
     spans: "start_time",
     traces: "start_time",
-    events: "timestamp",
-    tags: "created_at",
+    signal_events: "timestamp",
   };
 
   return timeColumnMap[table] || "start_time";

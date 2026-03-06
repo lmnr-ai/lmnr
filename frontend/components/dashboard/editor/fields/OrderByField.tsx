@@ -27,7 +27,7 @@ const OrderByField = () => {
     const fields: Array<{ name: string; type: "string" | "number"; description: string }> = [];
 
     metrics.forEach((metric) => {
-      const fieldName = metric.alias || metric.column;
+      const fieldName = metric.alias || (metric.fn === "raw" ? "value" : metric.column);
       const column = availableColumns.find((col) => col.name === metric.column);
       fields.push({
         name: fieldName,

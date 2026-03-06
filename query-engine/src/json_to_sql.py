@@ -1,6 +1,10 @@
 from typing import Any
 import logging
 
+import sqlglot
+
+from query_validator import QueryValidator
+
 logger = logging.getLogger(__name__)
 
 
@@ -9,6 +13,8 @@ class QueryBuilderError(Exception):
 
 
 class JsonToSqlConverter:
+    ALLOWED_METRIC_FNS = {'count', 'sum', 'avg', 'min', 'max', 'quantile'}
+
     COMPARISON_OPS = {
         'eq': '=',
         'ne': '!=',
@@ -176,15 +182,94 @@ class JsonToSqlConverter:
         interval_expr = self._get_interval_expr(time_range)
         return f"toStartOfInterval({col}, {interval_expr}) AS time"
 
+    @staticmethod
+    def _escape_alias(alias: str) -> str:
+        """Escape and backtick-quote an alias to prevent SQL injection."""
+        return f"`{alias.replace('`', '``')}`"
+
+    @staticmethod
+    def _validate_raw_expression(expr: str) -> str:
+        """Validate a raw SQL expression to prevent injection.
+
+        Returns the expression regenerated from the parsed AST so that the
+        interpolated SQL always matches what was actually validated.
+        """
+        if not expr or not expr.strip():
+            raise QueryBuilderError("Raw SQL expression cannot be empty")
+
+        # Parse the expression as part of a SELECT to check it's a valid expression
+        try:
+            parsed = sqlglot.parse_one(f"SELECT {expr} FROM t", read="clickhouse")
+        except sqlglot.errors.ParseError as e:
+            raise QueryBuilderError(f"Invalid SQL expression: {e}")
+
+        # Block SQL comments (AST-aware: ignores -- or /* inside string literals)
+        for node in parsed.find_all(sqlglot.exp.Expression):
+            if node.comments:
+                raise QueryBuilderError("SQL comments are not allowed in raw SQL expressions")
+
+        # Enforce exactly one select expression (reject multi-column like "count(*), name")
+        select_exprs = parsed.args.get("expressions", [])
+        if len(select_exprs) != 1:
+            raise QueryBuilderError("Raw SQL must be a single expression")
+
+        # Block subqueries inside the expression
+        for node in parsed.find_all(sqlglot.exp.Subquery, sqlglot.exp.Select):
+            if node is not parsed:
+                raise QueryBuilderError("Subqueries are not allowed in raw SQL expressions")
+
+        # Block dangerous functions using the shared helper from the query validator
+        blocked = QueryValidator.check_for_blocked_functions(parsed)
+        if blocked:
+            raise QueryBuilderError(f"Function '{blocked}' is not allowed in raw SQL expressions")
+
+        # Regenerate from the validated AST to close any parse/interpret gap
+        return select_exprs[0].sql(dialect="clickhouse")
+
+    @staticmethod
+    def _safe_column_expr(col: str) -> str:
+        """Sanitize a metric column by parsing and regenerating via sqlglot.
+
+        Handles both simple identifiers (e.g. ``latency``) and expressions
+        (e.g. ``end_time - start_time``) safely.  The ``*`` literal is
+        passed through as-is for COUNT(*).
+        """
+        if col == '*':
+            return col
+        try:
+            parsed = sqlglot.parse_one(f"SELECT {col} FROM t", read="clickhouse")
+        except sqlglot.errors.ParseError as e:
+            raise QueryBuilderError(f"Invalid column expression: {e}")
+
+        select_exprs = parsed.args.get("expressions", [])
+        if len(select_exprs) != 1:
+            raise QueryBuilderError("Column must be a single expression")
+
+        return select_exprs[0].sql(dialect="clickhouse")
+
     def _metric_sql(self, metric: dict[str, Any]) -> str:
         fn = metric['fn']
         col = metric['column']
-        alias = metric.get('alias', col)
 
-        if fn.lower() == 'quantile' and metric.get('args'):
-            return f"quantile({metric['args'][0]})({col}) AS {alias}"
+        if fn.lower() == 'raw':
+            alias = metric.get('alias') or 'value'
+            safe_alias = self._escape_alias(alias)
+            safe_expr = self._validate_raw_expression(col)
+            return f"({safe_expr}) AS {safe_alias}"
 
-        return f"{fn}({col}) AS {alias}"
+        fn_lower = fn.lower()
+        if fn_lower not in self.ALLOWED_METRIC_FNS:
+            raise QueryBuilderError(f"Unsupported metric function: {fn}")
+
+        alias = metric.get('alias') or col
+        safe_alias = self._escape_alias(alias)
+        safe_col = self._safe_column_expr(col)
+
+        if fn_lower == 'quantile' and metric.get('args'):
+            q = float(metric['args'][0])
+            return f"quantile({q})({safe_col}) AS {safe_alias}"
+
+        return f"{fn}({safe_col}) AS {safe_alias}"
 
     def _filter_sql(self, filter_spec: dict[str, Any]) -> str:
         field = filter_spec['field']

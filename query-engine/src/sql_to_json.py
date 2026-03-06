@@ -118,15 +118,24 @@ class SqlToJsonConverter:
                 str(expr.this).upper() == 'TOSTARTOFINTERVAL')
 
     def _extract_metric(self, expr, alias: str) -> dict[str, Any]:
-        for node in expr.walk():
-            if hasattr(sqlglot.exp, 'Quantile') and isinstance(node, sqlglot.exp.Quantile):
-                return self._parse_quantile(node, alias)
+        # Unwrap parentheses so that round-tripping through json_to_sql
+        # (which wraps in parens) does not accumulate extra layers.
+        inner = expr
+        while isinstance(inner, sqlglot.exp.Paren):
+            inner = inner.this
 
-            if isinstance(node, (sqlglot.exp.Count, sqlglot.exp.Sum, sqlglot.exp.Avg,
-                                 sqlglot.exp.Min, sqlglot.exp.Max)):
-                return self._parse_standard_agg(node, alias)
+        # Only check the top-level expression itself, not its descendants.
+        # Using walk() would match nested aggregates inside complex expressions
+        # like "countIf(status = 'ERROR') / count(*)" and incorrectly reduce
+        # the whole expression to just the first sub-aggregate found.
+        if hasattr(sqlglot.exp, 'Quantile') and isinstance(inner, sqlglot.exp.Quantile):
+            return self._parse_quantile(inner, alias)
 
-        return {'fn': 'unknown', 'column': str(expr), 'alias': alias}
+        if isinstance(inner, (sqlglot.exp.Count, sqlglot.exp.Sum, sqlglot.exp.Avg,
+                              sqlglot.exp.Min, sqlglot.exp.Max)):
+            return self._parse_standard_agg(inner, alias)
+
+        return {'fn': 'raw', 'column': inner.sql(dialect="clickhouse"), 'alias': alias}
 
     def _parse_quantile(self, node, alias: str) -> dict[str, Any]:
         column = self._extract_column(node.this) if node.this else 'unknown'
@@ -158,7 +167,9 @@ class SqlToJsonConverter:
                 column = self._extract_column(node.this) if node.this else '*'
                 return {'fn': fn_name, 'column': column, 'alias': alias}
 
-        return {'fn': 'unknown', 'column': str(node), 'alias': alias}
+        # This is unreachable since callers only pass nodes matching agg_map,
+        # but kept as a defensive fallback.
+        return {'fn': 'raw', 'column': node.sql(dialect="clickhouse"), 'alias': alias}
 
     def _extract_column(self, expr) -> str:
         if isinstance(expr, sqlglot.exp.Column):
