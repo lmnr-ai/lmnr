@@ -137,7 +137,7 @@
     --primary-foreground: 30 20% 96%;
 
     /* Secondary – slightly elevated surface */
-    --secondary: 240 4% 9%;
+    --secondary: 240 4% 7.5%;
     --secondary-foreground: 220 6% 63%;
 
     /* Muted – subtle surface for backgrounds */
