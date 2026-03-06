@@ -158,7 +158,7 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
   if (result.items.length > 0) {
     const evaluationIds = result.items.map((e: Evaluation) => e.id);
 
-    const [datapointCounts, scoreRows] = await Promise.all([
+    const [datapointCounts, averageScoreRows] = await Promise.all([
       executeQuery<{ evaluation_id: string; count: number }>({
         projectId,
         query: `
@@ -174,14 +174,24 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
           evaluationIds,
         },
       }),
-      executeQuery<{ evaluation_id: string; scores: string }>({
+      executeQuery<{ evaluation_id: string; score_name: string; avg_score: number }>({
         projectId,
         query: `
           SELECT
             evaluation_id,
-            scores
-          FROM evaluation_datapoints FINAL
-          WHERE evaluation_id IN {evaluationIds:Array(String)}
+            score_name,
+            avg(score_value) as avg_score
+          FROM (
+            SELECT
+              evaluation_id,
+              kv.1 as score_name,
+              kv.2 as score_value
+            FROM evaluation_datapoints FINAL
+            ARRAY JOIN JSONExtractKeysAndValues(scores, 'Float64') as kv
+            WHERE evaluation_id IN {evaluationIds:Array(String)}
+              AND scores != '' AND scores != '{}'
+          )
+          GROUP BY evaluation_id, score_name
         `,
         parameters: {
           projectId,
@@ -192,35 +202,13 @@ export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>
 
     const countMap = new Map(datapointCounts.map((row) => [row.evaluation_id, row.count]));
 
-    // Aggregate scores per evaluation: compute average of each score name across datapoints
-    const scoreAggregates = new Map<string, Record<string, number>>();
-    const scoreCounts = new Map<string, Record<string, number>>();
-
-    for (const row of scoreRows) {
-      const scores = (row.scores ? JSON.parse(row.scores) : {}) as Record<string, number | null>;
-      if (!scoreAggregates.has(row.evaluation_id)) {
-        scoreAggregates.set(row.evaluation_id, {});
-        scoreCounts.set(row.evaluation_id, {});
-      }
-      const agg = scoreAggregates.get(row.evaluation_id)!;
-      const cnt = scoreCounts.get(row.evaluation_id)!;
-      for (const [name, value] of Object.entries(scores)) {
-        if (value !== null && !isNaN(value)) {
-          agg[name] = (agg[name] || 0) + value;
-          cnt[name] = (cnt[name] || 0) + 1;
-        }
-      }
-    }
-
-    // Compute averages
+    // Build average scores map from pre-aggregated ClickHouse results
     const averageScoresMap = new Map<string, Record<string, number>>();
-    for (const [evalId, agg] of scoreAggregates.entries()) {
-      const cnt = scoreCounts.get(evalId)!;
-      const averages: Record<string, number> = {};
-      for (const [name, sum] of Object.entries(agg)) {
-        averages[name] = sum / cnt[name];
+    for (const row of averageScoreRows) {
+      if (!averageScoresMap.has(row.evaluation_id)) {
+        averageScoresMap.set(row.evaluation_id, {});
       }
-      averageScoresMap.set(evalId, averages);
+      averageScoresMap.get(row.evaluation_id)![row.score_name] = row.avg_score;
     }
 
     itemsWithCountsAndScores = result.items.map((evaluation: Evaluation) => ({
