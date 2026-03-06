@@ -150,17 +150,18 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
             )
         };
 
-    // For threshold pricing, fall back to base keys if threshold-specific ones don't exist
-    let input_cost_per_token =
-        get_cost(costs, &input_key).or_else(|| get_cost(costs, "input_cost_per_token"));
-    let output_cost_per_token =
-        get_cost(costs, &output_key).or_else(|| get_cost(costs, "output_cost_per_token"));
-    let cache_creation_cost_per_token = get_cost(costs, &cache_creation_key)
-        .or_else(|| get_cost(costs, "cache_creation_input_token_cost"));
-    let cache_read_cost_per_token =
-        get_cost(costs, &cache_read_key).or_else(|| get_cost(costs, "cache_read_input_token_cost"));
-
     let tier = input.service_tier.as_deref().filter(|t| !t.is_empty());
+
+    // For threshold pricing, fall back to base keys if threshold-specific ones don't exist.
+    // Uses resolve_cost_key so tier-specific rates are preferred over base rates.
+    let input_cost_per_token = resolve_cost_key(costs, &input_key, tier)
+        .or_else(|| resolve_cost_key(costs, "input_cost_per_token", tier));
+    let output_cost_per_token = resolve_cost_key(costs, &output_key, tier)
+        .or_else(|| resolve_cost_key(costs, "output_cost_per_token", tier));
+    let cache_creation_cost_per_token = resolve_cost_key(costs, &cache_creation_key, tier)
+        .or_else(|| resolve_cost_key(costs, "cache_creation_input_token_cost", tier));
+    let cache_read_cost_per_token = resolve_cost_key(costs, &cache_read_key, tier)
+        .or_else(|| resolve_cost_key(costs, "cache_read_input_token_cost", tier));
 
     // === INPUT COST ===
     let mut total_input_cost = 0.0;
@@ -169,18 +170,14 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     // subtract them so they're only charged at their specific rate below.
     let base_input_tokens = (input.prompt_tokens - input.audio_input_tokens).max(0);
 
-    let input_rate = resolve_cost_key(costs, &input_key, tier)
-        .or(input_cost_per_token)
-        .unwrap_or(0.0);
+    let input_rate = input_cost_per_token.unwrap_or(0.0);
     let input_cost =
         resolve_batch_or_base(costs, "input_cost_per_token_batches", input_rate, tier, input.is_batch);
     total_input_cost += base_input_tokens as f64 * input_cost;
 
     // Cache read tokens
     if input.cache_read_tokens > 0 {
-        let cache_read_rate = resolve_cost_key(costs, &cache_read_key, tier)
-            .or(cache_read_cost_per_token)
-            .unwrap_or(0.0);
+        let cache_read_rate = cache_read_cost_per_token.unwrap_or(0.0);
         total_input_cost += input.cache_read_tokens as f64 * cache_read_rate;
     }
 
@@ -189,9 +186,7 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
         // If we have ephemeral breakdown, use it
         if input.cache_creation_5m_tokens > 0 || input.cache_creation_1h_tokens > 0 {
             // 5-minute tokens use regular cache creation cost
-            let cost_5m = resolve_cost_key(costs, &cache_creation_key, tier)
-                .or(cache_creation_cost_per_token)
-                .unwrap_or(0.0);
+            let cost_5m = cache_creation_cost_per_token.unwrap_or(0.0);
             total_input_cost += input.cache_creation_5m_tokens as f64 * cost_5m;
 
             // 1-hour tokens use cache_creation_input_token_cost_above_1hr
@@ -211,9 +206,7 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
                 .unwrap_or(0.0);
             total_input_cost += input.cache_creation_1h_tokens as f64 * cost_1h;
         } else {
-            let cache_create_rate = resolve_cost_key(costs, &cache_creation_key, tier)
-                .or(cache_creation_cost_per_token)
-                .unwrap_or(0.0);
+            let cache_create_rate = cache_creation_cost_per_token.unwrap_or(0.0);
             total_input_cost += input.cache_creation_tokens as f64 * cache_create_rate;
         }
     }
@@ -237,9 +230,7 @@ pub fn calculate_span_cost(model_costs: &ModelCosts, input: &SpanCostInput) -> C
     let base_output_tokens =
         (input.completion_tokens - input.reasoning_tokens - input.audio_output_tokens).max(0);
 
-    let output_rate = resolve_cost_key(costs, &output_key, tier)
-        .or(output_cost_per_token)
-        .unwrap_or(0.0);
+    let output_rate = output_cost_per_token.unwrap_or(0.0);
     let output_cost = resolve_batch_or_base(
         costs, "output_cost_per_token_batches", output_rate, tier, input.is_batch,
     );
