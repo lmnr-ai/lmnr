@@ -23,9 +23,7 @@ const useMetricFnChange = (index: number) => {
     (fnValue: string) => {
       const currentMetric = getValues(`metrics.${index}`);
       const newMetric = createMetricFromOption(fnValue, currentMetric.column || "count");
-      if (newMetric.fn === "count") {
-        setValue(`metrics.${index}`, { ...newMetric }, { shouldValidate: true });
-      } else if (newMetric.fn === "raw") {
+      if (newMetric.fn === "count" || newMetric.fn === "raw") {
         setValue(`metrics.${index}`, { ...newMetric }, { shouldValidate: true });
       } else {
         setValue(`metrics.${index}`, { ...newMetric, column: "", alias: undefined }, { shouldValidate: true });
