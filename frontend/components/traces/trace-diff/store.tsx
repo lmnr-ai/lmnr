@@ -33,7 +33,6 @@ interface TraceDiffState {
   isMappingLoading: boolean;
   mappingError: string | null;
   alignedRows: DiffRow[];
-  retryCounter: number;
 
   selectedRowIndex: number | null;
 
@@ -70,7 +69,6 @@ const initialState: TraceDiffState = {
   isMappingLoading: false,
   mappingError: null,
   alignedRows: [],
-  retryCounter: 0,
   selectedRowIndex: null,
   mappingCache: {},
 };
@@ -141,12 +139,11 @@ const createTraceDiffStore = () =>
           }),
 
         retryMapping: () =>
-          set((s) => ({
+          set({
             mappingError: null,
             isMappingLoading: true,
             phase: "loading" as DiffPhase,
-            retryCounter: s.retryCounter + 1,
-          })),
+          }),
 
         toggleRow: (index) => set((s) => ({ selectedRowIndex: s.selectedRowIndex === index ? null : index })),
         clearSelection: () => set({ selectedRowIndex: null }),

@@ -28,7 +28,6 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
   const {
     phase,
     isLeftLoading,
-    retryCounter,
     setLeftData,
     setIsLeftLoading,
     setRightData,
@@ -41,7 +40,6 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
   } = useTraceDiffStore((s) => ({
     phase: s.phase,
     isLeftLoading: s.isLeftLoading,
-    retryCounter: s.retryCounter,
     setLeftData: s.setLeftData,
     setIsLeftLoading: s.setIsLeftLoading,
     setRightData: s.setRightData,
@@ -123,13 +121,10 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     if (isLeftLoading) return;
     if (!rightTraceId) return;
 
-    // Use cached mapping unless retrying
-    if (retryCounter === 0) {
-      const cached = getCachedMapping(leftTraceId, rightTraceId);
-      if (cached) {
-        setMapping(cached);
-        return;
-      }
+    const cached = getCachedMapping(leftTraceId, rightTraceId);
+    if (cached) {
+      setMapping(cached);
+      return;
     }
 
     let stale = false;
@@ -168,7 +163,6 @@ const TraceDiffViewInner = ({ leftTraceId, rightTraceId }: TraceDiffViewInnerPro
     projectId,
     leftTraceId,
     rightTraceId,
-    retryCounter,
     setIsMappingLoading,
     setMapping,
     setMappingError,
