@@ -312,6 +312,11 @@ pub async fn get_model_costs(
 
 /// Invalidate custom model cost cache entries for a project.
 /// Called after upsert/delete operations on custom model costs.
+///
+/// Because the same underlying model can be cached under different keys
+/// depending on how the span's model/provider attributes arrive (e.g.
+/// with provider, without provider, with provider prefix in model string),
+/// we remove all possible cache key variants rather than just one.
 pub async fn invalidate_custom_model_costs_cache(
     cache: Arc<Cache>,
     project_id: &Uuid,
@@ -319,6 +324,46 @@ pub async fn invalidate_custom_model_costs_cache(
     provider: Option<&str>,
 ) {
     let model_info = ModelInfo::extract(model, provider);
-    let cache_key = model_info.custom_cache_key(project_id);
-    let _ = cache.remove(&cache_key).await;
+
+    // Collect all distinct cache keys that could have been generated for this model.
+    // A span can arrive with or without a provider, or with the provider baked into
+    // the model string (e.g. "openai/gpt-4o"), producing different ModelInfo values
+    // and therefore different cache keys.
+    let mut keys_to_remove = Vec::new();
+
+    // 1. Key for the canonical extraction (as given)
+    keys_to_remove.push(model_info.custom_cache_key(project_id));
+
+    // 2. Key for the no-provider variant (span arrives without provider)
+    let no_provider_info = ModelInfo::extract(model, None);
+    keys_to_remove.push(no_provider_info.custom_cache_key(project_id));
+
+    // 3. If provider is known, also try with provider baked into model string
+    if let Some(provider) = provider {
+        let prefixed_model = format!("{}/{}", provider, model);
+        let prefixed_info = ModelInfo::extract(&prefixed_model, None);
+        keys_to_remove.push(prefixed_info.custom_cache_key(project_id));
+
+        let prefixed_with_provider = ModelInfo::extract(&prefixed_model, Some(provider));
+        keys_to_remove.push(prefixed_with_provider.custom_cache_key(project_id));
+    }
+
+    // 4. If the model itself contains a provider prefix, also try the bare model name
+    if let Some(pos) = model.find('/') {
+        let bare_model = &model[pos + 1..];
+        let inferred_provider = &model[..pos];
+
+        let bare_no_provider = ModelInfo::extract(bare_model, None);
+        keys_to_remove.push(bare_no_provider.custom_cache_key(project_id));
+
+        let bare_with_provider = ModelInfo::extract(bare_model, Some(inferred_provider));
+        keys_to_remove.push(bare_with_provider.custom_cache_key(project_id));
+    }
+
+    // Dedup and remove all
+    keys_to_remove.sort();
+    keys_to_remove.dedup();
+    for key in &keys_to_remove {
+        let _ = cache.remove(key).await;
+    }
 }
