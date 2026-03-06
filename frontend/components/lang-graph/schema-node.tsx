@@ -20,7 +20,7 @@ const SchemaNode = memo(({ data, selected }: SchemaNodeProps) => {
   return (
     <div
       className={cn(
-        "shadow-md rounded-lg bg-white border-2 border-gray-200 flex items-center justify-center p-3 overflow-hidden",
+        "shadow-md rounded-lg bg-card border-2 border-border flex items-center justify-center p-3 overflow-hidden",
         {
           "border-chart-1": selected,
           "border-success bg-success/10": isStart,
