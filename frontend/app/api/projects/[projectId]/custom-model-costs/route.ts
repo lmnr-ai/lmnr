@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { deleteCustomModelCost, getCustomModelCosts, upsertCustomModelCost } from "@/lib/actions/custom-model-costs";
+import { invalidateCustomModelCostsCache } from "@/lib/actions/custom-model-costs/invalidate-cache";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -40,6 +41,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
       costs: body.costs,
     });
 
+    await invalidateCustomModelCostsCache(params.projectId, body.model, body.provider);
+
     return new Response(JSON.stringify(result), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -62,10 +65,12 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ projec
   try {
     const id = req.nextUrl.searchParams.get("id") ?? "";
 
-    await deleteCustomModelCost({
+    const deleted = await deleteCustomModelCost({
       projectId: params.projectId,
       id,
     });
+
+    await invalidateCustomModelCostsCache(params.projectId, deleted.model, deleted.provider ?? undefined);
 
     return new Response(null, { status: 200 });
   } catch (error) {

@@ -1,7 +1,8 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { copyCustomModelCosts } from "@/lib/actions/custom-model-costs";
+import { copyCustomModelCosts, getCustomModelCosts } from "@/lib/actions/custom-model-costs";
+import { invalidateCustomModelCostsCache } from "@/lib/actions/custom-model-costs/invalidate-cache";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -14,10 +15,23 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
       return new Response("targetProjectId is required", { status: 400 });
     }
 
+    // Fetch existing target costs before copy so we can invalidate their cache entries
+    const existingTargetCosts = await getCustomModelCosts({ projectId: targetProjectId });
+
     const result = await copyCustomModelCosts({
       sourceProjectId: params.projectId,
       targetProjectId,
     });
+
+    // Invalidate cache for previously existing models in target (now deleted/replaced)
+    const invalidations = existingTargetCosts.map((cost) =>
+      invalidateCustomModelCostsCache(targetProjectId, cost.model, cost.provider ?? undefined)
+    );
+    // Also invalidate cache for newly copied models in target
+    for (const cost of result) {
+      invalidations.push(invalidateCustomModelCostsCache(targetProjectId, cost.model, cost.provider ?? undefined));
+    }
+    await Promise.all(invalidations);
 
     return new Response(JSON.stringify(result), {
       status: 200,

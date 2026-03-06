@@ -83,17 +83,24 @@ export async function upsertCustomModelCost(
   return row as CustomModelCost;
 }
 
-export async function deleteCustomModelCost(input: z.infer<typeof DeleteCustomModelCostSchema>): Promise<void> {
+export async function deleteCustomModelCost(
+  input: z.infer<typeof DeleteCustomModelCostSchema>
+): Promise<{ model: string; provider: string | null }> {
   const { projectId, id } = DeleteCustomModelCostSchema.parse(input);
 
   const result = await db
     .delete(customModelCosts)
     .where(and(eq(customModelCosts.id, id), eq(customModelCosts.projectId, projectId)))
-    .returning();
+    .returning({
+      model: customModelCosts.model,
+      provider: customModelCosts.provider,
+    });
 
   if (!result || result.length === 0) {
     throw new Error("Custom model cost not found");
   }
+
+  return result[0];
 }
 
 export async function copyCustomModelCosts(
