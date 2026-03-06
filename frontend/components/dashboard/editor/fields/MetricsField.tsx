@@ -30,7 +30,7 @@ const useMetricFnChange = (index: number) => {
         setValue(`metrics.${index}`, { ...newMetric, column: "" }, { shouldValidate: true });
       }
     },
-    [index]
+    [index, setValue, getValues]
   );
 };
 
