@@ -72,15 +72,15 @@
   --color-llm: hsl(var(--llm));
   --color-llm-foreground: hsl(var(--llm-foreground));
 
-  /*TODO: unify landing and platform colors*/
+  /* Landing colors – unified with platform palette */
   --color-landing-primary-200: rgb(218 135 95);
   --color-landing-primary-300: rgb(213 126 87);
   --color-landing-primary-400: rgb(208 117 78);
-  --color-landing-surface-400: rgb(46 46 47);
-  --color-landing-surface-500: rgb(37 37 38);
-  --color-landing-surface-600: rgb(27 27 28);
-  --color-landing-surface-700: rgb(22 22 23);
-  --color-landing-surface-800: rgb(15 15 15);
+  --color-landing-surface-400: rgb(42 42 44);
+  --color-landing-surface-500: rgb(34 34 36);
+  --color-landing-surface-600: rgb(25 25 27);
+  --color-landing-surface-700: rgb(20 20 22);
+  --color-landing-surface-800: rgb(16 16 17);
   --color-landing-surface-900: rgb(5 5 5);
   --color-landing-text-100: rgb(255 255 255);
   --color-landing-text-200: rgb(195 196 200);
@@ -119,64 +119,76 @@
 
 @layer base {
   :root {
-    --radius: 0.5rem;
+    --radius: 0.375rem;
 
-    --background: 0 0% 4%;
-    --foreground: 0 8% 90%;
+    /* Surface hierarchy inspired by Zed/Linear – using landing surface colors as base
+       background (deepest) → secondary → card → muted → accent (lightest surface) */
+    --background: 240 5% 6%;
+    --foreground: 220 10% 86%;
 
-    --card: 0 0% 7%;
-    --card-foreground: 240 8% 80%;
+    --card: 240 4% 9%;
+    --card-foreground: 220 8% 76%;
 
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 8% 90%;
+    --popover: 240 5% 10%;
+    --popover-foreground: 220 10% 86%;
 
+    /* Primary orange – kept and refined */
     --primary: 18 59% 55%;
-    --primary-foreground: 16 0% 91%;
+    --primary-foreground: 30 20% 96%;
 
-    --secondary: 0 0% 7%;
-    --secondary-foreground: 0 0% 71%;
+    /* Secondary – slightly elevated surface */
+    --secondary: 240 4% 9%;
+    --secondary-foreground: 220 6% 63%;
 
-    --muted: 240 6% 14%;
-    --muted-foreground: 0 0% 52%;
+    /* Muted – subtle surface for backgrounds */
+    --muted: 240 4% 13%;
+    --muted-foreground: 220 5% 46%;
 
-    --accent: 232 9% 17%;
-    --accent-foreground: 210 100% 100%;
+    /* Accent – interactive hover/active surface */
+    --accent: 240 4% 15%;
+    --accent-foreground: 220 10% 92%;
 
-    --destructive: 0 60% 50%;
-    --destructive-foreground: 210 40% 98%;
-    --destructive-bright: 0 72% 60%;
+    /* Destructive – refined red, less saturated */
+    --destructive: 0 55% 48%;
+    --destructive-foreground: 0 0% 98%;
+    --destructive-bright: 0 65% 58%;
 
-    --success: 142.1 76.2% 36.3%;
-    --success-foreground: 355.7 100% 97.3%;
-    --success-bright: 158 64% 52%;
+    /* Success – muted teal-green, tasteful */
+    --success: 152 56% 38%;
+    --success-foreground: 150 10% 96%;
+    --success-bright: 158 50% 48%;
 
-    --border: 240 6% 18%;
-    --input: 240 6% 18%;
-    --ring: 212 96% 78%;
+    /* Borders – subtle, barely visible */
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
+    --ring: 18 50% 55%;
 
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    /* Charts – cohesive palette */
+    --chart-1: 215 60% 52%;
+    --chart-2: 152 48% 42%;
+    --chart-3: 24 70% 52%;
+    --chart-4: 270 50% 56%;
+    --chart-5: 340 55% 52%;
 
-    --sidebar-background: 0 0% 7%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar – slightly darker than content for hierarchy */
+    --sidebar-background: 240 5% 7%;
+    --sidebar-foreground: 220 8% 82%;
+    --sidebar-primary: 18 59% 55%;
+    --sidebar-primary-foreground: 30 20% 96%;
+    --sidebar-accent: 240 4% 13%;
+    --sidebar-accent-foreground: 220 8% 88%;
+    --sidebar-border: 240 4% 14%;
+    --sidebar-ring: 18 50% 55%;
 
-    --tool: 42 93% 46%;
-    --llm: 262 83% 58%;
-    --llm-foreground: 272 100% 74%;
+    /* Feature colors – refined, tasteful, less saturated */
+    --tool: 40 72% 50%;
+    --llm: 260 55% 58%;
+    --llm-foreground: 268 60% 72%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 240 5% 6%;
+    --foreground: 220 10% 86%;
   }
 }
 

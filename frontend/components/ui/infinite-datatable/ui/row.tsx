@@ -52,7 +52,7 @@ export function InfiniteDatatableRow<TData extends RowData>({
       className={cn(
         "flex min-w-full border-b last:border-b-0 group/row relative",
         (!!onRowClick || !!href) && "cursor-pointer",
-        row.depth > 0 && "bg-secondary/40",
+        row.depth > 0 && "bg-muted/30",
         focusedRowId === row.id && "bg-muted"
       )}
       key={row.id}

@@ -1,14 +1,14 @@
 .styled-scrollbar {
-  scrollbar-color: hsl(var(--border)) hsl(var(--border) / 0.2);
+  scrollbar-color: hsl(var(--border)) transparent;
 }
 
 .styled-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 1px;
+  width: 5px;
+  height: 5px;
 }
 
 .styled-scrollbar::-webkit-scrollbar-track {
-  background: hsl(var(--secondary));
+  background: transparent;
 }
 
 .styled-scrollbar::-webkit-scrollbar-thumb {
@@ -17,18 +17,27 @@
 }
 
 .styled-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--border) / 0.8);
+  background: hsl(var(--muted-foreground) / 0.4);
 }
 
 .minimal-scrollbar {
-  scrollbar-color: rgb(255 255 255 / 0.1) transparent;
+  scrollbar-color: rgb(255 255 255 / 0.08) transparent;
+}
+
+.minimal-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
 }
 
 .minimal-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.minimal-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgb(255 255 255 / 0.2);
+.minimal-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.08);
+  border-radius: 10px;
 }
 
+.minimal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 255 255 / 0.15);
+}

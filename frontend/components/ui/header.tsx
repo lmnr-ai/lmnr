@@ -39,22 +39,30 @@ export default function Header({
       : path;
 
   return (
-    <div className={cn("font-medium flex items-center justify-between flex-none h-12 w-full pl-2.5 pr-4", className)}>
+    <div
+      className={cn(
+        "font-medium text-sm flex items-center justify-between flex-none h-10 w-full pl-2 pr-3 border-b border-border/60",
+        className
+      )}
+    >
       <div className={cn("flex flex-1 items-center", childrenContainerClassName)}>
-        {showSidebarTrigger && <SidebarTrigger className="hover:bg-secondary size-7" />}
+        {showSidebarTrigger && <SidebarTrigger className="hover:bg-accent size-7" />}
         {segments.map((segment, index) => (
           <div key={index} className="flex items-center">
-            {index > 0 && <div className="text-secondary-foreground/40">/</div>}
+            {index > 0 && <div className="text-muted-foreground/50">/</div>}
             {segment.href ? (
-              <Link href={segment.href} className="hover:bg-muted rounded-lg px-2 p-0.5 text-secondary-foreground">
+              <Link
+                href={segment.href}
+                className="hover:bg-accent rounded px-1.5 py-0.5 text-muted-foreground transition-colors duration-150"
+              >
                 {segment.name}
               </Link>
             ) : segment.copyValue !== undefined ? (
               <CopyTooltip value={segment.copyValue}>
-                <div className="px-2">{segment.name}</div>
+                <div className="px-1.5">{segment.name}</div>
               </CopyTooltip>
             ) : (
-              <div className="px-2">{segment.name}</div>
+              <div className="px-1.5">{segment.name}</div>
             )}
           </div>
         ))}

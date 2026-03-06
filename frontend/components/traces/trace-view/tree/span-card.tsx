@@ -133,7 +133,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
             <SpanDisplayTooltip isLLM={span.spanType === "LLM"} name={span.name}>
               <div
                 className={cn(
-                  "text-ellipsis overflow-hidden whitespace-nowrap text-sm truncate",
+                  "text-ellipsis overflow-hidden whitespace-nowrap text-xs truncate",
                   span.pending && "text-muted-foreground"
                 )}
               >
@@ -143,12 +143,12 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
             {span.pending ? (
               isStringDateOld(span.startTime) ? (
                 <NoSpanTooltip>
-                  <div className="flex rounded bg-secondary p-1">
-                    <X className="w-4 h-4 text-secondary-foreground" />
+                  <div className="flex rounded bg-muted p-1">
+                    <X className="w-4 h-4 text-muted-foreground" />
                   </div>
                 </NoSpanTooltip>
               ) : (
-                <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
+                <Skeleton className="w-10 h-4 text-muted-foreground px-2 py-0.5 bg-muted rounded-full text-xs" />
               )
             ) : (
               <SpanStatsShield

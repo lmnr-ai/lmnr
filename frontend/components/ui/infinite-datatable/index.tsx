@@ -255,7 +255,7 @@ export function InfiniteDataTable<TData extends RowData>({
       {children && <div className={cn("flex flex-col gap-2 items-start", childrenClassName)}>{children}</div>}
       <div
         ref={tableContainerRef}
-        className={cn("flex relative overflow-auto styled-scrollbar bg-secondary", scrollContentClassName)}
+        className={cn("flex relative overflow-auto styled-scrollbar bg-card", scrollContentClassName)}
       >
         <div className="size-full">
           <DndContext
@@ -267,7 +267,7 @@ export function InfiniteDataTable<TData extends RowData>({
             sensors={sensors}
           >
             <Table
-              className="grid border-collapse border-spacing-0 rounded bg-secondary"
+              className="grid border-collapse border-spacing-0 rounded bg-card"
               style={{
                 width: table.getHeaderGroups()[0]?.headers.reduce((acc, header) => acc + header.getSize(), 0) || "100%",
               }}
@@ -312,7 +312,7 @@ export function InfiniteDataTable<TData extends RowData>({
           </DndContext>
 
           {isFetching && !isLoading && !loadMoreButton && (
-            <div className="flex justify-center p-2 bg-secondary">
+            <div className="flex justify-center p-2 bg-card">
               <Skeleton className="w-full h-8" />
             </div>
           )}

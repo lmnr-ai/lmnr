@@ -67,18 +67,18 @@ export function InfiniteTableHead<TData extends RowData>({
         minWidth: header.getSize(),
         display: "flex",
       }}
-      className={cn("m-0 relative text-secondary-foreground truncate hover:bg-transparent", isDragging && "shadow-lg")}
+      className={cn("m-0 relative text-muted-foreground truncate hover:bg-transparent", isDragging && "shadow-lg")}
       key={header.id}
       ref={setNodeRef}
     >
       <div
         {...(isControllable ? { ...attributes, ...listeners } : {})}
         className={cn(
-          "absolute inset-0 h-full flex justify-between items-center group text-ellipsis overflow-hidden whitespace-nowrap text-secondary-foreground pl-4 pointer-events-auto",
+          "absolute inset-0 h-full flex justify-between items-center group text-ellipsis overflow-hidden whitespace-nowrap text-muted-foreground pl-4 pointer-events-auto",
           isControllable ? "cursor-grab active:cursor-grabbing" : "cursor-default"
         )}
       >
-        <div className="text-ellipsis overflow-hidden whitespace-nowrap text-secondary-foreground">
+        <div className="text-ellipsis overflow-hidden whitespace-nowrap text-muted-foreground">
           {flexRender(header.column.columnDef.header, header.getContext())}
         </div>
         <div
@@ -187,7 +187,7 @@ export const DraggingTableHeadOverlay = <TData,>({ header }: { header: Header<TD
 
   return (
     <div
-      className="bg-secondary border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
+      className="bg-card border rounded-lg shadow-2xl opacity-95 rotate-2 scale-105"
       style={{
         width: header.getSize(),
         height: 32,

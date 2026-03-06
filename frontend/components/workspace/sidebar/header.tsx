@@ -101,7 +101,7 @@ const WorkspaceSidebarHeader = ({ workspace }: WorkspaceSidebarHeaderProps) => {
                     </div>
                     <span
                       className={cn(
-                        "text-xs text-secondary-foreground py-0 px-1.5 rounded-md bg-secondary/40 font-mono border border-secondary-foreground/20",
+                        "text-xs text-muted-foreground py-0 px-1.5 rounded bg-muted font-mono border border-border",
                         {
                           "border-primary bg-primary/10 text-primary": w.tierName === "Pro",
                         }

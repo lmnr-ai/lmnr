@@ -15,7 +15,7 @@ export const InfiniteDatatableHeader = forwardRef<HTMLTableSectionElement, Infin
     return (
       <TableHeader
         ref={ref}
-        className="text-xs flex bg-secondary rounded-t"
+        className="text-xs flex bg-card rounded-t"
         style={{
           display: "grid",
           position: "sticky",
