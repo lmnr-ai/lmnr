@@ -46,9 +46,7 @@ const PureClustersTable = () => {
     setIsLoading(true);
 
     try {
-      const res = await fetch(
-        `/api/projects/${params.projectId}/signals/${signal.id}/events/clusters?eventName=${encodeURIComponent(signal.name)}`
-      );
+      const res = await fetch(`/api/projects/${params.projectId}/signals/${signal.id}/events/clusters`);
 
       if (!res.ok) {
         const text = (await res.json()) as { error: string };
@@ -85,7 +83,7 @@ const PureClustersTable = () => {
       const node = clusterMap.get(cluster.id);
       if (!node) return;
 
-      if (cluster.parentId === null) {
+      if (cluster.parentId === null || !clusterMap.has(cluster.parentId)) {
         rootClusters.push(node);
       } else {
         const parent = clusterMap.get(cluster.parentId);

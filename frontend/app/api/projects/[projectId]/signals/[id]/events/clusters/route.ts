@@ -8,16 +8,11 @@ export async function GET(
   { params }: { params: Promise<{ projectId: string; id: string }> }
 ): Promise<NextResponse> {
   try {
-    const { projectId } = await params;
-    const eventName = req.nextUrl.searchParams.get("eventName");
-
-    if (!eventName) {
-      return NextResponse.json({ error: "eventName is required" }, { status: 400 });
-    }
+    const { projectId, id: signalId } = await params;
 
     const result = await getEventClusters({
       projectId,
-      eventName,
+      signalId,
     });
 
     return NextResponse.json(result);
