@@ -42,7 +42,6 @@ const DebuggerSession = ({
       ]}
       childrenContainerClassName="flex-none mr-2 h-10"
     />
-    <div className="flex-none border-t" />
     <DebuggerSessionStoreProvider
       trace={trace}
       params={params}
