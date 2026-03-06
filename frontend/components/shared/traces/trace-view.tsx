@@ -162,7 +162,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                       <CondensedTimeline />
                     </div>
                   </ResizablePanel>
-                  <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                  <ResizableHandle className="hover:bg-chart-1 z-10 transition-colors hover:scale-200" />
                 </>
               )}
               <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
@@ -229,7 +229,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
               className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
               onMouseDown={handleResizeTreeView}
             >
-              <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
+              <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-chart-1 transition-colors" />
             </div>
           </div>
           <div className="grow overflow-hidden flex-wrap h-full w-full">

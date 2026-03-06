@@ -140,7 +140,7 @@ const ChartBuilderCore = () => {
                               <span className="font-medium">{column.name}</span>
                               <span className="text-sm text-muted-foreground">{column.type}</span>
                               {isColumnSelected(column.name, "breakdown") && (
-                                <span className="text-xs text-blue-600 font-medium">• Line breakdown</span>
+                                <span className="text-xs text-chart-1 font-medium">• Line breakdown</span>
                               )}
                             </div>
                           </TableCell>

@@ -165,8 +165,8 @@ export function InfiniteTableHead<TData extends RowData>({
         </div>
         <div
           className={cn(
-            "group-hover:bg-blue-300 group-hover:w-[2px] absolute w-px bottom-0 top-0 right-0 h-full cursor-col-resize transition-colors",
-            header.column.getIsResizing() ? "bg-blue-400" : "bg-transparent"
+            "group-hover:bg-chart-1/60 group-hover:w-[2px] absolute w-px bottom-0 top-0 right-0 h-full cursor-col-resize transition-colors",
+            header.column.getIsResizing() ? "bg-chart-1" : "bg-transparent"
           )}
           onMouseDown={(e) => {
             e.stopPropagation();

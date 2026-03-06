@@ -204,7 +204,7 @@ export default function ManageEvaluatorSheet({
                 control={control}
                 render={({ field }) => <Input id="name" placeholder="Evaluator name" autoFocus {...field} />}
               />
-              {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
+              {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
             </div>
             <div className="grid gap-2">
               <Label className="flex gap-1 items-center" htmlFor="definition">
@@ -219,7 +219,7 @@ export default function ManageEvaluatorSheet({
                   </div>
                 )}
               />
-              {errors.code && <p className="text-sm text-red-500">{errors.code.message}</p>}
+              {errors.code && <p className="text-sm text-destructive">{errors.code.message}</p>}
             </div>
 
             <div className="grid gap-2 border-t pt-4">
@@ -239,7 +239,7 @@ export default function ManageEvaluatorSheet({
                   </div>
                 )}
               />
-              {errors.testInput && <p className="text-sm text-red-500">{errors.testInput.message}</p>}
+              {errors.testInput && <p className="text-sm text-destructive">{errors.testInput.message}</p>}
               <Button
                 className="self-start w-fit"
                 type="button"

@@ -20,9 +20,9 @@ export default function ProjectUsageBanner({
   return (
     <Link
       href={`/workspace/${workspaceId}`}
-      className="flex items-center gap-3 w-full px-4 py-2 bg-yellow-900/10 hover:bg-yellow-900/30 transition-colors"
+      className="flex items-center gap-3 w-full px-4 py-2 bg-warning/10 hover:bg-warning/20 transition-colors"
     >
-      <AlertCircle className="flex-shrink-0 text-yellow-400" size={16} />
+      <AlertCircle className="flex-shrink-0 text-warning" size={16} />
       <div className="flex-1 flex items-center justify-between gap-4">
         <span className="text-xs text-foreground/90">{messageContent}</span>
         <div className="flex items-center gap-1 text-xs font-medium text-foreground/70 hover:text-foreground transition-colors">

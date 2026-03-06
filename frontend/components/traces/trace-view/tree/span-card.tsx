@@ -83,7 +83,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
 
   const outerClasses = cn(
     "group flex flex-row w-full min-w-full cursor-pointer transition-all border-l-2",
-    "hover:bg-red-100/5",
+    "hover:bg-accent/50",
     isSelected ? "bg-primary/15 hover:bg-primary/20 border-l-primary" : "border-l-transparent",
     { "opacity-60": isCached }
   );

@@ -51,7 +51,7 @@ export default function ScoreCard({
             </SelectContent>
           </Select>
           <div className="flex flex-col mt-2">
-            <div className="text-sm text-gray-500">Average</div>
+            <div className="text-sm text-muted-foreground">Average</div>
             <div className="flex flex-row items-center">
               {isValidNumber(comparedAverage) && (
                 <div className="text-5xl font-bold mr-2">{comparedAverage.toFixed(2)}</div>
@@ -64,8 +64,8 @@ export default function ScoreCard({
             {shouldShowComparison && (
               <div
                 className={cn("text-md font-medium", {
-                  "text-green-400": average >= comparedAverage,
-                  "text-red-400": average < comparedAverage,
+                  "text-success-bright": average >= comparedAverage,
+                  "text-destructive": average < comparedAverage,
                 })}
               >
                 <span className="mx-1">{average >= comparedAverage ? "▲" : "▼"}</span>

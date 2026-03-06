@@ -259,7 +259,7 @@ export default function WorkspaceBilling({
                 <span
                   className={cn(
                     "text-xs px-2 py-0.5 rounded-md font-medium",
-                    subscription.cancelAtPeriodEnd ? "bg-yellow-500/10 text-yellow-500" : "bg-primary/10 text-primary"
+                    subscription.cancelAtPeriodEnd ? "bg-warning/10 text-warning" : "bg-primary/10 text-primary"
                   )}
                 >
                   {subscription.cancelAtPeriodEnd ? "Cancels at period end" : subscription.status}
@@ -278,7 +278,7 @@ export default function WorkspaceBilling({
                 {formatDate(subscription.currentPeriodStart)} – {formatDate(subscription.currentPeriodEnd)}
               </div>
               {subscription.cancelAtPeriodEnd && (
-                <p className="text-sm text-yellow-500">Access until {formatDate(subscription.currentPeriodEnd)}</p>
+                <p className="text-sm text-warning">Access until {formatDate(subscription.currentPeriodEnd)}</p>
               )}
               {!subscription.cancelAtPeriodEnd && isOwner && (
                 <div className="pt-2 flex gap-2">

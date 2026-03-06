@@ -91,7 +91,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
         </div>
       ) : (
         <div>
-          <span className="text-gray-500">Trace</span>
+          <span className="text-muted-foreground">Trace</span>
         </div>
       ),
     id: "type",
