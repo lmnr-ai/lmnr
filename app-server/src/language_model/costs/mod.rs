@@ -180,7 +180,7 @@ pub async fn get_model_costs(
     if result.is_some() {
         log::debug!("Found costs in DB for model: {}", model_info.model);
         let _ = cache
-            .insert_with_ttl(&cache_key, &result, MODEL_COSTS_CACHE_TTL_SECONDS)
+            .insert_with_ttl(&cache_key, result.clone(), MODEL_COSTS_CACHE_TTL_SECONDS)
             .await;
     } else {
         log::warn!(
