@@ -63,11 +63,12 @@ export async function register() {
           const rows = new Map<string, unknown>();
           for (const [modelName, info] of Object.entries(data)) {
             if (modelName === "sample_spec") continue;
-            rows.set(modelName, info);
+            const lowerName = modelName.toLowerCase();
+            rows.set(lowerName, info);
 
-            if (SHORT_NAME_PREFIXES.some((p) => modelName.startsWith(p))) {
-              const shortName = modelName.includes("/") ? modelName.split("/").pop()! : modelName;
-              if (shortName !== modelName && !rows.has(shortName)) {
+            if (SHORT_NAME_PREFIXES.some((p) => lowerName.startsWith(p))) {
+              const shortName = lowerName.includes("/") ? lowerName.split("/").pop()! : lowerName;
+              if (shortName !== lowerName && !rows.has(shortName)) {
                 rows.set(shortName, info);
               }
             }
