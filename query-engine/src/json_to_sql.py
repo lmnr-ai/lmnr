@@ -269,7 +269,7 @@ class JsonToSqlConverter:
             q = float(metric['args'][0])
             return f"quantile({q})({safe_col}) AS {safe_alias}"
 
-        return f"{fn_lower}({safe_col}) AS {safe_alias}"
+        return f"{fn}({safe_col}) AS {safe_alias}"
 
     def _filter_sql(self, filter_spec: dict[str, Any]) -> str:
         field = filter_spec['field']
