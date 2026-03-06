@@ -52,7 +52,7 @@ export async function register() {
 
       const SHORT_NAME_PREFIXES = ["mistral", "xai", "minimax", "moonshot"];
 
-      const initializeModelCosts = async () => {
+      const initializeModelCosts = async (): Promise<boolean> => {
         try {
           const response = await fetch(LITELLM_PRICES_URL, { signal: AbortSignal.timeout(30000) });
           if (!response.ok) {
@@ -98,9 +98,11 @@ export async function register() {
           }
 
           console.log(`Upserted ${entries.length} rows into model_costs`);
+          return true;
         } catch (error) {
           console.error("Failed to initialize model costs:", error);
           console.log("Continuing without model costs data...");
+          return false;
         }
       };
 
@@ -134,8 +136,10 @@ export async function register() {
 
       // Fetch model costs from litellm and populate the database
       console.log("Fetching model costs from litellm...");
-      await initializeModelCosts();
-      console.log("✓ Model costs initialized successfully");
+      const modelCostsOk = await initializeModelCosts();
+      if (modelCostsOk) {
+        console.log("✓ Model costs initialized successfully");
+      }
 
       // Run ClickHouse schema application
       console.log("Applying ClickHouse schema. This may take a while...");
