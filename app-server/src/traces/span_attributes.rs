@@ -37,9 +37,9 @@ pub const GEN_AI_USAGE_AUDIO_INPUT_TOKENS: &str = "gen_ai.usage.audio_input_toke
 pub const GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: &str = "gen_ai.usage.audio_output_tokens";
 pub const GEN_AI_USAGE_REASONING_TOKENS: &str = "gen_ai.usage.reasoning_tokens";
 pub const GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS: &str =
-    "gen_ai.usage.cache_creation_ephemeral_5m_input_tokens";
+    "gen_ai.usage.cache_creation.input_tokens.ephemeral_5m";
 pub const GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS: &str =
-    "gen_ai.usage.cache_creation_ephemeral_1h_input_tokens";
+    "gen_ai.usage.cache_creation.input_tokens.ephemeral_1h";
 pub const GEN_AI_REQUEST_BATCH: &str = "gen_ai.request.batch";
 
 // Service tier
