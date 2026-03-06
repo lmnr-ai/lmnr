@@ -1068,21 +1068,10 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  storageMib: bigint("storage_mib", { mode: "number" }).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   logRetentionDays: bigint("log_retention_days", { mode: "number" }).notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  membersPerWorkspace: bigint("members_per_workspace", { mode: "number" })
-    .default(sql`'-1'`)
-    .notNull(),
   stripeProductId: text("stripe_product_id").default("").notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  steps: bigint({ mode: "number" })
-    .default(sql`'0'`)
-    .notNull(),
-  extraStepPrice: doublePrecision("extra_step_price")
-    .default(sql`'0'`)
-    .notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   bytesIngested: bigint("bytes_ingested", { mode: "number" })
     .default(sql`'0'`)
@@ -1090,9 +1079,6 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   extraBytePrice: doublePrecision("extra_byte_price")
     .default(sql`'0'`)
     .notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  spans: bigint({ mode: "number" }),
-  extraSpanPrice: doublePrecision("extra_span_price"),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   signalRuns: bigint("signal_runs", { mode: "number" }).notNull(),
   extraSignalRunPrice: doublePrecision("extra_signal_run_price").default(0).notNull(),
