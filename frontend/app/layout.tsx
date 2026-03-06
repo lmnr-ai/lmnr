@@ -5,6 +5,7 @@ import { type Metadata } from "next";
 import { type PropsWithChildren } from "react";
 
 import { Toaster } from "@/components/ui/toaster";
+import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
@@ -70,20 +71,22 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: PropsWithChildren) {
-  const telemetryEnabled = isFeatureEnabled(Feature.POSTHOG);
+  const featureFlags = Object.fromEntries(Object.values(Feature).map((f) => [f, isFeatureEnabled(f)])) as FeatureFlags;
 
   return (
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}>
-      <PostHogProvider telemetryEnabled={telemetryEnabled}>
-        <body className="flex flex-col h-full">
-          <div className="flex">
-            <div className="flex flex-col grow max-w-full min-h-screen">
-              <main className="z-10 flex flex-col grow">{children}</main>
-              <Toaster />
+      <FeatureFlagsProvider flags={featureFlags}>
+        <PostHogProvider telemetryEnabled={featureFlags[Feature.POSTHOG]}>
+          <body className="flex flex-col h-full">
+            <div className="flex">
+              <div className="flex flex-col grow max-w-full min-h-screen">
+                <main className="z-10 flex flex-col grow">{children}</main>
+                <Toaster />
+              </div>
             </div>
-          </div>
-        </body>
-      </PostHogProvider>
+          </body>
+        </PostHogProvider>
+      </FeatureFlagsProvider>
     </html>
   );
 }

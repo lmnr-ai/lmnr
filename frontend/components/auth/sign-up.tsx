@@ -11,29 +11,25 @@ import { EmailSignInButton } from "@/components/auth/email-sign-in";
 import { GitHubButton } from "@/components/auth/github-button";
 import { GoogleButton } from "@/components/auth/google-button";
 import { OktaButton } from "@/components/auth/okta-button";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils";
 
 interface SignUpProps {
   callbackUrl: string;
-  enableGoogle?: boolean;
-  enableGithub?: boolean;
-  enableAzure?: boolean;
-  enableOkta?: boolean;
-  enableCredentials?: boolean;
 }
 
 type Provider = "github" | "google" | "azure-ad" | "okta";
 
 const defaultErrorMessage = `Failed to sign in. Please try again.`;
 
-const SignUp = ({
-  callbackUrl,
-  enableGoogle,
-  enableGithub,
-  enableAzure,
-  enableOkta,
-  enableCredentials,
-}: SignUpProps) => {
+const SignUp = ({ callbackUrl }: SignUpProps) => {
+  const featureFlags = useFeatureFlags();
+  const enableCredentials = featureFlags[Feature.EMAIL_AUTH];
+  const enableGithub = featureFlags[Feature.GITHUB_AUTH];
+  const enableGoogle = featureFlags[Feature.GOOGLE_AUTH];
+  const enableAzure = featureFlags[Feature.AZURE_AUTH];
+  const enableOkta = featureFlags[Feature.OKTA_AUTH];
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState<Provider | string>("");
 

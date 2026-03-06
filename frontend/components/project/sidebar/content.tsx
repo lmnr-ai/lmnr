@@ -17,7 +17,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type ProjectDetails } from "@/lib/actions/project";
+import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils.ts";
 
 const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; open: boolean }) => {
@@ -86,19 +88,12 @@ const UsageDisplay = ({ usageDetails, open }: { usageDetails: ProjectDetails; op
   );
 };
 
-const ProjectSidebarContent = ({
-  details,
-  isSubscription,
-  isSignals,
-}: {
-  details: ProjectDetails;
-  isSubscription: boolean;
-  isSignals: boolean;
-}) => {
+const ProjectSidebarContent = ({ details }: { details: ProjectDetails }) => {
   const pathname = usePathname();
+  const featureFlags = useFeatureFlags();
   const options = useMemo(
-    () => getSidebarMenus(details.id).filter((m) => m.name !== "signals" || isSignals),
-    [details.id, isSignals]
+    () => getSidebarMenus(details.id).filter((m) => m.name !== "signals" || featureFlags[Feature.SIGNALS]),
+    [details.id, featureFlags]
   );
   const { open, openMobile } = useSidebar();
 
@@ -121,7 +116,7 @@ const ProjectSidebarContent = ({
         </SidebarGroupContent>
       </SidebarGroup>
 
-      {isSubscription && details.isFreeTier && (open || openMobile) && (
+      {featureFlags[Feature.SUBSCRIPTION] && details.isFreeTier && (open || openMobile) && (
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu>

@@ -96,6 +96,7 @@ export const getUpcomingInvoice = async (workspaceId: string): Promise<UpcomingI
       amountDue: preview.amount_due,
       currency: preview.currency,
       periodStart: subscriptionLine?.period.start ?? preview.period_start,
+      startingBalance: preview.starting_balance,
       lines: preview.lines.data.map((line) => {
         const priceObj = line.pricing?.price_details?.price;
         const lookupKey = typeof priceObj === "object" ? priceObj.lookup_key : null;
@@ -158,6 +159,7 @@ export const cancelSubscription = async (
       amountDue: preview.amount_due,
       currency: preview.currency,
       periodStart: previewLine?.period.start ?? preview.period_start,
+      startingBalance: preview.starting_balance,
       lines: preview.lines.data.map((line) => {
         const priceObj = line.pricing?.price_details?.price;
         const lookupKey = typeof priceObj === "object" ? priceObj.lookup_key : null;

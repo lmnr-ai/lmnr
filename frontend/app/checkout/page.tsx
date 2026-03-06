@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import Stripe from "stripe";
 
-import { type PaidTier, TIER_CONFIG } from "@/lib/actions/checkout/types";
+import { TIER_CONFIG } from "@/lib/actions/checkout/types";
 import { getUserSubscriptionInfo } from "@/lib/actions/checkout/webhook";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
@@ -74,28 +74,14 @@ export default async function CheckoutPage(props: {
   const successUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&tab=billing`;
   const cancelUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?tab=billing`;
 
-  // Resolve the tier config from the lookup key to get the matching overage price keys
-  const tierEntry = Object.entries(TIER_CONFIG).find(([, config]) => config.lookupKey === lookupKey);
-  const tier = tierEntry ? (tierEntry[0] as PaidTier) : null;
-  const tierConfig = tier ? TIER_CONFIG[tier] : null;
-
-  // Fetch all prices in one call: the flat price + both overage prices
-  const allLookupKeys = [
-    lookupKey,
-    ...(tierConfig ? [tierConfig.overageBytesLookupKey, tierConfig.overageSignalRunsLookupKey] : []),
-  ];
-
+  // Only send the flat plan price to checkout – overage prices are added
+  // server-side in the subscription.created webhook to avoid confusing
+  // line-item display on the Stripe checkout page.
   const prices = await s.prices.list({
-    lookup_keys: allLookupKeys,
+    lookup_keys: [lookupKey],
   });
 
   const flatPrice = prices.data.find((p) => p.lookup_key === lookupKey);
-  const bytesOveragePrice = tierConfig
-    ? prices.data.find((p) => p.lookup_key === tierConfig.overageBytesLookupKey)
-    : undefined;
-  const signalRunsOveragePrice = tierConfig
-    ? prices.data.find((p) => p.lookup_key === tierConfig.overageSignalRunsLookupKey)
-    : undefined;
 
   const subscriptionMetadata = {
     workspaceId: workspaceId!,
@@ -110,8 +96,6 @@ export default async function CheckoutPage(props: {
         price: flatPrice?.id,
         quantity: 1,
       },
-      ...(bytesOveragePrice ? [{ price: bytesOveragePrice.id }] : []),
-      ...(signalRunsOveragePrice ? [{ price: signalRunsOveragePrice.id }] : []),
     ],
     mode: "subscription",
     subscription_data: {
