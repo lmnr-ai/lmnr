@@ -12,7 +12,7 @@ export const METRIC_FUNCTION_OPTIONS: MetricFunctionOption[] = [
   {
     value: "count",
     label: "count",
-    createMetric: () => ({ fn: "count", column: "*", alias: "count", args: [] }),
+    createMetric: () => ({ fn: "count", column: "*", args: [] }),
   },
   {
     value: "sum",
@@ -37,22 +37,22 @@ export const METRIC_FUNCTION_OPTIONS: MetricFunctionOption[] = [
   {
     value: "p90",
     label: "P90",
-    createMetric: (column) => ({ fn: "quantile", column, args: [0.9], alias: `p90_${column}` }),
+    createMetric: (column) => ({ fn: "quantile", column, args: [0.9] }),
   },
   {
     value: "p95",
     label: "P95",
-    createMetric: (column) => ({ fn: "quantile", column, args: [0.95], alias: `p95_${column}` }),
+    createMetric: (column) => ({ fn: "quantile", column, args: [0.95] }),
   },
   {
     value: "p99",
     label: "P99",
-    createMetric: (column) => ({ fn: "quantile", column, args: [0.99], alias: `p99_${column}` }),
+    createMetric: (column) => ({ fn: "quantile", column, args: [0.99] }),
   },
   {
     value: "raw",
     label: "Custom SQL",
-    createMetric: () => ({ fn: "raw", column: "", alias: "value", args: [] }),
+    createMetric: () => ({ fn: "raw", column: "", args: [] }),
   },
 ];
 
@@ -66,15 +66,12 @@ export const getMetricFunctionValue = (metric: Metric): string => {
   return metric.fn;
 };
 
-export const createMetricFromOption = (functionValue: string, column: string, alias?: string): Metric => {
+export const createMetricFromOption = (functionValue: string, column: string): Metric => {
   const option = METRIC_FUNCTION_OPTIONS.find((opt) => opt.value === functionValue);
   if (!option) {
-    return { fn: "count", column: "*", alias: alias || "count", args: [] };
+    return { fn: "count", column: "*", args: [] };
   }
-  if (functionValue === "raw") {
-    return { ...option.createMetric(column), alias: alias || "value" } as Metric;
-  }
-  return { ...option.createMetric(column), column, alias } as Metric;
+  return { ...option.createMetric(column), column } as Metric;
 };
 
 export const FILTER_OPERATOR_OPTIONS = [

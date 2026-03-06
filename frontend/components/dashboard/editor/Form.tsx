@@ -80,7 +80,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     const isTimeSeries = needsTimeSeries(chartType);
     const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
     const firstMetric = metrics[0];
-    const metricValue = firstMetric.alias || (firstMetric.fn === "raw" ? "value" : firstMetric.column);
+    const metricValue = firstMetric.column;
     const dimensionValue = isTimeSeries ? "time" : dimensions?.[0] || columns[0]?.name || "x";
 
     return {
