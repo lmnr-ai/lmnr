@@ -12,7 +12,7 @@ export const METRIC_FUNCTION_OPTIONS: MetricFunctionOption[] = [
   {
     value: "count",
     label: "count",
-    createMetric: () => ({ fn: "count", column: "*", args: [] }),
+    createMetric: () => ({ fn: "count", column: "*", alias: "count", args: [] }),
   },
   {
     value: "sum",
