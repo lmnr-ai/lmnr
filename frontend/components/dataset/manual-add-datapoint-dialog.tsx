@@ -118,7 +118,7 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
           </div>
         </div>
         {!isValidJson() && (
-          <div className="text-red-500">
+          <div className="text-destructive">
             Please enter a valid JSON map that has a {'"'}data{'"'} key.
           </div>
         )}

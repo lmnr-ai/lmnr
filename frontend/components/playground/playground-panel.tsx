@@ -252,7 +252,7 @@ export default function PlaygroundPanel({
         </ResizablePanel>
         {history && (
           <>
-            <ResizableHandle className="hover:bg-blue-600 active:bg-blue-600" />
+            <ResizableHandle className="hover:bg-chart-1 active:bg-chart-1" />
             <ResizablePanel minSize={20} defaultSize={30} className="flex flex-col">
               <div className="px-3 py-2 border-b">
                 <h3 className="text-sm font-medium">Playground runs history</h3>

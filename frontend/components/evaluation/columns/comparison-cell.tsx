@@ -27,9 +27,9 @@ export const ComparisonCell = ({
 
   return (
     <div className="flex items-center gap-2">
-      <div className="text-green-300">{comparison}</div>
+      <div className="text-success-bright">{comparison}</div>
       <ArrowRight className="font-bold min-w-3" size={12} />
-      <div className="text-blue-300">{original}</div>
+      <div className="text-chart-1">{original}</div>
       {showComparison && originalValue && comparisonValue && (
         <ComparisonIndicator originalValue={originalValue} comparisonValue={comparisonValue} />
       )}

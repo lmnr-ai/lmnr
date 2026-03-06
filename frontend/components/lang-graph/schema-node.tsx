@@ -22,9 +22,9 @@ const SchemaNode = memo(({ data, selected }: SchemaNodeProps) => {
       className={cn(
         "shadow-md rounded-lg bg-white border-2 border-gray-200 flex items-center justify-center p-3 overflow-hidden",
         {
-          "border-blue-500": selected,
-          "border-green-500 bg-green-50": isStart,
-          "border-red-500 bg-red-50": isEnd,
+          "border-chart-1": selected,
+          "border-success bg-success/10": isStart,
+          "border-destructive bg-destructive/10": isEnd,
         }
       )}
       style={{
@@ -34,10 +34,10 @@ const SchemaNode = memo(({ data, selected }: SchemaNodeProps) => {
       }}
     >
       <div className="flex items-center space-x-2 w-full">
-        {isStart && <Play className="w-4 h-4 text-green-600 shrink-0" />}
-        {isEnd && <Square className="w-4 h-4 text-red-600 shrink-0" />}
-        {!isStart && !isEnd && <Circle className="w-4 h-4 text-gray-600 shrink-0" />}
-        <div title={label} className="text-sm font-medium text-gray-900 truncate">
+        {isStart && <Play className="w-4 h-4 text-success shrink-0" />}
+        {isEnd && <Square className="w-4 h-4 text-destructive shrink-0" />}
+        {!isStart && !isEnd && <Circle className="w-4 h-4 text-muted-foreground shrink-0" />}
+        <div title={label} className="text-sm font-medium text-foreground truncate">
           {label}
         </div>
       </div>

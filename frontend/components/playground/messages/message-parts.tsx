@@ -72,7 +72,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 />
                 {fields.length > 1 && (
                   <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
-                    <X className="text-gray-400" size={12} />
+                    <X className="text-muted-foreground" size={12} />
                   </Button>
                 )}
               </div>
@@ -125,7 +125,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 </div>
                 {fields.length > 1 && (
                   <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
-                    <X className="text-gray-400" size={12} />
+                    <X className="text-muted-foreground" size={12} />
                   </Button>
                 )}
               </div>
@@ -158,7 +158,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                 </div>
                 {fields.length > 1 && (
                   <Button onClick={() => remove(index)} className={buttonClassName} variant="outline" size="icon">
-                    <X className="text-gray-400" size={12} />
+                    <X className="text-muted-foreground" size={12} />
                   </Button>
                 )}
               </div>
@@ -187,7 +187,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                         variant="outline"
                         className={buttonClassName}
                       >
-                        <Paperclip className="text-gray-400" size={12} />
+                        <Paperclip className="text-muted-foreground" size={12} />
                       </Button>
                       {fields.length > 1 && (
                         <Button
@@ -196,7 +196,7 @@ const MessageParts = ({ parentIndex, fields, remove }: MessagePartsProps) => {
                           variant="outline"
                           size="icon"
                         >
-                          <X className="text-gray-400" size={12} />
+                          <X className="text-muted-foreground" size={12} />
                         </Button>
                       )}
                     </div>

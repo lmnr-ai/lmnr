@@ -17,7 +17,7 @@ import { ChangeIndicator, shouldShowComparisonIndicator } from "./comparison-cel
 
 const ScoreDisplay = (range: ScoreRange, value: ScoreValue) => {
   if (!isValidScore(value)) {
-    return <span className="text-gray-500">-</span>;
+    return <span className="text-muted-foreground">-</span>;
   }
 
   const style = createHeatmapStyle(value, range);
@@ -48,7 +48,7 @@ const HeatmapScoreCell = ({ value, range }: { value: ScoreValue; range: ScoreRan
 
 const ComparisonScoreValue = ({ value, range }: { value: ScoreValue; range: ScoreRange }) => {
   if (!isValidScore(value)) {
-    return <span className="text-gray-500 text-center block text-xs">-</span>;
+    return <span className="text-muted-foreground text-center block text-xs">-</span>;
   }
 
   return ScoreDisplay(range, value);
@@ -74,7 +74,7 @@ const HeatmapComparisonCell = ({
     return (
       <div className="flex items-center space-x-2">
         <span className="text-current">{comparison ?? "-"}</span>
-        <ArrowRight className="font-bold min-w-3 text-gray-400" size={12} />
+        <ArrowRight className="font-bold min-w-3 text-muted-foreground" size={12} />
         <span className="text-current">{original ?? "-"}</span>
         {showComparison && isValidScore(originalValue) && isValidScore(comparisonValue) && (
           <span className="text-secondary-foreground">
@@ -92,7 +92,7 @@ const HeatmapComparisonCell = ({
       <div className="flex-1 min-w-fit">
         <ComparisonScoreValue value={comparisonValue} range={range} />
       </div>
-      <ArrowRight className="font-bold text-gray-400 shrink-0" size={8} />
+      <ArrowRight className="font-bold text-muted-foreground shrink-0" size={8} />
       <div className="flex-1 min-w-fit">
         <ComparisonScoreValue value={originalValue} range={range} />
       </div>
@@ -108,11 +108,11 @@ const StandardScoreComparison = ({ original, comparison }: { original: ScoreValu
 
   return (
     <div className="flex items-center space-x-2">
-      <div title={String(comparison)} className="text-green-300">
+      <div title={String(comparison)} className="text-success-bright">
         {isValidScore(comparison) ? formatScoreValue(comparison) : "-"}
       </div>
       <ArrowRight className="font-bold min-w-3" size={12} />
-      <div title={String(original)} className="text-blue-300">
+      <div title={String(original)} className="text-chart-1">
         {isValidScore(original) ? formatScoreValue(original) : "-"}
       </div>
       {showComparison && isValidScore(original) && isValidScore(comparison) && (

@@ -72,7 +72,9 @@
   --color-llm: hsl(var(--llm));
   --color-llm-foreground: hsl(var(--llm-foreground));
 
-  /*TODO: unify landing and platform colors*/
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+
   --color-landing-primary-200: rgb(218 135 95);
   --color-landing-primary-300: rgb(213 126 87);
   --color-landing-primary-400: rgb(208 117 78);
@@ -119,64 +121,80 @@
 
 @layer base {
   :root {
-    --radius: 0.5rem;
+    --radius: 0.375rem;
 
-    --background: 0 0% 4%;
-    --foreground: 0 8% 90%;
+    /* Surface hierarchy: content well (darkest) → chrome (lighter)
+       Inspired by landing surface colors + Zed's layered approach */
+    --background: 240 4% 6%;
+    --foreground: 220 6% 90%;
 
-    --card: 0 0% 7%;
-    --card-foreground: 240 8% 80%;
+    --card: 240 4% 9%;
+    --card-foreground: 220 6% 82%;
 
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 8% 90%;
+    --popover: 240 4% 10%;
+    --popover-foreground: 220 6% 90%;
 
+    /* Primary: Laminar orange – kept as-is */
     --primary: 18 59% 55%;
-    --primary-foreground: 16 0% 91%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 0 0% 7%;
-    --secondary-foreground: 0 0% 71%;
+    /* Secondary: subtle raised surface */
+    --secondary: 240 3% 11%;
+    --secondary-foreground: 220 4% 64%;
 
-    --muted: 240 6% 14%;
-    --muted-foreground: 0 0% 52%;
+    /* Muted: backgrounds for inactive/subtle areas */
+    --muted: 240 3% 13%;
+    --muted-foreground: 220 4% 50%;
 
-    --accent: 232 9% 17%;
-    --accent-foreground: 210 100% 100%;
+    /* Accent: hover/active interaction states */
+    --accent: 240 3% 15%;
+    --accent-foreground: 220 6% 93%;
 
-    --destructive: 0 60% 50%;
-    --destructive-foreground: 210 40% 98%;
-    --destructive-bright: 0 72% 60%;
+    /* Destructive: refined red */
+    --destructive: 0 62% 56%;
+    --destructive-foreground: 0 0% 98%;
+    --destructive-bright: 0 68% 62%;
 
-    --success: 142.1 76.2% 36.3%;
-    --success-foreground: 355.7 100% 97.3%;
-    --success-bright: 158 64% 52%;
+    /* Success: refined teal-green */
+    --success: 152 48% 42%;
+    --success-foreground: 0 0% 98%;
+    --success-bright: 158 52% 50%;
 
-    --border: 240 6% 18%;
-    --input: 240 6% 18%;
-    --ring: 212 96% 78%;
+    /* Warning: cohesive warm amber */
+    --warning: 36 80% 52%;
+    --warning-foreground: 0 0% 98%;
 
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    /* Borders: subtle but visible separation */
+    --border: 240 4% 17%;
+    --input: 240 4% 17%;
+    --ring: 18 59% 55%;
 
-    --sidebar-background: 0 0% 7%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    /* Chart colors: harmonized palette */
+    --chart-1: 215 65% 55%;
+    --chart-2: 152 48% 46%;
+    --chart-3: 18 59% 55%;
+    --chart-4: 262 48% 58%;
+    --chart-5: 340 55% 55%;
+
+    /* Sidebar: chrome level – slightly lighter than background */
+    --sidebar-background: 240 4% 7.5%;
+    --sidebar-foreground: 220 6% 85%;
+    --sidebar-primary: 18 59% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 240 3% 14%;
+    --sidebar-accent-foreground: 220 6% 93%;
+    --sidebar-border: 240 4% 15%;
+    --sidebar-ring: 18 59% 55%;
 
-    --tool: 42 93% 46%;
-    --llm: 262 83% 58%;
-    --llm-foreground: 272 100% 74%;
+    /* Semantic accent colors */
+    --tool: 38 72% 52%;
+    --llm: 262 48% 58%;
+    --llm-foreground: 268 56% 68%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 240 4% 6%;
+    --foreground: 220 6% 90%;
   }
 }
 
@@ -188,6 +206,8 @@
 
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   button {
@@ -199,4 +219,3 @@
     color: white;
   }
 }
-

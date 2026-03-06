@@ -145,7 +145,7 @@ const ManageTemplateDialog = ({
                     />
                   )}
                 />
-                {errors.name && <p className="text-sm text-red-500 mt-1">{errors.name.message}</p>}
+                {errors.name && <p className="text-sm text-destructive mt-1">{errors.name.message}</p>}
               </div>
               <Tabs className="flex flex-col flex-1 min-h-0" defaultValue="data">
                 <TabsList>
@@ -170,7 +170,7 @@ const ManageTemplateDialog = ({
                       )}
                     />
                   </div>
-                  {errors.testData && <p className="text-sm text-red-500 mt-1">{errors.testData.message}</p>}
+                  {errors.testData && <p className="text-sm text-destructive mt-1">{errors.testData.message}</p>}
                 </TabsContent>
                 <TabsContent value="editor" className="flex-1 min-h-0 pt-2">
                   <div className="border rounded-md bg-muted/50 h-full overflow-hidden">
@@ -189,7 +189,7 @@ const ManageTemplateDialog = ({
                       )}
                     />
                   </div>
-                  {errors.code && <p className="text-sm text-red-500 mt-1">{errors.code.message}</p>}
+                  {errors.code && <p className="text-sm text-destructive mt-1">{errors.code.message}</p>}
                 </TabsContent>
               </Tabs>
             </div>

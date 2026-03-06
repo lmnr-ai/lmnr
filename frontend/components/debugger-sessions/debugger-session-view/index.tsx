@@ -88,7 +88,7 @@ const PureDebuggerSessionView = ({ sessionId, spanId }: DebuggerSessionViewProps
             className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
             onMouseDown={handleResizeSidebar}
           >
-            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
+            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-chart-1 transition-colors" />
           </div>
         </div>
 
