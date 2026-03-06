@@ -3,6 +3,7 @@ import { Controller, useFormContext, useWatch } from "react-hook-form";
 
 import {
   createMetricFromOption,
+  getMetricAlias,
   getMetricFunctionValue,
   METRIC_FUNCTION_OPTIONS,
 } from "@/components/dashboard/editor/constants";
@@ -27,7 +28,7 @@ const useMetricFnChange = (index: number) => {
       } else if (newMetric.fn === "raw") {
         setValue(`metrics.${index}`, { ...newMetric }, { shouldValidate: true });
       } else {
-        setValue(`metrics.${index}`, { ...newMetric, column: "" }, { shouldValidate: true });
+        setValue(`metrics.${index}`, { ...newMetric, column: "", alias: undefined }, { shouldValidate: true });
       }
     },
     [index, setValue, getValues]
@@ -117,7 +118,8 @@ const StandardMetricRow = ({ index, table }: { index: number; table: string }) =
       <Select
         value={field.column}
         onValueChange={(column) => {
-          setValue(`metrics.${index}`, { ...field, column }, { shouldValidate: true });
+          const alias = getMetricAlias(getMetricFunctionValue(field), column);
+          setValue(`metrics.${index}`, { ...field, column, alias }, { shouldValidate: true });
         }}
         disabled={field.fn === "count"}
       >
