@@ -56,6 +56,7 @@ impl ModelInfo {
     }
 
     pub fn extract(model: &str, provider: Option<&str>) -> Self {
+        let model = model.to_lowercase();
         let provider = provider.map(|p| p.to_lowercase().trim().to_string());
 
         // If provider is missing, try to infer from model name
@@ -69,7 +70,7 @@ impl ModelInfo {
 
         // Extract raw model name by stripping provider prefix
         let raw_model = if model.contains('/') {
-            model.splitn(2, '/').nth(1).unwrap_or(model).to_string()
+            model.splitn(2, '/').nth(1).unwrap_or(&model).to_string()
         } else {
             model.to_string()
         };
