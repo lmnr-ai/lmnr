@@ -1,8 +1,7 @@
-import { and, desc, eq, ne } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { db } from "@/lib/db/drizzle";
-import { eventClusters } from "@/lib/db/migrations/schema";
+import { buildSelectQuery, type QueryParams } from "@/lib/actions/common/query-builder";
+import { executeQuery } from "@/lib/actions/sql";
 
 export type EventCluster = {
   id: string;
@@ -17,38 +16,48 @@ export type EventCluster = {
 
 export const GetEventClustersSchema = z.object({
   projectId: z.string(),
-  eventName: z.string(),
-  eventSource: z.enum(["SEMANTIC", "CODE"]).optional().default("SEMANTIC"),
+  signalId: z.string(),
 });
 
 export async function getEventClusters(
-  input: Omit<z.infer<typeof GetEventClustersSchema>, "eventSource"> & { eventSource?: "SEMANTIC" | "CODE" }
+  input: z.infer<typeof GetEventClustersSchema>
 ): Promise<{ items: EventCluster[] }> {
-  const { projectId, eventName, eventSource } = GetEventClustersSchema.parse(input);
+  const { projectId, signalId } = GetEventClustersSchema.parse(input);
 
-  const whereConditions = [
-    eq(eventClusters.projectId, projectId),
-    eq(eventClusters.eventName, eventName),
-    eq(eventClusters.eventSource, eventSource),
-    ne(eventClusters.level, 0),
+  const customConditions: Array<{ condition: string; params: QueryParams }> = [
+    {
+      condition: "signal_id = {signalId:UUID}",
+      params: { signalId },
+    },
+    {
+      condition: "level != 0",
+      params: {},
+    },
   ];
 
-  const result = await db
-    .select({
-      id: eventClusters.id,
-      name: eventClusters.name,
-      parentId: eventClusters.parentId,
-      level: eventClusters.level,
-      numChildrenClusters: eventClusters.numChildrenClusters,
-      numEvents: eventClusters.numEvents,
-      createdAt: eventClusters.createdAt,
-      updatedAt: eventClusters.updatedAt,
-    })
-    .from(eventClusters)
-    .where(and(...whereConditions))
-    .orderBy(desc(eventClusters.numEvents), eventClusters.level, eventClusters.createdAt);
+  const { query, parameters } = buildSelectQuery({
+    select: {
+      columns: [
+        "id",
+        "name",
+        "parent_id as parentId",
+        "level",
+        "num_children_clusters as numChildrenClusters",
+        "num_signal_events as numEvents",
+        "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt",
+        "formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') as updatedAt",
+      ],
+      table: "clusters",
+    },
+    customConditions,
+    orderBy: [
+      { column: "num_signal_events", direction: "DESC" },
+      { column: "level", direction: "ASC" },
+      { column: "created_at", direction: "ASC" },
+    ],
+  });
 
-  return {
-    items: result,
-  };
+  const items = await executeQuery<EventCluster>({ query, parameters, projectId });
+
+  return { items };
 }

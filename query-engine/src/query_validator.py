@@ -224,6 +224,22 @@ class TableRegistry:
         )
         self.tables["logs"] = TableSchema("logs", logs_columns, "time")
 
+        clusters_columns = {
+            "id",
+            "signal_id",
+            "name",
+            "level",
+            "centroid",
+            "parent_id",
+            "num_signal_events",
+            "num_children_clusters",
+            "created_at",
+            "updated_at",
+        }
+        self.tables["clusters"] = TableSchema(
+            "clusters", clusters_columns, "created_at"
+        )
+
     def is_table_allowed(self, table_name: str) -> bool:
         """Check if a table is allowed"""
         return table_name.lower() in self.tables
