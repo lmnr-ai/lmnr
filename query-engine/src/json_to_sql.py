@@ -186,8 +186,12 @@ class JsonToSqlConverter:
         return f"`{alias.replace('`', '``')}`"
 
     @staticmethod
-    def _validate_raw_expression(expr: str) -> None:
-        """Validate a raw SQL expression to prevent injection."""
+    def _validate_raw_expression(expr: str) -> str:
+        """Validate a raw SQL expression to prevent injection.
+
+        Returns the expression regenerated from the parsed AST so that the
+        interpolated SQL always matches what was actually validated.
+        """
         if not expr or not expr.strip():
             raise QueryBuilderError("Raw SQL expression cannot be empty")
 
@@ -217,6 +221,9 @@ class JsonToSqlConverter:
         if blocked:
             raise QueryBuilderError(f"Function '{blocked}' is not allowed in raw SQL expressions")
 
+        # Regenerate from the validated AST to close any parse/interpret gap
+        return select_exprs[0].sql(dialect="clickhouse")
+
     def _metric_sql(self, metric: dict[str, Any]) -> str:
         fn = metric['fn']
         col = metric['column']
@@ -224,8 +231,8 @@ class JsonToSqlConverter:
         if fn.lower() == 'raw':
             alias = metric.get('alias') or 'value'
             safe_alias = self._escape_alias(alias)
-            self._validate_raw_expression(col)
-            return f"({col}) AS {safe_alias}"
+            safe_expr = self._validate_raw_expression(col)
+            return f"({safe_expr}) AS {safe_alias}"
 
         alias = metric.get('alias') or col
         safe_alias = self._escape_alias(alias)
