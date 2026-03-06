@@ -16,7 +16,11 @@ export async function loadOgFonts(): Promise<OgFont[]> {
     return cachedFonts;
   }
 
-  const css = await (await fetch(INTER_FONT_URL)).text();
+  const cssResponse = await fetch(INTER_FONT_URL);
+  if (!cssResponse.ok) {
+    return [];
+  }
+  const css = await cssResponse.text();
 
   // Parse each @font-face block individually to keep URL and weight paired
   const fontFaceBlocks = [...css.matchAll(/@font-face\s*\{([^}]+)\}/g)].map((m) => m[1]);
@@ -29,17 +33,15 @@ export async function loadOgFonts(): Promise<OgFont[]> {
     })
     .filter((entry): entry is { url: string; weight: 400 | 500 | 600 | 700 } => entry !== null);
 
-  const fonts = await Promise.all(
-    parsed.map(async ({ url, weight }) => {
-      const data = await (await fetch(url)).arrayBuffer();
-      return {
-        name: "Inter" as const,
-        data,
-        weight,
-        style: "normal" as const,
-      };
+  const results = await Promise.all(
+    parsed.map(async ({ url, weight }): Promise<OgFont | null> => {
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const data = await response.arrayBuffer();
+      return { name: "Inter", data, weight, style: "normal" };
     })
   );
+  const fonts = results.filter((f): f is OgFont => f !== null);
 
   if (fonts.length > 0) {
     cachedFonts = fonts;
