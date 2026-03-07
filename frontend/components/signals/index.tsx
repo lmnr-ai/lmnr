@@ -308,7 +308,7 @@ function SignalsContent() {
               hasActiveFilters={filter.length > 0 || !!search}
             />
             {/* Load more trigger for infinite scroll in card view */}
-            {hasMore && (
+            {hasMore && !isLoading && (
               <div className="flex justify-center py-4">
                 <Button variant="ghost" onClick={() => fetchNextPage()} disabled={isFetching}>
                   {isFetching ? "Loading..." : "Load more"}
