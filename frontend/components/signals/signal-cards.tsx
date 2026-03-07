@@ -20,6 +20,7 @@ interface SignalCardsProps {
   sparklineMaxCount?: number;
   variant: CardVariant;
   isLoading?: boolean;
+  hasActiveFilters?: boolean;
 }
 
 function formatRelativeTime(dateStr: string | null): string {
@@ -363,6 +364,7 @@ export default function SignalCards({
   sparklineMaxCount,
   variant,
   isLoading,
+  hasActiveFilters,
 }: SignalCardsProps) {
   if (isLoading) {
     return (
@@ -373,6 +375,14 @@ export default function SignalCards({
   }
 
   if (signals.length === 0) {
+    if (hasActiveFilters) {
+      return (
+        <div className="flex flex-1 justify-center py-12">
+          <p className="text-sm text-muted-foreground">No signals match the current filters.</p>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-1 justify-center py-12">
         <div className="flex flex-col gap-2 items-center max-w-md">

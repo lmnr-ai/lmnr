@@ -305,6 +305,7 @@ function SignalsContent() {
               sparklineMaxCount={sparklineMaxCount}
               variant={viewMode as CardVariant}
               isLoading={isLoading}
+              hasActiveFilters={filter.length > 0 || !!search}
             />
             {/* Load more trigger for infinite scroll in card view */}
             {hasMore && (
