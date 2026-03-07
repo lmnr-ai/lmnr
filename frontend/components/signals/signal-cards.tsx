@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, Clock, Radio, Zap } from "lucide-react";
+import { Calendar, Clock, Loader2, Radio, Zap } from "lucide-react";
 import Link from "next/link";
 import React from "react";
 
@@ -19,6 +19,7 @@ interface SignalCardsProps {
   sparklineData: SignalSparklineData;
   sparklineMaxCount?: number;
   variant: CardVariant;
+  isLoading?: boolean;
 }
 
 function formatRelativeTime(dateStr: string | null): string {
@@ -361,7 +362,16 @@ export default function SignalCards({
   sparklineData,
   sparklineMaxCount,
   variant,
+  isLoading,
 }: SignalCardsProps) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 justify-center py-12">
+        <Loader2 className="size-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   if (signals.length === 0) {
     return (
       <div className="flex flex-1 justify-center py-12">
