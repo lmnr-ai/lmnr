@@ -15,6 +15,7 @@ export type SignalRow = {
   name: string;
   createdAt: string;
   projectId: string;
+  prompt: string;
   triggersCount: number;
   eventsCount: number;
   lastEventAt: string | null;
@@ -109,6 +110,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       createdAt: signals.createdAt,
       name: signals.name,
       projectId: signals.projectId,
+      prompt: signals.prompt,
     })
     .from(signals)
     .where(and(...whereConditions))

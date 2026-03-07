@@ -46,7 +46,7 @@ export function InfiniteTableCell<TData extends RowData>({ cell }: InfiniteTable
       }}
       ref={setNodeRef}
     >
-      <div className="truncate">{flexRender(cell.column.columnDef.cell, cell.getContext())}</div>
+      <div className="truncate flex-1 min-w-0">{flexRender(cell.column.columnDef.cell, cell.getContext())}</div>
     </TableCell>
   );
 }

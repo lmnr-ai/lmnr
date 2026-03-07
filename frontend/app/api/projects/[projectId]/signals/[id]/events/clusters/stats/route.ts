@@ -1,19 +1,24 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
+import { getClusterStats, GetClusterStatsSchema } from "@/lib/actions/clusters/stats";
 import { parseUrlParams } from "@/lib/actions/common/utils";
-import { getEventsPaginated, GetEventsPaginatedSchema } from "@/lib/actions/events";
 
 export async function GET(
   req: NextRequest,
   props: { params: Promise<{ projectId: string; id: string }> }
 ): Promise<Response> {
-  const params = await props.params;
-  const { projectId, id: signalId } = params;
+  const { projectId, id: signalId } = await props.params;
+
+  const clusterIds = req.nextUrl.searchParams.getAll("clusterId");
+
+  if (clusterIds.length === 0) {
+    return Response.json({ error: "At least one clusterId is required" }, { status: 400 });
+  }
+
   const parseResult = parseUrlParams(
     req.nextUrl.searchParams,
-    GetEventsPaginatedSchema.omit({ projectId: true, signalId: true }),
-    ["filter", "searchIn", "clusterId"]
+    GetClusterStatsSchema.omit({ projectId: true, signalId: true, clusterIds: true })
   );
 
   if (!parseResult.success) {
@@ -21,14 +26,14 @@ export async function GET(
   }
 
   try {
-    const result = await getEventsPaginated({ ...parseResult.data, projectId, signalId });
+    const result = await getClusterStats({ ...parseResult.data, projectId, signalId, clusterIds });
     return Response.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
     }
     return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch events." },
+      { error: error instanceof Error ? error.message : "Failed to fetch cluster stats." },
       { status: 500 }
     );
   }

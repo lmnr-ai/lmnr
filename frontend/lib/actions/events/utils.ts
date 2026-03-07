@@ -58,10 +58,11 @@ export interface BuildEventsQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  eventIds?: string[];
 }
 
 export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): QueryResult => {
-  const { signalId, filters, limit, offset, startTime, endTime, pastHours } = options;
+  const { signalId, filters, limit, offset, startTime, endTime, pastHours, eventIds } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -72,6 +73,13 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
       params: { signalId },
     },
   ];
+
+  if (eventIds && eventIds.length > 0) {
+    customConditions.push({
+      condition: "id IN ({eventIds:Array(UUID)})",
+      params: { eventIds },
+    });
+  }
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -105,7 +113,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
 export const buildEventsCountQueryWithParams = (
   options: Omit<BuildEventsQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { signalId, filters, startTime, endTime, pastHours } = options;
+  const { signalId, filters, startTime, endTime, pastHours, eventIds } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -116,6 +124,13 @@ export const buildEventsCountQueryWithParams = (
       params: { signalId },
     },
   ];
+
+  if (eventIds && eventIds.length > 0) {
+    customConditions.push({
+      condition: "id IN ({eventIds:Array(UUID)})",
+      params: { eventIds },
+    });
+  }
 
   const queryOptions: SelectQueryOptions = {
     select: {

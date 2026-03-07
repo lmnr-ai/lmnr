@@ -2,9 +2,15 @@
 
 import { SquareArrowOutUpRight } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-import { defaultSignalsColumnsOrder, signalsColumns, signalsTableFilters } from "@/components/signals/columns.tsx";
+import {
+  defaultSignalsColumnsOrder,
+  signalsColumns,
+  signalsTableFilters,
+  type SignalTableMeta,
+  type SparklineScale,
+} from "@/components/signals/columns.tsx";
 import ManageSignalSheet from "@/components/signals/manage-signal-sheet.tsx";
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
@@ -17,6 +23,7 @@ import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-d
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type SignalRow } from "@/lib/actions/signals";
+import { type SignalSparklineData } from "@/lib/actions/signals/stats";
 import { useToast } from "@/lib/hooks/use-toast";
 
 const EmptyRow = (
@@ -57,6 +64,8 @@ function SignalsContent() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const { rowSelection, onRowSelectionChange } = useSelection();
+  const [sparklineScale, setSparklineScale] = useState<SparklineScale>("week");
+  const [sparklineData, setSparklineData] = useState<SignalSparklineData>({});
 
   const searchParams = useSearchParams();
   const filter = searchParams.getAll("filter");
@@ -114,6 +123,34 @@ function SignalsContent() {
     deps: [endDate, filter, pastHours, projectId, startDate, search],
   });
 
+  // Fetch sparkline stats when signals data or scale changes
+  const signalIdsCacheKey = useMemo(() => eventDefinitions.map((s) => s.id).join(","), [eventDefinitions]);
+
+  useEffect(() => {
+    if (signalIdsCacheKey.length === 0) return;
+
+    const signalIds = signalIdsCacheKey.split(",");
+    const urlParams = new URLSearchParams();
+    signalIds.forEach((id) => urlParams.append("signalId", id));
+    urlParams.set("scale", sparklineScale);
+
+    fetch(`/api/projects/${projectId}/signals/stats?${urlParams.toString()}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to fetch sparkline stats: ${res.status}`);
+        return res.json();
+      })
+      .then((data: SignalSparklineData) => {
+        setSparklineData(data);
+      })
+      .catch((err) => {
+        toast({
+          title: "Failed to load sparkline data",
+          description: err instanceof Error ? err.message : "Unknown error",
+          variant: "destructive",
+        });
+      });
+  }, [signalIdsCacheKey, sparklineScale, projectId, toast]);
+
   const handleSuccess = useCallback(async () => {
     await refetch();
   }, [refetch]);
@@ -151,17 +188,30 @@ function SignalsContent() {
     [projectId, toast, updateData, onRowSelectionChange]
   );
 
+  const sparklineMaxCount = useMemo(() => {
+    let max = 0;
+    for (const points of Object.values(sparklineData)) {
+      for (const p of points) {
+        if (p.count > max) max = p.count;
+      }
+    }
+    return max || undefined;
+  }, [sparklineData]);
+
+  const tableMeta: SignalTableMeta = useMemo(
+    () => ({
+      sparklineData,
+      sparklineScale,
+      sparklineMaxCount,
+      onScaleChange: setSparklineScale,
+    }),
+    [sparklineData, sparklineScale, sparklineMaxCount]
+  );
+
   return (
     <>
       <Header path="signals" />
       <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
-        <div className="flex items-center gap-2">
-          <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-            <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
-              Signal
-            </Button>
-          </ManageSignalSheet>
-        </div>
         <InfiniteDataTable<SignalRow>
           columns={signalsColumns}
           data={eventDefinitions}
@@ -177,6 +227,8 @@ function SignalsContent() {
           }}
           onRowSelectionChange={onRowSelectionChange}
           lockedColumns={["__row_selection"]}
+          meta={tableMeta}
+          estimatedRowHeight={64}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
               <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
@@ -194,6 +246,12 @@ function SignalsContent() {
               }))}
             />
             <DataTableSearch className="mr-0.5" placeholder="Search by signal name..." />
+            <div className="flex-1" />
+            <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+              <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
+                Signal
+              </Button>
+            </ManageSignalSheet>
           </div>
           <DataTableFilterList />
         </InfiniteDataTable>

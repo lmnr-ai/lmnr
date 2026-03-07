@@ -2,15 +2,11 @@
 
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 
-import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url.ts";
-import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import EventsChart from "@/components/signal/events-chart";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
-import DateRangeFilter from "@/components/ui/date-range-filter";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -55,14 +51,13 @@ function PureEventsTable() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
-  const { signal, lastEvent } = useSignalStoreContext((state) => ({
+  const { signal, selectedClusterIds } = useSignalStoreContext((state) => ({
     signal: state.signal,
-    lastEvent: state.lastEvent,
+    selectedClusterIds: state.selectedClusterIds,
   }));
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
-  const chartContainerRef = useRef<HTMLDivElement>(null);
 
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
@@ -90,6 +85,8 @@ function PureEventsTable() {
 
         filter.forEach((f) => urlParams.append("filter", f));
 
+        selectedClusterIds.forEach((id) => urlParams.append("clusterId", id));
+
         urlParams.set("eventDefinitionId", signal.id);
 
         urlParams.set("eventSource", "SEMANTIC");
@@ -112,7 +109,7 @@ function PureEventsTable() {
       }
       return { items: [], count: 0 };
     },
-    [pastHours, startDate, endDate, filter, signal.id, params.projectId, toast]
+    [pastHours, startDate, endDate, filter, selectedClusterIds, signal.id, params.projectId, toast]
   );
 
   const getRowHref = useCallback(
@@ -124,15 +121,10 @@ function PureEventsTable() {
     [pathName, searchParams]
   );
 
-  const { traceId, setTraceId, fetchStats, setChartContainerWidth, chartContainerWidth } = useSignalStoreContext(
-    (state) => ({
-      traceId: state.traceId,
-      setTraceId: state.setTraceId,
-      fetchStats: state.fetchStats,
-      setChartContainerWidth: state.setChartContainerWidth,
-      chartContainerWidth: state.chartContainerWidth,
-    })
-  );
+  const { traceId, setTraceId } = useSignalStoreContext((state) => ({
+    traceId: state.traceId,
+    setTraceId: state.setTraceId,
+  }));
 
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
@@ -140,18 +132,6 @@ function PureEventsTable() {
     },
     [setTraceId]
   );
-
-  const statsUrl = useTimeSeriesStatsUrl({
-    baseUrl: `/api/projects/${params.projectId}/signals/${signal.id}/events/stats`,
-    chartContainerWidth,
-    pastHours,
-    startDate,
-    endDate,
-    filters: filter,
-    additionalParams: {
-      eventSource: "SEMANTIC",
-    },
-  });
 
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
 
@@ -164,7 +144,7 @@ function PureEventsTable() {
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
     enabled: !!(pastHours || (startDate && endDate)),
-    deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter],
+    deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter, selectedClusterIds],
   });
 
   const focusedRowId = useMemo(() => {
@@ -183,23 +163,6 @@ function PureEventsTable() {
   }, [events, setNavigationRefList]);
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const width = entry.contentRect.width;
-        setChartContainerWidth(width);
-      }
-    });
-
-    resizeObserver.observe(chartContainerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [setChartContainerWidth]);
-
-  useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
       const params = new URLSearchParams(searchParams.toString());
       params.set("pastHours", "72");
@@ -207,23 +170,8 @@ function PureEventsTable() {
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
-  useEffect(() => {
-    if (statsUrl) {
-      fetchStats(statsUrl);
-    }
-  }, [statsUrl, fetchStats]);
-
   return (
     <div className="flex flex-col gap-2 flex-1">
-      <span className="text-xs text-muted-foreground font-medium">
-        Last event:{" "}
-        {lastEvent ? (
-          <ClientTimestampFormatter timestamp={lastEvent.timestamp} className="text-xs text-primary" />
-        ) : (
-          <span className="text-xs">-</span>
-        )}
-      </span>
-
       <InfiniteDataTable<EventRow>
         className="w-full"
         columns={eventsTableColumns}
@@ -248,10 +196,8 @@ function PureEventsTable() {
               label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
-          <DateRangeFilter />
         </div>
         <DataTableFilterList />
-        <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
       </InfiniteDataTable>
     </div>
   );
