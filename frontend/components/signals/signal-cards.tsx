@@ -56,7 +56,7 @@ function getActivityLevel(eventsCount: number, lastEventAt: string | null): "hig
   return "none";
 }
 
-function parseSchemaFields(prompt: string): string[] {
+function extractTopicTags(prompt: string): string[] {
   // Extract keywords from the prompt to show as topic tags
   const keywords: string[] = [];
   const lowerPrompt = prompt.toLowerCase();
@@ -181,7 +181,7 @@ function SparklineCard({
 // Shows the signal name, inferred topic tags from the prompt as badges,
 // trigger count, and events count. Emphasizes *what* the signal evaluates.
 function TopicTagsCard({ signal, projectId }: { signal: SignalRow; projectId: string }) {
-  const tags = parseSchemaFields(signal.prompt);
+  const tags = extractTopicTags(signal.prompt);
 
   return (
     <Link href={`/project/${projectId}/signals/${signal.id}`}>
@@ -301,7 +301,7 @@ function MinimalHorizontalCard({
   sparklineMaxCount?: number;
 }) {
   const data = sparklineData[signal.id] ?? [];
-  const tags = parseSchemaFields(signal.prompt);
+  const tags = extractTopicTags(signal.prompt);
   const activityLevel = getActivityLevel(signal.eventsCount, signal.lastEventAt);
 
   const dotColor = {
