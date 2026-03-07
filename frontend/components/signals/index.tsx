@@ -279,6 +279,23 @@ function SignalsContent() {
           </ManageSignalSheet>
         </div>
 
+        <div className="flex flex-col gap-2 items-start">
+          <div className="flex flex-1 w-full space-x-2 pt-1">
+            <DataTableFilter columns={signalsTableFilters} />
+            {!isCardView && (
+              <ColumnsMenu
+                lockedColumns={["__row_selection"]}
+                columnLabels={signalsColumns.map((column) => ({
+                  id: column.id!,
+                  label: typeof column.header === "string" ? column.header : column.id!,
+                }))}
+              />
+            )}
+            <DataTableSearch className="mr-0.5" placeholder="Search by signal name..." />
+          </div>
+          <DataTableFilterList />
+        </div>
+
         {isCardView ? (
           <div className="overflow-y-auto flex-1">
             <SignalCards
@@ -322,20 +339,7 @@ function SignalsContent() {
               </div>
             )}
             emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
-          >
-            <div className="flex flex-1 w-full space-x-2 pt-1">
-              <DataTableFilter columns={signalsTableFilters} />
-              <ColumnsMenu
-                lockedColumns={["__row_selection"]}
-                columnLabels={signalsColumns.map((column) => ({
-                  id: column.id!,
-                  label: typeof column.header === "string" ? column.header : column.id!,
-                }))}
-              />
-              <DataTableSearch className="mr-0.5" placeholder="Search by signal name..." />
-            </div>
-            <DataTableFilterList />
-          </InfiniteDataTable>
+          />
         )}
       </div>
     </>
