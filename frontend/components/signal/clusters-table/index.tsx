@@ -1,58 +1,126 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  type ClusterRow,
-  defaultClustersColumnOrder,
-  getClusterColumns,
-} from "@/components/signal/clusters-table/columns.tsx";
+import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/charts/time-series-chart/utils";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import { TableCell, TableRow } from "@/components/ui/table";
+import DateRangeFilter from "@/components/ui/date-range-filter";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { type EventCluster } from "@/lib/actions/clusters";
+import { type ClusterStatsDataPoint } from "@/lib/actions/clusters/stats";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 
-const EmptyRow = (
-  <TableRow className="flex">
-    <TableCell className="text-center p-4 rounded-b w-full h-auto">
-      <div className="flex flex-1 justify-center">
-        <div className="flex flex-col gap-2 items-center max-w-md">
-          <h3 className="text-base font-medium text-secondary-foreground">No clusters yet</h3>
-          <p className="text-sm text-muted-foreground text-center">
-            Clusters group similar events together for easier analysis and it's performed automatically in the
-            background. If you don't see any clusters, most likely there's not enough data for distinct cluster to
-            appear.
-          </p>
-        </div>
-      </div>
-    </TableCell>
-  </TableRow>
-);
+import ClusterBreadcrumb from "./cluster-breadcrumb";
+import ClusterList from "./cluster-list";
+import ClusterStackedChart from "./cluster-stacked-chart";
+import { buildPath, buildTree, collectDescendantIds, findNodeById } from "./utils";
 
-const PureClustersTable = () => {
+export default function ClustersTable() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const signal = useSignalStoreContext((state) => state.signal);
-  const columns = useMemo(() => getClusterColumns(params.projectId, signal.id), [params.projectId, signal.id]);
+  const setSelectedClusterIds = useSignalStoreContext((state) => state.setSelectedClusterIds);
 
   const [rawClusters, setRawClusters] = useState<EventCluster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [statsData, setStatsData] = useState<ClusterStatsDataPoint[]>([]);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [selectedLeafId, setSelectedLeafId] = useState<string | null>(null);
+  const prevDepthRef = useRef(0);
+  const [slideClass, setSlideClass] = useState("");
+
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setLocalChartWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(chartContainerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Current drill-down path from URL
+  const clusterPath = searchParams.get("clusterPath") || "";
+  const pathIds = useMemo(() => (clusterPath ? clusterPath.split(",") : []), [clusterPath]);
+  const drillDownDepth = pathIds.length;
+
+  // Slide animation on level change
+  useEffect(() => {
+    const goingDeeper = drillDownDepth > prevDepthRef.current;
+    prevDepthRef.current = drillDownDepth;
+
+    setSlideClass(goingDeeper ? "translate-x-[60px] opacity-0 duration-0" : "-translate-x-[60px] opacity-0 duration-0");
+
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setSlideClass("translate-x-0 opacity-100 duration-300");
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [drillDownDepth]);
+
+  const tree = useMemo(() => buildTree(rawClusters), [rawClusters]);
+
+  const { currentNode, visibleClusters, breadcrumb } = useMemo(() => {
+    if (pathIds.length === 0) {
+      return { currentNode: null, visibleClusters: tree, breadcrumb: [] as ReturnType<typeof buildPath> };
+    }
+
+    const lastId = pathIds[pathIds.length - 1];
+    const node = findNodeById(tree, lastId);
+    const path = buildPath(tree, lastId);
+
+    return {
+      currentNode: node,
+      visibleClusters: node ? node.children : tree,
+      breadcrumb: path,
+    };
+  }, [tree, pathIds]);
+
+  const filteredCountByCluster = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of statsData) {
+      counts.set(row.cluster_id, (counts.get(row.cluster_id) ?? 0) + row.count);
+    }
+    return counts;
+  }, [statsData]);
+
+  // Update store with selected cluster IDs for events table filtering
+  useEffect(() => {
+    if (selectedLeafId) {
+      const leafNode = findNodeById(tree, selectedLeafId);
+      if (leafNode) {
+        setSelectedClusterIds(collectDescendantIds(leafNode));
+      }
+    } else if (currentNode) {
+      setSelectedClusterIds(collectDescendantIds(currentNode));
+    } else {
+      setSelectedClusterIds([]);
+    }
+  }, [currentNode, selectedLeafId, tree, setSelectedClusterIds]);
+
+  // Reset leaf selection when navigating to a different level
+  useEffect(() => {
+    setSelectedLeafId(null);
+  }, [pathIds.length]);
 
   const fetchClusters = useCallback(async () => {
     setIsLoading(true);
-
     try {
       const res = await fetch(`/api/projects/${params.projectId}/signals/${signal.id}/events/clusters`);
-
       if (!res.ok) {
         const text = (await res.json()) as { error: string };
         throw new Error(text.error);
       }
-
       const data = (await res.json()) as { items: EventCluster[] };
       setRawClusters(data.items);
     } catch (err) {
@@ -69,72 +137,186 @@ const PureClustersTable = () => {
     fetchClusters();
   }, [fetchClusters]);
 
-  const { clusters, totalCount } = useMemo(() => {
-    if (!rawClusters.length) return { clusters: [], totalCount: 0 };
+  // Fetch stats for visible clusters
+  useEffect(() => {
+    if (visibleClusters.length === 0) {
+      setStatsData([]);
+      return;
+    }
 
-    const clusterMap = new Map<string, ClusterRow>();
-    const rootClusters: ClusterRow[] = [];
+    const pastHours = searchParams.get("pastHours");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
 
-    rawClusters.forEach((cluster) => {
-      clusterMap.set(cluster.id, { ...cluster, subRows: [] });
-    });
+    if (!pastHours && !startDate) {
+      setStatsData([]);
+      return;
+    }
 
-    rawClusters.forEach((cluster) => {
-      const node = clusterMap.get(cluster.id);
-      if (!node) return;
+    setIsLoadingStats(true);
 
-      if (cluster.parentId === null || !clusterMap.has(cluster.parentId)) {
-        rootClusters.push(node);
-      } else {
-        const parent = clusterMap.get(cluster.parentId);
-        if (parent) {
-          if (!parent.subRows) parent.subRows = [];
-          parent.subRows.push(node);
-        }
+    const urlParams = new URLSearchParams();
+    visibleClusters.forEach((c) => urlParams.append("clusterId", c.id));
+    if (pastHours) urlParams.set("pastHours", pastHours);
+    if (startDate) urlParams.set("startDate", startDate);
+    if (endDate) urlParams.set("endDate", endDate);
+
+    const chartWidth = localChartWidth ?? 800;
+    const targetBars = getTargetBarsForWidth(chartWidth);
+    let range: { start: Date; end: Date } | null = null;
+    if (pastHours && pastHours !== "all") {
+      const hours = parseInt(pastHours);
+      if (!isNaN(hours)) {
+        range = { start: new Date(Date.now() - hours * 60 * 60 * 1000), end: new Date() };
       }
-    });
+    } else if (startDate && endDate) {
+      range = { start: new Date(startDate), end: new Date(endDate) };
+    }
+    const interval = range
+      ? calculateOptimalInterval(range.start, range.end, targetBars)
+      : { value: 1, unit: "hour" as const };
+    urlParams.set("intervalValue", interval.value.toString());
+    urlParams.set("intervalUnit", interval.unit);
 
-    const total = rootClusters.reduce((sum, cluster) => sum + cluster.numEvents, 0);
+    fetch(`/api/projects/${params.projectId}/signals/${signal.id}/events/clusters/stats?${urlParams.toString()}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch cluster stats");
+        return res.json();
+      })
+      .then((data: { items: ClusterStatsDataPoint[] }) => {
+        setStatsData(data.items);
+      })
+      .catch(() => {
+        setStatsData([]);
+      })
+      .finally(() => {
+        setIsLoadingStats(false);
+      });
+  }, [visibleClusters, searchParams, params.projectId, signal.id, localChartWidth]);
 
-    return { clusters: rootClusters, totalCount: total };
-  }, [rawClusters]);
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-4">
-        <span className="text-lg font-semibold">Clusters</span>
-      </div>
-      <InfiniteDataTable<ClusterRow>
-        className="w-full"
-        columns={columns}
-        data={clusters}
-        getRowId={(cluster) => cluster.id}
-        lockedColumns={["expand", "name"]}
-        hasMore={false}
-        isFetching={false}
-        isLoading={isLoading}
-        fetchNextPage={() => {}}
-        meta={{ totalCount }}
-        emptyRow={EmptyRow}
-      >
-        <div className="flex flex-1 w-full space-x-2">
-          <ColumnsMenu
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-            lockedColumns={["expand", "name"]}
-          />
-        </div>
-      </InfiniteDataTable>
-    </div>
+  const navigateToCluster = useCallback(
+    (clusterId: string) => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      const newPath = [...pathIds, clusterId].join(",");
+      newParams.set("clusterPath", newPath);
+      router.push(`${pathname}?${newParams.toString()}`);
+    },
+    [searchParams, pathIds, router, pathname]
   );
-};
 
-export default function ClustersTable() {
+  const navigateToBreadcrumb = useCallback(
+    (index: number) => {
+      const newParams = new URLSearchParams(searchParams.toString());
+
+      if (index < 0) {
+        newParams.delete("clusterPath");
+      } else {
+        const newPath = pathIds.slice(0, index + 1).join(",");
+        newParams.set("clusterPath", newPath);
+      }
+
+      setSelectedLeafId(null);
+      router.push(`${pathname}?${newParams.toString()}`);
+    },
+    [searchParams, pathIds, router, pathname]
+  );
+
+  const handleToggleLeafSelection = useCallback((clusterId: string) => {
+    setSelectedLeafId((prev) => (prev === clusterId ? null : clusterId));
+  }, []);
+
+  const handleClearLeafSelection = useCallback(() => {
+    setSelectedLeafId(null);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1 text-sm">
+            <span className="font-semibold text-secondary-foreground">All Events</span>
+          </div>
+          <DateRangeFilter />
+        </div>
+        <div className="flex border rounded-lg overflow-hidden" style={{ minHeight: 220 }}>
+          <div className="min-w-[200px] max-w-[280px] border-r bg-muted/60 overflow-hidden">
+            <div className="flex flex-col gap-0.5 py-2 px-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex items-center gap-2 px-2 py-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-muted animate-pulse" />
+                  <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm bg-muted/50">
+            Loading clusters...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (rawClusters.length === 0) {
+    return (
+      <div className="flex flex-col gap-2">
+        <span className="text-lg font-semibold">Clusters</span>
+        <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+          <div className="flex flex-col gap-2 items-center max-w-md">
+            <h3 className="text-base font-medium text-secondary-foreground">No clusters yet</h3>
+            <p className="text-sm text-muted-foreground text-center">
+              Clusters group similar events together for easier analysis and it&apos;s performed automatically in the
+              background.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <DataTableStateProvider storageKey="clusters-table" uniqueKey="id" defaultColumnOrder={defaultClustersColumnOrder}>
-      <PureClustersTable />
-    </DataTableStateProvider>
+    <TooltipProvider delayDuration={200}>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <ClusterBreadcrumb
+            breadcrumb={breadcrumb}
+            selectedLeafId={selectedLeafId}
+            visibleClusters={visibleClusters}
+            pathIds={pathIds}
+            onNavigateToBreadcrumb={navigateToBreadcrumb}
+            onClearLeafSelection={handleClearLeafSelection}
+          />
+          <DateRangeFilter />
+        </div>
+
+        <div className="flex border rounded-lg overflow-hidden">
+          <ClusterList
+            visibleClusters={visibleClusters}
+            selectedLeafId={selectedLeafId}
+            drillDownDepth={drillDownDepth}
+            filteredCountByCluster={filteredCountByCluster}
+            slideClass={slideClass}
+            onNavigateToCluster={navigateToCluster}
+            onToggleLeafSelection={handleToggleLeafSelection}
+          />
+
+          <div className="flex-1 p-2 bg-muted/50" ref={chartContainerRef}>
+            {isLoadingStats ? (
+              <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+                Loading chart...
+              </div>
+            ) : (
+              <ClusterStackedChart
+                clusters={selectedLeafId ? visibleClusters.filter((c) => c.id === selectedLeafId) : visibleClusters}
+                statsData={selectedLeafId ? statsData.filter((d) => d.cluster_id === selectedLeafId) : statsData}
+                containerWidth={localChartWidth}
+                depthLevel={drillDownDepth}
+                colorIndexOffset={selectedLeafId ? visibleClusters.findIndex((c) => c.id === selectedLeafId) : 0}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </TooltipProvider>
   );
 }

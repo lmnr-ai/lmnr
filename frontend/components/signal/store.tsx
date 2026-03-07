@@ -26,6 +26,7 @@ export type SignalState = {
   jobsFilters: Filter[];
   triggersFilters: Filter[];
   initialTraceViewWidth?: number;
+  selectedClusterIds: string[];
   lastEvent?: {
     id: string;
     timestamp: string;
@@ -39,6 +40,7 @@ export type SignalActions = {
   setSignal: (eventDefinition?: SignalState["signal"]) => void;
   fetchStats: (url: string) => Promise<void>;
   setChartContainerWidth: (width: number) => void;
+  setSelectedClusterIds: (ids: string[]) => void;
   setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
   setJobsFilters: Dispatch<SetStateAction<Filter[]>>;
   setTriggersFilters: Dispatch<SetStateAction<Filter[]>>;
@@ -72,6 +74,7 @@ export const createSignalStore = (initProps: EventsProps) =>
     stats: undefined,
     isLoadingStats: false,
     chartContainerWidth: null,
+    selectedClusterIds: [],
     signal: {
       ...initProps.signal,
       prompt: initProps.signal.prompt,
@@ -81,6 +84,7 @@ export const createSignalStore = (initProps: EventsProps) =>
     setTraceId: (traceId) => set({ traceId }),
     setSpanId: (spanId) => set({ spanId }),
     setChartContainerWidth: (width: number) => set({ chartContainerWidth: width }),
+    setSelectedClusterIds: (ids: string[]) => set({ selectedClusterIds: ids }),
     setRunsFilters: (filters) =>
       set((state) => ({
         runsFilters: typeof filters === "function" ? filters(state.runsFilters) : filters,

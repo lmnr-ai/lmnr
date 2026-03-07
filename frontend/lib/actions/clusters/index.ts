@@ -1,7 +1,6 @@
 import { z } from "zod/v4";
 
-import { buildSelectQuery, type QueryParams } from "@/lib/actions/common/query-builder";
-import { executeQuery } from "@/lib/actions/sql";
+import { clickhouseClient } from "@/lib/clickhouse/client";
 
 export type EventCluster = {
   id: string;
@@ -24,40 +23,51 @@ export async function getEventClusters(
 ): Promise<{ items: EventCluster[] }> {
   const { projectId, signalId } = GetEventClustersSchema.parse(input);
 
-  const customConditions: Array<{ condition: string; params: QueryParams }> = [
-    {
-      condition: "signal_id = {signalId:UUID}",
-      params: { signalId },
+  const result = await clickhouseClient.query({
+    query: `
+      SELECT
+        id,
+        name,
+        parent_id as parentId,
+        level,
+        num_children_clusters as numChildrenClusters,
+        num_signal_events as numEvents,
+        formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt,
+        formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') as updatedAt
+      FROM clusters
+      WHERE project_id = {projectId: UUID}
+        AND signal_id = {signalId: UUID}
+        AND level != 0
+      ORDER BY num_signal_events DESC, level ASC, created_at ASC
+    `,
+    query_params: {
+      projectId,
+      signalId,
     },
-    {
-      condition: "level != 0",
-      params: {},
-    },
-  ];
-
-  const { query, parameters } = buildSelectQuery({
-    select: {
-      columns: [
-        "id",
-        "name",
-        "parent_id as parentId",
-        "level",
-        "num_children_clusters as numChildrenClusters",
-        "num_signal_events as numEvents",
-        "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt",
-        "formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') as updatedAt",
-      ],
-      table: "clusters",
-    },
-    customConditions,
-    orderBy: [
-      { column: "num_signal_events", direction: "DESC" },
-      { column: "level", direction: "ASC" },
-      { column: "created_at", direction: "ASC" },
-    ],
+    format: "JSONEachRow",
   });
 
-  const items = await executeQuery<EventCluster>({ query, parameters, projectId });
+  const rows = (await result.json()) as Array<{
+    id: string;
+    name: string;
+    parentId: string | null;
+    level: string;
+    numChildrenClusters: string;
+    numEvents: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+
+  const items: EventCluster[] = rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    parentId: row.parentId || null,
+    level: parseInt(String(row.level), 10),
+    numChildrenClusters: parseInt(String(row.numChildrenClusters), 10),
+    numEvents: parseInt(String(row.numEvents), 10),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }));
 
   return { items };
 }
