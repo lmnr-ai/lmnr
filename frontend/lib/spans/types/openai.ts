@@ -73,7 +73,10 @@ export const OpenAIAssistantMessageSchema = z.object({
     .optional(),
   annotations: z.array(z.string()).nullable().optional(),
   refusal: z.string().nullable().optional(),
-  content: z.union([z.string(), z.array(OpenAITextPartSchema)]).nullable().optional(),
+  content: z
+    .union([z.string(), z.array(OpenAITextPartSchema)])
+    .nullable()
+    .optional(),
   name: z.string().optional(),
   tool_calls: z.array(OpenAIToolCallPartSchema).nullable().optional(),
 });
@@ -94,7 +97,6 @@ export const OpenAIMessageSchema = z.union([
 ]);
 
 export const OpenAIMessagesSchema = z.array(OpenAIMessageSchema);
-
 
 /** Choice Schema (output format) **/
 
@@ -132,7 +134,6 @@ export const parseOpenAIOutput = (data: unknown): z.infer<typeof OpenAIMessagesS
   const choices = Array.isArray(result.data) ? result.data : [result.data];
   return choices.map((c) => c.message);
 };
-
 
 const convertOpenAIToChatMessages = (messages: z.infer<typeof OpenAIMessagesSchema>): ModelMessage[] => {
   const store = new Map();

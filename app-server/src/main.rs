@@ -79,10 +79,7 @@ use std::{
     thread::{self, JoinHandle},
     time::Duration,
 };
-use storage::{
-    PAYLOADS_EXCHANGE, PAYLOADS_QUEUE, PAYLOADS_ROUTING_KEY, PayloadHandler, Storage,
-    mock::MockStorage,
-};
+use storage::{Storage, mock::MockStorage};
 
 use crate::ch::{cloud::CloudClickhouse, data_plane::DataPlaneClickhouse};
 use crate::features::{enable_consumer, enable_producer};
@@ -399,32 +396,6 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
-            // ==== 3.4 Payloads message queue ====
-            channel
-                .exchange_declare(
-                    PAYLOADS_EXCHANGE,
-                    ExchangeKind::Fanout,
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .unwrap();
-
-            channel
-                .queue_declare(
-                    PAYLOADS_QUEUE,
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    quorum_queue_args.clone(),
-                )
-                .await
-                .unwrap();
-
             // ==== 3.5 Signals message queue ====
             channel
                 .exchange_declare(
@@ -680,8 +651,6 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SPANS_INDEXER_EXCHANGE, SPANS_INDEXER_QUEUE);
         // ==== 3.2 Browser events message queue ====
         queue.register_queue(BROWSER_SESSIONS_EXCHANGE, BROWSER_SESSIONS_QUEUE);
-        // ==== 3.4 Payloads message queue ====
-        queue.register_queue(PAYLOADS_EXCHANGE, PAYLOADS_QUEUE);
         // ==== 3.5 Signals event message queue ====
         queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.6 Notifications message queue ====
@@ -902,11 +871,6 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(4);
 
-        let num_payload_workers = env::var("NUM_PAYLOAD_WORKERS")
-            .unwrap_or(String::from("2"))
-            .parse::<u8>()
-            .unwrap_or(2);
-
         let num_signals_workers = env::var("NUM_SEMANTIC_EVENT_WORKERS")
             .unwrap_or(String::from("2"))
             .parse::<u8>()
@@ -944,12 +908,11 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(4);
 
         log::info!(
-            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Payload workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}",
             num_spans_workers,
             num_data_plane_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
-            num_payload_workers,
             num_signals_workers,
             num_notification_workers,
             num_clustering_batching_workers,
@@ -965,7 +928,6 @@ fn main() -> anyhow::Result<()> {
         let cache_for_consumer = cache_for_http.clone();
         let mq_for_consumer = mq_for_http.clone();
         let clickhouse_for_consumer = clickhouse.clone();
-        let storage_for_consumer = storage.clone();
         let quickwit_client_for_consumer = quickwit_client.clone();
         let pubsub_for_consumer = pubsub.clone();
         let worker_pool_clone = worker_pool.clone();
@@ -1110,23 +1072,6 @@ fn main() -> anyhow::Result<()> {
                                 queue_name: BROWSER_SESSIONS_QUEUE,
                                 exchange_name: BROWSER_SESSIONS_EXCHANGE,
                                 routing_key: BROWSER_SESSIONS_ROUTING_KEY,
-                            },
-                        );
-                    }
-
-                    // Spawn payload workers
-                    {
-                        let storage = storage_for_consumer.clone();
-                        worker_pool_clone.spawn(
-                            WorkerType::Payloads,
-                            num_payload_workers as usize,
-                            move || PayloadHandler {
-                                storage: storage.clone(),
-                            },
-                            QueueConfig {
-                                queue_name: PAYLOADS_QUEUE,
-                                exchange_name: PAYLOADS_EXCHANGE,
-                                routing_key: PAYLOADS_ROUTING_KEY,
                             },
                         );
                     }
@@ -1446,7 +1391,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
                                     .service(api::v1::sql::execute_sql_query)
-                                    .service(api::v1::payloads::get_payload)
                                     .service(api::v1::rollouts::stream)
                                     .service(api::v1::rollouts::update_status)
                                     .service(api::v1::rollouts::send_span_update)

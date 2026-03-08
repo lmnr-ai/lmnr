@@ -69,7 +69,6 @@ pub struct QueueConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum WorkerType {
     SpansIndexer,
-    Payloads,
     Notifications,
     Clustering,
     SignalJobSubmissionBatch,
@@ -81,7 +80,6 @@ impl std::fmt::Display for WorkerType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             WorkerType::SpansIndexer => write!(f, "spans_indexer"),
-            WorkerType::Payloads => write!(f, "payloads"),
             WorkerType::Notifications => write!(f, "notifications"),
             WorkerType::Clustering => write!(f, "clustering"),
             WorkerType::SignalJobSubmissionBatch => {
