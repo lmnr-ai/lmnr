@@ -47,14 +47,13 @@ export async function register() {
         }
       };
 
-      const LITELLM_PRICES_URL =
-        "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
+      const PRICES_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
 
       const SHORT_NAME_PREFIXES = ["mistral", "xai", "minimax", "moonshot"];
 
       const initializeModelCosts = async (): Promise<boolean> => {
         try {
-          const response = await fetch(LITELLM_PRICES_URL, { signal: AbortSignal.timeout(30000) });
+          const response = await fetch(PRICES_URL, { signal: AbortSignal.timeout(30000) });
           if (!response.ok) {
             throw new Error(`Failed to fetch model prices: ${response.status} ${response.statusText}`);
           }
@@ -127,8 +126,8 @@ export async function register() {
       await initializeData();
       console.log("✓ Postgres data initialized successfully");
 
-      // Fetch model costs from litellm and populate the database
-      console.log("Fetching model costs from litellm...");
+      // Fetch model costs and populate the database
+      console.log("Fetching model costs...");
       const modelCostsOk = await initializeModelCosts();
       if (modelCostsOk) {
         console.log("✓ Model costs initialized successfully");
