@@ -76,28 +76,23 @@ export async function register() {
 
           console.log(`Fetched ${rows.size} models from litellm pricing JSON`);
 
-          const BATCH_SIZE = 500;
-          const entries = Array.from(rows.entries());
-          for (let i = 0; i < entries.length; i += BATCH_SIZE) {
-            const batch = entries.slice(i, i + BATCH_SIZE);
-            const batchRows = batch.map(([model, costs]) => ({
-              model,
-              costs,
-            }));
+          const allRows = Array.from(rows.entries()).map(([model, costs]) => ({
+            model,
+            costs,
+          }));
 
-            await db
-              .insert(modelCosts)
-              .values(batchRows)
-              .onConflictDoUpdate({
-                target: modelCosts.model,
-                set: {
-                  costs: sql.raw(`excluded.costs`) as any,
-                  updatedAt: sql.raw(`now()`) as any,
-                },
-              });
-          }
+          await db
+            .insert(modelCosts)
+            .values(allRows)
+            .onConflictDoUpdate({
+              target: modelCosts.model,
+              set: {
+                costs: sql.raw(`excluded.costs`) as any,
+                updatedAt: sql.raw(`now()`) as any,
+              },
+            });
 
-          console.log(`Upserted ${entries.length} rows into model_costs`);
+          console.log(`Upserted ${allRows.length} rows into model_costs`);
           return true;
         } catch (error) {
           console.error("Failed to initialize model costs:", error);
