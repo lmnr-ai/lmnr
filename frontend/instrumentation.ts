@@ -74,8 +74,6 @@ export async function register() {
             }
           }
 
-          console.log(`Fetched ${rows.size} models from litellm pricing JSON`);
-
           const allRows = Array.from(rows.entries()).map(([model, costs]) => ({
             model,
             costs,
