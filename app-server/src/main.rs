@@ -1181,6 +1181,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
                         let gemini_clone = gemini.clone();
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
@@ -1189,6 +1190,7 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 SignalJobSubmissionBatchHandler::new(
                                     db.clone(),
+                                    cache.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
                                     gemini_clone.clone(),

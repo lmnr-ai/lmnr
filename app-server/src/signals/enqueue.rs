@@ -99,6 +99,8 @@ async fn create_signal_run_and_message(
         step: 0,
         retry_count: 0,
         request_start_time: Utc::now(),
+        // TODO: pass the flag from above based on various heuristics
+        use_realtime_api: false,
     };
 
     (signal_run, message)

@@ -1,4 +1,7 @@
-use super::{BatchCreateRequest, GeminiError, InlineRequestItem, Operation};
+use super::{
+    BatchCreateRequest, GeminiError, GenerateContentRequest, GenerateContentResponse,
+    InlineRequestItem, Operation,
+};
 use std::{env, time::Duration};
 
 #[derive(Clone)]
@@ -94,5 +97,37 @@ impl GeminiClient {
         let operation: Operation = serde_json::from_str(&response_text)?;
 
         Ok(operation)
+    }
+
+    pub async fn generate_content(
+        &self,
+        model: &str,
+        request: &GenerateContentRequest,
+    ) -> GeminiResult<GenerateContentResponse> {
+        let url = format!("{}/models/{}:generateContent", self.api_base_url, model);
+
+        let response = self
+            .client
+            .post(&url)
+            .header("x-goog-api-key", &self.api_key)
+            .header("Content-Type", "application/json")
+            .json(request)
+            .send()
+            .await?;
+
+        let status = response.status();
+
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            log::error!("Gemini API error ({}): {}", status, error_text);
+
+            return Err(GeminiError::from_response(status.as_u16(), error_text));
+        }
+
+        let response_text = response.text().await?;
+
+        let content_response: GenerateContentResponse = serde_json::from_str(&response_text)?;
+
+        Ok(content_response)
     }
 }

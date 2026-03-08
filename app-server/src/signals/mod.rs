@@ -4,12 +4,14 @@ use std::{env, fmt, sync::LazyLock};
 use uuid::Uuid;
 
 pub mod batching;
+pub mod common;
 pub mod enqueue;
 pub mod gemini;
 pub mod pendings_consumer;
 pub mod postprocess;
 pub mod prompts;
 pub mod queue;
+pub mod realtime_api;
 pub mod spans;
 pub mod submissions_consumer;
 pub mod tools;

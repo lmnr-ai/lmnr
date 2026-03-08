@@ -52,13 +52,13 @@ const DEFAULT_RETRY_COUNT: usize = 4;
 
 /// Metadata about a failed run for retry logic and monitoring
 #[derive(Debug, Clone)]
-struct FailureMetadata {
+pub struct FailureMetadata {
     /// The finish reason from the LLM response (if any)
-    finish_reason: Option<FinishReason>,
+    pub finish_reason: Option<FinishReason>,
     /// Indicates if the failure is due to processing error (not LLM error).
     /// When true, the model responded successfully but we failed to process the response.
     /// This allows retry even if the finish_reason itself is not retryable.
-    is_processing_error: bool,
+    pub is_processing_error: bool,
 }
 
 /// Reason for requiring a next step in signal processing
@@ -217,7 +217,7 @@ async fn process(
 
 /// Helper function to retry failed runs or mark them as permanently failed
 /// Returns (permanently_failed_runs, retried_count)
-async fn retry_or_fail_runs(
+pub async fn retry_or_fail_runs(
     failed_runs: Vec<SignalRun>,
     run_to_message: &HashMap<Uuid, SignalMessage>,
     failure_metadata: &HashMap<Uuid, FailureMetadata>,
@@ -477,7 +477,7 @@ async fn process_pending_batch(
 }
 
 /// Handle succeeded batch
-async fn process_succeeded_batch(
+pub async fn process_succeeded_batch(
     message: &SignalJobPendingBatchMessage,
     response: Option<GenerateContentBatchOutput>,
     db: Arc<DB>,
