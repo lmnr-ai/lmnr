@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use futures_util::future::join_all;
 use itertools::Itertools;
-use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
 use tracing::instrument;
 use uuid::Uuid;
@@ -65,33 +63,6 @@ pub async fn process_span_messages(
             span
         })
         .collect();
-
-    // Store payloads in parallel if enabled
-    // Only for cloud deployments (config is None)
-    if is_feature_enabled(Feature::Storage) && config.is_none() {
-        let storage_futures = spans
-            .iter_mut()
-            // only upload non-llm spans to avoid parsing issues with
-            // llm-span-specific features, such as debugger
-            .filter(|span| !span.is_llm_span())
-            .map(|span| {
-                let project_id: Uuid = span.project_id;
-                let queue_clone = queue.clone();
-                async move {
-                    if let Err(e) = span.store_payloads(&project_id, queue_clone).await {
-                        log::error!(
-                            "Failed to store input images. span_id [{}], project_id [{}]: {:?}",
-                            span.span_id,
-                            project_id,
-                            e
-                        );
-                    }
-                }
-            })
-            .collect::<Vec<_>>();
-
-        join_all(storage_futures).with_current_context().await;
-    }
 
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(spans.len());

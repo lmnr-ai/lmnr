@@ -5,7 +5,6 @@ pub mod labeling_queues;
 pub mod logs;
 pub mod mcp;
 pub mod metrics;
-pub mod payloads;
 pub mod rollouts;
 pub mod spans;
 pub mod sql;

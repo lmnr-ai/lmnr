@@ -1,18 +1,9 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, LazyLock},
-};
+use std::{collections::HashMap, sync::LazyLock};
 
-use anyhow::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
-use crate::{
-    mq::{MessageQueue, utils::mq_max_payload},
-    storage::producer::publish_payload,
-    utils::is_url,
-};
+use crate::utils::is_url;
 
 static DATA_URL_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^data:((?:application|image)/[a-zA-Z-]+);base64,.*$").unwrap());
@@ -429,116 +420,6 @@ impl ChatMessageContentPart {
         }
     }
 
-    /// Store the media in the storage and replace the media with the url
-    /// returning the modified `ChatMessageContentPart`.
-    /// For `Image`, we replace the content with `ImageUrl`
-    pub async fn store_media(
-        &self,
-        project_id: &Uuid,
-        queue: Arc<MessageQueue>,
-        bucket: &str,
-    ) -> Result<ChatMessageContentPart> {
-        match self {
-            ChatMessageContentPart::Image(image) => {
-                // Check if the data is actually a URL (not base64)
-                if is_url(&image.data) {
-                    // If it's already a URL, convert to ImageUrl directly
-                    Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
-                        url: image.data.clone(),
-                        detail: Some(format!("media_type:{}", image.media_type)),
-                    }))
-                } else {
-                    // Otherwise, treat as base64 data and store it
-                    let key = crate::storage::create_key(project_id, &None);
-                    let data = crate::storage::base64_to_bytes(&image.data)?;
-                    let media_type = image.media_type.clone();
-                    if data.len() >= mq_max_payload() {
-                        log::warn!(
-                            "[STORAGE] MQ payload limit exceeded (image). Project ID: [{}], payload size: [{}]",
-                            project_id,
-                            data.len()
-                        );
-                        // Leave intact in case of error
-                        return Ok(self.clone());
-                    }
-                    let url = publish_payload(queue, bucket, &key, data).await?;
-                    Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
-                        url,
-                        detail: Some(format!("media_type:{};base64", media_type)),
-                    }))
-                }
-            }
-            ChatMessageContentPart::Document(document) => {
-                let file_extension = if &document.source.media_type == "application/pdf" {
-                    Some("pdf".to_string())
-                } else {
-                    None
-                };
-                let key = crate::storage::create_key(project_id, &file_extension);
-                let data = crate::storage::base64_to_bytes(&document.source.data)?;
-                if data.len() >= mq_max_payload() {
-                    log::warn!(
-                        "[STORAGE] MQ payload limit exceeded (document). Project ID: [{}], payload size: [{}]",
-                        project_id,
-                        data.len()
-                    );
-                    // Leave intact in case of error
-                    return Ok(self.clone());
-                }
-                let url = publish_payload(queue, bucket, &key, data).await?;
-                Ok(ChatMessageContentPart::DocumentUrl(
-                    ChatMessageDocumentUrl {
-                        media_type: document.source.media_type.clone(),
-                        url,
-                    },
-                ))
-            }
-            ChatMessageContentPart::ImageUrl(image_url) => {
-                if let Some(base64_data) = raw_base64_from_data_url(&image_url.url) {
-                    let data = crate::storage::base64_to_bytes(base64_data)?;
-                    let key = crate::storage::create_key(project_id, &None);
-                    if data.len() >= mq_max_payload() {
-                        log::warn!(
-                            "[STORAGE] MQ payload limit exceeded (image url). Project ID: [{}], payload size: [{}]",
-                            project_id,
-                            data.len()
-                        );
-                        // Leave intact in case of error
-                        return Ok(self.clone());
-                    }
-                    let url = publish_payload(queue, bucket, &key, data).await?;
-                    Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
-                        url,
-                        detail: image_url.detail.clone(),
-                    }))
-                } else {
-                    // Otherwise, assume it's a regular image url
-                    Ok(self.clone())
-                }
-            }
-            ChatMessageContentPart::ImageRawBytes(image) => {
-                let key = crate::storage::create_key(project_id, &None);
-                if image.image.len() >= mq_max_payload() {
-                    log::warn!(
-                        "[STORAGE] MQ payload limit exceeded (image raw bytes/aisdk). Project ID: [{}], payload size: [{}]",
-                        project_id,
-                        image.image.len()
-                    );
-                    // Leave intact in case of error
-                    return Ok(self.clone());
-                }
-                let url = publish_payload(queue, bucket, &key, image.image.clone()).await?;
-                Ok(ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
-                    url,
-                    detail: image
-                        .mime_type
-                        .as_ref()
-                        .map(|mime_type| format!("media_type:{};base64", mime_type)),
-                }))
-            }
-            _ => Ok(self.clone()),
-        }
-    }
 }
 
 /// Extract the raw base64 data from a data URL.
