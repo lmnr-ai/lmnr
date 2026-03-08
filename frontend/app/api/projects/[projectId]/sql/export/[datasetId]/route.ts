@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createDatapoints, CreateDatapointsSchema } from "@/lib/actions/datapoints";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
+import { downloadS3ObjectHttp } from "@/lib/s3";
 import { Semaphore } from "@/lib/semaphore";
 import { inferImageType } from "@/lib/utils";
 
@@ -36,18 +37,26 @@ const isRelativeImageUrl = (payload: JSONValue, projectId: string): payload is R
 };
 
 const downloadImage = async (
-  _url: string,
-  _projectId: string
+  url: string,
+  projectId: string
 ): Promise<
   | {
       blob: Blob;
       mediaType?: string;
     }
   | undefined
-> => 
-  // Payloads are no longer stored in S3
-   undefined
-;
+> => {
+  const uuidRegex = "[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}";
+  const imageUrlRegex = new RegExp(`^/api/projects/${projectId}/payloads/(${uuidRegex})`);
+  const payloadId = url.match(imageUrlRegex)?.[1];
+  if (payloadId) {
+    const { bytes, headers } = await downloadS3ObjectHttp(projectId, payloadId, "image");
+    return {
+      blob: new Blob([Buffer.from(bytes)]),
+      mediaType: headers.get("Content-Type") || undefined,
+    };
+  }
+};
 
 // Create a semaphore to limit concurrent downloads (adjust the limit as needed)
 const downloadSemaphore = new Semaphore(64);

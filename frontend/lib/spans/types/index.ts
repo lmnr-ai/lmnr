@@ -2,7 +2,8 @@ import { type ModelMessage } from "ai";
 import { isArray, isNumber, isString } from "lodash";
 
 import { type Message } from "@/lib/playground/types";
-import { type ChatMessage, type ChatMessageContentPart } from "@/lib/types";
+import { isStorageUrl, urlToBase64 } from "@/lib/s3";
+import { type ChatMessage, type ChatMessageContentPart, type ChatMessageImage } from "@/lib/types";
 
 /**
  * Downloads images of internal messages format
@@ -23,7 +24,36 @@ export const downloadImages = async (
         if (typeof message === "object" && message !== null) {
           if ("content" in message && Array.isArray(message.content)) {
             const processedContent = await Promise.all(
-              (message.content as ChatMessageContentPart[]).map(async (part) => part)
+              (message.content as ChatMessageContentPart[]).map(async (part) => {
+                switch (part.type) {
+                  case "image_url": {
+                    try {
+                      const imageUrl =
+                        "image_url" in part && part.image_url ? part.image_url.url : "url" in part ? part.url : null;
+
+                      if (!imageUrl) {
+                        return part;
+                      }
+
+                      if (isStorageUrl(imageUrl)) {
+                        const base64Image = await urlToBase64(imageUrl);
+                        return {
+                          type: "image" as const,
+                          mediaType: "image/png",
+                          data: base64Image.split(",")[1] || base64Image,
+                        } as ChatMessageImage;
+                      }
+
+                      return part;
+                    } catch (error) {
+                      console.error("Error downloading image:", error);
+                      return part;
+                    }
+                  }
+                  default:
+                    return part;
+                }
+              })
             );
             return {
               ...message,

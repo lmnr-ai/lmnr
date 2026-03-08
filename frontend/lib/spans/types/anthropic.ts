@@ -2,6 +2,7 @@ import { map } from "lodash";
 import { z } from "zod/v4";
 
 import { type Message } from "@/lib/playground/types";
+import { isStorageUrl, urlToBase64 } from "@/lib/s3";
 
 /** Content Block Schemas **/
 
@@ -241,7 +242,15 @@ export const convertAnthropicToPlaygroundMessages = async (
                 const src = `data:${block.source.media_type};base64,${block.source.data}`;
                 content.push({ type: "image", image: src });
               } else {
-                content.push({ type: "image", image: block.source.url });
+                let imageData = block.source.url;
+                if (isStorageUrl(imageData)) {
+                  try {
+                    imageData = await urlToBase64(imageData);
+                  } catch (error) {
+                    console.error("Error downloading Anthropic image:", error);
+                  }
+                }
+                content.push({ type: "image", image: imageData });
               }
               break;
             }
