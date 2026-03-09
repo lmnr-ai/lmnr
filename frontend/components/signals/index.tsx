@@ -1,6 +1,5 @@
 "use client";
 
-import { SquareArrowOutUpRight } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -21,35 +20,11 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
-import { TableCell, TableRow } from "@/components/ui/table";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
 import { useToast } from "@/lib/hooks/use-toast";
 
-const EmptyRow = (
-  <TableRow className="flex">
-    <TableCell className="text-center p-4 rounded-b w-full h-auto">
-      <div className="flex flex-1 justify-center">
-        <div className="flex flex-col gap-2 items-center max-w-md">
-          <h3 className="text-base font-medium text-secondary-foreground">No signals yet</h3>
-          <p className="text-sm text-muted-foreground text-center">
-            Signals let you track outcomes, behaviors, and failures in your traces using LLM-based evaluation. Click +
-            Signal above to get started.
-          </p>
-          <a
-            href="https://docs.laminar.sh/signals"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            Learn more
-            <SquareArrowOutUpRight className="h-3.5 w-3.5" />
-          </a>
-        </div>
-      </div>
-    </TableCell>
-  </TableRow>
-);
+import EmptyRow from "./empty-row";
 
 export default function Signals() {
   return (
@@ -59,6 +34,7 @@ export default function Signals() {
   );
 }
 
+// TODO: one component per file please, move this one out
 function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -211,6 +187,7 @@ function SignalsContent() {
   return (
     <>
       <Header path="signals" />
+      HELLO
       <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
         <InfiniteDataTable<SignalRow>
           columns={signalsColumns}
@@ -234,7 +211,7 @@ function SignalsContent() {
               <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
             </div>
           )}
-          emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
+          emptyRow={filter.length === 0 && !search ? <EmptyRow /> : undefined}
         >
           <div className="flex flex-1 w-full space-x-2 pt-1">
             <DataTableFilter columns={signalsTableFilters} />
