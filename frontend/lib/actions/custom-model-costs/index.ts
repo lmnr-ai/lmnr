@@ -145,7 +145,7 @@ export async function copyCustomModelCosts(
   });
 
   if (sourceCosts.length === 0) {
-    throw new Error("No custom model costs found in source project");
+    return [];
   }
 
   // Delete + insert in a transaction so target data is not lost if insert fails
