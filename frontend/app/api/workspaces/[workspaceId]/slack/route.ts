@@ -3,12 +3,12 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { getSlackIntegration } from "@/lib/actions/slack";
 
-export async function GET(_request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
+export async function GET(_request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
   const params = await props.params;
-  const projectId = params.projectId;
+  const workspaceId = params.workspaceId;
 
   try {
-    const integration = await getSlackIntegration(projectId);
+    const integration = await getSlackIntegration(workspaceId);
     return NextResponse.json(integration);
   } catch (error) {
     console.error(error);

@@ -70,12 +70,20 @@ async function handleSubscribeCommand(
       where: eq(slackIntegrations.teamId, teamId),
       columns: {
         id: true,
-        projectId: true,
+        workspaceId: true,
       },
       with: {
-        project: {
+        workspace: {
           columns: {
-            name: true,
+            id: true,
+          },
+          with: {
+            projects: {
+              columns: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -88,7 +96,15 @@ async function handleSubscribeCommand(
       };
     }
 
-    const projectIds = integrations.map((i) => i.projectId);
+    const workspaceProjects = integrations.flatMap((i) => i.workspace.projects);
+    const projectIds = workspaceProjects.map((p) => p.id);
+
+    if (projectIds.length === 0) {
+      return {
+        response_type: "ephemeral",
+        text: "❌ No projects found in the connected workspace.",
+      };
+    }
 
     const dbSignals = await db.query.signals.findMany({
       where: inArray(signals.projectId, projectIds),
@@ -98,53 +114,49 @@ async function handleSubscribeCommand(
       },
     });
 
-    const matchedIntegration = availableSignals.includes(eventName)
-      ? integrations[0]
-      : integrations.find((i) =>
-          dbSignals.some((event) => event.name === eventName && event.projectId === i.projectId)
-        );
+    const integration = integrations[0];
 
-    if (!matchedIntegration) {
+    const matchedProject = availableSignals.includes(eventName)
+      ? workspaceProjects[0]
+      : workspaceProjects.find((p) => dbSignals.some((s) => s.name === eventName && s.projectId === p.id));
+
+    if (!matchedProject) {
       return {
         response_type: "ephemeral",
         text: `❌ Event \`${eventName}\` not found in any connected projects.`,
       };
     }
 
-    // Check if already subscribed
     const existingSubscription = await db.query.slackChannelToEvents.findFirst({
       where: and(
-        eq(slackChannelToEvents.integrationId, matchedIntegration.id),
+        eq(slackChannelToEvents.integrationId, integration.id),
         eq(slackChannelToEvents.channelId, channelId),
         eq(slackChannelToEvents.eventName, eventName)
       ),
     });
 
     if (existingSubscription) {
-      const projectName = matchedIntegration.project?.name || "Unknown Project";
       return {
         response_type: "ephemeral",
-        text: `ℹ️ Already subscribed to event \`${eventName}\` for project *${projectName}*.`,
+        text: `ℹ️ Already subscribed to event \`${eventName}\` for project *${matchedProject.name}*.`,
       };
     }
 
     await db
       .insert(slackChannelToEvents)
       .values({
-        integrationId: matchedIntegration.id,
-        projectId: matchedIntegration.projectId,
+        integrationId: integration.id,
+        projectId: matchedProject.id,
         channelId,
         eventName,
       })
       .onConflictDoNothing({
-        target: [slackChannelToEvents.channelId, slackChannelToEvents.eventName, slackChannelToEvents.integrationId],
+        target: [slackChannelToEvents.channelId, slackChannelToEvents.eventName, slackChannelToEvents.projectId],
       });
-
-    const projectName = matchedIntegration.project?.name || "Unknown Project";
 
     return {
       response_type: "in_channel",
-      text: `✅ Successfully subscribed to event \`${eventName}\` for project *${projectName}*!\n\nThis channel will receive notifications when this event is triggered.`,
+      text: `✅ Successfully subscribed to event \`${eventName}\` for project *${matchedProject.name}*!\n\nThis channel will receive notifications when this event is triggered.`,
     };
   } catch (error) {
     console.error("Error handling subscribe command:", error);
@@ -165,14 +177,7 @@ async function handleUnsubscribeCommand(
       where: eq(slackIntegrations.teamId, teamId),
       columns: {
         id: true,
-        projectId: true,
-      },
-      with: {
-        project: {
-          columns: {
-            name: true,
-          },
-        },
+        workspaceId: true,
       },
     });
 
@@ -201,9 +206,6 @@ async function handleUnsubscribeCommand(
         };
       }
 
-      const integration = integrations.find((i) => i.id === existingSubscription.integrationId);
-      const projectName = integration?.project?.name || "Unknown Project";
-
       await db
         .delete(slackChannelToEvents)
         .where(
@@ -217,11 +219,10 @@ async function handleUnsubscribeCommand(
 
       return {
         response_type: "in_channel",
-        text: `✅ Successfully unsubscribed from event \`${eventName}\` for project *${projectName}*.`,
+        text: `✅ Successfully unsubscribed from event \`${eventName}\`.`,
       };
     }
 
-    // Count all subscriptions before deleting
     const allSubscriptions = await db.query.slackChannelToEvents.findMany({
       where: and(
         inArray(slackChannelToEvents.integrationId, integrationIds),

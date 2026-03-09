@@ -2,43 +2,73 @@ import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { SlackOauthResponseSchema } from "@/lib/actions/slack/types";
-import { encodeSlackToken } from "@/lib/crypto";
+import { decodeSlackToken, encodeSlackToken } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
-import { slackIntegrations } from "@/lib/db/migrations/schema";
+import { projects, slackChannelToEvents, slackIntegrations } from "@/lib/db/migrations/schema";
 
 const ConnectSlackIntegrationSchema = z.object({
   code: z.string(),
-  projectId: z.string(),
+  workspaceId: z.string(),
 });
 
 const DeleteSlackIntegrationSchema = z.object({
   teamId: z.string(),
 });
 
+const CreateSlackSubscriptionSchema = z.object({
+  integrationId: z.string(),
+  channelId: z.string(),
+  projectId: z.string(),
+  eventName: z.string(),
+});
+
+const DeleteSlackSubscriptionSchema = z.object({
+  id: z.string(),
+});
+
+const SendTestNotificationSchema = z.object({
+  workspaceId: z.string(),
+  channelId: z.string(),
+});
+
 export interface SlackIntegration {
   id: string;
-  projectId: string;
+  workspaceId: string;
   teamId: string;
   teamName: string | null;
 }
 
-export async function getSlackIntegration(projectId: string): Promise<SlackIntegration | null> {
+export interface SlackSubscription {
+  id: string;
+  channelId: string;
+  projectId: string;
+  projectName: string;
+  eventName: string;
+  createdAt: string;
+}
+
+export interface SlackChannel {
+  id: string;
+  name: string;
+}
+
+export async function getSlackIntegration(workspaceId: string): Promise<SlackIntegration | null> {
   const [result] = await db
     .select({
       id: slackIntegrations.id,
-      projectId: slackIntegrations.projectId,
+      workspaceId: slackIntegrations.workspaceId,
       teamId: slackIntegrations.teamId,
       teamName: slackIntegrations.teamName,
     })
     .from(slackIntegrations)
-    .where(eq(slackIntegrations.projectId, projectId))
+    .where(eq(slackIntegrations.workspaceId, workspaceId))
     .limit(1);
 
   return result || null;
 }
 
 export async function connectSlackIntegration(input: z.infer<typeof ConnectSlackIntegrationSchema>) {
-  const { code, projectId } = ConnectSlackIntegrationSchema.parse(input);
+  const { code, workspaceId } = ConnectSlackIntegrationSchema.parse(input);
   const clientId = process.env.SLACK_CLIENT_ID;
   const clientSecret = process.env.SLACK_CLIENT_SECRET;
 
@@ -76,14 +106,14 @@ export async function connectSlackIntegration(input: z.infer<typeof ConnectSlack
   await db
     .insert(slackIntegrations)
     .values({
-      projectId,
+      workspaceId,
       teamId: data.team.id,
       teamName: data.team.name || null,
       token: encryptedToken,
       nonceHex: nonce,
     })
     .onConflictDoUpdate({
-      target: slackIntegrations.projectId,
+      target: slackIntegrations.workspaceId,
       set: {
         teamId: data.team.id,
         teamName: data.team.name || null,
@@ -99,6 +129,146 @@ export async function deleteSlackIntegration(
   const { teamId } = DeleteSlackIntegrationSchema.parse(input);
 
   await db.delete(slackIntegrations).where(eq(slackIntegrations.teamId, teamId));
+
+  return { success: true };
+}
+
+async function getIntegrationWithToken(workspaceId: string) {
+  const [integration] = await db
+    .select({
+      id: slackIntegrations.id,
+      teamId: slackIntegrations.teamId,
+      token: slackIntegrations.token,
+      nonceHex: slackIntegrations.nonceHex,
+    })
+    .from(slackIntegrations)
+    .where(eq(slackIntegrations.workspaceId, workspaceId))
+    .limit(1);
+
+  if (!integration) {
+    throw new Error("Slack integration not found for this workspace");
+  }
+
+  const token = await decodeSlackToken(integration.teamId, integration.nonceHex, integration.token);
+  return { ...integration, decryptedToken: token };
+}
+
+export async function getSlackSubscriptions(workspaceId: string): Promise<SlackSubscription[]> {
+  const [integration] = await db
+    .select({ id: slackIntegrations.id })
+    .from(slackIntegrations)
+    .where(eq(slackIntegrations.workspaceId, workspaceId))
+    .limit(1);
+
+  if (!integration) {
+    return [];
+  }
+
+  const results = await db
+    .select({
+      id: slackChannelToEvents.id,
+      channelId: slackChannelToEvents.channelId,
+      projectId: slackChannelToEvents.projectId,
+      projectName: projects.name,
+      eventName: slackChannelToEvents.eventName,
+      createdAt: slackChannelToEvents.createdAt,
+    })
+    .from(slackChannelToEvents)
+    .innerJoin(projects, eq(slackChannelToEvents.projectId, projects.id))
+    .where(eq(slackChannelToEvents.integrationId, integration.id));
+
+  return results;
+}
+
+export async function createSlackSubscription(input: z.infer<typeof CreateSlackSubscriptionSchema>) {
+  const { integrationId, channelId, projectId, eventName } = CreateSlackSubscriptionSchema.parse(input);
+
+  const [result] = await db
+    .insert(slackChannelToEvents)
+    .values({ integrationId, channelId, projectId, eventName })
+    .onConflictDoNothing({
+      target: [slackChannelToEvents.channelId, slackChannelToEvents.projectId, slackChannelToEvents.eventName],
+    })
+    .returning();
+
+  if (!result) {
+    throw new Error("Subscription already exists for this channel, project, and event combination");
+  }
+
+  return result;
+}
+
+export async function deleteSlackSubscription(input: z.infer<typeof DeleteSlackSubscriptionSchema>) {
+  const { id } = DeleteSlackSubscriptionSchema.parse(input);
+
+  await db.delete(slackChannelToEvents).where(eq(slackChannelToEvents.id, id));
+
+  return { success: true };
+}
+
+export async function getSlackChannels(workspaceId: string): Promise<SlackChannel[]> {
+  const integration = await getIntegrationWithToken(workspaceId);
+
+  const response = await fetch(
+    "https://slack.com/api/conversations.list?exclude_archived=true&types=public_channel,private_channel&limit=200",
+    {
+      headers: {
+        Authorization: `Bearer ${integration.decryptedToken}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+
+  if (!data.ok) {
+    throw new Error(`Slack API error: ${data.error}`);
+  }
+
+  return (data.channels || []).map((ch: { id: string; name: string }) => ({
+    id: ch.id,
+    name: ch.name,
+  }));
+}
+
+export async function sendTestSlackNotification(input: z.infer<typeof SendTestNotificationSchema>) {
+  const { workspaceId, channelId } = SendTestNotificationSchema.parse(input);
+
+  const integration = await getIntegrationWithToken(workspaceId);
+
+  const blocks = [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: ":white_check_mark: *Test notification from Laminar*\nYour Slack alert subscription is configured correctly.",
+      },
+    },
+  ];
+
+  const response = await fetch("https://slack.com/api/chat.postMessage", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${integration.decryptedToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      channel: channelId,
+      blocks,
+      unfurl_links: false,
+      unfurl_media: false,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!data.ok) {
+    if (data.error === "not_in_channel") {
+      throw new Error(
+        "The Laminar bot is not in this channel. For private channels, please invite the bot by typing /invite @Laminar in the channel, then try again."
+      );
+    }
+    throw new Error(`Failed to send test notification: ${data.error}`);
+  }
 
   return { success: true };
 }

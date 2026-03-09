@@ -1,14 +1,11 @@
 "use client";
 
-import { DollarSign, Key, Settings2, Sparkles, Unplug } from "lucide-react";
+import { Bell, Key, Settings2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useState } from "react";
 
-import { useFeatureFlags } from "@/contexts/feature-flags-context";
-import { useProjectContext } from "@/contexts/project-context.tsx";
 import { type ProjectApiKey } from "@/lib/api-keys/types";
-import { Feature } from "@/lib/features/features";
 
 import Header from "../ui/header";
 import {
@@ -22,7 +19,7 @@ import {
 } from "../ui/sidebar";
 import CustomModelCosts from "./custom-model-costs";
 import DeleteProject from "./delete-project";
-import Integrations from "./integrations";
+import NotificationsSettings from "./notifications-settings";
 import ProjectApiKeys from "./project-api-keys";
 import ProviderApiKeys from "./provider-api-keys";
 import RenameProject from "./rename-project";
@@ -30,35 +27,35 @@ import { SettingsSectionHeader } from "./settings-section";
 
 interface SettingsProps {
   apiKeys: ProjectApiKey[];
+  projectId: string;
+  workspaceId: string;
+  isFreeTier: boolean;
   slackClientId?: string;
   slackRedirectUri?: string;
 }
 
-type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "model-costs" | "integrations";
+type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "notifications";
 
 const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "general", label: "General", icon: <Settings2 /> },
   { id: "project-api-keys", label: "Project API Keys", icon: <Key /> },
   { id: "provider-api-keys", label: "Model Providers", icon: <Sparkles /> },
-  { id: "model-costs", label: "Model Costs", icon: <DollarSign /> },
-  { id: "integrations", label: "Integrations", icon: <Unplug /> },
+  { id: "notifications", label: "Notifications", icon: <Bell /> },
 ];
 
 const sidebarStyle = { "--sidebar-width": "auto" } as CSSProperties;
 
-export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: SettingsProps) {
+export default function Settings({
+  apiKeys,
+  projectId,
+  workspaceId,
+  isFreeTier,
+  slackClientId,
+  slackRedirectUri,
+}: SettingsProps) {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<SettingsTab>((searchParams.get("tab") as SettingsTab) || "general");
   const pathName = usePathname();
-
-  const { workspace } = useProjectContext();
-  const featureFlags = useFeatureFlags();
-
-  const menuTabs = useMemo(
-    () =>
-      tabs.filter((t) => !(t.id === "integrations" && (workspace?.tierName !== "Pro" || !featureFlags[Feature.SLACK]))),
-    [workspace, featureFlags]
-  );
 
   const renderContent = () => {
     switch (activeTab) {
@@ -76,13 +73,16 @@ export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: S
         return <ProjectApiKeys apiKeys={apiKeys} />;
       case "provider-api-keys":
         return <ProviderApiKeys />;
-      case "model-costs":
-        return <CustomModelCosts />;
-      case "integrations":
-        if (workspace?.tierName === "Pro" && featureFlags[Feature.SLACK]) {
-          return <Integrations slackClientId={slackClientId} slackRedirectUri={slackRedirectUri} />;
-        }
-        return null;
+      case "notifications":
+        return (
+          <NotificationsSettings
+            projectId={projectId}
+            workspaceId={workspaceId}
+            isFreeTier={isFreeTier}
+            slackClientId={slackClientId}
+            slackRedirectUri={slackRedirectUri}
+          />
+        );
     }
   };
 
@@ -95,7 +95,7 @@ export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: S
             <SidebarContent className="bg-background">
               <SidebarGroup className="pt-2">
                 <SidebarMenu>
-                  {menuTabs.map((tab) => (
+                  {tabs.map((tab) => (
                     <SidebarMenuItem className="h-7" key={tab.id}>
                       <SidebarMenuButton
                         asChild
