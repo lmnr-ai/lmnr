@@ -95,7 +95,12 @@ function ModelCostDialog({
   initialProvider?: string;
   initialModel?: string;
   initialCosts?: Record<string, number>;
-  onSave: (provider: string | undefined, model: string, costs: Record<string, number>, previousModel?: string) => void;
+  onSave: (
+    provider: string | undefined,
+    model: string,
+    costs: Record<string, number>,
+    previousModel?: string
+  ) => Promise<boolean>;
   trigger: React.ReactNode;
 }) {
   const emptyFields = (): Record<string, string> => ({});
@@ -108,7 +113,9 @@ function ModelCostDialog({
   const [validationError, setValidationError] = useState<string | undefined>();
   const [open, setOpen] = useState(false);
 
-  const handleSave = () => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
     const costs = toPerToken(costValues);
 
     if (!("input_cost_per_token" in costs) && !("output_cost_per_token" in costs)) {
@@ -117,7 +124,10 @@ function ModelCostDialog({
     }
 
     const previousModel = mode === "edit" && initialModel && model !== initialModel ? initialModel : undefined;
-    onSave(provider || undefined, model, costs, previousModel);
+    setIsSaving(true);
+    const ok = await onSave(provider || undefined, model, costs, previousModel);
+    setIsSaving(false);
+    if (!ok) return;
     if (mode === "add") {
       setProvider("");
       setModel("");
@@ -219,8 +229,8 @@ function ModelCostDialog({
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
-          <Button disabled={!model.trim()} onClick={handleSave}>
-            Save
+          <Button disabled={!model.trim() || isSaving} onClick={handleSave}>
+            {isSaving ? "Saving..." : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -228,10 +238,11 @@ function ModelCostDialog({
   );
 }
 
-function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) => void }) {
+function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) => Promise<boolean> }) {
   const { projects, project } = useProjectContext();
   const [targetProjectId, setTargetProjectId] = useState("");
   const [open, setOpen] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
 
   const otherProjects = projects.filter((p) => p.id !== project?.id);
 
@@ -286,14 +297,17 @@ function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) =>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
           <Button
-            disabled={!targetProjectId}
-            onClick={() => {
-              onCopy(targetProjectId);
+            disabled={!targetProjectId || isCopying}
+            onClick={async () => {
+              setIsCopying(true);
+              const ok = await onCopy(targetProjectId);
+              setIsCopying(false);
+              if (!ok) return;
               setOpen(false);
               setTargetProjectId("");
             }}
           >
-            Copy
+            {isCopying ? "Copying..." : "Copy"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -315,7 +329,7 @@ export default function CustomModelCosts() {
     model: string,
     costs: Record<string, number>,
     previousModel?: string
-  ) => {
+  ): Promise<boolean> => {
     const res = await fetch(`/api/projects/${projectId}/custom-model-costs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -324,8 +338,10 @@ export default function CustomModelCosts() {
     if (res.ok) {
       mutate();
       toast({ title: previousModel ? `Model cost updated for ${model}` : `Model cost saved for ${model}` });
+      return true;
     } else {
       toast({ variant: "destructive", title: "Failed to save model cost" });
+      return false;
     }
   };
 
@@ -341,7 +357,7 @@ export default function CustomModelCosts() {
     }
   };
 
-  const copyCosts = async (targetProjectId: string) => {
+  const copyCosts = async (targetProjectId: string): Promise<boolean> => {
     const res = await fetch(`/api/projects/${projectId}/custom-model-costs/copy`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -350,8 +366,10 @@ export default function CustomModelCosts() {
     if (res.ok) {
       mutate();
       toast({ title: "Model costs copied to project" });
+      return true;
     } else {
       toast({ variant: "destructive", title: "Failed to copy model costs" });
+      return false;
     }
   };
 
