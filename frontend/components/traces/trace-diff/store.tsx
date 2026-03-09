@@ -170,7 +170,7 @@ const createTraceDiffStore = () =>
         partialize: (state) => ({ mappingCache: state.mappingCache }),
         merge: (persisted, current) => ({
           ...current,
-          ...(persisted as Partial<TraceDiffStore>),
+          mappingCache: (persisted as Partial<TraceDiffState>)?.mappingCache ?? current.mappingCache,
         }),
       }
     )
