@@ -230,9 +230,10 @@ pub async fn mcp_handler(
     let message: ClientJsonRpcMessage = match serde_json::from_slice(&body) {
         Ok(msg) => msg,
         Err(e) => {
+            let error_body = serde_json::json!({ "error": format!("Invalid JSON-RPC: {e}") });
             return HttpResponse::BadRequest()
                 .content_type("application/json")
-                .body(format!("{{\"error\": \"Invalid JSON-RPC: {e}\"}}"));
+                .body(error_body.to_string());
         }
     };
 
