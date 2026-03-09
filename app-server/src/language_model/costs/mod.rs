@@ -67,18 +67,6 @@ impl ModelInfo {
         )
     }
 
-    /// Cache key for project-specific custom model costs.
-    /// Uses the exact model string for direct match — no provider or raw_model
-    /// normalization. Custom costs are user-entered, so we match exactly.
-    pub fn custom_cache_key(&self, project_id: &Uuid) -> String {
-        format!(
-            "{}:{}:{}",
-            CUSTOM_MODEL_COSTS_CACHE_KEY,
-            project_id,
-            self.model,
-        )
-    }
-
     pub fn extract(model: &str, provider: Option<&str>) -> Self {
         let model = model.to_lowercase();
         let provider = provider.map(|p| p.to_lowercase().trim().to_string());
@@ -152,7 +140,8 @@ impl ModelInfo {
 /// Look up custom model costs for a specific project, then fall back to universal costs.
 ///
 /// Priority:
-/// 1. Project-specific custom model costs (cache → DB)
+/// 1. Project-specific custom model costs (cache → DB), trying the full model string
+///    first, then raw_model (provider prefix stripped) as a fallback.
 /// 2. Universal model costs (cache → DB)
 pub async fn get_model_costs_for_project(
     db: Arc<DB>,
@@ -160,9 +149,23 @@ pub async fn get_model_costs_for_project(
     model_info: &ModelInfo,
     project_id: &Uuid,
 ) -> Option<ModelCosts> {
-    // First try project-specific custom model costs
-    if let Some(costs) = get_custom_model_costs(db.clone(), cache.clone(), model_info, project_id).await {
+    // First try project-specific custom model costs with the full model string
+    if let Some(costs) =
+        get_custom_model_costs(db.clone(), cache.clone(), &model_info.model, project_id).await
+    {
         return Some(costs);
+    }
+
+    // If model was transformed (e.g. "gpt-4o" → "openai/gpt-4o" for OpenRouter),
+    // also try the raw model name since users configure custom costs based on
+    // what they see in span attributes (the un-prefixed name).
+    if model_info.raw_model != model_info.model {
+        if let Some(costs) =
+            get_custom_model_costs(db.clone(), cache.clone(), &model_info.raw_model, project_id)
+                .await
+        {
+            return Some(costs);
+        }
     }
 
     // Fall back to universal model costs
@@ -175,10 +178,10 @@ pub async fn get_model_costs_for_project(
 async fn get_custom_model_costs(
     db: Arc<DB>,
     cache: Arc<Cache>,
-    model_info: &ModelInfo,
+    model: &str,
     project_id: &Uuid,
 ) -> Option<ModelCosts> {
-    let cache_key = model_info.custom_cache_key(project_id);
+    let cache_key = format!("{}:{}:{}", CUSTOM_MODEL_COSTS_CACHE_KEY, project_id, model);
 
     // Check cache first
     match cache.get::<Option<ModelCosts>>(&cache_key).await {
@@ -196,12 +199,11 @@ async fn get_custom_model_costs(
     }
 
     // Exact match on model name
-    let result = match get_custom_model_cost(&db.pool, project_id, &model_info.model).await {
+    let result = match get_custom_model_cost(&db.pool, project_id, model).await {
         Ok(Some(entry)) => {
             log::debug!(
                 "Found custom costs in DB for model: {}, project: {}",
-                model_info.model,
-                project_id
+                model, project_id
             );
             Some(ModelCosts(entry.costs))
         }
@@ -209,9 +211,7 @@ async fn get_custom_model_costs(
         Err(e) => {
             log::error!(
                 "DB error looking up custom model costs for project {}, model {}: {:?}",
-                project_id,
-                model_info.model,
-                e
+                project_id, model, e
             );
             return None;
         }
