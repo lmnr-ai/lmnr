@@ -29,12 +29,6 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
       return new Response("Forbidden: no access to target project", { status: 403 });
     }
 
-    // Check source project has costs before proceeding
-    const sourceCosts = await getCustomModelCosts({ projectId: params.projectId });
-    if (sourceCosts.length === 0) {
-      return new Response("No custom model costs found in source project", { status: 400 });
-    }
-
     // Fetch existing target costs before copy so we can invalidate their cache entries
     const existingTargetCosts = await getCustomModelCosts({ projectId: targetProjectId });
 
@@ -42,6 +36,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
       sourceProjectId: params.projectId,
       targetProjectId,
     });
+
+    if (result.length === 0) {
+      return new Response("No custom model costs found in source project", { status: 400 });
+    }
 
     // Invalidate cache for previously existing models in target (now deleted/replaced)
     const invalidations = existingTargetCosts.map((cost) =>
