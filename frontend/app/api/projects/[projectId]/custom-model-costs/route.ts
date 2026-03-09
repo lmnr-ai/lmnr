@@ -46,7 +46,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
     if (deletedModel) {
       await invalidateCustomModelCostsCache(params.projectId, deletedModel);
     }
-    await invalidateCustomModelCostsCache(params.projectId, body.model);
+    // Use result.model (lowercased by upsertCustomModelCost) rather than raw body.model
+    await invalidateCustomModelCostsCache(params.projectId, result.model);
 
     return new Response(JSON.stringify(result), {
       status: 200,
