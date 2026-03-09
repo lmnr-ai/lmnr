@@ -12,7 +12,7 @@ const UpsertCustomModelCostSchema = z.object({
   projectId: z.string(),
   provider: z.string().optional(),
   model: z.string().min(1, "Model name is required"),
-  costs: z.record(z.string(), z.number()),
+  costs: z.record(z.string(), z.number().nonnegative("Cost values must not be negative")),
   previousModel: z.string().optional(),
 });
 
