@@ -1,15 +1,16 @@
 use std::{collections::HashMap, sync::Arc};
 
-use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+use actix_web::{HttpMessage, HttpRequest, HttpResponse, web};
+use bytes::Bytes;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::*,
     schemars,
-    service::RequestContext,
+    service::{RequestContext, serve_directly},
     tool, tool_handler, tool_router,
+    transport::OneshotTransport,
 };
-use rmcp_actix_web::transport::StreamableHttpService;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -185,42 +186,106 @@ impl ServerHandler for LaminarMcpServer {
     }
 }
 
-// ============ Service builder ============
+// ============ Actix-web handler ============
 
-pub fn build_mcp_service(
-    clickhouse: clickhouse::Client,
-    clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
-    query_engine: Arc<QueryEngine>,
-    http_client: Arc<reqwest::Client>,
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-) -> StreamableHttpService<LaminarMcpServer, LocalSessionManager> {
-    StreamableHttpService::builder()
-        .service_factory({
-            let clickhouse = clickhouse.clone();
-            let clickhouse_ro = clickhouse_ro.clone();
-            let query_engine = query_engine.clone();
-            let http_client = http_client.clone();
-            let db = db.clone();
-            let cache = cache.clone();
-            Arc::new(move || {
-                Ok(LaminarMcpServer::new(
-                    clickhouse.clone(),
-                    clickhouse_ro.clone(),
-                    query_engine.clone(),
-                    http_client.clone(),
-                    db.clone(),
-                    cache.clone(),
-                ))
-            })
-        })
-        .session_manager(Arc::new(LocalSessionManager::default()))
-        .stateful_mode(false)
-        .on_request_fn(|http_req, mcp_ext| {
-            use actix_web::HttpMessage;
-            if let Some(api_key) = http_req.extensions().get::<ProjectApiKey>() {
-                mcp_ext.insert(ProjectId(api_key.project_id));
+/// Shared state for the MCP endpoint, passed via actix-web `Data`.
+pub struct McpState {
+    server: LaminarMcpServer,
+}
+
+impl McpState {
+    pub fn new(
+        clickhouse: clickhouse::Client,
+        clickhouse_ro: Option<Arc<ClickhouseReadonlyClient>>,
+        query_engine: Arc<QueryEngine>,
+        http_client: Arc<reqwest::Client>,
+        db: Arc<DB>,
+        cache: Arc<Cache>,
+    ) -> Self {
+        Self {
+            server: LaminarMcpServer::new(
+                clickhouse,
+                clickhouse_ro,
+                query_engine,
+                http_client,
+                db,
+                cache,
+            ),
+        }
+    }
+}
+
+/// POST /v1/mcp — Stateless Streamable HTTP MCP endpoint.
+///
+/// Follows the MCP Streamable HTTP spec:
+/// - Requests → routed through rmcp's ServerHandler, response as JSON
+/// - Notifications → 202 Accepted (no body)
+#[actix_web::post("")]
+pub async fn mcp_handler(
+    req: HttpRequest,
+    body: web::Bytes,
+    state: web::Data<McpState>,
+) -> HttpResponse {
+    // Parse JSON-RPC message
+    let message: ClientJsonRpcMessage = match serde_json::from_slice(&body) {
+        Ok(msg) => msg,
+        Err(e) => {
+            let error_body = serde_json::json!({ "error": format!("Invalid JSON-RPC: {e}") });
+            return HttpResponse::BadRequest()
+                .content_type("application/json")
+                .body(error_body.to_string());
+        }
+    };
+
+    match message {
+        // Notifications (e.g. notifications/initialized) → 202 Accepted
+        ClientJsonRpcMessage::Notification(_) => HttpResponse::Accepted().finish(),
+
+        // Responses/Errors from client → 202 Accepted
+        ClientJsonRpcMessage::Response(_) | ClientJsonRpcMessage::Error(_) => {
+            HttpResponse::Accepted().finish()
+        }
+
+        // Requests (initialize, tools/list, tools/call, etc.) → process via rmcp
+        ClientJsonRpcMessage::Request(mut request) => {
+            // Inject project_id from auth middleware into rmcp extensions
+            if let Some(api_key) = req.extensions().get::<ProjectApiKey>() {
+                request
+                    .request
+                    .extensions_mut()
+                    .insert(ProjectId(api_key.project_id));
             }
-        })
-        .build()
+
+            // Use rmcp's OneshotTransport + serve_directly (same pattern as the
+            // official tower handler) to route through our ServerHandler.
+            let (transport, mut receiver) =
+                OneshotTransport::<RoleServer>::new(ClientJsonRpcMessage::Request(request));
+            let service_handle = serve_directly(state.server.clone(), transport, None);
+
+            tokio::spawn(async move {
+                let _ = service_handle.waiting().await;
+            });
+
+            // Collect the response from the channel
+            match receiver.recv().await {
+                Some(response) => {
+                    let body = serde_json::to_vec(&response).unwrap_or_else(|_| b"{}".to_vec());
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body(Bytes::from(body))
+                }
+                None => HttpResponse::InternalServerError()
+                    .content_type("application/json")
+                    .body("{\"error\": \"No response from handler\"}"),
+            }
+        }
+    }
+}
+
+/// Catch-all for non-POST methods (GET, DELETE, etc.) → 405 Method Not Allowed.
+/// MCP Streamable HTTP spec requires 405 (not 404) when a method is unsupported.
+pub async fn method_not_allowed() -> HttpResponse {
+    HttpResponse::MethodNotAllowed()
+        .insert_header(("Allow", "POST"))
+        .finish()
 }
