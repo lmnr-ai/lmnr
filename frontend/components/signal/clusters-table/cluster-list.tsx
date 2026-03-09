@@ -30,7 +30,7 @@ export default function ClusterList({
   onToggleLeafSelection,
 }: ClusterListProps) {
   return (
-    <div className="min-w-[200px] max-w-[280px] border-r bg-muted/60 overflow-hidden">
+    <div className="min-w-[200px] max-w-[280px] border-r bg-muted/60 overflow-y-auto">
       <div className={cn("flex flex-col gap-0.5 py-2 px-3 transition-all ease-out", slideClass)}>
         {visibleClusters.length === 0 ? (
           <div className="text-muted-foreground text-sm py-4 text-center">No sub-clusters</div>
