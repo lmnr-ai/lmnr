@@ -99,7 +99,8 @@ function ModelCostDialog({
     provider: string | undefined,
     model: string,
     costs: Record<string, number>,
-    previousModel?: string
+    previousModel?: string,
+    isEdit?: boolean
   ) => Promise<boolean>;
   trigger: React.ReactNode;
 }) {
@@ -125,7 +126,7 @@ function ModelCostDialog({
 
     const previousModel = mode === "edit" && initialModel && model !== initialModel ? initialModel : undefined;
     setIsSaving(true);
-    const ok = await onSave(provider || undefined, model, costs, previousModel);
+    const ok = await onSave(provider || undefined, model, costs, previousModel, mode === "edit");
     setIsSaving(false);
     if (!ok) return;
     if (mode === "add") {
@@ -328,7 +329,8 @@ export default function CustomModelCosts() {
     provider: string | undefined,
     model: string,
     costs: Record<string, number>,
-    previousModel?: string
+    previousModel?: string,
+    isEdit?: boolean
   ): Promise<boolean> => {
     const res = await fetch(`/api/projects/${projectId}/custom-model-costs`, {
       method: "POST",
@@ -337,7 +339,7 @@ export default function CustomModelCosts() {
     });
     if (res.ok) {
       mutate();
-      toast({ title: previousModel ? `Model cost updated for ${model}` : `Model cost saved for ${model}` });
+      toast({ title: isEdit ? `Model cost updated for ${model}` : `Model cost saved for ${model}` });
       return true;
     } else {
       toast({ variant: "destructive", title: "Failed to save model cost" });
