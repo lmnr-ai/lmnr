@@ -34,7 +34,7 @@ export async function getEventClusters(
         num_signal_events as numEvents,
         formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt,
         formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') as updatedAt
-      FROM clusters
+      FROM clusters FINAL
       WHERE project_id = {projectId: UUID}
         AND signal_id = {signalId: UUID}
         AND level != 0

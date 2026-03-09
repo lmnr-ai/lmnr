@@ -238,8 +238,8 @@ export default function ClustersTable() {
           </div>
           <DateRangeFilter />
         </div>
-        <div className="flex border rounded-lg overflow-hidden" style={{ minHeight: 220 }}>
-          <div className="min-w-[200px] max-w-[280px] border-r bg-muted/60 overflow-hidden">
+        <div className="flex border rounded-lg overflow-hidden" style={{ minHeight: 220, maxHeight: 300 }}>
+          <div className="min-w-[200px] max-w-[280px] border-r bg-muted/60 overflow-y-auto">
             <div className="flex flex-col gap-0.5 py-2 px-3">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="flex items-center gap-2 px-2 py-1.5">
@@ -289,7 +289,7 @@ export default function ClustersTable() {
           <DateRangeFilter />
         </div>
 
-        <div className="flex border rounded-lg overflow-hidden">
+        <div className="flex border rounded-lg overflow-hidden" style={{ maxHeight: 300 }}>
           <ClusterList
             visibleClusters={visibleClusters}
             selectedLeafId={selectedLeafId}
@@ -302,7 +302,7 @@ export default function ClustersTable() {
 
           <div className="flex-1 p-2 bg-muted/50" ref={chartContainerRef}>
             {isLoadingStats ? (
-              <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
                 Loading chart...
               </div>
             ) : (

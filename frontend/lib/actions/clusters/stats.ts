@@ -33,21 +33,36 @@ export async function getClusterStats(
     intervalUnit,
   };
 
+  let fillFrom: string | null = null;
+  let fillTo: string | null = null;
+
   if (pastHours && !isNaN(parseFloat(pastHours))) {
     timeConditions.push("se.timestamp >= now() - INTERVAL {pastHours: UInt32} HOUR");
     params.pastHours = parseInt(pastHours);
+    fillFrom = `toStartOfInterval(now() - INTERVAL {pastHours:UInt32} HOUR, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    fillTo = `toStartOfInterval(now(), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
   } else {
     if (startDate) {
       timeConditions.push("se.timestamp >= {startTime: String}");
       params.startTime = startDate.replace("Z", "");
+      fillFrom = `toStartOfInterval(toDateTime64({startTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
     }
     if (endDate) {
       timeConditions.push("se.timestamp <= {endTime: String}");
       params.endTime = endDate.replace("Z", "");
+      fillTo = `toStartOfInterval(toDateTime64({endTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
     }
   }
 
   const timeClause = timeConditions.length > 0 ? "AND " + timeConditions.join(" AND ") : "";
+
+  const withFillClause =
+    fillFrom && fillTo
+      ? `WITH FILL
+    FROM ${fillFrom}
+    TO ${fillTo}
+    STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})`
+      : "";
 
   const result = await clickhouseClient.query({
     query: `
@@ -62,7 +77,8 @@ export async function getClusterStats(
         AND ec.cluster_id IN ({clusterIds: Array(UUID)})
         ${timeClause}
       GROUP BY ec.cluster_id, timestamp
-      ORDER BY timestamp ASC
+      ORDER BY cluster_id, timestamp ASC
+      ${withFillClause}
     `,
     query_params: params,
     format: "JSONEachRow",

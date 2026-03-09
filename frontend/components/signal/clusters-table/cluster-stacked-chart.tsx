@@ -64,7 +64,7 @@ export default function ClusterStackedChart({
 
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         No data for selected time range
       </div>
     );
@@ -77,6 +77,7 @@ export default function ClusterStackedChart({
       fields={fields}
       containerWidth={containerWidth}
       showTotal={false}
+      className="!h-full"
     />
   );
 }
