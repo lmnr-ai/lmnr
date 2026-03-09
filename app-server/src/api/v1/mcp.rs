@@ -180,18 +180,8 @@ impl LaminarMcpServer {
 #[tool_handler]
 impl ServerHandler for LaminarMcpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            protocol_version: ProtocolVersion::V_2024_11_05,
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            server_info: Implementation {
-                name: "laminar".to_string(),
-                title: None,
-                version: env!("CARGO_PKG_VERSION").to_string(),
-                icons: None,
-                website_url: None,
-            },
-            instructions: None,
-        }
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::new("laminar", env!("CARGO_PKG_VERSION")))
     }
 }
 
@@ -225,7 +215,7 @@ pub fn build_mcp_service(
             })
         })
         .session_manager(Arc::new(LocalSessionManager::default()))
-        .stateful_mode(true)
+        .stateful_mode(false)
         .on_request_fn(|http_req, mcp_ext| {
             use actix_web::HttpMessage;
             if let Some(api_key) = http_req.extensions().get::<ProjectApiKey>() {
