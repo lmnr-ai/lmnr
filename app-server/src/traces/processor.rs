@@ -69,7 +69,7 @@ pub async fn process_span_messages(
 
     for span in &mut spans {
         let span_usage =
-            get_llm_usage_for_span(&mut span.attributes, db.clone(), cache.clone(), &span.name)
+            get_llm_usage_for_span(&mut span.attributes, db.clone(), cache.clone(), &span.name, &span.project_id)
                 .await;
 
         prepare_span_for_recording(span, &span_usage);

@@ -46,6 +46,7 @@ import {
   dashboardCharts,
   sharedPayloads,
   projectSettings,
+  customModelCosts,
   eventClusters,
   rolloutSessions,
   signalTriggers,
@@ -110,6 +111,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   dashboardCharts: many(dashboardCharts),
   sharedPayloads: many(sharedPayloads),
   projectSettings: many(projectSettings),
+  customModelCosts: many(customModelCosts),
   eventClusters: many(eventClusters),
   rolloutSessions: many(rolloutSessions),
   signalTriggers: many(signalTriggers),
@@ -444,6 +446,13 @@ export const sharedPayloadsRelations = relations(sharedPayloads, ({ one }) => ({
 export const projectSettingsRelations = relations(projectSettings, ({ one }) => ({
   project: one(projects, {
     fields: [projectSettings.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const customModelCostsRelations = relations(customModelCosts, ({ one }) => ({
+  project: one(projects, {
+    fields: [customModelCosts.projectId],
     references: [projects.id],
   }),
 }));

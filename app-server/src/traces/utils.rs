@@ -12,7 +12,7 @@ use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
 use crate::{
     cache::Cache,
     db::{DB, spans::Span, trace::Trace},
-    language_model::costs::{ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs},
+    language_model::costs::{ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs_for_project},
 };
 
 use super::span_attributes::{
@@ -35,6 +35,7 @@ pub async fn get_llm_usage_for_span(
     db: Arc<DB>,
     cache: Arc<Cache>,
     span_name: &str,
+    project_id: &Uuid,
 ) -> SpanUsage {
     let input_tokens = attributes.input_tokens();
     let output_tokens = attributes.output_tokens();
@@ -75,7 +76,7 @@ pub async fn get_llm_usage_for_span(
     if let Some(model) = model_name.as_deref() {
         let model_info = ModelInfo::extract(model, provider_name.as_deref());
 
-        if let Some(model_costs) = get_model_costs(db.clone(), cache.clone(), &model_info).await {
+        if let Some(model_costs) = get_model_costs_for_project(db.clone(), cache.clone(), &model_info, project_id).await {
             let span_cost_input = build_span_cost_input(attributes, &input_tokens, output_tokens);
             let cost_entry = calculate_span_cost(&model_costs, &span_cost_input);
             input_cost = cost_entry.input_cost;

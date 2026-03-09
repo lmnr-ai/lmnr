@@ -2,9 +2,18 @@ use std::sync::{Arc, LazyLock};
 
 use regex::Regex;
 
+use uuid::Uuid;
+
 use crate::{
-    cache::{Cache, CacheTrait, keys::MODEL_COSTS_CACHE_KEY},
-    db::{DB, model_costs::get_model_costs_batch},
+    cache::{
+        Cache, CacheTrait,
+        keys::{CUSTOM_MODEL_COSTS_CACHE_KEY, MODEL_COSTS_CACHE_KEY},
+    },
+    db::{
+        DB,
+        custom_model_costs::get_custom_model_cost,
+        model_costs::get_model_costs_batch,
+    },
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -20,6 +29,9 @@ mod tests;
 pub use cost_calculator::{SpanCostInput, calculate_span_cost};
 
 const MODEL_COSTS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
+/// Shorter negative TTL so that stale "not found" entries expire quickly.
+/// Cache invalidation handles the common case, but this limits the blast
+/// radius if invalidation misses a variant (e.g. uncommon model name form).
 const MODEL_COSTS_NEGATIVE_CACHE_TTL_SECONDS: u64 = 60 * 30; // 30 minutes
 
 /// Costs JSON blob from the `model_costs` table, cached as-is.
@@ -52,6 +64,18 @@ impl ModelInfo {
             MODEL_COSTS_CACHE_KEY,
             self.provider.as_deref().unwrap_or(""),
             self.raw_model,
+        )
+    }
+
+    /// Cache key for project-specific custom model costs.
+    /// Uses the exact model string for direct match — no provider or raw_model
+    /// normalization. Custom costs are user-entered, so we match exactly.
+    pub fn custom_cache_key(&self, project_id: &Uuid) -> String {
+        format!(
+            "{}:{}:{}",
+            CUSTOM_MODEL_COSTS_CACHE_KEY,
+            project_id,
+            self.model,
         )
     }
 
@@ -125,6 +149,87 @@ impl ModelInfo {
     }
 }
 
+/// Look up custom model costs for a specific project, then fall back to universal costs.
+///
+/// Priority:
+/// 1. Project-specific custom model costs (cache → DB)
+/// 2. Universal model costs (cache → DB)
+pub async fn get_model_costs_for_project(
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    model_info: &ModelInfo,
+    project_id: &Uuid,
+) -> Option<ModelCosts> {
+    // First try project-specific custom model costs
+    if let Some(costs) = get_custom_model_costs(db.clone(), cache.clone(), model_info, project_id).await {
+        return Some(costs);
+    }
+
+    // Fall back to universal model costs
+    get_model_costs(db, cache, model_info).await
+}
+
+/// Look up custom model costs for a project from cache or DB.
+/// Uses exact model name match — custom costs are user-entered, so
+/// the span's model string must match the DB entry exactly.
+async fn get_custom_model_costs(
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    model_info: &ModelInfo,
+    project_id: &Uuid,
+) -> Option<ModelCosts> {
+    let cache_key = model_info.custom_cache_key(project_id);
+
+    // Check cache first
+    match cache.get::<Option<ModelCosts>>(&cache_key).await {
+        Ok(Some(maybe_costs)) => {
+            return maybe_costs;
+        }
+        Ok(None) => {} // Cache miss
+        Err(e) => {
+            log::warn!(
+                "Cache error looking up custom model costs for {}: {:?}",
+                cache_key,
+                e
+            );
+        }
+    }
+
+    // Exact match on model name
+    let result = match get_custom_model_cost(&db.pool, project_id, &model_info.model).await {
+        Ok(Some(entry)) => {
+            log::debug!(
+                "Found custom costs in DB for model: {}, project: {}",
+                model_info.model,
+                project_id
+            );
+            Some(ModelCosts(entry.costs))
+        }
+        Ok(None) => None,
+        Err(e) => {
+            log::error!(
+                "DB error looking up custom model costs for project {}, model {}: {:?}",
+                project_id,
+                model_info.model,
+                e
+            );
+            return None;
+        }
+    };
+
+    // Cache the result (positive or negative)
+    let ttl = if result.is_some() {
+        MODEL_COSTS_CACHE_TTL_SECONDS
+    } else {
+        MODEL_COSTS_NEGATIVE_CACHE_TTL_SECONDS
+    };
+    let _ = cache
+        .insert_with_ttl(&cache_key, result.clone(), ttl)
+        .await;
+
+    result
+}
+
 /// Look up model costs from cache or DB, trying lookup keys in priority order.
 ///
 /// Uses a single canonical cache key derived from the normalized ModelInfo fields,
@@ -177,7 +282,7 @@ pub async fn get_model_costs(
         .find_map(|key| db_results.get(key))
         .map(|entry| ModelCosts(entry.costs.clone()));
 
-    // Cache hit (24h) or negative (30min) under the canonical key
+    // Cache under the canonical key
     if result.is_some() {
         log::debug!("Found costs in DB for model: {}", model_info.model);
         let _ = cache
@@ -201,3 +306,4 @@ pub async fn get_model_costs(
 
     result
 }
+
