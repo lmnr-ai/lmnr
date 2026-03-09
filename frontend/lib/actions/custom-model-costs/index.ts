@@ -61,7 +61,14 @@ export async function getCustomModelCosts(
 export async function upsertCustomModelCost(
   input: z.infer<typeof UpsertCustomModelCostSchema>
 ): Promise<{ result: CustomModelCost; deletedModel?: string; deletedProvider?: string | null }> {
-  const { projectId, provider, model, costs, previousModel } = UpsertCustomModelCostSchema.parse(input);
+  const parsed = UpsertCustomModelCostSchema.parse(input);
+  const projectId = parsed.projectId;
+  const provider = parsed.provider;
+  // Lowercase model names to match the Rust backend's ModelInfo::extract
+  // which lowercases before DB queries and cache key construction.
+  const model = parsed.model.toLowerCase();
+  const costs = parsed.costs;
+  const previousModel = parsed.previousModel?.toLowerCase();
 
   const isRename = previousModel && previousModel !== model;
 

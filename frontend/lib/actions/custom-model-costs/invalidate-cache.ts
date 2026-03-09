@@ -13,7 +13,10 @@ const CUSTOM_MODEL_COSTS_CACHE_KEY = "custom_model_costs";
  */
 export async function invalidateCustomModelCostsCache(projectId: string, model: string): Promise<void> {
   try {
-    await cache.remove(`${CUSTOM_MODEL_COSTS_CACHE_KEY}:${projectId}:${model}`);
+    // Lowercase to match the Rust backend's ModelInfo::extract which lowercases
+    // model names before constructing cache keys.
+    const normalizedModel = model.toLowerCase();
+    await cache.remove(`${CUSTOM_MODEL_COSTS_CACHE_KEY}:${projectId}:${normalizedModel}`);
   } catch (error) {
     // Best-effort: don't block the CRUD response if cache invalidation fails.
     // The cache entry will expire naturally via TTL.
