@@ -27,13 +27,18 @@ function getActiveProvider(): AIProvider {
     return "gemini";
   }
 
-  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_REGION) {
+  if (
+    process.env.BEDROCK_ENABLED === "true" &&
+    process.env.AWS_ACCESS_KEY_ID &&
+    process.env.AWS_SECRET_ACCESS_KEY &&
+    process.env.AWS_REGION
+  ) {
     return "bedrock";
   }
 
   throw new Error(
     "No AI provider configured. Set GOOGLE_GENERATIVE_AI_API_KEY for Gemini, " +
-      "or AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION for Anthropic Bedrock."
+      "or BEDROCK_ENABLED=true with AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION for Anthropic Bedrock."
   );
 }
 
