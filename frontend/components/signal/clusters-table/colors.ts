@@ -15,7 +15,7 @@ const COLOR_PALETTES = [
     "var(--color-orange-500)",
     "var(--color-teal-500)",
     "var(--color-sky-500)",
-    "var(--color-fuchsia-500)",
+    "var(--color-violet-500)",
     "var(--color-slate-500)",
   ],
   // Level 1

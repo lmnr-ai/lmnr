@@ -7,7 +7,7 @@ import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/componen
 import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type ClusterStatsDataPoint } from "@/lib/actions/clusters/stats";
 
-import { getClusterColor, UNCLUSTERED_COLOR,withOpacity } from "./colors";
+import { getClusterColor, UNCLUSTERED_COLOR, withOpacity } from "./colors";
 
 interface ClusterStackedChartProps {
   clusters: EventCluster[];

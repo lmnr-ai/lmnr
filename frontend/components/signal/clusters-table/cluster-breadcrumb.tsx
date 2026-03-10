@@ -76,7 +76,7 @@ export default function ClusterBreadcrumb({
           const isLast = index === breadcrumb.length - 1 && !selectedLeafId;
           return (
             <motion.div
-              key={`level-${index}`}
+              key={node.id}
               className={`relative min-w-0 flex-shrink overflow-hidden ${SLASH_CONTAINER_PL}`}
               style={{ maskImage: "linear-gradient(to right, transparent, black 12px, black)" }}
               {...levelTransition}

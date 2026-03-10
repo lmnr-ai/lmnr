@@ -1,6 +1,6 @@
 "use client";
 
-import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { cn } from "@/lib/utils";
 
 import { getClusterColor, UNCLUSTERED_COLOR } from "../colors";
@@ -8,14 +8,14 @@ import { type ClusterNode } from "../utils";
 import ClusterItem, { type IconVariant } from "./cluster-item";
 
 interface ClusterListProps {
-  visibleClusters: EventCluster[];
+  visibleClusters: ClusterNode[];
   selectedLeafId: string | null;
   drillDownDepth: number;
   filteredCountByCluster: Map<string, number>;
   onNavigateToCluster: (clusterId: string) => void;
   onToggleLeafSelection: (clusterId: string) => void;
   unclusteredCount: number;
-  unclusteredVirtualCluster: EventCluster;
+  unclusteredVirtualCluster: ClusterNode;
   className?: string;
 }
 
@@ -41,7 +41,7 @@ export default function ClusterList({
         ) : (
           <>
             {visibleClusters.map((cluster, index) => {
-              const hasChildren = (cluster as ClusterNode).children.length > 0;
+              const hasChildren = cluster.children.length > 0;
               const isLeafSelected = !hasChildren && selectedLeafId === cluster.id;
               const filteredCount = filteredCountByCluster.get(cluster.id);
               const iconVariant: IconVariant = hasChildren ? "folder" : "circle";

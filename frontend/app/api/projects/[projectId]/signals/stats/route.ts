@@ -14,7 +14,11 @@ export async function GET(request: NextRequest, props: { params: Promise<{ proje
   }
 
   try {
-    const result = await getSignalsStats({ projectId, signalIds, scale: scale as "day" | "week" | "month" });
+    const validScales = ["day", "week", "month"] as const;
+    const validatedScale = validScales.includes(scale as (typeof validScales)[number])
+      ? (scale as (typeof validScales)[number])
+      : "day";
+    const result = await getSignalsStats({ projectId, signalIds, scale: validatedScale });
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
