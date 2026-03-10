@@ -1,26 +1,15 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Circle, CircleDashed, Folder } from "lucide-react";
+import { Circle, Folder } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { type EventCluster } from "@/lib/actions/clusters";
 import { cn } from "@/lib/utils";
 
-import { getClusterColor, withOpacity } from "./colors";
-import { type ClusterNode } from "./utils";
-
-interface ClusterListProps {
-  visibleClusters: EventCluster[];
-  selectedLeafId: string | null;
-  drillDownDepth: number;
-  filteredCountByCluster: Map<string, number>;
-  onNavigateToCluster: (clusterId: string) => void;
-  onToggleLeafSelection: (clusterId: string) => void;
-  unclusteredCount: number;
-  className?: string;
-}
+import { getClusterColor, withOpacity } from "../colors";
+import { type ClusterNode } from "../utils";
 
 interface HoverRect {
   top: number;
@@ -29,7 +18,7 @@ interface HoverRect {
   height: number;
 }
 
-function ClusterItem({
+export default function ClusterItem({
   cluster,
   index,
   drillDownDepth,
@@ -70,6 +59,7 @@ function ClusterItem({
     }
   }, [clearLeaveTimeout]);
 
+  // Grace period so the overlay doesn't flicker when moving mouse between the button and the portal overlay.
   const scheduleClose = useCallback(() => {
     clearLeaveTimeout();
     leaveTimeoutRef.current = setTimeout(() => {
@@ -102,8 +92,9 @@ function ClusterItem({
       <button
         ref={buttonRef}
         className={cn(
-          "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors cursor-pointer hover:bg-muted",
-          isLeafSelected && "bg-sidebar-accent font-medium"
+          "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors cursor-pointer text-secondary-foreground",
+          hovered && "bg-muted",
+          isLeafSelected && "bg-sidebar-accent font-medium text-primary-foreground"
         )}
         onClick={onClick}
         onMouseEnter={handleMouseEnter}
@@ -121,9 +112,8 @@ function ClusterItem({
               <motion.div
                 ref={overlayRef}
                 initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
+                animate={{ opacity: 1, transition: { duration: 0.15, delay: 0.5 } }}
+                exit={{ opacity: 0, transition: { duration: 0.15 } }}
                 className="fixed z-50"
                 style={{
                   top: rect.top,
@@ -143,14 +133,17 @@ function ClusterItem({
                     onClick();
                   }}
                   className={cn(
-                    "flex flex-col gap-1 px-2 py-1.5 rounded text-sm text-left cursor-pointer",
-                    "bg-muted border border-border shadow-lg shadow-black/20 w-full",
+                    "flex flex-col pl-2 pr-3 pt-1.5 pb-1 rounded text-sm text-left cursor-pointer overflow-hidden",
+                    "bg-muted outline outline-border shadow-md shadow-background/80 w-full",
                     isLeafSelected && "font-medium"
                   )}
                   initial={{ width: rect.width, height: rect.height }}
-                  animate={{ width: "auto", height: "auto" }}
-                  exit={{ width: rect.width, height: rect.height }}
-                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  animate={{
+                    width: "auto",
+                    height: "auto",
+                    transition: { duration: 0.15, ease: "easeOut", delay: 0.5 },
+                  }}
+                  exit={{ width: rect.width, height: rect.height, transition: { duration: 0.15, ease: "easeOut" } }}
                   style={{ minWidth: rect.width, minHeight: rect.height }}
                 >
                   <div className="flex items-center gap-2 w-full">
@@ -159,9 +152,12 @@ function ClusterItem({
                   </div>
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    animate={{
+                      opacity: 1,
+                      height: "auto",
+                      transition: { duration: 0.15, ease: "easeOut", delay: 0.5 },
+                    }}
+                    exit={{ opacity: 0, height: 0, transition: { duration: 0.15, ease: "easeOut" } }}
                     className="flex items-center gap-3 text-xs text-muted-foreground overflow-hidden pl-6"
                   >
                     {hasChildren && (
@@ -181,75 +177,5 @@ function ClusterItem({
           document.body
         )}
     </>
-  );
-}
-
-export default function ClusterList({
-  visibleClusters,
-  selectedLeafId,
-  drillDownDepth,
-  filteredCountByCluster,
-  onNavigateToCluster,
-  onToggleLeafSelection,
-  unclusteredCount,
-  className,
-}: ClusterListProps) {
-  const isUnclusteredSelected = selectedLeafId === UNCLUSTERED_ID;
-  const showUnclustered = drillDownDepth === 0;
-
-  return (
-    <div className={cn("border-r bg-secondary overflow-y-auto overflow-x-hidden", className)}>
-      <div className="flex flex-col gap-0.5 py-2 px-2">
-        {visibleClusters.length === 0 && !showUnclustered ? (
-          <div className="text-muted-foreground text-sm py-4 text-center">No sub-clusters</div>
-        ) : (
-          <>
-            {visibleClusters.map((cluster, index) => {
-              const hasChildren = (cluster as ClusterNode).children.length > 0;
-              const isLeafSelected = !hasChildren && selectedLeafId === cluster.id;
-              const filteredCount = filteredCountByCluster.get(cluster.id);
-              return (
-                <ClusterItem
-                  key={cluster.id}
-                  cluster={cluster}
-                  index={index}
-                  drillDownDepth={drillDownDepth}
-                  isLeafSelected={isLeafSelected}
-                  filteredCount={filteredCount}
-                  onClick={() => {
-                    if (hasChildren) {
-                      onNavigateToCluster(cluster.id);
-                    } else {
-                      onToggleLeafSelection(cluster.id);
-                    }
-                  }}
-                />
-              );
-            })}
-
-            {showUnclustered && (
-              <>
-                {visibleClusters.length > 0 && <div className="border-t my-1" />}
-                <button
-                  className={cn(
-                    "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors cursor-pointer hover:bg-muted",
-                    isUnclusteredSelected && "bg-sidebar-accent font-medium"
-                  )}
-                  onClick={() => onToggleLeafSelection(UNCLUSTERED_ID)}
-                >
-                  {isUnclusteredSelected ? (
-                    <Circle className={cn("size-3.5 shrink-0 fill-slate-400 stroke-none")} />
-                  ) : (
-                    <CircleDashed className={cn("size-3.5 shrink-0 text-slate-400")} />
-                  )}
-                  <span className="truncate">Unclustered Events</span>
-                  <span className="text-muted-foreground text-xs ml-auto shrink-0">{unclusteredCount}</span>
-                </button>
-              </>
-            )}
-          </>
-        )}
-      </div>
-    </div>
   );
 }
