@@ -1,5 +1,5 @@
 {
-  "id": "bb0f0c2b-3d7b-47a1-89e1-bb4a325674d4",
+  "id": "2fb89c59-4309-47dc-8d22-01281be19765",
   "prevId": "264f24f8-c557-428b-ad37-b996019fa2dc",
   "version": "7",
   "dialect": "postgresql",
@@ -600,10 +600,10 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "custom_model_costs_project_id_model_unique": {
-          "name": "custom_model_costs_project_id_model_unique",
+        "custom_model_costs_project_id_provider_model_unique": {
+          "name": "custom_model_costs_project_id_provider_model_unique",
           "nullsNotDistinct": false,
-          "columns": ["project_id", "model"]
+          "columns": ["project_id", "provider", "model"]
         }
       },
       "policies": {},

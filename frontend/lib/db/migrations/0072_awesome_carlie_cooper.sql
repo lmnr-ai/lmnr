@@ -6,7 +6,7 @@ CREATE TABLE "custom_model_costs" (
 	"provider" text,
 	"model" text NOT NULL,
 	"costs" jsonb DEFAULT '{}'::jsonb NOT NULL,
-	CONSTRAINT "custom_model_costs_project_id_model_unique" UNIQUE("project_id","model")
+	CONSTRAINT "custom_model_costs_project_id_provider_model_unique" UNIQUE("project_id","provider","model")
 );
 --> statement-breakpoint
-ALTER TABLE "custom_model_costs" ADD CONSTRAINT "custom_model_costs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+ALTER TABLE "custom_model_costs" ADD CONSTRAINT "custom_model_costs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE cascade;
