@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 
 import { TimeRangeSchema } from "@/lib/actions/common/types";
-import { clickhouseClient } from "@/lib/clickhouse/client";
+import { executeQuery } from "@/lib/actions/sql";
 
 export const GetClusterStatsSchema = z.object({
   ...TimeRangeSchema.shape,
@@ -26,7 +26,6 @@ export async function getClusterStats(
 
   const timeConditions: string[] = [];
   const params: Record<string, unknown> = {
-    projectId,
     signalId,
     clusterIds,
     intervalValue,
@@ -37,18 +36,18 @@ export async function getClusterStats(
   let fillTo: string | null = null;
 
   if (pastHours && !isNaN(parseFloat(pastHours))) {
-    timeConditions.push("se.timestamp >= now() - INTERVAL {pastHours: UInt32} HOUR");
+    timeConditions.push("timestamp >= now() - INTERVAL {pastHours: UInt32} HOUR");
     params.pastHours = parseInt(pastHours);
     fillFrom = `toStartOfInterval(now() - INTERVAL {pastHours:UInt32} HOUR, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
     fillTo = `toStartOfInterval(now(), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
   } else {
     if (startDate) {
-      timeConditions.push("se.timestamp >= {startTime: String}");
+      timeConditions.push("timestamp >= {startTime: String}");
       params.startTime = startDate.replace("Z", "");
       fillFrom = `toStartOfInterval(toDateTime64({startTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
     }
     if (endDate) {
-      timeConditions.push("se.timestamp <= {endTime: String}");
+      timeConditions.push("timestamp <= {endTime: String}");
       params.endTime = endDate.replace("Z", "");
       fillTo = `toStartOfInterval(toDateTime64({endTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
     }
@@ -64,37 +63,37 @@ export async function getClusterStats(
     STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})`
       : "";
 
-  // Direct ClickHouse required here because events_to_clusters is not in the query engine
-  const result = await clickhouseClient.query({
-    query: `
-      SELECT
-        ec.cluster_id as cluster_id,
-        toStartOfInterval(se.timestamp, toInterval({intervalValue: UInt32}, {intervalUnit: String})) as timestamp,
-        count() as count
-      FROM signal_events se
-      INNER JOIN events_to_clusters ec ON se.id = ec.event_id AND se.project_id = ec.project_id
-      WHERE se.project_id = {projectId: UUID}
-        AND se.signal_id = {signalId: UUID}
-        AND ec.cluster_id IN ({clusterIds: Array(UUID)})
-        ${timeClause}
-      GROUP BY ec.cluster_id, timestamp
-      ORDER BY cluster_id, timestamp ASC
-      ${withFillClause}
-    `,
-    query_params: params,
-    format: "JSONEachRow",
-  });
+  // Uses signal_events view (via query engine) which provides the `clusters` array
+  // column from the events_to_clusters join
+  const query = `
+    SELECT
+      cluster_id,
+      toStartOfInterval(timestamp, toInterval({intervalValue: UInt32}, {intervalUnit: String})) as timestamp,
+      count() as count
+    FROM signal_events
+    ARRAY JOIN clusters AS cluster_id
+    WHERE signal_id = {signalId: UUID}
+      AND has({clusterIds: Array(UUID)}, cluster_id)
+      ${timeClause}
+    GROUP BY cluster_id, timestamp
+    ORDER BY cluster_id, timestamp ASC
+    ${withFillClause}
+  `;
 
-  const rows = (await result.json()) as Array<{
+  const rows = await executeQuery<{
     cluster_id: string;
     timestamp: string;
     count: string;
-  }>;
+  }>({
+    query,
+    parameters: params,
+    projectId,
+  });
 
   const items: ClusterStatsDataPoint[] = rows.map((row) => ({
     cluster_id: row.cluster_id,
     timestamp: row.timestamp,
-    count: parseInt(row.count, 10),
+    count: parseInt(String(row.count), 10),
   }));
 
   return { items };

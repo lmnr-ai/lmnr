@@ -150,6 +150,7 @@ class TableRegistry:
             "payload",
             "timestamp",
             "summary",
+            "clusters",
         }
 
         logs_columns = {

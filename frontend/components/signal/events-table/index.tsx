@@ -2,7 +2,7 @@
 
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
@@ -18,7 +18,6 @@ import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { buildEventsColumns } from "./columns";
-import EventDetailPanel, { type EventDetailStyle } from "./event-detail-panel";
 
 const FETCH_SIZE = 50;
 
@@ -48,16 +47,15 @@ const getEmptyRow = ({
   );
 };
 
-const STYLE_OPTIONS: EventDetailStyle[] = ["A", "B", "C"];
-
 function PureEventsTable() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
-  const { signal, selectedClusterIds, isUnclusteredFilter } = useSignalStoreContext((state) => ({
+  const { signal, selectedClusterIds, isUnclusteredFilter, selectedEvent } = useSignalStoreContext((state) => ({
     signal: state.signal,
     selectedClusterIds: state.selectedClusterIds,
     isUnclusteredFilter: state.isUnclusteredFilter,
+    selectedEvent: state.selectedEvent,
   }));
   const searchParams = useSearchParams();
   const pathName = usePathname();
@@ -70,10 +68,8 @@ function PureEventsTable() {
 
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
-  const [selectedEvent, setSelectedEvent] = useState<EventRow | null>(null);
-  const [panelStyle, setPanelStyle] = useState<EventDetailStyle>("A");
-
   const setTraceId = useSignalStoreContext((state) => state.setTraceId);
+  const setSelectedEvent = useSignalStoreContext((state) => state.setSelectedEvent);
 
   // Listen for open-trace events from the traceId column button
   useEffect(() => {
@@ -150,22 +146,11 @@ function PureEventsTable() {
     [pathName, searchParams]
   );
 
-  const handleRowClick = useCallback((row: Row<EventRow>) => {
-    setSelectedEvent(row.original);
-  }, []);
-
-  const handleCloseEventPanel = useCallback(() => {
-    setSelectedEvent(null);
-  }, []);
-
-  const handleOpenTraceFromPanel = useCallback(
-    (traceId: string) => {
-      setTraceId(traceId);
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set("traceId", traceId);
-      router.push(`${pathName}?${newParams.toString()}`);
+  const handleRowClick = useCallback(
+    (row: Row<EventRow>) => {
+      setSelectedEvent(row.original);
     },
-    [setTraceId, searchParams, pathName, router]
+    [setSelectedEvent]
   );
 
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
@@ -181,6 +166,20 @@ function PureEventsTable() {
     enabled: !!(pastHours || (startDate && endDate)),
     deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter],
   });
+
+  // TODO: Remove debug log
+  useEffect(() => {
+    console.log(
+      "[events-table] events:",
+      events?.length,
+      "isLoading:",
+      isLoading,
+      "isFetching:",
+      isFetching,
+      "hasMore:",
+      hasMore
+    );
+  }, [events, isLoading, isFetching, hasMore]);
 
   const focusedRowId = useMemo(() => {
     if (!selectedEvent) return undefined;
@@ -206,63 +205,34 @@ function PureEventsTable() {
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
   return (
-    <div className="flex gap-0 flex-1">
-      <div className="flex flex-col gap-2 flex-1 min-w-0">
-        <InfiniteDataTable<EventRow>
-          className="w-full"
-          columns={columns}
-          data={events}
-          onRowClick={handleRowClick}
-          getRowId={(row: EventRow) => row.id}
-          focusedRowId={focusedRowId}
-          hasMore={hasMore}
-          isFetching={isFetching}
-          isLoading={isLoading}
-          getRowHref={getRowHref}
-          fetchNextPage={fetchNextPage}
-          loadMoreButton
-          estimatedRowHeight={80}
-          emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
-        >
-          <div className="flex flex-1 w-full space-x-2">
-            <DataTableFilter columns={filters} />
-            <ColumnsMenu
-              columnLabels={columns.map((column) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-            />
-          </div>
-          <DataTableFilterList />
-        </InfiniteDataTable>
-      </div>
-
-      {selectedEvent && (
-        <div className="w-[360px] shrink-0 border-l bg-background">
-          <EventDetailPanel
-            event={selectedEvent}
-            schemaFields={signal.schemaFields}
-            onClose={handleCloseEventPanel}
-            onOpenTrace={handleOpenTraceFromPanel}
-            style={panelStyle}
+    <div className="flex flex-col gap-2 flex-1 min-w-0">
+      <InfiniteDataTable<EventRow>
+        className="w-full"
+        columns={columns}
+        data={events}
+        onRowClick={handleRowClick}
+        getRowId={(row: EventRow) => row.id}
+        focusedRowId={focusedRowId}
+        hasMore={hasMore}
+        isFetching={isFetching}
+        isLoading={isLoading}
+        getRowHref={getRowHref}
+        fetchNextPage={fetchNextPage}
+        loadMoreButton
+        estimatedRowHeight={80}
+        emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
+      >
+        <div className="flex flex-1 w-full space-x-2">
+          <DataTableFilter columns={filters} />
+          <ColumnsMenu
+            columnLabels={columns.map((column) => ({
+              id: column.id!,
+              label: typeof column.header === "string" ? column.header : column.id!,
+            }))}
           />
         </div>
-      )}
-
-      {/* Style switcher — temporary for testing */}
-      <div className="fixed bottom-4 right-4 z-[100] flex items-center gap-0 rounded-md border bg-background shadow-lg">
-        {STYLE_OPTIONS.map((s) => (
-          <button
-            key={s}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-              panelStyle === s ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            } ${s === "A" ? "rounded-l-md" : s === "C" ? "rounded-r-md" : ""}`}
-            onClick={() => setPanelStyle(s)}
-          >
-            Style {s}
-          </button>
-        ))}
-      </div>
+        <DataTableFilterList />
+      </InfiniteDataTable>
     </div>
   );
 }

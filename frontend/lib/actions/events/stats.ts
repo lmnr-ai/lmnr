@@ -13,6 +13,7 @@ export const GetEventStatsSchema = z.object({
   signalId: z.string(),
   intervalValue: z.coerce.number().default(1),
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
+  unclustered: z.coerce.boolean().optional(),
 });
 
 export interface EventsStatsDataPoint {
@@ -32,6 +33,7 @@ export async function getEventStats(
     intervalValue,
     intervalUnit,
     filter,
+    unclustered,
   } = input;
 
   const filters = compact(filter);
@@ -45,6 +47,13 @@ export async function getEventStats(
       params: { signalId },
     },
   ];
+
+  if (unclustered) {
+    customConditions.push({
+      condition: "empty(clusters)",
+      params: {},
+    });
+  }
 
   const whereResult = buildWhereClause({
     timeRange: {

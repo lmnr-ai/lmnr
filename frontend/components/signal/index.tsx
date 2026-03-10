@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
@@ -7,6 +8,7 @@ import React, { useCallback, useEffect, useState } from "react";
 
 import ClustersTable from "@/components/signal/clusters-table";
 import EventsTable from "@/components/signal/events-table";
+import EventDetailPanel from "@/components/signal/events-table/event-detail-panel";
 import SignalJobsTable from "@/components/signal/jobs-table";
 import SignalRunsTable from "@/components/signal/runs-table";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
@@ -42,13 +44,17 @@ function SignalContent() {
     initialTraceViewWidth: state.initialTraceViewWidth,
   }));
 
-  const { setSignal, traceId, spanId, setTraceId, setSpanId } = useSignalStoreContext((state) => ({
-    setSignal: state.setSignal,
-    traceId: state.traceId,
-    spanId: state.spanId,
-    setTraceId: state.setTraceId,
-    setSpanId: state.setSpanId,
-  }));
+  const { setSignal, traceId, spanId, setTraceId, setSpanId, selectedEvent, setSelectedEvent } = useSignalStoreContext(
+    (state) => ({
+      setSignal: state.setSignal,
+      traceId: state.traceId,
+      spanId: state.spanId,
+      setTraceId: state.setTraceId,
+      setSpanId: state.setSpanId,
+      selectedEvent: state.selectedEvent,
+      setSelectedEvent: state.setSelectedEvent,
+    })
+  );
 
   const { width, handleResizeStop } = useResizableTraceViewWidth({
     initialWidth: initialTraceViewWidth,
@@ -125,6 +131,37 @@ function SignalContent() {
           <SignalRunsTable />
         </TabsContent>
       </Tabs>
+      <AnimatePresence>
+        {selectedEvent && !traceId && (
+          <motion.div
+            key="event-drawer"
+            initial={{ x: 400 }}
+            animate={{ x: 0 }}
+            exit={{ x: 400 }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            className="absolute top-0 right-0 bottom-0 bg-background border-l z-40 w-[400px]"
+          >
+            <EventDetailPanel
+              event={selectedEvent}
+              schemaFields={signal.schemaFields}
+              onClose={() => {
+                setSelectedEvent(null);
+                const params = new URLSearchParams(searchParams);
+                params.delete("eventId");
+                push(`${pathName}?${params.toString()}`);
+              }}
+              onOpenTrace={(traceId) => {
+                setSelectedEvent(null);
+                setTraceId(traceId);
+                const params = new URLSearchParams(searchParams);
+                params.delete("eventId");
+                params.set("traceId", traceId);
+                push(`${pathName}?${params.toString()}`);
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
       {traceId && (
         <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
           <Resizable

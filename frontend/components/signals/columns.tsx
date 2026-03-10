@@ -54,7 +54,7 @@ export const signalsColumns: ColumnDef<SignalRow>[] = [
     id: "eventsCount",
     accessorFn: (row) => row.eventsCount,
     cell: ({ row }) => <span className="truncate">{row.original.eventsCount}</span>,
-    size: 70,
+    size: 88,
   },
   {
     header: "Last Event",

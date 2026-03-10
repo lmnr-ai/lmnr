@@ -1,15 +1,17 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Circle, Folder } from "lucide-react";
+import { Circle, CircleDashed, Folder } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { type EventCluster } from "@/lib/actions/clusters";
 import { cn } from "@/lib/utils";
 
-import { getClusterColor, withOpacity } from "../colors";
+import { withOpacity } from "../colors";
 import { type ClusterNode } from "../utils";
+
+export type IconVariant = "folder" | "circle" | "circle-dashed";
 
 interface HoverRect {
   top: number;
@@ -20,22 +22,22 @@ interface HoverRect {
 
 export default function ClusterItem({
   cluster,
-  index,
-  drillDownDepth,
-  isLeafSelected,
+  iconVariant,
+  color,
+  isSelected,
   filteredCount,
   onClick,
 }: {
   cluster: EventCluster;
-  index: number;
-  drillDownDepth: number;
-  isLeafSelected: boolean;
+  iconVariant: IconVariant;
+  color: string;
+  isSelected: boolean;
   filteredCount: number | undefined;
   onClick: () => void;
 }) {
-  const hasChildren = (cluster as ClusterNode).children.length > 0;
+  const hasChildren = iconVariant === "folder";
   const displayCount = filteredCount ?? cluster.numEvents;
-  const showFilteredRange = filteredCount !== undefined && filteredCount !== cluster.numEvents;
+  const showFilteredRange = filteredCount !== undefined;
 
   const [hovered, setHovered] = useState(false);
   const [rect, setRect] = useState<HoverRect | null>(null);
@@ -59,7 +61,6 @@ export default function ClusterItem({
     }
   }, [clearLeaveTimeout]);
 
-  // Grace period so the overlay doesn't flicker when moving mouse between the button and the portal overlay.
   const scheduleClose = useCallback(() => {
     clearLeaveTimeout();
     leaveTimeoutRef.current = setTimeout(() => {
@@ -68,24 +69,18 @@ export default function ClusterItem({
     }, 80);
   }, [clearLeaveTimeout]);
 
-  const icon = hasChildren ? (
-    <Folder
-      className="w-4 h-4 shrink-0"
-      fill={withOpacity(getClusterColor(index, drillDownDepth), 0.25)}
-      stroke={getClusterColor(index, drillDownDepth)}
-      strokeWidth={1.5}
-    />
-  ) : (
-    <Circle
-      fill={
-        isLeafSelected
-          ? getClusterColor(index, drillDownDepth)
-          : withOpacity(getClusterColor(index, drillDownDepth), 0.25)
-      }
-      stroke={getClusterColor(index, drillDownDepth)}
-      className="size-3.5 rounded-full shrink-0"
-    />
-  );
+  const icon =
+    iconVariant === "folder" ? (
+      <Folder className="w-4 h-4 shrink-0" fill={withOpacity(color, 0.25)} stroke={color} strokeWidth={1.5} />
+    ) : iconVariant === "circle-dashed" ? (
+      <CircleDashed className="size-3.5 shrink-0" stroke={color} />
+    ) : (
+      <Circle
+        fill={isSelected ? color : withOpacity(color, 0.25)}
+        stroke={color}
+        className="size-3.5 rounded-full shrink-0"
+      />
+    );
 
   return (
     <>
@@ -94,7 +89,7 @@ export default function ClusterItem({
         className={cn(
           "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors cursor-pointer text-secondary-foreground",
           hovered && "bg-muted",
-          isLeafSelected && "bg-sidebar-accent font-medium text-primary-foreground"
+          isSelected && "bg-sidebar-accent font-medium text-primary-foreground"
         )}
         onClick={onClick}
         onMouseEnter={handleMouseEnter}
@@ -134,8 +129,8 @@ export default function ClusterItem({
                   }}
                   className={cn(
                     "flex flex-col pl-2 pr-3 pt-1.5 pb-1 rounded text-sm text-left cursor-pointer overflow-hidden",
-                    "bg-muted outline outline-border shadow-md shadow-background/80 w-full",
-                    isLeafSelected && "font-medium"
+                    "bg-muted outline -outline-offset-1 outline-border shadow-md shadow-background/80 w-full",
+                    isSelected && "font-medium"
                   )}
                   initial={{ width: rect.width, height: rect.height }}
                   animate={{

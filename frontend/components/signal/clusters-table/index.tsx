@@ -2,6 +2,7 @@
 
 import { Circle } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/charts/time-series-chart/utils";
@@ -10,8 +11,8 @@ import DateRangeFilter from "@/components/ui/date-range-filter";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type ClusterStatsDataPoint } from "@/lib/actions/clusters/stats";
-import { type EventsStatsDataPoint } from "@/lib/actions/events/stats";
 import { useToast } from "@/lib/hooks/use-toast.ts";
+import { cn } from "@/lib/utils";
 
 import ClusterBreadcrumb from "./cluster-breadcrumb";
 import ClusterList from "./cluster-list";
@@ -39,6 +40,7 @@ export default function ClustersTable() {
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -80,13 +82,25 @@ export default function ClustersTable() {
     [totalEventCount, clusteredEventCount]
   );
 
+  const hasTimeRange = !!(searchParams.get("pastHours") || searchParams.get("startDate"));
+
   const filteredCountByCluster = useMemo(() => {
     const counts = new Map<string, number>();
+    // When a time range is active, seed all visible clusters with 0
+    // so clusters with no events in range show "0 / N" instead of falling back to all-time count
+    if (hasTimeRange) {
+      for (const cluster of visibleClusters) {
+        counts.set(cluster.id, 0);
+      }
+      if (drillDownDepth === 0) {
+        counts.set(UNCLUSTERED_ID, 0);
+      }
+    }
     for (const row of statsData) {
       counts.set(row.cluster_id, (counts.get(row.cluster_id) ?? 0) + row.count);
     }
     return counts;
-  }, [statsData]);
+  }, [statsData, hasTimeRange, visibleClusters, drillDownDepth]);
 
   // Update store with selected cluster IDs for events table filtering
   useEffect(() => {
@@ -171,7 +185,7 @@ export default function ClustersTable() {
 
     setIsLoadingStats(true);
 
-    const fetches: Promise<ClusterStatsDataPoint[] | EventsStatsDataPoint[]>[] = [];
+    const fetches: Promise<ClusterStatsDataPoint[]>[] = [];
 
     // Fetch cluster stats if there are visible clusters
     if (visibleClusters.length > 0) {
@@ -196,57 +210,38 @@ export default function ClustersTable() {
       fetches.push(Promise.resolve([]));
     }
 
-    // At root level, also fetch total event stats to compute unclustered
+    // At root level, fetch unclustered stats directly via empty(clusters)
     if (drillDownDepth === 0) {
-      const totalParams = new URLSearchParams();
-      if (pastHours) totalParams.set("pastHours", pastHours);
-      if (startDate) totalParams.set("startDate", startDate);
-      if (endDate) totalParams.set("endDate", endDate);
-      totalParams.set("intervalValue", interval.value.toString());
-      totalParams.set("intervalUnit", interval.unit);
+      const unclusteredParams = new URLSearchParams();
+      if (pastHours) unclusteredParams.set("pastHours", pastHours);
+      if (startDate) unclusteredParams.set("startDate", startDate);
+      if (endDate) unclusteredParams.set("endDate", endDate);
+      unclusteredParams.set("intervalValue", interval.value.toString());
+      unclusteredParams.set("intervalUnit", interval.unit);
+      unclusteredParams.set("unclustered", "true");
 
       fetches.push(
-        fetch(`/api/projects/${params.projectId}/signals/${signal.id}/events/stats?${totalParams.toString()}`)
+        fetch(`/api/projects/${params.projectId}/signals/${signal.id}/events/stats?${unclusteredParams.toString()}`)
           .then((res) => {
-            if (!res.ok) throw new Error("Failed to fetch total event stats");
+            if (!res.ok) throw new Error("Failed to fetch unclustered stats");
             return res.json();
           })
-          .then(
-            (data: { items: EventsStatsDataPoint[] }) =>
-              // Compute unclustered: total per bucket - sum of cluster counts per bucket
-              data.items
+          .then((data: { items: Array<{ timestamp: string; count: number }> }) =>
+            data.items.map((item) => ({
+              cluster_id: UNCLUSTERED_ID,
+              timestamp: item.timestamp,
+              count: item.count,
+            }))
           )
-          .catch(() => [] as EventsStatsDataPoint[])
+          .catch(() => [] as ClusterStatsDataPoint[])
       );
     } else {
       fetches.push(Promise.resolve([]));
     }
 
     Promise.all(fetches)
-      .then(([clusterStatsRaw, totalStatsRaw]) => {
-        const clusterStats = clusterStatsRaw as ClusterStatsDataPoint[];
-        let allStats = clusterStats;
-
-        // Compute unclustered stats at root level
-        if (drillDownDepth === 0 && totalStatsRaw.length > 0) {
-          const totalStats = totalStatsRaw as EventsStatsDataPoint[];
-          // Sum clustered counts per timestamp
-          const clusteredByTimestamp = new Map<string, number>();
-          for (const row of clusterStats) {
-            clusteredByTimestamp.set(row.timestamp, (clusteredByTimestamp.get(row.timestamp) ?? 0) + row.count);
-          }
-
-          // Compute unclustered = total - clustered (preserve zeros for WITH FILL parity)
-          const unclusteredStats: ClusterStatsDataPoint[] = totalStats.map((total) => ({
-            cluster_id: UNCLUSTERED_ID,
-            timestamp: total.timestamp,
-            count: Math.max(0, total.count - (clusteredByTimestamp.get(total.timestamp) ?? 0)),
-          }));
-
-          allStats = [...clusterStats, ...unclusteredStats];
-        }
-
-        setStatsData(allStats);
+      .then(([clusterStats, unclusteredStats]) => {
+        setStatsData([...clusterStats, ...unclusteredStats]);
       })
       .finally(() => {
         setIsLoadingStats(false);
@@ -337,7 +332,7 @@ export default function ClustersTable() {
           <DateRangeFilter />
         </div>
         <div className="flex border rounded-lg overflow-hidden h-[300px]" style={{ maxHeight: 300 }}>
-          <div className="w-[320px] border-r bg-secondary overflow-y-auto">
+          <div className="w-[320px] shrink-0 border-r bg-secondary overflow-y-auto">
             <div className="flex flex-col gap-0.5 py-2 px-2">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm">
@@ -372,16 +367,39 @@ export default function ClustersTable() {
         </div>
 
         <div className="flex border rounded-lg overflow-hidden h-[300px]">
-          <ClusterList
-            className="w-[320px]"
-            visibleClusters={visibleClusters}
-            selectedLeafId={selectedLeafId}
-            drillDownDepth={drillDownDepth}
-            filteredCountByCluster={filteredCountByCluster}
-            onNavigateToCluster={navigateToCluster}
-            onToggleLeafSelection={handleToggleLeafSelection}
-            unclusteredCount={unclusteredCount}
-          />
+          <Resizable
+            defaultSize={{ width: 320 }}
+            minWidth={200}
+            maxWidth="70%"
+            enable={{ right: true }}
+            onResizeStart={() => setIsResizing(true)}
+            onResizeStop={() => setIsResizing(false)}
+            handleStyles={{ right: { width: 8, right: -4 } }}
+            handleComponent={{
+              right: (
+                <div className="h-full w-full flex items-center justify-center group cursor-col-resize">
+                  <div
+                    className={cn(
+                      "h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors",
+                      isResizing && "w-0.5 bg-blue-400"
+                    )}
+                  />
+                </div>
+              ),
+            }}
+          >
+            <ClusterList
+              className="h-full"
+              visibleClusters={visibleClusters}
+              selectedLeafId={selectedLeafId}
+              drillDownDepth={drillDownDepth}
+              filteredCountByCluster={filteredCountByCluster}
+              onNavigateToCluster={navigateToCluster}
+              onToggleLeafSelection={handleToggleLeafSelection}
+              unclusteredCount={unclusteredCount}
+              unclusteredVirtualCluster={unclusteredVirtualCluster}
+            />
+          </Resizable>
 
           <div className="flex-1 p-2 bg-secondary" ref={chartContainerRef}>
             {isLoadingStats ? (

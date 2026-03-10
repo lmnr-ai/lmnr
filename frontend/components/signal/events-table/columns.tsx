@@ -38,7 +38,12 @@ function EnumCell({ value }: { value: string }) {
 }
 
 function BooleanCell({ value }: { value: boolean }) {
-  return value ? <Check className="size-4 text-green-500" /> : <X className="size-4 text-muted-foreground" />;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {value ? <Check className="size-4 text-green-500" /> : <X className="size-4 text-muted-foreground" />}
+      <span className="text-secondary-foreground">{value ? "true" : "false"}</span>
+    </span>
+  );
 }
 
 function getColumnSize(type: SchemaFieldType): number {

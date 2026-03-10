@@ -1,4 +1,4 @@
-export const UNCLUSTERED_COLOR = "var(--color-slate-400)";
+export const UNCLUSTERED_COLOR = "var(--color-primary)";
 
 // Tailwind v4 color variables, alternating warm/cool per level
 const COLOR_PALETTES = [

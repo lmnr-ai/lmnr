@@ -47,17 +47,14 @@ export async function getEventClusters(
     WHERE signal_id = {signalId: UUID}
   `;
 
-  // Sum events only from leaf clusters (no children) to avoid double-counting
-  // Parent clusters' num_signal_events includes their children's events
-  const clusteredCountQuery = `
-    SELECT coalesce(sum(num_signal_events), 0) as count
-    FROM clusters
+  const unclusteredCountQuery = `
+    SELECT count() as count
+    FROM signal_events
     WHERE signal_id = {signalId: UUID}
-      AND level != 0
-      AND num_children_clusters = 0
+      AND empty(clusters)
   `;
 
-  const [rows, countResult, clusteredCountResult] = await Promise.all([
+  const [rows, countResult, unclusteredCountResult] = await Promise.all([
     executeQuery<{
       id: string;
       name: string;
@@ -77,8 +74,8 @@ export async function getEventClusters(
       parameters: { signalId },
       projectId,
     }),
-    executeQuery<{ count: string }>({
-      query: clusteredCountQuery,
+    executeQuery<{ count: number }>({
+      query: unclusteredCountQuery,
       parameters: { signalId },
       projectId,
     }),
@@ -95,7 +92,8 @@ export async function getEventClusters(
     updatedAt: row.updatedAt,
   }));
 
-  const clusteredEventCount = parseInt(String(clusteredCountResult[0]?.count ?? "0"), 10);
+  const unclusteredEventCount = unclusteredCountResult[0]?.count || 0;
+  const clusteredEventCount = (countResult[0]?.count || 0) - unclusteredEventCount;
 
   return { items, totalEventCount: countResult[0]?.count || 0, clusteredEventCount };
 }

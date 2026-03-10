@@ -53,11 +53,28 @@ export interface BuildEventsQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
-  eventIds?: string[];
+  clusterFilter?: "unclustered" | string[];
+}
+
+function buildClusterConditions(
+  clusterFilter: "unclustered" | string[] | undefined
+): Array<{ condition: string; params: QueryParams }> {
+  if (!clusterFilter) return [];
+
+  if (clusterFilter === "unclustered") {
+    return [{ condition: "empty(clusters)", params: {} }];
+  }
+
+  return [
+    {
+      condition: "hasAny(clusters, {clusterIds:Array(UUID)})",
+      params: { clusterIds: clusterFilter },
+    },
+  ];
 }
 
 export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): QueryResult => {
-  const { signalId, filters, limit, offset, startTime, endTime, pastHours, eventIds } = options;
+  const { signalId, filters, limit, offset, startTime, endTime, pastHours, clusterFilter } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -67,14 +84,8 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
       condition: "signal_id = {signalId:UUID}",
       params: { signalId },
     },
+    ...buildClusterConditions(clusterFilter),
   ];
-
-  if (eventIds && eventIds.length > 0) {
-    customConditions.push({
-      condition: "id IN ({eventIds:Array(UUID)})",
-      params: { eventIds },
-    });
-  }
 
   const queryOptions: SelectQueryOptions = {
     select: {
@@ -108,7 +119,7 @@ export const buildEventsQueryWithParams = (options: BuildEventsQueryOptions): Qu
 export const buildEventsCountQueryWithParams = (
   options: Omit<BuildEventsQueryOptions, "limit" | "offset">
 ): QueryResult => {
-  const { signalId, filters, startTime, endTime, pastHours, eventIds } = options;
+  const { signalId, filters, startTime, endTime, pastHours, clusterFilter } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -118,14 +129,8 @@ export const buildEventsCountQueryWithParams = (
       condition: "signal_id = {signalId:UUID}",
       params: { signalId },
     },
+    ...buildClusterConditions(clusterFilter),
   ];
-
-  if (eventIds && eventIds.length > 0) {
-    customConditions.push({
-      condition: "id IN ({eventIds:Array(UUID)})",
-      params: { eventIds },
-    });
-  }
 
   const queryOptions: SelectQueryOptions = {
     select: {

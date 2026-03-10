@@ -19,6 +19,7 @@ export type SignalState = {
   signal: Omit<ManageSignalForm, "id"> & { id: string };
   traceId: string | null;
   spanId: string | null;
+  selectedEvent: EventRow | null;
   stats?: EventsStatsDataPoint[];
   isLoadingStats: boolean;
   chartContainerWidth: number | null;
@@ -37,6 +38,7 @@ export type SignalState = {
 export type SignalActions = {
   setTraceId: (traceId: string | null) => void;
   setSpanId: (spanId: string | null) => void;
+  setSelectedEvent: (event: EventRow | null) => void;
   fetchEvents: (params: URLSearchParams) => Promise<void>;
   setSignal: (eventDefinition?: SignalState["signal"]) => void;
   fetchStats: (url: string) => Promise<void>;
@@ -68,6 +70,7 @@ export const createSignalStore = (initProps: EventsProps) =>
     totalCount: 0,
     traceId: initProps.traceId || null,
     spanId: initProps.spanId || null,
+    selectedEvent: null,
     runsFilters: [],
     jobsFilters: [],
     triggersFilters: [],
@@ -86,6 +89,7 @@ export const createSignalStore = (initProps: EventsProps) =>
     setSignal: (signal) => set({ signal }),
     setTraceId: (traceId) => set({ traceId }),
     setSpanId: (spanId) => set({ spanId }),
+    setSelectedEvent: (event) => set({ selectedEvent: event }),
     setChartContainerWidth: (width: number) => set({ chartContainerWidth: width }),
     setSelectedClusterIds: (ids: string[]) => set({ selectedClusterIds: ids }),
     setIsUnclusteredFilter: (value: boolean) => set({ isUnclusteredFilter: value }),
