@@ -136,8 +136,7 @@ impl ModelInfo {
 /// Look up custom model costs for a specific project, then fall back to universal costs.
 ///
 /// Priority:
-/// 1. Project-specific custom model costs (cache → DB), trying the full model string
-///    first, then raw_model (provider prefix stripped) as a fallback.
+/// 1. Project-specific custom model costs (cache → DB)
 /// 2. Universal model costs (cache → DB)
 pub async fn get_model_costs_for_project(
     db: Arc<DB>,
