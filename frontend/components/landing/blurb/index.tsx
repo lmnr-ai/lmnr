@@ -59,7 +59,7 @@ const Blurb = ({ className }: Props) => {
               wordIndex={index}
               totalWords={totalWords}
               scrollYProgress={scrollYProgress}
-              addLineBreak={word === "look."}
+              addLineBreak={word === "wrong,"}
             />
           ))}
           <span className="text-landing-primary-400">&rdquo;</span>
