@@ -59,7 +59,10 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.SIGNALS) {
-    return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    return (
+      !!process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      (!!process.env.AWS_ACCESS_KEY_ID && !!process.env.AWS_SECRET_ACCESS_KEY && !!process.env.AWS_REGION)
+    );
   }
 
   if (feature === Feature.SEND_EMAIL) {
