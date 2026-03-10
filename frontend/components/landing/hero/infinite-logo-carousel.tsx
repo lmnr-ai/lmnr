@@ -49,15 +49,19 @@ export default function InfiniteLogoCarousel() {
     if (!scrollContainer) return;
 
     let animationId: number;
+    let scrollPosition = 0;
     const scrollSpeed = 0.5; // pixels per frame
 
     const animate = () => {
+      scrollPosition += scrollSpeed;
+
       // Get the width of one complete set of logos
       const oneSetWidth = scrollContainer.scrollWidth / 3; // We have 3 sets
 
-      // Use modulo to keep scrollLeft within bounds for a seamless loop
-      scrollContainer.scrollLeft = (scrollContainer.scrollLeft + scrollSpeed) % oneSetWidth;
+      // Use modulo to seamlessly wrap without a visible jump
+      scrollPosition = scrollPosition % oneSetWidth;
 
+      scrollContainer.scrollLeft = scrollPosition;
       animationId = requestAnimationFrame(animate);
     };
 
