@@ -36,8 +36,6 @@ export default function ClustersTable() {
   const [statsData, setStatsData] = useState<ClusterStatsDataPoint[]>([]);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [selectedLeafId, setSelectedLeafId] = useState<string | null>(null);
-  const prevDepthRef = useRef(0);
-  const [slideClass, setSlideClass] = useState("");
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
@@ -57,21 +55,6 @@ export default function ClustersTable() {
   const clusterPath = searchParams.get("clusterPath") || "";
   const pathIds = useMemo(() => (clusterPath ? clusterPath.split(",") : []), [clusterPath]);
   const drillDownDepth = pathIds.length;
-
-  // Slide animation on level change
-  useEffect(() => {
-    const goingDeeper = drillDownDepth > prevDepthRef.current;
-    prevDepthRef.current = drillDownDepth;
-
-    setSlideClass(goingDeeper ? "translate-x-[60px] opacity-0 duration-0" : "-translate-x-[60px] opacity-0 duration-0");
-
-    const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setSlideClass("translate-x-0 opacity-100 duration-300");
-      });
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [drillDownDepth]);
 
   const tree = useMemo(() => buildTree(rawClusters), [rawClusters]);
 
@@ -395,7 +378,6 @@ export default function ClustersTable() {
             selectedLeafId={selectedLeafId}
             drillDownDepth={drillDownDepth}
             filteredCountByCluster={filteredCountByCluster}
-            slideClass={slideClass}
             onNavigateToCluster={navigateToCluster}
             onToggleLeafSelection={handleToggleLeafSelection}
             unclusteredCount={unclusteredCount}

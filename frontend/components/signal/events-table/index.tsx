@@ -2,7 +2,7 @@
 
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
@@ -17,7 +17,8 @@ import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { defaultEventsColumnOrder, eventsTableColumns, eventsTableFilters } from "./columns";
+import { buildEventsColumns } from "./columns";
+import EventDetailPanel, { type EventDetailStyle } from "./event-detail-panel";
 
 const FETCH_SIZE = 50;
 
@@ -47,6 +48,8 @@ const getEmptyRow = ({
   );
 };
 
+const STYLE_OPTIONS: EventDetailStyle[] = ["A", "B", "C"];
+
 function PureEventsTable() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
@@ -64,6 +67,27 @@ function PureEventsTable() {
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const filter = searchParams.getAll("filter");
+
+  const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
+
+  const [selectedEvent, setSelectedEvent] = useState<EventRow | null>(null);
+  const [panelStyle, setPanelStyle] = useState<EventDetailStyle>("A");
+
+  const setTraceId = useSignalStoreContext((state) => state.setTraceId);
+
+  // Listen for open-trace events from the traceId column button
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const traceId = (e as CustomEvent<string>).detail;
+      setTraceId(traceId);
+
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.set("traceId", traceId);
+      router.push(`${pathName}?${newParams.toString()}`);
+    };
+    window.addEventListener("open-trace", handler);
+    return () => window.removeEventListener("open-trace", handler);
+  }, [setTraceId, searchParams, pathName, router]);
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -120,22 +144,28 @@ function PureEventsTable() {
   const getRowHref = useCallback(
     (row: Row<EventRow>) => {
       const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original.traceId);
+      params.set("eventId", row.original.id);
       return `${pathName}?${params.toString()}`;
     },
     [pathName, searchParams]
   );
 
-  const { traceId, setTraceId } = useSignalStoreContext((state) => ({
-    traceId: state.traceId,
-    setTraceId: state.setTraceId,
-  }));
+  const handleRowClick = useCallback((row: Row<EventRow>) => {
+    setSelectedEvent(row.original);
+  }, []);
 
-  const handleRowClick = useCallback(
-    (row: Row<EventRow>) => {
-      setTraceId(row.original.traceId);
+  const handleCloseEventPanel = useCallback(() => {
+    setSelectedEvent(null);
+  }, []);
+
+  const handleOpenTraceFromPanel = useCallback(
+    (traceId: string) => {
+      setTraceId(traceId);
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.set("traceId", traceId);
+      router.push(`${pathName}?${newParams.toString()}`);
     },
-    [setTraceId]
+    [setTraceId, searchParams, pathName, router]
   );
 
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
@@ -153,9 +183,9 @@ function PureEventsTable() {
   });
 
   const focusedRowId = useMemo(() => {
-    if (!traceId) return undefined;
-    return events?.find((event) => event.traceId === traceId)?.id;
-  }, [events, traceId]);
+    if (!selectedEvent) return undefined;
+    return selectedEvent.id;
+  }, [selectedEvent]);
 
   useEffect(() => {
     if (events) {
@@ -176,41 +206,74 @@ function PureEventsTable() {
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
   return (
-    <div className="flex flex-col gap-2 flex-1">
-      <InfiniteDataTable<EventRow>
-        className="w-full"
-        columns={eventsTableColumns}
-        data={events}
-        onRowClick={handleRowClick}
-        getRowId={(row: EventRow) => row.id}
-        focusedRowId={focusedRowId}
-        hasMore={hasMore}
-        isFetching={isFetching}
-        isLoading={isLoading}
-        getRowHref={getRowHref}
-        fetchNextPage={fetchNextPage}
-        loadMoreButton
-        estimatedRowHeight={80}
-        emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
-      >
-        <div className="flex flex-1 w-full space-x-2">
-          <DataTableFilter columns={eventsTableFilters} />
-          <ColumnsMenu
-            columnLabels={eventsTableColumns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
+    <div className="flex gap-0 flex-1">
+      <div className="flex flex-col gap-2 flex-1 min-w-0">
+        <InfiniteDataTable<EventRow>
+          className="w-full"
+          columns={columns}
+          data={events}
+          onRowClick={handleRowClick}
+          getRowId={(row: EventRow) => row.id}
+          focusedRowId={focusedRowId}
+          hasMore={hasMore}
+          isFetching={isFetching}
+          isLoading={isLoading}
+          getRowHref={getRowHref}
+          fetchNextPage={fetchNextPage}
+          loadMoreButton
+          estimatedRowHeight={80}
+          emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
+        >
+          <div className="flex flex-1 w-full space-x-2">
+            <DataTableFilter columns={filters} />
+            <ColumnsMenu
+              columnLabels={columns.map((column) => ({
+                id: column.id!,
+                label: typeof column.header === "string" ? column.header : column.id!,
+              }))}
+            />
+          </div>
+          <DataTableFilterList />
+        </InfiniteDataTable>
+      </div>
+
+      {selectedEvent && (
+        <div className="w-[360px] shrink-0 border-l bg-background">
+          <EventDetailPanel
+            event={selectedEvent}
+            schemaFields={signal.schemaFields}
+            onClose={handleCloseEventPanel}
+            onOpenTrace={handleOpenTraceFromPanel}
+            style={panelStyle}
           />
         </div>
-        <DataTableFilterList />
-      </InfiniteDataTable>
+      )}
+
+      {/* Style switcher — temporary for testing */}
+      <div className="fixed bottom-4 right-4 z-[100] flex items-center gap-0 rounded-md border bg-background shadow-lg">
+        {STYLE_OPTIONS.map((s) => (
+          <button
+            key={s}
+            className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              panelStyle === s ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            } ${s === "A" ? "rounded-l-md" : s === "C" ? "rounded-r-md" : ""}`}
+            onClick={() => setPanelStyle(s)}
+          >
+            Style {s}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
 export default function EventsTable() {
+  const signal = useSignalStoreContext((state) => state.signal);
+
+  const { columnOrder } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
+
   return (
-    <DataTableStateProvider storageKey="events-table" uniqueKey="id" defaultColumnOrder={defaultEventsColumnOrder}>
+    <DataTableStateProvider storageKey={`events-table-${signal.id}`} uniqueKey="id" defaultColumnOrder={columnOrder}>
       <PureEventsTable />
     </DataTableStateProvider>
   );

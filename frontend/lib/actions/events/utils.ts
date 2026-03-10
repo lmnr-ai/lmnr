@@ -1,8 +1,8 @@
+import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 import {
   buildSelectQuery,
   type ColumnFilterConfig,
-  createCustomFilter,
   createStringFilter,
   type QueryParams,
   type QueryResult,
@@ -14,32 +14,27 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
     ["id", createStringFilter],
     ["trace_id", createStringFilter],
     ["run_id", createStringFilter],
-    [
-      "payload",
-      createCustomFilter(
-        (filter, paramKey) => {
-          const [key, val] = String(filter.value).split("=", 2);
-          if (key && val) {
-            return (
-              `(simpleJSONExtractString(payload, {${paramKey}_key:String}) = {${paramKey}_val:String}` +
-              ` OR simpleJSONExtractRaw(payload, {${paramKey}_key:String}) = {${paramKey}_val:String})`
-            );
-          }
-          return "";
-        },
-        (filter, paramKey) => {
-          const [key, val] = String(filter.value).split("=", 2);
-          if (key && val) {
-            return {
-              [`${paramKey}_key`]: key,
-              [`${paramKey}_val`]: `${val}`,
-            };
-          }
-          return {};
-        }
-      ),
-    ],
   ]),
+  defaultProcessor: (filter, paramKey) => {
+    const { column, value } = filter;
+
+    // Handle payload field filters (payload.fieldName)
+    if (column.startsWith("payload.")) {
+      const fieldName = column.slice("payload.".length);
+      const opSymbol = OperatorLabelMap[filter.operator];
+      return {
+        condition:
+          `(simpleJSONExtractString(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String}` +
+          ` OR simpleJSONExtractRaw(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String})`,
+        params: {
+          [`${paramKey}_key`]: fieldName,
+          [`${paramKey}_val`]: String(value),
+        },
+      };
+    }
+
+    return { condition: null, params: {} };
+  },
 };
 
 const eventsSelectColumns = [
