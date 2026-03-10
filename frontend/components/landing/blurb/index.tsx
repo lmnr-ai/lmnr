@@ -43,7 +43,7 @@ const Blurb = ({ className }: Props) => {
   });
 
   const text =
-    "We run millions of agent sessions in our cloud, and when something goes wrong, Laminar's trace view is the first place we look. We were blind before Laminar. Now, we can see every LLM call, tool use, and browser recording in one timeline, so we know exactly when and why an agent went off course.";
+    "We run millions of agent sessions in our cloud, and when something goes wrong, Laminar's trace view is the first place we look.";
   const words = text.split(" ");
   const totalWords = words.length;
 
