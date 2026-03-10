@@ -32,7 +32,6 @@ export async function getReports(workspaceId: string): Promise<ReportWithDetails
     .where(eq(reports.workspaceId, workspaceId))
     .orderBy(reports.createdAt);
 
-  console.log("reportRows", reportRows);
   if (reportRows.length === 0) return [];
 
   const targetRows = await db

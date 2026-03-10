@@ -2,7 +2,7 @@ import { ChartType } from "@/components/chart-builder/types";
 import { type DashboardChart } from "@/components/dashboard/types";
 import { type ReportType } from "@/lib/actions/reports/types.ts";
 
-const defaultData: Omit<DashboardChart, "id" | "createdAt">[] = [
+const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
   {
     name: "Top spans",
     query: `
@@ -374,4 +374,4 @@ export const defaultReports: { type: ReportType; weekday: number[]; hour: number
   },
 ];
 
-export default defaultData;
+export default defaultCharts;

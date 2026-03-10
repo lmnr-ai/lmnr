@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { createProject } from "@/lib/actions/projects";
-import { REPORT_TYPE } from "@/lib/actions/reports/types";
 import { authOptions } from "@/lib/auth";
+import { defaultReports } from "@/lib/db/default-charts.ts";
 import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
@@ -15,19 +15,6 @@ import {
 } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
-
-const DEFAULT_REPORTS = [
-  {
-    type: REPORT_TYPE.WEEKLY_SIGNALS_SUMMARY,
-    weekday: [1],
-    hour: 9,
-  },
-  {
-    type: REPORT_TYPE.DAILY_SIGNALS_SUMMARY,
-    weekday: [0, 1, 2, 3, 4, 5, 6],
-    hour: 9,
-  },
-];
 
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1, "Workspace name is required"),
@@ -73,7 +60,7 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
   });
 
   await db.insert(reports).values(
-    DEFAULT_REPORTS.map((r) => ({
+    defaultReports.map((r) => ({
       workspaceId: workspace.id,
       type: r.type,
       weekday: r.weekday,

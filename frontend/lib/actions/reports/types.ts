@@ -10,8 +10,6 @@ export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   DAILY_SIGNALS_SUMMARY: "Daily signals summary",
 };
 
-const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-
 export interface ReportSchedule {
   weekday: number[];
   hour: number;
@@ -33,16 +31,4 @@ export interface ReportWithDetails {
   createdAt: string;
   schedule: ReportSchedule;
   targets: ReportTargetRow[];
-}
-
-export function formatSchedule(schedule: ReportSchedule): string {
-  const dayNames = schedule.weekday.map((d) => WEEKDAY_NAMES[d]).join(", ");
-  const hour = schedule.hour;
-  const period = hour >= 12 ? "PM" : "AM";
-  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return `${dayNames} at ${displayHour}:00 ${period} UTC`;
-}
-
-export function reportTypeLabel(type: ReportType): string {
-  return REPORT_TYPE_LABELS[type] ?? type;
 }

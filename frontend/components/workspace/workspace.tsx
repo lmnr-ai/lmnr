@@ -10,8 +10,8 @@ import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptiona
 
 import WorkspaceBilling from "./billing";
 import WorkspaceDeployment from "./deployment-settings/workspace-deployment.tsx";
+import WorkspaceReports from "./reports";
 import WorkspaceIntegrations from "./workspace-integrations";
-import WorkspaceReports from "./workspace-reports";
 import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";
