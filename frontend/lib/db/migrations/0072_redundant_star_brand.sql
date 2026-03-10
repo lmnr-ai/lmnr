@@ -3,7 +3,7 @@ CREATE TABLE "custom_model_costs" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"project_id" uuid NOT NULL,
-	"provider" text,
+	"provider" text DEFAULT '' NOT NULL,
 	"model" text NOT NULL,
 	"costs" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	CONSTRAINT "custom_model_costs_project_id_provider_model_unique" UNIQUE("project_id","provider","model")

@@ -94,7 +94,7 @@ export async function upsertCustomModelCost(
 
       const [row] = await tx
         .insert(customModelCosts)
-        .values({ projectId, provider: provider || null, model, costs })
+        .values({ projectId, provider, model, costs })
         .onConflictDoUpdate({
           target: [customModelCosts.projectId, customModelCosts.provider, customModelCosts.model],
           set: { costs, updatedAt: new Date().toISOString() },
@@ -116,7 +116,7 @@ export async function upsertCustomModelCost(
 
   const [row] = await db
     .insert(customModelCosts)
-    .values({ projectId, provider: provider || null, model, costs })
+    .values({ projectId, provider, model, costs })
     .onConflictDoUpdate({
       target: [customModelCosts.projectId, customModelCosts.provider, customModelCosts.model],
       set: { costs, updatedAt: new Date().toISOString() },
@@ -169,7 +169,7 @@ export async function copyCustomModelCosts(
       .values(
         sourceCosts.map((cost) => ({
           projectId: targetProjectId,
-          provider: cost.provider,
+          provider: cost.provider ?? undefined,
           model: cost.model,
           costs: cost.costs,
         }))

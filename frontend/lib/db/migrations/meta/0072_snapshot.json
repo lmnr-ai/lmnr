@@ -1,5 +1,5 @@
 {
-  "id": "2fb89c59-4309-47dc-8d22-01281be19765",
+  "id": "2c051198-3f8f-4edf-bd08-173264d547b8",
   "prevId": "264f24f8-c557-428b-ad37-b996019fa2dc",
   "version": "7",
   "dialect": "postgresql",
@@ -570,7 +570,8 @@
           "name": "provider",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "''"
         },
         "model": {
           "name": "model",

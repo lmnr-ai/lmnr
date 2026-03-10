@@ -748,6 +748,29 @@ export const datasetExportJobs = pgTable(
   ]
 );
 
+export const customModelCosts = pgTable(
+  "custom_model_costs",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").notNull(),
+    provider: text().default("").notNull(),
+    model: text().notNull(),
+    costs: jsonb().default({}).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "custom_model_costs_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("custom_model_costs_project_id_provider_model_unique").on(table.projectId, table.provider, table.model),
+  ]
+);
+
 export const tracesSummaries = pgTable(
   "traces_summaries",
   {
@@ -1229,29 +1252,6 @@ export const projectSettings = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-  ]
-);
-
-export const customModelCosts = pgTable(
-  "custom_model_costs",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    projectId: uuid("project_id").notNull(),
-    provider: text(),
-    model: text().notNull(),
-    costs: jsonb().default({}).notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "custom_model_costs_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    unique("custom_model_costs_project_id_provider_model_unique").on(table.projectId, table.provider, table.model),
   ]
 );
 
