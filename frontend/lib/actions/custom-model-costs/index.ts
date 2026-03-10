@@ -65,6 +65,10 @@ export class DuplicateModelCostError extends Error {
   }
 }
 
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code: string }).code === "23505";
+}
+
 async function checkDuplicate(projectId: string, provider: string, model: string, excludeId?: string) {
   const existing = await db
     .select({ id: customModelCosts.id })
@@ -94,23 +98,32 @@ export async function upsertCustomModelCost(
 
   await checkDuplicate(projectId, provider, model, id);
 
-  if (id) {
-    const [row] = await db
-      .update(customModelCosts)
-      .set({ provider, model, costs, updatedAt: new Date().toISOString() })
-      .where(and(eq(customModelCosts.id, id), eq(customModelCosts.projectId, projectId)))
-      .returning();
+  try {
+    if (id) {
+      const [row] = await db
+        .update(customModelCosts)
+        .set({ provider, model, costs, updatedAt: new Date().toISOString() })
+        .where(and(eq(customModelCosts.id, id), eq(customModelCosts.projectId, projectId)))
+        .returning();
 
-    if (!row) {
-      throw new Error("Custom model cost not found");
+      if (!row) {
+        throw new Error("Custom model cost not found");
+      }
+
+      return { result: row as CustomModelCost };
     }
 
+    const [row] = await db.insert(customModelCosts).values({ projectId, provider, model, costs }).returning();
+
     return { result: row as CustomModelCost };
+  } catch (error) {
+    // Catch unique constraint violations from concurrent requests that passed the checkDuplicate race window.
+    // PostgreSQL error code 23505 = unique_violation.
+    if (isUniqueViolation(error)) {
+      throw new DuplicateModelCostError();
+    }
+    throw error;
   }
-
-  const [row] = await db.insert(customModelCosts).values({ projectId, provider, model, costs }).returning();
-
-  return { result: row as CustomModelCost };
 }
 
 export async function deleteCustomModelCost(
