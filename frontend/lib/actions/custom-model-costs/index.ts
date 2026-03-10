@@ -54,7 +54,7 @@ export async function getCustomModelCosts(
     })
     .from(customModelCosts)
     .where(eq(customModelCosts.projectId, projectId))
-    .orderBy(customModelCosts.model);
+    .orderBy(customModelCosts.createdAt);
 
   return rows as CustomModelCost[];
 }

@@ -24,6 +24,7 @@ export function SettingsSection({ children }: PropsWithChildren) {
 
 interface SettingsTableProps {
   children: ReactNode;
+  headers?: string[];
   isLoading?: boolean;
   isEmpty?: boolean;
   emptyMessage?: string;
@@ -32,6 +33,7 @@ interface SettingsTableProps {
 
 export function SettingsTable({
   children,
+  headers,
   isLoading = false,
   isEmpty = false,
   emptyMessage = "No items found.",
@@ -40,6 +42,17 @@ export function SettingsTable({
   return (
     <div className="border rounded-md">
       <table className="w-full">
+        {headers && (
+          <thead>
+            <tr className="border-b h-10">
+              {headers.map((h) => (
+                <th key={h} className="px-4 text-left text-xs font-medium text-muted-foreground">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+        )}
         <tbody>
           {isLoading ? (
             times(loadingRowCount, (i) => (

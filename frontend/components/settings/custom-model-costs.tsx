@@ -404,6 +404,7 @@ export default function CustomModelCosts() {
         {!isEmpty(customModelCosts) && <CopyModelCostsDialog onCopy={copyCosts} />}
       </div>
       <SettingsTable
+        headers={["Model", "Costs", "Created", "Updated", ""]}
         isLoading={isLoading}
         isEmpty={isEmpty(customModelCosts)}
         emptyMessage="No custom model costs defined."
@@ -438,6 +439,16 @@ export default function CustomModelCosts() {
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+              </td>
+              <td className="px-4">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {new Date(cost.createdAt).toLocaleString()}
+                </span>
+              </td>
+              <td className="px-4">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {new Date(cost.updatedAt).toLocaleString()}
+                </span>
               </td>
               <td className="px-4">
                 <div className="flex justify-end gap-1">
