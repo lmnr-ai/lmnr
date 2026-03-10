@@ -3,7 +3,7 @@
 import Image, { type StaticImageData } from "next/image";
 import { useEffect, useRef } from "react";
 
-import { LogoAxionRay, LogoBrowserUse, LogoRemo, LogoRye } from "@/components/ui/icons";
+import { LogoAxionRay, LogoBrowserUse, LogoOpenHands, LogoRye } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 interface Logo {
@@ -34,10 +34,10 @@ const logos: Logo[] = [
     className: "md:w-24 md:h-8 w-18 h-6",
   },
   {
-    id: "remo",
-    name: "Remo",
-    component: LogoRemo,
-    className: "md:w-20 md:h-7 w-14 h-5",
+    id: "openhands",
+    name: "OpenHands",
+    component: LogoOpenHands,
+    className: "md:w-28 md:h-7 w-20 h-5",
   },
 ];
 
@@ -49,21 +49,15 @@ export default function InfiniteLogoCarousel() {
     if (!scrollContainer) return;
 
     let animationId: number;
-    let scrollPosition = 0;
     const scrollSpeed = 0.5; // pixels per frame
 
     const animate = () => {
-      scrollPosition += scrollSpeed;
-
       // Get the width of one complete set of logos
       const oneSetWidth = scrollContainer.scrollWidth / 3; // We have 3 sets
 
-      // Reset position when we've scrolled through one complete set
-      if (scrollPosition >= oneSetWidth) {
-        scrollPosition = 0;
-      }
+      // Use modulo to keep scrollLeft within bounds for a seamless loop
+      scrollContainer.scrollLeft = (scrollContainer.scrollLeft + scrollSpeed) % oneSetWidth;
 
-      scrollContainer.scrollLeft = scrollPosition;
       animationId = requestAnimationFrame(animate);
     };
 
@@ -98,10 +92,7 @@ export default function InfiniteLogoCarousel() {
       {/* Scrolling container */}
       <div
         ref={scrollRef}
-        className={cn(
-          "flex items-center md:gap-12 overflow-hidden whitespace-nowrap md:py-8",
-          "gap-8 py-6"
-        )}
+        className={cn("flex items-center md:gap-12 overflow-hidden whitespace-nowrap md:py-8", "gap-8 py-6")}
         style={{ scrollBehavior: "auto" }}
       >
         {/* First set of logos */}
