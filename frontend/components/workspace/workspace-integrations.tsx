@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { type SlackSubscription } from "@/lib/actions/slack";
+import { type AlertWithDetails } from "@/lib/actions/alerts/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 import { type Project } from "@/lib/workspaces/types";
@@ -51,7 +51,7 @@ export default function WorkspaceIntegrations({
   const { toast } = useToast();
 
   const [filterProjectId, setFilterProjectId] = useState<string>("all");
-  const [deleteTarget, setDeleteTarget] = useState<SlackSubscription | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AlertWithDetails | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const { data: slackIntegration, isLoading: isFetchingSlack } = useSWR<SlackIntegration | null>(
@@ -60,11 +60,11 @@ export default function WorkspaceIntegrations({
   );
 
   const {
-    data: subscriptions,
-    isLoading: isLoadingSubs,
-    mutate: mutateSubs,
-  } = useSWR<SlackSubscription[]>(
-    slackIntegration ? `/api/workspaces/${workspaceId}/slack/subscriptions` : null,
+    data: alertsList,
+    isLoading: isLoadingAlerts,
+    mutate: mutateAlerts,
+  } = useSWR<AlertWithDetails[]>(
+    slackIntegration ? `/api/workspaces/${workspaceId}/alerts` : null,
     swrFetcher
   );
 
@@ -73,11 +73,11 @@ export default function WorkspaceIntegrations({
     swrFetcher
   );
 
-  const filteredSubscriptions = useMemo(() => {
-    if (!subscriptions) return [];
-    if (filterProjectId === "all") return subscriptions;
-    return subscriptions.filter((s) => s.projectId === filterProjectId);
-  }, [subscriptions, filterProjectId]);
+  const filteredAlerts = useMemo(() => {
+    if (!alertsList) return [];
+    if (filterProjectId === "all") return alertsList;
+    return alertsList.filter((a) => a.projectId === filterProjectId);
+  }, [alertsList, filterProjectId]);
 
   const renderSlackStatus = useCallback(() => {
     if (isFetchingSlack) {
@@ -102,30 +102,30 @@ export default function WorkspaceIntegrations({
 
     setIsDeleting(true);
     try {
-      const res = await fetch(`/api/workspaces/${workspaceId}/slack/subscriptions`, {
+      const res = await fetch(`/api/workspaces/${workspaceId}/alerts`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: deleteTarget.id }),
+        body: JSON.stringify({ alertId: deleteTarget.id }),
       });
 
       if (!res.ok) {
         const error = (await res.json().catch(() => ({ error: "Failed to delete" }))) as { error: string };
-        throw new Error(error?.error ?? "Failed to delete subscription");
+        throw new Error(error?.error ?? "Failed to delete alert");
       }
 
-      toast({ title: "Alert subscription deleted" });
-      await mutateSubs();
+      toast({ title: "Alert deleted" });
+      await mutateAlerts();
     } catch (e) {
       toast({
-        title: "Error deleting subscription",
+        title: "Error deleting alert",
         variant: "destructive",
-        description: e instanceof Error ? e.message : "Failed to delete subscription",
+        description: e instanceof Error ? e.message : "Failed to delete alert",
       });
     } finally {
       setIsDeleting(false);
       setDeleteTarget(null);
     }
-  }, [deleteTarget, workspaceId, mutateSubs, toast]);
+  }, [deleteTarget, workspaceId, mutateAlerts, toast]);
 
   return (
     <>
@@ -156,7 +156,7 @@ export default function WorkspaceIntegrations({
               <CreateAlertDialog
                 workspaceId={workspaceId}
                 integrationId={slackIntegration.id}
-                onCreated={() => mutateSubs()}
+                onCreated={() => mutateAlerts()}
               />
             </div>
 
@@ -178,25 +178,27 @@ export default function WorkspaceIntegrations({
             </div>
 
             <SettingsTable
-              isLoading={isLoadingSubs}
-              isEmpty={filteredSubscriptions.length === 0}
-              emptyMessage="No alert subscriptions yet. Click 'Alert' to create one."
+              isLoading={isLoadingAlerts}
+              isEmpty={filteredAlerts.length === 0}
+              emptyMessage="No alerts yet. Click 'Alert' to create one."
             >
               <SettingsTableRow>
-                <th className="text-left text-xs font-medium text-muted-foreground p-2">Event</th>
+                <th className="text-left text-xs font-medium text-muted-foreground p-2">Signal</th>
                 <th className="text-left text-xs font-medium text-muted-foreground p-2">Project</th>
                 <th className="text-left text-xs font-medium text-muted-foreground p-2">Channel</th>
                 <th className="text-left text-xs font-medium text-muted-foreground p-2">Created</th>
                 <th className="w-10 p-2" />
               </SettingsTableRow>
-              {filteredSubscriptions.map((sub) => (
-                <SettingsTableRow key={sub.id}>
-                  <td className="p-2 text-sm font-mono">{sub.eventName}</td>
-                  <td className="p-2 text-sm">{sub.projectName}</td>
-                  <td className="p-2 text-sm text-muted-foreground">{sub.channelId}</td>
-                  <td className="p-2 text-xs text-muted-foreground">{dateFormatter.format(new Date(sub.createdAt))}</td>
+              {filteredAlerts.map((alert) => (
+                <SettingsTableRow key={alert.id}>
+                  <td className="p-2 text-sm font-mono">{alert.name}</td>
+                  <td className="p-2 text-sm">{alert.projectName}</td>
+                  <td className="p-2 text-sm text-muted-foreground">
+                    {alert.targets.map((t) => t.channelName ? `#${t.channelName}` : t.channelId).join(", ") || "—"}
+                  </td>
+                  <td className="p-2 text-xs text-muted-foreground">{dateFormatter.format(new Date(alert.createdAt))}</td>
                   <td className="p-2">
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(sub)}>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(alert)}>
                       <Trash2 size={14} className="text-muted-foreground" />
                     </Button>
                   </td>
@@ -212,10 +214,10 @@ export default function WorkspaceIntegrations({
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null);
         }}
-        title="Delete alert subscription"
+        title="Delete alert"
         description={
           deleteTarget
-            ? `Are you sure you want to delete the alert for "${deleteTarget.eventName}"? You will no longer receive Slack notifications for this event.`
+            ? `Are you sure you want to delete the alert for "${deleteTarget.name}"? You will no longer receive notifications for this signal.`
             : ""
         }
         onConfirm={handleDelete}

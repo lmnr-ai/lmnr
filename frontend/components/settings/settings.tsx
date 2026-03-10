@@ -17,9 +17,8 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "../ui/sidebar";
-import CustomModelCosts from "./custom-model-costs";
+import AlertsSettings from "./alerts-settings";
 import DeleteProject from "./delete-project";
-import NotificationsSettings from "./notifications-settings";
 import ProjectApiKeys from "./project-api-keys";
 import ProviderApiKeys from "./provider-api-keys";
 import RenameProject from "./rename-project";
@@ -29,30 +28,22 @@ interface SettingsProps {
   apiKeys: ProjectApiKey[];
   projectId: string;
   workspaceId: string;
-  isFreeTier: boolean;
   slackClientId?: string;
   slackRedirectUri?: string;
 }
 
-type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "notifications";
+type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "alerts";
 
 const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "general", label: "General", icon: <Settings2 /> },
   { id: "project-api-keys", label: "Project API Keys", icon: <Key /> },
   { id: "provider-api-keys", label: "Model Providers", icon: <Sparkles /> },
-  { id: "notifications", label: "Notifications", icon: <Bell /> },
+  { id: "alerts", label: "Alerts", icon: <Bell /> },
 ];
 
 const sidebarStyle = { "--sidebar-width": "auto" } as CSSProperties;
 
-export default function Settings({
-  apiKeys,
-  projectId,
-  workspaceId,
-  isFreeTier,
-  slackClientId,
-  slackRedirectUri,
-}: SettingsProps) {
+export default function Settings({ apiKeys, projectId, workspaceId, slackClientId, slackRedirectUri }: SettingsProps) {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<SettingsTab>((searchParams.get("tab") as SettingsTab) || "general");
   const pathName = usePathname();
@@ -73,12 +64,11 @@ export default function Settings({
         return <ProjectApiKeys apiKeys={apiKeys} />;
       case "provider-api-keys":
         return <ProviderApiKeys />;
-      case "notifications":
+      case "alerts":
         return (
-          <NotificationsSettings
+          <AlertsSettings
             projectId={projectId}
             workspaceId={workspaceId}
-            isFreeTier={isFreeTier}
             slackClientId={slackClientId}
             slackRedirectUri={slackRedirectUri}
           />

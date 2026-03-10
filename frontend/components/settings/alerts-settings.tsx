@@ -1,38 +1,201 @@
 "use client";
 
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Send, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
+import { type EventsStatsDataPoint } from "@/components/signal/store";
+import SlackConnectButton from "@/components/slack/slack-connect-button";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { type AlertWithDetails } from "@/lib/actions/alerts/types";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, swrFetcher } from "@/lib/utils";
-import { type Project } from "@/lib/workspaces/types";
 
-import { type EventsStatsDataPoint } from "../signal/store";
+import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "./settings-section";
 
-interface CreateAlertDialogProps {
+interface AlertsSettingsProps {
+  projectId: string;
+  workspaceId: string;
+  slackClientId?: string;
+  slackRedirectUri?: string;
+}
+
+interface SlackIntegrationInfo {
+  id: string;
+  teamName: string | null;
+}
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+const CHART_FIELDS = ["count"] as const;
+
+export default function AlertsSettings({
+  projectId,
+  workspaceId,
+  slackClientId,
+  slackRedirectUri,
+}: AlertsSettingsProps) {
+  const { toast } = useToast();
+
+  const { data: slackIntegration, isLoading: isLoadingSlack } = useSWR<SlackIntegrationInfo | null>(
+    `/api/workspaces/${workspaceId}/slack`,
+    swrFetcher
+  );
+
+  const {
+    data: alertsList,
+    isLoading: isLoadingAlerts,
+    mutate: mutateAlerts,
+  } = useSWR<AlertWithDetails[]>(`/api/projects/${projectId}/alerts`, swrFetcher);
+
+  const [deleteTarget, setDeleteTarget] = useState<AlertWithDetails | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/alerts`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alertId: deleteTarget.id }),
+      });
+
+      if (!res.ok) {
+        const error = (await res.json().catch(() => ({ error: "Failed to delete" }))) as { error: string };
+        throw new Error(error?.error ?? "Failed to delete alert");
+      }
+
+      toast({ title: "Alert deleted" });
+      await mutateAlerts();
+    } catch (e) {
+      toast({
+        title: "Error deleting alert",
+        variant: "destructive",
+        description: e instanceof Error ? e.message : "Failed to delete alert",
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
+    }
+  }, [deleteTarget, projectId, mutateAlerts, toast]);
+
+  if (isLoadingSlack) {
+    return (
+      <SettingsSection>
+        <SettingsSectionHeader title="Alerts" description="Configure Slack alerts for signal events." />
+        <Skeleton className="h-32 w-full" />
+      </SettingsSection>
+    );
+  }
+
+  if (!slackIntegration) {
+    return (
+      <SettingsSection>
+        <SettingsSectionHeader title="Alerts" description="Configure Slack alerts for signal events." />
+        <SettingsSection>
+          <div className="flex flex-col items-center justify-center gap-4 py-12">
+            <h2 className="text-lg font-semibold">Connect Slack to get started</h2>
+            <p className="text-sm text-muted-foreground text-center max-w-md">
+              Connect your workspace to Slack to receive notifications.
+            </p>
+            <SlackConnectButton
+              workspaceId={workspaceId}
+              slackClientId={slackClientId}
+              slackRedirectUri={slackRedirectUri}
+              returnPath={`/project/${projectId}/settings?tab=alerts`}
+            />
+          </div>
+        </SettingsSection>
+      </SettingsSection>
+    );
+  }
+
+  return (
+    <SettingsSection>
+      <SettingsSectionHeader title="Alerts" description="Configure Slack alerts for signal events." />
+      <SettingsSection>
+        <div className="flex items-center justify-between">
+          <CreateProjectAlertSheet
+            projectId={projectId}
+            workspaceId={workspaceId}
+            integrationId={slackIntegration.id}
+            onCreated={() => mutateAlerts()}
+          />
+        </div>
+
+        <SettingsTable
+          isLoading={isLoadingAlerts}
+          isEmpty={!alertsList || alertsList.length === 0}
+          emptyMessage="No alerts yet. Click 'Alert' to create one."
+        >
+          <SettingsTableRow>
+            <th className="text-left text-xs font-medium text-muted-foreground p-2">Signal</th>
+            <th className="text-left text-xs font-medium text-muted-foreground p-2">Channel</th>
+            <th className="text-left text-xs font-medium text-muted-foreground p-2">Created</th>
+            <th className="w-10 p-2" />
+          </SettingsTableRow>
+          {alertsList?.map((alert) => (
+            <SettingsTableRow key={alert.id}>
+              <td className="p-2 text-sm font-mono">{alert.name}</td>
+              <td className="p-2 text-sm text-muted-foreground">
+                {alert.targets.map((t) => (t.channelName ? `#${t.channelName}` : t.channelId)).join(", ") || "—"}
+              </td>
+              <td className="p-2 text-xs text-muted-foreground">{dateFormatter.format(new Date(alert.createdAt))}</td>
+              <td className="p-2">
+                <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(alert)}>
+                  <Trash2 size={14} className="text-muted-foreground" />
+                </Button>
+              </td>
+            </SettingsTableRow>
+          ))}
+        </SettingsTable>
+      </SettingsSection>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete alert"
+        description={
+          deleteTarget
+            ? `Are you sure you want to delete the alert for "${deleteTarget.name}"? You will no longer receive notifications for this signal.`
+            : ""
+        }
+        onConfirm={handleDelete}
+        confirmText={isDeleting ? "Deleting..." : "Delete"}
+      />
+    </SettingsSection>
+  );
+}
+
+interface CreateProjectAlertSheetProps {
+  projectId: string;
   workspaceId: string;
   integrationId: string;
   onCreated: () => void;
 }
 
-const CHART_FIELDS = ["count"] as const;
-
-export default function CreateAlertDialog({ workspaceId, integrationId, onCreated }: CreateAlertDialogProps) {
+function CreateProjectAlertSheet({ projectId, workspaceId, integrationId, onCreated }: CreateProjectAlertSheetProps) {
   const [open, setOpen] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [selectedSignalName, setSelectedSignalName] = useState<string>("");
   const [selectedChannelId, setSelectedChannelId] = useState<string>("");
   const [isCreating, setIsCreating] = useState(false);
@@ -40,14 +203,6 @@ export default function CreateAlertDialog({ workspaceId, integrationId, onCreate
   const [dateRange, setDateRange] = useState<{ pastHours?: string; startDate?: string; endDate?: string }>({
     pastHours: "168",
   });
-
-  const handleDateRangeChange = useCallback((value: { pastHours?: string; startDate?: string; endDate?: string }) => {
-    if (value.pastHours) {
-      setDateRange({ pastHours: value.pastHours });
-    } else if (value.startDate && value.endDate) {
-      setDateRange({ startDate: value.startDate, endDate: value.endDate });
-    }
-  }, []);
   const [chartContainerWidth, setChartContainerWidth] = useState<number | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
@@ -74,13 +229,16 @@ export default function CreateAlertDialog({ workspaceId, integrationId, onCreate
     resizeObserverRef.current = resizeObserver;
   }, []);
 
-  const { data: projects, isLoading: isLoadingProjects } = useSWR<Project[]>(
-    open ? `/api/workspaces/${workspaceId}/projects` : null,
-    swrFetcher
-  );
+  const handleDateRangeChange = useCallback((value: { pastHours?: string; startDate?: string; endDate?: string }) => {
+    if (value.pastHours) {
+      setDateRange({ pastHours: value.pastHours });
+    } else if (value.startDate && value.endDate) {
+      setDateRange({ startDate: value.startDate, endDate: value.endDate });
+    }
+  }, []);
 
   const { data: signalsData, isLoading: isLoadingSignals } = useSWR<{ items: SignalRow[] }>(
-    open && selectedProjectId ? `/api/projects/${selectedProjectId}/signals?pageNumber=0&pageSize=100` : null,
+    open ? `/api/projects/${projectId}/signals?pageNumber=0&pageSize=100` : null,
     swrFetcher
   );
 
@@ -90,7 +248,7 @@ export default function CreateAlertDialog({ workspaceId, integrationId, onCreate
   );
 
   const statsUrl = useTimeSeriesStatsUrl({
-    baseUrl: selectedSignal ? `/api/projects/${selectedProjectId}/signals/${selectedSignal.id}/events/stats` : "",
+    baseUrl: selectedSignal ? `/api/projects/${projectId}/signals/${selectedSignal.id}/events/stats` : "",
     chartContainerWidth,
     pastHours: dateRange.pastHours ?? null,
     startDate: dateRange.startDate ?? null,
@@ -119,28 +277,26 @@ export default function CreateAlertDialog({ workspaceId, integrationId, onCreate
     swrFetcher
   );
 
-  const resetForm = useCallback(() => {
-    setSelectedProjectId("");
-    setSelectedSignalName("");
-    setSelectedChannelId("");
-    setDateRange({ pastHours: "168" });
-  }, []);
-
   const selectedChannel = useMemo(
     () => channels?.find((ch) => ch.id === selectedChannelId),
     [channels, selectedChannelId]
   );
 
+  const resetForm = useCallback(() => {
+    setSelectedSignalName("");
+    setSelectedChannelId("");
+    setDateRange({ pastHours: "168" });
+  }, []);
+
   const handleCreate = useCallback(async () => {
-    if (!selectedProjectId || !selectedSignal || !selectedChannelId) return;
+    if (!selectedSignal || !selectedChannelId) return;
 
     setIsCreating(true);
     try {
-      const res = await fetch(`/api/workspaces/${workspaceId}/alerts`, {
+      const res = await fetch(`/api/projects/${projectId}/alerts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId: selectedProjectId,
           name: selectedSignal.name,
           type: "SIGNAL_EVENT",
           sourceId: selectedSignal.id,
@@ -173,17 +329,7 @@ export default function CreateAlertDialog({ workspaceId, integrationId, onCreate
     } finally {
       setIsCreating(false);
     }
-  }, [
-    workspaceId,
-    integrationId,
-    selectedProjectId,
-    selectedSignal,
-    selectedChannelId,
-    selectedChannel,
-    onCreated,
-    resetForm,
-    toast,
-  ]);
+  }, [projectId, integrationId, selectedSignal, selectedChannelId, selectedChannel, onCreated, resetForm, toast]);
 
   const handleTest = useCallback(async () => {
     if (!selectedChannelId) return;
@@ -213,7 +359,7 @@ export default function CreateAlertDialog({ workspaceId, integrationId, onCreate
     }
   }, [workspaceId, selectedChannelId, toast]);
 
-  const canCreate = selectedProjectId && selectedSignalName && selectedChannelId && !isCreating;
+  const canCreate = selectedSignalName && selectedChannelId && !isCreating;
 
   return (
     <Sheet
@@ -224,73 +370,44 @@ export default function CreateAlertDialog({ workspaceId, integrationId, onCreate
       }}
     >
       <SheetTrigger asChild>
-        <Button icon="plus" className="w-fit">
+        <Button variant="outline" icon="plus" className="w-fit">
           Alert
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="min-w-[50vw] w-full flex flex-col gap-0">
         <SheetHeader className="py-4 px-4 border-b">
-          <SheetTitle>New alert subscription</SheetTitle>
+          <SheetTitle>New alert</SheetTitle>
         </SheetHeader>
         <ScrollArea className="flex-1">
           <div className="flex flex-col gap-6 p-4">
             <div className="grid gap-2">
-              <Label>Project</Label>
-              {isLoadingProjects ? (
+              <Label>Signal</Label>
+              <p className="text-xs text-muted-foreground">
+                Choose the signal event that will trigger Slack notifications.
+              </p>
+              {isLoadingSignals ? (
                 <Skeleton className="h-7 w-full" />
               ) : (
                 <Select
-                  value={selectedProjectId}
+                  value={selectedSignalName}
                   onValueChange={(value) => {
-                    setSelectedProjectId(value);
-                    setSelectedSignalName("");
+                    setSelectedSignalName(value);
                     setSelectedChannelId("");
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a project" />
+                    <SelectValue placeholder="Select a signal" />
                   </SelectTrigger>
                   <SelectContent>
-                    {projects?.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
+                    {signalsData?.items?.map((s) => (
+                      <SelectItem key={s.id} value={s.name}>
+                        {s.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
             </div>
-
-            {selectedProjectId && (
-              <div className="grid gap-2">
-                <Label>Signal</Label>
-                <p className="text-xs text-muted-foreground">
-                  Choose the signal event that will trigger Slack notifications.
-                </p>
-                {isLoadingSignals ? (
-                  <Skeleton className="h-7 w-full" />
-                ) : (
-                  <Select
-                    value={selectedSignalName}
-                    onValueChange={(value) => {
-                      setSelectedSignalName(value);
-                      setSelectedChannelId("");
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a signal" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {signalsData?.items?.map((s) => (
-                        <SelectItem key={s.id} value={s.name}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            )}
 
             {selectedSignal && (
               <div className="flex flex-col gap-3 border rounded-md p-3 bg-muted/30">

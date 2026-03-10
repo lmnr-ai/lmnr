@@ -11,6 +11,7 @@ import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptiona
 import WorkspaceBilling from "./billing";
 import WorkspaceDeployment from "./deployment-settings/workspace-deployment.tsx";
 import WorkspaceIntegrations from "./workspace-integrations";
+import WorkspaceReports from "./workspace-reports";
 import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";
@@ -72,6 +73,7 @@ export default function WorkspaceComponent({
             slackRedirectUri={slackRedirectUri}
           />
         )}
+        {menu === "reports" && <WorkspaceReports workspaceId={workspace.id} />}
         {menu === "settings" && <WorkspaceSettings workspace={workspace} isOwner={isOwner} />}
         {featureFlags[Feature.DEPLOYMENT] && menu === "deployment" && <WorkspaceDeployment workspace={workspace} />}
       </div>

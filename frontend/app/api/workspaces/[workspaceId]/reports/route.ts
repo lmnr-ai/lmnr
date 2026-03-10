@@ -1,13 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { createNotification, deleteNotification, getNotifications } from "@/lib/actions/notifications";
+import { getReports, optInReport, optOutReport } from "@/lib/actions/reports";
 
-export async function GET(_request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
-  const { projectId } = await props.params;
+export async function GET(_request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
+  const { workspaceId } = await props.params;
 
   try {
-    const result = await getNotifications(projectId);
+    const result = await getReports(workspaceId);
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);
@@ -15,18 +15,18 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ proj
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch notifications." },
+      { error: error instanceof Error ? error.message : "Failed to fetch reports." },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
-  const { projectId } = await props.params;
+export async function POST(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
+  const { workspaceId } = await props.params;
 
   try {
     const body = await request.json();
-    const result = await createNotification({ ...body, projectId });
+    const result = await optInReport({ ...body, workspaceId });
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);
@@ -34,16 +34,18 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create notification." },
+      { error: error instanceof Error ? error.message : "Failed to opt in to report." },
       { status: 500 }
     );
   }
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
+  const { workspaceId } = await props.params;
+
   try {
     const body = await request.json();
-    const result = await deleteNotification(body);
+    const result = await optOutReport({ ...body, workspaceId });
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);
@@ -51,7 +53,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to delete notification." },
+      { error: error instanceof Error ? error.message : "Failed to opt out of report." },
       { status: 500 }
     );
   }

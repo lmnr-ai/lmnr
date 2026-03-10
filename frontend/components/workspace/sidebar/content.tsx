@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Cloud, CreditCard, FolderClosed, type LucideIcon, Settings, Unplug, Users } from "lucide-react";
+import { Activity, Cloud, CreditCard, FileBarChart, FolderClosed, type LucideIcon, Settings, Unplug, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
@@ -49,6 +49,11 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
     name: "Integrations",
     value: "integrations",
     icon: Unplug,
+  },
+  {
+    name: "Reports",
+    value: "reports",
+    icon: FileBarChart,
   },
   {
     name: "Settings",
