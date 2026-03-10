@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
-import { type EventCluster } from "@/lib/actions/clusters";
+import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type ClusterStatsDataPoint } from "@/lib/actions/clusters/stats";
 
-import { getClusterColor, hexToRgba } from "./colors";
+import { getClusterColor, UNCLUSTERED_COLOR,withOpacity } from "./colors";
 
 interface ClusterStackedChartProps {
   clusters: EventCluster[];
@@ -30,9 +30,13 @@ export default function ClusterStackedChart({
 
     clusters.forEach((cluster, index) => {
       const key = cluster.id;
+      const color =
+        cluster.id === UNCLUSTERED_ID
+          ? withOpacity(UNCLUSTERED_COLOR, 0.5)
+          : withOpacity(getClusterColor(index + colorIndexOffset, depthLevel), 0.75);
       config[key] = {
         label: cluster.name,
-        color: hexToRgba(getClusterColor(index + colorIndexOffset, depthLevel), 0.75),
+        color,
         stackId: "stack",
       };
       fieldKeys.push(key);

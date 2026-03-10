@@ -1,10 +1,8 @@
 "use client";
 
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import React from "react";
+import { AnimatePresence, motion } from "framer-motion";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { type EventCluster } from "@/lib/actions/clusters";
+import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 
 import { type ClusterNode } from "./utils";
 
@@ -17,6 +15,30 @@ interface ClusterBreadcrumbProps {
   onClearLeafSelection: () => void;
 }
 
+const slideIn = {
+  initial: { opacity: 0.3, x: -45 },
+  animate: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 300, damping: 30, mass: 0.3 } },
+  exit: {
+    opacity: 0.3,
+    x: -20,
+    transition: { duration: 0.1, ease: "easeOut" },
+  },
+};
+
+const slashSlideIn = {
+  initial: { opacity: 0.3, x: -12 },
+  animate: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 300, damping: 30, mass: 0.8 } },
+  exit: {
+    opacity: 0.3,
+    x: -8,
+    transition: { duration: 0.1, ease: "easeOut" },
+  },
+};
+
+// Slash width (~6px at text-sm) + gap to match parent's gap-2 (8px) on each side
+// pl-[22px] = 6px slash + 8px left gap + 8px right gap
+const SLASH_CONTAINER_PL = "pl-[22px]";
+
 export default function ClusterBreadcrumb({
   breadcrumb,
   selectedLeafId,
@@ -25,66 +47,67 @@ export default function ClusterBreadcrumb({
   onNavigateToBreadcrumb,
   onClearLeafSelection,
 }: ClusterBreadcrumbProps) {
+  let selectedLeafName: string | null = null;
+  if (selectedLeafId === UNCLUSTERED_ID) {
+    selectedLeafName = "Unclustered Events";
+  } else if (selectedLeafId) {
+    const leafNode = visibleClusters.find((c) => c.id === selectedLeafId);
+    if (leafNode) selectedLeafName = leafNode.name;
+  }
+
   return (
-    <div className="flex items-center gap-1 text-sm min-w-0 pl-1">
+    <div className="flex items-center text-sm min-w-0 pl-1">
       <button
-        className={`hover:underline shrink-0 ${breadcrumb.length === 0 && !selectedLeafId ? "font-semibold text-secondary-foreground" : "text-muted-foreground"}`}
+        className={`hover:underline shrink-0 ${breadcrumb.length === 0 && !selectedLeafId ? "text-secondary-foreground" : "text-muted-foreground"}`}
         onClick={() => onNavigateToBreadcrumb(-1)}
       >
         All Events
       </button>
-      {breadcrumb.map((node, index) => {
-        const isLast = index === breadcrumb.length - 1 && !selectedLeafId;
-        return (
-          <React.Fragment key={node.id}>
-            <span className="text-muted-foreground shrink-0">/</span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  className={`hover:underline truncate min-w-0 flex-1 text-left ${
-                    isLast ? "font-semibold text-secondary-foreground" : "text-muted-foreground"
-                  }`}
-                  onClick={() => onNavigateToBreadcrumb(pathIds.indexOf(node.id))}
-                >
-                  {node.name}
-                </button>
-              </TooltipTrigger>
-              <TooltipPrimitive.Portal>
-                <TooltipContent className="max-w-[250px]">
-                  <p className="font-medium">{node.name}</p>
-                  <p className="text-muted-foreground">{node.numEvents} total events</p>
-                </TooltipContent>
-              </TooltipPrimitive.Portal>
-            </Tooltip>
-          </React.Fragment>
-        );
-      })}
-      {selectedLeafId &&
-        (() => {
-          const leafNode = visibleClusters.find((c) => c.id === selectedLeafId);
-          if (!leafNode) return null;
+
+      <AnimatePresence initial={false} mode="wait">
+        {breadcrumb.map((node, index) => {
+          const isLast = index === breadcrumb.length - 1 && !selectedLeafId;
           return (
-            <>
-              <span className="text-muted-foreground shrink-0">/</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    className="font-semibold text-secondary-foreground hover:underline truncate min-w-0 flex-1 text-left"
-                    onClick={onClearLeafSelection}
-                  >
-                    {leafNode.name}
-                  </button>
-                </TooltipTrigger>
-                <TooltipPrimitive.Portal>
-                  <TooltipContent className="max-w-[250px]">
-                    <p className="font-medium">{leafNode.name}</p>
-                    <p className="text-muted-foreground">{leafNode.numEvents} total events</p>
-                  </TooltipContent>
-                </TooltipPrimitive.Portal>
-              </Tooltip>
-            </>
+            <div
+              key={node.id}
+              className={`relative min-w-0 flex-shrink overflow-hidden ${SLASH_CONTAINER_PL}`}
+              style={{ maskImage: "linear-gradient(to right, transparent, black 12px, black)" }}
+            >
+              <motion.span className="absolute left-[8px] top-0 text-muted-foreground" {...slashSlideIn}>
+                /
+              </motion.span>
+              <motion.button
+                className={`hover:underline truncate block max-w-full text-left ${
+                  isLast ? "text-secondary-foreground" : "text-muted-foreground"
+                }`}
+                onClick={() => onNavigateToBreadcrumb(pathIds.indexOf(node.id))}
+                {...slideIn}
+              >
+                {node.name}
+              </motion.button>
+            </div>
           );
-        })()}
+        })}
+
+        {selectedLeafName && (
+          <div
+            key={`leaf-${selectedLeafId}`}
+            className={`relative min-w-0 flex-shrink overflow-hidden ${SLASH_CONTAINER_PL}`}
+            style={{ maskImage: "linear-gradient(to right, transparent, black 12px, black)" }}
+          >
+            <motion.span className="absolute left-[8px] top-0 text-muted-foreground" {...slashSlideIn}>
+              /
+            </motion.span>
+            <motion.button
+              className="text-secondary-foreground hover:underline truncate block max-w-full text-left"
+              onClick={onClearLeafSelection}
+              {...slideIn}
+            >
+              {selectedLeafName}
+            </motion.button>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

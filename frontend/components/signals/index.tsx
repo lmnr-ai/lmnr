@@ -187,7 +187,6 @@ function SignalsContent() {
   return (
     <>
       <Header path="signals" />
-      HELLO
       <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
         <InfiniteDataTable<SignalRow>
           columns={signalsColumns}

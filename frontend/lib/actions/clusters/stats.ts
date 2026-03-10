@@ -64,6 +64,7 @@ export async function getClusterStats(
     STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})`
       : "";
 
+  // Direct ClickHouse required here because events_to_clusters is not in the query engine
   const result = await clickhouseClient.query({
     query: `
       SELECT
