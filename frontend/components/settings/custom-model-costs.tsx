@@ -30,8 +30,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "./settings-section";
 
 const COST_FIELDS: readonly { key: string; label: string; required?: boolean }[] = [
-  { key: "input_cost_per_token", label: "Input", required: true },
-  { key: "output_cost_per_token", label: "Output", required: true },
+  { key: "input_cost_per_token", label: "Input" },
+  { key: "output_cost_per_token", label: "Output" },
 ];
 
 const PER_MILLION = 1_000_000;
@@ -121,15 +121,19 @@ function ModelCostDialog({
     const providerChanged = mode === "edit" && (provider || undefined) !== (initialProvider || undefined);
     const isRekey = modelChanged || providerChanged;
     setIsSaving(true);
-    const ok = await onSave({
-      id: mode === "edit" ? id : undefined,
-      provider: provider || undefined,
-      model,
-      costs,
-      previousModel: isRekey ? initialModel : undefined,
-      previousProvider: isRekey ? initialProvider : undefined,
-    });
-    setIsSaving(false);
+    let ok: boolean;
+    try {
+      ok = await onSave({
+        id: mode === "edit" ? id : undefined,
+        provider: provider || undefined,
+        model,
+        costs,
+        previousModel: isRekey ? initialModel : undefined,
+        previousProvider: isRekey ? initialProvider : undefined,
+      });
+    } finally {
+      setIsSaving(false);
+    }
     if (!ok) return;
     if (mode === "add") {
       setProvider("");
@@ -300,8 +304,12 @@ function CopyModelCostsDialog({ onCopy }: { onCopy: (targetProjectId: string) =>
             disabled={!targetProjectId || isCopying}
             onClick={async () => {
               setIsCopying(true);
-              const ok = await onCopy(targetProjectId);
-              setIsCopying(false);
+              let ok: boolean;
+              try {
+                ok = await onCopy(targetProjectId);
+              } finally {
+                setIsCopying(false);
+              }
               if (!ok) return;
               setOpen(false);
               setTargetProjectId("");
