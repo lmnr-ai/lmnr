@@ -382,9 +382,7 @@ function CreateProjectAlertSheet({ projectId, workspaceId, integrationId, onCrea
           <div className="flex flex-col gap-6 p-4">
             <div className="grid gap-2">
               <Label>Signal</Label>
-              <p className="text-xs text-muted-foreground">
-                Choose the signal event that will trigger Slack notifications.
-              </p>
+              <p className="text-xs text-muted-foreground">Choose the signal event that will trigger alert.</p>
               {isLoadingSignals ? (
                 <Skeleton className="h-7 w-full" />
               ) : (
@@ -462,7 +460,7 @@ function CreateProjectAlertSheet({ projectId, workspaceId, integrationId, onCrea
                       </SelectContent>
                     </Select>
                     <Button variant="outline" disabled={!selectedChannelId || isTesting} onClick={handleTest}>
-                      <Loader2 className={cn("hidden", { "animate-spin block": isTesting })} size={14} />
+                      <Loader2 className={cn("hidden", { "animate-spin block mr-1": isTesting })} size={14} />
                       {!isTesting && <Send className="size-3.5 mr-1" />}
                       Test
                     </Button>

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
-import defaultCharts from "@/lib/db/default-charts";
+import defaultData from "@/lib/db/default-data.ts";
 import { db } from "@/lib/db/drizzle";
 import { dashboardCharts, projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
@@ -49,7 +49,7 @@ export async function createProject(input: z.infer<typeof CreateProjectSchema>) 
         throw new Error("Failed to create project");
       }
 
-      const chartsToInsert = defaultCharts.map((chart) => ({
+      const chartsToInsert = defaultData.map((chart) => ({
         name: chart.name,
         query: chart.query,
         settings: chart.settings,

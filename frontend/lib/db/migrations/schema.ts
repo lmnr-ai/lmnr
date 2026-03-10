@@ -87,20 +87,16 @@ export const reports = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     workspaceId: uuid("workspace_id").notNull(),
-    text: text().notNull(),
-    cronJobId: uuid("cron_job_id").notNull(),
+    type: text("type").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    weekday: integer("weekday").array().notNull(),
+    hour: integer("hour").notNull(),
   },
   (table) => [
     foreignKey({
       columns: [table.workspaceId],
       foreignColumns: [workspaces.id],
       name: "reports_workspace_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.cronJobId],
-      foreignColumns: [cronJobs.id],
-      name: "reports_cron_job_id_fkey",
     }).onDelete("cascade"),
   ]
 );
@@ -128,66 +124,6 @@ export const alertTargets = pgTable(
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "alert_targets_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-export const workspaceAddons = pgTable(
-  "workspace_addons",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    workspaceId: uuid("workspace_id").notNull(),
-    addonSlug: text("addon_slug").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.workspaceId],
-      foreignColumns: [workspaces.id],
-      name: "workspace_addons_workspace_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const slackChannelToEvents = pgTable(
-  "slack_channel_to_events",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    channelId: text("channel_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    eventName: text("event_name").notNull(),
-    integrationId: uuid("integration_id").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.integrationId],
-      foreignColumns: [slackIntegrations.id],
-      name: "slack_channel_to_events_integration_id_fkey",
-    }).onDelete("cascade"),
-    unique("slack_channel_to_events_integration_channel_event_key").on(
-      table.channelId,
-      table.eventName,
-      table.integrationId
-    ),
-  ]
-);
-
-export const cronJobs = pgTable(
-  "cron_jobs",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    workspaceId: uuid("workspace_id").notNull(),
-    weekday: integer().array().notNull(),
-    hour: integer().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.workspaceId],
-      foreignColumns: [workspaces.id],
-      name: "cron_jobs_workspace_id_fkey",
     }).onDelete("cascade"),
   ]
 );
@@ -315,6 +251,48 @@ export const userSubscriptionInfo = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+  ]
+);
+export const workspaceAddons = pgTable(
+  "workspace_addons",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    addonSlug: text("addon_slug").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "workspace_addons_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const slackChannelToEvents = pgTable(
+  "slack_channel_to_events",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    channelId: text("channel_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    eventName: text("event_name").notNull(),
+    integrationId: uuid("integration_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.integrationId],
+      foreignColumns: [slackIntegrations.id],
+      name: "slack_channel_to_events_integration_id_fkey",
+    }).onDelete("cascade"),
+    unique("slack_channel_to_events_integration_channel_event_key").on(
+      table.channelId,
+      table.eventName,
+      table.integrationId
+    ),
   ]
 );
 

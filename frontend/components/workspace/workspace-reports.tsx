@@ -1,7 +1,7 @@
 "use client";
 
 import { Calendar, Clock, Loader2 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
@@ -24,7 +24,17 @@ export default function WorkspaceReports({ workspaceId }: WorkspaceReportsProps)
     data: reports,
     isLoading,
     mutate,
+    error,
   } = useSWR<ReportWithDetails[]>(`/api/workspaces/${workspaceId}/reports`, swrFetcher);
+
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Failed to load reports.",
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
 
   const [togglingReportId, setTogglingReportId] = useState<string | null>(null);
 
@@ -79,7 +89,9 @@ export default function WorkspaceReports({ workspaceId }: WorkspaceReportsProps)
           <SettingsSection>
             <div className="flex flex-col items-center justify-center gap-2 py-12">
               <p className="text-sm text-muted-foreground">No reports available yet.</p>
-              <p className="text-xs text-muted-foreground">Reports will appear here once they are configured for your workspace.</p>
+              <p className="text-xs text-muted-foreground">
+                Reports will appear here once they are configured for your workspace.
+              </p>
             </div>
           </SettingsSection>
         )}
@@ -98,7 +110,9 @@ export default function WorkspaceReports({ workspaceId }: WorkspaceReportsProps)
                       <Calendar className="size-3.5" />
                       {report.schedule.weekday.length === 7
                         ? "Every day"
-                        : report.schedule.weekday.map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join(", ")}
+                        : report.schedule.weekday
+                            .map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d])
+                            .join(", ")}
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock className="size-3.5" />

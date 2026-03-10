@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
-import { cronJobs, reports,reportTargets } from "@/lib/db/migrations/schema";
+import { reports, reportTargets } from "@/lib/db/migrations/schema";
 
 import { REPORT_TYPE_LABELS, type ReportTargetRow, type ReportType, type ReportWithDetails } from "./types";
 
@@ -22,40 +22,30 @@ export async function getReports(workspaceId: string): Promise<ReportWithDetails
   const reportRows = await db
     .select({
       id: reports.id,
-      text: reports.text,
+      type: reports.type,
       workspaceId: reports.workspaceId,
       createdAt: reports.createdAt,
-      cronJobId: reports.cronJobId,
+      weekday: reports.weekday,
+      hour: reports.hour,
     })
     .from(reports)
     .where(eq(reports.workspaceId, workspaceId))
     .orderBy(reports.createdAt);
 
+  console.log("reportRows", reportRows);
   if (reportRows.length === 0) return [];
 
-  const [cronJobRows, targetRows] = await Promise.all([
-    db
-      .select({
-        id: cronJobs.id,
-        weekday: cronJobs.weekday,
-        hour: cronJobs.hour,
-      })
-      .from(cronJobs)
-      .where(eq(cronJobs.workspaceId, workspaceId)),
-    db
-      .select({
-        id: reportTargets.id,
-        reportId: reportTargets.reportId,
-        type: reportTargets.type,
-        email: reportTargets.email,
-        channelId: reportTargets.channelId,
-        channelName: reportTargets.channelName,
-      })
-      .from(reportTargets)
-      .where(eq(reportTargets.workspaceId, workspaceId)),
-  ]);
-
-  const cronJobMap = new Map(cronJobRows.map((j) => [j.id, { weekday: j.weekday, hour: j.hour }]));
+  const targetRows = await db
+    .select({
+      id: reportTargets.id,
+      reportId: reportTargets.reportId,
+      type: reportTargets.type,
+      email: reportTargets.email,
+      channelId: reportTargets.channelId,
+      channelName: reportTargets.channelName,
+    })
+    .from(reportTargets)
+    .where(eq(reportTargets.workspaceId, workspaceId));
 
   const targetsByReport = new Map<string, ReportTargetRow[]>();
   for (const t of targetRows) {
@@ -71,14 +61,14 @@ export async function getReports(workspaceId: string): Promise<ReportWithDetails
   }
 
   return reportRows.map((r) => {
-    const reportType = r.text as ReportType;
+    const reportType = r.type as ReportType;
     return {
       id: r.id,
       reportType,
-      label: REPORT_TYPE_LABELS[reportType] ?? r.text,
+      label: REPORT_TYPE_LABELS[reportType] ?? r.type,
       workspaceId: r.workspaceId,
       createdAt: r.createdAt,
-      schedule: cronJobMap.get(r.cronJobId) ?? { weekday: [], hour: 0 },
+      schedule: { weekday: r.weekday, hour: r.hour },
       targets: targetsByReport.get(r.id) ?? [],
     };
   });
