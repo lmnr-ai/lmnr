@@ -48,15 +48,3 @@ export function getLanguageModel(tier: ModelTier = "default"): LanguageModel {
   const bedrock = createAmazonBedrock();
   return bedrock(BEDROCK_MODELS[tier]);
 }
-
-export function isAIProviderConfigured(): boolean {
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-    return true;
-  }
-
-  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_REGION) {
-    return true;
-  }
-
-  return false;
-}
