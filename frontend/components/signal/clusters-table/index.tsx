@@ -92,7 +92,10 @@ export default function ClustersTable() {
   }, [tree, pathIds]);
 
   // Compute unclustered event count: total events - events that belong to any cluster
-  const unclusteredCount = useMemo(() => Math.max(0, totalEventCount - clusteredEventCount), [totalEventCount, clusteredEventCount]);
+  const unclusteredCount = useMemo(
+    () => Math.max(0, totalEventCount - clusteredEventCount),
+    [totalEventCount, clusteredEventCount]
+  );
 
   const filteredCountByCluster = useMemo(() => {
     const counts = new Map<string, number>();
@@ -225,9 +228,10 @@ export default function ClustersTable() {
             if (!res.ok) throw new Error("Failed to fetch total event stats");
             return res.json();
           })
-          .then((data: { items: EventsStatsDataPoint[] }) => 
-            // Compute unclustered: total per bucket - sum of cluster counts per bucket
-             data.items
+          .then(
+            (data: { items: EventsStatsDataPoint[] }) =>
+              // Compute unclustered: total per bucket - sum of cluster counts per bucket
+              data.items
           )
           .catch(() => [] as EventsStatsDataPoint[])
       );
@@ -384,7 +388,7 @@ export default function ClustersTable() {
           <DateRangeFilter />
         </div>
 
-        <div className="flex border rounded-lg overflow-hidden" style={{ maxHeight: 300 }}>
+        <div className="flex border rounded-lg overflow-hidden h-[300px]">
           <ClusterList
             className="w-[320px]"
             visibleClusters={visibleClusters}

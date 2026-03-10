@@ -35,8 +35,14 @@ const slashSlideIn = {
   },
 };
 
+const levelTransition = {
+  initial: { opacity: 0, width: 0 },
+  animate: { opacity: 1, width: "auto" },
+  exit: { opacity: 0, width: 0 },
+  transition: { type: "spring", stiffness: 300, damping: 30, mass: 0.3 },
+};
+
 // Slash width (~6px at text-sm) + gap to match parent's gap-2 (8px) on each side
-// pl-[22px] = 6px slash + 8px left gap + 8px right gap
 const SLASH_CONTAINER_PL = "pl-[22px]";
 
 export default function ClusterBreadcrumb({
@@ -64,48 +70,60 @@ export default function ClusterBreadcrumb({
         All Events
       </button>
 
-      <AnimatePresence initial={false} mode="wait">
+      {/* Outer: handles levels appearing/disappearing */}
+      <AnimatePresence initial={false}>
         {breadcrumb.map((node, index) => {
           const isLast = index === breadcrumb.length - 1 && !selectedLeafId;
           return (
-            <div
-              key={node.id}
+            <motion.div
+              key={`level-${index}`}
               className={`relative min-w-0 flex-shrink overflow-hidden ${SLASH_CONTAINER_PL}`}
               style={{ maskImage: "linear-gradient(to right, transparent, black 12px, black)" }}
+              {...levelTransition}
             >
-              <motion.span className="absolute left-[8px] top-0 text-muted-foreground" {...slashSlideIn}>
-                /
-              </motion.span>
-              <motion.button
-                className={`hover:underline truncate block max-w-full text-left ${
-                  isLast ? "text-secondary-foreground" : "text-muted-foreground"
-                }`}
-                onClick={() => onNavigateToBreadcrumb(pathIds.indexOf(node.id))}
-                {...slideIn}
-              >
-                {node.name}
-              </motion.button>
-            </div>
+              {/* Inner: handles swaps within this level */}
+              <AnimatePresence initial={false} mode="wait">
+                <motion.div key={node.id} className="flex">
+                  <motion.span className="absolute left-[8px] top-0 text-muted-foreground" {...slashSlideIn}>
+                    /
+                  </motion.span>
+                  <motion.button
+                    className={`hover:underline truncate block max-w-full text-left ${
+                      isLast ? "text-secondary-foreground" : "text-muted-foreground"
+                    }`}
+                    onClick={() => onNavigateToBreadcrumb(pathIds.indexOf(node.id))}
+                    {...slideIn}
+                  >
+                    {node.name}
+                  </motion.button>
+                </motion.div>
+              </AnimatePresence>
+            </motion.div>
           );
         })}
 
         {selectedLeafName && (
-          <div
-            key={`leaf-${selectedLeafId}`}
+          <motion.div
+            key="level-leaf"
             className={`relative min-w-0 flex-shrink overflow-hidden ${SLASH_CONTAINER_PL}`}
             style={{ maskImage: "linear-gradient(to right, transparent, black 12px, black)" }}
+            {...levelTransition}
           >
-            <motion.span className="absolute left-[8px] top-0 text-muted-foreground" {...slashSlideIn}>
-              /
-            </motion.span>
-            <motion.button
-              className="text-secondary-foreground hover:underline truncate block max-w-full text-left"
-              onClick={onClearLeafSelection}
-              {...slideIn}
-            >
-              {selectedLeafName}
-            </motion.button>
-          </div>
+            <AnimatePresence initial={false} mode="wait">
+              <motion.div key={selectedLeafId} className="flex">
+                <motion.span className="absolute left-[8px] top-0 text-muted-foreground" {...slashSlideIn}>
+                  /
+                </motion.span>
+                <motion.button
+                  className="text-secondary-foreground hover:underline truncate block max-w-full text-left"
+                  onClick={onClearLeafSelection}
+                  {...slideIn}
+                >
+                  {selectedLeafName}
+                </motion.button>
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
