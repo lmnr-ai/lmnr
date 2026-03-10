@@ -85,6 +85,7 @@ function formatCostDisplay(costs: Record<string, number>): string {
 
 function ModelCostDialog({
   mode,
+  id,
   initialProvider,
   initialModel,
   initialCosts,
@@ -92,17 +93,18 @@ function ModelCostDialog({
   trigger,
 }: {
   mode: "add" | "edit";
+  id?: string;
   initialProvider?: string;
   initialModel?: string;
   initialCosts?: Record<string, number>;
-  onSave: (
-    provider: string | undefined,
-    model: string,
-    costs: Record<string, number>,
-    previousModel?: string,
-    previousProvider?: string,
-    isEdit?: boolean
-  ) => Promise<boolean>;
+  onSave: (params: {
+    id?: string;
+    provider: string | undefined;
+    model: string;
+    costs: Record<string, number>;
+    previousModel?: string;
+    previousProvider?: string;
+  }) => Promise<boolean>;
   trigger: React.ReactNode;
 }) {
   const emptyFields = (): Record<string, string> => ({});
@@ -125,15 +127,18 @@ function ModelCostDialog({
       return;
     }
 
-    // Detect if provider or model changed during edit — if either changed,
-    // send both previous values so the old (project_id, provider, model) row is deleted.
     const modelChanged = mode === "edit" && initialModel && model !== initialModel;
     const providerChanged = mode === "edit" && (provider || undefined) !== (initialProvider || undefined);
     const isRekey = modelChanged || providerChanged;
-    const previousModel = isRekey ? initialModel : undefined;
-    const previousProvider = isRekey ? initialProvider : undefined;
     setIsSaving(true);
-    const ok = await onSave(provider || undefined, model, costs, previousModel, previousProvider, mode === "edit");
+    const ok = await onSave({
+      id: mode === "edit" ? id : undefined,
+      provider: provider || undefined,
+      model,
+      costs,
+      previousModel: isRekey ? initialModel : undefined,
+      previousProvider: isRekey ? initialProvider : undefined,
+    });
     setIsSaving(false);
     if (!ok) return;
     if (mode === "add") {
@@ -332,27 +337,32 @@ export default function CustomModelCosts() {
     isLoading,
   } = useSWR<CustomModelCost[]>(`/api/projects/${projectId}/custom-model-costs`, swrFetcher);
 
-  const upsertCost = async (
-    provider: string | undefined,
-    model: string,
-    costs: Record<string, number>,
-    previousModel?: string,
-    previousProvider?: string,
-    isEdit?: boolean
-  ): Promise<boolean> => {
+  const upsertCost = async (params: {
+    id?: string;
+    provider: string | undefined;
+    model: string;
+    costs: Record<string, number>;
+    previousModel?: string;
+    previousProvider?: string;
+  }): Promise<boolean> => {
+    const { id, provider, model, costs, previousModel, previousProvider } = params;
     const res = await fetch(`/api/projects/${projectId}/custom-model-costs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider, model, costs, previousModel, previousProvider }),
+      body: JSON.stringify({ id, provider, model, costs, previousModel, previousProvider }),
     });
     if (res.ok) {
       mutate();
-      toast({ title: isEdit ? `Model cost updated for ${model}` : `Model cost saved for ${model}` });
+      toast({ title: id ? `Model cost updated for ${model}` : `Model cost saved for ${model}` });
       return true;
-    } else {
-      toast({ variant: "destructive", title: "Failed to save model cost" });
+    }
+    if (res.status === 409) {
+      const body = await res.json();
+      toast({ variant: "destructive", title: body.error ?? "A cost entry for this provider and model already exists" });
       return false;
     }
+    toast({ variant: "destructive", title: "Failed to save model cost" });
+    return false;
   };
 
   const deleteCost = async (id: string) => {
@@ -387,8 +397,7 @@ export default function CustomModelCosts() {
     <SettingsSection>
       <SettingsSectionHeader
         title="Model Costs"
-        description="Define custom model pricing for this project. Custom prices take priority over global model prices when calculating span costs.
-        Provider and model names should match the values of 'gen_ai.system' and 'gen_ai.response.model' span attributes respectively."
+        description="Define custom model pricing for this project. Custom prices take priority over global model prices when calculating span costs. Provider and model names should match the corresponding values in your span attributes."
       />
       <div className="flex gap-2">
         <ModelCostDialog
@@ -454,6 +463,7 @@ export default function CustomModelCosts() {
                 <div className="flex justify-end gap-1">
                   <ModelCostDialog
                     mode="edit"
+                    id={cost.id}
                     initialProvider={cost.provider || undefined}
                     initialModel={cost.model}
                     initialCosts={costObj}

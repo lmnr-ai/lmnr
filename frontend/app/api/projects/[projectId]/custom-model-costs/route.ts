@@ -1,7 +1,12 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { deleteCustomModelCost, getCustomModelCosts, upsertCustomModelCost } from "@/lib/actions/custom-model-costs";
+import {
+  deleteCustomModelCost,
+  DuplicateModelCostError,
+  getCustomModelCosts,
+  upsertCustomModelCost,
+} from "@/lib/actions/custom-model-costs";
 import { invalidateCustomModelCostsCache } from "@/lib/actions/custom-model-costs/invalidate-cache";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
@@ -34,20 +39,19 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
   try {
     const body = await req.json();
 
-    const { result, deletedModel, deletedProvider } = await upsertCustomModelCost({
+    const { result } = await upsertCustomModelCost({
+      id: body.id,
       projectId: params.projectId,
       provider: body.provider,
       model: body.model,
       costs: body.costs,
-      previousModel: body.previousModel,
-      previousProvider: body.previousProvider,
     });
 
-    // Invalidate cache for the old provider+model if it was renamed
-    if (deletedModel && deletedProvider !== undefined) {
-      await invalidateCustomModelCostsCache(params.projectId, deletedProvider, deletedModel);
+    if (body.previousModel) {
+      const prevProvider = (body.previousProvider ?? "").toLowerCase();
+      const prevModel = body.previousModel.toLowerCase();
+      await invalidateCustomModelCostsCache(params.projectId, prevProvider, prevModel);
     }
-    // Use result values (lowercased by upsertCustomModelCost) rather than raw body values
     await invalidateCustomModelCostsCache(params.projectId, result.provider, result.model);
 
     return new Response(JSON.stringify(result), {
@@ -56,6 +60,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
     });
   } catch (error) {
     console.error("Error upserting custom model cost:", error);
+    if (error instanceof DuplicateModelCostError) {
+      return Response.json({ error: error.message }, { status: 409 });
+    }
     if (error instanceof ZodError) {
       return new Response(prettifyError(error), { status: 400 });
     }

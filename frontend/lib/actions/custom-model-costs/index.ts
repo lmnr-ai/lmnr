@@ -9,12 +9,11 @@ const GetCustomModelCostsSchema = z.object({
 });
 
 const UpsertCustomModelCostSchema = z.object({
+  id: z.string().optional(),
   projectId: z.string(),
   provider: z.string().optional(),
   model: z.string().min(1, "Model name is required"),
   costs: z.record(z.string(), z.number().nonnegative("Cost values must not be negative")),
-  previousModel: z.string().optional(),
-  previousProvider: z.string().optional(),
 });
 
 const DeleteCustomModelCostSchema = z.object({
@@ -59,69 +58,57 @@ export async function getCustomModelCosts(
   return rows as CustomModelCost[];
 }
 
+export class DuplicateModelCostError extends Error {
+  constructor() {
+    super("A cost entry for this provider and model already exists");
+    this.name = "DuplicateModelCostError";
+  }
+}
+
+async function checkDuplicate(projectId: string, provider: string, model: string, excludeId?: string) {
+  const existing = await db
+    .select({ id: customModelCosts.id })
+    .from(customModelCosts)
+    .where(
+      and(
+        eq(customModelCosts.projectId, projectId),
+        eq(customModelCosts.provider, provider),
+        eq(customModelCosts.model, model)
+      )
+    )
+    .limit(1);
+
+  if (existing.length > 0 && existing[0].id !== excludeId) {
+    throw new DuplicateModelCostError();
+  }
+}
+
 export async function upsertCustomModelCost(
   input: z.infer<typeof UpsertCustomModelCostSchema>
-): Promise<{ result: CustomModelCost; deletedModel?: string; deletedProvider?: string }> {
+): Promise<{ result: CustomModelCost }> {
   const parsed = UpsertCustomModelCostSchema.parse(input);
-  const projectId = parsed.projectId;
-  // Lowercase provider and model to match the Rust backend's span attribute
-  // normalization before DB queries and cache key construction.
-  // Provider defaults to empty string (column is NOT NULL DEFAULT '').
+  const { id, projectId } = parsed;
   const provider = (parsed.provider ?? "").toLowerCase();
   const model = parsed.model.toLowerCase();
   const costs = parsed.costs;
-  const previousModel = parsed.previousModel?.toLowerCase();
-  const previousProvider = parsed.previousProvider !== undefined ? parsed.previousProvider.toLowerCase() : undefined;
 
-  // A re-key happens when model or provider changed during edit.
-  // Both previousModel and previousProvider are sent together from the UI.
-  const isRekey = previousModel !== undefined;
+  await checkDuplicate(projectId, provider, model, id);
 
-  if (isRekey) {
-    // Wrap delete + upsert in a transaction so the old entry is not lost if the upsert fails
-    const txResult = await db.transaction(async (tx) => {
-      // Delete the old entry using previous provider+model to match the unique constraint
-      const deleted = await tx
-        .delete(customModelCosts)
-        .where(
-          and(
-            eq(customModelCosts.projectId, projectId),
-            eq(customModelCosts.provider, previousProvider ?? ""),
-            eq(customModelCosts.model, previousModel)
-          )
-        )
-        .returning({ model: customModelCosts.model, provider: customModelCosts.provider });
+  if (id) {
+    const [row] = await db
+      .update(customModelCosts)
+      .set({ provider, model, costs, updatedAt: new Date().toISOString() })
+      .where(and(eq(customModelCosts.id, id), eq(customModelCosts.projectId, projectId)))
+      .returning();
 
-      const [row] = await tx
-        .insert(customModelCosts)
-        .values({ projectId, provider, model, costs })
-        .onConflictDoUpdate({
-          target: [customModelCosts.projectId, customModelCosts.provider, customModelCosts.model],
-          set: { costs, updatedAt: new Date().toISOString() },
-        })
-        .returning();
+    if (!row) {
+      throw new Error("Custom model cost not found");
+    }
 
-      return {
-        result: row as CustomModelCost,
-        deleted: deleted.length > 0 ? deleted[0] : null,
-      };
-    });
-
-    return {
-      result: txResult.result,
-      deletedModel: txResult.deleted?.model,
-      deletedProvider: txResult.deleted?.provider,
-    };
+    return { result: row as CustomModelCost };
   }
 
-  const [row] = await db
-    .insert(customModelCosts)
-    .values({ projectId, provider, model, costs })
-    .onConflictDoUpdate({
-      target: [customModelCosts.projectId, customModelCosts.provider, customModelCosts.model],
-      set: { costs, updatedAt: new Date().toISOString() },
-    })
-    .returning();
+  const [row] = await db.insert(customModelCosts).values({ projectId, provider, model, costs }).returning();
 
   return { result: row as CustomModelCost };
 }
