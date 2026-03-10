@@ -31,17 +31,6 @@ import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow
 const COST_FIELDS: readonly { key: string; label: string; required?: boolean }[] = [
   { key: "input_cost_per_token", label: "Input", required: true },
   { key: "output_cost_per_token", label: "Output", required: true },
-  { key: "input_cost_per_token_batches", label: "Input (batch)" },
-  { key: "output_cost_per_token_batches", label: "Output (batch)" },
-  { key: "cache_read_input_token_cost", label: "Cache read" },
-  { key: "cache_creation_input_token_cost", label: "Cache creation" },
-  { key: "cache_creation_input_token_cost_above_1hr", label: "Cache creation (>1hr)" },
-  { key: "input_cost_per_audio_token", label: "Audio input" },
-  { key: "output_cost_per_audio_token", label: "Audio output" },
-  { key: "input_cost_per_audio_token_batches", label: "Audio input (batch)" },
-  { key: "output_cost_per_audio_token_batches", label: "Audio output (batch)" },
-  { key: "output_cost_per_reasoning_token", label: "Reasoning output" },
-  { key: "output_cost_per_reasoning_token_batches", label: "Reasoning output (batch)" },
 ];
 
 const PER_MILLION = 1_000_000;
