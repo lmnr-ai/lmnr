@@ -84,8 +84,8 @@ export async function upsertCustomModelCost(
         .insert(customModelCosts)
         .values({ projectId, provider: provider || null, model, costs })
         .onConflictDoUpdate({
-          target: [customModelCosts.projectId, customModelCosts.model],
-          set: { provider: provider || null, costs, updatedAt: new Date().toISOString() },
+          target: [customModelCosts.projectId, customModelCosts.provider, customModelCosts.model],
+          set: { costs, updatedAt: new Date().toISOString() },
         })
         .returning();
 
@@ -106,8 +106,8 @@ export async function upsertCustomModelCost(
     .insert(customModelCosts)
     .values({ projectId, provider: provider || null, model, costs })
     .onConflictDoUpdate({
-      target: [customModelCosts.projectId, customModelCosts.model],
-      set: { provider: provider || null, costs, updatedAt: new Date().toISOString() },
+      target: [customModelCosts.projectId, customModelCosts.provider, customModelCosts.model],
+      set: { costs, updatedAt: new Date().toISOString() },
     })
     .returning();
 

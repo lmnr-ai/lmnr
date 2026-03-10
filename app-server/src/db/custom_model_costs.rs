@@ -15,14 +15,16 @@ pub struct DBCustomModelCost {
 pub async fn get_custom_model_cost(
     pool: &PgPool,
     project_id: &Uuid,
+    provider: &str,
     model: &str,
 ) -> anyhow::Result<Option<DBCustomModelCost>> {
     let row = sqlx::query_as::<_, DBCustomModelCost>(
         "SELECT id, project_id, provider, model, costs
          FROM custom_model_costs
-         WHERE project_id = $1 AND model = $2",
+         WHERE project_id = $1 AND provider = $2 AND model = $3",
     )
     .bind(project_id)
+    .bind(provider)
     .bind(model)
     .fetch_optional(pool)
     .await?;

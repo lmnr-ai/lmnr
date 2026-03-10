@@ -9,11 +9,7 @@ use crate::{
         Cache, CacheTrait,
         keys::{CUSTOM_MODEL_COSTS_CACHE_KEY, MODEL_COSTS_CACHE_KEY},
     },
-    db::{
-        DB,
-        custom_model_costs::get_custom_model_cost,
-        model_costs::get_model_costs_batch,
-    },
+    db::{DB, custom_model_costs::get_custom_model_cost, model_costs::get_model_costs_batch},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -148,24 +144,20 @@ pub async fn get_model_costs_for_project(
     cache: Arc<Cache>,
     model_info: &ModelInfo,
     project_id: &Uuid,
+    orig_provider_name: &str,
+    orig_model_name: &str,
 ) -> Option<ModelCosts> {
-    // First try project-specific custom model costs with the full model string
-    if let Some(costs) =
-        get_custom_model_costs(db.clone(), cache.clone(), &model_info.model, project_id).await
+    // First try project-specific custom model costs with the original model and provider names
+    if let Some(costs) = get_custom_model_costs(
+        db.clone(),
+        cache.clone(),
+        orig_provider_name,
+        orig_model_name,
+        project_id,
+    )
+    .await
     {
         return Some(costs);
-    }
-
-    // If model was transformed (e.g. "gpt-4o" → "openai/gpt-4o" for OpenRouter),
-    // also try the raw model name since users configure custom costs based on
-    // what they see in span attributes (the un-prefixed name).
-    if model_info.raw_model != model_info.model {
-        if let Some(costs) =
-            get_custom_model_costs(db.clone(), cache.clone(), &model_info.raw_model, project_id)
-                .await
-        {
-            return Some(costs);
-        }
     }
 
     // Fall back to universal model costs
@@ -178,10 +170,18 @@ pub async fn get_model_costs_for_project(
 async fn get_custom_model_costs(
     db: Arc<DB>,
     cache: Arc<Cache>,
+    provider: &str,
     model: &str,
     project_id: &Uuid,
 ) -> Option<ModelCosts> {
-    let cache_key = format!("{}:{}:{}", CUSTOM_MODEL_COSTS_CACHE_KEY, project_id, model);
+    if model.is_empty() {
+        return None;
+    }
+
+    let cache_key = format!(
+        "{}:{}:{}:{}",
+        CUSTOM_MODEL_COSTS_CACHE_KEY, project_id, provider, model
+    );
 
     // Check cache first
     match cache.get::<Option<ModelCosts>>(&cache_key).await {
@@ -199,19 +199,24 @@ async fn get_custom_model_costs(
     }
 
     // Exact match on model name
-    let result = match get_custom_model_cost(&db.pool, project_id, model).await {
+    let result = match get_custom_model_cost(&db.pool, project_id, provider, model).await {
         Ok(Some(entry)) => {
             log::debug!(
-                "Found custom costs in DB for model: {}, project: {}",
-                model, project_id
+                "Found custom costs in DB for project: {}, model: {}, provider: {}",
+                project_id,
+                provider,
+                model
             );
             Some(ModelCosts(entry.costs))
         }
         Ok(None) => None,
         Err(e) => {
             log::error!(
-                "DB error looking up custom model costs for project {}, model {}: {:?}",
-                project_id, model, e
+                "DB error looking up custom model costs for project {}, model {}, provider {}: {:?}",
+                project_id,
+                model,
+                provider,
+                e
             );
             return None;
         }
@@ -223,9 +228,7 @@ async fn get_custom_model_costs(
     } else {
         MODEL_COSTS_NEGATIVE_CACHE_TTL_SECONDS
     };
-    let _ = cache
-        .insert_with_ttl(&cache_key, result.clone(), ttl)
-        .await;
+    let _ = cache.insert_with_ttl(&cache_key, result.clone(), ttl).await;
 
     result
 }
@@ -306,4 +309,3 @@ pub async fn get_model_costs(
 
     result
 }
-
