@@ -51,9 +51,10 @@ function PureEventsTable() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
-  const { signal, selectedClusterIds } = useSignalStoreContext((state) => ({
+  const { signal, selectedClusterIds, isUnclusteredFilter } = useSignalStoreContext((state) => ({
     signal: state.signal,
     selectedClusterIds: state.selectedClusterIds,
+    isUnclusteredFilter: state.isUnclusteredFilter,
   }));
   const searchParams = useSearchParams();
   const pathName = usePathname();
@@ -85,7 +86,11 @@ function PureEventsTable() {
 
         filter.forEach((f) => urlParams.append("filter", f));
 
-        selectedClusterIds.forEach((id) => urlParams.append("clusterId", id));
+        if (isUnclusteredFilter) {
+          urlParams.set("unclustered", "true");
+        } else {
+          selectedClusterIds.forEach((id) => urlParams.append("clusterId", id));
+        }
 
         urlParams.set("eventDefinitionId", signal.id);
 
@@ -109,7 +114,7 @@ function PureEventsTable() {
       }
       return { items: [], count: 0 };
     },
-    [pastHours, startDate, endDate, filter, selectedClusterIds, signal.id, params.projectId, toast]
+    [pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter, signal.id, params.projectId, toast]
   );
 
   const getRowHref = useCallback(
@@ -144,7 +149,7 @@ function PureEventsTable() {
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
     enabled: !!(pastHours || (startDate && endDate)),
-    deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter, selectedClusterIds],
+    deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter],
   });
 
   const focusedRowId = useMemo(() => {

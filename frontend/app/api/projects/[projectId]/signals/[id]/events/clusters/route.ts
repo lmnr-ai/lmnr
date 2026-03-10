@@ -15,7 +15,11 @@ export async function GET(
       signalId,
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      items: result.items,
+      totalEventCount: result.totalEventCount,
+      clusteredEventCount: result.clusteredEventCount,
+    });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ success: false, error: prettifyError(error) }, { status: 400 });

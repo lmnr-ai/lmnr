@@ -27,6 +27,7 @@ export type SignalState = {
   triggersFilters: Filter[];
   initialTraceViewWidth?: number;
   selectedClusterIds: string[];
+  isUnclusteredFilter: boolean;
   lastEvent?: {
     id: string;
     timestamp: string;
@@ -41,6 +42,7 @@ export type SignalActions = {
   fetchStats: (url: string) => Promise<void>;
   setChartContainerWidth: (width: number) => void;
   setSelectedClusterIds: (ids: string[]) => void;
+  setIsUnclusteredFilter: (value: boolean) => void;
   setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
   setJobsFilters: Dispatch<SetStateAction<Filter[]>>;
   setTriggersFilters: Dispatch<SetStateAction<Filter[]>>;
@@ -75,6 +77,7 @@ export const createSignalStore = (initProps: EventsProps) =>
     isLoadingStats: false,
     chartContainerWidth: null,
     selectedClusterIds: [],
+    isUnclusteredFilter: false,
     signal: {
       ...initProps.signal,
       prompt: initProps.signal.prompt,
@@ -85,6 +88,7 @@ export const createSignalStore = (initProps: EventsProps) =>
     setSpanId: (spanId) => set({ spanId }),
     setChartContainerWidth: (width: number) => set({ chartContainerWidth: width }),
     setSelectedClusterIds: (ids: string[]) => set({ selectedClusterIds: ids }),
+    setIsUnclusteredFilter: (value: boolean) => set({ isUnclusteredFilter: value }),
     setRunsFilters: (filters) =>
       set((state) => ({
         runsFilters: typeof filters === "function" ? filters(state.runsFilters) : filters,
