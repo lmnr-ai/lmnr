@@ -34,20 +34,21 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
   try {
     const body = await req.json();
 
-    const { result, deletedModel } = await upsertCustomModelCost({
+    const { result, deletedModel, deletedProvider } = await upsertCustomModelCost({
       projectId: params.projectId,
       provider: body.provider,
       model: body.model,
       costs: body.costs,
       previousModel: body.previousModel,
+      previousProvider: body.previousProvider,
     });
 
-    // Invalidate cache for the old model name if it was renamed
+    // Invalidate cache for the old provider+model if it was renamed
     if (deletedModel) {
-      await invalidateCustomModelCostsCache(params.projectId, deletedModel);
+      await invalidateCustomModelCostsCache(params.projectId, deletedProvider ?? null, deletedModel);
     }
-    // Use result.model (lowercased by upsertCustomModelCost) rather than raw body.model
-    await invalidateCustomModelCostsCache(params.projectId, result.model);
+    // Use result values (lowercased by upsertCustomModelCost) rather than raw body values
+    await invalidateCustomModelCostsCache(params.projectId, result.provider, result.model);
 
     return new Response(JSON.stringify(result), {
       status: 200,
@@ -76,7 +77,7 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ projec
       id,
     });
 
-    await invalidateCustomModelCostsCache(params.projectId, deleted.model);
+    await invalidateCustomModelCostsCache(params.projectId, deleted.provider, deleted.model);
 
     return new Response(null, { status: 200 });
   } catch (error) {

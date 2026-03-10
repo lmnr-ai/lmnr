@@ -100,6 +100,7 @@ function ModelCostDialog({
     model: string,
     costs: Record<string, number>,
     previousModel?: string,
+    previousProvider?: string,
     isEdit?: boolean
   ) => Promise<boolean>;
   trigger: React.ReactNode;
@@ -124,9 +125,15 @@ function ModelCostDialog({
       return;
     }
 
-    const previousModel = mode === "edit" && initialModel && model !== initialModel ? initialModel : undefined;
+    // Detect if provider or model changed during edit — if either changed,
+    // send both previous values so the old (project_id, provider, model) row is deleted.
+    const modelChanged = mode === "edit" && initialModel && model !== initialModel;
+    const providerChanged = mode === "edit" && (provider || undefined) !== (initialProvider || undefined);
+    const isRekey = modelChanged || providerChanged;
+    const previousModel = isRekey ? initialModel : undefined;
+    const previousProvider = isRekey ? initialProvider : undefined;
     setIsSaving(true);
-    const ok = await onSave(provider || undefined, model, costs, previousModel, mode === "edit");
+    const ok = await onSave(provider || undefined, model, costs, previousModel, previousProvider, mode === "edit");
     setIsSaving(false);
     if (!ok) return;
     if (mode === "add") {
@@ -330,12 +337,13 @@ export default function CustomModelCosts() {
     model: string,
     costs: Record<string, number>,
     previousModel?: string,
+    previousProvider?: string,
     isEdit?: boolean
   ): Promise<boolean> => {
     const res = await fetch(`/api/projects/${projectId}/custom-model-costs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider, model, costs, previousModel }),
+      body: JSON.stringify({ provider, model, costs, previousModel, previousProvider }),
     });
     if (res.ok) {
       mutate();

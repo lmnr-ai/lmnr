@@ -147,12 +147,16 @@ pub async fn get_model_costs_for_project(
     orig_provider_name: &str,
     orig_model_name: &str,
 ) -> Option<ModelCosts> {
+    // Lowercase to match the frontend which lowercases provider/model before DB storage
+    let orig_provider = orig_provider_name.to_lowercase();
+    let orig_model = orig_model_name.to_lowercase();
+
     // First try project-specific custom model costs with the original model and provider names
     if let Some(costs) = get_custom_model_costs(
         db.clone(),
         cache.clone(),
-        orig_provider_name,
-        orig_model_name,
+        &orig_provider,
+        &orig_model,
         project_id,
     )
     .await

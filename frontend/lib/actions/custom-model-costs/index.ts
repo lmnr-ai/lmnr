@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
@@ -14,6 +14,7 @@ const UpsertCustomModelCostSchema = z.object({
   model: z.string().min(1, "Model name is required"),
   costs: z.record(z.string(), z.number().nonnegative("Cost values must not be negative")),
   previousModel: z.string().optional(),
+  previousProvider: z.string().optional(),
 });
 
 const DeleteCustomModelCostSchema = z.object({
@@ -63,21 +64,32 @@ export async function upsertCustomModelCost(
 ): Promise<{ result: CustomModelCost; deletedModel?: string; deletedProvider?: string | null }> {
   const parsed = UpsertCustomModelCostSchema.parse(input);
   const projectId = parsed.projectId;
-  const provider = parsed.provider;
-  // Lowercase model names to match the Rust backend's ModelInfo::extract
-  // which lowercases before DB queries and cache key construction.
+  // Lowercase provider and model to match the Rust backend's span attribute
+  // normalization before DB queries and cache key construction.
+  const provider = parsed.provider?.toLowerCase();
   const model = parsed.model.toLowerCase();
   const costs = parsed.costs;
   const previousModel = parsed.previousModel?.toLowerCase();
+  const previousProvider = parsed.previousProvider?.toLowerCase();
 
-  const isRename = previousModel && previousModel !== model;
+  // A re-key happens when model or provider changed during edit.
+  // Both previousModel and previousProvider are sent together from the UI.
+  const isRekey = previousModel !== undefined;
 
-  if (isRename) {
+  if (isRekey) {
     // Wrap delete + upsert in a transaction so the old entry is not lost if the upsert fails
     const txResult = await db.transaction(async (tx) => {
+      // Delete the old entry using previous provider+model to match the unique constraint
+      const prevProv = previousProvider || null;
       const deleted = await tx
         .delete(customModelCosts)
-        .where(and(eq(customModelCosts.projectId, projectId), eq(customModelCosts.model, previousModel)))
+        .where(
+          and(
+            eq(customModelCosts.projectId, projectId),
+            prevProv === null ? isNull(customModelCosts.provider) : eq(customModelCosts.provider, prevProv),
+            eq(customModelCosts.model, previousModel)
+          )
+        )
         .returning({ model: customModelCosts.model, provider: customModelCosts.provider });
 
       const [row] = await tx

@@ -43,11 +43,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
 
     // Invalidate cache for previously existing models in target (now deleted/replaced)
     const invalidations = existingTargetCosts.map((cost) =>
-      invalidateCustomModelCostsCache(targetProjectId, cost.model)
+      invalidateCustomModelCostsCache(targetProjectId, cost.provider, cost.model)
     );
     // Also invalidate cache for newly copied models in target
     for (const cost of result) {
-      invalidations.push(invalidateCustomModelCostsCache(targetProjectId, cost.model));
+      invalidations.push(invalidateCustomModelCostsCache(targetProjectId, cost.provider, cost.model));
     }
     await Promise.all(invalidations);
 
