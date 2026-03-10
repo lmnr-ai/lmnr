@@ -43,7 +43,7 @@ const Blurb = ({ className }: Props) => {
   });
 
   const text =
-    "Laminar's evals help us maintain high accuracy while moving fast. We now use them for every LLM based feature we build.";
+    "We run millions of agent sessions in our cloud, and when something goes wrong, Laminar's trace view is the first place we look.";
   const words = text.split(" ");
   const totalWords = words.length;
 
@@ -59,14 +59,14 @@ const Blurb = ({ className }: Props) => {
               wordIndex={index}
               totalWords={totalWords}
               scrollYProgress={scrollYProgress}
-              addLineBreak={word === "high"}
+              addLineBreak={word === "wrong,"}
             />
           ))}
           <span className="text-landing-primary-400">&rdquo;</span>
         </p>
         <div className={cn("flex flex-col md:gap-3 items-center", "gap-2")}>
-          <p className={quoteAttributionName}>Hashim Reman</p>
-          <p className={quoteAttributionRole}>CTO, Remo</p>
+          <p className={quoteAttributionName}>Magnus M&uuml;ller</p>
+          <p className={quoteAttributionRole}>CEO, Browser Use</p>
         </div>
       </div>
     </div>
