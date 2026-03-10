@@ -12,6 +12,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
 import { Button } from "../ui/button";
+import { ConfirmDialog } from "../ui/confirm-dialog";
 import {
   Dialog,
   DialogClose,
@@ -196,10 +197,7 @@ function ModelCostDialog({
           <div className="flex flex-col gap-3">
             <div>
               <Label>Costs per 1M tokens ($)</Label>
-              <p className="text-xs text-muted-foreground mt-1">
-                Enter prices in dollars per million tokens. Custom costs fully replace global rates — blank fields
-                default to $0.
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Enter prices in dollars per million tokens.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {COST_FIELDS.map(({ key, label, required }) => (
@@ -325,6 +323,8 @@ export default function CustomModelCosts() {
     mutate,
     isLoading,
   } = useSWR<CustomModelCost[]>(`/api/projects/${projectId}/custom-model-costs`, swrFetcher);
+
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; model: string } | null>(null);
 
   const upsertCost = async (params: {
     id?: string;
@@ -463,7 +463,12 @@ export default function CustomModelCosts() {
                       </Button>
                     }
                   />
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => deleteCost(cost.id)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setDeleteTarget({ id: cost.id, model: cost.model })}
+                  >
                     <Trash2 size={14} />
                   </Button>
                 </div>
@@ -472,6 +477,21 @@ export default function CustomModelCosts() {
           );
         })}
       </SettingsTable>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete model cost"
+        description={`Are you sure you want to delete the custom cost for "${deleteTarget?.model}"? This action cannot be undone.`}
+        confirmText="Delete"
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteCost(deleteTarget.id);
+            setDeleteTarget(null);
+          }
+        }}
+      />
     </SettingsSection>
   );
 }
