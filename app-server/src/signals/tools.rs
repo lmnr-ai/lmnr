@@ -10,7 +10,7 @@ use super::spans::{
     strip_signature_fields,
 };
 use super::utils::{nanoseconds_to_iso, try_parse_json};
-use crate::signals::gemini::{FunctionDeclaration, Tool};
+use crate::signals::provider::gemini::{FunctionDeclaration, Tool};
 use crate::signals::prompts::{GET_FULL_SPAN_INFO_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION};
 
 /// Full span info returned by get_full_spans tool

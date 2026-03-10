@@ -3,7 +3,7 @@
 //! - Pushes results to the Pending Queue for polling
 
 use async_trait::async_trait;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
@@ -12,10 +12,10 @@ use crate::{
     mq::MessageQueue,
     signals::{
         LLM_MODEL, LLM_PROVIDER, SignalRun, SignalWorkerConfig,
-        gemini::{GeminiClient, InlineRequestItem},
+        provider::{LanguageModelClient, ProviderClient, models::ProviderRequestItem},
         queue::{
             SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
-            push_to_pending_queue,
+            push_to_pending_queue, push_to_realtime_queue, push_to_signals_queue,
         },
         utils::extract_batch_id_from_operation,
     },
@@ -24,34 +24,28 @@ use crate::{
 };
 
 use crate::signals::common::{ProcessRunResult, handle_failed_runs, process_run};
-use crate::signals::realtime_api::process_realtime_messages;
-
-const DEFAULT_SLEEP_DURATION_FOR_DELAYED_RETRY: usize = 60;
 
 pub struct SignalJobSubmissionBatchHandler {
     pub db: Arc<DB>,
-    pub cache: Arc<crate::cache::Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
-    pub gemini: Arc<GeminiClient>,
+    pub llm_client: Arc<ProviderClient>,
     pub config: Arc<SignalWorkerConfig>,
 }
 
 impl SignalJobSubmissionBatchHandler {
     pub fn new(
         db: Arc<DB>,
-        cache: Arc<crate::cache::Cache>,
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
-        gemini: Arc<GeminiClient>,
+        llm_client: Arc<ProviderClient>,
         config: Arc<SignalWorkerConfig>,
     ) -> Self {
         Self {
             db,
-            cache,
             queue,
             clickhouse,
-            gemini,
+            llm_client,
             config,
         }
     }
@@ -72,9 +66,8 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
             self.db.clone(),
             self.clickhouse.clone(),
             self.queue.clone(),
-            self.gemini.clone(),
+            self.llm_client.clone(),
             self.config.clone(),
-            self.cache.clone(),
         )
         .await
     }
@@ -85,11 +78,10 @@ async fn process(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    gemini: Arc<GeminiClient>,
+    llm_client: Arc<ProviderClient>,
     config: Arc<SignalWorkerConfig>,
-    cache: Arc<crate::cache::Cache>,
 ) -> Result<(), HandlerError> {
-    let mut requests: Vec<InlineRequestItem> = Vec::with_capacity(msg.messages.len());
+    let mut requests: Vec<ProviderRequestItem> = Vec::with_capacity(msg.messages.len());
     let mut all_new_messages: Vec<CHSignalRunMessage> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
     let mut successful_messages: Vec<SignalMessage> = Vec::new();
@@ -123,7 +115,8 @@ async fn process(
                 new_messages,
                 request_start_time,
             }) => {
-                requests.push(request);
+                requests
+                    .push(serde_json::from_value(serde_json::to_value(request).unwrap()).unwrap());
                 all_new_messages.extend(new_messages);
                 let mut updated_message = message.clone();
                 updated_message.request_start_time = request_start_time;
@@ -147,9 +140,7 @@ async fn process(
         log::error!("[SIGNAL JOB] No requests to submit");
         // All runs failed during processing, handle them before returning
         handle_failed_runs(clickhouse, db, failed_runs).await;
-        return Err(HandlerError::permanent(anyhow::anyhow!(
-            "No requests to submit"
-        )));
+        return Ok(());
     }
 
     // Insert new messages into ClickHouse
@@ -161,66 +152,37 @@ async fn process(
             })?;
     }
 
-    // Handle failed runs before processing
-    handle_failed_runs(clickhouse.clone(), db.clone(), failed_runs).await;
+    // Submit batch to LLM API
+    let batch_result =
+        submit_batch_to_llm(&LLM_MODEL, llm_client, requests, successful_messages, queue).await;
 
-    let mut realtime_requests = Vec::new();
-    let mut realtime_messages = Vec::new();
-    let mut batch_requests = Vec::new();
-    let mut batch_messages = Vec::new();
-
-    for (request, message) in requests.into_iter().zip(successful_messages.into_iter()) {
-        if message.use_realtime_api {
-            realtime_requests.push(request);
-            realtime_messages.push(message);
-        } else {
-            batch_requests.push(request);
-            batch_messages.push(message);
+    match batch_result {
+        Ok(()) => {
+            // Batch submitted successfully, handle any runs that failed during processing
+            handle_failed_runs(clickhouse, db, failed_runs).await;
+            Ok(())
         }
-    }
-
-    if !realtime_requests.is_empty() {
-        process_realtime_messages(
-            realtime_requests,
-            realtime_messages,
-            &LLM_MODEL,
-            gemini.clone(),
-            db.clone(),
-            clickhouse.clone(),
-            queue.clone(),
-            config.clone(),
-            cache.clone(),
-        )
-        .await;
-    }
-
-    if !batch_requests.is_empty() {
-        // Submit batch to Gemini API
-        let batch_result =
-            submit_batch_to_gemini(&LLM_MODEL, gemini, batch_requests, batch_messages, queue).await;
-
-        if let Err((batch_failed_runs, handler_error)) = batch_result {
+        Err((batch_failed_runs, handler_error)) => {
             // Only handle failed runs for permanent errors (transient errors will be retried)
             if matches!(handler_error, HandlerError::Permanent(_)) {
-                handle_failed_runs(clickhouse, db, batch_failed_runs).await;
+                failed_runs.extend(batch_failed_runs);
+                handle_failed_runs(clickhouse, db, failed_runs).await;
             }
-            return Err(handler_error);
+            Err(handler_error)
         }
     }
-
-    Ok(())
 }
 
-/// Submit batch to Gemini API and push to pending queue on success.
+/// Submit batch to LLM API and push to pending queue on success.
 /// On failure, returns the failed runs and the handler error.
-async fn submit_batch_to_gemini(
+async fn submit_batch_to_llm(
     model: &str,
-    gemini: Arc<GeminiClient>,
-    requests: Vec<InlineRequestItem>,
+    llm_client: Arc<ProviderClient>,
+    requests: Vec<ProviderRequestItem>,
     messages: Vec<SignalMessage>,
     queue: Arc<MessageQueue>,
 ) -> Result<(), (Vec<SignalRun>, HandlerError)> {
-    match gemini
+    match llm_client
         .create_batch(
             model,
             requests,
@@ -271,30 +233,65 @@ async fn submit_batch_to_gemini(
             Ok(())
         }
         Err(e) => {
-            log::error!("[SIGNAL JOB] Failed to submit batch to Gemini: {:?}", e);
+            log::error!("[SIGNAL JOB] Failed to submit batch to LLM: {:?}", e);
+
+            let error_msg = format!("Batch submission failed: {}", e);
+
+            if matches!(e, crate::signals::provider::ProviderError::NotSupported(_)) {
+                log::info!(
+                    "[SIGNAL JOB] Batch API not supported by provider, falling back to realtime API"
+                );
+                for mut message in messages {
+                    message.use_realtime_api = true;
+                    if let Err(push_err) = push_to_realtime_queue(message, queue.clone()).await {
+                        log::error!(
+                            "Failed to push to realtime queue after batch not supported: {:?}",
+                            push_err
+                        );
+                    }
+                }
+                return Ok(());
+            }
+
+            if e.is_retryable() {
+                let max_retry_count = get_unsigned_env_with_default("SIGNALS_MAX_RETRY_COUNT", 4);
+
+                for mut message in messages {
+                    // only increment on 429 so we can push to realtime queue when batch API's overloaded
+                    message.retry_count += if e.is_resource_exhausted() { 1 } else { 0 };
+
+                    if message.retry_count >= max_retry_count {
+                        // Max retries reached - switch to realtime queue to process immediately
+                        message.use_realtime_api = true;
+                        if let Err(push_err) = push_to_realtime_queue(message, queue.clone()).await
+                        {
+                            log::error!(
+                                "Failed to push to realtime queue after max retries: {:?}",
+                                push_err
+                            );
+                        }
+                    } else {
+                        // Still under retry limit - push back to signals queue to try batch again
+                        if let Err(push_err) = push_to_signals_queue(message, queue.clone()).await {
+                            log::error!(
+                                "Failed to push back to signals queue for retry: {:?}",
+                                push_err
+                            );
+                        }
+                    }
+                }
+                // Return Ok because we've re-enqueued individual items for retry
+                return Ok(());
+            }
 
             let batch_failed_runs = messages
                 .iter()
                 .map(|message| {
-                    SignalRun::from_message(message, message.signal.id)
-                        .failed(&format!("Batch submission failed: {}", e))
+                    SignalRun::from_message(message, message.signal.id).failed(&error_msg)
                 })
                 .collect();
 
-            let handler_error = if e.is_retryable() {
-                if e.is_resource_exhausted() {
-                    let sleep_duration = get_unsigned_env_with_default(
-                        "SIGNAL_JOB_SLEEP_BEFORE_RETRY_SEC",
-                        DEFAULT_SLEEP_DURATION_FOR_DELAYED_RETRY,
-                    );
-                    tokio::time::sleep(Duration::from_secs(sleep_duration as u64)).await;
-                }
-                HandlerError::transient(e)
-            } else {
-                HandlerError::permanent(e)
-            };
-
-            Err((batch_failed_runs, handler_error))
+            Err((batch_failed_runs, HandlerError::permanent(e)))
         }
     }
 }

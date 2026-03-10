@@ -51,8 +51,11 @@ use signals::{
     SIGNAL_JOB_SUBMISSION_BATCH_QUEUE, SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
     SIGNAL_JOB_WAITING_BATCH_EXCHANGE, SIGNAL_JOB_WAITING_BATCH_QUEUE,
     SIGNAL_JOB_WAITING_BATCH_ROUTING_KEY, SIGNALS_EXCHANGE, SIGNALS_QUEUE, SIGNALS_ROUTING_KEY,
-    SignalWorkerConfig, batching::SignalBatchingHandler,
+    SignalWorkerConfig,
+    batching::SignalBatchingHandler,
     pendings_consumer::SignalJobPendingBatchHandler,
+    queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE, SIGNALS_REALTIME_ROUTING_KEY},
+    realtime_api::SignalJobRealtimeHandler,
     submissions_consumer::SignalJobSubmissionBatchHandler,
 };
 use tonic::transport::Server;
@@ -838,8 +841,8 @@ fn main() -> anyhow::Result<()> {
         // == Gemini client ==
         let gemini_client = if is_feature_enabled(Feature::Signals) {
             log::info!("Initializing Gemini client for trace analysis");
-            match signals::gemini::GeminiClient::new() {
-                Ok(client) => Some(Arc::new(client)),
+            match signals::provider::GeminiClient::new() {
+                Ok(client) => Some(Arc::new(signals::provider::ProviderClient::Gemini(client))),
                 Err(e) => {
                     log::warn!(
                         "Failed to create Gemini client (trace analysis will be disabled): {:?}",
@@ -1181,7 +1184,6 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
-                        let cache = cache_for_consumer.clone();
                         let gemini_clone = gemini.clone();
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
@@ -1190,7 +1192,6 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 SignalJobSubmissionBatchHandler::new(
                                     db.clone(),
-                                    cache.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
                                     gemini_clone.clone(),
@@ -1223,11 +1224,11 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 SignalJobPendingBatchHandler::new(
                                     db.clone(),
+                                    cache.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
                                     gemini_clone.clone(),
                                     config.clone(),
-                                    cache.clone(),
                                 )
                             },
                             QueueConfig {
@@ -1240,6 +1241,38 @@ fn main() -> anyhow::Result<()> {
                         log::warn!(
                             "Gemini client not available - skipping LLM batch pending workers"
                         );
+                    }
+
+                    // Spawn LLM realtime workers
+                    if let Some(gemini) = gemini_client.as_ref() {
+                        let db = db_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        let gemini_clone = gemini.clone();
+                        let cache = cache_for_consumer.clone();
+                        let config = Arc::new(SignalWorkerConfig::from_env());
+                        worker_pool_clone.spawn(
+                            WorkerType::SignalJobRealtime,
+                            get_unsigned_env_with_default("NUM_SIGNAL_JOB_REALTIME_WORKERS", 4)
+                                as usize,
+                            move || {
+                                SignalJobRealtimeHandler::new(
+                                    db.clone(),
+                                    cache.clone(),
+                                    queue.clone(),
+                                    clickhouse.clone(),
+                                    gemini_clone.clone(),
+                                    config.clone(),
+                                )
+                            },
+                            QueueConfig {
+                                queue_name: SIGNALS_REALTIME_QUEUE,
+                                exchange_name: SIGNALS_REALTIME_EXCHANGE,
+                                routing_key: SIGNALS_REALTIME_ROUTING_KEY,
+                            },
+                        );
+                    } else {
+                        log::warn!("Gemini client not available - skipping LLM realtime workers");
                     }
 
                     // Spawn logs workers
@@ -1381,7 +1414,9 @@ fn main() -> anyhow::Result<()> {
                                     .wrap(project_auth.clone())
                                     .app_data(mcp_state.clone())
                                     .service(api::v1::mcp::mcp_handler)
-                                    .default_service(web::route().to(api::v1::mcp::method_not_allowed)),
+                                    .default_service(
+                                        web::route().to(api::v1::mcp::method_not_allowed),
+                                    ),
                             )
                             .service(
                                 web::scope("/v1")

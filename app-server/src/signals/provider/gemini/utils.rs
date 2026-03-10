@@ -2,7 +2,7 @@
 
 use uuid::Uuid;
 
-use crate::signals::gemini::{FinishReason, GeminiModality, Modality};
+use super::{FinishReason, GeminiModality, Modality};
 
 use super::{Candidate, FunctionCall, InlineResponse};
 

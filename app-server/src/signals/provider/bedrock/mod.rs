@@ -1,0 +1,265 @@
+use crate::signals::provider::{
+    LanguageModelClient, ProviderError, ProviderResult, ProviderUsageMetadata,
+    models::{
+        ProviderCandidate, ProviderContent, ProviderFinishReason, ProviderFunctionCall,
+        ProviderPart, ProviderRequest, ProviderResponse,
+    },
+};
+use aws_sdk_bedrockruntime::Client as AwsBedrockClient;
+use aws_sdk_bedrockruntime::types::{
+    ContentBlock, ConversationRole, Message, StopReason, SystemContentBlock, Tool, ToolInputSchema,
+    ToolResultBlock, ToolResultContentBlock, ToolResultStatus, ToolSpecification, ToolUseBlock,
+};
+use aws_smithy_types::Document;
+use serde_json::Value;
+
+#[derive(Clone)]
+pub struct BedrockClient {
+    client: AwsBedrockClient,
+}
+
+impl BedrockClient {
+    pub async fn new() -> ProviderResult<Self> {
+        let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+        Ok(Self {
+            client: AwsBedrockClient::new(&config),
+        })
+    }
+}
+
+impl LanguageModelClient for BedrockClient {
+    async fn generate_content(
+        &self,
+        model: &str,
+        request: &ProviderRequest,
+    ) -> ProviderResult<ProviderResponse> {
+        let mut messages = Vec::new();
+        for content in &request.contents {
+            let role = match content.role.as_deref().unwrap_or("user") {
+                "user" => ConversationRole::User,
+                "assistant" | "model" => ConversationRole::Assistant,
+                _ => ConversationRole::User,
+            };
+
+            let mut blocks = Vec::new();
+            if let Some(parts) = &content.parts {
+                for part in parts {
+                    if let Some(text) = &part.text {
+                        blocks.push(ContentBlock::Text(text.clone()));
+                    } else if let Some(func_call) = &part.function_call {
+                        let mut tool_use = ToolUseBlock::builder()
+                            .name(func_call.name.clone())
+                            .tool_use_id(
+                                func_call
+                                    .id
+                                    .clone()
+                                    .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+                            );
+
+                        if let Some(args) = &func_call.args {
+                            let doc = value_to_document(args);
+                            tool_use = tool_use.input(doc);
+                        }
+
+                        blocks.push(ContentBlock::ToolUse(
+                            tool_use
+                                .build()
+                                .map_err(|e| ProviderError::RequestError(e.to_string()))?,
+                        ));
+                    } else if let Some(func_resp) = &part.function_response {
+                        // Use text stringified JSON as it's perfectly supported and simpler to manage than Document conversions
+                        let text = serde_json::to_string(&func_resp.response).unwrap_or_default();
+                        let content_block = ToolResultContentBlock::Text(text);
+
+                        let tool_result = ToolResultBlock::builder()
+                            .tool_use_id(func_resp.id.clone().unwrap_or_default())
+                            .status(ToolResultStatus::Success)
+                            .content(content_block)
+                            .build()
+                            .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+
+                        blocks.push(ContentBlock::ToolResult(tool_result));
+                    }
+                }
+            }
+
+            let msg = Message::builder()
+                .role(role)
+                .set_content(Some(blocks))
+                .build()
+                .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+
+            messages.push(msg);
+        }
+
+        let mut req_builder = self
+            .client
+            .converse()
+            .model_id(model)
+            .set_messages(Some(messages));
+
+        if let Some(sys) = &request.system_instruction {
+            let mut sys_blocks = Vec::new();
+            if let Some(parts) = &sys.parts {
+                for part in parts {
+                    if let Some(text) = &part.text {
+                        sys_blocks.push(SystemContentBlock::Text(text.clone()));
+                    }
+                }
+            }
+            req_builder = req_builder.set_system(Some(sys_blocks));
+        }
+
+        if let Some(tools) = &request.tools {
+            let mut bedrock_tools = Vec::new();
+            for t in tools {
+                for func in &t.function_declarations {
+                    let schema_doc = value_to_document(&func.parameters);
+                    let input_schema = ToolInputSchema::Json(schema_doc);
+                    let spec = ToolSpecification::builder()
+                        .name(func.name.clone())
+                        .description(func.description.clone())
+                        .input_schema(input_schema)
+                        .build()
+                        .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+                    bedrock_tools.push(Tool::ToolSpec(spec));
+                }
+            }
+
+            if !bedrock_tools.is_empty() {
+                let tool_config = aws_sdk_bedrockruntime::types::ToolConfiguration::builder()
+                    .set_tools(Some(bedrock_tools))
+                    .build()
+                    .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+
+                req_builder = req_builder.tool_config(tool_config);
+            }
+        }
+
+        let resp = req_builder.send().await.map_err(|e| {
+            log::error!("Failed to call AWS Bedrock provider. {e}");
+            let status = e.raw_response().map(|r| r.status().as_u16()).unwrap_or(500);
+            ProviderError::ApiError {
+                status_code: status,
+                message: e.to_string(),
+                retryable: status >= 500 || status == 429,
+                resource_exhausted: status == 429,
+            }
+        })?;
+
+        let output = resp
+            .output()
+            .ok_or_else(|| ProviderError::ParseError("No output in response".to_string()))?;
+
+        let mut provider_parts = Vec::new();
+
+        if let aws_sdk_bedrockruntime::types::ConverseOutput::Message(m) = output {
+            for block in m.content() {
+                match block {
+                    ContentBlock::Text(t) => {
+                        provider_parts.push(ProviderPart {
+                            text: Some(t.clone()),
+                            ..Default::default()
+                        });
+                    }
+                    ContentBlock::ToolUse(tu) => {
+                        let args = document_to_value(tu.input());
+                        provider_parts.push(ProviderPart {
+                            function_call: Some(ProviderFunctionCall {
+                                id: Some(tu.tool_use_id().to_string()),
+                                name: tu.name().to_string(),
+                                args: Some(args),
+                            }),
+                            ..Default::default()
+                        });
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let finish_reason = match resp.stop_reason() {
+            StopReason::EndTurn => ProviderFinishReason::Stop,
+            StopReason::MaxTokens => ProviderFinishReason::MaxTokens,
+            StopReason::ContentFiltered => ProviderFinishReason::Safety,
+            StopReason::ToolUse => ProviderFinishReason::Stop,
+            stop_reason => ProviderFinishReason::Other(stop_reason.as_str().to_string()),
+        };
+
+        let cand = ProviderCandidate {
+            content: Some(ProviderContent {
+                role: Some("model".to_string()),
+                parts: Some(provider_parts),
+            }),
+            finish_reason: Some(finish_reason),
+        };
+
+        let usage = resp.usage().map(|u| ProviderUsageMetadata {
+            prompt_token_count: Some(u.input_tokens() as i32),
+            candidates_token_count: Some(u.output_tokens() as i32),
+            total_token_count: Some(u.total_tokens() as i32),
+            cache_tokens_details: None,
+        });
+
+        Ok(ProviderResponse {
+            candidates: Some(vec![cand]),
+            usage_metadata: usage,
+            model_version: Some(model.to_string()),
+        })
+    }
+}
+
+// Map serde_json::Value to aws_smithy_types::Document
+fn value_to_document(v: &serde_json::Value) -> aws_smithy_types::Document {
+    match v {
+        Value::Null => aws_smithy_types::Document::Null,
+        Value::Bool(b) => aws_smithy_types::Document::Bool(*b),
+        Value::Number(n) => {
+            if let Some(f) = n.as_f64() {
+                aws_smithy_types::Document::Number(aws_smithy_types::Number::Float(f))
+            } else if let Some(i) = n.as_i64() {
+                if i >= 0 {
+                    aws_smithy_types::Document::Number(aws_smithy_types::Number::PosInt(i as u64))
+                } else {
+                    aws_smithy_types::Document::Number(aws_smithy_types::Number::NegInt(i))
+                }
+            } else {
+                aws_smithy_types::Document::Null
+            }
+        }
+        Value::String(s) => aws_smithy_types::Document::String(s.clone()),
+        Value::Array(arr) => {
+            aws_smithy_types::Document::Array(arr.iter().map(value_to_document).collect())
+        }
+        Value::Object(obj) => aws_smithy_types::Document::Object(
+            obj.iter()
+                .map(|(k, v)| (k.clone(), value_to_document(v)))
+                .collect(),
+        ),
+    }
+}
+
+// Map aws_smithy_types::Document back to serde_json::Value
+fn document_to_value(d: &aws_smithy_types::Document) -> serde_json::Value {
+    match d {
+        Document::Null => serde_json::Value::Null,
+        Document::Bool(b) => serde_json::Value::Bool(*b),
+        Document::Number(n) => match n {
+            aws_smithy_types::Number::PosInt(i) => Value::Number((*i).into()),
+            aws_smithy_types::Number::NegInt(i) => Value::Number((*i).into()),
+            aws_smithy_types::Number::Float(f) => Value::Number(
+                serde_json::Number::from_f64(*f)
+                    .unwrap_or(serde_json::Number::from_f64(0.0).unwrap()),
+            ),
+        },
+        Document::String(s) => Value::String(s.clone()),
+        Document::Array(arr) => Value::Array(arr.iter().map(document_to_value).collect()),
+        Document::Object(obj) => {
+            let mut map = serde_json::Map::new();
+            for (k, v) in obj {
+                map.insert(k.clone(), document_to_value(v));
+            }
+            Value::Object(map)
+        }
+    }
+}

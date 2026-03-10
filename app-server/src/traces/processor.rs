@@ -323,6 +323,8 @@ async fn check_and_push_signals(
                 trigger.signal.clone(),
                 clickhouse.clone(),
                 queue.clone(),
+                // TODO: fetch a trigger config whether to process in realtime from Trigger definition
+                false,
             )
             .await
             {

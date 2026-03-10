@@ -73,6 +73,7 @@ pub enum WorkerType {
     Clustering,
     SignalJobSubmissionBatch,
     SignalJobPendingBatch,
+    SignalJobRealtime,
     Logs,
 }
 
@@ -86,6 +87,7 @@ impl std::fmt::Display for WorkerType {
                 write!(f, "signal_job_submission_batch")
             }
             WorkerType::SignalJobPendingBatch => write!(f, "signal_job_pending_batch"),
+            WorkerType::SignalJobRealtime => write!(f, "signal_job_realtime"),
             WorkerType::Logs => write!(f, "logs"),
         }
     }

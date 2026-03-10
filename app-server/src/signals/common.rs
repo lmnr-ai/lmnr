@@ -12,8 +12,10 @@ use crate::{
     db::spans::SpanType,
     mq::MessageQueue,
     signals::SignalRun,
-    signals::gemini::{Content, GenerateContentRequest, GenerationConfig, InlineRequestItem, Part},
     signals::prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
+    signals::provider::gemini::{
+        Content, GenerateContentRequest, GenerationConfig, InlineRequestItem, Part,
+    },
     signals::spans::get_trace_structure_as_string,
     signals::tools::build_tool_definitions,
     signals::utils::{InternalSpan, emit_internal_span},

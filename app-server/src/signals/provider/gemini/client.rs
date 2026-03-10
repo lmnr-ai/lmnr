@@ -2,6 +2,10 @@ use super::{
     BatchCreateRequest, GeminiError, GenerateContentRequest, GenerateContentResponse,
     InlineRequestItem, Operation,
 };
+use crate::signals::provider::{
+    LanguageModelClient, ProviderResult,
+    models::{ProviderBatchOperation, ProviderRequest, ProviderRequestItem, ProviderResponse},
+};
 use std::{env, time::Duration};
 
 #[derive(Clone)]
@@ -33,6 +37,38 @@ impl GeminiClient {
             api_key,
             api_base_url,
         })
+    }
+
+    pub async fn generate_content(
+        &self,
+        model: &str,
+        request: &GenerateContentRequest,
+    ) -> GeminiResult<GenerateContentResponse> {
+        let url = format!("{}/models/{}:generateContent", self.api_base_url, model);
+
+        let response = self
+            .client
+            .post(&url)
+            .header("x-goog-api-key", &self.api_key)
+            .header("Content-Type", "application/json")
+            .json(request)
+            .send()
+            .await?;
+
+        let status = response.status();
+
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            log::error!("Gemini API error ({}): {}", status, error_text);
+
+            return Err(GeminiError::from_response(status.as_u16(), error_text));
+        }
+
+        let response_text = response.text().await?;
+
+        let generate_response: GenerateContentResponse = serde_json::from_str(&response_text)?;
+
+        Ok(generate_response)
     }
 
     pub async fn create_batch(
@@ -98,36 +134,40 @@ impl GeminiClient {
 
         Ok(operation)
     }
+}
 
-    pub async fn generate_content(
+impl LanguageModelClient for GeminiClient {
+    fn supports_batch(&self) -> bool {
+        true
+    }
+
+    async fn generate_content(
         &self,
         model: &str,
-        request: &GenerateContentRequest,
-    ) -> GeminiResult<GenerateContentResponse> {
-        let url = format!("{}/models/{}:generateContent", self.api_base_url, model);
+        request: &ProviderRequest,
+    ) -> ProviderResult<ProviderResponse> {
+        let gemini_req: GenerateContentRequest =
+            serde_json::from_value(serde_json::to_value(request).unwrap()).unwrap();
+        let res = self.generate_content(model, &gemini_req).await?;
+        Ok(res.into())
+    }
 
-        let response = self
-            .client
-            .post(&url)
-            .header("x-goog-api-key", &self.api_key)
-            .header("Content-Type", "application/json")
-            .json(request)
-            .send()
-            .await?;
+    async fn create_batch(
+        &self,
+        model: &str,
+        requests: Vec<ProviderRequestItem>,
+        display_name: Option<String>,
+    ) -> ProviderResult<ProviderBatchOperation> {
+        let gemini_reqs: Vec<InlineRequestItem> = requests
+            .into_iter()
+            .map(|r| serde_json::from_value(serde_json::to_value(r).unwrap()).unwrap())
+            .collect();
+        let res = GeminiClient::create_batch(self, model, gemini_reqs, display_name).await?;
+        Ok(res.into())
+    }
 
-        let status = response.status();
-
-        if !status.is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            log::error!("Gemini API error ({}): {}", status, error_text);
-
-            return Err(GeminiError::from_response(status.as_u16(), error_text));
-        }
-
-        let response_text = response.text().await?;
-
-        let content_response: GenerateContentResponse = serde_json::from_str(&response_text)?;
-
-        Ok(content_response)
+    async fn get_batch(&self, batch_name: &str) -> ProviderResult<ProviderBatchOperation> {
+        let res = GeminiClient::get_batch(self, batch_name).await?;
+        Ok(res.into())
     }
 }

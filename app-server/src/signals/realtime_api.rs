@@ -1,44 +1,134 @@
+use async_trait::async_trait;
 use backoff::ExponentialBackoffBuilder;
 use std::{sync::Arc, time::Duration};
 use uuid::Uuid;
 
 use crate::{
     cache::Cache,
+    ch::signal_run_messages::insert_signal_run_messages,
     db::DB,
     mq::MessageQueue,
     signals::{
-        SignalRun, SignalWorkerConfig,
-        common::handle_failed_runs,
-        gemini::{
-            GeminiClient, GenerateContentBatchOutput, InlineRequestItem, InlineResponse,
-            InlinedResponsesWrapper,
-        },
+        LLM_MODEL, LLM_PROVIDER, SignalRun, SignalWorkerConfig,
+        common::{ProcessRunResult, handle_failed_runs, process_run},
         pendings_consumer::process_succeeded_batch,
-        queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_signals_queue},
+        provider::{
+            LanguageModelClient, ProviderClient,
+            models::{ProviderBatchOutput, ProviderInlineResponse, ProviderRequestItem},
+        },
+        queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue},
     },
     utils::get_unsigned_env_with_default,
+    worker::{HandlerError, MessageHandler},
 };
 
-pub async fn process_realtime_messages(
-    requests: Vec<InlineRequestItem>,
-    messages: Vec<SignalMessage>,
-    model: &str,
-    gemini: Arc<GeminiClient>,
-    db: Arc<DB>,
-    clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-    config: Arc<SignalWorkerConfig>,
-    cache: Arc<Cache>,
-) {
-    let max_retry_count = get_unsigned_env_with_default("SIGNALS_MAX_RETRY_COUNT", 4);
+pub struct SignalJobRealtimeHandler {
+    pub db: Arc<DB>,
+    pub cache: Arc<Cache>,
+    pub queue: Arc<MessageQueue>,
+    pub clickhouse: clickhouse::Client,
+    pub llm_client: Arc<ProviderClient>,
+    pub config: Arc<SignalWorkerConfig>,
+}
 
-    for (request, message) in requests.into_iter().zip(messages.into_iter()) {
-        let model_str = model.to_string();
-        let gemini_clone = gemini.clone();
+impl SignalJobRealtimeHandler {
+    pub fn new(
+        db: Arc<DB>,
+        cache: Arc<Cache>,
+        queue: Arc<MessageQueue>,
+        clickhouse: clickhouse::Client,
+        llm_client: Arc<ProviderClient>,
+        config: Arc<SignalWorkerConfig>,
+    ) -> Self {
+        Self {
+            db,
+            cache,
+            queue,
+            clickhouse,
+            llm_client,
+            config,
+        }
+    }
+}
+
+#[async_trait]
+impl MessageHandler for SignalJobRealtimeHandler {
+    type Message = SignalMessage;
+
+    async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
+        let project_id = message.project_id;
+        let signal = &message.signal;
+        let trace_id = message.trace_id;
+
+        match process_run(
+            project_id,
+            trace_id,
+            message.run_id,
+            message.step,
+            message.internal_trace_id,
+            message.internal_span_id,
+            message.job_id,
+            &signal.prompt,
+            &signal.name,
+            &signal.structured_output_schema,
+            &LLM_MODEL,
+            &LLM_PROVIDER,
+            self.clickhouse.clone(),
+            self.queue.clone(),
+            self.config.internal_project_id,
+        )
+        .await
+        {
+            Ok(ProcessRunResult {
+                request,
+                new_messages,
+                request_start_time,
+            }) => {
+                let mut updated_message = message.clone();
+                updated_message.request_start_time = request_start_time;
+
+                if !new_messages.is_empty() {
+                    insert_signal_run_messages(self.clickhouse.clone(), &new_messages)
+                        .await
+                        .map_err(|e| {
+                            HandlerError::Transient(anyhow::anyhow!(
+                                "Failed to insert messages: {}",
+                                e
+                            ))
+                        })?;
+                }
+
+                let provider_request: ProviderRequestItem =
+                    serde_json::from_value(serde_json::to_value(request).unwrap()).unwrap();
+                self.process_realtime_request(provider_request, updated_message)
+                    .await;
+            }
+            Err(e) => {
+                log::error!(
+                    "[SIGNAL JOB] Failed to process realtime run {}: {:?}",
+                    message.run_id,
+                    e
+                );
+                let failed_run = SignalRun::from_message(&message, signal.id)
+                    .failed(&format!("Failed to process run: {}", e));
+                handle_failed_runs(self.clickhouse.clone(), self.db.clone(), vec![failed_run])
+                    .await;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl SignalJobRealtimeHandler {
+    async fn process_realtime_request(&self, request: ProviderRequestItem, message: SignalMessage) {
+        let max_retry_count = get_unsigned_env_with_default("SIGNALS_MAX_RETRY_COUNT", 4);
+        let model_str = LLM_MODEL.to_string();
+        let llm_client = self.llm_client.clone();
         let req_clone = request.request.clone();
 
         let generate_fn = || async {
-            gemini_clone
+            llm_client
                 .generate_content(&model_str, &req_clone)
                 .await
                 .map_err(|e| {
@@ -59,7 +149,7 @@ pub async fn process_realtime_messages(
 
         match backoff::future::retry(backoff, generate_fn).await {
             Ok(response) => {
-                let inline_response = InlineResponse {
+                let inline_response = ProviderInlineResponse {
                     response: Some(response),
                     error: None,
                     metadata: Some(serde_json::json!({
@@ -68,10 +158,8 @@ pub async fn process_realtime_messages(
                     })),
                 };
 
-                let batch_output = GenerateContentBatchOutput {
-                    inlined_responses: InlinedResponsesWrapper {
-                        inlined_responses: vec![inline_response],
-                    },
+                let batch_output = ProviderBatchOutput {
+                    responses: vec![inline_response],
                 };
 
                 let pending_message = SignalJobPendingBatchMessage {
@@ -82,11 +170,11 @@ pub async fn process_realtime_messages(
                 if let Err(e) = process_succeeded_batch(
                     &pending_message,
                     Some(batch_output),
-                    db.clone(),
-                    queue.clone(),
-                    clickhouse.clone(),
-                    config.clone(),
-                    cache.clone(),
+                    self.db.clone(),
+                    self.queue.clone(),
+                    self.clickhouse.clone(),
+                    self.config.clone(),
+                    self.cache.clone(),
                 )
                 .await
                 {
@@ -109,16 +197,23 @@ pub async fn process_realtime_messages(
                         max_retry_count
                     );
 
-                    if let Err(enqueue_err) = push_to_signals_queue(retry_msg, queue.clone()).await
+                    if let Err(enqueue_err) =
+                        push_to_realtime_queue(retry_msg, self.queue.clone()).await
                     {
                         log::error!(
                             "Failed to enqueue retry for realtime request: {:?}",
                             enqueue_err
                         );
-                        handle_failed_runs(clickhouse.clone(), db.clone(), vec![failed_run]).await;
+                        handle_failed_runs(
+                            self.clickhouse.clone(),
+                            self.db.clone(),
+                            vec![failed_run],
+                        )
+                        .await;
                     }
                 } else {
-                    handle_failed_runs(clickhouse.clone(), db.clone(), vec![failed_run]).await;
+                    handle_failed_runs(self.clickhouse.clone(), self.db.clone(), vec![failed_run])
+                        .await;
                 }
             }
         }
