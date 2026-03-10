@@ -1,12 +1,11 @@
 "use client";
 
-import { Circle, CircleDashed } from "lucide-react";
-
 import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { cn } from "@/lib/utils";
 
+import { getClusterColor, UNCLUSTERED_COLOR } from "../colors";
 import { type ClusterNode } from "../utils";
-import ClusterItem from "./cluster-item";
+import ClusterItem, { type IconVariant } from "./cluster-item";
 
 interface ClusterListProps {
   visibleClusters: EventCluster[];
@@ -16,6 +15,7 @@ interface ClusterListProps {
   onNavigateToCluster: (clusterId: string) => void;
   onToggleLeafSelection: (clusterId: string) => void;
   unclusteredCount: number;
+  unclusteredVirtualCluster: EventCluster;
   className?: string;
 }
 
@@ -27,6 +27,7 @@ export default function ClusterList({
   onNavigateToCluster,
   onToggleLeafSelection,
   unclusteredCount,
+  unclusteredVirtualCluster,
   className,
 }: ClusterListProps) {
   const isUnclusteredSelected = selectedLeafId === UNCLUSTERED_ID;
@@ -43,13 +44,14 @@ export default function ClusterList({
               const hasChildren = (cluster as ClusterNode).children.length > 0;
               const isLeafSelected = !hasChildren && selectedLeafId === cluster.id;
               const filteredCount = filteredCountByCluster.get(cluster.id);
+              const iconVariant: IconVariant = hasChildren ? "folder" : "circle";
               return (
                 <ClusterItem
                   key={cluster.id}
                   cluster={cluster}
-                  index={index}
-                  drillDownDepth={drillDownDepth}
-                  isLeafSelected={isLeafSelected}
+                  iconVariant={iconVariant}
+                  color={getClusterColor(index, drillDownDepth)}
+                  isSelected={isLeafSelected}
                   filteredCount={filteredCount}
                   onClick={() => {
                     if (hasChildren) {
@@ -62,24 +64,17 @@ export default function ClusterList({
               );
             })}
 
-            {showUnclustered && (
+            {showUnclustered && unclusteredCount > 0 && (
               <>
                 {visibleClusters.length > 0 && <div className="border-t my-1" />}
-                <button
-                  className={cn(
-                    "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors cursor-pointer hover:bg-muted text-secondary-foreground",
-                    isUnclusteredSelected && "bg-sidebar-accent font-medium text-primary-foreground"
-                  )}
+                <ClusterItem
+                  cluster={unclusteredVirtualCluster}
+                  iconVariant={isUnclusteredSelected ? "circle" : "circle-dashed"}
+                  color={UNCLUSTERED_COLOR}
+                  isSelected={isUnclusteredSelected}
+                  filteredCount={filteredCountByCluster.get(UNCLUSTERED_ID)}
                   onClick={() => onToggleLeafSelection(UNCLUSTERED_ID)}
-                >
-                  {isUnclusteredSelected ? (
-                    <Circle className={cn("size-3.5 shrink-0 fill-slate-400 stroke-none")} />
-                  ) : (
-                    <CircleDashed className={cn("size-3.5 shrink-0 text-slate-400")} />
-                  )}
-                  <span className="truncate">Unclustered Events</span>
-                  <span className="text-muted-foreground text-xs ml-auto shrink-0">{unclusteredCount}</span>
-                </button>
+                />
               </>
             )}
           </>

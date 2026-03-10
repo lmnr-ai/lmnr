@@ -61,10 +61,17 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     clusterFilter,
   });
 
+  // TODO: Remove debug log
+  console.log("[getEventsPaginated] mainQuery:", mainQuery);
+  console.log("[getEventsPaginated] mainParams:", JSON.stringify(mainParams));
+  console.log("[getEventsPaginated] unclustered:", unclustered, "clusterIds:", clusterIds);
+
   const [items, [countResult]] = await Promise.all([
     executeQuery<EventRow>({ query: mainQuery, parameters: mainParams, projectId }),
     executeQuery<{ count: number }>({ query: countQuery, parameters: countParams, projectId }),
   ]);
+
+  console.log("[getEventsPaginated] items:", items.length, "count:", countResult?.count);
 
   return {
     items,
