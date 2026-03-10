@@ -22,17 +22,29 @@ const BEDROCK_MODELS: Record<ModelTier, string> = {
 
 type AIProvider = "gemini" | "bedrock";
 
+function isGeminiConfigured(): boolean {
+  return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+}
+
+function isBedrockConfigured(): boolean {
+  return (
+    process.env.BEDROCK_ENABLED === "true" &&
+    !!process.env.AWS_ACCESS_KEY_ID &&
+    !!process.env.AWS_SECRET_ACCESS_KEY &&
+    !!process.env.AWS_REGION
+  );
+}
+
+export function isAIProviderConfigured(): boolean {
+  return isGeminiConfigured() || isBedrockConfigured();
+}
+
 function getActiveProvider(): AIProvider {
-  if (process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+  if (isGeminiConfigured()) {
     return "gemini";
   }
 
-  if (
-    process.env.BEDROCK_ENABLED === "true" &&
-    process.env.AWS_ACCESS_KEY_ID &&
-    process.env.AWS_SECRET_ACCESS_KEY &&
-    process.env.AWS_REGION
-  ) {
+  if (isBedrockConfigured()) {
     return "bedrock";
   }
 
