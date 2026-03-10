@@ -7,7 +7,6 @@ import {
   getCustomModelCosts,
   upsertCustomModelCost,
 } from "@/lib/actions/custom-model-costs";
-import { invalidateCustomModelCostsCache } from "@/lib/actions/custom-model-costs/invalidate-cache";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -45,14 +44,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
       provider: body.provider,
       model: body.model,
       costs: body.costs,
+      previousModel: body.previousModel,
+      previousProvider: body.previousProvider,
     });
-
-    if (body.previousModel) {
-      const prevProvider = (body.previousProvider ?? "").toLowerCase();
-      const prevModel = body.previousModel.toLowerCase();
-      await invalidateCustomModelCostsCache(params.projectId, prevProvider, prevModel);
-    }
-    await invalidateCustomModelCostsCache(params.projectId, result.provider, result.model);
 
     return new Response(JSON.stringify(result), {
       status: 200,
@@ -79,12 +73,10 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ projec
   try {
     const id = req.nextUrl.searchParams.get("id") ?? "";
 
-    const deleted = await deleteCustomModelCost({
+    await deleteCustomModelCost({
       projectId: params.projectId,
       id,
     });
-
-    await invalidateCustomModelCostsCache(params.projectId, deleted.provider, deleted.model);
 
     return new Response(null, { status: 200 });
   } catch (error) {

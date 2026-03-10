@@ -4,6 +4,8 @@ import { z } from "zod/v4";
 import { db } from "@/lib/db/drizzle";
 import { customModelCosts } from "@/lib/db/migrations/schema";
 
+import { invalidateCustomModelCostsCache } from "./invalidate-cache";
+
 const GetCustomModelCostsSchema = z.object({
   projectId: z.string(),
 });
@@ -14,6 +16,8 @@ const UpsertCustomModelCostSchema = z.object({
   provider: z.string().optional(),
   model: z.string().min(1, "Model name is required"),
   costs: z.record(z.string(), z.number().nonnegative("Cost values must not be negative")),
+  previousModel: z.string().optional(),
+  previousProvider: z.string().optional(),
 });
 
 const DeleteCustomModelCostSchema = z.object({
@@ -94,6 +98,8 @@ export async function upsertCustomModelCost(
 
   await checkDuplicate(projectId, provider, model, id);
 
+  let result: CustomModelCost;
+
   if (id) {
     const [row] = await db
       .update(customModelCosts)
@@ -105,12 +111,21 @@ export async function upsertCustomModelCost(
       throw new Error("Custom model cost not found");
     }
 
-    return { result: row as CustomModelCost };
+    result = row as CustomModelCost;
+  } else {
+    const [row] = await db.insert(customModelCosts).values({ projectId, provider, model, costs }).returning();
+    result = row as CustomModelCost;
   }
 
-  const [row] = await db.insert(customModelCosts).values({ projectId, provider, model, costs }).returning();
+  // Invalidate cache for the old provider+model if it was renamed
+  if (parsed.previousModel) {
+    const prevProvider = (parsed.previousProvider ?? "").toLowerCase();
+    const prevModel = parsed.previousModel.toLowerCase();
+    await invalidateCustomModelCostsCache(projectId, prevProvider, prevModel);
+  }
+  await invalidateCustomModelCostsCache(projectId, result.provider, result.model);
 
-  return { result: row as CustomModelCost };
+  return { result };
 }
 
 export async function deleteCustomModelCost(
@@ -130,6 +145,8 @@ export async function deleteCustomModelCost(
     throw new Error("Custom model cost not found");
   }
 
+  await invalidateCustomModelCostsCache(projectId, result[0].provider, result[0].model);
+
   return result[0];
 }
 
@@ -146,6 +163,9 @@ export async function copyCustomModelCosts(
   if (sourceCosts.length === 0) {
     return [];
   }
+
+  // Fetch existing target costs before copy so we can invalidate their cache entries
+  const existingTargetCosts = await getCustomModelCosts({ projectId: targetProjectId });
 
   // Delete + insert in a transaction so target data is not lost if insert fails
   const newRows = await db.transaction(async (tx) => {
@@ -164,5 +184,17 @@ export async function copyCustomModelCosts(
       .returning();
   });
 
-  return newRows as CustomModelCost[];
+  const result = newRows as CustomModelCost[];
+
+  // Invalidate cache for previously existing models in target (now deleted/replaced)
+  const invalidations = existingTargetCosts.map((cost) =>
+    invalidateCustomModelCostsCache(targetProjectId, cost.provider, cost.model)
+  );
+  // Also invalidate cache for newly copied models in target
+  for (const cost of result) {
+    invalidations.push(invalidateCustomModelCostsCache(targetProjectId, cost.provider, cost.model));
+  }
+  await Promise.all(invalidations);
+
+  return result;
 }

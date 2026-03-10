@@ -2,8 +2,7 @@ import { type NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { copyCustomModelCosts, getCustomModelCosts } from "@/lib/actions/custom-model-costs";
-import { invalidateCustomModelCostsCache } from "@/lib/actions/custom-model-costs/invalidate-cache";
+import { copyCustomModelCosts } from "@/lib/actions/custom-model-costs";
 import { authOptions } from "@/lib/auth";
 import { isUserMemberOfProject } from "@/lib/authorization";
 
@@ -29,9 +28,6 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
       return new Response("Forbidden: no access to target project", { status: 403 });
     }
 
-    // Fetch existing target costs before copy so we can invalidate their cache entries
-    const existingTargetCosts = await getCustomModelCosts({ projectId: targetProjectId });
-
     const result = await copyCustomModelCosts({
       sourceProjectId: params.projectId,
       targetProjectId,
@@ -40,16 +36,6 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
     if (result.length === 0) {
       return new Response("No custom model costs found in source project", { status: 400 });
     }
-
-    // Invalidate cache for previously existing models in target (now deleted/replaced)
-    const invalidations = existingTargetCosts.map((cost) =>
-      invalidateCustomModelCostsCache(targetProjectId, cost.provider, cost.model)
-    );
-    // Also invalidate cache for newly copied models in target
-    for (const cost of result) {
-      invalidations.push(invalidateCustomModelCostsCache(targetProjectId, cost.provider, cost.model));
-    }
-    await Promise.all(invalidations);
 
     return new Response(JSON.stringify(result), {
       status: 200,
