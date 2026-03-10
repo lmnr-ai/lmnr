@@ -443,7 +443,7 @@ export default function CustomModelCosts() {
                 <div className="flex justify-end gap-1">
                   <ModelCostDialog
                     mode="edit"
-                    initialProvider={cost.provider ?? undefined}
+                    initialProvider={cost.provider || undefined}
                     initialModel={cost.model}
                     initialCosts={costObj}
                     onSave={upsertCost}

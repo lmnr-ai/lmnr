@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
@@ -30,7 +30,7 @@ const CopyCustomModelCostsSchema = z.object({
 export type CustomModelCost = {
   id: string;
   projectId: string;
-  provider: string | null;
+  provider: string;
   model: string;
   costs: Record<string, number>;
   createdAt: string;
@@ -61,16 +61,17 @@ export async function getCustomModelCosts(
 
 export async function upsertCustomModelCost(
   input: z.infer<typeof UpsertCustomModelCostSchema>
-): Promise<{ result: CustomModelCost; deletedModel?: string; deletedProvider?: string | null }> {
+): Promise<{ result: CustomModelCost; deletedModel?: string; deletedProvider?: string }> {
   const parsed = UpsertCustomModelCostSchema.parse(input);
   const projectId = parsed.projectId;
   // Lowercase provider and model to match the Rust backend's span attribute
   // normalization before DB queries and cache key construction.
-  const provider = parsed.provider?.toLowerCase();
+  // Provider defaults to empty string (column is NOT NULL DEFAULT '').
+  const provider = (parsed.provider ?? "").toLowerCase();
   const model = parsed.model.toLowerCase();
   const costs = parsed.costs;
   const previousModel = parsed.previousModel?.toLowerCase();
-  const previousProvider = parsed.previousProvider?.toLowerCase();
+  const previousProvider = parsed.previousProvider !== undefined ? parsed.previousProvider.toLowerCase() : undefined;
 
   // A re-key happens when model or provider changed during edit.
   // Both previousModel and previousProvider are sent together from the UI.
@@ -80,13 +81,12 @@ export async function upsertCustomModelCost(
     // Wrap delete + upsert in a transaction so the old entry is not lost if the upsert fails
     const txResult = await db.transaction(async (tx) => {
       // Delete the old entry using previous provider+model to match the unique constraint
-      const prevProv = previousProvider || null;
       const deleted = await tx
         .delete(customModelCosts)
         .where(
           and(
             eq(customModelCosts.projectId, projectId),
-            prevProv === null ? isNull(customModelCosts.provider) : eq(customModelCosts.provider, prevProv),
+            eq(customModelCosts.provider, previousProvider ?? ""),
             eq(customModelCosts.model, previousModel)
           )
         )
@@ -128,7 +128,7 @@ export async function upsertCustomModelCost(
 
 export async function deleteCustomModelCost(
   input: z.infer<typeof DeleteCustomModelCostSchema>
-): Promise<{ model: string; provider: string | null }> {
+): Promise<{ model: string; provider: string }> {
   const { projectId, id } = DeleteCustomModelCostSchema.parse(input);
 
   const result = await db
@@ -169,7 +169,7 @@ export async function copyCustomModelCosts(
       .values(
         sourceCosts.map((cost) => ({
           projectId: targetProjectId,
-          provider: cost.provider ?? undefined,
+          provider: cost.provider,
           model: cost.model,
           costs: cost.costs,
         }))

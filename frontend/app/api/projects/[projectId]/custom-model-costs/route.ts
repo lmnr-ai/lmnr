@@ -44,8 +44,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ projectI
     });
 
     // Invalidate cache for the old provider+model if it was renamed
-    if (deletedModel) {
-      await invalidateCustomModelCostsCache(params.projectId, deletedProvider ?? null, deletedModel);
+    if (deletedModel && deletedProvider !== undefined) {
+      await invalidateCustomModelCostsCache(params.projectId, deletedProvider, deletedModel);
     }
     // Use result values (lowercased by upsertCustomModelCost) rather than raw body values
     await invalidateCustomModelCostsCache(params.projectId, result.provider, result.model);
