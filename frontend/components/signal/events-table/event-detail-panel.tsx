@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, List, X, X as XIcon } from "lucide-react";
+import { Check, List, X } from "lucide-react";
 import { useMemo } from "react";
 
 import { type SchemaField } from "@/components/signals/utils";
@@ -31,7 +31,7 @@ function PayloadValue({ value, field }: { value: unknown; field: SchemaField }) 
     case "boolean":
       return (
         <span className="inline-flex items-center gap-1.5">
-          {value ? <Check className="size-4 text-green-500" /> : <XIcon className="size-4 text-muted-foreground" />}
+          {value ? <Check className="size-4 text-green-500" /> : <X className="size-4 text-muted-foreground" />}
           <span className="text-secondary-foreground">{value ? "true" : "false"}</span>
         </span>
       );

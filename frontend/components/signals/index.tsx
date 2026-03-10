@@ -34,7 +34,6 @@ export default function Signals() {
   );
 }
 
-// TODO: one component per file please, move this one out
 function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);

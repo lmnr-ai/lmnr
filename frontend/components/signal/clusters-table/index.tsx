@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import ClusterBreadcrumb from "./cluster-breadcrumb";
 import ClusterList from "./cluster-list";
 import ClusterStackedChart from "./cluster-stacked-chart";
-import { buildPath, buildTree, collectDescendantIds, findNodeById } from "./utils";
+import { buildPath, buildTree, type ClusterNode, collectDescendantIds, findNodeById } from "./utils";
 
 export default function ClustersTable() {
   const { toast } = useToast();
@@ -125,7 +125,7 @@ export default function ClustersTable() {
   // Reset leaf selection when navigating to a different level
   useEffect(() => {
     setSelectedLeafId(null);
-  }, [pathIds.length]);
+  }, [clusterPath]);
 
   const fetchClusters = useCallback(async () => {
     setIsLoading(true);
@@ -159,6 +159,8 @@ export default function ClustersTable() {
 
   // Fetch stats for visible clusters (+ unclustered at root level)
   useEffect(() => {
+    let cancelled = false;
+
     const pastHours = searchParams.get("pastHours");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
@@ -241,11 +243,19 @@ export default function ClustersTable() {
 
     Promise.all(fetches)
       .then(([clusterStats, unclusteredStats]) => {
-        setStatsData([...clusterStats, ...unclusteredStats]);
+        if (!cancelled) {
+          setStatsData([...clusterStats, ...unclusteredStats]);
+        }
       })
       .finally(() => {
-        setIsLoadingStats(false);
+        if (!cancelled) {
+          setIsLoadingStats(false);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [visibleClusters, searchParams, params.projectId, signal.id, localChartWidth, drillDownDepth]);
 
   const navigateToCluster = useCallback(
@@ -284,7 +294,7 @@ export default function ClustersTable() {
   }, []);
 
   // Build the list of clusters to show in the chart, including unclustered at root level
-  const unclusteredVirtualCluster: EventCluster = useMemo(
+  const unclusteredVirtualCluster: ClusterNode = useMemo(
     () => ({
       id: UNCLUSTERED_ID,
       name: "Unclustered Events",
@@ -294,18 +304,19 @@ export default function ClustersTable() {
       numEvents: unclusteredCount,
       createdAt: "",
       updatedAt: "",
+      children: [],
     }),
     [unclusteredCount]
   );
 
-  const chartClusters: EventCluster[] = useMemo(() => {
+  const chartClusters: ClusterNode[] = useMemo(() => {
     if (selectedLeafId === UNCLUSTERED_ID) {
       return [unclusteredVirtualCluster];
     }
     if (selectedLeafId) {
       return visibleClusters.filter((c) => c.id === selectedLeafId);
     }
-    const clusters: EventCluster[] = [...visibleClusters];
+    const clusters: ClusterNode[] = [...visibleClusters];
     if (drillDownDepth === 0 && unclusteredCount > 0) {
       clusters.push(unclusteredVirtualCluster);
     }

@@ -2,10 +2,9 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Circle, CircleDashed, Folder } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { type EventCluster } from "@/lib/actions/clusters";
 import { cn } from "@/lib/utils";
 
 import { withOpacity } from "../colors";
@@ -28,7 +27,7 @@ export default function ClusterItem({
   filteredCount,
   onClick,
 }: {
-  cluster: EventCluster;
+  cluster: ClusterNode;
   iconVariant: IconVariant;
   color: string;
   isSelected: boolean;
@@ -42,7 +41,6 @@ export default function ClusterItem({
   const [hovered, setHovered] = useState(false);
   const [rect, setRect] = useState<HoverRect | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearLeaveTimeout = useCallback(() => {
@@ -51,6 +49,12 @@ export default function ClusterItem({
       leaveTimeoutRef.current = null;
     }
   }, []);
+
+  useEffect(() => () => {
+      if (leaveTimeoutRef.current) {
+        clearTimeout(leaveTimeoutRef.current);
+      }
+    }, []);
 
   const handleMouseEnter = useCallback(() => {
     clearLeaveTimeout();
@@ -105,7 +109,6 @@ export default function ClusterItem({
           <AnimatePresence>
             {hovered && rect && (
               <motion.div
-                ref={overlayRef}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1, transition: { duration: 0.15, delay: 0.5 } }}
                 exit={{ opacity: 0, transition: { duration: 0.15 } }}
@@ -157,7 +160,7 @@ export default function ClusterItem({
                   >
                     {hasChildren && (
                       <span>
-                        <span className="text-foreground">{(cluster as ClusterNode).children.length}</span> sub-clusters
+                        <span className="text-foreground">{cluster.children.length}</span> sub-clusters
                       </span>
                     )}
                     <span>

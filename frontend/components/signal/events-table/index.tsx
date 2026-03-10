@@ -64,7 +64,8 @@ function PureEventsTable() {
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const filter = searchParams.getAll("filter");
+  const filterRaw = searchParams.getAll("filter");
+  const filter = useMemo(() => filterRaw, [filterRaw.join(",")]);
 
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
@@ -166,20 +167,6 @@ function PureEventsTable() {
     enabled: !!(pastHours || (startDate && endDate)),
     deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter],
   });
-
-  // TODO: Remove debug log
-  useEffect(() => {
-    console.log(
-      "[events-table] events:",
-      events?.length,
-      "isLoading:",
-      isLoading,
-      "isFetching:",
-      isFetching,
-      "hasMore:",
-      hasMore
-    );
-  }, [events, isLoading, isFetching, hasMore]);
 
   const focusedRowId = useMemo(() => {
     if (!selectedEvent) return undefined;
