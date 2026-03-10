@@ -12,7 +12,9 @@ use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
 use crate::{
     cache::Cache,
     db::{DB, spans::Span, trace::Trace},
-    language_model::costs::{ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs},
+    language_model::costs::{
+        ModelInfo, SpanCostInput, calculate_span_cost, get_model_costs_for_project,
+    },
 };
 
 use super::span_attributes::{
@@ -35,6 +37,7 @@ pub async fn get_llm_usage_for_span(
     db: Arc<DB>,
     cache: Arc<Cache>,
     span_name: &str,
+    project_id: &Uuid,
 ) -> SpanUsage {
     let input_tokens = attributes.input_tokens();
     let output_tokens = attributes.output_tokens();
@@ -48,6 +51,10 @@ pub async fn get_llm_usage_for_span(
     let mut model_name = response_model.clone().or(request_model.clone());
     let mut provider_name = attributes.provider_name(span_name);
 
+    // Store the original model and provider names for project custom model pricing lookup
+    let (orig_model_name, orig_provider_name) = (model_name.clone(), provider_name.clone());
+
+    // Transform the model name and provider names for universal model pricing lookup
     (model_name, provider_name) = tranform_model_and_provider(model_name, provider_name);
 
     if input_cost.is_some_and(|c| c > 0.0)
@@ -75,8 +82,18 @@ pub async fn get_llm_usage_for_span(
     if let Some(model) = model_name.as_deref() {
         let model_info = ModelInfo::extract(model, provider_name.as_deref());
 
-        if let Some(model_costs) = get_model_costs(db.clone(), cache.clone(), &model_info).await {
-            let span_cost_input = build_span_cost_input(attributes, &input_tokens, output_tokens);
+        if let Some(model_costs) = get_model_costs_for_project(
+            db.clone(),
+            cache.clone(),
+            &model_info,
+            project_id,
+            orig_provider_name.as_deref().unwrap_or(""),
+            orig_model_name.as_deref().unwrap_or(""),
+        )
+        .await
+        {
+            let span_cost_input: SpanCostInput =
+                build_span_cost_input(attributes, &input_tokens, output_tokens);
             let cost_entry = calculate_span_cost(&model_costs, &span_cost_input);
             input_cost = cost_entry.input_cost;
             output_cost = cost_entry.output_cost;

@@ -505,6 +505,13 @@
       "when": 1772817183488,
       "tag": "0071_eager_cobalt_man",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1773143358151,
+      "tag": "0072_redundant_star_brand",
+      "breakpoints": true
     }
   ]
 }

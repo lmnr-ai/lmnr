@@ -30,6 +30,7 @@ import {
   userSubscriptionInfo,
   sharedTraces,
   datasetExportJobs,
+  customModelCosts,
   tracesSummaries,
   slackChannelToEvents,
   datasetDatapoints,
@@ -99,6 +100,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   providerApiKeys: many(providerApiKeys),
   sharedTraces: many(sharedTraces),
   datasetExportJobs: many(datasetExportJobs),
+  customModelCosts: many(customModelCosts),
   tracesSummaries: many(tracesSummaries),
   evaluations: many(evaluations),
   projectApiKeys: many(projectApiKeys),
@@ -323,6 +325,13 @@ export const datasetExportJobsRelations = relations(datasetExportJobs, ({ one })
   }),
   project: one(projects, {
     fields: [datasetExportJobs.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const customModelCostsRelations = relations(customModelCosts, ({ one }) => ({
+  project: one(projects, {
+    fields: [customModelCosts.projectId],
     references: [projects.id],
   }),
 }));

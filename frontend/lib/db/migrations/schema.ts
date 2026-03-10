@@ -63,6 +63,12 @@ export const datasetParquets = pgTable(
   ]
 );
 
+export const testCronJobs = pgTable("test_cron_jobs", {
+  id: uuid().defaultRandom(),
+  cronString: text("cron_string"),
+  projectId: uuid("project_id"),
+});
+
 export const agentChats = pgTable(
   "agent_chats",
   {
@@ -742,6 +748,29 @@ export const datasetExportJobs = pgTable(
   ]
 );
 
+export const customModelCosts = pgTable(
+  "custom_model_costs",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").notNull(),
+    provider: text().default("").notNull(),
+    model: text().notNull(),
+    costs: jsonb().default({}).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "custom_model_costs_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("custom_model_costs_project_id_provider_model_unique").on(table.projectId, table.provider, table.model),
+  ]
+);
+
 export const tracesSummaries = pgTable(
   "traces_summaries",
   {
@@ -1082,9 +1111,7 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   name: text().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   logRetentionDays: bigint("log_retention_days", { mode: "number" }).notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   stripeProductId: text("stripe_product_id").default("").notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   bytesIngested: bigint("bytes_ingested", { mode: "number" })
     .default(sql`'0'`)

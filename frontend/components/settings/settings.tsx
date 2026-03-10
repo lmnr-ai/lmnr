@@ -1,6 +1,6 @@
 "use client";
 
-import { Key, Settings2, Sparkles, Unplug } from "lucide-react";
+import { DollarSign, Key, Settings2, Sparkles, Unplug } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { type CSSProperties, type ReactNode, useMemo, useState } from "react";
@@ -20,6 +20,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "../ui/sidebar";
+import CustomModelCosts from "./custom-model-costs";
 import DeleteProject from "./delete-project";
 import Integrations from "./integrations";
 import ProjectApiKeys from "./project-api-keys";
@@ -33,12 +34,13 @@ interface SettingsProps {
   slackRedirectUri?: string;
 }
 
-type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "integrations";
+type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "model-costs" | "integrations";
 
 const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "general", label: "General", icon: <Settings2 /> },
   { id: "project-api-keys", label: "Project API Keys", icon: <Key /> },
   { id: "provider-api-keys", label: "Model Providers", icon: <Sparkles /> },
+  { id: "model-costs", label: "Model Costs", icon: <DollarSign /> },
   { id: "integrations", label: "Integrations", icon: <Unplug /> },
 ];
 
@@ -74,6 +76,8 @@ export default function Settings({ apiKeys, slackClientId, slackRedirectUri }: S
         return <ProjectApiKeys apiKeys={apiKeys} />;
       case "provider-api-keys":
         return <ProviderApiKeys />;
+      case "model-costs":
+        return <CustomModelCosts />;
       case "integrations":
         if (workspace?.tierName === "Pro" && featureFlags[Feature.SLACK]) {
           return <Integrations slackClientId={slackClientId} slackRedirectUri={slackRedirectUri} />;
