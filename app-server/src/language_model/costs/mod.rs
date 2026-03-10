@@ -207,8 +207,8 @@ async fn get_custom_model_costs(
             log::debug!(
                 "Found custom costs in DB for project: {}, model: {}, provider: {}",
                 project_id,
-                provider,
-                model
+                model,
+                provider
             );
             Some(ModelCosts(entry.costs))
         }
