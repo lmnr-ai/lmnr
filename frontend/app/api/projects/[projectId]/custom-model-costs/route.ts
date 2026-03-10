@@ -85,7 +85,8 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ projec
       return new Response(prettifyError(error), { status: 400 });
     }
     if (error instanceof Error) {
-      return new Response(error.message, { status: 404 });
+      const status = error.message === "Custom model cost not found" ? 404 : 500;
+      return new Response(error.message, { status });
     }
     return new Response("Internal Server Error", { status: 500 });
   }
