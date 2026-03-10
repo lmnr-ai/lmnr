@@ -45,8 +45,8 @@ export function SettingsTable({
         {headers && (
           <thead>
             <tr className="border-b h-10">
-              {headers.map((h) => (
-                <th key={h} className="px-4 text-left text-xs font-medium text-muted-foreground">
+              {headers.map((h, i) => (
+                <th key={i} className="px-4 text-left text-xs font-medium text-muted-foreground">
                   {h}
                 </th>
               ))}
