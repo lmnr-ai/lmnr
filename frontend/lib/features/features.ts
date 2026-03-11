@@ -1,5 +1,3 @@
-import { isAIProviderConfigured } from "@/lib/ai/model";
-
 export enum Feature {
   SEND_EMAIL = "SEND_EMAIL",
   GITHUB_AUTH = "GITHUB_AUTH",
@@ -61,7 +59,13 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.SIGNALS) {
-    return isAIProviderConfigured();
+    return (
+      !!process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      (process.env.BEDROCK_ENABLED === "true" &&
+        !!process.env.AWS_ACCESS_KEY_ID &&
+        !!process.env.AWS_SECRET_ACCESS_KEY &&
+        !!process.env.AWS_REGION)
+    );
   }
 
   if (feature === Feature.SEND_EMAIL) {

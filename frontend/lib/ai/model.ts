@@ -35,10 +35,6 @@ function isBedrockConfigured(): boolean {
   );
 }
 
-export function isAIProviderConfigured(): boolean {
-  return isGeminiConfigured() || isBedrockConfigured();
-}
-
 function getActiveProvider(): AIProvider {
   if (isGeminiConfigured()) {
     return "gemini";
