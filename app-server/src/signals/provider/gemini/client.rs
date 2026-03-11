@@ -170,10 +170,20 @@ impl LanguageModelClient for GeminiClient {
         let gemini_reqs: Vec<InlineRequestItem> = requests
             .into_iter()
             .map(|r| {
-                serde_json::from_value(serde_json::to_value(r).expect("serialize request"))
-                    .expect("convert to Gemini InlineRequestItem")
+                let val = serde_json::to_value(r).map_err(|e| {
+                    super::super::ProviderError::RequestError(format!(
+                        "Failed to serialize batch request: {}",
+                        e
+                    ))
+                })?;
+                serde_json::from_value(val).map_err(|e| {
+                    super::super::ProviderError::RequestError(format!(
+                        "Failed to convert batch request to Gemini format: {}",
+                        e
+                    ))
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
         let res = GeminiClient::create_batch(self, model, gemini_reqs, display_name).await?;
         Ok(res.into())
     }
