@@ -57,10 +57,10 @@ pub fn render_report_email(data: &ReportData) -> String {
 
                 samples_html.push_str(&format!(
                     r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:8px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-    <span style="font-size:12px;color:#6b7280;">{timestamp}</span>
-    <a href="https://www.lmnr.ai/project/{project_id}/traces/{trace_id}" style="font-size:12px;color:#6366f1;text-decoration:none;">View trace &rarr;</a>
-  </div>{summary}
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:4px;"><tr>
+    <td style="font-size:12px;color:#6b7280;" align="left">{timestamp}</td>
+    <td style="font-size:12px;" align="right"><a href="https://www.lmnr.ai/project/{project_id}/traces/{trace_id}" style="color:#6366f1;text-decoration:none;">View trace &rarr;</a></td>
+  </tr></table>{summary}
   <pre style="background:#1f2937;color:#e5e7eb;padding:10px;border-radius:4px;font-size:12px;overflow-x:auto;margin-top:8px;white-space:pre-wrap;word-break:break-all;">{payload}</pre>
 </div>"##,
                     timestamp = html_escape(&sample.timestamp),
@@ -73,10 +73,10 @@ pub fn render_report_email(data: &ReportData) -> String {
 
             signals_html.push_str(&format!(
                 r##"<div style="margin-bottom:20px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-    <h3 style="margin:0;font-size:15px;font-weight:600;color:#111827;">{signal_name}</h3>
-    <span style="background:#eef2ff;color:#4f46e5;font-size:12px;font-weight:500;padding:2px 8px;border-radius:10px;">{count} event{s}</span>
-  </div>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;"><tr>
+    <td align="left" style="vertical-align:middle;"><h3 style="margin:0;font-size:15px;font-weight:600;color:#111827;">{signal_name}</h3></td>
+    <td align="right" style="vertical-align:middle;"><span style="background:#eef2ff;color:#4f46e5;font-size:12px;font-weight:500;padding:2px 8px;border-radius:10px;">{count} event{s}</span></td>
+  </tr></table>
   {samples_html}
 </div>"##,
                 signal_name = html_escape(signal_name),
@@ -119,12 +119,14 @@ pub fn render_report_email(data: &ReportData) -> String {
 
   <!-- Header -->
   <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:28px 24px;margin-bottom:20px;">
-    <div style="display:flex;align-items:center;margin-bottom:16px;">
-      <div style="background:#4f46e5;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-right:12px;">
-        <span style="color:#ffffff;font-weight:700;font-size:16px;">L</span>
-      </div>
-      <span style="font-size:18px;font-weight:700;color:#111827;">Laminar</span>
-    </div>
+    <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;"><tr>
+      <td style="vertical-align:middle;padding-right:12px;">
+        <div style="background:#4f46e5;width:32px;height:32px;border-radius:8px;text-align:center;line-height:32px;">
+          <span style="color:#ffffff;font-weight:700;font-size:16px;">L</span>
+        </div>
+      </td>
+      <td style="vertical-align:middle;"><span style="font-size:18px;font-weight:700;color:#111827;">Laminar</span></td>
+    </tr></table>
     <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Signal Report</h1>
     <p style="margin:0 0 4px;font-size:14px;color:#6b7280;">{workspace_name} &middot; {period_label}</p>
     <p style="margin:0;font-size:13px;color:#9ca3af;">{period_start} &ndash; {period_end}</p>
