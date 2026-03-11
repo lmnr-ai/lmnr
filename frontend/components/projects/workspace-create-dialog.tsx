@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { type PropsWithChildren, useState } from "react";
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/lib/hooks/use-toast";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -13,20 +14,31 @@ export default function WorkspaceCreateDialog({ children }: PropsWithChildren) {
 
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
   const createNewWorkspace = async () => {
     setIsLoading(true);
-    const res = await fetch("/api/workspaces", {
-      method: "POST",
-      body: JSON.stringify({
-        name: newWorkspaceName,
-      }),
-    });
 
-    const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
+    try {
+      const res = await fetch("/api/workspaces", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newWorkspaceName,
+        }),
+      });
 
-    router.push(`/workspace/${newWorkspace.id}`);
-    setIsLoading(false);
+      if (!res.ok) {
+        toast({ title: "Failed to create workspace", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+
+      const newWorkspace = (await res.json()) as { id: string; name: string; tierName: string; projectId?: string };
+      router.push(`/workspace/${newWorkspace.id}`);
+    } catch {
+      toast({ title: "Failed to create workspace", variant: "destructive" });
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { LaminarLogo } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/lib/hooks/use-toast";
 
 interface CreateFirstWorkspaceAndProjectProps {
   name?: string | null;
@@ -19,6 +20,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
+  const { toast } = useToast();
 
   const handleButtonClick = async (e: FormEvent) => {
     e.preventDefault();
@@ -46,8 +48,8 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
       }
       // We don't need to set isLoading to false, as we are redirecting.
       // Redirect itself takes some time, so we need the button to be disabled
-    } catch (error) {
-      console.error("Error during onboarding:", error);
+    } catch {
+      toast({ title: "Failed to create workspace", variant: "destructive" });
       setIsLoading(false);
     }
   };

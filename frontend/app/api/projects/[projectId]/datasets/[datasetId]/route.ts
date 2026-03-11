@@ -9,15 +9,23 @@ export async function GET(
   req: Request,
   props: { params: Promise<{ projectId: string; datasetId: string }> }
 ): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const datasetId = params.datasetId;
+  try {
+    const params = await props.params;
+    const projectId = params.projectId;
+    const datasetId = params.datasetId;
 
-  const dataset = await db.query.datasets.findFirst({
-    where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
-  });
+    const dataset = await db.query.datasets.findFirst({
+      where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
+    });
 
-  return new Response(JSON.stringify(dataset), { status: 200 });
+    return new Response(JSON.stringify(dataset), { status: 200 });
+  } catch (e) {
+    if (e instanceof ZodError) {
+      return new Response(JSON.stringify({ error: prettifyError(e) }), { status: 400 });
+    }
+    console.error(e);
+    return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 });
+  }
 }
 
 export async function PATCH(

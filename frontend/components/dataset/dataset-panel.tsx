@@ -170,18 +170,25 @@ export default function DatasetPanel({
     const newTimestamp = new Date().toISOString();
 
     setSaving(true);
-    const res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        data: newData,
-        target: newTarget,
-        metadata: newMetadata,
-        createdAt: newTimestamp,
-      }),
-    });
+    let res;
+    try {
+      res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          data: newData,
+          target: newTarget,
+          metadata: newMetadata,
+          createdAt: newTimestamp,
+        }),
+      });
+    } catch {
+      setSaving(false);
+      toast({ title: "Failed to save changes", variant: "destructive" });
+      return;
+    }
     setSaving(false);
     if (!res.ok) {
       toast({

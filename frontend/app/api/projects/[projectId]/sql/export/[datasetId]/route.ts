@@ -101,49 +101,54 @@ export async function POST(
   req: NextRequest,
   props: { params: Promise<{ projectId: string; datasetId: string }> }
 ): Promise<NextResponse> {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const datasetId = params.datasetId;
+  try {
+    const params = await props.params;
+    const projectId = params.projectId;
+    const datasetId = params.datasetId;
 
-  const dataset = await db.query.datasets.findFirst({
-    where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
-  });
+    const dataset = await db.query.datasets.findFirst({
+      where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
+    });
 
-  if (!dataset) {
-    return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
-  }
+    if (!dataset) {
+      return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
+    }
 
-  const body = await req.json();
+    const body = await req.json();
 
-  // Validate request body
-  const parseResult = CreateDatapointsSchema.safeParse(body);
-  if (!parseResult.success) {
-    return NextResponse.json(
-      {
-        error: "Invalid request body",
-        details: parseResult.error.issues,
-      },
-      { status: 400 }
+    // Validate request body
+    const parseResult = CreateDatapointsSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid request body",
+          details: parseResult.error.issues,
+        },
+        { status: 400 }
+      );
+    }
+    const { datapoints } = parseResult.data;
+
+    const materializedDatapoints = await Promise.all(
+      datapoints.map(async (datapoint) => ({
+        ...datapoint,
+        data: await materializeAttachments(datapoint.data as JSONValue, projectId),
+        target: await materializeAttachments(datapoint.target as JSONValue, projectId),
+        metadata: (await materializeAttachments(datapoint.metadata as JSONValue, projectId)) as
+          | Record<string, any>
+          | undefined,
+      }))
     );
+
+    await createDatapoints({
+      projectId,
+      datasetId,
+      datapoints: materializedDatapoints,
+    });
+
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (e) {
+    console.error(e);
+    return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 }) as unknown as NextResponse;
   }
-  const { datapoints } = parseResult.data;
-
-  const materializedDatapoints = await Promise.all(
-    datapoints.map(async (datapoint) => ({
-      ...datapoint,
-      data: await materializeAttachments(datapoint.data as JSONValue, projectId),
-      target: await materializeAttachments(datapoint.target as JSONValue, projectId),
-      metadata: (await materializeAttachments(datapoint.metadata as JSONValue, projectId)) as
-        | Record<string, any>
-        | undefined,
-    }))
-  );
-
-  await createDatapoints({
-    projectId,
-    datasetId,
-    datapoints: materializedDatapoints,
-  });
-
-  return NextResponse.json({ success: true }, { status: 200 });
 }

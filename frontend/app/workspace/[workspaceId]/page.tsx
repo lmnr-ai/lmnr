@@ -13,6 +13,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db/drizzle";
 import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+import { type WorkspaceInvitation } from "@/lib/workspaces/types";
 
 export default async function WorkspacePage(props: { params: Promise<{ workspaceId: string }> }) {
   const params = await props.params;
@@ -24,14 +25,24 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
 
   const user = session.user;
 
-  const workspace = await getWorkspace({ workspaceId: params.workspaceId });
+  let workspace;
+  try {
+    workspace = await getWorkspace({ workspaceId: params.workspaceId });
+  } catch {
+    throw new Error("Failed to load workspace");
+  }
 
-  const userMembership = await db
-    .select({ role: membersOfWorkspaces.memberRole })
-    .from(membersOfWorkspaces)
-    .where(and(eq(membersOfWorkspaces.userId, user.id), eq(membersOfWorkspaces.workspaceId, params.workspaceId)))
-    .limit(1)
-    .then((res) => res[0]);
+  let userMembership;
+  try {
+    userMembership = await db
+      .select({ role: membersOfWorkspaces.memberRole })
+      .from(membersOfWorkspaces)
+      .where(and(eq(membersOfWorkspaces.userId, user.id), eq(membersOfWorkspaces.workspaceId, params.workspaceId)))
+      .limit(1)
+      .then((res) => res[0]);
+  } catch {
+    throw new Error("Failed to verify workspace access");
+  }
 
   if (!userMembership) {
     return notFound();
@@ -40,11 +51,21 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
   const isOwner = userMembership.role === "owner";
   const currentUserRole = userMembership.role || "member";
 
-  const stats = await getWorkspaceStats(params.workspaceId);
+  let stats;
+  try {
+    stats = await getWorkspaceStats(params.workspaceId);
+  } catch {
+    throw new Error("Failed to load workspace usage data");
+  }
 
-  const invitations = await db.query.workspaceInvitations.findMany({
-    where: eq(workspaceInvitations.workspaceId, params.workspaceId),
-  });
+  let invitations: WorkspaceInvitation[];
+  try {
+    invitations = (await db.query.workspaceInvitations.findMany({
+      where: eq(workspaceInvitations.workspaceId, params.workspaceId),
+    })) as WorkspaceInvitation[];
+  } catch {
+    invitations = [];
+  }
 
   const canManageBilling = isFeatureEnabled(Feature.SUBSCRIPTION) && ["owner", "admin"].includes(currentUserRole);
 

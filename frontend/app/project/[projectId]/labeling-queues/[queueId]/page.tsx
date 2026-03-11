@@ -13,9 +13,14 @@ export const metadata: Metadata = {
 export default async function DatasetPage(props: { params: Promise<{ projectId: string; queueId: string }> }) {
   const params = await props.params;
 
-  const queue = await db.query.labelingQueues.findFirst({
-    where: and(eq(labelingQueues.projectId, params.projectId), eq(labelingQueues.id, params.queueId)),
-  });
+  let queue;
+  try {
+    queue = await db.query.labelingQueues.findFirst({
+      where: and(eq(labelingQueues.projectId, params.projectId), eq(labelingQueues.id, params.queueId)),
+    });
+  } catch {
+    throw new Error("Failed to load labeling queue");
+  }
 
   if (!queue) {
     return notFound();

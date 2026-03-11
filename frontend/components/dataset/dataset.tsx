@@ -100,10 +100,14 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   }, [projectId, dataset.id, toast]);
 
   useEffect(() => {
-    fetchCount().then((count) => {
-      setTotalCount(count);
-    });
-  }, [fetchCount]);
+    fetchCount()
+      .then((count) => {
+        setTotalCount(count);
+      })
+      .catch(() => {
+        toast({ title: "Failed to load datapoint count", variant: "destructive" });
+      });
+  }, [fetchCount, toast]);
 
   const datapointId = searchParams.get("datapointId");
   const [selectedDatapoint, setSelectedDatapoint] = useState<Datapoint | null>(null);

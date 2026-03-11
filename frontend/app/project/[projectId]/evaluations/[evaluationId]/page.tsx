@@ -16,22 +16,32 @@ export const metadata: Metadata = {
 export default async function EvaluationPage(props: { params: Promise<{ projectId: string; evaluationId: string }> }) {
   const params = await props.params;
 
-  const evaluationInfo = await db.query.evaluations.findFirst({
-    where: and(eq(evaluations.projectId, params.projectId), eq(evaluations.id, params.evaluationId)),
-    columns: {
-      groupId: true,
-      name: true,
-    },
-  });
+  let evaluationInfo;
+  try {
+    evaluationInfo = await db.query.evaluations.findFirst({
+      where: and(eq(evaluations.projectId, params.projectId), eq(evaluations.id, params.evaluationId)),
+      columns: {
+        groupId: true,
+        name: true,
+      },
+    });
+  } catch {
+    throw new Error("Failed to load evaluation");
+  }
 
   if (!evaluationInfo) {
     return notFound();
   }
 
-  const evaluationsByGroupId = await db.query.evaluations.findMany({
-    where: and(eq(evaluations.projectId, params.projectId), eq(evaluations.groupId, evaluationInfo.groupId)),
-    orderBy: desc(evaluations.createdAt),
-  });
+  let evaluationsByGroupId;
+  try {
+    evaluationsByGroupId = await db.query.evaluations.findMany({
+      where: and(eq(evaluations.projectId, params.projectId), eq(evaluations.groupId, evaluationInfo.groupId)),
+      orderBy: desc(evaluations.createdAt),
+    });
+  } catch {
+    throw new Error("Failed to load evaluation history");
+  }
 
   const cookieStore = await cookies();
   const traceViewWidthCookie = cookieStore.get(EVALUATION_TRACE_VIEW_WIDTH);

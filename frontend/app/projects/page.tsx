@@ -31,12 +31,17 @@ export default async function ProjectsPage() {
 
   const user = session.user;
 
-  const workspaceLists = await db
-    .select({ workspaceId: membersOfWorkspaces.workspaceId })
-    .from(membersOfWorkspaces)
-    .innerJoin(workspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
-    .where(eq(membersOfWorkspaces.userId, user.id))
-    .orderBy(desc(workspaces.createdAt));
+  let workspaceLists;
+  try {
+    workspaceLists = await db
+      .select({ workspaceId: membersOfWorkspaces.workspaceId })
+      .from(membersOfWorkspaces)
+      .innerJoin(workspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
+      .where(eq(membersOfWorkspaces.userId, user.id))
+      .orderBy(desc(workspaces.createdAt));
+  } catch {
+    throw new Error("Failed to load workspaces");
+  }
 
   if (workspaceLists.length === 0) {
     return redirect("/onboarding");
@@ -45,19 +50,23 @@ export default async function ProjectsPage() {
   const lastProjectId = await getLastProjectIdCookie();
 
   if (lastProjectId) {
-    const project = await db.query.projects.findFirst({
-      where: eq(projects.id, lastProjectId),
-      columns: {
-        id: true,
-        workspaceId: true,
-      },
-    });
+    try {
+      const project = await db.query.projects.findFirst({
+        where: eq(projects.id, lastProjectId),
+        columns: {
+          id: true,
+          workspaceId: true,
+        },
+      });
 
-    if (project) {
-      const hasAccess = workspaceLists.some((w) => w.workspaceId === project.workspaceId);
-      if (hasAccess) {
-        return redirect(`/project/${project.id}/traces`);
+      if (project) {
+        const hasAccess = workspaceLists.some((w) => w.workspaceId === project.workspaceId);
+        if (hasAccess) {
+          return redirect(`/project/${project.id}/traces`);
+        }
       }
+    } catch {
+      // Ignore cookie-based redirect failure, fall through to workspace redirect
     }
   }
 

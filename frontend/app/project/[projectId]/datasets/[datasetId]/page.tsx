@@ -22,9 +22,14 @@ export default async function DatasetPage(props: { params: Promise<{ projectId: 
     redirect("/sign-in");
   }
 
-  const dataset = await db.query.datasets.findFirst({
-    where: and(eq(datasets.projectId, projectId), eq(datasets.id, datasetId)),
-  });
+  let dataset;
+  try {
+    dataset = await db.query.datasets.findFirst({
+      where: and(eq(datasets.projectId, projectId), eq(datasets.id, datasetId)),
+    });
+  } catch {
+    throw new Error("Failed to load dataset");
+  }
 
   if (!dataset) {
     return notFound();

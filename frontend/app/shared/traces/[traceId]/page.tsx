@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import TraceView from "@/components/shared/traces/trace-view";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { getSharedSpans } from "@/lib/actions/shared/spans";
 import { getSharedTrace } from "@/lib/actions/shared/trace";
 
@@ -58,13 +59,23 @@ export default async function SharedTracePage(props: {
 }) {
   const { traceId } = await props.params;
 
-  const trace = await getCachedSharedTrace(traceId);
+  let trace;
+  try {
+    trace = await getCachedSharedTrace(traceId);
+  } catch {
+    return notFound();
+  }
 
   if (!trace || trace.visibility !== "public") {
     return notFound();
   }
 
-  const spans = await getSharedSpans({ traceId });
+  let spans: TraceViewSpan[];
+  try {
+    spans = await getSharedSpans({ traceId });
+  } catch {
+    spans = [];
+  }
 
   return <TraceView trace={trace} spans={spans} />;
 }

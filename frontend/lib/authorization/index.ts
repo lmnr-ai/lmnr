@@ -25,11 +25,16 @@ export async function requireWorkspaceAccess(workspaceId: string) {
     console.error("Error getting entry from cache", e);
   }
 
-  const results = await db
-    .select({ userId: membersOfWorkspaces.userId })
-    .from(membersOfWorkspaces)
-    .where(and(eq(membersOfWorkspaces.userId, session.user.id), eq(membersOfWorkspaces.workspaceId, workspaceId)))
-    .limit(1);
+  let results;
+  try {
+    results = await db
+      .select({ userId: membersOfWorkspaces.userId })
+      .from(membersOfWorkspaces)
+      .where(and(eq(membersOfWorkspaces.userId, session.user.id), eq(membersOfWorkspaces.workspaceId, workspaceId)))
+      .limit(1);
+  } catch {
+    throw new Error("Failed to verify workspace access");
+  }
 
   const isMember = results?.length > 0;
 
@@ -64,12 +69,17 @@ export async function requireProjectAccess(projectId: string) {
     console.error("Error getting entry from cache", e);
   }
 
-  const results = await db
-    .select({ userId: membersOfWorkspaces.userId })
-    .from(membersOfWorkspaces)
-    .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
-    .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, session.user.id)))
-    .limit(1);
+  let results;
+  try {
+    results = await db
+      .select({ userId: membersOfWorkspaces.userId })
+      .from(membersOfWorkspaces)
+      .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
+      .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, session.user.id)))
+      .limit(1);
+  } catch {
+    throw new Error("Failed to verify project access");
+  }
 
   const isMember = results?.length > 0;
 

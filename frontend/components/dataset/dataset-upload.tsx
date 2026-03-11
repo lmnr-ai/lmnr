@@ -40,8 +40,9 @@ export default function DatasetUpload({ datasetId, onSuccessfulUpload }: Dataset
             })
             .catch((error) => {
               toast({
-                title: "Error",
-                description: "Error uploading file" + error,
+                title: "Error uploading file",
+                description: error instanceof Error ? error.message : String(error),
+                variant: "destructive",
               });
             })
             .finally(() => {

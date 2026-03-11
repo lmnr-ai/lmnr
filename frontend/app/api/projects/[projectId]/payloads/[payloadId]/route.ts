@@ -6,11 +6,16 @@ export async function GET(
   req: NextRequest,
   props: { params: Promise<{ projectId: string; payloadId: string }> }
 ): Promise<Response> {
-  const params = await props.params;
-  const { projectId, payloadId } = params;
-  const payloadType = req.nextUrl.searchParams.get("payloadType");
+  try {
+    const params = await props.params;
+    const { projectId, payloadId } = params;
+    const payloadType = req.nextUrl.searchParams.get("payloadType");
 
-  const { bytes, headers } = await downloadS3ObjectHttp(projectId, payloadId, payloadType);
+    const { bytes, headers } = await downloadS3ObjectHttp(projectId, payloadId, payloadType);
 
-  return new Response(Buffer.from(bytes), { headers });
+    return new Response(Buffer.from(bytes), { headers });
+  } catch (e) {
+    console.error(e);
+    return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 });
+  }
 }

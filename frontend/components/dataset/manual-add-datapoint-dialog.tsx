@@ -67,8 +67,9 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
         cache: "no-cache",
       });
 
-      if (res.status != 200) {
-        showError((await res.json())["details"]);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        showError(body?.details ?? "Failed to add datapoint");
         setIsLoading(false);
         return;
       }
@@ -80,8 +81,8 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
       onUpdate?.();
       setIsLoading(false);
       setIsDialogOpen(false);
-    } catch (e) {
-      showError("Please enter a valid JSON");
+    } catch {
+      showError("Failed to add datapoint. Please check your input is valid JSON.");
       setIsLoading(false);
       return;
     }

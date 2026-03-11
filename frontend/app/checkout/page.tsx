@@ -32,79 +32,87 @@ export default async function CheckoutPage(props: {
     }
   }
 
-  const existingStripeCustomer = await getUserSubscriptionInfo(userSession!.user.email!);
+  try {
+    const existingStripeCustomer = await getUserSubscriptionInfo(userSession!.user.email!);
 
-  const s = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    const s = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-  const customerId =
-    existingStripeCustomer?.stripeCustomerId ||
-    (
-      await s.customers.create({
-        email: userSession!.user.email!,
-      })
-    ).id;
+    const customerId =
+      existingStripeCustomer?.stripeCustomerId ||
+      (
+        await s.customers.create({
+          email: userSession!.user.email!,
+        })
+      ).id;
 
-  const userId =
-    existingStripeCustomer?.userId ??
-    (
-      await db.query.users.findFirst({
-        where: eq(users.email, userSession!.user.email!),
-      })
-    )?.id;
+    const userId =
+      existingStripeCustomer?.userId ??
+      (
+        await db.query.users.findFirst({
+          where: eq(users.email, userSession!.user.email!),
+        })
+      )?.id;
 
-  if (!userId) {
-    redirect(`/workspace/${workspaceId}`);
-  }
+    if (!userId) {
+      redirect(`/workspace/${workspaceId}`);
+    }
 
-  if (!existingStripeCustomer?.stripeCustomerId) {
-    await db
-      .insert(userSubscriptionInfo)
-      .values({
-        userId,
-        stripeCustomerId: customerId,
-      })
-      .onConflictDoUpdate({
-        target: userSubscriptionInfo.userId,
-        set: {
+    if (!existingStripeCustomer?.stripeCustomerId) {
+      await db
+        .insert(userSubscriptionInfo)
+        .values({
+          userId,
           stripeCustomerId: customerId,
+        })
+        .onConflictDoUpdate({
+          target: userSubscriptionInfo.userId,
+          set: {
+            stripeCustomerId: customerId,
+          },
+        });
+    }
+
+    const successUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&tab=billing`;
+    const cancelUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?tab=billing`;
+
+    // Only send the flat plan price to checkout – overage prices are added
+    // server-side in the subscription.created webhook to avoid confusing
+    // line-item display on the Stripe checkout page.
+    const prices = await s.prices.list({
+      lookup_keys: [lookupKey],
+    });
+
+    const flatPrice = prices.data.find((p) => p.lookup_key === lookupKey);
+
+    const subscriptionMetadata = {
+      workspaceId: workspaceId!,
+      workspaceName: workspaceName!,
+      type: "workspace",
+    };
+
+    const session = await s.checkout.sessions.create({
+      customer: customerId,
+      line_items: [
+        {
+          price: flatPrice?.id,
+          quantity: 1,
         },
-      });
-  }
-
-  const successUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?sessionId={CHECKOUT_SESSION_ID}&tab=billing`;
-  const cancelUrl = `${process.env.NEXT_PUBLIC_URL}/workspace/${workspaceId}?tab=billing`;
-
-  // Only send the flat plan price to checkout – overage prices are added
-  // server-side in the subscription.created webhook to avoid confusing
-  // line-item display on the Stripe checkout page.
-  const prices = await s.prices.list({
-    lookup_keys: [lookupKey],
-  });
-
-  const flatPrice = prices.data.find((p) => p.lookup_key === lookupKey);
-
-  const subscriptionMetadata = {
-    workspaceId: workspaceId!,
-    workspaceName: workspaceName!,
-    type: "workspace",
-  };
-
-  const session = await s.checkout.sessions.create({
-    customer: customerId,
-    line_items: [
-      {
-        price: flatPrice?.id,
-        quantity: 1,
+      ],
+      mode: "subscription",
+      subscription_data: {
+        metadata: subscriptionMetadata,
       },
-    ],
-    mode: "subscription",
-    subscription_data: {
-      metadata: subscriptionMetadata,
-    },
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    allow_promotion_codes: true,
-  });
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      allow_promotion_codes: true,
+    });
 
-  redirect(session.url!);
+    redirect(session.url!);
+  } catch (e) {
+    // Re-throw Next.js internal errors (redirect, notFound)
+    if (e && typeof e === "object" && "digest" in e) {
+      throw e;
+    }
+    throw new Error("Failed to initialize checkout. Please try again.");
+  }
 }
