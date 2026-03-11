@@ -113,6 +113,7 @@
     "next": "^16.1.6",
     "next-auth": "^4.24.13",
     "next-mdx-remote": "^6.0.0",
+    "nuqs": "^2.8.9",
     "pako": "^2.1.0",
     "papaparse": "^5.5.3",
     "postgres": "^3.4.7",

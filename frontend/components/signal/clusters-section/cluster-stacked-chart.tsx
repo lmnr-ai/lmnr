@@ -4,36 +4,32 @@ import { useMemo } from "react";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
-import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { type EventCluster } from "@/lib/actions/clusters";
 import { type ClusterStatsDataPoint } from "@/lib/actions/events/stats";
 
-import { getClusterColor, UNCLUSTERED_COLOR, withOpacity } from "./colors";
+import { UNCLUSTERED_COLOR, withOpacity } from "./colors";
 
 interface ClusterStackedChartProps {
   clusters: EventCluster[];
   statsData: ClusterStatsDataPoint[];
   containerWidth: number | null;
-  depthLevel?: number;
-  colorIndexOffset?: number;
+  colorMap: Map<string, string>;
 }
 
 export default function ClusterStackedChart({
   clusters,
   statsData,
   containerWidth,
-  depthLevel = 0,
-  colorIndexOffset = 0,
+  colorMap,
 }: ClusterStackedChartProps) {
   const { data, chartConfig, fields } = useMemo(() => {
     const config: TimeSeriesChartConfig = {};
     const fieldKeys: string[] = [];
 
-    clusters.forEach((cluster, index) => {
+    clusters.forEach((cluster) => {
       const key = cluster.id;
-      const color =
-        cluster.id === UNCLUSTERED_ID
-          ? withOpacity(UNCLUSTERED_COLOR, 0.5)
-          : withOpacity(getClusterColor(index + colorIndexOffset, depthLevel), 0.75);
+      const baseColor = colorMap.get(key) ?? UNCLUSTERED_COLOR;
+      const color = withOpacity(baseColor, 0.75);
       config[key] = {
         label: cluster.name,
         color,
@@ -64,7 +60,7 @@ export default function ClusterStackedChart({
       });
 
     return { data: chartData, chartConfig: config, fields: fieldKeys };
-  }, [clusters, statsData, depthLevel, colorIndexOffset]);
+  }, [clusters, statsData, colorMap]);
 
   if (data.length === 0) {
     return (

@@ -7,8 +7,6 @@ import { type ClusterNode } from "./utils";
 interface ClusterBreadcrumbProps {
   breadcrumb: ClusterNode[];
   selectedClusterId: string | null;
-  visibleClusters: ClusterNode[];
-  pathIds: string[];
   onNavigateToBreadcrumb: (index: number) => void;
 }
 
@@ -45,7 +43,6 @@ const SLASH_CONTAINER_PL = "pl-[22px]";
 export default function ClusterBreadcrumb({
   breadcrumb,
   selectedClusterId,
-  pathIds,
   onNavigateToBreadcrumb,
 }: ClusterBreadcrumbProps) {
   return (
@@ -63,12 +60,12 @@ export default function ClusterBreadcrumb({
           const isLast = index === breadcrumb.length - 1;
           return (
             <motion.div
-              key={node.id}
+              key={index}
               className={`relative min-w-0 flex-shrink overflow-hidden ${SLASH_CONTAINER_PL}`}
               style={{ maskImage: "linear-gradient(to right, transparent, black 12px, black)" }}
               {...levelTransition}
             >
-              {/* Inner: handles swaps within this level */}
+              {/* Inner: handles swaps within this level (e.g. sibling leaf selection) */}
               <AnimatePresence initial={false} mode="wait">
                 <motion.div key={node.id} className="flex">
                   <motion.span className="absolute left-[8px] top-0 text-muted-foreground" {...slashSlideIn}>
@@ -78,7 +75,7 @@ export default function ClusterBreadcrumb({
                     className={`hover:underline truncate block max-w-full text-left ${
                       isLast ? "text-secondary-foreground" : "text-muted-foreground"
                     }`}
-                    onClick={() => onNavigateToBreadcrumb(pathIds.indexOf(node.id))}
+                    onClick={() => onNavigateToBreadcrumb(index)}
                     {...slideIn}
                   >
                     {node.name}

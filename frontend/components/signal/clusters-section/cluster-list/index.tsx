@@ -1,36 +1,48 @@
 "use client";
 
+import { useMemo } from "react";
+
+import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
+import {
+  selectUnclusteredCount,
+  selectUnclusteredVirtualCluster,
+  selectVisibleClusters,
+  useSignalStoreContext,
+} from "@/components/signal/store";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { cn } from "@/lib/utils";
 
 import { getClusterColor, UNCLUSTERED_COLOR } from "../colors";
-import { type ClusterNode } from "../utils";
 import ClusterItem, { type IconVariant } from "./cluster-item";
 
 interface ClusterListProps {
-  visibleClusters: ClusterNode[];
+  displayId: string | null;
   drillDownDepth: number;
   filteredCountByCluster: Map<string, number>;
   onNavigateToCluster: (clusterId: string) => void;
-  unclusteredCount: number;
-  unclusteredVirtualCluster: ClusterNode;
   className?: string;
 }
 
 export default function ClusterList({
-  visibleClusters,
+  displayId,
   drillDownDepth,
   filteredCountByCluster,
   onNavigateToCluster,
-  unclusteredCount,
-  unclusteredVirtualCluster,
   className,
 }: ClusterListProps) {
+  const [clusterId] = useClusterId();
+
+  const visibleSelector = useMemo(() => selectVisibleClusters(displayId), [displayId]);
+  const visibleClusters = useSignalStoreContext(visibleSelector);
+
+  const unclusteredCount = useSignalStoreContext(selectUnclusteredCount);
+  const unclusteredVirtualCluster = useSignalStoreContext(selectUnclusteredVirtualCluster);
+
   const showUnclustered = drillDownDepth === 0;
 
   return (
-    <div className={cn("border-r bg-secondary overflow-y-auto overflow-x-hidden", className)}>
-      <div className="flex flex-col gap-0.5 py-2 px-2">
+    <div className={cn("border-r bg-secondary overflow-y-auto overflow-x-hidden min-w-0", className)}>
+      <div className="flex flex-col gap-0.5 py-2 px-2 min-w-0">
         {visibleClusters.length === 0 && !showUnclustered ? (
           <div className="text-muted-foreground text-sm py-4 text-center">No sub-clusters</div>
         ) : (
@@ -45,7 +57,7 @@ export default function ClusterList({
                   cluster={cluster}
                   iconVariant={iconVariant}
                   color={getClusterColor(index, drillDownDepth)}
-                  isSelected={false}
+                  isSelected={clusterId === cluster.id}
                   filteredCount={filteredCount}
                   onClick={() => onNavigateToCluster(cluster.id)}
                 />
@@ -59,7 +71,7 @@ export default function ClusterList({
                   cluster={unclusteredVirtualCluster}
                   iconVariant="circle-dashed"
                   color={UNCLUSTERED_COLOR}
-                  isSelected={false}
+                  isSelected={clusterId === UNCLUSTERED_ID}
                   filteredCount={filteredCountByCluster.get(UNCLUSTERED_ID)}
                   onClick={() => onNavigateToCluster(UNCLUSTERED_ID)}
                 />

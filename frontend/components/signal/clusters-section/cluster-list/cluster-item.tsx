@@ -35,7 +35,7 @@ export default function ClusterItem({
   onClick: () => void;
 }) {
   const hasChildren = iconVariant === "folder";
-  const displayCount = filteredCount ?? cluster.numEvents;
+  const displayCount = filteredCount ?? 0;
   const showFilteredRange = filteredCount !== undefined;
 
   const [hovered, setHovered] = useState(false);
@@ -50,11 +50,14 @@ export default function ClusterItem({
     }
   }, []);
 
-  useEffect(() => () => {
+  useEffect(
+    () => () => {
       if (leaveTimeoutRef.current) {
         clearTimeout(leaveTimeoutRef.current);
       }
-    }, []);
+    },
+    []
+  );
 
   const handleMouseEnter = useCallback(() => {
     clearLeaveTimeout();
@@ -91,7 +94,7 @@ export default function ClusterItem({
       <button
         ref={buttonRef}
         className={cn(
-          "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors cursor-pointer text-secondary-foreground",
+          "flex items-center gap-2 px-2 py-1.5 rounded text-sm text-left transition-colors cursor-pointer text-secondary-foreground w-full min-w-0",
           hovered && "bg-muted",
           isSelected && "bg-sidebar-accent font-medium text-primary-foreground"
         )}

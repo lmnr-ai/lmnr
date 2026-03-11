@@ -1,5 +1,5 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import { Check, SquareArrowOutUpRight, X } from "lucide-react";
+import { ArrowUpRight, Check, X } from "lucide-react";
 import { type MouseEvent } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
@@ -153,9 +153,11 @@ const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
     cell: (row) => {
       const traceId = String(row.getValue());
       return (
-        <div className="flex items-center gap-1">
-          <CopyTooltip value={traceId}>
-            <Mono className="truncate">{traceId.slice(0, 8)}</Mono>
+        <div className="flex items-center gap-1 min-w-0">
+          <CopyTooltip value={traceId} className="min-w-0 truncate">
+            <span className="font-mono text-xs truncate" dir="rtl">
+              {traceId}
+            </span>
           </CopyTooltip>
           <button
             className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
@@ -166,12 +168,12 @@ const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
             }}
             title="View trace"
           >
-            <SquareArrowOutUpRight className="size-3" />
+            <ArrowUpRight className="size-3" />
           </button>
         </div>
       );
     },
-    size: 120,
+    size: 180,
     id: "traceId",
   },
 ];

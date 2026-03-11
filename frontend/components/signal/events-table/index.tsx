@@ -4,6 +4,7 @@ import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 
+import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import {
   selectFilterClusterIds,
   selectIsUnclusteredFilter,
@@ -55,10 +56,13 @@ function PureEventsTable() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
+  const [clusterId] = useClusterId();
   const signal = useSignalStoreContext((state) => state.signal);
   const selectedEvent = useSignalStoreContext((state) => state.selectedEvent);
-  const selectedClusterIds = useSignalStoreContext(selectFilterClusterIds);
-  const isUnclusteredFilter = useSignalStoreContext(selectIsUnclusteredFilter);
+  const filterClusterIdsSelector = useMemo(() => selectFilterClusterIds(clusterId), [clusterId]);
+  const isUnclusteredSelector = useMemo(() => selectIsUnclusteredFilter(clusterId), [clusterId]);
+  const selectedClusterIds = useSignalStoreContext(filterClusterIdsSelector);
+  const isUnclusteredFilter = useSignalStoreContext(isUnclusteredSelector);
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
