@@ -142,6 +142,8 @@ export type TraceRow = {
   analysis_status?: string;
   analysis_preview?: string;
   analysis?: string;
+  rootSpanInput?: string;
+  rootSpanOutput?: string;
 };
 
 export type RealtimeTracePayload = {
