@@ -9,8 +9,9 @@ use crate::{
     db::DB,
     mq::MessageQueue,
     signals::{
-        SignalRun, SignalWorkerConfig, llm_model, llm_provider,
+        SignalRun, SignalWorkerConfig,
         common::{ProcessRunResult, handle_failed_runs, process_run},
+        llm_model, llm_provider,
         pendings_consumer::process_succeeded_batch,
         provider::{
             LanguageModelClient, ProviderClient,

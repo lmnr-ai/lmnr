@@ -51,13 +51,13 @@ pub struct FailureMetadata {
     pub is_processing_error: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 enum NextStepReason {
     ToolResult(serde_json::Value),
     MalformedFunctionCallRetry,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 enum StepResult {
     CompletedNoEvent,
     CompletedWithEvent {

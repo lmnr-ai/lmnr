@@ -10,7 +10,7 @@ use crate::{
     features::is_feature_enabled,
     mq::MessageQueue,
     query_engine::QueryEngine,
-    signals::enqueue::enqueue_signal_job,
+    signals::{enqueue::enqueue_signal_job, provider::always_use_realtime},
     sql::{self, ClickhouseReadonlyClient},
     utils::limits::get_workspace_signal_runs_limit_exceeded,
 };
@@ -147,7 +147,7 @@ pub async fn submit_signal_job(
         trace_ids,
         clickhouse.as_ref().clone(),
         queue.as_ref().clone(),
-        process_in_realtime,
+        process_in_realtime || always_use_realtime(),
     )
     .await
     .map_err(|e| {

@@ -29,6 +29,10 @@ impl BedrockClient {
 }
 
 impl LanguageModelClient for BedrockClient {
+    fn supports_batch(&self) -> bool {
+        false
+    }
+
     async fn generate_content(
         &self,
         model: &str,

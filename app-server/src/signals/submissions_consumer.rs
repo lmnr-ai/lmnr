@@ -152,8 +152,14 @@ async fn process(
     }
 
     // Submit batch to LLM API
-    let batch_result =
-        submit_batch_to_llm(&llm_model(), llm_client, requests, successful_messages, queue).await;
+    let batch_result = submit_batch_to_llm(
+        &llm_model(),
+        llm_client,
+        requests,
+        successful_messages,
+        queue,
+    )
+    .await;
 
     match batch_result {
         Ok(()) => {

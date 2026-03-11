@@ -137,6 +137,10 @@ impl GeminiClient {
 }
 
 impl LanguageModelClient for GeminiClient {
+    fn supports_batch(&self) -> bool {
+        true
+    }
+
     async fn generate_content(
         &self,
         model: &str,

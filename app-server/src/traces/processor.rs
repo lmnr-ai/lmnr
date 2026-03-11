@@ -31,6 +31,7 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
+    signals::provider::always_use_realtime,
     traces::{
         provider::convert_span_to_provider_format,
         realtime::{send_span_updates, send_trace_updates},
@@ -320,6 +321,9 @@ async fn check_and_push_signals(
                 continue;
             }
 
+            // TODO: fetch a trigger config whether to process in realtime from Trigger definition
+            let should_use_realtime = false;
+
             // Lock acquired - enqueue signal trigger run
             if let Err(e) = crate::signals::enqueue::enqueue_signal_trigger_run(
                 trace.id(),
@@ -328,8 +332,7 @@ async fn check_and_push_signals(
                 trigger.signal.clone(),
                 clickhouse.clone(),
                 queue.clone(),
-                // TODO: fetch a trigger config whether to process in realtime from Trigger definition
-                false,
+                always_use_realtime() || should_use_realtime,
             )
             .await
             {
