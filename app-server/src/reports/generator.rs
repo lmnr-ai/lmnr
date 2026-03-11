@@ -185,14 +185,9 @@ async fn process_report_trigger(
                 .unwrap_or_else(|| "Unknown time".to_string());
 
             // Truncate payload for display if too long (char-boundary safe)
-            let payload_display = if row.payload.len() > 500 {
-                let truncated = match row.payload.char_indices().nth(500) {
-                    Some((idx, _)) => &row.payload[..idx],
-                    None => &row.payload,
-                };
-                format!("{}...", truncated)
-            } else {
-                row.payload.clone()
+            let payload_display = match row.payload.char_indices().nth(500) {
+                Some((idx, _)) => format!("{}...", &row.payload[..idx]),
+                None => row.payload.clone(),
             };
 
             signals_map
