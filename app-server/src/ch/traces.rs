@@ -11,6 +11,9 @@ use crate::db::spans::{Span, SpanType};
 use crate::db::trace::Trace;
 use crate::traces::spans::SpanUsage;
 
+/// Maximum number of characters to store for root span input/output preview.
+const ROOT_SPAN_PREVIEW_MAX_CHARS: usize = 200;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTrace {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -224,16 +227,16 @@ impl TraceAggregation {
                 entry.top_span_type = span.span_type.clone().into();
                 entry.root_span_input = span.input.as_ref().map(|v| {
                     let s = v.to_string();
-                    if s.chars().count() > 200 {
-                        s.chars().take(200).collect::<String>()
+                    if s.chars().count() > ROOT_SPAN_PREVIEW_MAX_CHARS {
+                        s.chars().take(ROOT_SPAN_PREVIEW_MAX_CHARS).collect::<String>()
                     } else {
                         s
                     }
                 });
                 entry.root_span_output = span.output.as_ref().map(|v| {
                     let s = v.to_string();
-                    if s.chars().count() > 200 {
-                        s.chars().take(200).collect::<String>()
+                    if s.chars().count() > ROOT_SPAN_PREVIEW_MAX_CHARS {
+                        s.chars().take(ROOT_SPAN_PREVIEW_MAX_CHARS).collect::<String>()
                     } else {
                         s
                     }
