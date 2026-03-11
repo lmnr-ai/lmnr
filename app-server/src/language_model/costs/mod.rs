@@ -103,9 +103,8 @@ impl ModelInfo {
         let mut keys = Vec::new();
 
         if let Some(provider) = &self.provider {
-            // 1. provider/model
+            // 1. provider/raw_model variants
             keys.push(format!("{}/{}", provider, self.raw_model));
-            keys.push(format!("{}/{}", provider, self.model));
             keys.push(format!("{}/{}", provider, self.model_without_snapshot));
             keys.push(format!("{}/{}", provider, self.model_without_dots));
         }
