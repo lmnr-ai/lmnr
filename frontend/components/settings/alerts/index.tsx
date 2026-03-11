@@ -1,7 +1,7 @@
 "use client";
 
-import { isEmpty } from "lodash";
-import { Lock, Trash2 } from "lucide-react";
+import { isEmpty, isNil } from "lodash";
+import { Lock, Pen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import useSWR from "swr";
@@ -16,8 +16,8 @@ import { Feature } from "@/lib/features/features";
 import { swrFetcher } from "@/lib/utils";
 
 import { SettingsSection, SettingsSectionHeader, SettingsTable, SettingsTableRow } from "../settings-section";
-import CreateAlertSheet from "./create-alert-sheet";
 import DeleteAlertDialog from "./delete-alert-dialog";
+import ManageAlertSheet from "./manage-alert-sheet";
 import TargetChips from "./target-chips";
 
 interface AlertsSettingsProps {
@@ -47,6 +47,8 @@ export default function AlertsSettings({
   } = useSWR<AlertWithDetails[]>(isFreeTier ? null : `/api/projects/${projectId}/alerts`, swrFetcher);
 
   const [deleteTarget, setDeleteTarget] = useState<AlertWithDetails | null>(null);
+  const [editTarget, setEditTarget] = useState<AlertWithDetails | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   if (isFreeTier) {
     return (
@@ -93,38 +95,76 @@ export default function AlertsSettings({
       <SettingsSectionHeader title="Alerts" description="Configure Slack alerts for signal events." />
 
       <div className="flex items-center justify-between">
-        <CreateAlertSheet
-          projectId={projectId}
-          workspaceId={workspaceId}
-          integrationId={slackIntegration.id}
-          onCreated={() => mutateAlerts()}
-        />
+        <Button
+          variant="outline"
+          icon="plus"
+          className="w-fit"
+          onClick={() => {
+            setEditTarget(null);
+            setSheetOpen(true);
+          }}
+        >
+          Alert
+        </Button>
       </div>
 
       <SettingsTable
         isLoading={isLoadingAlerts}
-        isEmpty={!alertsList && isEmpty(alertsList)}
-        emptyMessage="No alerts yet. Click 'Alert' to create one."
-        headers={["Name", "Targets", "Created", ""]}
+        isEmpty={isNil(alertsList) || isEmpty(alertsList)}
+        emptyMessage="No alerts configured. Create one to start receiving Slack notifications."
+        headers={["Name", "Send to", "Created", ""]}
         colSpan={4}
       >
         {alertsList?.map((alert) => (
           <SettingsTableRow key={alert.id}>
-            <td className="px-4 text-sm font-medium">{alert.name}</td>
+            <td className="px-4 text-sm font-medium max-w-0">
+              <span title={alert.name} className="block truncate">
+                {alert.name}
+              </span>
+            </td>
             <td className="px-4">
               <TargetChips targets={alert.targets} />
             </td>
             <td className="px-4 text-xs text-muted-foreground">
               <ClientTimestampFormatter timestamp={alert.createdAt} absolute />
             </td>
-            <td className="px-4">
-              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(alert)}>
-                <Trash2 size={14} className="text-muted-foreground" />
-              </Button>
+            <td className="px-4 w-1/10">
+              <div className="flex justify-end gap-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setEditTarget(alert);
+                    setSheetOpen(true);
+                  }}
+                >
+                  <Pen size={14} className="text-muted-foreground" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(alert)}>
+                  <Trash2 size={14} className="text-destructive" />
+                </Button>
+              </div>
             </td>
           </SettingsTableRow>
         ))}
       </SettingsTable>
+
+      <ManageAlertSheet
+        projectId={projectId}
+        workspaceId={workspaceId}
+        integrationId={slackIntegration.id}
+        alert={editTarget}
+        open={sheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) setEditTarget(null);
+        }}
+        onSaved={() => {
+          mutateAlerts();
+          setSheetOpen(false);
+          setEditTarget(null);
+        }}
+      />
 
       <DeleteAlertDialog
         projectId={projectId}

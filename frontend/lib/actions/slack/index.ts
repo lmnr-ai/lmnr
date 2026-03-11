@@ -1,19 +1,23 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { SlackOauthResponseSchema } from "@/lib/actions/slack/types";
 import { decodeSlackToken, encodeSlackToken } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
-import { projects, slackChannelToEvents, slackIntegrations } from "@/lib/db/migrations/schema";
+import {
+  alertTargets,
+  projects,
+  reportTargets,
+  slackChannelToEvents,
+  slackIntegrations,
+} from "@/lib/db/migrations/schema";
 
 const ConnectSlackIntegrationSchema = z.object({
   code: z.string(),
   workspaceId: z.string(),
 });
 
-const DeleteSlackIntegrationSchema = z.object({
-  teamId: z.string(),
-});
+const DeleteSlackIntegrationSchema = z.union([z.object({ workspaceId: z.string() }), z.object({ teamId: z.string() })]);
 
 const CreateSlackSubscriptionSchema = z.object({
   integrationId: z.string(),
@@ -127,9 +131,28 @@ export async function connectSlackIntegration(input: z.infer<typeof ConnectSlack
 export async function deleteSlackIntegration(
   input: z.infer<typeof DeleteSlackIntegrationSchema>
 ): Promise<{ success: boolean }> {
-  const { teamId } = DeleteSlackIntegrationSchema.parse(input);
+  const parsed = DeleteSlackIntegrationSchema.parse(input);
 
-  await db.delete(slackIntegrations).where(eq(slackIntegrations.teamId, teamId));
+  const condition =
+    "workspaceId" in parsed
+      ? eq(slackIntegrations.workspaceId, parsed.workspaceId)
+      : eq(slackIntegrations.teamId, parsed.teamId);
+
+  const [integration] = await db.select({ id: slackIntegrations.id }).from(slackIntegrations).where(condition).limit(1);
+
+  if (!integration) {
+    return { success: true };
+  }
+
+  await db
+    .delete(alertTargets)
+    .where(and(eq(alertTargets.integrationId, integration.id), isNotNull(alertTargets.integrationId)));
+
+  await db
+    .delete(reportTargets)
+    .where(and(eq(reportTargets.integrationId, integration.id), isNotNull(reportTargets.integrationId)));
+
+  await db.delete(slackIntegrations).where(eq(slackIntegrations.id, integration.id));
 
   return { success: true };
 }

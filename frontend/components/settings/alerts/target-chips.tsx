@@ -27,7 +27,7 @@ export default function TargetChips({ targets }: { targets: AlertTarget[] }) {
   const grouped = useMemo(() => groupTargetsByType(targets), [targets]);
 
   if (targets.length === 0) {
-    return <span className="text-sm text-muted-foreground">—</span>;
+    return <span className="text-xs text-muted-foreground italic">No channel configured</span>;
   }
 
   return (

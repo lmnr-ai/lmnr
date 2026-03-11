@@ -2,6 +2,7 @@ import { times } from "lodash";
 import { type PropsWithChildren, type ReactNode } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 interface SettingsSectionHeaderProps {
   title: string;
@@ -79,6 +80,15 @@ export function SettingsTable({
   );
 }
 
-export function SettingsTableRow({ children }: PropsWithChildren) {
-  return <tr className="border-b last:border-b-0 h-12">{children}</tr>;
+interface SettingsTableRowProps extends PropsWithChildren {
+  className?: string;
+  onClick?: () => void;
+}
+
+export function SettingsTableRow({ children, className, onClick }: SettingsTableRowProps) {
+  return (
+    <tr className={cn("border-b last:border-b-0 h-12", className)} onClick={onClick}>
+      {children}
+    </tr>
+  );
 }

@@ -23,6 +23,24 @@ const CreateAlertSchema = z.object({
     .min(1),
 });
 
+const UpdateAlertSchema = z.object({
+  alertId: z.uuid(),
+  projectId: z.uuid(),
+  name: z.string().min(1),
+  type: z.enum(["SIGNAL_EVENT"]),
+  sourceId: z.uuid(),
+  targets: z
+    .array(
+      z.object({
+        type: z.string(),
+        integrationId: z.uuid(),
+        channelId: z.string().optional(),
+        channelName: z.string().optional(),
+      })
+    )
+    .min(1),
+});
+
 const DeleteAlertSchema = z.object({
   alertId: z.uuid(),
 });
@@ -155,10 +173,7 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
   const { projectId, name, type, sourceId, targets } = CreateAlertSchema.parse(input);
 
   return await db.transaction(async (tx) => {
-    const [alert] = await tx
-      .insert(alerts)
-      .values({ projectId, name, type, sourceId })
-      .returning({ id: alerts.id });
+    const [alert] = await tx.insert(alerts).values({ projectId, name, type, sourceId }).returning({ id: alerts.id });
 
     await tx.insert(alertTargets).values(
       targets.map((t) => ({
@@ -172,6 +187,29 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
     );
 
     return alert;
+  });
+}
+
+export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
+  const { alertId, projectId, name, type, sourceId, targets } = UpdateAlertSchema.parse(input);
+
+  return await db.transaction(async (tx) => {
+    await tx.update(alerts).set({ name, type, sourceId }).where(eq(alerts.id, alertId));
+
+    await tx.delete(alertTargets).where(eq(alertTargets.alertId, alertId));
+
+    await tx.insert(alertTargets).values(
+      targets.map((t) => ({
+        alertId,
+        projectId,
+        type: t.type,
+        integrationId: t.integrationId,
+        channelId: t.channelId ?? null,
+        channelName: t.channelName ?? null,
+      }))
+    );
+
+    return { id: alertId };
   });
 }
 
