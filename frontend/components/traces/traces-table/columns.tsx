@@ -52,7 +52,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   },
   {
     accessorKey: "topSpanType",
-    header: "Top level span",
+    header: "Root span",
     id: "top_span_type",
     cell: (row) => {
       const topSpanId = row.row.original.topSpanId;
@@ -86,6 +86,20 @@ export const columns: ColumnDef<TraceRow, any>[] = [
         </div>
       );
     },
+    size: 150,
+  },
+  {
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    accessorKey: "rootSpanInput",
+    header: "Root input",
+    id: "root_span_input",
+    size: 150,
+  },
+  {
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    accessorKey: "rootSpanOutput",
+    header: "Root output",
+    id: "root_span_output",
     size: 150,
   },
   {
@@ -205,20 +219,6 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     size: 100,
   },
   {
-    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
-    accessorKey: "rootSpanInput",
-    header: "Root input",
-    id: "root_span_input",
-    size: 150,
-  },
-  {
-    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
-    accessorKey: "rootSpanOutput",
-    header: "Root output",
-    id: "root_span_output",
-    size: 150,
-  },
-  {
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
     header: "Session ID",
     accessorKey: "sessionId",
@@ -249,7 +249,7 @@ export const filters: ColumnFilter[] = [
     dataType: "number",
   },
   {
-    name: "Top level span",
+    name: "Root span",
     key: "top_span_type",
     dataType: "enum",
     options: Object.values(SpanType).map((v) => ({
@@ -259,7 +259,7 @@ export const filters: ColumnFilter[] = [
     })),
   },
   {
-    name: "Top span name",
+    name: "Root span name",
     key: "top_span_name",
     dataType: "string",
   },
@@ -337,10 +337,10 @@ export const defaultTracesColumnOrder = [
   "status",
   "id",
   "top_span_type",
-  "start_time",
-  "duration",
   "root_span_input",
   "root_span_output",
+  "start_time",
+  "duration",
   "cost",
   "total_tokens",
   "tags",
