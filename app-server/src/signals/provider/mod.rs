@@ -83,6 +83,16 @@ pub enum ProviderClient {
     Bedrock(BedrockClient),
 }
 
+impl ProviderClient {
+    /// Returns the canonical name of the active provider (e.g. "gemini", "bedrock").
+    pub fn provider_name(&self) -> &'static str {
+        match self {
+            ProviderClient::Gemini(_) => "gemini",
+            ProviderClient::Bedrock(_) => "bedrock",
+        }
+    }
+}
+
 /// Checks whether the required environment variables are set for the Gemini provider.
 fn has_gemini_credentials() -> bool {
     env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok()
@@ -107,6 +117,7 @@ fn has_bedrock_credentials() -> bool {
 /// and a corresponding `has_<provider>_credentials()` check.
 pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
     let explicit_provider = env::var("SIGNALS_LLM_PROVIDER")
+        .or_else(|_| env::var("SIGNAL_JOB_LLM_PROVIDER"))
         .ok()
         .map(|v| v.trim().to_lowercase());
 

@@ -9,7 +9,7 @@ use crate::{
     db::DB,
     mq::MessageQueue,
     signals::{
-        LLM_MODEL, LLM_PROVIDER, SignalRun, SignalWorkerConfig,
+        LLM_MODEL, SignalRun, SignalWorkerConfig, llm_provider,
         common::{ProcessRunResult, handle_failed_runs, process_run},
         pendings_consumer::process_succeeded_batch,
         provider::{
@@ -72,7 +72,7 @@ impl MessageHandler for SignalJobRealtimeHandler {
             &signal.name,
             &signal.structured_output_schema,
             &LLM_MODEL,
-            &LLM_PROVIDER,
+            &llm_provider(),
             self.clickhouse.clone(),
             self.queue.clone(),
             self.config.internal_project_id,

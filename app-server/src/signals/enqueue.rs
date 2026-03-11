@@ -10,7 +10,7 @@ use crate::mq::MessageQueue;
 use crate::routes::signals::SubmitSignalJobResponse;
 use crate::signals::queue::SignalMessage;
 use crate::signals::utils::{InternalSpan, emit_internal_span};
-use crate::signals::{LLM_MODEL, LLM_PROVIDER, push_to_signals_queue};
+use crate::signals::{LLM_MODEL, llm_provider, push_to_signals_queue};
 
 /// Creates a signal run and message, emits internal tracing span.
 /// Does NOT push to queue yet - caller is responsible for pushing after ClickHouse insert.
@@ -63,7 +63,7 @@ async fn create_signal_run_and_message(
             input_cached_tokens: None,
             output_tokens: None,
             model: LLM_MODEL.clone(),
-            provider: LLM_PROVIDER.clone(),
+            provider: llm_provider(),
             internal_project_id,
             job_id,
             error: None,

@@ -11,7 +11,7 @@ use crate::{
     db::DB,
     mq::MessageQueue,
     signals::{
-        LLM_MODEL, LLM_PROVIDER, SignalRun, SignalWorkerConfig,
+        LLM_MODEL, SignalRun, SignalWorkerConfig, llm_provider,
         provider::{LanguageModelClient, ProviderClient, models::ProviderRequestItem},
         queue::{
             SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
@@ -103,7 +103,7 @@ async fn process(
             &signal.name,
             &signal.structured_output_schema,
             &LLM_MODEL,
-            &LLM_PROVIDER,
+            &llm_provider(),
             clickhouse.clone(),
             queue.clone(),
             config.internal_project_id,

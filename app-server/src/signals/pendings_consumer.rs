@@ -21,7 +21,7 @@ use crate::{
     mq::MessageQueue,
     signals::SignalRun,
     signals::{
-        LLM_MODEL, LLM_PROVIDER, SignalWorkerConfig,
+        LLM_MODEL, SignalWorkerConfig, llm_provider,
         postprocess::process_event_notifications_and_clustering,
         prompts::MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE,
         provider::{
@@ -682,7 +682,7 @@ async fn process_single_response(
                 .and_then(|u| u.candidates_token_count)
                 .map(|c| c),
             model: model_version.unwrap_or_else(|| LLM_MODEL.clone()),
-            provider: LLM_PROVIDER.clone(),
+            provider: llm_provider(),
             internal_project_id: config.internal_project_id,
             job_id: run.job_id,
             error: span_error,
@@ -739,7 +739,7 @@ async fn process_single_response(
                 input_cached_tokens: None,
                 output_tokens: None,
                 model: LLM_MODEL.clone(),
-                provider: LLM_PROVIDER.clone(),
+                provider: llm_provider(),
                 internal_project_id: config.internal_project_id,
                 job_id: run.job_id,
                 error: tool_error,
@@ -1039,7 +1039,7 @@ async fn handle_create_event(
             input_cached_tokens: None,
             output_tokens: None,
             model: LLM_MODEL.clone(),
-            provider: LLM_PROVIDER.clone(),
+            provider: llm_provider(),
             internal_project_id,
             job_id: run.job_id,
             error: None,
