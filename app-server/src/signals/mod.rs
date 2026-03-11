@@ -38,7 +38,8 @@ pub fn llm_model() -> String {
         .get_or_init(|| {
             env::var("SIGNAL_JOB_LLM_MODEL")
                 .ok()
-                .filter(|v| !v.trim().is_empty())
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
                 .unwrap_or_else(|| provider::default_model_for_provider(&llm_provider()))
         })
         .clone()
