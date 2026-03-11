@@ -1,7 +1,7 @@
 //! This module reads report triggers from RabbitMQ and processes them: fetches signal event
 //! samples from ClickHouse, generates an HTML report, and sends it via Resend to workspace members.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -152,7 +152,7 @@ async fn process_report_trigger(
         .await
         .map_err(|e| HandlerError::permanent(e))?;
 
-        let mut signal_event_counts: HashMap<String, u64> = HashMap::new();
+        let mut signal_event_counts: BTreeMap<String, u64> = BTreeMap::new();
         for count_row in &counts {
             if let Some(name) = signal_name_map.get(&count_row.signal_id) {
                 signal_event_counts.insert(name.clone(), count_row.count);
@@ -172,7 +172,7 @@ async fn process_report_trigger(
         .await
         .map_err(|e| HandlerError::permanent(e))?;
 
-        let mut signals_map: HashMap<String, Vec<SignalEventSample>> = HashMap::new();
+        let mut signals_map: BTreeMap<String, Vec<SignalEventSample>> = BTreeMap::new();
         for row in samples {
             let signal_name = signal_name_map
                 .get(&row.signal_id)

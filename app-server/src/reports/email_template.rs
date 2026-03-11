@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use uuid::Uuid;
 
@@ -16,9 +16,9 @@ pub struct ProjectReportData {
     pub project_name: String,
     pub project_id: Uuid,
     /// Map of signal_name -> Vec<SignalEventSample>
-    pub signals: HashMap<String, Vec<SignalEventSample>>,
+    pub signals: BTreeMap<String, Vec<SignalEventSample>>,
     /// Map of signal_name -> total event count in period
-    pub signal_event_counts: HashMap<String, u64>,
+    pub signal_event_counts: BTreeMap<String, u64>,
 }
 
 /// Full report data for rendering
