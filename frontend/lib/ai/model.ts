@@ -15,9 +15,9 @@ const GEMINI_MODELS: Record<ModelTier, string> = {
 };
 
 const BEDROCK_MODELS: Record<ModelTier, string> = {
-  default: "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-  fast: "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-  lite: "us.anthropic.claude-3-5-haiku-20241022-v1:0",
+  default: "anthropic.claude-sonnet-4-6",
+  fast: "anthropic.claude-sonnet-4-6",
+  lite: "anthropic.claude-haiku-4-5-20251001-v1:0",
 };
 
 type AIProvider = "gemini" | "bedrock";
