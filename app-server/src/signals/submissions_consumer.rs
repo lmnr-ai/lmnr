@@ -11,7 +11,7 @@ use crate::{
     db::DB,
     mq::MessageQueue,
     signals::{
-        LLM_MODEL, SignalRun, SignalWorkerConfig, llm_provider,
+        SignalRun, SignalWorkerConfig, llm_model, llm_provider,
         provider::{LanguageModelClient, ProviderClient, models::ProviderRequestItem},
         queue::{
             SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
@@ -102,7 +102,7 @@ async fn process(
             &signal.prompt,
             &signal.name,
             &signal.structured_output_schema,
-            &LLM_MODEL,
+            &llm_model(),
             &llm_provider(),
             clickhouse.clone(),
             queue.clone(),
@@ -153,7 +153,7 @@ async fn process(
 
     // Submit batch to LLM API
     let batch_result =
-        submit_batch_to_llm(&LLM_MODEL, llm_client, requests, successful_messages, queue).await;
+        submit_batch_to_llm(&llm_model(), llm_client, requests, successful_messages, queue).await;
 
     match batch_result {
         Ok(()) => {

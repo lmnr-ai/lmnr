@@ -9,7 +9,7 @@ use crate::{
     db::DB,
     mq::MessageQueue,
     signals::{
-        LLM_MODEL, SignalRun, SignalWorkerConfig, llm_provider,
+        SignalRun, SignalWorkerConfig, llm_model, llm_provider,
         common::{ProcessRunResult, handle_failed_runs, process_run},
         pendings_consumer::process_succeeded_batch,
         provider::{
@@ -71,7 +71,7 @@ impl MessageHandler for SignalJobRealtimeHandler {
             &signal.prompt,
             &signal.name,
             &signal.structured_output_schema,
-            &LLM_MODEL,
+            &llm_model(),
             &llm_provider(),
             self.clickhouse.clone(),
             self.queue.clone(),
@@ -121,7 +121,7 @@ impl MessageHandler for SignalJobRealtimeHandler {
 impl SignalJobRealtimeHandler {
     async fn process_realtime_request(&self, request: ProviderRequestItem, message: SignalMessage) {
         let max_retry_count = get_unsigned_env_with_default("SIGNALS_MAX_RETRY_COUNT", 4);
-        let model_str = LLM_MODEL.to_string();
+        let model_str = llm_model();
         let llm_client = self.llm_client.clone();
         let req_clone = request.request.clone();
 

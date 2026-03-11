@@ -91,6 +91,14 @@ impl ProviderClient {
             ProviderClient::Bedrock(_) => "bedrock",
         }
     }
+
+    /// Returns the default model ID for the active provider.
+    pub fn default_model(&self) -> &'static str {
+        match self {
+            ProviderClient::Gemini(_) => "gemini-3-flash-preview",
+            ProviderClient::Bedrock(_) => "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        }
+    }
 }
 
 /// Checks whether the required environment variables are set for the Gemini provider.

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use std::{env, fmt, sync::LazyLock, sync::OnceLock};
+use std::{env, fmt, sync::OnceLock};
 use uuid::Uuid;
 
 pub mod batching;
@@ -29,17 +29,32 @@ pub use queue::{
 
 use crate::signals::queue::SignalMessage;
 
-pub static LLM_MODEL: LazyLock<String> = LazyLock::new(|| {
-    env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-3-flash-preview".to_string())
-});
+static LLM_MODEL: OnceLock<String> = OnceLock::new();
 static LLM_PROVIDER: OnceLock<String> = OnceLock::new();
 
-/// Initialize the LLM_PROVIDER value based on the actual provider client.
+/// Initialize LLM_MODEL and LLM_PROVIDER based on the actual provider client.
 /// Must be called after creating the provider client in main.
-pub fn init_llm_provider(provider_name: &str) {
+pub fn init_llm_provider(provider_name: &str, default_model: &str) {
     LLM_PROVIDER
         .set(provider_name.to_string())
         .ok(); // ignore if already set
+
+    let model = env::var("SIGNAL_JOB_LLM_MODEL")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or_else(|| default_model.to_string());
+    LLM_MODEL.set(model).ok();
+}
+
+/// Get the LLM model name.
+pub fn llm_model() -> String {
+    if let Some(model) = LLM_MODEL.get() {
+        return model.clone();
+    }
+    env::var("SIGNAL_JOB_LLM_MODEL")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or_else(|| "gemini-3-flash-preview".to_string())
 }
 
 /// Get the LLM provider name. Falls back to env vars if not explicitly initialized
