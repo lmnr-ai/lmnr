@@ -2,17 +2,14 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 
-import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
-
 import { type ClusterNode } from "./utils";
 
 interface ClusterBreadcrumbProps {
   breadcrumb: ClusterNode[];
-  selectedLeafId: string | null;
-  visibleClusters: EventCluster[];
+  selectedClusterId: string | null;
+  visibleClusters: ClusterNode[];
   pathIds: string[];
   onNavigateToBreadcrumb: (index: number) => void;
-  onClearLeafSelection: () => void;
 }
 
 const slideIn = {
@@ -47,24 +44,14 @@ const SLASH_CONTAINER_PL = "pl-[22px]";
 
 export default function ClusterBreadcrumb({
   breadcrumb,
-  selectedLeafId,
-  visibleClusters,
+  selectedClusterId,
   pathIds,
   onNavigateToBreadcrumb,
-  onClearLeafSelection,
 }: ClusterBreadcrumbProps) {
-  let selectedLeafName: string | null = null;
-  if (selectedLeafId === UNCLUSTERED_ID) {
-    selectedLeafName = "Unclustered Events";
-  } else if (selectedLeafId) {
-    const leafNode = visibleClusters.find((c) => c.id === selectedLeafId);
-    if (leafNode) selectedLeafName = leafNode.name;
-  }
-
   return (
     <div className="flex items-center text-sm min-w-0 pl-1">
       <button
-        className={`hover:underline shrink-0 ${breadcrumb.length === 0 && !selectedLeafId ? "text-secondary-foreground" : "text-muted-foreground"}`}
+        className={`hover:underline shrink-0 ${!selectedClusterId ? "text-secondary-foreground" : "text-muted-foreground"}`}
         onClick={() => onNavigateToBreadcrumb(-1)}
       >
         All Events
@@ -73,7 +60,7 @@ export default function ClusterBreadcrumb({
       {/* Outer: handles levels appearing/disappearing */}
       <AnimatePresence initial={false}>
         {breadcrumb.map((node, index) => {
-          const isLast = index === breadcrumb.length - 1 && !selectedLeafId;
+          const isLast = index === breadcrumb.length - 1;
           return (
             <motion.div
               key={node.id}
@@ -101,30 +88,6 @@ export default function ClusterBreadcrumb({
             </motion.div>
           );
         })}
-
-        {selectedLeafName && (
-          <motion.div
-            key="level-leaf"
-            className={`relative min-w-0 flex-shrink overflow-hidden ${SLASH_CONTAINER_PL}`}
-            style={{ maskImage: "linear-gradient(to right, transparent, black 12px, black)" }}
-            {...levelTransition}
-          >
-            <AnimatePresence initial={false} mode="wait">
-              <motion.div key={selectedLeafId} className="flex">
-                <motion.span className="absolute left-[8px] top-0 text-muted-foreground" {...slashSlideIn}>
-                  /
-                </motion.span>
-                <motion.button
-                  className="text-secondary-foreground hover:underline truncate block max-w-full text-left"
-                  onClick={onClearLeafSelection}
-                  {...slideIn}
-                >
-                  {selectedLeafName}
-                </motion.button>
-              </motion.div>
-            </AnimatePresence>
-          </motion.div>
-        )}
       </AnimatePresence>
     </div>
   );

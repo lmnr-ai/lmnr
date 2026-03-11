@@ -9,11 +9,9 @@ import ClusterItem, { type IconVariant } from "./cluster-item";
 
 interface ClusterListProps {
   visibleClusters: ClusterNode[];
-  selectedLeafId: string | null;
   drillDownDepth: number;
   filteredCountByCluster: Map<string, number>;
   onNavigateToCluster: (clusterId: string) => void;
-  onToggleLeafSelection: (clusterId: string) => void;
   unclusteredCount: number;
   unclusteredVirtualCluster: ClusterNode;
   className?: string;
@@ -21,16 +19,13 @@ interface ClusterListProps {
 
 export default function ClusterList({
   visibleClusters,
-  selectedLeafId,
   drillDownDepth,
   filteredCountByCluster,
   onNavigateToCluster,
-  onToggleLeafSelection,
   unclusteredCount,
   unclusteredVirtualCluster,
   className,
 }: ClusterListProps) {
-  const isUnclusteredSelected = selectedLeafId === UNCLUSTERED_ID;
   const showUnclustered = drillDownDepth === 0;
 
   return (
@@ -42,7 +37,6 @@ export default function ClusterList({
           <>
             {visibleClusters.map((cluster, index) => {
               const hasChildren = cluster.children.length > 0;
-              const isLeafSelected = !hasChildren && selectedLeafId === cluster.id;
               const filteredCount = filteredCountByCluster.get(cluster.id);
               const iconVariant: IconVariant = hasChildren ? "folder" : "circle";
               return (
@@ -51,15 +45,9 @@ export default function ClusterList({
                   cluster={cluster}
                   iconVariant={iconVariant}
                   color={getClusterColor(index, drillDownDepth)}
-                  isSelected={isLeafSelected}
+                  isSelected={false}
                   filteredCount={filteredCount}
-                  onClick={() => {
-                    if (hasChildren) {
-                      onNavigateToCluster(cluster.id);
-                    } else {
-                      onToggleLeafSelection(cluster.id);
-                    }
-                  }}
+                  onClick={() => onNavigateToCluster(cluster.id)}
                 />
               );
             })}
@@ -69,11 +57,11 @@ export default function ClusterList({
                 {visibleClusters.length > 0 && <div className="border-t my-1" />}
                 <ClusterItem
                   cluster={unclusteredVirtualCluster}
-                  iconVariant={isUnclusteredSelected ? "circle" : "circle-dashed"}
+                  iconVariant="circle-dashed"
                   color={UNCLUSTERED_COLOR}
-                  isSelected={isUnclusteredSelected}
+                  isSelected={false}
                   filteredCount={filteredCountByCluster.get(UNCLUSTERED_ID)}
-                  onClick={() => onToggleLeafSelection(UNCLUSTERED_ID)}
+                  onClick={() => onNavigateToCluster(UNCLUSTERED_ID)}
                 />
               </>
             )}
