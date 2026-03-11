@@ -21,7 +21,7 @@ use crate::{
     mq::MessageQueue,
     signals::SignalRun,
     signals::{
-        LLM_MODEL, LLM_PROVIDER, SignalWorkerConfig,
+        SignalWorkerConfig, llm_model, llm_provider,
         postprocess::process_event_notifications_and_clustering,
         prompts::MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE,
         provider::{
@@ -51,13 +51,13 @@ pub struct FailureMetadata {
     pub is_processing_error: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 enum NextStepReason {
     ToolResult(serde_json::Value),
     MalformedFunctionCallRetry,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 enum StepResult {
     CompletedNoEvent,
     CompletedWithEvent {
@@ -214,10 +214,19 @@ pub async fn retry_or_fail_runs(
         let signal_message = run_to_message.get(&run.run_id);
         let metadata = failure_metadata.get(&run.run_id);
 
-        let retryable = metadata
-            .and_then(|m| m.finish_reason.as_ref())
-            .map(|fr| fr.is_retryable())
-            .unwrap_or(true);
+        let retryable = if let Some(meta) = metadata {
+            // Processing errors are always retryable regardless of finish reason
+            if meta.is_processing_error {
+                true
+            } else {
+                meta.finish_reason
+                    .as_ref()
+                    .map(|fr| fr.is_retryable())
+                    .unwrap_or(true)
+            }
+        } else {
+            true
+        };
 
         if let Some(msg) = signal_message {
             if retryable && msg.retry_count < max_retry_count {
@@ -681,8 +690,8 @@ async fn process_single_response(
                 .as_ref()
                 .and_then(|u| u.candidates_token_count)
                 .map(|c| c),
-            model: model_version.unwrap_or_else(|| LLM_MODEL.clone()),
-            provider: LLM_PROVIDER.clone(),
+            model: model_version.unwrap_or(llm_model()),
+            provider: llm_provider(),
             internal_project_id: config.internal_project_id,
             job_id: run.job_id,
             error: span_error,
@@ -738,8 +747,8 @@ async fn process_single_response(
                 input_tokens: None,
                 input_cached_tokens: None,
                 output_tokens: None,
-                model: LLM_MODEL.clone(),
-                provider: LLM_PROVIDER.clone(),
+                model: llm_model(),
+                provider: llm_provider(),
                 internal_project_id: config.internal_project_id,
                 job_id: run.job_id,
                 error: tool_error,
@@ -1038,8 +1047,8 @@ async fn handle_create_event(
             input_tokens: None,
             input_cached_tokens: None,
             output_tokens: None,
-            model: LLM_MODEL.clone(),
-            provider: LLM_PROVIDER.clone(),
+            model: llm_model(),
+            provider: llm_provider(),
             internal_project_id,
             job_id: run.job_id,
             error: None,

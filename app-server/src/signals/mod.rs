@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use std::{env, fmt, sync::LazyLock};
+use std::{env, fmt, sync::OnceLock};
 use uuid::Uuid;
 
 pub mod batching;
@@ -29,11 +29,28 @@ pub use queue::{
 
 use crate::signals::queue::SignalMessage;
 
-pub static LLM_MODEL: LazyLock<String> = LazyLock::new(|| {
-    env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-3-flash-preview".to_string())
-});
-pub static LLM_PROVIDER: LazyLock<String> =
-    LazyLock::new(|| env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string()));
+static LLM_MODEL: OnceLock<String> = OnceLock::new();
+static LLM_PROVIDER: OnceLock<String> = OnceLock::new();
+
+/// Get the LLM model name.
+pub fn llm_model() -> String {
+    LLM_MODEL
+        .get_or_init(|| {
+            env::var("SIGNAL_JOB_LLM_MODEL")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| provider::default_model_for_provider(&llm_provider()))
+        })
+        .clone()
+}
+
+/// Get the LLM provider name.
+pub fn llm_provider() -> String {
+    LLM_PROVIDER
+        .get_or_init(|| provider::resolve_provider_name())
+        .clone()
+}
 
 /// Configuration for signal workers, initialized from environment variables.
 #[derive(Debug, Clone)]
