@@ -4,7 +4,6 @@ use uuid::Uuid;
 
 /// Represents a single signal event sample for display in the report
 pub struct SignalEventSample {
-    pub signal_name: String,
     pub payload: String,
     pub summary: String,
     pub timestamp: String,

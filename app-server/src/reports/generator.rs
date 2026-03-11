@@ -199,7 +199,6 @@ async fn process_report_trigger(
                 .entry(signal_name)
                 .or_default()
                 .push(SignalEventSample {
-                    signal_name: row.name,
                     payload: payload_display,
                     summary: row.summary,
                     timestamp: timestamp_str,
