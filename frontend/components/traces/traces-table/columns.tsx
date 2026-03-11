@@ -219,6 +219,36 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     size: 100,
   },
   {
+    cell: (row) => {
+      const topSpanId = row.row.original.topSpanId;
+      const hasTopSpan = !!topSpanId && topSpanId !== "00000000-0000-0000-0000-000000000000";
+      const value = row.getValue();
+      if (!hasTopSpan && !isStringDateOld(row.row.original.endTime)) {
+        return <Skeleton className="w-20 h-4 bg-secondary rounded" />;
+      }
+      return <JsonTooltip data={value} columnSize={row.column.getSize()} />;
+    },
+    accessorKey: "rootSpanInput",
+    header: "Root input",
+    id: "root_span_input",
+    size: 150,
+  },
+  {
+    cell: (row) => {
+      const topSpanId = row.row.original.topSpanId;
+      const hasTopSpan = !!topSpanId && topSpanId !== "00000000-0000-0000-0000-000000000000";
+      const value = row.getValue();
+      if (!hasTopSpan && !isStringDateOld(row.row.original.endTime)) {
+        return <Skeleton className="w-20 h-4 bg-secondary rounded" />;
+      }
+      return <JsonTooltip data={value} columnSize={row.column.getSize()} />;
+    },
+    accessorKey: "rootSpanOutput",
+    header: "Root output",
+    id: "root_span_output",
+    size: 150,
+  },
+  {
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
     header: "Session ID",
     accessorKey: "sessionId",
