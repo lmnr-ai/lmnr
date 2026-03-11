@@ -103,6 +103,7 @@ async fn process_report_trigger(
     };
 
     let start_nanos = period_start.timestamp_nanos_opt().unwrap_or(0);
+    let end_nanos = now.timestamp_nanos_opt().unwrap_or(i64::MAX);
 
     // Get workspace info
     let workspace_name = get_workspace_name(&db.pool, &workspace_id)
@@ -146,6 +147,7 @@ async fn process_report_trigger(
             &project.id,
             &signal_ids,
             start_nanos,
+            end_nanos,
         )
         .await
         .map_err(|e| HandlerError::permanent(e))?;
@@ -164,6 +166,7 @@ async fn process_report_trigger(
             &project.id,
             &signal_ids,
             start_nanos,
+            end_nanos,
             MAX_SAMPLES_PER_SIGNAL,
         )
         .await
@@ -304,6 +307,7 @@ async fn get_signal_event_counts(
     project_id: &Uuid,
     signal_ids: &[Uuid],
     start_nanos: i64,
+    end_nanos: i64,
 ) -> anyhow::Result<Vec<SignalEventCountRow>> {
     if signal_ids.is_empty() {
         return Ok(vec![]);
@@ -316,6 +320,7 @@ async fn get_signal_event_counts(
          WHERE project_id = ?
            AND signal_id IN ({})
            AND timestamp >= ?
+           AND timestamp <= ?
          GROUP BY signal_id",
         placeholders.join(",")
     );
@@ -326,7 +331,7 @@ async fn get_signal_event_counts(
         query = query.bind(signal_id);
     }
 
-    query = query.bind(start_nanos);
+    query = query.bind(start_nanos).bind(end_nanos);
 
     let rows = query.fetch_all::<SignalEventCountRow>().await?;
 
@@ -338,6 +343,7 @@ async fn get_signal_event_samples(
     project_id: &Uuid,
     signal_ids: &[Uuid],
     start_nanos: i64,
+    end_nanos: i64,
     limit_per_signal: u64,
 ) -> anyhow::Result<Vec<SignalEventRow>> {
     if signal_ids.is_empty() {
@@ -356,6 +362,7 @@ async fn get_signal_event_samples(
              WHERE project_id = ?
                AND signal_id IN ({})
                AND timestamp >= ?
+               AND timestamp <= ?
          )
          WHERE rn <= ?
          ORDER BY signal_id, timestamp DESC",
@@ -368,7 +375,7 @@ async fn get_signal_event_samples(
         query = query.bind(signal_id);
     }
 
-    query = query.bind(start_nanos).bind(limit_per_signal);
+    query = query.bind(start_nanos).bind(end_nanos).bind(limit_per_signal);
 
     let rows = query.fetch_all::<SignalEventRow>().await?;
 
