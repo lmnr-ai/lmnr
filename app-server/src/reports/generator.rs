@@ -164,7 +164,6 @@ async fn process_report_trigger(
         for count_row in &counts {
             if let Some(name) = signal_name_map.get(&count_row.signal_id) {
                 signal_event_counts.insert(name.clone(), count_row.count);
-                total_events += count_row.count;
             }
         }
 
@@ -210,6 +209,8 @@ async fn process_report_trigger(
         }
 
         if !signals_map.is_empty() {
+            // Only count events for projects that actually appear in the report
+            total_events += signal_event_counts.values().sum::<u64>();
             project_reports.push(ProjectReportData {
                 project_name: project.name.clone(),
                 project_id: project.id,
