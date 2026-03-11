@@ -92,22 +92,19 @@ export default function ClustersSection() {
 
   // Fetch stats when time range, visible clusters, or chart width change
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
 
-    const params = {
+    fetchClusterStats({
       pastHours: searchParams.get("pastHours"),
       startDate: searchParams.get("startDate"),
       endDate: searchParams.get("endDate"),
       chartWidth: localChartWidth,
       clusterId: displayId,
-    };
-
-    fetchClusterStats(params).then(() => {
-      void cancelled;
+      abortSignal: controller.signal,
     });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [searchParams, localChartWidth, fetchClusterStats, displayId, rawClusters]);
 

@@ -33,6 +33,7 @@ export type SignalState = {
   };
   // Cluster state
   rawClusters: EventCluster[];
+  clusterTree: ClusterNode[];
   totalEventCount: number;
   clusteredEventCount: number;
   isClustersLoading: boolean;
@@ -46,6 +47,7 @@ export type FetchClusterStatsParams = {
   endDate: string | null;
   chartWidth: number | null;
   clusterId: string | null;
+  abortSignal?: AbortSignal;
 };
 
 export type SignalActions = {
@@ -77,7 +79,7 @@ export type Store = SignalState & SignalActions;
 
 // --- Selectors ---
 
-export const selectTree = (state: Store): ClusterNode[] => buildTree(state.rawClusters);
+export const selectTree = (state: Store): ClusterNode[] => state.clusterTree;
 
 export const selectCurrentNode =
   (clusterId: string | null) =>
@@ -201,6 +203,7 @@ export const createSignalStore = (initProps: EventsProps) =>
     initialTraceViewWidth: initProps.initialTraceViewWidth,
     // Cluster state
     rawClusters: [],
+    clusterTree: [],
     totalEventCount: 0,
     clusteredEventCount: 0,
     isClustersLoading: true,
@@ -264,6 +267,7 @@ export const createSignalStore = (initProps: EventsProps) =>
         };
         set({
           rawClusters: data.items,
+          clusterTree: buildTree(data.items),
           totalEventCount: data.totalEventCount,
           clusteredEventCount: data.clusteredEventCount,
         });
@@ -273,7 +277,14 @@ export const createSignalStore = (initProps: EventsProps) =>
         set({ isClustersLoading: false });
       }
     },
-    fetchClusterStats: async ({ pastHours, startDate, endDate, chartWidth, clusterId }: FetchClusterStatsParams) => {
+    fetchClusterStats: async ({
+      pastHours,
+      startDate,
+      endDate,
+      chartWidth,
+      clusterId,
+      abortSignal,
+    }: FetchClusterStatsParams) => {
       if (!pastHours && !startDate) {
         set({ clusterStatsData: [] });
         return;
@@ -313,13 +324,19 @@ export const createSignalStore = (initProps: EventsProps) =>
         urlParams.set("intervalUnit", interval.unit);
 
         fetches.push(
-          fetch(`/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters/stats?${urlParams.toString()}`)
+          fetch(
+            `/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters/stats?${urlParams.toString()}`,
+            { signal: abortSignal }
+          )
             .then((res) => {
               if (!res.ok) throw new Error("Failed to fetch cluster stats");
               return res.json();
             })
             .then((data: { items: ClusterStatsDataPoint[] }) => data.items)
-            .catch(() => [] as ClusterStatsDataPoint[])
+            .catch((err) => {
+              if (err instanceof DOMException && err.name === "AbortError") throw err;
+              return [] as ClusterStatsDataPoint[];
+            })
         );
       } else {
         fetches.push(Promise.resolve([]));
@@ -335,7 +352,9 @@ export const createSignalStore = (initProps: EventsProps) =>
         unclusteredParams.set("unclustered", "true");
 
         fetches.push(
-          fetch(`/api/projects/${signal.projectId}/signals/${signal.id}/events/stats?${unclusteredParams.toString()}`)
+          fetch(`/api/projects/${signal.projectId}/signals/${signal.id}/events/stats?${unclusteredParams.toString()}`, {
+            signal: abortSignal,
+          })
             .then((res) => {
               if (!res.ok) throw new Error("Failed to fetch unclustered stats");
               return res.json();
@@ -347,17 +366,25 @@ export const createSignalStore = (initProps: EventsProps) =>
                 count: item.count,
               }))
             )
-            .catch(() => [] as ClusterStatsDataPoint[])
+            .catch((err) => {
+              if (err instanceof DOMException && err.name === "AbortError") throw err;
+              return [] as ClusterStatsDataPoint[];
+            })
         );
       } else {
         fetches.push(Promise.resolve([]));
       }
 
-      const [clusterStats, unclusteredStats] = await Promise.all(fetches);
-      set({
-        clusterStatsData: [...clusterStats, ...unclusteredStats],
-        isClusterStatsLoading: false,
-      });
+      try {
+        const [clusterStats, unclusteredStats] = await Promise.all(fetches);
+        set({
+          clusterStatsData: [...clusterStats, ...unclusteredStats],
+          isClusterStatsLoading: false,
+        });
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        throw err;
+      }
     },
   }));
 
