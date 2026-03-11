@@ -4,7 +4,11 @@ import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 
-import { useSignalStoreContext } from "@/components/signal/store.tsx";
+import {
+  selectFilterClusterIds,
+  selectIsUnclusteredFilter,
+  useSignalStoreContext,
+} from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
@@ -51,12 +55,10 @@ function PureEventsTable() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
-  const { signal, selectedClusterIds, isUnclusteredFilter, selectedEvent } = useSignalStoreContext((state) => ({
-    signal: state.signal,
-    selectedClusterIds: state.selectedClusterIds,
-    isUnclusteredFilter: state.isUnclusteredFilter,
-    selectedEvent: state.selectedEvent,
-  }));
+  const signal = useSignalStoreContext((state) => state.signal);
+  const selectedEvent = useSignalStoreContext((state) => state.selectedEvent);
+  const selectedClusterIds = useSignalStoreContext(selectFilterClusterIds);
+  const isUnclusteredFilter = useSignalStoreContext(selectIsUnclusteredFilter);
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();

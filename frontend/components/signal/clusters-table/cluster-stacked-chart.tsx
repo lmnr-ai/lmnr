@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { type TimeSeriesChartConfig, type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
-import { type ClusterStatsDataPoint } from "@/lib/actions/clusters/stats";
+import { type ClusterStatsDataPoint } from "@/lib/actions/events/stats";
 
 import { getClusterColor, UNCLUSTERED_COLOR, withOpacity } from "./colors";
 

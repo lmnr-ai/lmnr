@@ -20,6 +20,8 @@ export const GetEventClustersSchema = z.object({
   signalId: z.string(),
 });
 
+// QUESTION: wait is this a paginated query?
+// If not why not? It's paginated in the UI right?
 export async function getEventClusters(
   input: z.infer<typeof GetEventClustersSchema>
 ): Promise<{ items: EventCluster[]; totalEventCount: number; clusteredEventCount: number }> {

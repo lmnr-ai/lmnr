@@ -1,8 +1,8 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getClusterStats, GetClusterStatsSchema } from "@/lib/actions/clusters/stats";
 import { parseUrlParams } from "@/lib/actions/common/utils";
+import { type ClusterStatsDataPoint, getEventStats, GetEventStatsSchema } from "@/lib/actions/events/stats";
 
 export async function GET(
   req: NextRequest,
@@ -18,7 +18,7 @@ export async function GET(
 
   const parseResult = parseUrlParams(
     req.nextUrl.searchParams,
-    GetClusterStatsSchema.omit({ projectId: true, signalId: true, clusterIds: true })
+    GetEventStatsSchema.omit({ projectId: true, signalId: true, clusterIds: true })
   );
 
   if (!parseResult.success) {
@@ -26,8 +26,8 @@ export async function GET(
   }
 
   try {
-    const result = await getClusterStats({ ...parseResult.data, projectId, signalId, clusterIds });
-    return Response.json(result);
+    const result = await getEventStats({ ...parseResult.data, projectId, signalId, clusterIds });
+    return Response.json(result as { items: ClusterStatsDataPoint[] });
   } catch (error) {
     if (error instanceof ZodError) {
       return Response.json({ error: prettifyError(error) }, { status: 400 });
