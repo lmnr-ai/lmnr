@@ -251,7 +251,9 @@ async fn process_report_trigger(
 
     let from = "Laminar <reports@lmnr.ai>";
 
-    // Send individual emails to each member to avoid exposing all addresses in the TO field
+    // Send individual emails to each member to avoid exposing all addresses in the TO field.
+    // Log failures per recipient but continue sending to others to avoid duplicate emails on retry.
+    let mut send_failures = 0;
     for member in &members {
         let email =
             CreateEmailBaseOptions::new(from, [member.email.as_str()], &subject).with_html(&html);
@@ -266,18 +268,32 @@ async fn process_report_trigger(
                 );
             }
             Err(e) => {
+                send_failures += 1;
                 log::error!(
                     "[Reports Generator] Failed to send report email to {} for workspace {}: {:?}",
                     member.email,
                     workspace_id,
                     e
                 );
-                return Err(HandlerError::transient(anyhow::anyhow!(
-                    "Failed to send report email: {:?}",
-                    e
-                )));
             }
         }
+    }
+
+    if send_failures == members.len() {
+        return Err(HandlerError::permanent(anyhow::anyhow!(
+            "Failed to send report email to all {} members for workspace {}",
+            members.len(),
+            workspace_id
+        )));
+    }
+
+    if send_failures > 0 {
+        log::warn!(
+            "[Reports Generator] Failed to send report email to {}/{} members for workspace {}",
+            send_failures,
+            members.len(),
+            workspace_id
+        );
     }
 
     Ok(())
