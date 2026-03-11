@@ -22,10 +22,17 @@ SELECT
     t.has_browser_session AS has_browser_session,
     t.id AS id,
     t.span_names AS span_names,
-    substring(s.input, 1, 200) AS root_span_input,
-    substring(s.output, 1, 200) AS root_span_output
+    rs.root_span_input AS root_span_input,
+    rs.root_span_output AS root_span_output
 FROM
     default.raw_traces_v0(project_id={project_id:UUID}) t
-LEFT JOIN default.spans s
-    ON s.span_id = t.top_span_id AND s.project_id = {project_id:UUID}
+LEFT JOIN (
+    SELECT
+        span_id,
+        substring(input, 1, 200) AS root_span_input,
+        substring(output, 1, 200) AS root_span_output
+    FROM default.spans
+    WHERE project_id = {project_id:UUID}
+      AND parent_span_id = '00000000-0000-0000-0000-000000000000'
+) rs ON rs.span_id = t.top_span_id
 WHERE t.project_id={project_id:UUID};
