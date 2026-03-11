@@ -604,6 +604,31 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            channel
+                .exchange_declare(
+                    SIGNALS_REALTIME_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    SIGNALS_REALTIME_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             // ==== 3.11 Logs message queue ====
             channel
                 .exchange_declare(

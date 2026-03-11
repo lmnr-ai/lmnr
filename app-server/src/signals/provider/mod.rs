@@ -107,21 +107,19 @@ pub fn resolve_provider_name() -> String {
         .ok()
         .map(|v| v.trim().to_lowercase())
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| {
-            if has_gemini_credentials() {
-                "gemini".to_string()
-            } else if has_bedrock_credentials() {
-                "bedrock".to_string()
-            } else {
-                "gemini".to_string()
-            }
+        .unwrap_or(if has_gemini_credentials() {
+            "gemini".to_string()
+        } else if has_bedrock_credentials() {
+            "bedrock".to_string()
+        } else {
+            "gemini".to_string()
         })
 }
 
 /// Return the default model ID for a given provider name.
 pub fn default_model_for_provider(provider: &str) -> String {
     match provider {
-        "bedrock" => "anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
+        "bedrock" => "global.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
         _ => "gemini-3-flash-preview".to_string(),
     }
 }
@@ -137,11 +135,12 @@ pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
         "gemini" => {
             if !has_gemini_credentials() {
                 return Err(ProviderError::ConfigError(
-                    "Provider resolved to 'gemini' but GOOGLE_GENERATIVE_AI_API_KEY is not set".to_string(),
+                    "Provider resolved to 'gemini' but GOOGLE_GENERATIVE_AI_API_KEY is not set"
+                        .to_string(),
                 ));
             }
             let client = GeminiClient::new().map_err(|e| {
-                ProviderError::ConfigError(format!("Failed to create Gemini client: {}", e))
+                ProviderError::ConfigError(format!("Failed to create Gemini client: {e}"))
             })?;
             log::info!("Initialized Gemini provider");
             Ok(ProviderClient::Gemini(client))
@@ -157,8 +156,7 @@ pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
             Ok(ProviderClient::Bedrock(client))
         }
         other => Err(ProviderError::ConfigError(format!(
-            "Unknown provider: '{}'. Supported providers: gemini, bedrock",
-            other
+            "Unknown provider: '{other}'. Supported providers: gemini, bedrock",
         ))),
     }
 }

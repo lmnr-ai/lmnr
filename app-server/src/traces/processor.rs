@@ -68,9 +68,14 @@ pub async fn process_span_messages(
     let mut span_usage_vec = Vec::with_capacity(spans.len());
 
     for span in &mut spans {
-        let span_usage =
-            get_llm_usage_for_span(&mut span.attributes, db.clone(), cache.clone(), &span.name, &span.project_id)
-                .await;
+        let span_usage = get_llm_usage_for_span(
+            &mut span.attributes,
+            db.clone(),
+            cache.clone(),
+            &span.name,
+            &span.project_id,
+        )
+        .await;
 
         prepare_span_for_recording(span, &span_usage);
         convert_span_to_provider_format(span);

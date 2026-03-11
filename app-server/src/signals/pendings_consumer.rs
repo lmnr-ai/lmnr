@@ -690,7 +690,7 @@ async fn process_single_response(
                 .as_ref()
                 .and_then(|u| u.candidates_token_count)
                 .map(|c| c),
-            model: model_version.unwrap_or_else(|| llm_model()),
+            model: model_version.unwrap_or(llm_model()),
             provider: llm_provider(),
             internal_project_id: config.internal_project_id,
             job_id: run.job_id,

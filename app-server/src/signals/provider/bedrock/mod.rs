@@ -162,9 +162,9 @@ impl LanguageModelClient for BedrockClient {
             }
         })?;
 
-        let output = resp
-            .output()
-            .ok_or_else(|| ProviderError::ParseError("No output in response".to_string()))?;
+        let output = resp.output().ok_or(ProviderError::ParseError(
+            "No output in response".to_string(),
+        ))?;
 
         let mut provider_parts = Vec::new();
 
