@@ -108,13 +108,13 @@ async fn process_report_trigger(
     // Get workspace info
     let workspace_name = get_workspace_name(&db.pool, &workspace_id)
         .await
-        .map_err(|e| HandlerError::permanent(e))?
+        .map_err(|e| HandlerError::transient(e))?
         .unwrap_or_else(|| "Unknown Workspace".to_string());
 
     // Get all projects for this workspace
     let projects = get_projects_for_workspace(&db.pool, &workspace_id)
         .await
-        .map_err(|e| HandlerError::permanent(e))?;
+        .map_err(|e| HandlerError::transient(e))?;
 
     if projects.is_empty() {
         log::info!(
@@ -131,7 +131,7 @@ async fn process_report_trigger(
         // Get all signals for this project
         let signals = get_signals_for_project(&db.pool, &project.id)
             .await
-            .map_err(|e| HandlerError::permanent(e))?;
+            .map_err(|e| HandlerError::transient(e))?;
 
         if signals.is_empty() {
             continue;
@@ -150,7 +150,7 @@ async fn process_report_trigger(
             end_nanos,
         )
         .await
-        .map_err(|e| HandlerError::permanent(e))?;
+        .map_err(|e| HandlerError::transient(e))?;
 
         let mut signal_event_counts: BTreeMap<String, u64> = BTreeMap::new();
         for count_row in &counts {
@@ -170,7 +170,7 @@ async fn process_report_trigger(
             MAX_SAMPLES_PER_SIGNAL,
         )
         .await
-        .map_err(|e| HandlerError::permanent(e))?;
+        .map_err(|e| HandlerError::transient(e))?;
 
         let mut signals_map: BTreeMap<String, Vec<SignalEventSample>> = BTreeMap::new();
         for row in samples {
@@ -234,7 +234,7 @@ async fn process_report_trigger(
     // Get workspace member emails
     let members = get_workspace_member_emails(&db.pool, &workspace_id)
         .await
-        .map_err(|e| HandlerError::permanent(e))?;
+        .map_err(|e| HandlerError::transient(e))?;
 
     if members.is_empty() {
         log::warn!(
