@@ -224,16 +224,16 @@ impl TraceAggregation {
                 entry.top_span_type = span.span_type.clone().into();
                 entry.root_span_input = span.input.as_ref().map(|v| {
                     let s = v.to_string();
-                    if s.len() > 200 {
-                        s[..200].to_string()
+                    if s.chars().count() > 200 {
+                        s.chars().take(200).collect::<String>()
                     } else {
                         s
                     }
                 });
                 entry.root_span_output = span.output.as_ref().map(|v| {
                     let s = v.to_string();
-                    if s.len() > 200 {
-                        s[..200].to_string()
+                    if s.chars().count() > 200 {
+                        s.chars().take(200).collect::<String>()
                     } else {
                         s
                     }
