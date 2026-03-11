@@ -14,7 +14,7 @@ import SignalRunsTable from "@/components/signal/runs-table";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import TriggersTable from "@/components/signal/triggers-table";
 import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
-import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet.tsx";
+import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
 import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 
 const ManageSignalSheet = dynamic(
-  () => import("@/components/signals/manage-signal-sheet.tsx").then((mod) => mod.default),
+  () => import("@/components/signals/manage-signal-sheet/index.tsx").then((mod) => mod.default),
   { ssr: false }
 );
 

@@ -10,7 +10,7 @@ import {
   type SignalTableMeta,
   type SparklineScale,
 } from "@/components/signals/columns.tsx";
-import ManageSignalSheet from "@/components/signals/manage-signal-sheet.tsx";
+import ManageSignalSheet from "@/components/signals/manage-signal-sheet";
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import Header from "@/components/ui/header.tsx";

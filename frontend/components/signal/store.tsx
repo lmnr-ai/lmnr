@@ -4,7 +4,7 @@ import { createContext, type Dispatch, type PropsWithChildren, type SetStateActi
 import { createStore, useStore } from "zustand";
 
 import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/charts/time-series-chart/utils";
-import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet.tsx";
+import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type Filter } from "@/lib/actions/common/filters.ts";
