@@ -3,15 +3,18 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { sendTestSlackNotification } from "@/lib/actions/slack";
 
-export async function POST(request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
+export async function POST(
+  request: NextRequest,
+  props: { params: Promise<{ workspaceId: string; channelId: string }> }
+) {
   const params = await props.params;
-  const workspaceId = params.workspaceId;
+  const { workspaceId, channelId } = params;
 
   try {
     const body = await request.json();
     const result = await sendTestSlackNotification({
       workspaceId,
-      channelId: body.channelId,
+      channelId,
       eventName: body.eventName,
     });
     return NextResponse.json(result);

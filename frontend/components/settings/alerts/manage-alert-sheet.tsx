@@ -145,12 +145,16 @@ export default function ManageAlertSheet({
 
   const { data: eventsStats, isLoading: isLoadingStats } = useSWR<{ items: EventsStatsDataPoint[] }>(
     selectedSignal && statsUrl ? statsUrl : null,
-    swrFetcher
+    swrFetcher,
+    {
+      keepPreviousData: true,
+    }
   );
 
-  const chartData = useMemo(() => eventsStats?.items ?? [], [eventsStats]);
-
-  const totalEventCount = useMemo(() => chartData.reduce((sum, d) => sum + d.count, 0), [chartData]);
+  const totalEventCount = useMemo(
+    () => (eventsStats?.items ?? []).reduce((sum, d) => sum + d.count, 0),
+    [eventsStats?.items]
+  );
 
   const dateRangeLabel = useMemo(() => {
     if (dateRange.pastHours) {
@@ -256,10 +260,10 @@ export default function ManageAlertSheet({
 
     setIsTesting(true);
     try {
-      const res = await fetch(`/api/workspaces/${workspaceId}/slack/subscriptions/test`, {
+      const res = await fetch(`/api/workspaces/${workspaceId}/slack/channels/${channelId}/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channelId, eventName: signalName }),
+        body: JSON.stringify({ eventName: signalName }),
       });
 
       if (!res.ok) {
@@ -362,7 +366,7 @@ export default function ManageAlertSheet({
                     </div>
                   ) : (
                     <TimeSeriesChart
-                      data={chartData}
+                      data={eventsStats?.items ?? []}
                       chartConfig={chartConfig}
                       fields={CHART_FIELDS}
                       containerWidth={chartContainerWidth}

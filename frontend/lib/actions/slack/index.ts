@@ -4,13 +4,7 @@ import { z } from "zod/v4";
 import { SlackOauthResponseSchema } from "@/lib/actions/slack/types";
 import { decodeSlackToken, encodeSlackToken } from "@/lib/crypto";
 import { db } from "@/lib/db/drizzle";
-import {
-  alertTargets,
-  projects,
-  reportTargets,
-  slackChannelToEvents,
-  slackIntegrations,
-} from "@/lib/db/migrations/schema";
+import { alertTargets, reportTargets, slackIntegrations } from "@/lib/db/migrations/schema";
 
 const ConnectSlackIntegrationSchema = z.object({
   code: z.string(),
@@ -18,17 +12,6 @@ const ConnectSlackIntegrationSchema = z.object({
 });
 
 const DeleteSlackIntegrationSchema = z.union([z.object({ workspaceId: z.string() }), z.object({ teamId: z.string() })]);
-
-const CreateSlackSubscriptionSchema = z.object({
-  integrationId: z.string(),
-  channelId: z.string(),
-  projectId: z.string(),
-  eventName: z.string(),
-});
-
-const DeleteSlackSubscriptionSchema = z.object({
-  id: z.string(),
-});
 
 const SendTestNotificationSchema = z.object({
   workspaceId: z.string(),
@@ -41,15 +24,6 @@ export interface SlackIntegration {
   workspaceId: string;
   teamId: string;
   teamName: string | null;
-}
-
-export interface SlackSubscription {
-  id: string;
-  channelId: string;
-  projectId: string;
-  projectName: string;
-  eventName: string;
-  createdAt: string;
 }
 
 export interface SlackChannel {
@@ -175,59 +149,6 @@ async function getIntegrationWithToken(workspaceId: string) {
 
   const token = await decodeSlackToken(integration.teamId, integration.nonceHex, integration.token);
   return { ...integration, decryptedToken: token };
-}
-
-export async function getSlackSubscriptions(workspaceId: string): Promise<SlackSubscription[]> {
-  const [integration] = await db
-    .select({ id: slackIntegrations.id })
-    .from(slackIntegrations)
-    .where(eq(slackIntegrations.workspaceId, workspaceId))
-    .limit(1);
-
-  if (!integration) {
-    return [];
-  }
-
-  const results = await db
-    .select({
-      id: slackChannelToEvents.id,
-      channelId: slackChannelToEvents.channelId,
-      projectId: slackChannelToEvents.projectId,
-      projectName: projects.name,
-      eventName: slackChannelToEvents.eventName,
-      createdAt: slackChannelToEvents.createdAt,
-    })
-    .from(slackChannelToEvents)
-    .innerJoin(projects, eq(slackChannelToEvents.projectId, projects.id))
-    .where(eq(slackChannelToEvents.integrationId, integration.id));
-
-  return results;
-}
-
-export async function createSlackSubscription(input: z.infer<typeof CreateSlackSubscriptionSchema>) {
-  const { integrationId, channelId, projectId, eventName } = CreateSlackSubscriptionSchema.parse(input);
-
-  const [result] = await db
-    .insert(slackChannelToEvents)
-    .values({ integrationId, channelId, projectId, eventName })
-    .onConflictDoNothing({
-      target: [slackChannelToEvents.channelId, slackChannelToEvents.projectId, slackChannelToEvents.eventName],
-    })
-    .returning();
-
-  if (!result) {
-    throw new Error("Subscription already exists for this channel, project, and event combination");
-  }
-
-  return result;
-}
-
-export async function deleteSlackSubscription(input: z.infer<typeof DeleteSlackSubscriptionSchema>) {
-  const { id } = DeleteSlackSubscriptionSchema.parse(input);
-
-  await db.delete(slackChannelToEvents).where(eq(slackChannelToEvents.id, id));
-
-  return { success: true };
 }
 
 export async function getSlackChannels(workspaceId: string): Promise<SlackChannel[]> {
