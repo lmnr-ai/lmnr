@@ -244,7 +244,7 @@ async fn process_report_trigger(
         return Ok(());
     }
 
-    let subject = format!("Signal {} – {}", period_label, workspace_name);
+    let subject = format!("{} – {}", period_label, workspace_name);
 
     let from = "Laminar <reports@lmnr.ai>";
 
