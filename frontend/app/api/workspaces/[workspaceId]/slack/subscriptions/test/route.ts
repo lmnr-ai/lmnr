@@ -9,7 +9,11 @@ export async function POST(request: NextRequest, props: { params: Promise<{ work
 
   try {
     const body = await request.json();
-    const result = await sendTestSlackNotification({ workspaceId, channelId: body.channelId });
+    const result = await sendTestSlackNotification({
+      workspaceId,
+      channelId: body.channelId,
+      eventName: body.eventName,
+    });
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);

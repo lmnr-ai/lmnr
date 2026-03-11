@@ -7,7 +7,7 @@ export type ReportType = (typeof REPORT_TYPE)[keyof typeof REPORT_TYPE];
 
 export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
   WEEKLY_SIGNALS_SUMMARY: "Weekly signals summary",
-  DAILY_SIGNALS_SUMMARY: "Daily signals summary",
+  DAILY_SIGNALS_SUMMARY: "Weekdays signals summary",
 };
 
 export interface ReportSchedule {

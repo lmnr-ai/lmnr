@@ -17,7 +17,8 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "../ui/sidebar";
-import AlertsSettings from "./alerts-settings";
+import AlertsSettings from "./alerts";
+import CustomModelCosts from "./custom-model-costs";
 import DeleteProject from "./delete-project";
 import ProjectApiKeys from "./project-api-keys";
 import ProviderApiKeys from "./provider-api-keys";

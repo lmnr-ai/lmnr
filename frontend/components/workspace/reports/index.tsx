@@ -29,8 +29,9 @@ export default function WorkspaceReports({ workspaceId }: WorkspaceReportsProps)
   useEffect(() => {
     if (error) {
       toast({
-        title: error instanceof Error ? error.message : "Failed to load reports.",
         variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to load reports.",
       });
     }
   }, [error, toast]);
@@ -59,13 +60,16 @@ export default function WorkspaceReports({ workspaceId }: WorkspaceReportsProps)
 
         toast({
           title: subscribe ? "Subscribed to report" : "Unsubscribed from report",
+          description: subscribe
+            ? "You will receive this report at your email."
+            : "You will no longer receive this report.",
         });
         await mutate();
       } catch (e) {
         toast({
-          title: "Error updating subscription",
           variant: "destructive",
-          description: e instanceof Error ? e.message : "Failed to update subscription",
+          title: "Error",
+          description: e instanceof Error ? e.message : "Failed to update subscription. Please try again.",
         });
       } finally {
         setTogglingReportId(null);

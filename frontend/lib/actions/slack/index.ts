@@ -29,6 +29,7 @@ const DeleteSlackSubscriptionSchema = z.object({
 const SendTestNotificationSchema = z.object({
   workspaceId: z.string(),
   channelId: z.string(),
+  eventName: z.string().optional(),
 });
 
 export interface SlackIntegration {
@@ -231,17 +232,38 @@ export async function getSlackChannels(workspaceId: string): Promise<SlackChanne
 }
 
 export async function sendTestSlackNotification(input: z.infer<typeof SendTestNotificationSchema>) {
-  const { workspaceId, channelId } = SendTestNotificationSchema.parse(input);
+  const { workspaceId, channelId, eventName } = SendTestNotificationSchema.parse(input);
 
   const integration = await getIntegrationWithToken(workspaceId);
+
+  const displayEventName = eventName || "test_event";
 
   const blocks = [
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: ":white_check_mark: *Test notification from Laminar*\nYour Slack alert subscription is configured correctly.",
+        text: `*Event*: \`${displayEventName}\``,
       },
+    },
+    {
+      type: "markdown",
+      text: "*sample_key*:\nThis is a test notification from Laminar. Your alert is configured correctly.",
+    },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: {
+            type: "plain_text",
+            text: "View Trace",
+            emoji: true,
+          },
+          url: "https://laminar.sh",
+          action_id: "view_trace",
+        },
+      ],
     },
   ];
 

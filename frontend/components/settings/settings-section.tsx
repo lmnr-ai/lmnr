@@ -29,6 +29,7 @@ interface SettingsTableProps {
   isEmpty?: boolean;
   emptyMessage?: string;
   loadingRowCount?: number;
+  colSpan?: number;
 }
 
 export function SettingsTable({
@@ -38,6 +39,7 @@ export function SettingsTable({
   isEmpty = false,
   emptyMessage = "No items found.",
   loadingRowCount = 5,
+  colSpan = 2,
 }: SettingsTableProps) {
   return (
     <div className="border rounded-md">
@@ -64,7 +66,7 @@ export function SettingsTable({
             ))
           ) : isEmpty ? (
             <SettingsTableRow>
-              <td align="center" className="p-2">
+              <td colSpan={colSpan} align="center" className="p-2">
                 <span className="text-center text-secondary-foreground text-sm font-medium">{emptyMessage}</span>
               </td>
             </SettingsTableRow>

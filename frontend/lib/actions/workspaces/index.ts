@@ -9,6 +9,9 @@ import { db } from "@/lib/db/drizzle";
 import {
   membersOfWorkspaces,
   reports,
+  reportTargets,
+  signals,
+  signalTriggers,
   subscriptionTiers,
   workspaceAddons,
   workspaces,
@@ -19,6 +22,7 @@ import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1, "Workspace name is required"),
   projectName: z.string().optional(),
+  isFirstProject: z.boolean().optional(),
 });
 
 type CreateWorkspaceResult = {
@@ -28,6 +32,27 @@ type CreateWorkspaceResult = {
   projectId?: string;
 };
 
+const DEFAULT_SIGNAL = {
+  name: "Failure Detector",
+  prompt: `Analyze this trace for failures, errors, or things that went wrong.
+Include tool failures, API errors, logical mistakes, and dead ends.`,
+  structuredOutputSchema: {
+    type: "object",
+    required: ["description", "category"],
+    properties: {
+      description: {
+        type: "string",
+        description: "Description of what failed and why",
+      },
+      category: {
+        type: "string",
+        enum: ["tool_error", "api_error", "logic_error", "timeout", "other"],
+        description: "Category of the failure",
+      },
+    },
+  },
+};
+
 export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchema>): Promise<CreateWorkspaceResult> => {
   const session = await getServerSession(authOptions);
 
@@ -35,8 +60,9 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     throw new Error("Unauthorized");
   }
 
-  const { name, projectName } = CreateWorkspaceSchema.parse(input);
+  const { name, projectName, isFirstProject } = CreateWorkspaceSchema.parse(input);
   const userId = session.user.id;
+  const userEmail = session.user.email;
 
   const [workspace] = await db
     .insert(workspaces)
@@ -59,14 +85,17 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
     memberRole: "owner",
   });
 
-  await db.insert(reports).values(
-    defaultReports.map((r) => ({
-      workspaceId: workspace.id,
-      type: r.type,
-      weekday: r.weekday,
-      hour: r.hour,
-    }))
-  );
+  const insertedReports = await db
+    .insert(reports)
+    .values(
+      defaultReports.map((r) => ({
+        workspaceId: workspace.id,
+        type: r.type,
+        weekday: r.weekday,
+        hour: r.hour,
+      }))
+    )
+    .returning({ id: reports.id });
 
   let projectId: string | undefined;
 
@@ -76,6 +105,35 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
       workspaceId: workspace.id,
     });
     projectId = project.id;
+
+    if (isFirstProject && projectId) {
+      const [signal] = await db
+        .insert(signals)
+        .values({
+          projectId,
+          ...DEFAULT_SIGNAL,
+        })
+        .returning({ id: signals.id });
+
+      if (signal) {
+        await db.insert(signalTriggers).values({
+          projectId,
+          signalId: signal.id,
+          value: [{ column: "status", operator: "eq", value: "error" }],
+        });
+      }
+
+      if (userEmail && insertedReports.length > 0) {
+        await db.insert(reportTargets).values(
+          insertedReports.map((r) => ({
+            workspaceId: workspace.id,
+            reportId: r.id,
+            type: "email",
+            email: userEmail,
+          }))
+        );
+      }
+    }
   }
 
   return {

@@ -30,6 +30,7 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
         body: JSON.stringify({
           name: workspaceName,
           projectName,
+          isFirstProject: true,
         }),
       });
 
@@ -85,6 +86,29 @@ export default function CreateFirstWorkspaceAndProject({ name }: CreateFirstWork
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
             />
+          </div>
+          <div className="rounded-md bg-muted/50 border border-border px-3 py-3 text-xs text-muted-foreground">
+            <p className="text-secondary-foreground font-medium mb-2">We'll set up a few things for you</p>
+            <ul className="flex flex-col gap-1.5">
+              <li className="flex items-start gap-2">
+                <span className="mt-1.5 h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                <span>
+                  A <span className="text-secondary-foreground font-medium">failure detector</span> signal that triggers
+                  on failed traces
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-1.5 h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                <span>
+                  Subscribe you to <span className="text-secondary-foreground font-medium">weekday</span> and{" "}
+                  <span className="text-secondary-foreground font-medium">weekly</span> signal summary reports to your
+                  email
+                </span>
+              </li>
+            </ul>
+            <p className="mt-2 text-[11px] text-muted-foreground/70">
+              These are free and you can customize or remove them anytime in signals and settings menus.
+            </p>
           </div>
           <div className="flex justify-end">
             <Button

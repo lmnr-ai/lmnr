@@ -1,10 +1,12 @@
 "use client";
 
-import { Clock, Loader2 } from "lucide-react";
+import { Clock, Loader2, Mail } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { type ReportWithDetails } from "@/lib/actions/reports/types";
+import { cn } from "@/lib/utils";
 
 import { formatSchedule } from "./utils";
 
@@ -55,22 +57,36 @@ export default function ReportsList({
         const isToggling = togglingReportId === report.id;
 
         return (
-          <div key={report.id} className="flex items-start justify-between gap-4 p-4">
-            <div className="flex flex-col gap-2">
-              <h3 className="font-semibold">{report.label}</h3>
-              <span className="flex items-center gap-1 text-xs text-secondary-foreground">
-                <Clock className="size-3.5" />
-                {formatSchedule(report.schedule)}
-              </span>
-              {subscribed && (
-                <p className="text-xs text-muted-foreground">
-                  Reports will be sent to <span className="font-medium text-foreground">{email}</span>
-                </p>
-              )}
+          <div
+            key={report.id}
+            className={cn(
+              "flex items-center justify-between gap-4 px-4 py-3 transition-colors",
+              subscribed && "bg-secondary/30"
+            )}
+          >
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{report.label}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="font-normal text-xs gap-1 text-secondary-foreground">
+                  <Clock className="size-3" />
+                  {formatSchedule(report.schedule)}
+                </Badge>
+                {subscribed && (
+                  <span className="flex items-center gap-1 text-xs text-secondary-foreground">
+                    <Mail className="size-3" />
+                    {email}
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2 pt-1">
-              {isToggling && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
-              <Label htmlFor={`report-toggle-${report.id}`} className="text-sm">
+            <div className="flex items-center gap-2 shrink-0">
+              {isToggling && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+              <Label
+                htmlFor={`report-toggle-${report.id}`}
+                className="text-xs text-secondary-foreground cursor-pointer"
+              >
                 {subscribed ? "Subscribed" : "Subscribe"}
               </Label>
               <Switch
