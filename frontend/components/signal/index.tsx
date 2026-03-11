@@ -4,13 +4,15 @@ import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Resizable } from "re-resizable";
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import ClustersSection from "@/components/signal/clusters-section";
 import EventsTable from "@/components/signal/events-table";
 import EventDetailPanel from "@/components/signal/events-table/event-detail-panel";
 import SignalJobsTable from "@/components/signal/jobs-table";
 import SignalRunsTable from "@/components/signal/runs-table";
+import SignalOverviewPopover from "@/components/signal/signal-overview-popover";
+import SignalTabDropdown from "@/components/signal/signal-tab-dropdown";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import TriggersTable from "@/components/signal/triggers-table";
 import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
@@ -19,7 +21,8 @@ import TraceView from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/ui/header.tsx";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
@@ -34,7 +37,8 @@ function SignalContent() {
   const params = useParams<{ projectId: string }>();
   const { push } = useRouter();
   const searchParams = useSearchParams();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const { workspace } = useProjectContext();
 
   const activeTab = searchParams.get("tab") || "events";
@@ -83,40 +87,38 @@ function SignalContent() {
     [pathName, push, searchParams]
   );
 
+  const handlePopoverTabChange = useCallback(
+    (tab: string) => {
+      setIsPopoverOpen(false);
+      handleTabChange(tab);
+    },
+    [handleTabChange]
+  );
+
+  const handleEditClick = useCallback(() => {
+    setIsPopoverOpen(false);
+    setIsSheetOpen(true);
+  }, []);
+
   return (
     <>
-      <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]} />
+      <Header path={[{ name: "signals", href: `/project/${params.projectId}/signals` }, { name: signal.name }]}>
+        <div className="text-secondary-foreground/40">/</div>
+        <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+          <PopoverTrigger asChild>
+            <SignalTabDropdown activeTab={activeTab} />
+          </PopoverTrigger>
+          <PopoverContent side="bottom" align="start" className="w-[680px] p-4">
+            <SignalOverviewPopover signal={signal} onTabChange={handlePopoverTabChange} onEditClick={handleEditClick} />
+          </PopoverContent>
+        </Popover>
+        {!isFreeTier && (
+          <Button icon="edit" variant="secondary" className="ml-auto" onClick={() => setIsSheetOpen(true)}>
+            Edit Signal
+          </Button>
+        )}
+      </Header>
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col gap-4 overflow-hidden">
-        <div className="flex items-center gap-4 px-4">
-          <TabsList className="h-8">
-            <TabsTrigger className="text-xs" value="events">
-              Events
-            </TabsTrigger>
-            <TabsTrigger className="text-xs" value="triggers">
-              Triggers
-            </TabsTrigger>
-            <TabsTrigger className="text-xs" value="jobs">
-              Jobs
-            </TabsTrigger>
-            <TabsTrigger className="text-xs" value="runs">
-              Runs
-            </TabsTrigger>
-          </TabsList>
-          {!isFreeTier && (
-            <ManageSignalSheet
-              open={isDialogOpen}
-              setOpen={setIsDialogOpen}
-              defaultValues={signal}
-              key={signal.id}
-              onSuccess={handleSuccess}
-            >
-              <Button icon="edit" variant="secondary">
-                Edit Signal
-              </Button>
-            </ManageSignalSheet>
-          )}
-        </div>
-
         <TabsContent value="events" className="flex flex-col gap-4 px-4 pb-4 overflow-auto">
           <ClustersSection />
           <EventsTable />
@@ -131,6 +133,17 @@ function SignalContent() {
           <SignalRunsTable />
         </TabsContent>
       </Tabs>
+
+      {!isFreeTier && (
+        <ManageSignalSheet
+          open={isSheetOpen}
+          setOpen={setIsSheetOpen}
+          defaultValues={signal}
+          key={signal.id}
+          onSuccess={handleSuccess}
+        />
+      )}
+
       <AnimatePresence>
         {selectedEvent && !traceId && (
           <motion.div

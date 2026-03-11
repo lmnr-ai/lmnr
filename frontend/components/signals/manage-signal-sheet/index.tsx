@@ -1,13 +1,13 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useState } from "react";
 import { FormProvider, useForm, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
@@ -80,6 +80,12 @@ function DrawerContent({
     <div className="flex h-full overflow-hidden">
       {/* Left side — Form */}
       <form onSubmit={handleSubmit(submit)} className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <div className="flex items-center justify-between px-5 pt-4">
+          <SheetTitle className="text-base">{id ? "Edit Signal" : "Create Signal"}</SheetTitle>
+          <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(false)}>
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
         <ScrollArea className="flex-1 px-5 py-4">
           <SignalFormFields showTemplates={!id} />
         </ScrollArea>
@@ -159,7 +165,7 @@ export default function ManageSignalSheet({
   return (
     <FormProvider {...form}>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetTrigger asChild>{children}</SheetTrigger>
+        {children && <SheetTrigger asChild>{children}</SheetTrigger>}
         <SheetContent
           side="right"
           className={cn(
