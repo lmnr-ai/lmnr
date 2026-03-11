@@ -880,23 +880,24 @@ fn main() -> anyhow::Result<()> {
         let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
         let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
 
-        // == Gemini client ==
-        let gemini_client = if is_feature_enabled(Feature::Signals) {
-            log::info!("Initializing Gemini client for trace analysis");
-            match signals::provider::GeminiClient::new() {
-                Ok(client) => Some(Arc::new(signals::provider::ProviderClient::Gemini(client))),
-                Err(e) => {
-                    log::warn!(
-                        "Failed to create Gemini client (trace analysis will be disabled): {:?}",
-                        e
-                    );
-                    None
+        // == LLM Provider client ==
+        let llm_provider_client: Option<Arc<signals::provider::ProviderClient>> =
+            if is_feature_enabled(Feature::Signals) {
+                log::info!("Initializing LLM provider client for signals");
+                match runtime_handle.block_on(signals::provider::create_provider_client()) {
+                    Ok(client) => Some(Arc::new(client)),
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to create LLM provider client (signals will be disabled): {:?}",
+                            e
+                        );
+                        None
+                    }
                 }
-            }
-        } else {
-            log::info!("Trace analysis feature disabled - skipping Gemini client initialization");
-            None
-        };
+            } else {
+                log::info!("Signals feature disabled - skipping LLM provider initialization");
+                None
+            };
 
         let num_spans_workers = env::var("NUM_SPANS_WORKERS")
             .unwrap_or(String::from("4"))
@@ -1127,7 +1128,7 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn signals workers using new worker pool
-                    if gemini_client.is_some() {
+                    if llm_provider_client.is_some() {
                         // Spawn clustering batching workers
                         let batch_size: usize = get_unsigned_env_with_default(
                             "SIGNALS_BATCH_SIZE",
@@ -1227,11 +1228,11 @@ fn main() -> anyhow::Result<()> {
                     }
 
                     // Spawn LLM batch submissions workers
-                    if let Some(gemini) = gemini_client.as_ref() {
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
-                        let gemini_clone = gemini.clone();
+                        let llm_client_clone = llm_client.clone();
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
                             WorkerType::SignalJobSubmissionBatch,
@@ -1241,7 +1242,7 @@ fn main() -> anyhow::Result<()> {
                                     db.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
-                                    gemini_clone.clone(),
+                                    llm_client_clone.clone(),
                                     config.clone(),
                                 )
                             },
@@ -1253,16 +1254,16 @@ fn main() -> anyhow::Result<()> {
                         );
                     } else {
                         log::warn!(
-                            "Gemini client not available - skipping LLM batch submissions workers"
+                            "LLM provider not available - skipping batch submissions workers"
                         );
                     }
 
                     // Spawn LLM batch pending workers
-                    if let Some(gemini) = gemini_client.as_ref() {
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
-                        let gemini_clone = gemini.clone();
+                        let llm_client_clone = llm_client.clone();
                         let cache = cache_for_consumer.clone();
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
@@ -1274,7 +1275,7 @@ fn main() -> anyhow::Result<()> {
                                     cache.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
-                                    gemini_clone.clone(),
+                                    llm_client_clone.clone(),
                                     config.clone(),
                                 )
                             },
@@ -1286,16 +1287,16 @@ fn main() -> anyhow::Result<()> {
                         );
                     } else {
                         log::warn!(
-                            "Gemini client not available - skipping LLM batch pending workers"
+                            "LLM provider not available - skipping batch pending workers"
                         );
                     }
 
                     // Spawn LLM realtime workers
-                    if let Some(gemini) = gemini_client.as_ref() {
+                    if let Some(llm_client) = llm_provider_client.as_ref() {
                         let db = db_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
-                        let gemini_clone = gemini.clone();
+                        let llm_client_clone = llm_client.clone();
                         let cache = cache_for_consumer.clone();
                         let config = Arc::new(SignalWorkerConfig::from_env());
                         worker_pool_clone.spawn(
@@ -1308,7 +1309,7 @@ fn main() -> anyhow::Result<()> {
                                     cache.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
-                                    gemini_clone.clone(),
+                                    llm_client_clone.clone(),
                                     config.clone(),
                                 )
                             },
@@ -1319,7 +1320,7 @@ fn main() -> anyhow::Result<()> {
                             },
                         );
                     } else {
-                        log::warn!("Gemini client not available - skipping LLM realtime workers");
+                        log::warn!("LLM provider not available - skipping realtime workers");
                     }
 
                     // Spawn logs workers

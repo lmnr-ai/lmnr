@@ -32,8 +32,12 @@ use crate::signals::queue::SignalMessage;
 pub static LLM_MODEL: LazyLock<String> = LazyLock::new(|| {
     env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-3-flash-preview".to_string())
 });
-pub static LLM_PROVIDER: LazyLock<String> =
-    LazyLock::new(|| env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string()));
+pub static LLM_PROVIDER: LazyLock<String> = LazyLock::new(|| {
+    env::var("SIGNALS_LLM_PROVIDER")
+        .or_else(|_| env::var("SIGNAL_JOB_LLM_PROVIDER"))
+        .map(|v| v.trim().to_lowercase())
+        .unwrap_or("gemini".to_string())
+});
 
 /// Configuration for signal workers, initialized from environment variables.
 #[derive(Debug, Clone)]

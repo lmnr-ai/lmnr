@@ -115,8 +115,7 @@ async fn process(
                 new_messages,
                 request_start_time,
             }) => {
-                requests
-                    .push(serde_json::from_value(serde_json::to_value(request).unwrap()).unwrap());
+                requests.push(request);
                 all_new_messages.extend(new_messages);
                 let mut updated_message = message.clone();
                 updated_message.request_start_time = request_start_time;

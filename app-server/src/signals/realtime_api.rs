@@ -98,9 +98,7 @@ impl MessageHandler for SignalJobRealtimeHandler {
                         })?;
                 }
 
-                let provider_request: ProviderRequestItem =
-                    serde_json::from_value(serde_json::to_value(request).unwrap()).unwrap();
-                self.process_realtime_request(provider_request, updated_message)
+                self.process_realtime_request(request, updated_message)
                     .await;
             }
             Err(e) => {

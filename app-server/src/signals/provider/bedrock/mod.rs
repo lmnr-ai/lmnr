@@ -7,8 +7,9 @@ use crate::signals::provider::{
 };
 use aws_sdk_bedrockruntime::Client as AwsBedrockClient;
 use aws_sdk_bedrockruntime::types::{
-    ContentBlock, ConversationRole, Message, StopReason, SystemContentBlock, Tool, ToolInputSchema,
-    ToolResultBlock, ToolResultContentBlock, ToolResultStatus, ToolSpecification, ToolUseBlock,
+    ContentBlock, ConversationRole, InferenceConfiguration, Message, StopReason,
+    SystemContentBlock, Tool, ToolInputSchema, ToolResultBlock, ToolResultContentBlock,
+    ToolResultStatus, ToolSpecification, ToolUseBlock,
 };
 use aws_smithy_types::Document;
 use serde_json::Value;
@@ -134,6 +135,20 @@ impl LanguageModelClient for BedrockClient {
 
                 req_builder = req_builder.tool_config(tool_config);
             }
+        }
+
+        if let Some(gen_config) = &request.generation_config {
+            let mut inference_config = InferenceConfiguration::builder();
+            if let Some(temp) = gen_config.temperature {
+                inference_config = inference_config.temperature(temp);
+            }
+            if let Some(top_p) = gen_config.top_p {
+                inference_config = inference_config.top_p(top_p);
+            }
+            if let Some(max_tokens) = gen_config.max_output_tokens {
+                inference_config = inference_config.max_tokens(max_tokens);
+            }
+            req_builder = req_builder.inference_config(inference_config.build());
         }
 
         let resp = req_builder.send().await.map_err(|e| {

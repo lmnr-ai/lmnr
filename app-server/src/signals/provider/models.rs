@@ -16,6 +16,21 @@ pub struct ProviderRequest {
     pub system_instruction: Option<ProviderContent>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<ProviderTool>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generation_config: Option<ProviderGenerationConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderGenerationConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

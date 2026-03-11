@@ -1,6 +1,5 @@
 pub mod client;
 pub mod conversions;
-pub mod utils;
 
 pub use client::GeminiClient;
 

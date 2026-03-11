@@ -137,17 +137,26 @@ impl GeminiClient {
 }
 
 impl LanguageModelClient for GeminiClient {
-    fn supports_batch(&self) -> bool {
-        true
-    }
-
     async fn generate_content(
         &self,
         model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
+        // Provider types share the same JSON schema as Gemini types (camelCase),
+        // so serde round-trip conversion is safe here.
         let gemini_req: GenerateContentRequest =
-            serde_json::from_value(serde_json::to_value(request).unwrap()).unwrap();
+            serde_json::from_value(serde_json::to_value(request).map_err(|e| {
+                super::super::ProviderError::RequestError(format!(
+                    "Failed to serialize request: {}",
+                    e
+                ))
+            })?)
+            .map_err(|e| {
+                super::super::ProviderError::RequestError(format!(
+                    "Failed to convert request to Gemini format: {}",
+                    e
+                ))
+            })?;
         let res = self.generate_content(model, &gemini_req).await?;
         Ok(res.into())
     }
@@ -160,7 +169,10 @@ impl LanguageModelClient for GeminiClient {
     ) -> ProviderResult<ProviderBatchOperation> {
         let gemini_reqs: Vec<InlineRequestItem> = requests
             .into_iter()
-            .map(|r| serde_json::from_value(serde_json::to_value(r).unwrap()).unwrap())
+            .map(|r| {
+                serde_json::from_value(serde_json::to_value(r).expect("serialize request"))
+                    .expect("convert to Gemini InlineRequestItem")
+            })
             .collect();
         let res = GeminiClient::create_batch(self, model, gemini_reqs, display_name).await?;
         Ok(res.into())

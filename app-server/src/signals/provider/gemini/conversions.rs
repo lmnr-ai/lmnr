@@ -13,7 +13,10 @@ impl From<GenerateContentResponse> for ProviderResponse {
                         }),
                         finish_reason: c.finish_reason.map(|fr| match fr {
                             FinishReason::ModelResponse(fr) => match fr {
-                                GeminiFinishReason::Stop => ProviderFinishReason::Stop,
+                                GeminiFinishReason::Stop
+                                | GeminiFinishReason::FinishReasonUnspecified => {
+                                    ProviderFinishReason::Stop
+                                }
                                 GeminiFinishReason::MaxTokens => ProviderFinishReason::MaxTokens,
                                 GeminiFinishReason::Safety | GeminiFinishReason::ImageSafety => {
                                     ProviderFinishReason::Safety
