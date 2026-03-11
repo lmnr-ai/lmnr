@@ -28,11 +28,12 @@ FROM
     default.raw_traces_v0(project_id={project_id:UUID}) t
 ANY LEFT JOIN (
     SELECT
+        trace_id,
         span_id,
         substring(input, 1, 200) AS root_span_input,
         substring(output, 1, 200) AS root_span_output
     FROM default.spans
     WHERE project_id = {project_id:UUID}
       AND parent_span_id = '00000000-0000-0000-0000-000000000000'
-) rs ON rs.span_id = t.top_span_id
+) rs ON rs.trace_id = t.id AND rs.span_id = t.top_span_id
 WHERE t.project_id={project_id:UUID};
