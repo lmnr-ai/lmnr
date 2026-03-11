@@ -885,10 +885,7 @@ fn main() -> anyhow::Result<()> {
             if is_feature_enabled(Feature::Signals) {
                 log::info!("Initializing LLM provider client for signals");
                 match runtime_handle.block_on(signals::provider::create_provider_client()) {
-                    Ok(client) => {
-                        signals::init_llm_provider(client.provider_name(), client.default_model());
-                        Some(Arc::new(client))
-                    }
+                    Ok(client) => Some(Arc::new(client)),
                     Err(e) => {
                         log::warn!(
                             "Failed to create LLM provider client (signals will be disabled): {:?}",
@@ -1289,9 +1286,7 @@ fn main() -> anyhow::Result<()> {
                             },
                         );
                     } else {
-                        log::warn!(
-                            "LLM provider not available - skipping batch pending workers"
-                        );
+                        log::warn!("LLM provider not available - skipping batch pending workers");
                     }
 
                     // Spawn LLM realtime workers

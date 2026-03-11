@@ -83,40 +83,22 @@ pub enum ProviderClient {
     Bedrock(BedrockClient),
 }
 
-impl ProviderClient {
-    /// Returns the canonical name of the active provider (e.g. "gemini", "bedrock").
-    pub fn provider_name(&self) -> &'static str {
-        match self {
-            ProviderClient::Gemini(_) => "gemini",
-            ProviderClient::Bedrock(_) => "bedrock",
-        }
-    }
-
-    /// Returns the default model ID for the active provider.
-    pub fn default_model(&self) -> &'static str {
-        match self {
-            ProviderClient::Gemini(_) => "gemini-3-flash-preview",
-            ProviderClient::Bedrock(_) => "anthropic.claude-3-5-sonnet-20241022-v2:0",
-        }
-    }
-}
-
 /// Checks whether the required environment variables are set for the Gemini provider.
-fn has_gemini_credentials() -> bool {
-    env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok()
+pub fn has_gemini_credentials() -> bool {
+    env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok_and(|v| !v.is_empty())
 }
 
 /// Checks whether the required environment variables are set for the Bedrock provider.
-fn has_bedrock_credentials() -> bool {
-    env::var("AWS_ACCESS_KEY_ID").is_ok()
-        && env::var("AWS_SECRET_ACCESS_KEY").is_ok()
-        && env::var("AWS_REGION").is_ok()
+pub fn has_bedrock_credentials() -> bool {
+    env::var("AWS_ACCESS_KEY_ID").is_ok_and(|v| !v.is_empty())
+        && env::var("AWS_SECRET_ACCESS_KEY").is_ok_and(|v| !v.is_empty())
+        && env::var("AWS_REGION").is_ok_and(|v| !v.is_empty())
 }
 
 /// Initialize a provider client based on configuration and available credentials.
 ///
 /// Resolution order:
-/// 1. If `SIGNALS_LLM_PROVIDER` is set (case-insensitive, whitespace-tolerant),
+/// 1. If `SIGNAL_JOB_LLM_PROVIDER` is set (case-insensitive, whitespace-tolerant),
 ///    attempt to use that provider. Returns an error if the required API keys are missing.
 /// 2. Otherwise, try providers in order (Gemini, Bedrock) and use the first one
 ///    whose credentials are available.
@@ -124,8 +106,7 @@ fn has_bedrock_credentials() -> bool {
 /// This function is future-proof: adding a new provider requires adding a new match arm
 /// and a corresponding `has_<provider>_credentials()` check.
 pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
-    let explicit_provider = env::var("SIGNALS_LLM_PROVIDER")
-        .or_else(|_| env::var("SIGNAL_JOB_LLM_PROVIDER"))
+    let explicit_provider = env::var("SIGNAL_JOB_LLM_PROVIDER")
         .ok()
         .map(|v| v.trim().to_lowercase())
         .filter(|v| !v.is_empty());
@@ -135,7 +116,7 @@ pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
             "gemini" => {
                 if !has_gemini_credentials() {
                     return Err(ProviderError::ConfigError(
-                        "SIGNALS_LLM_PROVIDER is set to 'gemini' but GOOGLE_GENERATIVE_AI_API_KEY is not set".to_string(),
+                        "SIGNAL_JOB_LLM_PROVIDER is set to 'gemini' but GOOGLE_GENERATIVE_AI_API_KEY is not set".to_string(),
                     ));
                 }
                 let client = GeminiClient::new().map_err(|e| {
@@ -147,7 +128,7 @@ pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
             "bedrock" => {
                 if !has_bedrock_credentials() {
                     return Err(ProviderError::ConfigError(
-                        "SIGNALS_LLM_PROVIDER is set to 'bedrock' but one or more required AWS env vars are missing (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)".to_string(),
+                        "SIGNAL_JOB_LLM_PROVIDER is set to 'bedrock' but one or more required AWS env vars are missing (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)".to_string(),
                     ));
                 }
                 let client = BedrockClient::new().await?;
@@ -155,7 +136,7 @@ pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
                 Ok(ProviderClient::Bedrock(client))
             }
             other => Err(ProviderError::ConfigError(format!(
-                "Unknown SIGNALS_LLM_PROVIDER value: '{}'. Supported providers: gemini, bedrock",
+                "Unknown SIGNAL_JOB_LLM_PROVIDER value: '{}'. Supported providers: gemini, bedrock",
                 other
             ))),
         }

@@ -79,21 +79,6 @@ impl GeminiError {
             message,
         }
     }
-
-    pub fn is_retryable(&self) -> bool {
-        match self {
-            GeminiError::ApiError { status, .. } => status.is_retryable(),
-            GeminiError::RequestError(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_resource_exhausted(&self) -> bool {
-        match self {
-            GeminiError::ApiError { status, .. } => *status == GeminiErrorStatus::ResourceExhausted,
-            _ => false,
-        }
-    }
 }
 
 //https://ai.google.dev/api/batch-api
@@ -352,18 +337,6 @@ pub enum JobState {
     BATCH_STATE_EXPIRED,
 }
 
-impl JobState {
-    pub fn should_retry_failed(&self) -> bool {
-        match self {
-            JobState::BATCH_STATE_FAILED
-            | JobState::BATCH_STATE_EXPIRED
-            | JobState::BATCH_STATE_UNSPECIFIED => true,
-            JobState::BATCH_STATE_CANCELLED => false,
-            _ => false,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchStats {
@@ -456,62 +429,11 @@ pub enum GeminiFinishReason {
     MissingThoughtSignature,
 }
 
-impl GeminiFinishReason {
-    pub fn is_retryable(&self) -> bool {
-        match self {
-            // safety or too large output
-            GeminiFinishReason::ImageSafety
-            | GeminiFinishReason::ImageProhibitedContent
-            | GeminiFinishReason::MaxTokens
-            | GeminiFinishReason::Blocklist
-            | GeminiFinishReason::Spii
-            | GeminiFinishReason::ProhibitedContent => false,
-            // List the ones that are *definitely* retryable
-            GeminiFinishReason::FinishReasonUnspecified
-            | GeminiFinishReason::Stop
-            // on test examples, it often tried calling a python function, instead of
-            // json tool definition
-            | GeminiFinishReason::MalformedFunctionCall => true,
-            // everything else is retryable
-            _ => true,
-        }
-    }
-
-    pub fn is_success(&self) -> bool {
-        match self {
-            GeminiFinishReason::Stop | GeminiFinishReason::FinishReasonUnspecified => true,
-            _ => false,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum FinishReason {
     ModelResponse(GeminiFinishReason),
     Unknown(String),
-}
-
-impl FinishReason {
-    pub fn should_retry(&self) -> bool {
-        match self {
-            FinishReason::ModelResponse(fr) => fr.is_retryable(),
-            FinishReason::Unknown(_) => false,
-        }
-    }
-    pub fn is_success(&self) -> bool {
-        match self {
-            FinishReason::ModelResponse(fr) => fr.is_success(),
-            FinishReason::Unknown(_) => false,
-        }
-    }
-
-    pub fn is_malformed_function_call(&self) -> bool {
-        match self {
-            FinishReason::ModelResponse(fr) => *fr == GeminiFinishReason::MalformedFunctionCall,
-            FinishReason::Unknown(_) => false,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

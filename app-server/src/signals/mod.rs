@@ -32,43 +32,39 @@ use crate::signals::queue::SignalMessage;
 static LLM_MODEL: OnceLock<String> = OnceLock::new();
 static LLM_PROVIDER: OnceLock<String> = OnceLock::new();
 
-/// Initialize LLM_MODEL and LLM_PROVIDER based on the actual provider client.
-/// Must be called after creating the provider client in main.
-pub fn init_llm_provider(provider_name: &str, default_model: &str) {
-    LLM_PROVIDER
-        .set(provider_name.to_string())
-        .ok(); // ignore if already set
-
-    let model = env::var("SIGNAL_JOB_LLM_MODEL")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-        .unwrap_or_else(|| default_model.to_string());
-    LLM_MODEL.set(model).ok();
-}
-
 /// Get the LLM model name.
 pub fn llm_model() -> String {
-    if let Some(model) = LLM_MODEL.get() {
-        return model.clone();
-    }
-    env::var("SIGNAL_JOB_LLM_MODEL")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-        .unwrap_or_else(|| "gemini-3-flash-preview".to_string())
+    LLM_MODEL
+        .get_or_init(|| {
+            env::var("SIGNAL_JOB_LLM_MODEL")
+                .ok()
+                .filter(|v| !v.trim().is_empty())
+                .unwrap_or(if llm_provider() == "bedrock" {
+                    "anthropic.claude-haiku-4-5-20251001-v1:0".to_string()
+                } else {
+                    "gemini-3-flash-preview".to_string()
+                })
+        })
+        .clone()
 }
 
-/// Get the LLM provider name. Falls back to env vars if not explicitly initialized
-/// (e.g. when signals feature is disabled).
+/// Get the LLM provider name.
 pub fn llm_provider() -> String {
-    if let Some(provider) = LLM_PROVIDER.get() {
-        return provider.clone();
-    }
-    env::var("SIGNALS_LLM_PROVIDER")
-        .or_else(|_| env::var("SIGNAL_JOB_LLM_PROVIDER"))
-        .ok()
-        .map(|v| v.trim().to_lowercase())
-        .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| "gemini".to_string())
+    LLM_PROVIDER
+        .get_or_init(|| {
+            env::var("SIGNAL_JOB_LLM_PROVIDER")
+                .ok()
+                .map(|v| v.trim().to_lowercase())
+                .filter(|v| !v.is_empty())
+                .unwrap_or(if provider::has_gemini_credentials() {
+                    "gemini".to_string()
+                } else if provider::has_bedrock_credentials() {
+                    "bedrock".to_string()
+                } else {
+                    "gemini".to_string()
+                })
+        })
+        .clone()
 }
 
 /// Configuration for signal workers, initialized from environment variables.
