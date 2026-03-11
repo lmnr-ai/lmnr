@@ -23,21 +23,14 @@ impl MessageHandler for ReportsGenerator {
     type Message = ReportTriggerMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        process_report_trigger(
-            message,
-            self.db.clone(),
-            self.cache.clone(),
-            self.clickhouse.clone(),
-        )
-        .await
+        process_report_trigger(message, self.db.clone(), self.clickhouse.clone()).await
     }
 }
 
-#[instrument(skip(message, db, cache, clickhouse))]
+#[instrument(skip(message, db, clickhouse))]
 async fn process_report_trigger(
     message: ReportTriggerMessage,
     db: Arc<DB>,
-    cache: Arc<Cache>,
     clickhouse: clickhouse::Client,
 ) -> Result<(), HandlerError> {
     // TODO: Implement report generation and pushing to the notifications queue
