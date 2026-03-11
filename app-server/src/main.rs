@@ -1381,6 +1381,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let resend = resend_client.clone();
+                        let llm_client = gemini_client.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Reports,
                             num_reports_workers as usize,
@@ -1388,6 +1389,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
                                 resend: resend.clone(),
+                                llm_client: llm_client.clone(),
                             },
                             QueueConfig {
                                 queue_name: REPORT_TRIGGERS_QUEUE,

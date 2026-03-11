@@ -28,6 +28,7 @@ pub struct ReportData {
     pub period_end: String,
     pub projects: Vec<ProjectReportData>,
     pub total_events: u64,
+    pub ai_summary: String,
 }
 
 /// Laminar logo as inline SVG (icon_light variant with horizontal lines)
@@ -156,6 +157,20 @@ pub fn render_report_email(data: &ReportData) -> String {
         projects_html = r#"<p style="color:#9ca3af;font-size:14px;text-align:center;padding:24px 0;">No projects with signal activity found.</p>"#.to_string();
     }
 
+    let ai_summary_html = if data.ai_summary.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r##"
+  <!-- AI Summary -->
+  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:20px 24px;margin-bottom:20px;">
+    <h2 style="margin:0 0 12px;font-size:15px;font-weight:600;color:#111827;">Summary</h2>
+    <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;">{ai_summary}</p>
+  </div>"##,
+            ai_summary = html_escape(&data.ai_summary),
+        )
+    };
+
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
@@ -169,24 +184,28 @@ pub fn render_report_email(data: &ReportData) -> String {
 
   <!-- Header -->
   <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:28px 24px;margin-bottom:20px;">
-    <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;"><tr>
-      <td style="vertical-align:middle;padding-right:12px;">
-        <div style="background:{primary};width:32px;height:32px;border-radius:8px;text-align:center;line-height:32px;">
-          {logo}
-        </div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;"><tr>
+      <td style="vertical-align:middle;">
+        <table cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="vertical-align:middle;padding-right:12px;">
+            <div style="background:{primary};width:32px;height:32px;border-radius:8px;text-align:center;line-height:32px;">
+              {logo}
+            </div>
+          </td>
+          <td style="vertical-align:middle;"><span style="font-size:18px;font-weight:700;color:#111827;">Laminar</span></td>
+        </tr></table>
       </td>
-      <td style="vertical-align:middle;"><span style="font-size:18px;font-weight:700;color:#111827;">Laminar</span></td>
+      <td style="vertical-align:middle;text-align:right;">
+        <p style="margin:0 0 2px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Total Events</p>
+        <p style="margin:0;font-size:32px;font-weight:700;color:{primary};">{total_events}</p>
+      </td>
     </tr></table>
     <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827;">Signal Report</h1>
     <p style="margin:0 0 4px;font-size:14px;color:#6b7280;">{workspace_name} &middot; {period_label}</p>
     <p style="margin:0;font-size:13px;color:#9ca3af;">{period_start} &ndash; {period_end}</p>
   </div>
 
-  <!-- Summary -->
-  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:20px 24px;margin-bottom:20px;text-align:center;">
-    <p style="margin:0 0 4px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Total Events</p>
-    <p style="margin:0;font-size:32px;font-weight:700;color:{primary};">{total_events}</p>
-  </div>
+  {ai_summary_html}
 
   <!-- Projects -->
   <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
@@ -210,6 +229,7 @@ pub fn render_report_email(data: &ReportData) -> String {
         projects_html = projects_html,
         primary = PRIMARY,
         logo = LAMINAR_LOGO_SVG,
+        ai_summary_html = ai_summary_html,
     )
 }
 

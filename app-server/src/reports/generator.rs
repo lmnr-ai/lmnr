@@ -1,5 +1,6 @@
 //! This module reads report triggers from RabbitMQ and processes them: fetches signal event
-//! samples from ClickHouse, generates an HTML report, and sends it via Resend to workspace members.
+//! samples from ClickHouse, generates an AI summary via the LLM service, generates an HTML
+//! report, and sends it via Resend to workspace members.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -22,6 +23,10 @@ use crate::db::reports::{
     get_workspace_name,
 };
 use crate::db::DB;
+use crate::signals::provider::{
+    LanguageModelClient, ProviderClient, ProviderContent, ProviderPart, ProviderRequest,
+};
+use crate::signals::LLM_MODEL;
 use crate::worker::{HandlerError, MessageHandler};
 
 const MAX_SAMPLES_PER_SIGNAL: u64 = 5;
@@ -30,6 +35,7 @@ pub struct ReportsGenerator {
     pub db: Arc<DB>,
     pub clickhouse: clickhouse::Client,
     pub resend: Option<Arc<Resend>>,
+    pub llm_client: Option<Arc<ProviderClient>>,
 }
 
 #[async_trait]
@@ -51,6 +57,7 @@ impl MessageHandler for ReportsGenerator {
             self.db.clone(),
             self.clickhouse.clone(),
             resend,
+            self.llm_client.clone(),
         )
         .await
     }
@@ -79,12 +86,13 @@ struct SignalEventCountRow {
     pub count: u64,
 }
 
-#[instrument(skip(message, db, clickhouse, resend))]
+#[instrument(skip(message, db, clickhouse, resend, llm_client))]
 async fn process_report_trigger(
     message: ReportTriggerMessage,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     resend: Arc<Resend>,
+    llm_client: Option<Arc<ProviderClient>>,
 ) -> Result<(), HandlerError> {
     let workspace_id = message.workspace_id;
     let report_type = &message.r#type;
@@ -219,6 +227,26 @@ async fn process_report_trigger(
         return Ok(());
     }
 
+    // Generate AI summary using the LLM service
+    let ai_summary = if let Some(ref client) = llm_client {
+        generate_ai_summary(client, &workspace_name, &period_label, &project_reports, total_events)
+            .await
+            .unwrap_or_else(|e| {
+                log::warn!(
+                    "[Reports Generator] Failed to generate AI summary for workspace {}: {:?}",
+                    workspace_id,
+                    e
+                );
+                String::new()
+            })
+    } else {
+        log::info!(
+            "[Reports Generator] LLM client not configured, skipping AI summary for workspace {}",
+            workspace_id
+        );
+        String::new()
+    };
+
     // Build the report
     let report_data = ReportData {
         workspace_name: workspace_name.clone(),
@@ -227,6 +255,7 @@ async fn process_report_trigger(
         period_end: now.format("%b %d, %Y").to_string(),
         projects: project_reports,
         total_events,
+        ai_summary,
     };
 
     let html = render_report_email(&report_data);
@@ -292,6 +321,101 @@ async fn process_report_trigger(
     }
 
     Ok(())
+}
+
+/// Build a text summary of report data for the LLM prompt.
+fn build_report_summary_prompt(
+    workspace_name: &str,
+    period_label: &str,
+    project_reports: &[ProjectReportData],
+    total_events: u64,
+) -> String {
+    let mut data_summary = format!(
+        "Workspace: {workspace_name}\nReport period: {period_label}\nTotal signal events: {total_events}\n\n"
+    );
+
+    for project in project_reports {
+        data_summary.push_str(&format!("Project: {}\n", project.project_name));
+        for (signal_name, count) in &project.signal_event_counts {
+            data_summary.push_str(&format!("  - Signal \"{signal_name}\": {count} events\n"));
+        }
+        for (signal_name, samples) in &project.signals {
+            for sample in samples {
+                let summary_part = if sample.summary.is_empty() {
+                    String::new()
+                } else {
+                    format!(" | Summary: {}", sample.summary)
+                };
+                data_summary.push_str(&format!(
+                    "  Sample [{signal_name}] {}{}\n",
+                    sample.timestamp, summary_part
+                ));
+            }
+        }
+        data_summary.push('\n');
+    }
+
+    data_summary
+}
+
+/// Generate an AI summary of the report data using the LLM service.
+async fn generate_ai_summary(
+    llm_client: &ProviderClient,
+    workspace_name: &str,
+    period_label: &str,
+    project_reports: &[ProjectReportData],
+    total_events: u64,
+) -> anyhow::Result<String> {
+    let data_summary =
+        build_report_summary_prompt(workspace_name, period_label, project_reports, total_events);
+
+    let system_instruction = ProviderContent {
+        role: None,
+        parts: Some(vec![ProviderPart {
+            text: Some(
+                "You are an expert at analyzing observability data. \
+                 Given signal event data from an LLM observability platform, \
+                 write a concise 2-3 sentence summary highlighting the most \
+                 important trends, notable spikes, and actionable insights. \
+                 Do not use markdown formatting. Write in plain text only."
+                    .to_string(),
+            ),
+            ..Default::default()
+        }]),
+    };
+
+    let user_content = ProviderContent {
+        role: Some("user".to_string()),
+        parts: Some(vec![ProviderPart {
+            text: Some(format!(
+                "Summarize the following signal report data:\n\n{data_summary}"
+            )),
+            ..Default::default()
+        }]),
+    };
+
+    let request = ProviderRequest {
+        contents: vec![user_content],
+        system_instruction: Some(system_instruction),
+        tools: None,
+    };
+
+    let model = LLM_MODEL.as_str();
+    let response = llm_client
+        .generate_content(model, &request)
+        .await
+        .map_err(|e| anyhow::anyhow!("LLM generate_content failed: {:?}", e))?;
+
+    let text = response
+        .candidates
+        .and_then(|candidates| candidates.into_iter().next())
+        .and_then(|candidate| candidate.content)
+        .and_then(|content| content.parts)
+        .and_then(|parts| parts.into_iter().next())
+        .and_then(|part| part.text)
+        .unwrap_or_default();
+
+    Ok(text.trim().to_string())
 }
 
 async fn get_signal_event_counts(
