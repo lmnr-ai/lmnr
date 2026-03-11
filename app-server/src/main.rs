@@ -736,6 +736,8 @@ fn main() -> anyhow::Result<()> {
             SIGNAL_JOB_WAITING_BATCH_EXCHANGE,
             SIGNAL_JOB_WAITING_BATCH_QUEUE,
         );
+        // ==== 3.10b Signals Realtime message queue ====
+        queue.register_queue(SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE);
         // ==== 3.11 Logs message queue ====
         queue.register_queue(LOGS_EXCHANGE, LOGS_QUEUE);
         log::info!("Using tokio mpsc queue");
