@@ -75,6 +75,7 @@ pub enum WorkerType {
     SignalJobPendingBatch,
     SignalJobRealtime,
     Logs,
+    Reports,
 }
 
 impl std::fmt::Display for WorkerType {
@@ -89,6 +90,7 @@ impl std::fmt::Display for WorkerType {
             WorkerType::SignalJobPendingBatch => write!(f, "signal_job_pending_batch"),
             WorkerType::SignalJobRealtime => write!(f, "signal_job_realtime"),
             WorkerType::Logs => write!(f, "logs"),
+            WorkerType::Reports => write!(f, "reports"),
         }
     }
 }

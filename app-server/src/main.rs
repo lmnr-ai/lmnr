@@ -44,6 +44,7 @@ use query_engine::{
     QueryEngine, query_engine::query_engine_service_client::QueryEngineServiceClient,
     query_engine_impl::QueryEngineImpl,
 };
+use reports::{REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE, REPORT_TRIGGERS_ROUTING_KEY};
 use runtime::{create_general_purpose_runtime, wait_stop_signal};
 use signals::{
     SIGNAL_JOB_PENDING_BATCH_EXCHANGE, SIGNAL_JOB_PENDING_BATCH_QUEUE,
@@ -84,13 +85,16 @@ use std::{
 };
 use storage::{Storage, mock::MockStorage};
 
-use crate::ch::{cloud::CloudClickhouse, data_plane::DataPlaneClickhouse};
 use crate::features::{enable_consumer, enable_producer};
 use crate::utils::get_unsigned_env_with_default;
 use crate::worker::{QueueConfig, WorkerPool, WorkerType};
 use crate::{
     batch_worker::{BatchWorkerType, config::BatchingConfig, worker_pool::BatchWorkerPool},
     clustering::clustering::ClusteringHandler,
+};
+use crate::{
+    ch::{cloud::CloudClickhouse, data_plane::DataPlaneClickhouse},
+    reports::generator::ReportsGenerator,
 };
 
 mod api;
@@ -117,6 +121,7 @@ mod pubsub;
 mod query_engine;
 mod quickwit;
 mod realtime;
+mod reports;
 mod routes;
 mod runtime;
 mod signals;
@@ -625,6 +630,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.12 Reports message queue ====
+            channel
+                .exchange_declare(
+                    REPORT_TRIGGERS_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    REPORT_TRIGGERS_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             let max_channel_pool_size = env::var("RABBITMQ_MAX_CHANNEL_POOL_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())
@@ -823,6 +854,17 @@ fn main() -> anyhow::Result<()> {
     let http_client_for_http = http_client.clone();
     let http_client_for_consumer = http_client.clone();
 
+    // == Reports Scheduler ==
+    let db_for_scheduler = db.clone();
+    let queue_for_scheduler = queue.clone();
+    runtime_handle.spawn(async move {
+        reports::scheduler::run_reports_scheduler(
+            db_for_scheduler.pool.clone(),
+            queue_for_scheduler,
+        )
+        .await;
+    });
+
     if !enable_producer() && !enable_consumer() {
         log::error!(
             "Neither producer nor consumer mode is enabled. Set OPERATION_MODE to 'producer' or 'consumer', or unset to run both"
@@ -909,6 +951,11 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(String::from("4"))
             .parse::<u8>()
             .unwrap_or(4);
+
+        let num_reports_workers = env::var("NUM_REPORTS_WORKERS")
+            .unwrap_or(String::from("2"))
+            .parse::<u8>()
+            .unwrap_or(2);
 
         log::info!(
             "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}",
@@ -1292,6 +1339,25 @@ fn main() -> anyhow::Result<()> {
                                 queue_name: LOGS_QUEUE,
                                 exchange_name: LOGS_EXCHANGE,
                                 routing_key: LOGS_ROUTING_KEY,
+                            },
+                        );
+                    }
+
+                    // Spawn reports workers
+                    {
+                        let db = db_for_consumer.clone();
+                        let clickhouse = clickhouse_for_consumer.clone();
+                        worker_pool_clone.spawn(
+                            WorkerType::Reports,
+                            num_reports_workers as usize,
+                            move || ReportsGenerator {
+                                db: db.clone(),
+                                clickhouse: clickhouse.clone(),
+                            },
+                            QueueConfig {
+                                queue_name: REPORT_TRIGGERS_QUEUE,
+                                exchange_name: REPORT_TRIGGERS_EXCHANGE,
+                                routing_key: REPORT_TRIGGERS_ROUTING_KEY,
                             },
                         );
                     }

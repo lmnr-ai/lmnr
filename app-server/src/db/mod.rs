@@ -11,6 +11,7 @@ pub mod labeling_queues;
 pub mod model_costs;
 pub mod project_api_keys;
 pub mod projects;
+pub mod reports;
 pub mod rollout_sessions;
 pub mod signal_jobs;
 pub mod signal_triggers;
