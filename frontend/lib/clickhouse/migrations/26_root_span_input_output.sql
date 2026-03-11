@@ -1,3 +1,54 @@
+ALTER TABLE default.traces_replacing ADD COLUMN IF NOT EXISTS `root_span_input` String DEFAULT '';
+ALTER TABLE default.traces_replacing ADD COLUMN IF NOT EXISTS `root_span_output` String DEFAULT '';
+
+DROP VIEW IF EXISTS default.raw_traces_v0;
+CREATE VIEW IF NOT EXISTS default.raw_traces_v0 SQL SECURITY INVOKER AS
+SELECT
+    start_time,
+    end_time,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    input_cost,
+    output_cost,
+    total_cost,
+    duration,
+    metadata,
+    session_id,
+    user_id,
+    CASE
+        WHEN status = 'error' THEN 'error'
+        ELSE 'success'
+    END AS status,
+    top_span_id,
+    top_span_name,
+    CASE
+        WHEN top_span_type = 0 THEN 'DEFAULT'
+        WHEN top_span_type = 1 THEN 'LLM'
+        WHEN top_span_type = 3 THEN 'EXECUTOR'
+        WHEN top_span_type = 4 THEN 'EVALUATOR'
+        WHEN top_span_type = 5 THEN 'EVALUATION'
+        WHEN top_span_type = 6 THEN 'TOOL'
+        WHEN top_span_type = 7 THEN 'HUMAN_EVALUATOR'
+        WHEN top_span_type = 8 THEN 'CACHED'
+        ELSE 'UNKNOWN'
+    END AS top_span_type,
+    CASE
+      WHEN trace_type = 3 THEN 'PLAYGROUND'
+      WHEN trace_type = 1 THEN 'EVALUATION'
+      WHEN trace_type = 0 THEN 'DEFAULT'
+      ELSE 'DEFAULT'
+    END AS trace_type,
+    arrayDistinct(tags) tags,
+    has_browser_session,
+    arrayDistinct(span_names) span_names,
+    root_span_input,
+    root_span_output,
+    id,
+    project_id
+FROM default.traces_replacing FINAL
+WHERE project_id={project_id:UUID};
+
 DROP VIEW IF EXISTS default.traces_v0;
 CREATE VIEW IF NOT EXISTS default.traces_v0 SQL SECURITY INVOKER AS
 SELECT
@@ -22,18 +73,8 @@ SELECT
     t.has_browser_session AS has_browser_session,
     t.id AS id,
     t.span_names AS span_names,
-    rs.root_span_input AS root_span_input,
-    rs.root_span_output AS root_span_output
+    t.root_span_input AS root_span_input,
+    t.root_span_output AS root_span_output
 FROM
     default.raw_traces_v0(project_id={project_id:UUID}) t
-ANY LEFT JOIN (
-    SELECT
-        trace_id,
-        span_id,
-        substring(input, 1, 200) AS root_span_input,
-        substring(output, 1, 200) AS root_span_output
-    FROM default.spans
-    WHERE project_id = {project_id:UUID}
-      AND parent_span_id = '00000000-0000-0000-0000-000000000000'
-) rs ON rs.trace_id = t.id AND rs.span_id = t.top_span_id
 WHERE t.project_id={project_id:UUID};
