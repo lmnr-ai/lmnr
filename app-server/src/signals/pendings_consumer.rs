@@ -214,10 +214,19 @@ pub async fn retry_or_fail_runs(
         let signal_message = run_to_message.get(&run.run_id);
         let metadata = failure_metadata.get(&run.run_id);
 
-        let retryable = metadata
-            .and_then(|m| m.finish_reason.as_ref())
-            .map(|fr| fr.is_retryable())
-            .unwrap_or(true);
+        let retryable = if let Some(meta) = metadata {
+            // Processing errors are always retryable regardless of finish reason
+            if meta.is_processing_error {
+                true
+            } else {
+                meta.finish_reason
+                    .as_ref()
+                    .map(|fr| fr.is_retryable())
+                    .unwrap_or(true)
+            }
+        } else {
+            true
+        };
 
         if let Some(msg) = signal_message {
             if retryable && msg.retry_count < max_retry_count {
