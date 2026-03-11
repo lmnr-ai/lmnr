@@ -167,6 +167,8 @@ export type RealtimeTracePayload = {
   visibility: string | null;
   status: string | null;
   user_id: string | null;
+  root_span_input: string | null;
+  root_span_output: string | null;
 };
 
 export type TracePreview = {
