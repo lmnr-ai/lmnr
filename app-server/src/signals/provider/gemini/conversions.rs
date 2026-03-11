@@ -18,7 +18,12 @@ impl From<GenerateContentResponse> for ProviderResponse {
                                     ProviderFinishReason::Stop
                                 }
                                 GeminiFinishReason::MaxTokens => ProviderFinishReason::MaxTokens,
-                                GeminiFinishReason::Safety | GeminiFinishReason::ImageSafety => {
+                                GeminiFinishReason::Safety
+                                | GeminiFinishReason::ImageSafety
+                                | GeminiFinishReason::Blocklist
+                                | GeminiFinishReason::Spii
+                                | GeminiFinishReason::ProhibitedContent
+                                | GeminiFinishReason::ImageProhibitedContent => {
                                     ProviderFinishReason::Safety
                                 }
                                 GeminiFinishReason::MalformedFunctionCall => {
