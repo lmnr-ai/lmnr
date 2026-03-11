@@ -26,7 +26,7 @@ SELECT
     rs.root_span_output AS root_span_output
 FROM
     default.raw_traces_v0(project_id={project_id:UUID}) t
-LEFT JOIN (
+ANY LEFT JOIN (
     SELECT
         span_id,
         substring(input, 1, 200) AS root_span_input,
