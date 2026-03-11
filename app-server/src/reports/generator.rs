@@ -280,7 +280,7 @@ async fn process_report_trigger(
     }
 
     if send_failures == members.len() {
-        return Err(HandlerError::permanent(anyhow::anyhow!(
+        return Err(HandlerError::transient(anyhow::anyhow!(
             "Failed to send report email to all {} members for workspace {}",
             members.len(),
             workspace_id
