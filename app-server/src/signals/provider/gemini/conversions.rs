@@ -39,11 +39,10 @@ impl From<GenerateContentResponse> for ProviderResponse {
             usage_metadata: resp.usage_metadata.map(|u| ProviderUsageMetadata {
                 prompt_token_count: u.prompt_token_count,
                 // Include thoughts tokens in output token count (thinking mode)
-                candidates_token_count: Some(
-                    u.candidates_token_count
-                        .unwrap_or(0)
-                        .saturating_add(u.thoughts_token_count.unwrap_or(0)),
-                ),
+                candidates_token_count: match (u.candidates_token_count, u.thoughts_token_count) {
+                    (None, None) => None,
+                    (c, t) => Some(c.unwrap_or(0).saturating_add(t.unwrap_or(0))),
+                },
                 total_token_count: u.total_token_count,
                 cache_tokens_details: u
                     .cache_tokens_details
