@@ -1,3 +1,4 @@
+pub mod email_template;
 pub mod generator;
 pub mod scheduler;
 

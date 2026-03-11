@@ -881,6 +881,9 @@ fn main() -> anyhow::Result<()> {
     let http_client_for_http = http_client.clone();
     let http_client_for_consumer = http_client.clone();
 
+    // == Resend client for report emails ==
+    let resend_client = Arc::new(resend_rs::Resend::default());
+
     // == Reports Scheduler ==
     let db_for_scheduler = db.clone();
     let queue_for_scheduler = queue.clone();
@@ -1375,12 +1378,14 @@ fn main() -> anyhow::Result<()> {
                     {
                         let db = db_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
+                        let resend = resend_client.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Reports,
                             num_reports_workers as usize,
                             move || ReportsGenerator {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
+                                resend: resend.clone(),
                             },
                             QueueConfig {
                                 queue_name: REPORT_TRIGGERS_QUEUE,
