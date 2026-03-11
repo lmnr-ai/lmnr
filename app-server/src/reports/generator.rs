@@ -181,9 +181,13 @@ async fn process_report_trigger(
                 .map(|dt| dt.format("%b %d, %Y %H:%M UTC").to_string())
                 .unwrap_or_else(|| "Unknown time".to_string());
 
-            // Truncate payload for display if too long
+            // Truncate payload for display if too long (char-boundary safe)
             let payload_display = if row.payload.len() > 500 {
-                format!("{}...", &row.payload[..500])
+                let truncated = match row.payload.char_indices().nth(500) {
+                    Some((idx, _)) => &row.payload[..idx],
+                    None => &row.payload,
+                };
+                format!("{}...", truncated)
             } else {
                 row.payload.clone()
             };
@@ -243,32 +247,36 @@ async fn process_report_trigger(
         return Ok(());
     }
 
-    let to_addresses: Vec<&str> = members.iter().map(|m| m.email.as_str()).collect();
-
     let subject = format!("Signal {} – {}", period_label, workspace_name);
 
     let from = "Laminar <reports@lmnr.ai>";
 
-    let email = CreateEmailBaseOptions::new(from, to_addresses, &subject).with_html(&html);
+    // Send individual emails to each member to avoid exposing all addresses in the TO field
+    for member in &members {
+        let email =
+            CreateEmailBaseOptions::new(from, [member.email.as_str()], &subject).with_html(&html);
 
-    match resend.emails.send(email).await {
-        Ok(response) => {
-            log::info!(
-                "[Reports Generator] Report email sent for workspace {}. Email ID: {:?}",
-                workspace_id,
-                response.id
-            );
-        }
-        Err(e) => {
-            log::error!(
-                "[Reports Generator] Failed to send report email for workspace {}: {:?}",
-                workspace_id,
-                e
-            );
-            return Err(HandlerError::transient(anyhow::anyhow!(
-                "Failed to send report email: {:?}",
-                e
-            )));
+        match resend.emails.send(email).await {
+            Ok(response) => {
+                log::info!(
+                    "[Reports Generator] Report email sent to {} for workspace {}. Email ID: {:?}",
+                    member.email,
+                    workspace_id,
+                    response.id
+                );
+            }
+            Err(e) => {
+                log::error!(
+                    "[Reports Generator] Failed to send report email to {} for workspace {}: {:?}",
+                    member.email,
+                    workspace_id,
+                    e
+                );
+                return Err(HandlerError::transient(anyhow::anyhow!(
+                    "Failed to send report email: {:?}",
+                    e
+                )));
+            }
         }
     }
 
