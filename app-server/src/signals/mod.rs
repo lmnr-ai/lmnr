@@ -50,8 +50,10 @@ pub fn llm_provider() -> String {
     }
     env::var("SIGNALS_LLM_PROVIDER")
         .or_else(|_| env::var("SIGNAL_JOB_LLM_PROVIDER"))
+        .ok()
         .map(|v| v.trim().to_lowercase())
-        .unwrap_or_else(|_| "gemini".to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "gemini".to_string())
 }
 
 /// Configuration for signal workers, initialized from environment variables.

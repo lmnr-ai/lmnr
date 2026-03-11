@@ -119,7 +119,8 @@ pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
     let explicit_provider = env::var("SIGNALS_LLM_PROVIDER")
         .or_else(|_| env::var("SIGNAL_JOB_LLM_PROVIDER"))
         .ok()
-        .map(|v| v.trim().to_lowercase());
+        .map(|v| v.trim().to_lowercase())
+        .filter(|v| !v.is_empty());
 
     if let Some(provider_name) = explicit_provider {
         match provider_name.as_str() {
