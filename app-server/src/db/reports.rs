@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
@@ -9,7 +9,7 @@ pub struct Report {
     pub r#type: String,
     pub weekdays: Vec<i32>,
     pub hour: i32,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
 }
 
 pub async fn get_reports_for_weekday_and_hour(
