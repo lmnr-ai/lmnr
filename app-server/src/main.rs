@@ -857,10 +857,12 @@ fn main() -> anyhow::Result<()> {
     // == Reports Scheduler ==
     let db_for_scheduler = db.clone();
     let queue_for_scheduler = queue.clone();
+    let cache_for_scheduler = cache.clone();
     runtime_handle.spawn(async move {
         reports::scheduler::run_reports_scheduler(
             db_for_scheduler.pool.clone(),
             queue_for_scheduler,
+            cache_for_scheduler,
         )
         .await;
     });

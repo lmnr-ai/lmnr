@@ -1,36 +1,109 @@
 use std::sync::Arc;
+use std::time::Duration;
 
-use chrono::{Datelike, Timelike};
+use chrono::{DateTime, Datelike, Timelike, Utc};
 use sqlx::PgPool;
+use tokio::time::{self, MissedTickBehavior};
 
-use crate::db::reports::get_all_reports;
+use crate::cache::keys::{REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, REPORT_SCHEDULER_LOCK_CACHE_KEY};
+use crate::cache::{Cache, CacheTrait};
+use crate::db::reports::get_reports_for_weekday_and_hour;
 use crate::mq::MessageQueue;
 
 use super::{ReportTriggerMessage, push_to_reports_queue};
 
-pub async fn run_reports_scheduler(pool: PgPool, queue: Arc<MessageQueue>) {
-    loop {
-        if let Err(e) = check_and_enqueue(&pool, queue.clone()).await {
-            log::error!("[Reports Scheduler] Error: {:?}", e);
-        }
+// Safety net TTL in case the holder crashes; normal operation releases the lock each cycle.
+const LOCK_TTL_SECONDS: u64 = 900;
+const TICK_INTERVAL_SECONDS: u64 = 600;
 
-        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-        // TODO: Add smarter logic for next run
+pub async fn run_reports_scheduler(pool: PgPool, queue: Arc<MessageQueue>, cache: Arc<Cache>) {
+    let mut interval = time::interval(Duration::from_secs(TICK_INTERVAL_SECONDS));
+    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+
+    loop {
+        interval.tick().await;
+
+        match cache
+            .try_acquire_lock(REPORT_SCHEDULER_LOCK_CACHE_KEY, LOCK_TTL_SECONDS)
+            .await
+        {
+            Ok(true) => {
+                if let Err(e) = check_and_enqueue(&pool, queue.clone(), &cache).await {
+                    log::error!("[Reports Scheduler] Error: {:?}", e);
+                }
+
+                interval.tick().await;
+
+                if let Err(e) = cache.release_lock(REPORT_SCHEDULER_LOCK_CACHE_KEY).await {
+                    log::warn!("[Reports Scheduler] Failed to release lock: {:?}", e);
+                }
+            }
+            Ok(false) => {
+                log::debug!("[Reports Scheduler] Another replica holds the lock, skipping");
+            }
+            Err(e) => {
+                log::warn!("[Reports Scheduler] Failed to acquire lock: {:?}", e);
+            }
+        }
     }
 }
 
-async fn check_and_enqueue(pool: &PgPool, queue: Arc<MessageQueue>) -> anyhow::Result<()> {
-    log::info!("[Reports Scheduler] Checking and enqueuing reports");
-    return Ok(());
-    let now = chrono::Utc::now();
-    let weekday = now.weekday().num_days_from_monday() as i32; // 0 = Monday, 6 = Sunday
-    let hour = now.hour() as i32;
+fn truncate_to_hour(dt: DateTime<Utc>) -> DateTime<Utc> {
+    dt.with_minute(0)
+        .and_then(|t| t.with_second(0))
+        .and_then(|t| t.with_nanosecond(0))
+        .unwrap_or(dt)
+}
 
-    let reports = get_all_reports(pool).await?;
+fn hour_boundaries_between(from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<(i32, i32)> {
+    let start = truncate_to_hour(from) + chrono::Duration::hours(1);
+    let end = truncate_to_hour(to);
 
-    // TODO: Add logic to filter reports in query
-    for report in reports {
-        if report.weekdays.contains(&weekday) && report.hour == hour {
+    if start > end {
+        return vec![];
+    }
+
+    let mut result = vec![];
+    let mut t = start;
+    while t <= end {
+        let weekday = t.weekday().num_days_from_monday() as i32;
+        let hour = t.hour() as i32;
+        result.push((weekday, hour));
+        t += chrono::Duration::hours(1);
+    }
+    result
+}
+
+async fn check_and_enqueue(
+    pool: &PgPool,
+    queue: Arc<MessageQueue>,
+    cache: &Arc<Cache>,
+) -> anyhow::Result<()> {
+    let now = Utc::now();
+
+    let last_check_ts: Option<i64> = cache
+        .get(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY)
+        .await
+        .unwrap_or(None);
+
+    let last_check = last_check_ts
+        .and_then(|ts| DateTime::from_timestamp(ts, 0))
+        .unwrap_or(now);
+
+    let hours_to_check = hour_boundaries_between(last_check, now);
+    if hours_to_check.is_empty() {
+        return Ok(());
+    }
+
+    log::info!(
+        "[Reports Scheduler] Checking {} hour(s) since last check",
+        hours_to_check.len()
+    );
+
+    for (weekday, hour) in hours_to_check {
+        let reports = get_reports_for_weekday_and_hour(pool, weekday, hour).await?;
+
+        for report in reports {
             let message = ReportTriggerMessage {
                 id: report.id,
                 workspace_id: report.workspace_id,
@@ -48,6 +121,10 @@ async fn check_and_enqueue(pool: &PgPool, queue: Arc<MessageQueue>) -> anyhow::R
             }
         }
     }
+
+    let _ = cache
+        .insert(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, now.timestamp())
+        .await;
 
     Ok(())
 }
