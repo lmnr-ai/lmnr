@@ -89,6 +89,20 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     size: 150,
   },
   {
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    accessorKey: "rootSpanInput",
+    header: "Root input",
+    id: "root_span_input",
+    size: 150,
+  },
+  {
+    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    accessorKey: "rootSpanOutput",
+    header: "Root output",
+    id: "root_span_output",
+    size: 150,
+  },
+  {
     accessorFn: (row) => row.startTime,
     header: "Timestamp",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
