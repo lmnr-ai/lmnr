@@ -882,7 +882,9 @@ fn main() -> anyhow::Result<()> {
     let http_client_for_consumer = http_client.clone();
 
     // == Resend client for report emails ==
-    let resend_client = Arc::new(resend_rs::Resend::default());
+    let resend_client = std::env::var("RESEND_API_KEY")
+        .ok()
+        .map(|key| Arc::new(resend_rs::Resend::new(key.as_str())));
 
     // == Reports Scheduler ==
     let db_for_scheduler = db.clone();

@@ -29,7 +29,7 @@ const MAX_SAMPLES_PER_SIGNAL: u64 = 5;
 pub struct ReportsGenerator {
     pub db: Arc<DB>,
     pub clickhouse: clickhouse::Client,
-    pub resend: Arc<Resend>,
+    pub resend: Option<Arc<Resend>>,
 }
 
 #[async_trait]
@@ -37,11 +37,20 @@ impl MessageHandler for ReportsGenerator {
     type Message = ReportTriggerMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
+        let resend = match &self.resend {
+            Some(r) => r.clone(),
+            None => {
+                log::warn!(
+                    "[Reports Generator] Resend client not configured (RESEND_API_KEY not set), skipping report email"
+                );
+                return Ok(());
+            }
+        };
         process_report_trigger(
             message,
             self.db.clone(),
             self.clickhouse.clone(),
-            self.resend.clone(),
+            resend,
         )
         .await
     }
