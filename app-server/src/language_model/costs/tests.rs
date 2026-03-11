@@ -95,7 +95,6 @@ fn test_lookup_keys_full() {
         keys,
         vec![
             "bedrock/us-east-1/anthropic.claude-v2",
-            "bedrock/bedrock/us-east-1/anthropic.claude-v2",
             "bedrock/us-east-1/anthropic-claude-v2",
             "us-east-1/anthropic.claude-v2",
             "us-east-1/anthropic-claude-v2",
@@ -125,7 +124,6 @@ fn test_lookup_keys_inferred_provider() {
         keys,
         vec![
             "anthropic/claude-sonnet-4-5",
-            "anthropic/anthropic/claude-sonnet-4-5",
             "claude-sonnet-4-5",
         ]
     );
@@ -156,7 +154,6 @@ fn test_lookup_keys_with_anthropic_snapshot() {
         keys,
         vec![
             "anthropic/claude-sonnet-4-5-20250514",
-            "anthropic/anthropic/claude-sonnet-4-5-20250514",
             "anthropic/claude-sonnet-4-5",
             "claude-sonnet-4-5-20250514",
             "claude-sonnet-4-5",
