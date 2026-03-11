@@ -14,6 +14,15 @@ use crate::traces::spans::SpanUsage;
 /// Maximum number of characters to store for root span input/output preview.
 const ROOT_SPAN_PREVIEW_MAX_CHARS: usize = 200;
 
+fn truncate_json_preview(value: &serde_json::Value) -> String {
+    let s = value.to_string();
+    if s.chars().count() > ROOT_SPAN_PREVIEW_MAX_CHARS {
+        s.chars().take(ROOT_SPAN_PREVIEW_MAX_CHARS).collect()
+    } else {
+        s
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTrace {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -225,22 +234,8 @@ impl TraceAggregation {
                 entry.top_span_id = Some(span.span_id);
                 entry.top_span_name = Some(span.name.clone());
                 entry.top_span_type = span.span_type.clone().into();
-                entry.root_span_input = span.input.as_ref().map(|v| {
-                    let s = v.to_string();
-                    if s.chars().count() > ROOT_SPAN_PREVIEW_MAX_CHARS {
-                        s.chars().take(ROOT_SPAN_PREVIEW_MAX_CHARS).collect::<String>()
-                    } else {
-                        s
-                    }
-                });
-                entry.root_span_output = span.output.as_ref().map(|v| {
-                    let s = v.to_string();
-                    if s.chars().count() > ROOT_SPAN_PREVIEW_MAX_CHARS {
-                        s.chars().take(ROOT_SPAN_PREVIEW_MAX_CHARS).collect::<String>()
-                    } else {
-                        s
-                    }
-                });
+                entry.root_span_input = span.input.as_ref().map(truncate_json_preview);
+                entry.root_span_output = span.output.as_ref().map(truncate_json_preview);
             }
 
             if entry.top_span_name.is_none() {
