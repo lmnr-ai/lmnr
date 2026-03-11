@@ -95,69 +95,70 @@ pub fn has_bedrock_credentials() -> bool {
         && env::var("AWS_REGION").is_ok_and(|v| !v.is_empty())
 }
 
-/// Initialize a provider client based on configuration and available credentials.
+/// Resolve the provider name from env var or credential auto-detection.
 ///
 /// Resolution order:
-/// 1. If `SIGNAL_JOB_LLM_PROVIDER` is set (case-insensitive, whitespace-tolerant),
-///    attempt to use that provider. Returns an error if the required API keys are missing.
-/// 2. Otherwise, try providers in order (Gemini, Bedrock) and use the first one
-///    whose credentials are available.
-///
-/// This function is future-proof: adding a new provider requires adding a new match arm
-/// and a corresponding `has_<provider>_credentials()` check.
-pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
-    let explicit_provider = env::var("SIGNAL_JOB_LLM_PROVIDER")
+/// 1. If `SIGNAL_JOB_LLM_PROVIDER` is set (case-insensitive, whitespace-tolerant), use it.
+/// 2. Otherwise, return the first provider whose credentials are available
+///    (Gemini first, then Bedrock).
+/// 3. Falls back to "gemini" if no credentials are found.
+pub fn resolve_provider_name() -> String {
+    env::var("SIGNAL_JOB_LLM_PROVIDER")
         .ok()
         .map(|v| v.trim().to_lowercase())
-        .filter(|v| !v.is_empty());
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| {
+            if has_gemini_credentials() {
+                "gemini".to_string()
+            } else if has_bedrock_credentials() {
+                "bedrock".to_string()
+            } else {
+                "gemini".to_string()
+            }
+        })
+}
 
-    if let Some(provider_name) = explicit_provider {
-        match provider_name.as_str() {
-            "gemini" => {
-                if !has_gemini_credentials() {
-                    return Err(ProviderError::ConfigError(
-                        "SIGNAL_JOB_LLM_PROVIDER is set to 'gemini' but GOOGLE_GENERATIVE_AI_API_KEY is not set".to_string(),
-                    ));
-                }
-                let client = GeminiClient::new().map_err(|e| {
-                    ProviderError::ConfigError(format!("Failed to create Gemini client: {}", e))
-                })?;
-                log::info!("Initialized Gemini provider (explicitly configured)");
-                Ok(ProviderClient::Gemini(client))
+/// Return the default model ID for a given provider name.
+pub fn default_model_for_provider(provider: &str) -> String {
+    match provider {
+        "bedrock" => "anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
+        _ => "gemini-3-flash-preview".to_string(),
+    }
+}
+
+/// Initialize a provider client based on configuration and available credentials.
+///
+/// Uses [`resolve_provider_name`] for provider selection, then validates credentials
+/// and constructs the appropriate client.
+pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
+    let provider_name = resolve_provider_name();
+
+    match provider_name.as_str() {
+        "gemini" => {
+            if !has_gemini_credentials() {
+                return Err(ProviderError::ConfigError(
+                    "Provider resolved to 'gemini' but GOOGLE_GENERATIVE_AI_API_KEY is not set".to_string(),
+                ));
             }
-            "bedrock" => {
-                if !has_bedrock_credentials() {
-                    return Err(ProviderError::ConfigError(
-                        "SIGNAL_JOB_LLM_PROVIDER is set to 'bedrock' but one or more required AWS env vars are missing (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)".to_string(),
-                    ));
-                }
-                let client = BedrockClient::new().await?;
-                log::info!("Initialized Bedrock provider (explicitly configured)");
-                Ok(ProviderClient::Bedrock(client))
-            }
-            other => Err(ProviderError::ConfigError(format!(
-                "Unknown SIGNAL_JOB_LLM_PROVIDER value: '{}'. Supported providers: gemini, bedrock",
-                other
-            ))),
-        }
-    } else {
-        // Auto-detect: try providers in order of preference
-        if has_gemini_credentials() {
             let client = GeminiClient::new().map_err(|e| {
                 ProviderError::ConfigError(format!("Failed to create Gemini client: {}", e))
             })?;
-            log::info!("Initialized Gemini provider (auto-detected from credentials)");
-            return Ok(ProviderClient::Gemini(client));
+            log::info!("Initialized Gemini provider");
+            Ok(ProviderClient::Gemini(client))
         }
-
-        if has_bedrock_credentials() {
+        "bedrock" => {
+            if !has_bedrock_credentials() {
+                return Err(ProviderError::ConfigError(
+                    "Provider resolved to 'bedrock' but one or more required AWS env vars are missing (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)".to_string(),
+                ));
+            }
             let client = BedrockClient::new().await?;
-            log::info!("Initialized Bedrock provider (auto-detected from credentials)");
-            return Ok(ProviderClient::Bedrock(client));
+            log::info!("Initialized Bedrock provider");
+            Ok(ProviderClient::Bedrock(client))
         }
-
-        Err(ProviderError::ConfigError(
-            "No LLM provider credentials found. Set GOOGLE_GENERATIVE_AI_API_KEY for Gemini or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_REGION for Bedrock.".to_string(),
-        ))
+        other => Err(ProviderError::ConfigError(format!(
+            "Unknown provider: '{}'. Supported providers: gemini, bedrock",
+            other
+        ))),
     }
 }

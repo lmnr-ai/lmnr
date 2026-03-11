@@ -39,11 +39,7 @@ pub fn llm_model() -> String {
             env::var("SIGNAL_JOB_LLM_MODEL")
                 .ok()
                 .filter(|v| !v.trim().is_empty())
-                .unwrap_or(if llm_provider() == "bedrock" {
-                    "anthropic.claude-haiku-4-5-20251001-v1:0".to_string()
-                } else {
-                    "gemini-3-flash-preview".to_string()
-                })
+                .unwrap_or_else(|| provider::default_model_for_provider(&llm_provider()))
         })
         .clone()
 }
@@ -51,19 +47,7 @@ pub fn llm_model() -> String {
 /// Get the LLM provider name.
 pub fn llm_provider() -> String {
     LLM_PROVIDER
-        .get_or_init(|| {
-            env::var("SIGNAL_JOB_LLM_PROVIDER")
-                .ok()
-                .map(|v| v.trim().to_lowercase())
-                .filter(|v| !v.is_empty())
-                .unwrap_or(if provider::has_gemini_credentials() {
-                    "gemini".to_string()
-                } else if provider::has_bedrock_credentials() {
-                    "bedrock".to_string()
-                } else {
-                    "gemini".to_string()
-                })
-        })
+        .get_or_init(|| provider::resolve_provider_name())
         .clone()
 }
 
