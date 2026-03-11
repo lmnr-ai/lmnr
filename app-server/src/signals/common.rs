@@ -13,8 +13,9 @@ use crate::{
     mq::MessageQueue,
     signals::SignalRun,
     signals::prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
-    signals::provider::gemini::{
-        Content, GenerateContentRequest, GenerationConfig, InlineRequestItem, Part,
+    signals::provider::models::{
+        ProviderContent as Content, ProviderGenerationConfig, ProviderPart as Part,
+        ProviderRequest, ProviderRequestItem,
     },
     signals::spans::get_trace_structure_as_string,
     signals::tools::build_tool_definitions,
@@ -23,7 +24,7 @@ use crate::{
 };
 
 pub struct ProcessRunResult {
-    pub request: InlineRequestItem,
+    pub request: ProviderRequestItem,
     pub new_messages: Vec<CHSignalRunMessage>,
     pub request_start_time: chrono::DateTime<chrono::Utc>,
 }
@@ -196,16 +197,16 @@ pub async fn process_run(
     // 2. Build tool definitions
     let tools = vec![build_tool_definitions(structured_output_schema)];
 
-    // 3. Create GenerateContentRequest
-    let request = InlineRequestItem {
-        request: GenerateContentRequest {
+    // 3. Create ProviderRequest
+    let request = ProviderRequestItem {
+        request: ProviderRequest {
             contents: contents.clone(),
-            generation_config: Some(GenerationConfig {
+            system_instruction: system_instruction.clone(),
+            tools: Some(tools),
+            generation_config: Some(ProviderGenerationConfig {
                 temperature: Some(1.0),
                 ..Default::default()
             }),
-            system_instruction: system_instruction.clone(),
-            tools: Some(tools),
         },
         metadata: Some(serde_json::json!({
             "run_id": run_id,

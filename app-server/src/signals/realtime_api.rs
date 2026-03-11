@@ -9,8 +9,9 @@ use crate::{
     db::DB,
     mq::MessageQueue,
     signals::{
-        LLM_MODEL, LLM_PROVIDER, SignalRun, SignalWorkerConfig,
+        SignalRun, SignalWorkerConfig,
         common::{ProcessRunResult, handle_failed_runs, process_run},
+        llm_model, llm_provider,
         pendings_consumer::process_succeeded_batch,
         provider::{
             LanguageModelClient, ProviderClient,
@@ -71,8 +72,8 @@ impl MessageHandler for SignalJobRealtimeHandler {
             &signal.prompt,
             &signal.name,
             &signal.structured_output_schema,
-            &LLM_MODEL,
-            &LLM_PROVIDER,
+            &llm_model(),
+            &llm_provider(),
             self.clickhouse.clone(),
             self.queue.clone(),
             self.config.internal_project_id,
@@ -98,9 +99,7 @@ impl MessageHandler for SignalJobRealtimeHandler {
                         })?;
                 }
 
-                let provider_request: ProviderRequestItem =
-                    serde_json::from_value(serde_json::to_value(request).unwrap()).unwrap();
-                self.process_realtime_request(provider_request, updated_message)
+                self.process_realtime_request(request, updated_message)
                     .await;
             }
             Err(e) => {
@@ -123,7 +122,7 @@ impl MessageHandler for SignalJobRealtimeHandler {
 impl SignalJobRealtimeHandler {
     async fn process_realtime_request(&self, request: ProviderRequestItem, message: SignalMessage) {
         let max_retry_count = get_unsigned_env_with_default("SIGNALS_MAX_RETRY_COUNT", 4);
-        let model_str = LLM_MODEL.to_string();
+        let model_str = llm_model();
         let llm_client = self.llm_client.clone();
         let req_clone = request.request.clone();
 
