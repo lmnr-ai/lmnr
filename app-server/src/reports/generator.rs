@@ -258,8 +258,7 @@ async fn process_report_trigger(
         match resend.emails.send(email).await {
             Ok(response) => {
                 log::info!(
-                    "[Reports Generator] Report email sent to {} for workspace {}. Email ID: {:?}",
-                    member.email,
+                    "[Reports Generator] Report email sent for workspace {}. Email ID: {:?}",
                     workspace_id,
                     response.id
                 );
@@ -267,8 +266,7 @@ async fn process_report_trigger(
             Err(e) => {
                 send_failures += 1;
                 log::error!(
-                    "[Reports Generator] Failed to send report email to {} for workspace {}: {:?}",
-                    member.email,
+                    "[Reports Generator] Failed to send report email for workspace {}: {:?}",
                     workspace_id,
                     e
                 );
