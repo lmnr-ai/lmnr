@@ -36,7 +36,7 @@ static LLM_PROVIDER: OnceLock<String> = OnceLock::new();
 pub fn llm_model() -> String {
     LLM_MODEL
         .get_or_init(|| {
-            env::var("SIGNAL_JOB_LLM_MODEL")
+            env::var("SIGNALS_LLM_MODEL")
                 .ok()
                 .map(|v| v.trim().to_string())
                 .filter(|v| !v.is_empty())

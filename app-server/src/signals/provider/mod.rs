@@ -109,12 +109,12 @@ pub fn has_bedrock_credentials() -> bool {
 /// Resolve the provider name from env var or credential auto-detection.
 ///
 /// Resolution order:
-/// 1. If `SIGNAL_JOB_LLM_PROVIDER` is set (case-insensitive, whitespace-tolerant), use it.
+/// 1. If `SIGNALS_LLM_PROVIDER` is set (case-insensitive, whitespace-tolerant), use it.
 /// 2. Otherwise, return the first provider whose credentials are available
 ///    (Gemini first, then Bedrock).
 /// 3. Falls back to "gemini" if no credentials are found.
 pub fn resolve_provider_name() -> String {
-    env::var("SIGNAL_JOB_LLM_PROVIDER")
+    env::var("SIGNALS_LLM_PROVIDER")
         .ok()
         .map(|v| v.trim().to_lowercase())
         .filter(|v| !v.is_empty())

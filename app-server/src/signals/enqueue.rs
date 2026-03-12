@@ -127,11 +127,6 @@ pub async fn enqueue_signal_job(
                 anyhow::anyhow!("Failed to create signal job")
             })?;
 
-    let global_use_realtime = env::var("SIGNALS_USE_REALTIME")
-        .ok()
-        .map(|v| v.trim().to_lowercase() == "true");
-    let process_in_realtime = global_use_realtime == Some(true) || process_in_realtime;
-
     // Step 1: Create all runs and messages (without pushing to queue yet)
     let mut signal_runs: Vec<super::SignalRun> = Vec::with_capacity(trace_ids.len());
     let mut messages: Vec<SignalMessage> = Vec::with_capacity(trace_ids.len());
