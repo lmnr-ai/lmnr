@@ -120,7 +120,7 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
           projectId,
           signalId: signal.id,
           value: [
-            { column: "total_token_count", operator: "gt", value: 1000 },
+            { column: "total_token_count", operator: "gt", value: "1000" },
             { column: "root_span_finished", operator: "eq", value: "true" },
           ],
         });
