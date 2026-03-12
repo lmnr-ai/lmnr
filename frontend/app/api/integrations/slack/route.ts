@@ -13,18 +13,20 @@ function parseState(state: string): { workspaceId: string; returnPath?: string }
   };
 }
 
+function isRelativePath(path: string): boolean {
+  return path.startsWith("/") && !path.startsWith("//");
+}
+
 function buildRedirectUrl(workspaceId: string, returnPath?: string, error = false): string {
   const base = process.env.NEXT_PUBLIC_URL;
+  const status = error ? "slack=error" : "slack=success";
 
-  if (returnPath) {
+  if (returnPath && isRelativePath(returnPath)) {
     const separator = returnPath.includes("?") ? "&" : "?";
-    const status = error ? "slack=error" : "slack=success";
     return `${base}${returnPath}${separator}${status}`;
   }
 
-  return error
-    ? `${base}/workspace/${workspaceId}?tab=integrations&slack=error`
-    : `${base}/workspace/${workspaceId}?tab=integrations&slack=success`;
+  return `${base}/workspace/${workspaceId}?tab=integrations&${status}`;
 }
 
 export async function GET(request: NextRequest) {

@@ -132,9 +132,12 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
   const { alertId, projectId, name, type, sourceId, targets } = UpdateAlertSchema.parse(input);
 
   return await db.transaction(async (tx) => {
-    await tx.update(alerts).set({ name, type, sourceId }).where(eq(alerts.id, alertId));
+    await tx
+      .update(alerts)
+      .set({ name, type, sourceId })
+      .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)));
 
-    await tx.delete(alertTargets).where(eq(alertTargets.alertId, alertId));
+    await tx.delete(alertTargets).where(and(eq(alertTargets.alertId, alertId), eq(alertTargets.projectId, projectId)));
 
     await tx.insert(alertTargets).values(
       targets.map((t) => ({
