@@ -44,12 +44,16 @@ pub struct NotificationMessage {
     pub payload: serde_json::Value,
 }
 
-/// Push a notification message to the notification queue
+/// Push a notification message to the notification queue.
+///
+/// Returns `HandlerError::Permanent` for payload size violations (retrying won't help)
+/// and `HandlerError::Transient` for publish failures (may be a temporary MQ issue).
 pub async fn push_to_notification_queue(
     message: NotificationMessage,
     queue: Arc<MessageQueue>,
-) -> anyhow::Result<()> {
-    let serialized = serde_json::to_vec(&message)?;
+) -> Result<(), HandlerError> {
+    let serialized = serde_json::to_vec(&message)
+        .map_err(|e| HandlerError::permanent(anyhow::anyhow!("Failed to serialize notification: {}", e)))?;
 
     if serialized.len() >= mq_max_payload() {
         log::warn!(
@@ -57,10 +61,10 @@ pub async fn push_to_notification_queue(
             serialized.len(),
             message.event_name,
         );
-        return Err(anyhow::anyhow!(
+        return Err(HandlerError::permanent(anyhow::anyhow!(
             "Notification payload size ({} bytes) exceeds MQ limit",
             serialized.len()
-        ));
+        )));
     }
 
     queue
@@ -70,7 +74,8 @@ pub async fn push_to_notification_queue(
             NOTIFICATIONS_ROUTING_KEY,
             None,
         )
-        .await?;
+        .await
+        .map_err(|e| HandlerError::transient(e))?;
 
     log::debug!(
         "Pushed notification message to queue: project_id={}, trace_id={}, event_name={}",

@@ -7,8 +7,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Datelike, Duration, Utc};
-use clickhouse::Row;
-use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -16,6 +14,7 @@ use super::ReportTriggerMessage;
 use super::email_template::{
     ProjectReportData, ReportData, SignalEventSample, render_report_email,
 };
+use crate::ch::signal_events::{get_signal_event_counts, get_signal_event_samples};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
 use crate::db::reports::{get_report_target_emails, get_signals_for_workspace};
@@ -31,6 +30,12 @@ use crate::signals::provider::{
 use crate::worker::{HandlerError, MessageHandler};
 
 const MAX_SAMPLES_PER_SIGNAL: u64 = 5;
+const REPORT_FROM_EMAIL: &str = "Laminar <reports@lmnr.ai>";
+
+/// Report type identifier for signal events summary reports.
+const REPORT_TYPE_SIGNAL_EVENTS_SUMMARY: &str = "SIGNAL_EVENTS_SUMMARY";
+/// Human-readable name for signal events summary reports.
+const REPORT_NAME_SIGNAL_EVENTS_SUMMARY: &str = "Signal Events Summary";
 
 pub struct ReportsGenerator {
     pub db: Arc<DB>,
@@ -53,29 +58,6 @@ impl MessageHandler for ReportsGenerator {
         )
         .await
     }
-}
-
-/// ClickHouse row for signal event samples
-#[derive(Row, Serialize, Deserialize, Debug)]
-struct SignalEventRow {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub signal_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub trace_id: Uuid,
-    pub name: String,
-    pub payload: String,
-    pub summary: String,
-    pub timestamp: i64,
-}
-
-/// ClickHouse row for signal event counts
-#[derive(Row, Serialize, Deserialize, Debug)]
-struct SignalEventCountRow {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub signal_id: Uuid,
-    pub count: u64,
 }
 
 #[instrument(skip(message, db, clickhouse, queue, llm_client))]
@@ -103,11 +85,9 @@ async fn process_report_trigger(
     let (period_start, period_end) = report_period(triggered_at, &message.weekdays, message.hour);
 
     let report_name = match report_type.as_str() {
-        // TODO: Replace with enum
-        "SIGNAL_EVENTS_SUMMARY" => "Signal Events Summary".to_string(),
+        REPORT_TYPE_SIGNAL_EVENTS_SUMMARY => REPORT_NAME_SIGNAL_EVENTS_SUMMARY.to_string(),
         _ => "Report".to_string(),
     };
-    let period_label = format!("[Laminar] {}", report_name);
 
     let start_ts = period_start.timestamp();
     let end_ts = period_end.timestamp();
@@ -253,7 +233,7 @@ async fn process_report_trigger(
             String::new()
         })
     } else {
-        log::info!(
+        log::warn!(
             "[Reports Generator] LLM client not configured, skipping AI summary for workspace {}",
             workspace_id
         );
@@ -280,7 +260,7 @@ async fn process_report_trigger(
         .map_err(|e| HandlerError::transient(e))?;
 
     if emails.is_empty() {
-        log::warn!(
+        log::info!(
             "[Reports Generator] No email targets found for report {} in workspace {}",
             report_id,
             workspace_id
@@ -288,12 +268,11 @@ async fn process_report_trigger(
         return Ok(());
     }
 
-    let subject = format!("{} – {}", period_label, workspace_name);
-    let from = "Laminar <reports@lmnr.ai>".to_string();
+    let subject = format!("{} – {}", report_name, workspace_name);
 
     // Push email notification to the notification queue
     let email_payload = EmailPayload {
-        from,
+        from: REPORT_FROM_EMAIL.to_string(),
         to: emails,
         subject,
         html,
@@ -305,20 +284,10 @@ async fn process_report_trigger(
         notification_type: NotificationType::Email,
         event_name: "report_email".to_string(),
         payload: serde_json::to_value(email_payload)
-            .map_err(|e| HandlerError::transient(anyhow::anyhow!(e)))?,
+            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?,
     };
 
-    push_to_notification_queue(notification_message, queue)
-        .await
-        .map_err(|e| {
-            // Payload size exceeded is a permanent error — retrying will produce the same
-            // oversized payload and loop forever. Other failures (e.g. MQ connection) are transient.
-            if e.to_string().contains("exceeds MQ limit") {
-                HandlerError::permanent(e)
-            } else {
-                HandlerError::transient(e)
-            }
-        })?;
+    push_to_notification_queue(notification_message, queue).await?;
 
     log::info!(
         "[Reports Generator] Report email notification pushed to queue for workspace {}",
@@ -422,85 +391,6 @@ async fn generate_ai_summary(
         .unwrap_or_default();
 
     Ok(text.trim().to_string())
-}
-
-async fn get_signal_event_counts(
-    clickhouse: &clickhouse::Client,
-    project_id: &Uuid,
-    signal_ids: &[Uuid],
-    start_ts: i64,
-    end_ts: i64,
-) -> anyhow::Result<Vec<SignalEventCountRow>> {
-    if signal_ids.is_empty() {
-        return Ok(vec![]);
-    }
-
-    let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
-    let query_str = format!(
-        "SELECT signal_id, count() as count
-         FROM signal_events
-         WHERE project_id = ?
-           AND signal_id IN ({})
-           AND timestamp >= toDateTime64(?, 9)
-           AND timestamp < toDateTime64(?, 9)
-         GROUP BY signal_id",
-        placeholders.join(",")
-    );
-
-    let mut query = clickhouse.query(&query_str).bind(project_id);
-
-    for signal_id in signal_ids {
-        query = query.bind(signal_id);
-    }
-
-    query = query.bind(start_ts).bind(end_ts);
-
-    let rows = query.fetch_all::<SignalEventCountRow>().await?;
-
-    Ok(rows)
-}
-
-async fn get_signal_event_samples(
-    clickhouse: &clickhouse::Client,
-    project_id: &Uuid,
-    signal_ids: &[Uuid],
-    start_ts: i64,
-    end_ts: i64,
-    limit_per_signal: u64,
-) -> anyhow::Result<Vec<SignalEventRow>> {
-    if signal_ids.is_empty() {
-        return Ok(vec![]);
-    }
-
-    let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
-
-    let query_str = format!(
-        "SELECT id, signal_id, trace_id, name, payload, summary, timestamp
-         FROM (
-             SELECT id, signal_id, trace_id, name, payload, summary, timestamp,
-                    row_number() OVER (PARTITION BY signal_id ORDER BY timestamp DESC) as rn
-             FROM signal_events
-             WHERE project_id = ?
-               AND signal_id IN ({})
-               AND timestamp >= toDateTime64(?, 9)
-               AND timestamp < toDateTime64(?, 9)
-         )
-         WHERE rn <= ?
-         ORDER BY signal_id, timestamp DESC",
-        placeholders.join(",")
-    );
-
-    let mut query = clickhouse.query(&query_str).bind(project_id);
-
-    for signal_id in signal_ids {
-        query = query.bind(signal_id);
-    }
-
-    query = query.bind(start_ts).bind(end_ts).bind(limit_per_signal);
-
-    let rows = query.fetch_all::<SignalEventRow>().await?;
-
-    Ok(rows)
 }
 
 /// Compute the report period from the schedule's weekdays and hour.

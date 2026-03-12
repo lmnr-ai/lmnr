@@ -64,6 +64,110 @@ impl CHSignalEvent {
     }
 }
 
+/// ClickHouse row for report signal event samples
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct SignalEventSampleRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub signal_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub trace_id: Uuid,
+    pub name: String,
+    pub payload: String,
+    pub summary: String,
+    pub timestamp: i64,
+}
+
+/// ClickHouse row for signal event counts
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct SignalEventCountRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub signal_id: Uuid,
+    pub count: u64,
+}
+
+/// Get event counts per signal for the given project and time range.
+pub async fn get_signal_event_counts(
+    clickhouse: &clickhouse::Client,
+    project_id: &Uuid,
+    signal_ids: &[Uuid],
+    start_ts: i64,
+    end_ts: i64,
+) -> Result<Vec<SignalEventCountRow>> {
+    if signal_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
+    let query_str = format!(
+        "SELECT signal_id, count() as count
+         FROM signal_events
+         WHERE project_id = ?
+           AND signal_id IN ({})
+           AND timestamp >= toDateTime64(?, 9)
+           AND timestamp < toDateTime64(?, 9)
+         GROUP BY signal_id",
+        placeholders.join(",")
+    );
+
+    let mut query = clickhouse.query(&query_str).bind(project_id);
+
+    for signal_id in signal_ids {
+        query = query.bind(signal_id);
+    }
+
+    query = query.bind(start_ts).bind(end_ts);
+
+    let rows = query.fetch_all::<SignalEventCountRow>().await?;
+
+    Ok(rows)
+}
+
+/// Get the most recent N sample events per signal for the given project and time range.
+pub async fn get_signal_event_samples(
+    clickhouse: &clickhouse::Client,
+    project_id: &Uuid,
+    signal_ids: &[Uuid],
+    start_ts: i64,
+    end_ts: i64,
+    limit_per_signal: u64,
+) -> Result<Vec<SignalEventSampleRow>> {
+    if signal_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
+
+    let query_str = format!(
+        "SELECT id, signal_id, trace_id, name, payload, summary, timestamp
+         FROM (
+             SELECT id, signal_id, trace_id, name, payload, summary, timestamp,
+                    row_number() OVER (PARTITION BY signal_id ORDER BY timestamp DESC) as rn
+             FROM signal_events
+             WHERE project_id = ?
+               AND signal_id IN ({})
+               AND timestamp >= toDateTime64(?, 9)
+               AND timestamp < toDateTime64(?, 9)
+         )
+         WHERE rn <= ?
+         ORDER BY signal_id, timestamp DESC",
+        placeholders.join(",")
+    );
+
+    let mut query = clickhouse.query(&query_str).bind(project_id);
+
+    for signal_id in signal_ids {
+        query = query.bind(signal_id);
+    }
+
+    query = query.bind(start_ts).bind(end_ts).bind(limit_per_signal);
+
+    let rows = query.fetch_all::<SignalEventSampleRow>().await?;
+
+    Ok(rows)
+}
+
 /// Insert signal events into ClickHouse
 pub async fn insert_signal_events(
     clickhouse: clickhouse::Client,
