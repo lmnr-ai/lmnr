@@ -8,8 +8,8 @@ import TracePicker from "@/components/traces/trace-picker";
 import { Button } from "@/components/ui/button";
 import { type TraceRow } from "@/lib/traces/types";
 
+import { type ManageSignalForm } from "../types";
 import TestResultsView from "./test-results-view";
-import { type ManageSignalForm } from "./types";
 
 type TestView = "picker" | "results";
 
@@ -74,7 +74,6 @@ export default function TestPanel({
             <TracePicker
               onTraceSelect={(trace) => setSelectedTrace(trace)}
               focusedTraceId={selectedTrace?.id}
-              mode="state"
               className="flex flex-col flex-1 gap-2 px-3 pb-3 overflow-hidden h-full"
             />
           </div>

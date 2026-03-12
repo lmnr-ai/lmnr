@@ -1,8 +1,8 @@
 "use client";
 
 import { type Row } from "@tanstack/react-table";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import { useCallback, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { filters as traceFilters } from "@/components/traces/traces-table/columns";
@@ -22,7 +22,6 @@ export interface TracePickerProps {
   description?: string;
   fetchParams?: Record<string, string>;
   className?: string;
-  mode?: "url" | "state";
 }
 
 const TracePickerContent = ({
@@ -32,55 +31,15 @@ const TracePickerContent = ({
   description,
   fetchParams,
   className,
-  mode = "state",
 }: TracePickerProps) => {
   const { projectId } = useParams<{ projectId: string }>();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
 
-  // State-mode local state
-  const [stateFilters, setStateFilters] = useState<{ filters: Filter[]; search: string }>({ filters: [], search: "" });
-  const [stateDateRange, setStateDateRange] = useState<{
+  const [filters, setFilters] = useState<{ filters: Filter[]; search: string }>({ filters: [], search: "" });
+  const [dateRange, setDateRange] = useState<{
     pastHours?: string;
     startDate?: string;
     endDate?: string;
   }>({ pastHours: "24" });
-
-  // URL-mode: set default pastHours=24 if no date params present
-  useEffect(() => {
-    if (mode !== "url") return;
-    const hasPastHours = searchParams.has("pastHours");
-    const hasStartDate = searchParams.has("startDate");
-    const hasEndDate = searchParams.has("endDate");
-    if (!hasPastHours && !hasStartDate && !hasEndDate) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("pastHours", "24");
-      router.replace(`${pathname}?${params.toString()}`);
-    }
-  }, [mode, searchParams, router, pathname]);
-
-  // Resolve effective values based on mode
-  const effectiveFilter = useMemo(() => {
-    if (mode === "url") return searchParams.getAll("filter");
-    return stateFilters.filters.map((f) => JSON.stringify(f));
-  }, [mode, searchParams, stateFilters.filters]);
-
-  const effectiveSearch = useMemo(() => {
-    if (mode === "url") return searchParams.get("search") ?? "";
-    return stateFilters.search;
-  }, [mode, searchParams, stateFilters.search]);
-
-  const effectiveDateRange = useMemo(() => {
-    if (mode === "url") {
-      const startDate = searchParams.get("startDate") ?? undefined;
-      const endDate = searchParams.get("endDate") ?? undefined;
-      // If explicit start/end dates are set, ignore pastHours to avoid conflicts
-      const pastHours = startDate && endDate ? undefined : (searchParams.get("pastHours") ?? undefined);
-      return { pastHours, startDate, endDate };
-    }
-    return stateDateRange;
-  }, [mode, searchParams, stateDateRange]);
 
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
@@ -92,20 +51,20 @@ const TracePickerContent = ({
         }
       }
 
-      if (effectiveDateRange.pastHours) urlParams.set("pastHours", effectiveDateRange.pastHours);
-      if (effectiveDateRange.startDate) urlParams.set("startDate", effectiveDateRange.startDate);
-      if (effectiveDateRange.endDate) urlParams.set("endDate", effectiveDateRange.endDate);
+      if (dateRange.pastHours) urlParams.set("pastHours", dateRange.pastHours);
+      if (dateRange.startDate) urlParams.set("startDate", dateRange.startDate);
+      if (dateRange.endDate) urlParams.set("endDate", dateRange.endDate);
 
-      effectiveFilter.forEach((filter) => {
-        urlParams.append("filter", filter);
+      filters.filters.forEach((filter) => {
+        urlParams.append("filter", JSON.stringify(filter));
       });
 
       if (excludeTraceId) {
         urlParams.append("filter", JSON.stringify({ column: "id", operator: "ne", value: excludeTraceId }));
       }
 
-      if (effectiveSearch.length > 0) {
-        urlParams.set("search", effectiveSearch);
+      if (filters.search.length > 0) {
+        urlParams.set("search", filters.search);
       }
 
       urlParams.set("pageNumber", pageNumber.toString());
@@ -120,7 +79,7 @@ const TracePickerContent = ({
       const data = (await res.json()) as { items: TraceRow[] };
       return { items: data.items ?? [], count: undefined };
     },
-    [projectId, effectiveFilter, effectiveSearch, effectiveDateRange, fetchParams, excludeTraceId]
+    [projectId, filters, dateRange, fetchParams, excludeTraceId]
   );
 
   const {
@@ -132,8 +91,8 @@ const TracePickerContent = ({
     refetch,
   } = useInfiniteScroll<TraceRow>({
     fetchFn: fetchTraces,
-    enabled: !!(effectiveDateRange.pastHours || (effectiveDateRange.startDate && effectiveDateRange.endDate)),
-    deps: [effectiveFilter, effectiveSearch, effectiveDateRange, projectId, fetchParams, excludeTraceId],
+    enabled: !!(dateRange.pastHours || (dateRange.startDate && dateRange.endDate)),
+    deps: [filters, dateRange, projectId, fetchParams, excludeTraceId],
   });
 
   const handleRowClick = useCallback(
@@ -154,7 +113,7 @@ const TracePickerContent = ({
         getRowId={(t) => t.id}
         onRowClick={handleRowClick}
         focusedRowId={focusedTraceId}
-        hasMore={!effectiveSearch && hasMore}
+        hasMore={!filters.search && hasMore}
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
@@ -162,35 +121,20 @@ const TracePickerContent = ({
         lockedColumns={["status"]}
       >
         <div className="flex gap-2 w-full items-center">
-          {mode === "url" ? (
-            <DateRangeFilter mode="url" />
-          ) : (
-            <DateRangeFilter mode="state" value={stateDateRange} onChange={setStateDateRange} />
-          )}
+          <DateRangeFilter mode="state" value={dateRange} onChange={setDateRange} />
           <RefreshButton onClick={refetch} variant="outline" />
         </div>
         <div className="w-full px-px">
-          {mode === "url" ? (
-            <AdvancedSearch
-              mode="url"
-              filters={traceFilters}
-              resource="traces"
-              placeholder="Search traces..."
-              className="w-full flex-1"
-              options={{ disableHotKey: true }}
-            />
-          ) : (
-            <AdvancedSearch
-              mode="state"
-              filters={traceFilters}
-              resource="traces"
-              value={stateFilters}
-              onSubmit={(f, search) => setStateFilters({ filters: f, search })}
-              placeholder="Search traces..."
-              className="w-full flex-1"
-              options={{ disableHotKey: true }}
-            />
-          )}
+          <AdvancedSearch
+            mode="state"
+            filters={traceFilters}
+            resource="traces"
+            value={filters}
+            onSubmit={(f, search) => setFilters({ filters: f, search })}
+            placeholder="Search traces..."
+            className="w-full flex-1"
+            options={{ disableHotKey: true }}
+          />
         </div>
       </InfiniteDataTable>
     </div>
