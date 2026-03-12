@@ -100,9 +100,11 @@ interface StatsShieldsProps {
   >;
   className?: string;
   variant?: "filled" | "outline";
+  labelPrefix?: string;
 }
 
-function StatsShields({ stats, className, variant = "filled" }: StatsShieldsProps) {
+function StatsShields({ stats, className, variant = "filled", labelPrefix }: StatsShieldsProps) {
+  const prefix = labelPrefix ? `${labelPrefix} ` : "";
   const durationContent = (
     <div className="flex space-x-1 items-center">
       <Clock3 size={12} className="min-w-3 min-h-3" />
@@ -130,15 +132,16 @@ function StatsShields({ stats, className, variant = "filled" }: StatsShieldsProp
           <TooltipContent side="bottom" className="p-2 border">
             <div className="flex-col space-y-1">
               <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">Input tokens</span> {numberFormat.format(stats.inputTokens)}
+                <span className="text-secondary-foreground">{prefix}Input tokens</span>{" "}
+                {numberFormat.format(stats.inputTokens)}
               </Label>
               <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">Output tokens</span>{" "}
+                <span className="text-secondary-foreground">{prefix}Output tokens</span>{" "}
                 {numberFormat.format(stats.outputTokens)}
               </Label>
               {!!stats.cacheReadInputTokens && (
                 <Label className="flex text-xs gap-1 text-success-bright">
-                  <span>Cache read input tokens</span> {numberFormat.format(stats.cacheReadInputTokens)}
+                  <span>{prefix}Cache input tokens</span> {numberFormat.format(stats.cacheReadInputTokens)}
                 </Label>
               )}
             </div>
@@ -163,13 +166,16 @@ function StatsShields({ stats, className, variant = "filled" }: StatsShieldsProp
           <TooltipContent side="bottom" className="p-2 border">
             <div className="flex-col space-y-1">
               <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">Total cost</span> {"$" + stats.totalCost?.toFixed(5)}
+                <span className="text-secondary-foreground">{prefix}Total cost</span>{" "}
+                {"$" + stats.totalCost?.toFixed(5)}
               </Label>
               <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">Input cost</span> {"$" + stats.inputCost?.toFixed(5)}
+                <span className="text-secondary-foreground">{prefix}Input cost</span>{" "}
+                {"$" + stats.inputCost?.toFixed(5)}
               </Label>
               <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">Output cost</span> {"$" + stats.outputCost?.toFixed(5)}
+                <span className="text-secondary-foreground">{prefix}Output cost</span>{" "}
+                {"$" + stats.outputCost?.toFixed(5)}
               </Label>
             </div>
           </TooltipContent>
@@ -218,7 +224,7 @@ const PureTraceStatsShields = ({ trace, spans, className }: TraceStatsShieldsPro
     ]);
   }, [trace, spans]);
 
-  return <StatsShields stats={stats} className={className} />;
+  return <StatsShields stats={stats} className={className} labelPrefix="Trace" />;
 };
 
 interface SpanStatsShieldsProps {
