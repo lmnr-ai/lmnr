@@ -63,9 +63,9 @@ const metricsData: MetricsCardData = {
   title: "Last 24 Hours Overview",
   metrics: [
     { label: "Total Traces", value: 15420, format: "number", change: 12.5 },
-    { label: "Avg Latency", value: 1240, format: "duration", change: -8.3 },
-    { label: "Total Cost", value: 42.87, format: "currency", change: 5.2 },
-    { label: "Error Rate", value: 0.034, format: "percent", change: -15.7 },
+    { label: "Avg Latency", value: 1240, format: "duration", change: -8.3, lowerIsBetter: true },
+    { label: "Total Cost", value: 42.87, format: "currency", change: 5.2, lowerIsBetter: true },
+    { label: "Error Rate", value: 0.034, format: "percent", change: -15.7, lowerIsBetter: true },
     { label: "Total Tokens", value: 2450000, format: "tokens" },
     { label: "Success Rate", value: 0.966, format: "percent", change: 2.1 },
   ],
@@ -507,9 +507,9 @@ const scenarios: DemoScenario[] = [
             title: "System Health — Last 24h",
             metrics: [
               { label: "Total Traces", value: 15420, format: "number", change: 12.5 },
-              { label: "Error Rate", value: 0.034, format: "percent", change: -15.7 },
-              { label: "Avg Latency", value: 1240, format: "duration", change: -8.3 },
-              { label: "Total Cost", value: 42.87, format: "currency", change: 5.2 },
+              { label: "Error Rate", value: 0.034, format: "percent", change: -15.7, lowerIsBetter: true },
+              { label: "Avg Latency", value: 1240, format: "duration", change: -8.3, lowerIsBetter: true },
+              { label: "Total Cost", value: 42.87, format: "currency", change: 5.2, lowerIsBetter: true },
             ],
           }}
         />

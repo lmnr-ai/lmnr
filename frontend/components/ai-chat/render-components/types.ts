@@ -26,6 +26,7 @@ export interface MetricsCardData {
     value: number | string;
     format?: "number" | "currency" | "percent" | "duration" | "tokens";
     change?: number; // percentage change from previous period
+    lowerIsBetter?: boolean; // if true, negative change is good (e.g. latency, error rate, cost)
     description?: string;
   }[];
 }

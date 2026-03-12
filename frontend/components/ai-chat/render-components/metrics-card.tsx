@@ -29,16 +29,14 @@ function formatMetricValue(value: number | string, format?: string): string {
   }
 }
 
-function ChangeIndicator({ change }: { change?: number }) {
+function ChangeIndicator({ change, lowerIsBetter }: { change?: number; lowerIsBetter?: boolean }) {
   if (change == null || change === 0) return null;
 
   const isPositive = change > 0;
+  const isGood = lowerIsBetter ? !isPositive : isPositive;
   return (
     <div
-      className={cn(
-        "flex items-center gap-0.5 text-[10px] font-medium",
-        isPositive ? "text-green-500" : "text-red-500"
-      )}
+      className={cn("flex items-center gap-0.5 text-[10px] font-medium", isGood ? "text-green-500" : "text-red-500")}
     >
       {isPositive ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
       {Math.abs(change).toFixed(1)}%
@@ -75,7 +73,7 @@ export function MetricsCardComponent({ data }: { data: MetricsCardData }) {
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{metric.label}</div>
             <div className="flex items-baseline gap-1.5">
               <span className="text-sm font-semibold font-mono">{formatMetricValue(metric.value, metric.format)}</span>
-              <ChangeIndicator change={metric.change} />
+              <ChangeIndicator change={metric.change} lowerIsBetter={metric.lowerIsBetter} />
             </div>
             {metric.description && <div className="text-[10px] text-muted-foreground mt-0.5">{metric.description}</div>}
           </div>
