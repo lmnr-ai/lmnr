@@ -173,6 +173,11 @@ impl NotificationHandler {
         let email_payload: EmailPayload = serde_json::from_value(message.payload.clone())
             .map_err(|e| anyhow::anyhow!("Failed to parse EmailPayload: {}", e))?;
 
+        if email_payload.to.is_empty() {
+            log::warn!("[Notifications] Email notification has no recipients, skipping");
+            return Ok(());
+        }
+
         let mut send_failures = 0;
         let total = email_payload.to.len();
 
