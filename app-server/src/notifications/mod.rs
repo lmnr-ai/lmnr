@@ -207,7 +207,10 @@ impl NotificationHandler {
         }
 
         if send_failures == total {
-            return Err(HandlerError::transient(anyhow::anyhow!(
+            // Use permanent error: if every recipient fails, the cause is most likely
+            // a configuration issue (invalid API key, bad sender domain, etc.) that
+            // will not resolve on retry. This is consistent with the Slack handler.
+            return Err(HandlerError::permanent(anyhow::anyhow!(
                 "Failed to send email to all {} recipients",
                 total
             )));
