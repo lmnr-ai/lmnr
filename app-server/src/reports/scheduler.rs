@@ -13,8 +13,8 @@ use crate::mq::MessageQueue;
 use super::{ReportTriggerMessage, push_to_reports_queue};
 
 // Safety net TTL in case the holder crashes; normal operation releases the lock each cycle.
-const LOCK_TTL_SECONDS: u64 = 600;
-const TICK_INTERVAL_SECONDS: u64 = 60;
+const LOCK_TTL_SECONDS: u64 = 900;
+const TICK_INTERVAL_SECONDS: u64 = 600;
 
 pub async fn run_reports_scheduler(pool: PgPool, queue: Arc<MessageQueue>, cache: Arc<Cache>) {
     log::debug!("[Reports Scheduler] Starting reports scheduler");
