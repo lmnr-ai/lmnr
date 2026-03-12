@@ -6,28 +6,28 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Datelike, Duration, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use uuid::Uuid;
 
+use super::ReportTriggerMessage;
 use super::email_template::{
     ProjectReportData, ReportData, SignalEventSample, render_report_email,
 };
-use super::ReportTriggerMessage;
+use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
 use crate::db::reports::{get_report_target_emails, get_signals_for_workspace};
 use crate::db::workspaces::get_workspace;
-use crate::db::DB;
 use crate::mq::MessageQueue;
 use crate::notifications::{
     EmailPayload, NotificationMessage, NotificationType, push_to_notification_queue,
 };
+use crate::signals::llm_model;
 use crate::signals::provider::{
     LanguageModelClient, ProviderClient, ProviderContent, ProviderPart, ProviderRequest,
 };
-use crate::signals::llm_model;
 use crate::worker::{HandlerError, MessageHandler};
 
 const MAX_SAMPLES_PER_SIGNAL: u64 = 5;
@@ -96,15 +96,17 @@ async fn process_report_trigger(
         report_type
     );
 
-    // Determine the time window based on report type
-    let now = Utc::now();
-    let (period_start, period_label) = match report_type.as_str() {
-        "weekly" => (now - Duration::days(7), "Weekly Report".to_string()),
-        _ => (now - Duration::days(1), "Daily Report".to_string()),
-    };
+    let (period_start, period_end) = report_period(Utc::now(), &message.weekdays, message.hour);
 
-    let start_nanos = period_start.timestamp_nanos_opt().unwrap_or(0);
-    let end_nanos = now.timestamp_nanos_opt().unwrap_or(i64::MAX);
+    let report_name = match report_type.as_str() {
+        // TODO: Replace with enum
+        "SIGNAL_EVENTS_SUMMARY" => "Signal Events Summary".to_string(),
+        _ => "Report".to_string(),
+    };
+    let period_label = format!("[Laminar] {}", report_name);
+
+    let start_ts = period_start.timestamp();
+    let end_ts = period_end.timestamp();
 
     // Get workspace info
     let workspace_name = get_workspace(&db.pool, &workspace_id)
@@ -155,15 +157,10 @@ async fn process_report_trigger(
             signals.iter().map(|s| (s.id, s.name.clone())).collect();
 
         // Query ClickHouse for event counts per signal
-        let counts = get_signal_event_counts(
-            &clickhouse,
-            &project.id,
-            &signal_ids,
-            start_nanos,
-            end_nanos,
-        )
-        .await
-        .map_err(|e| HandlerError::transient(e))?;
+        let counts =
+            get_signal_event_counts(&clickhouse, &project.id, &signal_ids, start_ts, end_ts)
+                .await
+                .map_err(|e| HandlerError::transient(e))?;
 
         let mut signal_event_counts: BTreeMap<String, u64> = BTreeMap::new();
         for count_row in &counts {
@@ -177,8 +174,8 @@ async fn process_report_trigger(
             &clickhouse,
             &project.id,
             &signal_ids,
-            start_nanos,
-            end_nanos,
+            start_ts,
+            end_ts,
             MAX_SAMPLES_PER_SIGNAL,
         )
         .await
@@ -235,16 +232,22 @@ async fn process_report_trigger(
 
     // Generate AI summary using the LLM service
     let ai_summary = if let Some(ref client) = llm_client {
-        generate_ai_summary(client, &workspace_name, &period_label, &project_reports, total_events)
-            .await
-            .unwrap_or_else(|e| {
-                log::warn!(
-                    "[Reports Generator] Failed to generate AI summary for workspace {}: {:?}",
-                    workspace_id,
-                    e
-                );
-                String::new()
-            })
+        generate_ai_summary(
+            client,
+            &workspace_name,
+            &period_label,
+            &project_reports,
+            total_events,
+        )
+        .await
+        .unwrap_or_else(|e| {
+            log::warn!(
+                "[Reports Generator] Failed to generate AI summary for workspace {}: {:?}",
+                workspace_id,
+                e
+            );
+            String::new()
+        })
     } else {
         log::info!(
             "[Reports Generator] LLM client not configured, skipping AI summary for workspace {}",
@@ -258,7 +261,7 @@ async fn process_report_trigger(
         workspace_name: workspace_name.clone(),
         period_label: period_label.clone(),
         period_start: period_start.format("%b %d, %Y").to_string(),
-        period_end: now.format("%b %d, %Y").to_string(),
+        period_end: period_end.format("%b %d, %Y").to_string(),
         projects: project_reports,
         total_events,
         ai_summary,
@@ -420,8 +423,8 @@ async fn get_signal_event_counts(
     clickhouse: &clickhouse::Client,
     project_id: &Uuid,
     signal_ids: &[Uuid],
-    start_nanos: i64,
-    end_nanos: i64,
+    start_ts: i64,
+    end_ts: i64,
 ) -> anyhow::Result<Vec<SignalEventCountRow>> {
     if signal_ids.is_empty() {
         return Ok(vec![]);
@@ -433,8 +436,8 @@ async fn get_signal_event_counts(
          FROM signal_events
          WHERE project_id = ?
            AND signal_id IN ({})
-           AND timestamp >= ?
-           AND timestamp <= ?
+           AND timestamp >= toDateTime64(?, 9)
+           AND timestamp <= toDateTime64(?, 9)
          GROUP BY signal_id",
         placeholders.join(",")
     );
@@ -445,7 +448,7 @@ async fn get_signal_event_counts(
         query = query.bind(signal_id);
     }
 
-    query = query.bind(start_nanos).bind(end_nanos);
+    query = query.bind(start_ts).bind(end_ts);
 
     let rows = query.fetch_all::<SignalEventCountRow>().await?;
 
@@ -456,8 +459,8 @@ async fn get_signal_event_samples(
     clickhouse: &clickhouse::Client,
     project_id: &Uuid,
     signal_ids: &[Uuid],
-    start_nanos: i64,
-    end_nanos: i64,
+    start_ts: i64,
+    end_ts: i64,
     limit_per_signal: u64,
 ) -> anyhow::Result<Vec<SignalEventRow>> {
     if signal_ids.is_empty() {
@@ -466,7 +469,6 @@ async fn get_signal_event_samples(
 
     let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
 
-    // Use a window function to get the most recent N events per signal
     let query_str = format!(
         "SELECT id, signal_id, trace_id, name, payload, summary, timestamp
          FROM (
@@ -475,8 +477,8 @@ async fn get_signal_event_samples(
              FROM signal_events
              WHERE project_id = ?
                AND signal_id IN ({})
-               AND timestamp >= ?
-               AND timestamp <= ?
+               AND timestamp >= toDateTime64(?, 9)
+               AND timestamp <= toDateTime64(?, 9)
          )
          WHERE rn <= ?
          ORDER BY signal_id, timestamp DESC",
@@ -489,9 +491,44 @@ async fn get_signal_event_samples(
         query = query.bind(signal_id);
     }
 
-    query = query.bind(start_nanos).bind(end_nanos).bind(limit_per_signal);
+    query = query.bind(start_ts).bind(end_ts).bind(limit_per_signal);
 
     let rows = query.fetch_all::<SignalEventRow>().await?;
 
     Ok(rows)
+}
+
+/// Compute the report period from the schedule's weekdays and hour.
+/// Returns (period_start, period_end, label).
+/// period_end is today at the given hour, period_start is the previous scheduled weekday at the same hour.
+fn report_period(
+    now: DateTime<Utc>,
+    weekdays: &[i32],
+    hour: i32,
+) -> (DateTime<Utc>, DateTime<Utc>) {
+    let current_weekday = now.weekday().num_days_from_monday() as i32;
+
+    let mut sorted_weekdays = weekdays.to_vec();
+    sorted_weekdays.sort();
+
+    let prev_weekday = sorted_weekdays
+        .iter()
+        .rev()
+        .find(|&&d| d < current_weekday)
+        .or_else(|| sorted_weekdays.last());
+
+    let days_since_prev = match prev_weekday {
+        Some(&prev) if prev < current_weekday => current_weekday - prev,
+        Some(&prev) => 7 - prev + current_weekday,
+        None => 7,
+    };
+
+    let end = now
+        .date_naive()
+        .and_hms_opt(hour as u32, 0, 0)
+        .unwrap()
+        .and_utc();
+    let start = end - Duration::days(days_since_prev as i64);
+
+    (start, end)
 }

@@ -42,7 +42,7 @@ pub async fn get_report_target_emails(
         "SELECT rt.email FROM report_targets rt
          JOIN reports r ON rt.report_id = r.id
          WHERE rt.report_id = $1 AND r.workspace_id = $2
-           AND rt.type = 'email' AND rt.email IS NOT NULL",
+           AND rt.type = 'EMAIL' AND rt.email IS NOT NULL",
     )
     .bind(report_id)
     .bind(workspace_id)
