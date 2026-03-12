@@ -1,14 +1,8 @@
 export const REPORT_TYPE = {
-  WEEKLY_SIGNALS_SUMMARY: "WEEKLY_SIGNALS_SUMMARY",
-  DAILY_SIGNALS_SUMMARY: "DAILY_SIGNALS_SUMMARY",
+  SIGNAL_EVENTS_SUMMARY: "SIGNAL_EVENTS_SUMMARY",
 } as const;
 
 export type ReportType = (typeof REPORT_TYPE)[keyof typeof REPORT_TYPE];
-
-export const REPORT_TYPE_LABELS: Record<ReportType, string> = {
-  WEEKLY_SIGNALS_SUMMARY: "Weekly signals summary",
-  DAILY_SIGNALS_SUMMARY: "Weekdays signals summary",
-};
 
 export interface ReportSchedule {
   weekday: number[];
@@ -31,4 +25,17 @@ export interface ReportWithDetails {
   createdAt: string;
   schedule: ReportSchedule;
   targets: ReportTargetRow[];
+}
+
+export function getReportLabel(schedule: ReportSchedule): string {
+  const daySet = new Set(schedule.weekday);
+
+  if (daySet.size === 7) return "Daily signals summary";
+
+  const isWeekdays = daySet.size === 5 && [0, 1, 2, 3, 4].every((d) => daySet.has(d));
+  if (isWeekdays) return "Weekday signals summary";
+
+  if (daySet.size === 1) return "Weekly signals summary";
+
+  return "Signals summary";
 }

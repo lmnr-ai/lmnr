@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { db } from "@/lib/db/drizzle";
 import { reports, reportTargets } from "@/lib/db/migrations/schema";
 
-import { REPORT_TYPE_LABELS, type ReportTargetRow, type ReportType, type ReportWithDetails } from "./types";
+import { getReportLabel, type ReportTargetRow, type ReportType, type ReportWithDetails } from "./types";
 
 const OptInSchema = z.object({
   reportId: z.uuid(),
@@ -64,7 +64,7 @@ export async function getReports(workspaceId: string): Promise<ReportWithDetails
     return {
       id: r.id,
       reportType,
-      label: REPORT_TYPE_LABELS[reportType] ?? r.type,
+      label: getReportLabel({ weekday: r.weekday, hour: r.hour }),
       workspaceId: r.workspaceId,
       createdAt: r.createdAt,
       schedule: { weekday: r.weekday, hour: r.hour },

@@ -1,23 +1,23 @@
 import { type ReportSchedule } from "@/lib/actions/reports/types";
 
-const ISO_SHORT_NAMES: Record<number, string> = {
-  1: "Mon",
-  2: "Tue",
-  3: "Wed",
-  4: "Thu",
-  5: "Fri",
-  6: "Sat",
-  7: "Sun",
+const SHORT_NAMES: Record<number, string> = {
+  0: "Mon",
+  1: "Tue",
+  2: "Wed",
+  3: "Thu",
+  4: "Fri",
+  5: "Sat",
+  6: "Sun",
 };
 
-const ISO_FULL_NAMES: Record<number, string> = {
-  1: "Monday",
-  2: "Tuesday",
-  3: "Wednesday",
-  4: "Thursday",
-  5: "Friday",
-  6: "Saturday",
-  7: "Sunday",
+const FULL_NAMES: Record<number, string> = {
+  0: "Monday",
+  1: "Tuesday",
+  2: "Wednesday",
+  3: "Thursday",
+  4: "Friday",
+  5: "Saturday",
+  6: "Sunday",
 };
 
 export function formatSchedule(schedule: ReportSchedule): string {
@@ -33,16 +33,16 @@ export function formatSchedule(schedule: ReportSchedule): string {
   if (days.length === 7) return `Every day at ${timeStr}`;
 
   const daySet = new Set(days);
-  const isWeekdays = daySet.size === 5 && [1, 2, 3, 4, 5].every((d) => daySet.has(d));
+  const isWeekdays = daySet.size === 5 && [0, 1, 2, 3, 4].every((d) => daySet.has(d));
   if (isWeekdays) return `Weekdays at ${timeStr}`;
 
-  const isWeekends = daySet.size === 2 && daySet.has(6) && daySet.has(7);
+  const isWeekends = daySet.size === 2 && daySet.has(5) && daySet.has(6);
   if (isWeekends) return `Weekends at ${timeStr}`;
 
   if (days.length === 1) {
-    return `Every ${ISO_FULL_NAMES[days[0]] ?? `day ${days[0]}`} at ${timeStr}`;
+    return `Every ${FULL_NAMES[days[0]] ?? `day ${days[0]}`} at ${timeStr}`;
   }
 
-  const dayNames = days.map((d) => ISO_SHORT_NAMES[d] ?? `day ${d}`).join(", ");
+  const dayNames = days.map((d) => SHORT_NAMES[d] ?? `day ${d}`).join(", ");
   return `${dayNames} at ${timeStr}`;
 }
