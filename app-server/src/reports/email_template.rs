@@ -215,7 +215,7 @@ pub fn render_report_email(data: &ReportData) -> String {
   <!-- Footer -->
   <div style="text-align:center;padding:16px 0;">
     <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This report was generated automatically by <a href="https://www.lmnr.ai" style="color:{primary};text-decoration:none;">Laminar</a>.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;">You are receiving this because you are a member of the {workspace_name} workspace.</p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;">You are receiving this because you are subscribed to reports for the {workspace_name} workspace.</p>
   </div>
 
 </div>
