@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   defaultSignalsColumnsOrder,
@@ -104,12 +104,15 @@ function SignalsContent() {
   useEffect(() => {
     if (signalIdsCacheKey.length === 0) return;
 
+    const abortController = new AbortController();
     const signalIds = signalIdsCacheKey.split(",");
     const urlParams = new URLSearchParams();
     signalIds.forEach((id) => urlParams.append("signalId", id));
     urlParams.set("scale", sparklineScale);
 
-    fetch(`/api/projects/${projectId}/signals/stats?${urlParams.toString()}`)
+    fetch(`/api/projects/${projectId}/signals/stats?${urlParams.toString()}`, {
+      signal: abortController.signal,
+    })
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to fetch sparkline stats: ${res.status}`);
         return res.json();
@@ -118,12 +121,15 @@ function SignalsContent() {
         setSparklineData(data);
       })
       .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         toast({
           title: "Failed to load sparkline data",
           description: err instanceof Error ? err.message : "Unknown error",
           variant: "destructive",
         });
       });
+
+    return () => abortController.abort();
   }, [signalIdsCacheKey, sparklineScale, projectId, toast]);
 
   const handleSuccess = useCallback(async () => {
