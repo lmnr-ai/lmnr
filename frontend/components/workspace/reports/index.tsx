@@ -5,7 +5,7 @@ import useSWR from "swr";
 
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
 import { useUserContext } from "@/contexts/user-context";
-import { type ReportWithDetails } from "@/lib/actions/reports/types";
+import { REPORT_TARGET_TYPE, type ReportWithDetails } from "@/lib/actions/reports/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
@@ -39,7 +39,7 @@ export default function WorkspaceReports({ workspaceId }: WorkspaceReportsProps)
   const [togglingReportId, setTogglingReportId] = useState<string | null>(null);
 
   const isSubscribed = useCallback(
-    (report: ReportWithDetails) => report.targets.some((t) => t.type === "email" && t.email === email),
+    (report: ReportWithDetails) => report.targets.some((t) => t.type === REPORT_TARGET_TYPE.EMAIL && t.email === email),
     [email]
   );
 

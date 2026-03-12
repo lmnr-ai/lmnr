@@ -17,7 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type AlertWithDetails } from "@/lib/actions/alerts/types";
+import { ALERT_TARGET_TYPE, type AlertWithDetails } from "@/lib/actions/alerts/types";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -88,7 +88,7 @@ export default function ManageAlertSheet({
     if (!open || !alert || !signalsData) return;
 
     const signal = signalsData.items?.find((s) => s.id === alert.sourceId);
-    const slackTarget = alert.targets.find((t) => t.type === "slack");
+    const slackTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.SLACK);
 
     reset({
       name: alert.name,
@@ -207,7 +207,7 @@ export default function ManageAlertSheet({
             sourceId: selectedSignal.id,
             targets: [
               {
-                type: "slack",
+                type: ALERT_TARGET_TYPE.SLACK,
                 integrationId,
                 channelId: data.channelId,
                 channelName: selectedChannel?.name ?? "",

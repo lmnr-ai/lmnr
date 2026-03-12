@@ -4,7 +4,13 @@ import { z } from "zod/v4";
 import { db } from "@/lib/db/drizzle";
 import { reports, reportTargets } from "@/lib/db/migrations/schema";
 
-import { getReportLabel, type ReportTargetRow, type ReportType, type ReportWithDetails } from "./types";
+import {
+  getReportLabel,
+  REPORT_TARGET_TYPE,
+  type ReportTargetRow,
+  type ReportType,
+  type ReportWithDetails,
+} from "./types";
 
 const OptInSchema = z.object({
   reportId: z.uuid(),
@@ -95,7 +101,7 @@ export async function optInReport(input: z.infer<typeof OptInSchema>) {
   await db.insert(reportTargets).values({
     workspaceId,
     reportId,
-    type: "email",
+    type: REPORT_TARGET_TYPE.EMAIL,
     email,
   });
 

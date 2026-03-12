@@ -24,7 +24,7 @@ pub async fn get_slack_targets_for_event(
         INNER JOIN signals s ON s.id = a.source_id
         WHERE a.project_id = $1
           AND s.name = $2
-          AND at.type = 'slack'
+          AND at.type = 'SLACK'
           AND at.channel_id IS NOT NULL
         "#,
     )

@@ -4,6 +4,13 @@ export const REPORT_TYPE = {
 
 export type ReportType = (typeof REPORT_TYPE)[keyof typeof REPORT_TYPE];
 
+export const REPORT_TARGET_TYPE = {
+  SLACK: "SLACK",
+  EMAIL: "EMAIL",
+} as const;
+
+export type ReportTargetType = (typeof REPORT_TARGET_TYPE)[keyof typeof REPORT_TARGET_TYPE];
+
 export interface ReportSchedule {
   weekdays: number[];
   hour: number;

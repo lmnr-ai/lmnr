@@ -4,6 +4,11 @@ export const ALERT_TYPE = {
 
 export type AlertType = (typeof ALERT_TYPE)[keyof typeof ALERT_TYPE];
 
+export const ALERT_TARGET_TYPE = {
+  SLACK: "SLACK",
+  EMAIL: "EMAIL",
+} as const;
+
 export interface AlertTarget {
   id: string;
   type: string;

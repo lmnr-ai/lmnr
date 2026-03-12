@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod/v4";
 
 import { createProject } from "@/lib/actions/projects";
+import { REPORT_TARGET_TYPE } from "@/lib/actions/reports/types";
 import { authOptions } from "@/lib/auth";
 import { defaultReports } from "@/lib/db/default-charts.ts";
 import { db } from "@/lib/db/drizzle";
@@ -131,7 +132,7 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
           insertedReports.map((r) => ({
             workspaceId: workspace.id,
             reportId: r.id,
-            type: "email",
+            type: REPORT_TARGET_TYPE.EMAIL,
             email: userEmail,
           }))
         );

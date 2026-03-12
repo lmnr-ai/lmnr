@@ -30,7 +30,7 @@ pub async fn get_reports_for_weekday_and_hour(
     Ok(reports)
 }
 
-/// Fetch email addresses from report_targets for a given report where type = 'email'.
+/// Fetch email addresses from report_targets for a given report where type = 'EMAIL'.
 /// The workspace_id parameter is used as a safety check to ensure the report belongs
 /// to the expected workspace.
 pub async fn get_report_target_emails(
