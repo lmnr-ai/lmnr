@@ -118,15 +118,17 @@ export async function deleteSlackIntegration(
     return { success: true };
   }
 
-  await db
-    .delete(alertTargets)
-    .where(and(eq(alertTargets.integrationId, integration.id), isNotNull(alertTargets.integrationId)));
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(alertTargets)
+      .where(and(eq(alertTargets.integrationId, integration.id), isNotNull(alertTargets.integrationId)));
 
-  await db
-    .delete(reportTargets)
-    .where(and(eq(reportTargets.integrationId, integration.id), isNotNull(reportTargets.integrationId)));
+    await tx
+      .delete(reportTargets)
+      .where(and(eq(reportTargets.integrationId, integration.id), isNotNull(reportTargets.integrationId)));
 
-  await db.delete(slackIntegrations).where(eq(slackIntegrations.id, integration.id));
+    await tx.delete(slackIntegrations).where(eq(slackIntegrations.id, integration.id));
+  });
 
   return { success: true };
 }

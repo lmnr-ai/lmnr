@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Key, Settings2, Sparkles } from "lucide-react";
+import { Bell, DollarSign, Key, Settings2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { type CSSProperties, type ReactNode, useState } from "react";
@@ -33,12 +33,13 @@ interface SettingsProps {
   slackRedirectUri?: string;
 }
 
-type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "alerts";
+type SettingsTab = "general" | "project-api-keys" | "provider-api-keys" | "alerts" | "model-costs";
 
 const tabs: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "general", label: "General", icon: <Settings2 /> },
   { id: "project-api-keys", label: "Project API Keys", icon: <Key /> },
   { id: "provider-api-keys", label: "Model Providers", icon: <Sparkles /> },
+  { id: "model-costs", label: "Model Costs", icon: <DollarSign /> },
   { id: "alerts", label: "Alerts", icon: <Bell /> },
 ];
 
@@ -65,6 +66,8 @@ export default function Settings({ apiKeys, projectId, workspaceId, slackClientI
         return <ProjectApiKeys apiKeys={apiKeys} />;
       case "provider-api-keys":
         return <ProviderApiKeys />;
+      case "model-costs":
+        return <CustomModelCosts />;
       case "alerts":
         return (
           <AlertsSettings
