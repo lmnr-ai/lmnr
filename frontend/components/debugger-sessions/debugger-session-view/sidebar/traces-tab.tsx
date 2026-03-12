@@ -8,6 +8,8 @@ import type { TraceRow } from "@/lib/traces/types";
 
 import { useDebuggerSessionStore } from "../store";
 
+const TRACE_FETCH_PARAMS = { traceType: "DEFAULT" } as const;
+
 export default function TracesTab() {
   const { projectId } = useParams<{ projectId: string; id: string }>();
   const { loadHistoryTrace, trace } = useDebuggerSessionStore((state) => ({
@@ -27,7 +29,7 @@ export default function TracesTab() {
     <TracePicker
       onTraceSelect={handleTraceSelect}
       focusedTraceId={trace?.id}
-      fetchParams={{ traceType: "DEFAULT" }}
+      fetchParams={TRACE_FETCH_PARAMS}
       description="Select a trace to rerun in debugger. Trace structure must match the agent you are running locally."
     />
   );
