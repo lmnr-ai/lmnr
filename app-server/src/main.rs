@@ -740,6 +740,8 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_QUEUE);
         // ==== 3.11 Logs message queue ====
         queue.register_queue(LOGS_EXCHANGE, LOGS_QUEUE);
+        // ==== 3.12 Reports message queue ====
+        queue.register_queue(REPORT_TRIGGERS_EXCHANGE, REPORT_TRIGGERS_QUEUE);
         log::info!("Using tokio mpsc queue");
         Arc::new(queue.into())
     };
@@ -1205,11 +1207,7 @@ fn main() -> anyhow::Result<()> {
                             WorkerType::Notifications,
                             num_notification_workers as usize,
                             move || {
-                                NotificationHandler::new(
-                                    db.clone(),
-                                    client.clone(),
-                                    resend.clone(),
-                                )
+                                NotificationHandler::new(db.clone(), client.clone(), resend.clone())
                             },
                             QueueConfig {
                                 queue_name: NOTIFICATIONS_QUEUE,
