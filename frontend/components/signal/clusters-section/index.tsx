@@ -48,7 +48,10 @@ export default function ClustersSection() {
   // Depth uses displayId (parent level for leaves), chart uses clusterId (shows selected node's data)
   const drillDownDepthSelector = useMemo(() => selectDrillDownDepth(displayId), [displayId]);
   const chartClustersSelector = useMemo(() => selectChartClusters(clusterId), [clusterId]);
-  const hasTimeRange = !!(searchParams.get("pastHours") || searchParams.get("startDate"));
+  const pastHours = searchParams.get("pastHours");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const hasTimeRange = !!(pastHours || startDate);
   const filteredCountSelector = useMemo(
     () => selectFilteredCountByCluster(displayId, hasTimeRange),
     [displayId, hasTimeRange]
@@ -95,9 +98,9 @@ export default function ClustersSection() {
     const controller = new AbortController();
 
     fetchClusterStats({
-      pastHours: searchParams.get("pastHours"),
-      startDate: searchParams.get("startDate"),
-      endDate: searchParams.get("endDate"),
+      pastHours,
+      startDate,
+      endDate,
       chartWidth: localChartWidth,
       clusterId: displayId,
       abortSignal: controller.signal,
@@ -106,7 +109,7 @@ export default function ClustersSection() {
     return () => {
       controller.abort();
     };
-  }, [searchParams, localChartWidth, fetchClusterStats, displayId, rawClusters]);
+  }, [pastHours, startDate, endDate, localChartWidth, fetchClusterStats, displayId, rawClusters]);
 
   // Navigation callbacks
   const navigateToCluster = useCallback(

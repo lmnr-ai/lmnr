@@ -94,8 +94,9 @@ export async function getEventClusters(
     updatedAt: row.updatedAt,
   }));
 
-  const unclusteredEventCount = unclusteredCountResult[0]?.count || 0;
-  const clusteredEventCount = (countResult[0]?.count || 0) - unclusteredEventCount;
+  const totalEventCount = Number(countResult[0]?.count ?? 0);
+  const unclusteredEventCount = Number(unclusteredCountResult[0]?.count ?? 0);
+  const clusteredEventCount = totalEventCount - unclusteredEventCount;
 
-  return { items, totalEventCount: countResult[0]?.count || 0, clusteredEventCount };
+  return { items, totalEventCount, clusteredEventCount };
 }
