@@ -16,7 +16,7 @@ function MiniBarChart({
   return (
     <div className="flex items-end gap-px h-8">
       {distribution.map((bucket, i) => {
-        const height = maxCount > 0 ? Math.max(2, (bucket.count / maxCount) * 100) : 0;
+        const height = maxCount > 0 && bucket.count > 0 ? Math.max(2, (bucket.count / maxCount) * 100) : 0;
         return (
           <div key={i} className="flex-1 group relative flex flex-col items-center justify-end">
             <div
