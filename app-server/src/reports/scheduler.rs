@@ -13,10 +13,11 @@ use crate::mq::MessageQueue;
 use super::{ReportTriggerMessage, push_to_reports_queue};
 
 // Safety net TTL in case the holder crashes; normal operation releases the lock each cycle.
-const LOCK_TTL_SECONDS: u64 = 900;
-const TICK_INTERVAL_SECONDS: u64 = 600;
+const LOCK_TTL_SECONDS: u64 = 600;
+const TICK_INTERVAL_SECONDS: u64 = 300;
 
 pub async fn run_reports_scheduler(pool: PgPool, queue: Arc<MessageQueue>, cache: Arc<Cache>) {
+    log::debug!("[Reports Scheduler] Starting reports scheduler");
     let mut interval = time::interval(Duration::from_secs(TICK_INTERVAL_SECONDS));
     interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
@@ -28,11 +29,10 @@ pub async fn run_reports_scheduler(pool: PgPool, queue: Arc<MessageQueue>, cache
             .await
         {
             Ok(true) => {
+                log::debug!("[Reports Scheduler] Acquired lock, checking and enqueuing reports");
                 if let Err(e) = check_and_enqueue(&pool, queue.clone(), &cache).await {
                     log::error!("[Reports Scheduler] Error: {:?}", e);
                 }
-
-                interval.tick().await;
 
                 if let Err(e) = cache.release_lock(REPORT_SCHEDULER_LOCK_CACHE_KEY).await {
                     log::warn!("[Reports Scheduler] Failed to release lock: {:?}", e);
@@ -90,15 +90,20 @@ async fn check_and_enqueue(
         .and_then(|ts| DateTime::from_timestamp(ts, 0))
         .unwrap_or(now);
 
+    log::debug!(
+        "[Reports Scheduler] Checking since last check: {} - {}",
+        last_check,
+        now
+    );
+
+    let _ = cache
+        .insert(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, now.timestamp())
+        .await;
+
     let hours_to_check = hour_boundaries_between(last_check, now);
     if hours_to_check.is_empty() {
         return Ok(());
     }
-
-    log::info!(
-        "[Reports Scheduler] Checking {} hour(s) since last check",
-        hours_to_check.len()
-    );
 
     for (weekday, hour) in hours_to_check {
         let reports = get_reports_for_weekday_and_hour(pool, weekday, hour).await?;
@@ -121,10 +126,6 @@ async fn check_and_enqueue(
             }
         }
     }
-
-    let _ = cache
-        .insert(REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY, now.timestamp())
-        .await;
 
     Ok(())
 }
