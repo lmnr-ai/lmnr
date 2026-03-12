@@ -72,7 +72,7 @@ pub fn extract_batch_id_from_operation(operation_name: &str) -> Result<String> {
 /// Converts short span IDs (last 4 hex chars of UUID) to full UUIDs using span_ids_map.
 ///
 /// Format: `<span id='a1b2' name='openai.chat' reference_text='...' />`
-/// Becomes: `[openai.chat](https://www.lmnr.ai/project/{project_id}/traces/{trace_id}?spanId={uuid})`
+/// Becomes: `[openai.chat](https://www.laminar.sh/project/{project_id}/traces/{trace_id}?spanId={uuid})`
 ///
 /// # Arguments
 /// * `attributes` - JSON value that may contain span tags in its string values
@@ -106,7 +106,7 @@ pub fn replace_span_tags_with_links(
             .unwrap_or_else(|| short_id.to_string());
 
         format!(
-            "[{}](https://www.lmnr.ai/project/{}/traces/{}?spanId={})",
+            "[{}](https://www.laminar.sh/project/{}/traces/{}?spanId={})",
             span_name, project_id, trace_id, real_span_id
         )
     });
