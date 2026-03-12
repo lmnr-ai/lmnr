@@ -59,6 +59,7 @@ export type Span = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cacheReadInputTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
