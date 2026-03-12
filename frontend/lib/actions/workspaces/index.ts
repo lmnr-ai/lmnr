@@ -119,7 +119,10 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
         await db.insert(signalTriggers).values({
           projectId,
           signalId: signal.id,
-          value: [{ column: "status", operator: "eq", value: "error" }],
+          value: [
+            { column: "total_token_count", operator: "gt", value: 1000 },
+            { column: "root_span_finished", operator: "eq", value: "true" },
+          ],
         });
       }
 
