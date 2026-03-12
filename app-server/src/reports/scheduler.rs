@@ -14,7 +14,7 @@ use super::{ReportTriggerMessage, push_to_reports_queue};
 
 // Safety net TTL in case the holder crashes; normal operation releases the lock each cycle.
 const LOCK_TTL_SECONDS: u64 = 600;
-const TICK_INTERVAL_SECONDS: u64 = 300;
+const TICK_INTERVAL_SECONDS: u64 = 60;
 
 pub async fn run_reports_scheduler(pool: PgPool, queue: Arc<MessageQueue>, cache: Arc<Cache>) {
     log::debug!("[Reports Scheduler] Starting reports scheduler");
@@ -55,7 +55,7 @@ fn truncate_to_hour(dt: DateTime<Utc>) -> DateTime<Utc> {
         .unwrap_or(dt)
 }
 
-fn hour_boundaries_between(from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<(i32, i32)> {
+fn hour_boundaries_between(from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<(i32, i32, i64)> {
     let start = truncate_to_hour(from) + chrono::Duration::hours(1);
     let end = truncate_to_hour(to);
 
@@ -68,7 +68,7 @@ fn hour_boundaries_between(from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<(i32, 
     while t <= end {
         let weekday = t.weekday().num_days_from_monday() as i32;
         let hour = t.hour() as i32;
-        result.push((weekday, hour));
+        result.push((weekday, hour, t.timestamp()));
         t += chrono::Duration::hours(1);
     }
     result
@@ -90,7 +90,7 @@ async fn check_and_enqueue(
         .and_then(|ts| DateTime::from_timestamp(ts, 0))
         .unwrap_or(now);
 
-    log::debug!(
+    log::info!(
         "[Reports Scheduler] Checking since last check: {} - {}",
         last_check,
         now
@@ -104,8 +104,13 @@ async fn check_and_enqueue(
     if hours_to_check.is_empty() {
         return Ok(());
     }
+    log::info!(
+        "[Reports Scheduler] Checking {} hour(s): {:?}",
+        hours_to_check.len(),
+        hours_to_check
+    );
 
-    for (weekday, hour) in hours_to_check {
+    for (weekday, hour, triggered_at) in hours_to_check {
         let reports = get_reports_for_weekday_and_hour(pool, weekday, hour).await?;
 
         for report in reports {
@@ -115,6 +120,7 @@ async fn check_and_enqueue(
                 r#type: report.r#type,
                 weekdays: report.weekdays,
                 hour: report.hour,
+                triggered_at,
             };
 
             if let Err(e) = push_to_reports_queue(message, queue.clone()).await {

@@ -1,3 +1,4 @@
+pub mod email_template;
 pub mod generator;
 pub mod scheduler;
 
@@ -20,6 +21,10 @@ pub struct ReportTriggerMessage {
     pub r#type: String,
     pub weekdays: Vec<i32>,
     pub hour: i32,
+    /// Unix timestamp (seconds) of the scheduled trigger time.
+    /// Used by the generator to compute the report period deterministically,
+    /// even if message processing is delayed.
+    pub triggered_at: i64,
 }
 
 pub async fn push_to_reports_queue(

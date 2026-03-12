@@ -881,6 +881,11 @@ fn main() -> anyhow::Result<()> {
     let http_client_for_http = http_client.clone();
     let http_client_for_consumer = http_client.clone();
 
+    // == Resend client for email notifications ==
+    let resend_client = std::env::var("RESEND_API_KEY")
+        .ok()
+        .map(|key| Arc::new(resend_rs::Resend::new(key.as_str())));
+
     // == Reports Scheduler ==
     let db_for_scheduler = db.clone();
     let queue_for_scheduler = queue.clone();
@@ -1194,11 +1199,18 @@ fn main() -> anyhow::Result<()> {
                     {
                         let db = db_for_consumer.clone();
                         let client = reqwest::Client::new();
+                        let resend = resend_client.clone();
 
                         worker_pool_clone.spawn(
                             WorkerType::Notifications,
                             num_notification_workers as usize,
-                            move || NotificationHandler::new(db.clone(), client.clone()),
+                            move || {
+                                NotificationHandler::new(
+                                    db.clone(),
+                                    client.clone(),
+                                    resend.clone(),
+                                )
+                            },
                             QueueConfig {
                                 queue_name: NOTIFICATIONS_QUEUE,
                                 exchange_name: NOTIFICATIONS_EXCHANGE,
@@ -1375,12 +1387,16 @@ fn main() -> anyhow::Result<()> {
                     {
                         let db = db_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
+                        let llm_client = llm_provider_client.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Reports,
                             num_reports_workers as usize,
                             move || ReportsGenerator {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
+                                queue: queue.clone(),
+                                llm_client: llm_client.clone(),
                             },
                             QueueConfig {
                                 queue_name: REPORT_TRIGGERS_QUEUE,
