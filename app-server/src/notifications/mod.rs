@@ -233,7 +233,6 @@ async fn send_email_with_retry(
 ) -> resend_rs::Result<resend_rs::types::CreateEmailResponse> {
     let backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(Duration::from_secs(1))
-        .with_multiplier(1.0)
         .with_max_elapsed_time(Some(Duration::from_secs(10)))
         .build();
 
