@@ -202,6 +202,8 @@ impl Trace {
                 evaluate_string_filter(&status, &filter.operator, &filter.value)
             }
 
+            "root_span_finished" => self.top_span_id.is_some(),
+
             _ => {
                 log::warn!("Unknown filter column: {}", filter.column);
                 false

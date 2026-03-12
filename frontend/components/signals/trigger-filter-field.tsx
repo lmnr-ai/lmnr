@@ -18,6 +18,12 @@ import { Operator } from "@/lib/actions/common/operators.ts";
 export const SIGNAL_TRIGGER_COLUMNS: ColumnFilter[] = [
   { name: "Trace has span with name", key: "span_name", dataType: "string" },
   { name: "Status", key: "status", dataType: "enum", options: [{ label: "Error", value: "error" }] },
+  {
+    name: "Root span finished",
+    key: "root_span_finished",
+    dataType: "enum",
+    options: [{ label: "True", value: "true" }],
+  },
 ];
 
 export const getDefaultFilter = (): StringFilter => {
