@@ -71,11 +71,9 @@ export function DataTableComponent({ data }: { data: DataTableData }) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const displayRows = expanded ? data.rows : data.rows.slice(0, 8);
-
   const sortedRows = useMemo(() => {
-    if (!sortKey) return displayRows;
-    return [...displayRows].sort((a, b) => {
+    if (!sortKey) return data.rows;
+    return [...data.rows].sort((a, b) => {
       const aVal = a[sortKey];
       const bVal = b[sortKey];
       if (aVal == null && bVal == null) return 0;
@@ -87,7 +85,9 @@ export function DataTableComponent({ data }: { data: DataTableData }) {
       const cmp = String(aVal).localeCompare(String(bVal));
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [displayRows, sortKey, sortDir]);
+  }, [data.rows, sortKey, sortDir]);
+
+  const displayRows = expanded ? sortedRows : sortedRows.slice(0, 8);
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -142,7 +142,7 @@ export function DataTableComponent({ data }: { data: DataTableData }) {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {sortedRows.map((row, rowIndex) => (
+            {displayRows.map((row, rowIndex) => (
               <tr key={rowIndex} className="hover:bg-muted/20 transition-colors">
                 {data.columns.map((col) => (
                   <td key={col.key} className="px-2 py-1.5 font-mono text-[11px] max-w-[140px] truncate">
