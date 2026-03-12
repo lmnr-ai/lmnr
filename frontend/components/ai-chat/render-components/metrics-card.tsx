@@ -66,8 +66,8 @@ export function MetricsCardComponent({ data }: { data: MetricsCardData }) {
               "px-3 py-2.5",
               // Add right border except for last in row
               data.metrics.length <= 3 ? index < data.metrics.length - 1 && "border-r" : index % 2 === 0 && "border-r",
-              // Add bottom border for multi-row layouts
-              data.metrics.length > 3 && index < data.metrics.length - 2 && "border-b"
+              // Add bottom border for multi-row layouts (not on last row)
+              data.metrics.length > 3 && Math.floor(index / 2) < Math.ceil(data.metrics.length / 2) - 1 && "border-b"
             )}
           >
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{metric.label}</div>
