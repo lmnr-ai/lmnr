@@ -291,7 +291,15 @@ async fn process_report_trigger(
 
     push_to_notification_queue(notification_message, queue)
         .await
-        .map_err(|e| HandlerError::transient(e))?;
+        .map_err(|e| {
+            // Payload size exceeded is a permanent error — retrying will produce the same
+            // oversized payload and loop forever. Other failures (e.g. MQ connection) are transient.
+            if e.to_string().contains("exceeds MQ limit") {
+                HandlerError::permanent(e)
+            } else {
+                HandlerError::transient(e)
+            }
+        })?;
 
     log::info!(
         "[Reports Generator] Report email notification pushed to queue for workspace {}",
