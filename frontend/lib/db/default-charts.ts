@@ -1,5 +1,6 @@
 import { ChartType } from "@/components/chart-builder/types";
 import { type DashboardChart } from "@/components/dashboard/types";
+import { type ReportType } from "@/lib/actions/reports/types.ts";
 
 const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
   {
@@ -357,6 +358,19 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
         h: 6,
       },
     },
+  },
+];
+
+export const defaultReports: { type: ReportType; weekdays: number[]; hour: number }[] = [
+  {
+    type: "SIGNAL_EVENTS_SUMMARY",
+    weekdays: [0, 1, 2, 3, 4],
+    hour: 10,
+  },
+  {
+    type: "SIGNAL_EVENTS_SUMMARY",
+    weekdays: [6],
+    hour: 10,
   },
 ];
 

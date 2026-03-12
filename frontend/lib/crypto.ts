@@ -90,10 +90,29 @@ export async function encodeSlackToken(teamId: string, token: string): Promise<{
   }
 }
 
-export async function encryptValue(
-  additionalData: string,
-  value: string
-): Promise<{ value: string; nonce: string }> {
+export async function decodeSlackToken(teamId: string, nonceHex: string, encryptedValue: string): Promise<string> {
+  try {
+    await _sodium.ready;
+    const key = await getSlackKeyFromEnv();
+
+    const nonceBytes = Buffer.from(nonceHex, "hex");
+    const encryptedBytes = Buffer.from(encryptedValue, "hex");
+    const additionalData = new TextEncoder().encode(teamId);
+
+    const decrypted = _sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
+      null,
+      encryptedBytes,
+      additionalData,
+      nonceBytes,
+      key
+    );
+    return new TextDecoder().decode(decrypted);
+  } catch (error) {
+    throw new Error(`Failed to decode Slack token for team ${teamId}`);
+  }
+}
+
+export async function encryptValue(additionalData: string, value: string): Promise<{ value: string; nonce: string }> {
   try {
     await _sodium.ready;
     const key = await getKeyFromEnv();

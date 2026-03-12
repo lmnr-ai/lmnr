@@ -31,13 +31,17 @@ import {
   sharedTraces,
   datasetExportJobs,
   customModelCosts,
+  reports,
   tracesSummaries,
   slackChannelToEvents,
+  reportTargets,
+  alerts,
   datasetDatapoints,
   evaluations,
   projectApiKeys,
   membersOfWorkspaces,
   workspaceUsage,
+  alertTargets,
   sqlTemplates,
   eventClusterConfigs,
   workspaceAddons,
@@ -102,8 +106,10 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   datasetExportJobs: many(datasetExportJobs),
   customModelCosts: many(customModelCosts),
   tracesSummaries: many(tracesSummaries),
+  alerts: many(alerts),
   evaluations: many(evaluations),
   projectApiKeys: many(projectApiKeys),
+  alertTargets: many(alertTargets),
   sqlTemplates: many(sqlTemplates),
   eventClusterConfigs: many(eventClusterConfigs),
   playgrounds: many(playgrounds),
@@ -194,12 +200,11 @@ export const evaluatorScoresRelations = relations(evaluatorScores, ({ one }) => 
   }),
 }));
 
-export const slackIntegrationsRelations = relations(slackIntegrations, ({ one, many }) => ({
-  project: one(projects, {
-    fields: [slackIntegrations.projectId],
-    references: [projects.id],
+export const slackIntegrationsRelations = relations(slackIntegrations, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [slackIntegrations.workspaceId],
+    references: [workspaces.id],
   }),
-  slackChannelToEvents: many(slackChannelToEvents),
 }));
 
 export const workspaceInvitationsRelations = relations(workspaceInvitations, ({ one }) => ({
@@ -216,6 +221,8 @@ export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
     references: [subscriptionTiers.id],
   }),
   projects: many(projects),
+  reports: many(reports),
+  reportTargets: many(reportTargets),
   membersOfWorkspaces: many(membersOfWorkspaces),
   workspaceUsages: many(workspaceUsage),
   workspaceAddons: many(workspaceAddons),
@@ -336,6 +343,14 @@ export const customModelCostsRelations = relations(customModelCosts, ({ one }) =
   }),
 }));
 
+export const reportsRelations = relations(reports, ({ one, many }) => ({
+  workspace: one(workspaces, {
+    fields: [reports.workspaceId],
+    references: [workspaces.id],
+  }),
+  reportTargets: many(reportTargets),
+}));
+
 export const tracesSummariesRelations = relations(tracesSummaries, ({ one }) => ({
   project: one(projects, {
     fields: [tracesSummaries.projectId],
@@ -348,6 +363,25 @@ export const slackChannelToEventsRelations = relations(slackChannelToEvents, ({ 
     fields: [slackChannelToEvents.integrationId],
     references: [slackIntegrations.id],
   }),
+}));
+
+export const reportTargetsRelations = relations(reportTargets, ({ one }) => ({
+  report: one(reports, {
+    fields: [reportTargets.reportId],
+    references: [reports.id],
+  }),
+  workspace: one(workspaces, {
+    fields: [reportTargets.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const alertsRelations = relations(alerts, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [alerts.projectId],
+    references: [projects.id],
+  }),
+  alertTargets: many(alertTargets),
 }));
 
 export const datasetDatapointsRelations = relations(datasetDatapoints, ({ one }) => ({
@@ -387,6 +421,17 @@ export const workspaceUsageRelations = relations(workspaceUsage, ({ one }) => ({
   workspace: one(workspaces, {
     fields: [workspaceUsage.workspaceId],
     references: [workspaces.id],
+  }),
+}));
+
+export const alertTargetsRelations = relations(alertTargets, ({ one }) => ({
+  alert: one(alerts, {
+    fields: [alertTargets.alertId],
+    references: [alerts.id],
+  }),
+  project: one(projects, {
+    fields: [alertTargets.projectId],
+    references: [projects.id],
   }),
 }));
 
