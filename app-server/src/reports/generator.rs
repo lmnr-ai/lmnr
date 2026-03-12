@@ -235,7 +235,7 @@ async fn process_report_trigger(
         generate_ai_summary(
             client,
             &workspace_name,
-            &period_label,
+            &report_name,
             &project_reports,
             total_events,
         )
@@ -256,10 +256,11 @@ async fn process_report_trigger(
         String::new()
     };
 
-    // Build the report
+    // Build the report (use report_name without "[Laminar]" prefix for the body,
+    // since the email body already displays the Laminar logo and brand name)
     let report_data = ReportData {
         workspace_name: workspace_name.clone(),
-        period_label: period_label.clone(),
+        period_label: report_name.clone(),
         period_start: period_start.format("%b %d, %Y").to_string(),
         period_end: period_end.format("%b %d, %Y").to_string(),
         projects: project_reports,
