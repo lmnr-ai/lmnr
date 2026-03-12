@@ -55,7 +55,7 @@ fn truncate_to_hour(dt: DateTime<Utc>) -> DateTime<Utc> {
         .unwrap_or(dt)
 }
 
-fn hour_boundaries_between(from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<(i32, i32)> {
+fn hour_boundaries_between(from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<(i32, i32, i64)> {
     let start = truncate_to_hour(from) + chrono::Duration::hours(1);
     let end = truncate_to_hour(to);
 
@@ -68,7 +68,7 @@ fn hour_boundaries_between(from: DateTime<Utc>, to: DateTime<Utc>) -> Vec<(i32, 
     while t <= end {
         let weekday = t.weekday().num_days_from_monday() as i32;
         let hour = t.hour() as i32;
-        result.push((weekday, hour));
+        result.push((weekday, hour, t.timestamp()));
         t += chrono::Duration::hours(1);
     }
     result
@@ -110,7 +110,7 @@ async fn check_and_enqueue(
         hours_to_check
     );
 
-    for (weekday, hour) in hours_to_check {
+    for (weekday, hour, triggered_at) in hours_to_check {
         let reports = get_reports_for_weekday_and_hour(pool, weekday, hour).await?;
 
         for report in reports {
@@ -120,6 +120,7 @@ async fn check_and_enqueue(
                 r#type: report.r#type,
                 weekdays: report.weekdays,
                 hour: report.hour,
+                triggered_at,
             };
 
             if let Err(e) = push_to_reports_queue(message, queue.clone()).await {

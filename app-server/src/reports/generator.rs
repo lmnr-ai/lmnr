@@ -96,7 +96,11 @@ async fn process_report_trigger(
         report_type
     );
 
-    let (period_start, period_end) = report_period(Utc::now(), &message.weekdays, message.hour);
+    // Use the trigger timestamp from the scheduler (not Utc::now()) so that the
+    // report period is computed correctly even if message processing is delayed.
+    let triggered_at = DateTime::from_timestamp(message.triggered_at, 0)
+        .unwrap_or_else(Utc::now);
+    let (period_start, period_end) = report_period(triggered_at, &message.weekdays, message.hour);
 
     let report_name = match report_type.as_str() {
         // TODO: Replace with enum
