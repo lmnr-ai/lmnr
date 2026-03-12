@@ -6,9 +6,8 @@ import { createStore, useStore } from "zustand";
 import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/charts/time-series-chart/utils";
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import { type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
+import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type Filter } from "@/lib/actions/common/filters.ts";
-import { type ClusterStatsDataPoint } from "@/lib/actions/events/stats";
 import { type Signal } from "@/lib/actions/signals";
 import { type EventRow } from "@/lib/events/types";
 
@@ -46,7 +45,6 @@ export type FetchClusterStatsParams = {
   startDate: string | null;
   endDate: string | null;
   chartWidth: number | null;
-  clusterId: string | null;
   abortSignal?: AbortSignal;
 };
 
@@ -277,23 +275,13 @@ export const createSignalStore = (initProps: EventsProps) =>
         set({ isClustersLoading: false });
       }
     },
-    fetchClusterStats: async ({
-      pastHours,
-      startDate,
-      endDate,
-      chartWidth,
-      clusterId,
-      abortSignal,
-    }: FetchClusterStatsParams) => {
+    fetchClusterStats: async ({ pastHours, startDate, endDate, chartWidth, abortSignal }: FetchClusterStatsParams) => {
       if (!pastHours && !startDate) {
         set({ clusterStatsData: [], isClusterStatsLoading: false });
         return;
       }
 
-      const state = get();
-      const visibleClusters = selectVisibleClusters(clusterId)(state);
-      const drillDownDepth = selectDrillDownDepth(clusterId)(state);
-      const { signal } = state;
+      const { signal } = get();
 
       const width = chartWidth ?? 800;
       const targetBars = getTargetBarsForWidth(width);
@@ -312,73 +300,32 @@ export const createSignalStore = (initProps: EventsProps) =>
 
       set({ isClusterStatsLoading: true });
 
-      const fetches: Promise<ClusterStatsDataPoint[]>[] = [];
-
-      if (visibleClusters.length > 0) {
-        const urlParams = new URLSearchParams();
-        visibleClusters.forEach((c) => urlParams.append("clusterId", c.id));
-        if (pastHours) urlParams.set("pastHours", pastHours);
-        if (startDate) urlParams.set("startDate", startDate);
-        if (endDate) urlParams.set("endDate", endDate);
-        urlParams.set("intervalValue", interval.value.toString());
-        urlParams.set("intervalUnit", interval.unit);
-
-        fetches.push(
-          fetch(
-            `/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters/stats?${urlParams.toString()}`,
-            { signal: abortSignal }
-          )
-            .then((res) => {
-              if (!res.ok) throw new Error("Failed to fetch cluster stats");
-              return res.json();
-            })
-            .then((data: { items: ClusterStatsDataPoint[] }) => data.items)
-            .catch((err) => {
-              if (err instanceof DOMException && err.name === "AbortError") throw err;
-              return [] as ClusterStatsDataPoint[];
-            })
-        );
-      } else {
-        fetches.push(Promise.resolve([]));
-      }
-
-      if (drillDownDepth === 0) {
-        const unclusteredParams = new URLSearchParams();
-        if (pastHours) unclusteredParams.set("pastHours", pastHours);
-        if (startDate) unclusteredParams.set("startDate", startDate);
-        if (endDate) unclusteredParams.set("endDate", endDate);
-        unclusteredParams.set("intervalValue", interval.value.toString());
-        unclusteredParams.set("intervalUnit", interval.unit);
-        unclusteredParams.set("unclustered", "true");
-
-        fetches.push(
-          fetch(`/api/projects/${signal.projectId}/signals/${signal.id}/events/stats?${unclusteredParams.toString()}`, {
-            signal: abortSignal,
-          })
-            .then((res) => {
-              if (!res.ok) throw new Error("Failed to fetch unclustered stats");
-              return res.json();
-            })
-            .then((data: { items: Array<{ timestamp: string; count: number }> }) =>
-              data.items.map((item) => ({
-                cluster_id: UNCLUSTERED_ID,
-                timestamp: item.timestamp,
-                count: item.count,
-              }))
-            )
-            .catch((err) => {
-              if (err instanceof DOMException && err.name === "AbortError") throw err;
-              return [] as ClusterStatsDataPoint[];
-            })
-        );
-      } else {
-        fetches.push(Promise.resolve([]));
-      }
+      const urlParams = new URLSearchParams();
+      if (pastHours) urlParams.set("pastHours", pastHours);
+      if (startDate) urlParams.set("startDate", startDate);
+      if (endDate) urlParams.set("endDate", endDate);
+      urlParams.set("intervalValue", interval.value.toString());
+      urlParams.set("intervalUnit", interval.unit);
 
       try {
-        const [clusterStats, unclusteredStats] = await Promise.all(fetches);
+        const res = await fetch(
+          `/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters/stats?${urlParams.toString()}`,
+          { signal: abortSignal }
+        );
+        if (!res.ok) throw new Error("Failed to fetch cluster event counts");
+        const data = (await res.json()) as {
+          items: ClusterStatsDataPoint[];
+          unclusteredCounts: Array<{ timestamp: string; count: number }>;
+        };
+
+        const unclusteredData: ClusterStatsDataPoint[] = data.unclusteredCounts.map((item) => ({
+          cluster_id: UNCLUSTERED_ID,
+          timestamp: item.timestamp,
+          count: item.count,
+        }));
+
         set({
-          clusterStatsData: [...clusterStats, ...unclusteredStats],
+          clusterStatsData: [...data.items, ...unclusteredData],
           isClusterStatsLoading: false,
         });
       } catch (err) {
@@ -386,8 +333,7 @@ export const createSignalStore = (initProps: EventsProps) =>
           set({ isClusterStatsLoading: false });
           return;
         }
-        set({ isClusterStatsLoading: false });
-        throw err;
+        set({ clusterStatsData: [], isClusterStatsLoading: false });
       }
     },
   }));

@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 
+import { TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 
 export type EventCluster = {
@@ -99,4 +100,130 @@ export async function getEventClusters(
   const clusteredEventCount = totalEventCount - unclusteredEventCount;
 
   return { items, totalEventCount, clusteredEventCount };
+}
+
+// --- Cluster event counts (time-series) ---
+
+export interface ClusterStatsDataPoint {
+  cluster_id: string;
+  timestamp: string;
+  count: number;
+}
+
+export interface TimeSeriesDataPoint {
+  timestamp: string;
+  count: number;
+}
+
+export const GetClusterEventCountsSchema = z.object({
+  ...TimeRangeSchema.shape,
+  projectId: z.string(),
+  signalId: z.string(),
+  intervalValue: z.coerce.number().default(1),
+  intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
+});
+
+export async function getClusterEventCounts(
+  input: z.infer<typeof GetClusterEventCountsSchema>
+): Promise<{ items: ClusterStatsDataPoint[]; unclusteredCounts: TimeSeriesDataPoint[] }> {
+  const {
+    projectId,
+    signalId,
+    pastHours,
+    startDate: startTime,
+    endDate: endTime,
+    intervalValue,
+    intervalUnit,
+  } = GetClusterEventCountsSchema.parse(input);
+
+  const timeConditions: string[] = [];
+  const queryParams: Record<string, unknown> = {
+    signalId,
+    intervalValue,
+    intervalUnit,
+  };
+
+  let fillFrom: string | null = null;
+  let fillTo: string | null = null;
+
+  if (pastHours && !isNaN(parseFloat(pastHours))) {
+    timeConditions.push("timestamp >= now() - INTERVAL {pastHours: UInt32} HOUR");
+    queryParams.pastHours = parseInt(pastHours);
+    fillFrom = `toStartOfInterval(now() - INTERVAL {pastHours:UInt32} HOUR, toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    fillTo = `toStartOfInterval(now(), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+  } else {
+    if (startTime) {
+      timeConditions.push("timestamp >= {startTime: String}");
+      queryParams.startTime = startTime.replace("Z", "");
+      fillFrom = `toStartOfInterval(toDateTime64({startTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    }
+    if (endTime) {
+      timeConditions.push("timestamp <= {endTime: String}");
+      queryParams.endTime = endTime.replace("Z", "");
+      fillTo = `toStartOfInterval(toDateTime64({endTime:String}, 9), toInterval({intervalValue:UInt32}, {intervalUnit:String}))`;
+    }
+  }
+
+  const timeClause = timeConditions.length > 0 ? "AND " + timeConditions.join(" AND ") : "";
+
+  const withFillClause =
+    fillFrom && fillTo
+      ? `WITH FILL
+    FROM ${fillFrom}
+    TO ${fillTo}
+    STEP toInterval({intervalValue:UInt32}, {intervalUnit:String})`
+      : "";
+
+  const clusterQuery = `
+    SELECT
+      cluster_id,
+      toStartOfInterval(timestamp, toInterval({intervalValue: UInt32}, {intervalUnit: String})) as timestamp,
+      count() as count
+    FROM signal_events
+    ARRAY JOIN clusters AS cluster_id
+    WHERE signal_id = {signalId: UUID}
+      ${timeClause}
+    GROUP BY cluster_id, timestamp
+    ORDER BY cluster_id, timestamp ASC
+    ${withFillClause}
+  `;
+
+  const unclusteredQuery = `
+    SELECT
+      toStartOfInterval(timestamp, toInterval({intervalValue: UInt32}, {intervalUnit: String})) as timestamp,
+      count() as count
+    FROM signal_events
+    WHERE signal_id = {signalId: UUID}
+      AND empty(clusters)
+      ${timeClause}
+    GROUP BY timestamp
+    ORDER BY timestamp ASC
+    ${withFillClause}
+  `;
+
+  const [clusterRows, unclusteredRows] = await Promise.all([
+    executeQuery<{ cluster_id: string; timestamp: string; count: string }>({
+      query: clusterQuery,
+      parameters: queryParams,
+      projectId,
+    }),
+    executeQuery<{ timestamp: string; count: string }>({
+      query: unclusteredQuery,
+      parameters: queryParams,
+      projectId,
+    }),
+  ]);
+
+  const items: ClusterStatsDataPoint[] = clusterRows.map((row) => ({
+    cluster_id: row.cluster_id,
+    timestamp: row.timestamp,
+    count: parseInt(String(row.count), 10),
+  }));
+
+  const unclusteredCounts: TimeSeriesDataPoint[] = unclusteredRows.map((row) => ({
+    timestamp: row.timestamp,
+    count: parseInt(String(row.count), 10),
+  }));
+
+  return { items, unclusteredCounts };
 }

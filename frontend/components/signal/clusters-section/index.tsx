@@ -93,7 +93,7 @@ export default function ClustersSection() {
     return () => observer.disconnect();
   }, []);
 
-  // Fetch stats when time range, visible clusters, or chart width change
+  // Fetch stats when time range or chart width change
   useEffect(() => {
     const controller = new AbortController();
 
@@ -102,14 +102,13 @@ export default function ClustersSection() {
       startDate,
       endDate,
       chartWidth: localChartWidth,
-      clusterId: displayId,
       abortSignal: controller.signal,
     });
 
     return () => {
       controller.abort();
     };
-  }, [pastHours, startDate, endDate, localChartWidth, fetchClusterStats, displayId, rawClusters]);
+  }, [pastHours, startDate, endDate, localChartWidth, fetchClusterStats, rawClusters]);
 
   // Navigation callbacks
   const navigateToCluster = useCallback(
