@@ -38,7 +38,7 @@ export default function AlertsSettings({
 
   const isFreeTier = featureFlags[Feature.SUBSCRIPTION] && workspace?.tierName?.toLowerCase() === "free";
 
-  const { data: slackIntegration } = useSlackIntegration(workspaceId, !isFreeTier);
+  const { data: slackIntegration, isLoading: isLoadingSlack } = useSlackIntegration(workspaceId, !isFreeTier);
 
   const {
     data: alertsList,
@@ -72,6 +72,14 @@ export default function AlertsSettings({
             </Link>
           </div>
         </div>
+      </SettingsSection>
+    );
+  }
+
+  if (isLoadingSlack) {
+    return (
+      <SettingsSection>
+        <SettingsSectionHeader title="Alerts" description="Configure Slack alerts for signal events." />
       </SettingsSection>
     );
   }
