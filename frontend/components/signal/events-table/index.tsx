@@ -71,7 +71,7 @@ function PureEventsTable() {
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const filterRaw = searchParams.getAll("filter");
-  const filter = useMemo(() => filterRaw, [filterRaw.join(",")]);
+  const filter = useMemo(() => filterRaw, [JSON.stringify(filterRaw)]);
 
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 

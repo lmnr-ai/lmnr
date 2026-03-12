@@ -80,7 +80,7 @@ function DrawerContent({
     <div className="flex h-full overflow-hidden">
       {/* Left side — Form */}
       <form onSubmit={handleSubmit(submit)} className="flex flex-col flex-1 overflow-hidden min-w-0">
-        <div className="flex items-center justify-between px-5 pt-4">
+        <div className="flex items-center justify-between px-5 pt-3">
           <SheetTitle className="text-base">{id ? "Edit Signal" : "Create Signal"}</SheetTitle>
           <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(false)}>
             <X className="w-4 h-4" />

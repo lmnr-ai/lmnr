@@ -51,7 +51,7 @@ export default function ClusterBreadcrumb({
         className={`hover:underline shrink-0 ${!selectedClusterId ? "text-secondary-foreground" : "text-muted-foreground"}`}
         onClick={() => onNavigateToBreadcrumb(-1)}
       >
-        All Events
+        Event clusters
       </button>
 
       {/* Outer: handles levels appearing/disappearing */}

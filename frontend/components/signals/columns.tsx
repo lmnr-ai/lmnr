@@ -38,7 +38,7 @@ export const signalsColumns: ColumnDef<SignalRow>[] = [
           </TooltipTrigger>
           {row.original.prompt && (
             <TooltipPrimitive.Portal>
-              <TooltipContent side="bottom" align="start" className="max-w-[350px]">
+              <TooltipContent side="bottom" align="start" className="max-w-[350px] border">
                 <p className="text-muted-foreground whitespace-pre-wrap">{row.original.prompt}</p>
               </TooltipContent>
             </TooltipPrimitive.Portal>
