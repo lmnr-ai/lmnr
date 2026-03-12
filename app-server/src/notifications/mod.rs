@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::db::DB;
-use crate::mq::{MessageQueue, MessageQueueTrait};
+use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
 use crate::worker::{HandlerError, MessageHandler};
 
 mod slack;
@@ -48,6 +48,18 @@ pub async fn push_to_notification_queue(
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
     let serialized = serde_json::to_vec(&message)?;
+
+    if serialized.len() >= mq_max_payload() {
+        log::warn!(
+            "[Notifications] MQ payload limit exceeded. payload size: [{}], event_name: [{}]",
+            serialized.len(),
+            message.event_name,
+        );
+        return Err(anyhow::anyhow!(
+            "Notification payload size ({} bytes) exceeds MQ limit",
+            serialized.len()
+        ));
+    }
 
     queue
         .publish(
