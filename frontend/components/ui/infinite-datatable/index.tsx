@@ -90,15 +90,25 @@ export function InfiniteDataTable<TData extends RowData>({
   );
 
   const store = useDataTableStore();
-  const { columnOrder, setColumnOrder, columnVisibility, setColumnVisibility, draggingColumnId, setDraggingColumnId } =
-    useStore(store, (state) => ({
-      columnOrder: state.columnOrder,
-      setColumnOrder: state.setColumnOrder,
-      columnVisibility: state.columnVisibility,
-      setColumnVisibility: state.setColumnVisibility,
-      draggingColumnId: state.draggingColumnId,
-      setDraggingColumnId: state.setDraggingColumnId,
-    }));
+  const {
+    columnOrder,
+    setColumnOrder,
+    columnVisibility,
+    setColumnVisibility,
+    columnSizing,
+    setColumnSizing,
+    draggingColumnId,
+    setDraggingColumnId,
+  } = useStore(store, (state) => ({
+    columnOrder: state.columnOrder,
+    setColumnOrder: state.setColumnOrder,
+    columnVisibility: state.columnVisibility,
+    setColumnVisibility: state.setColumnVisibility,
+    columnSizing: state.columnSizing,
+    setColumnSizing: state.setColumnSizing,
+    draggingColumnId: state.draggingColumnId,
+    setDraggingColumnId: state.setDraggingColumnId,
+  }));
 
   // Handle drag start
   function handleDragStart(event: DragStartEvent) {
@@ -175,7 +185,11 @@ export function InfiniteDataTable<TData extends RowData>({
     enableRowSelection,
     enableMultiRowSelection: tableOptions.enableMultiRowSelection ?? true,
     onRowSelectionChange,
-    state: { ...state, columnVisibility, columnOrder, sorting },
+    state: { ...state, columnVisibility, columnOrder, columnSizing, sorting },
+    onColumnSizingChange: (updater) => {
+      const next = typeof updater === "function" ? updater(columnSizing) : updater;
+      setColumnSizing(next);
+    },
     onColumnVisibilityChange: (visibility) => setColumnVisibility(visibility as Record<string, boolean>),
     onColumnOrderChange: (order) => setColumnOrder(order as string[]),
   });
