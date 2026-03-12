@@ -1,7 +1,7 @@
-import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Radio, Sparkles, X } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
@@ -12,10 +12,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
+import { type TraceSignal } from "@/lib/traces/types";
 
 import Metadata from "../metadata";
 import CondensedTimelineControls from "./timeline-toggle";
@@ -44,6 +48,26 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
     projectId: projectId as string,
     params: { type: "trace", traceId: String(trace?.id) },
   });
+
+  const [traceSignals, setTraceSignals] = useState<TraceSignal[]>([]);
+  const loadedTraceIdRef = useRef<string | undefined>(undefined);
+
+  const fetchSignals = useCallback(async () => {
+    if (!trace?.id) return;
+    if (loadedTraceIdRef.current === trace.id) return;
+    loadedTraceIdRef.current = trace.id;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/signals`);
+      if (res.ok) {
+        const data = (await res.json()) as TraceSignal[];
+        setTraceSignals(data);
+      } else {
+        setTraceSignals([]);
+      }
+    } catch {
+      setTraceSignals([]);
+    }
+  }, [trace?.id, projectId]);
 
   const handleCopyTraceId = useCallback(async () => {
     if (trace?.id) {
@@ -81,7 +105,11 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
           {trace && (
             <div className="flex">
               <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
-              <DropdownMenu>
+              <DropdownMenu
+                onOpenChange={(open) => {
+                  if (open) fetchSignals();
+                }}
+              >
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-6 px-1 hover:bg-secondary">
                     <ChevronDown className="size-3.5" />
@@ -96,6 +124,23 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
                     {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
                     Open in SQL editor
                   </DropdownMenuItem>
+                  {traceSignals.length > 0 && (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <Radio className="size-3.5" />
+                        Open signal events
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {traceSignals.map((signal) => (
+                          <DropdownMenuItem key={signal.signalId} asChild>
+                            <NextLink href={`/project/${projectId}/signals/${signal.signalId}?traceId=${trace?.id}`}>
+                              {signal.signalName}
+                            </NextLink>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

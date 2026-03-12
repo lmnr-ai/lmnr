@@ -1,6 +1,8 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
+import NextLink from "next/link";
+import { useParams } from "next/navigation";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
@@ -10,9 +12,54 @@ import JsonTooltip from "@/components/ui/json-tooltip";
 import Mono from "@/components/ui/mono";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { SpanType, type TraceRow } from "@/lib/traces/types";
+import { SpanType, type TraceRow, type TraceSignal } from "@/lib/traces/types";
 import { isStringDateOld } from "@/lib/traces/utils.ts";
 import { cn } from "@/lib/utils";
+
+function SignalsCell({ signals }: { signals?: TraceSignal[] }) {
+  const params = useParams();
+  const projectId = params?.projectId as string;
+
+  if (!signals || signals.length === 0) {
+    return null;
+  }
+
+  return (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="truncate">
+            <Badge className="rounded-3xl" variant="outline">
+              <span>
+                {signals.length} signal{signals.length !== 1 ? "s" : ""}
+              </span>
+            </Badge>
+          </div>
+        </TooltipTrigger>
+        <TooltipPortal>
+          <TooltipContent
+            side="bottom"
+            className="p-2 border max-w-sm"
+            onPointerDownOutside={(e) => e.preventDefault()}
+          >
+            <div className="flex flex-col gap-1">
+              {signals.map((signal) => (
+                <NextLink
+                  key={signal.signalId}
+                  href={`/project/${projectId}/signals/${signal.signalId}`}
+                  className="text-xs text-primary hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {signal.signalName}
+                </NextLink>
+              ))}
+            </div>
+          </TooltipContent>
+        </TooltipPortal>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 const format = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -212,6 +259,13 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     id: "tags",
   },
   {
+    accessorFn: (row) => row.signals,
+    cell: (row) => <SignalsCell signals={row.row.original.signals} />,
+    header: "Signals",
+    id: "signals",
+    size: 100,
+  },
+  {
     accessorFn: (row) => row.metadata,
     header: "Metadata",
     id: "metadata",
@@ -344,6 +398,7 @@ export const defaultTracesColumnOrder = [
   "cost",
   "total_tokens",
   "tags",
+  "signals",
   "metadata",
   "session_id",
   "user_id",
