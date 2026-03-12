@@ -31,15 +31,21 @@ pub async fn get_reports_for_weekday_and_hour(
 }
 
 /// Fetch email addresses from report_targets for a given report where type = 'email'.
+/// The workspace_id parameter is used as a safety check to ensure the report belongs
+/// to the expected workspace.
 pub async fn get_report_target_emails(
     pool: &PgPool,
     report_id: &Uuid,
+    workspace_id: &Uuid,
 ) -> anyhow::Result<Vec<String>> {
     let emails = sqlx::query_scalar::<_, String>(
-        "SELECT email FROM report_targets
-         WHERE report_id = $1 AND type = 'email' AND email IS NOT NULL",
+        "SELECT rt.email FROM report_targets rt
+         JOIN reports r ON rt.report_id = r.id
+         WHERE rt.report_id = $1 AND r.workspace_id = $2
+           AND rt.type = 'email' AND rt.email IS NOT NULL",
     )
     .bind(report_id)
+    .bind(workspace_id)
     .fetch_all(pool)
     .await?;
 
@@ -47,55 +53,26 @@ pub async fn get_report_target_emails(
 }
 
 #[derive(FromRow, Debug, Clone)]
-pub struct ProjectInfo {
-    pub id: Uuid,
-    pub name: String,
-}
-
-pub async fn get_projects_for_workspace(
-    pool: &PgPool,
-    workspace_id: &Uuid,
-) -> anyhow::Result<Vec<ProjectInfo>> {
-    let projects = sqlx::query_as::<_, ProjectInfo>(
-        "SELECT id, name FROM projects WHERE workspace_id = $1",
-    )
-    .bind(workspace_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(projects)
-}
-
-#[derive(FromRow, Debug, Clone)]
 pub struct SignalInfo {
     pub id: Uuid,
     pub name: String,
+    pub project_id: Uuid,
 }
 
-pub async fn get_signals_for_project(
+/// Fetch all signals for all projects in a workspace in a single query.
+pub async fn get_signals_for_workspace(
     pool: &PgPool,
-    project_id: &Uuid,
+    workspace_id: &Uuid,
 ) -> anyhow::Result<Vec<SignalInfo>> {
     let signals = sqlx::query_as::<_, SignalInfo>(
-        "SELECT id, name FROM signals WHERE project_id = $1",
+        "SELECT s.id, s.name, s.project_id
+         FROM signals s
+         JOIN projects p ON s.project_id = p.id
+         WHERE p.workspace_id = $1",
     )
-    .bind(project_id)
+    .bind(workspace_id)
     .fetch_all(pool)
     .await?;
 
     Ok(signals)
-}
-
-pub async fn get_workspace_name(
-    pool: &PgPool,
-    workspace_id: &Uuid,
-) -> anyhow::Result<Option<String>> {
-    let row = sqlx::query_scalar::<_, String>(
-        "SELECT name FROM workspaces WHERE id = $1",
-    )
-    .bind(workspace_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(row)
 }

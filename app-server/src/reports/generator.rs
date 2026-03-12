@@ -16,10 +16,9 @@ use super::email_template::{
     ProjectReportData, ReportData, SignalEventSample, render_report_email,
 };
 use super::ReportTriggerMessage;
-use crate::db::reports::{
-    get_projects_for_workspace, get_report_target_emails, get_signals_for_project,
-    get_workspace_name,
-};
+use crate::db::projects::get_projects_for_workspace;
+use crate::db::reports::{get_report_target_emails, get_signals_for_workspace};
+use crate::db::workspaces::get_workspace;
 use crate::db::DB;
 use crate::mq::MessageQueue;
 use crate::notifications::{
@@ -108,9 +107,10 @@ async fn process_report_trigger(
     let end_nanos = now.timestamp_nanos_opt().unwrap_or(i64::MAX);
 
     // Get workspace info
-    let workspace_name = get_workspace_name(&db.pool, &workspace_id)
+    let workspace_name = get_workspace(&db.pool, &workspace_id)
         .await
         .map_err(|e| HandlerError::transient(e))?
+        .map(|w| w.name)
         .unwrap_or_else(|| "Unknown Workspace".to_string());
 
     // Get all projects for this workspace
@@ -126,18 +126,29 @@ async fn process_report_trigger(
         return Ok(());
     }
 
+    // Fetch all signals for the workspace in a single query
+    let all_signals = get_signals_for_workspace(&db.pool, &workspace_id)
+        .await
+        .map_err(|e| HandlerError::transient(e))?;
+
+    // Group signals by project_id
+    let mut signals_by_project: HashMap<Uuid, Vec<&crate::db::reports::SignalInfo>> =
+        HashMap::new();
+    for signal in &all_signals {
+        signals_by_project
+            .entry(signal.project_id)
+            .or_default()
+            .push(signal);
+    }
+
     let mut project_reports = Vec::new();
     let mut total_events: u64 = 0;
 
     for project in &projects {
-        // Get all signals for this project
-        let signals = get_signals_for_project(&db.pool, &project.id)
-            .await
-            .map_err(|e| HandlerError::transient(e))?;
-
-        if signals.is_empty() {
-            continue;
-        }
+        let signals = match signals_by_project.get(&project.id) {
+            Some(s) if !s.is_empty() => s,
+            _ => continue,
+        };
 
         let signal_ids: Vec<Uuid> = signals.iter().map(|s| s.id).collect();
         let signal_name_map: HashMap<Uuid, String> =
@@ -256,7 +267,7 @@ async fn process_report_trigger(
     let html = render_report_email(&report_data);
 
     // Get email targets from report_targets table
-    let emails = get_report_target_emails(&db.pool, &report_id)
+    let emails = get_report_target_emails(&db.pool, &report_id, &workspace_id)
         .await
         .map_err(|e| HandlerError::transient(e))?;
 

@@ -23,6 +23,27 @@ pub struct WorkspaceDeployment {
     pub data_plane_url_nonce: Option<String>,
 }
 
+#[derive(Deserialize, Serialize, FromRow, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Workspace {
+    pub id: Uuid,
+    pub name: String,
+}
+
+pub async fn get_workspace(
+    pool: &PgPool,
+    workspace_id: &Uuid,
+) -> anyhow::Result<Option<Workspace>> {
+    let workspace = sqlx::query_as::<_, Workspace>(
+        "SELECT id, name FROM workspaces WHERE id = $1",
+    )
+    .bind(workspace_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(workspace)
+}
+
 pub async fn get_workspace_deployment_by_project_id(
     pool: &PgPool,
     project_id: &Uuid,
