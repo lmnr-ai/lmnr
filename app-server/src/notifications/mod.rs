@@ -1,8 +1,10 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
-use resend_rs::types::CreateEmailBaseOptions;
+use backoff::ExponentialBackoffBuilder;
 use resend_rs::Resend;
+use resend_rs::types::CreateEmailBaseOptions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -189,7 +191,7 @@ impl NotificationHandler {
             )
             .with_html(&email_payload.html);
 
-            match resend.emails.send(email).await {
+            match send_email_with_retry(&resend, email).await {
                 Ok(response) => {
                     log::info!(
                         "[Notifications] Email sent to recipient. Email ID: {:?}",
@@ -198,10 +200,7 @@ impl NotificationHandler {
                 }
                 Err(e) => {
                     send_failures += 1;
-                    log::error!(
-                        "[Notifications] Failed to send email: {:?}",
-                        e
-                    );
+                    log::error!("[Notifications] Failed to send email: {:?}", e);
                 }
             }
         }
@@ -226,4 +225,30 @@ impl NotificationHandler {
 
         Ok(())
     }
+}
+
+async fn send_email_with_retry(
+    resend: &Resend,
+    email: CreateEmailBaseOptions,
+) -> resend_rs::Result<resend_rs::types::CreateEmailResponse> {
+    let backoff = ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_secs(1))
+        .with_multiplier(1.0)
+        .with_max_elapsed_time(Some(Duration::from_secs(10)))
+        .build();
+
+    backoff::future::retry(backoff, || async {
+        resend
+            .emails
+            .send(email.clone())
+            .await
+            .map_err(|e| match &e {
+                resend_rs::Error::RateLimit { .. } => {
+                    log::info!("[Notifications] Rate limited, will retry");
+                    backoff::Error::transient(e)
+                }
+                _ => backoff::Error::permanent(e),
+            })
+    })
+    .await
 }
