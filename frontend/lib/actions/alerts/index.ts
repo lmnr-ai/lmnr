@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
@@ -43,72 +43,10 @@ const UpdateAlertSchema = z.object({
 
 const DeleteAlertSchema = z.object({
   alertId: z.uuid(),
+  projectId: z.uuid(),
 });
 
-export async function getAlerts(workspaceId: string): Promise<AlertWithDetails[]> {
-  const workspaceProjects = await db
-    .select({ id: projects.id, name: projects.name })
-    .from(projects)
-    .where(eq(projects.workspaceId, workspaceId));
-
-  if (workspaceProjects.length === 0) return [];
-
-  const projectIds = workspaceProjects.map((p) => p.id);
-  const projectNameMap = new Map(workspaceProjects.map((p) => [p.id, p.name]));
-
-  const alertRows = await db
-    .select({
-      id: alerts.id,
-      name: alerts.name,
-      type: alerts.type,
-      sourceId: alerts.sourceId,
-      projectId: alerts.projectId,
-      createdAt: alerts.createdAt,
-    })
-    .from(alerts)
-    .where(inArray(alerts.projectId, projectIds))
-    .orderBy(alerts.createdAt);
-
-  if (alertRows.length === 0) return [];
-
-  const alertIds = alertRows.map((a) => a.id);
-
-  const targetRows = await db
-    .select({
-      id: alertTargets.id,
-      alertId: alertTargets.alertId,
-      type: alertTargets.type,
-      integrationId: alertTargets.integrationId,
-      channelId: alertTargets.channelId,
-      channelName: alertTargets.channelName,
-      email: alertTargets.email,
-    })
-    .from(alertTargets)
-    .where(inArray(alertTargets.alertId, alertIds));
-
-  const targetsByAlert = new Map<string, AlertTarget[]>();
-  for (const t of targetRows) {
-    const list = targetsByAlert.get(t.alertId) ?? [];
-    list.push({
-      id: t.id,
-      type: t.type,
-      integrationId: t.integrationId,
-      channelId: t.channelId,
-      channelName: t.channelName,
-      email: t.email,
-    });
-    targetsByAlert.set(t.alertId, list);
-  }
-
-  return alertRows.map((a) => ({
-    ...a,
-    type: a.type as AlertType,
-    projectName: projectNameMap.get(a.projectId) ?? "",
-    targets: targetsByAlert.get(a.id) ?? [],
-  }));
-}
-
-export async function getAlertsByProject(projectId: string): Promise<AlertWithDetails[]> {
+export async function getAlerts(projectId: string): Promise<AlertWithDetails[]> {
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
@@ -214,7 +152,7 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
 }
 
 export async function deleteAlert(input: z.infer<typeof DeleteAlertSchema>) {
-  const { alertId } = DeleteAlertSchema.parse(input);
-  await db.delete(alerts).where(eq(alerts.id, alertId));
+  const { alertId, projectId } = DeleteAlertSchema.parse(input);
+  await db.delete(alerts).where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)));
   return { success: true };
 }

@@ -60,7 +60,7 @@ export function SettingsTable({
           {isLoading ? (
             times(loadingRowCount, (i) => (
               <SettingsTableRow key={i}>
-                <td className="p-2">
+                <td colSpan={colSpan} className="p-2">
                   <Skeleton className="h-8 w-full" />
                 </td>
               </SettingsTableRow>

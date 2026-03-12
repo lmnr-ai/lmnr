@@ -1,13 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { createAlert, deleteAlert, getAlertsByProject } from "@/lib/actions/alerts";
+import { createAlert, deleteAlert, getAlerts } from "@/lib/actions/alerts";
 
 export async function GET(_request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await props.params;
 
   try {
-    const result = await getAlertsByProject(projectId);
+    const result = await getAlerts(projectId);
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);
@@ -40,10 +40,12 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
   }
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await props.params;
+
   try {
     const body = await request.json();
-    const result = await deleteAlert(body);
+    const result = await deleteAlert({ ...body, projectId });
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);
