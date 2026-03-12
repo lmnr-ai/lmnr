@@ -4,7 +4,7 @@ import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
 
-const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "groups:read", "commands", "mpim:read"];
+const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "groups:read", "mpim:read"];
 
 interface SlackConnectButtonProps {
   workspaceId: string;
