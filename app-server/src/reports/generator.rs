@@ -438,7 +438,7 @@ async fn get_signal_event_counts(
          WHERE project_id = ?
            AND signal_id IN ({})
            AND timestamp >= toDateTime64(?, 9)
-           AND timestamp <= toDateTime64(?, 9)
+           AND timestamp < toDateTime64(?, 9)
          GROUP BY signal_id",
         placeholders.join(",")
     );
@@ -479,7 +479,7 @@ async fn get_signal_event_samples(
              WHERE project_id = ?
                AND signal_id IN ({})
                AND timestamp >= toDateTime64(?, 9)
-               AND timestamp <= toDateTime64(?, 9)
+               AND timestamp < toDateTime64(?, 9)
          )
          WHERE rn <= ?
          ORDER BY signal_id, timestamp DESC",
