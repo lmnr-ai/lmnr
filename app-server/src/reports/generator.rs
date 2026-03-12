@@ -1,6 +1,6 @@
 //! This module reads report triggers from RabbitMQ and processes them: fetches signal event
 //! samples from ClickHouse, generates an AI summary via the LLM service, generates an HTML
-//! report, and sends it via Resend to workspace members.
+//! report, and pushes email notifications to the notification queue.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -8,8 +8,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use clickhouse::Row;
-use resend_rs::types::CreateEmailBaseOptions;
-use resend_rs::Resend;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use uuid::Uuid;
@@ -19,14 +17,18 @@ use super::email_template::{
 };
 use super::ReportTriggerMessage;
 use crate::db::reports::{
-    get_projects_for_workspace, get_signals_for_project, get_workspace_member_emails,
+    get_projects_for_workspace, get_report_target_emails, get_signals_for_project,
     get_workspace_name,
 };
 use crate::db::DB;
+use crate::mq::MessageQueue;
+use crate::notifications::{
+    EmailPayload, NotificationMessage, NotificationType, push_to_notification_queue,
+};
 use crate::signals::provider::{
     LanguageModelClient, ProviderClient, ProviderContent, ProviderPart, ProviderRequest,
 };
-use crate::signals::LLM_MODEL;
+use crate::signals::llm_model;
 use crate::worker::{HandlerError, MessageHandler};
 
 const MAX_SAMPLES_PER_SIGNAL: u64 = 5;
@@ -34,7 +36,7 @@ const MAX_SAMPLES_PER_SIGNAL: u64 = 5;
 pub struct ReportsGenerator {
     pub db: Arc<DB>,
     pub clickhouse: clickhouse::Client,
-    pub resend: Option<Arc<Resend>>,
+    pub queue: Arc<MessageQueue>,
     pub llm_client: Option<Arc<ProviderClient>>,
 }
 
@@ -43,20 +45,11 @@ impl MessageHandler for ReportsGenerator {
     type Message = ReportTriggerMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        let resend = match &self.resend {
-            Some(r) => r.clone(),
-            None => {
-                log::warn!(
-                    "[Reports Generator] Resend client not configured (RESEND_API_KEY not set), skipping report email"
-                );
-                return Ok(());
-            }
-        };
         process_report_trigger(
             message,
             self.db.clone(),
             self.clickhouse.clone(),
-            resend,
+            self.queue.clone(),
             self.llm_client.clone(),
         )
         .await
@@ -86,15 +79,16 @@ struct SignalEventCountRow {
     pub count: u64,
 }
 
-#[instrument(skip(message, db, clickhouse, resend, llm_client))]
+#[instrument(skip(message, db, clickhouse, queue, llm_client))]
 async fn process_report_trigger(
     message: ReportTriggerMessage,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
-    resend: Arc<Resend>,
+    queue: Arc<MessageQueue>,
     llm_client: Option<Arc<ProviderClient>>,
 ) -> Result<(), HandlerError> {
     let workspace_id = message.workspace_id;
+    let report_id = message.id;
     let report_type = &message.r#type;
 
     log::info!(
@@ -261,65 +255,48 @@ async fn process_report_trigger(
 
     let html = render_report_email(&report_data);
 
-    // Get workspace member emails
-    let members = get_workspace_member_emails(&db.pool, &workspace_id)
+    // Get email targets from report_targets table
+    let emails = get_report_target_emails(&db.pool, &report_id)
         .await
         .map_err(|e| HandlerError::transient(e))?;
 
-    if members.is_empty() {
+    if emails.is_empty() {
         log::warn!(
-            "[Reports Generator] No members found for workspace {}",
+            "[Reports Generator] No email targets found for report {} in workspace {}",
+            report_id,
             workspace_id
         );
         return Ok(());
     }
 
     let subject = format!("{} – {}", period_label, workspace_name);
+    let from = "Laminar <reports@lmnr.ai>".to_string();
 
-    let from = "Laminar <reports@lmnr.ai>";
+    // Push email notification to the notification queue
+    let email_payload = EmailPayload {
+        from,
+        to: emails,
+        subject,
+        html,
+    };
 
-    // Send individual emails to each member to avoid exposing all addresses in the TO field.
-    // Log failures per recipient but continue sending to others to avoid duplicate emails on retry.
-    let mut send_failures = 0;
-    for member in &members {
-        let email =
-            CreateEmailBaseOptions::new(from, [member.email.as_str()], &subject).with_html(&html);
+    let notification_message = NotificationMessage {
+        project_id: Uuid::nil(),
+        trace_id: Uuid::nil(),
+        notification_type: NotificationType::Email,
+        event_name: "report_email".to_string(),
+        payload: serde_json::to_value(email_payload)
+            .map_err(|e| HandlerError::transient(anyhow::anyhow!(e)))?,
+    };
 
-        match resend.emails.send(email).await {
-            Ok(response) => {
-                log::info!(
-                    "[Reports Generator] Report email sent for workspace {}. Email ID: {:?}",
-                    workspace_id,
-                    response.id
-                );
-            }
-            Err(e) => {
-                send_failures += 1;
-                log::error!(
-                    "[Reports Generator] Failed to send report email for workspace {}: {:?}",
-                    workspace_id,
-                    e
-                );
-            }
-        }
-    }
+    push_to_notification_queue(notification_message, queue)
+        .await
+        .map_err(|e| HandlerError::transient(e))?;
 
-    if send_failures == members.len() {
-        return Err(HandlerError::transient(anyhow::anyhow!(
-            "Failed to send report email to all {} members for workspace {}",
-            members.len(),
-            workspace_id
-        )));
-    }
-
-    if send_failures > 0 {
-        log::warn!(
-            "[Reports Generator] Failed to send report email to {}/{} members for workspace {}",
-            send_failures,
-            members.len(),
-            workspace_id
-        );
-    }
+    log::info!(
+        "[Reports Generator] Report email notification pushed to queue for workspace {}",
+        workspace_id
+    );
 
     Ok(())
 }
@@ -399,11 +376,12 @@ async fn generate_ai_summary(
         contents: vec![user_content],
         system_instruction: Some(system_instruction),
         tools: None,
+        generation_config: None,
     };
 
-    let model = LLM_MODEL.as_str();
+    let model = llm_model();
     let response = llm_client
-        .generate_content(model, &request)
+        .generate_content(&model, &request)
         .await
         .map_err(|e| anyhow::anyhow!("LLM generate_content failed: {:?}", e))?;
 

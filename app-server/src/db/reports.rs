@@ -30,27 +30,20 @@ pub async fn get_reports_for_weekday_and_hour(
     Ok(reports)
 }
 
-#[derive(FromRow, Debug, Clone)]
-pub struct WorkspaceMemberEmail {
-    pub email: String,
-    pub name: String,
-}
-
-pub async fn get_workspace_member_emails(
+/// Fetch email addresses from report_targets for a given report where type = 'email'.
+pub async fn get_report_target_emails(
     pool: &PgPool,
-    workspace_id: &Uuid,
-) -> anyhow::Result<Vec<WorkspaceMemberEmail>> {
-    let members = sqlx::query_as::<_, WorkspaceMemberEmail>(
-        "SELECT u.email, u.name
-         FROM members_of_workspaces mow
-         JOIN users u ON mow.user_id = u.id
-         WHERE mow.workspace_id = $1",
+    report_id: &Uuid,
+) -> anyhow::Result<Vec<String>> {
+    let emails = sqlx::query_scalar::<_, String>(
+        "SELECT email FROM report_targets
+         WHERE report_id = $1 AND type = 'email' AND email IS NOT NULL",
     )
-    .bind(workspace_id)
+    .bind(report_id)
     .fetch_all(pool)
     .await?;
 
-    Ok(members)
+    Ok(emails)
 }
 
 #[derive(FromRow, Debug, Clone)]

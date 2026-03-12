@@ -40,7 +40,7 @@ rayon = "1.11.0"
 redis = {version = "0.32.7", features = ["tokio-comp"]}
 regex = "1.12.2"
 reqwest = {version = "0.12.22", features = ["json"]}
-resend-rs = "0.9"
+resend-rs = "0.21"
 rmcp = {version = "1", features = ["server"]}
 rustls = {version = "0.23", features = ["ring"]}
 # Sentry SDK must be compatible with the opentelemetry version. For sentry = 0.46.0, opentelemetry = 0.29
