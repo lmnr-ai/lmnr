@@ -539,14 +539,19 @@ pub async fn process_succeeded_batch(
     let (permanently_failed_runs, retried_count) =
         retry_or_fail_runs(failed_runs, &run_to_message, &failure_metadata, queue).await;
 
+    let permanently_failed_runs_ch: Vec<CHSignalRun> = permanently_failed_runs
+        .iter()
+        .map(CHSignalRun::from)
+        .collect();
+    if let Err(e) = insert_signal_runs(clickhouse.clone(), &permanently_failed_runs_ch).await {
+        log::error!(
+            "[SIGNAL JOB] Failed to insert permanently failed runs: {:?}",
+            e
+        );
+    }
+
     let final_runs_to_insert = [succeeded_runs, permanently_failed_runs].concat();
     if !final_runs_to_insert.is_empty() {
-        let ch_runs: Vec<CHSignalRun> =
-            final_runs_to_insert.iter().map(CHSignalRun::from).collect();
-        if let Err(e) = insert_signal_runs(clickhouse.clone(), &ch_runs).await {
-            log::error!("[SIGNAL JOB] Failed to insert final runs: {:?}", e);
-        }
-
         let project_run_pairs: Vec<(Uuid, Uuid)> = final_runs_to_insert
             .iter()
             .map(|run| (run.project_id, run.run_id))
