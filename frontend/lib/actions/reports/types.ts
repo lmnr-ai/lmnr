@@ -5,7 +5,7 @@ export const REPORT_TYPE = {
 export type ReportType = (typeof REPORT_TYPE)[keyof typeof REPORT_TYPE];
 
 export interface ReportSchedule {
-  weekday: number[];
+  weekdays: number[];
   hour: number;
 }
 
@@ -28,7 +28,7 @@ export interface ReportWithDetails {
 }
 
 export function getReportLabel(schedule: ReportSchedule): string {
-  const daySet = new Set(schedule.weekday);
+  const daySet = new Set(schedule.weekdays);
 
   if (daySet.size === 7) return "Daily signals summary";
 

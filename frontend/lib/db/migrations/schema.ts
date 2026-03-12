@@ -2,17 +2,19 @@ import {
   pgTable,
   foreignKey,
   uuid,
-  text,
   timestamp,
-  integer,
-  doublePrecision,
-  jsonb,
+  text,
   index,
+  pgPolicy,
   unique,
-  boolean,
+  jsonb,
   bigint,
-  real,
+  doublePrecision,
   uniqueIndex,
+  boolean,
+  integer,
+  real,
+  vector,
   primaryKey,
   smallint,
   pgEnum,
@@ -36,95 +38,495 @@ export const tagSource = pgEnum("tag_source", ["MANUAL", "AUTO", "CODE"]);
 export const traceType = pgEnum("trace_type", ["DEFAULT", "EVENT", "EVALUATION", "PLAYGROUND"]);
 export const workspaceRole = pgEnum("workspace_role", ["member", "owner", "admin"]);
 
-export const reportTargets = pgTable(
-  "report_targets",
+export const datasetParquets = pgTable(
+  "dataset_parquets",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    workspaceId: uuid("workspace_id").notNull(),
-    reportId: uuid("report_id").notNull(),
-    type: text().notNull(),
-    integrationId: uuid("integration_id"),
-    channelId: text("channel_id"),
-    channelName: text("channel_name"),
-    email: text(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    datasetId: uuid("dataset_id").notNull(),
+    parquetPath: text("parquet_path").notNull(),
+    jobId: uuid("job_id").notNull(),
+    name: text(),
+    projectId: uuid("project_id").notNull(),
   },
   (table) => [
     foreignKey({
-      columns: [table.workspaceId],
-      foreignColumns: [workspaces.id],
-      name: "report_targets_workspace_id_fkey",
+      columns: [table.datasetId],
+      foreignColumns: [datasets.id],
+      name: "dataset_parquets_dataset_id_fkey",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [table.reportId],
-      foreignColumns: [reports.id],
-      name: "report_targets_report_id_fkey",
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "dataset_parquets_project_id_fkey",
     }).onDelete("cascade"),
   ]
 );
 
-export const alerts = pgTable(
-  "alerts",
+export const testCronJobs = pgTable("test_cron_jobs", {
+  id: uuid().defaultRandom(),
+  cronString: text("cron_string"),
+  projectId: uuid("project_id"),
+});
+
+export const agentChats = pgTable(
+  "agent_chats",
+  {
+    sessionId: uuid("session_id").defaultRandom().primaryKey().notNull(),
+    chatName: text("chat_name").default("New chat").notNull(),
+    userId: uuid("user_id").notNull(),
+    machineStatus: agentMachineStatus("machine_status").default("not_started"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    agentStatus: text("agent_status").default("idle").notNull(),
+  },
+  (table) => [
+    index("agent_chats_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
+    index("agent_chats_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
+    index("agent_chats_user_id_idx").using("hash", table.userId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [agentSessions.sessionId],
+      name: "agent_chats_session_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "agent_chats_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    pgPolicy("select_by_next_api_key", {
+      as: "permissive",
+      for: "select",
+      to: ["authenticated"],
+      using: sql`is_user_id_accessible_for_api_key(api_key(), user_id)`,
+    }),
+  ]
+);
+
+export const signals = pgTable(
+  "signals",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
     name: text().notNull(),
-    sourceId: uuid("source_id").notNull(),
+    prompt: text().notNull(),
+    structuredOutputSchema: jsonb("structured_output_schema").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    type: text().notNull(),
   },
   (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "alerts_project_id_fkey",
+      name: "signals_project_id_fkey",
+    }).onDelete("cascade"),
+    unique("signals_project_id_name_key").on(table.projectId, table.name),
+  ]
+);
+
+export const userUsage = pgTable(
+  "user_usage",
+  {
+    userId: uuid("user_id").defaultRandom().primaryKey().notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    indexChatMessageCount: bigint("index_chat_message_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    indexChatMessageCountSinceReset: bigint("index_chat_message_count_since_reset", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    prevIndexChatMessageCount: bigint("prev_index_chat_message_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    resetReason: text("reset_reason").default("signup").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "user_usage_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const tracesAgentMessages = pgTable(
+  "traces_agent_messages",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    role: text().notNull(),
+    parts: jsonb().notNull(),
+    chatId: uuid("chat_id").notNull(),
+    traceId: uuid("trace_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "traces_agent_messages_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const userSubscriptionTiers = pgTable("user_subscription_tiers", {
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
+    name: "user_subscription_tiers_id_seq",
+    startWith: 1,
+    increment: 1,
+    minValue: 1,
+    maxValue: 9223372036854775807,
+    cache: 1,
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  name: text().notNull(),
+  stripeProductId: text("stripe_product_id").default("").notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  indexChatMessages: bigint("index_chat_messages", { mode: "number" }).default(sql`'0'`),
+});
+
+export const evaluators = pgTable(
+  "evaluators",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    evaluatorType: text("evaluator_type").notNull(),
+    definition: jsonb().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "evaluators_project_id_fkey",
     }).onDelete("cascade"),
   ]
 );
 
-export const reports = pgTable(
-  "reports",
+export const evaluatorSpanPaths = pgTable(
+  "evaluator_span_paths",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    workspaceId: uuid("workspace_id").notNull(),
-    type: text("type").notNull(),
+    evaluatorId: uuid("evaluator_id").notNull(),
+    spanPath: jsonb("span_path").default({}),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.evaluatorId],
+      foreignColumns: [evaluators.id],
+      name: "evaluator_span_paths_evaluator_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "evaluator_span_paths_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const evaluatorScores = pgTable(
+  "evaluator_scores",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    evaluatorId: uuid("evaluator_id"),
+    spanId: uuid("span_id").notNull(),
+    score: doublePrecision().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    weekday: integer("weekday").array().notNull(),
-    hour: integer("hour").notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    source: text().notNull(),
+    metadata: jsonb().default({}),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "evaluator_scores_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const slackIntegrations = pgTable(
+  "slack_integrations",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    token: text().notNull(),
+    teamId: text("team_id").notNull(),
+    teamName: text("team_name"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    nonceHex: text("nonce_hex").notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
   },
   (table) => [
     foreignKey({
       columns: [table.workspaceId],
       foreignColumns: [workspaces.id],
-      name: "reports_workspace_id_fkey",
+      name: "slack_integrations_workspace_id_fkey",
+    }).onDelete("cascade"),
+    unique("slack_integrations_workspace_id_key").on(table.workspaceId),
+  ]
+);
+
+export const workspaceInvitations = pgTable(
+  "workspace_invitations",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    workspaceId: uuid("workspace_id").defaultRandom().notNull(),
+    email: text().default("").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "workspace_invitations_workspace_id_fkey",
     }).onDelete("cascade"),
   ]
 );
 
-export const alertTargets = pgTable(
-  "alert_targets",
+export const modelCosts = pgTable(
+  "model_costs",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    alertId: uuid("alert_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    type: text().notNull(),
-    integrationId: uuid("integration_id").notNull(),
-    channelId: text("channel_id"),
-    channelName: text("channel_name"),
-    email: text(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    model: text().notNull(),
+    costs: jsonb().default({}).notNull(),
+  },
+  (table) => [unique("model_costs_model_unique").on(table.model)]
+);
+
+export const renderTemplates = pgTable(
+  "render_templates",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").defaultRandom().notNull(),
+    code: text().notNull(),
+    name: text().notNull(),
   },
   (table) => [
     foreignKey({
-      columns: [table.alertId],
-      foreignColumns: [alerts.id],
-      name: "alert_targets_alert_id_fkey",
-    }).onDelete("cascade"),
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "render_templates_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const tracesAgentChats = pgTable(
+  "traces_agent_chats",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    traceId: uuid("trace_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "alert_targets_project_id_fkey",
+      name: "traces_agent_chats_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const agentSessions = pgTable(
+  "agent_sessions",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    sessionId: uuid("session_id").defaultRandom().primaryKey().notNull(),
+    cdpUrl: text("cdp_url"),
+    vncUrl: text("vnc_url"),
+    machineId: text("machine_id"),
+    state: text(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    agentStatus: text("agent_status").default("idle").notNull(),
+  },
+  (table) => [
+    index("agent_sessions_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
+    index("agent_sessions_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
+  ]
+);
+
+export const labelingQueueItems = pgTable(
+  "labeling_queue_items",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    queueId: uuid("queue_id").defaultRandom().notNull(),
+    metadata: jsonb().default({}),
+    payload: jsonb().default({}),
+    idempotencyKey: text("idempotency_key"),
+  },
+  (table) => [
+    uniqueIndex("labeling_queue_items_queue_id_idempotency_key_idx")
+      .using(
+        "btree",
+        table.queueId.asc().nullsLast().op("uuid_ops"),
+        table.idempotencyKey.asc().nullsLast().op("text_ops")
+      )
+      .where(sql`(idempotency_key IS NOT NULL)`),
+    index("labeling_queue_items_queue_id_idx").using("btree", table.queueId.asc().nullsLast().op("uuid_ops")),
+    index("labeling_queue_items_queue_ordering_idx").using(
+      "btree",
+      table.queueId.asc().nullsLast().op("uuid_ops"),
+      table.createdAt.asc().nullsLast().op("uuid_ops"),
+      table.id.asc().nullsLast().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.queueId],
+      foreignColumns: [labelingQueues.id],
+      name: "labelling_queue_items_queue_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const agentMessages = pgTable(
+  "agent_messages",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    sessionId: uuid("session_id").notNull(),
+    content: jsonb().default({}),
+    messageType: agentMessageType("message_type").notNull(),
+    traceId: uuid("trace_id"),
+  },
+  (table) => [
+    index("agent_messages_session_id_created_at_idx").using(
+      "btree",
+      table.createdAt.asc().nullsLast().op("timestamptz_ops"),
+      table.sessionId.asc().nullsLast().op("timestamptz_ops")
+    ),
+    foreignKey({
+      columns: [table.sessionId],
+      foreignColumns: [agentSessions.sessionId],
+      name: "agent_messages_session_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const summaryTriggerSpans = pgTable(
+  "summary_trigger_spans",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    spanName: text("span_name").notNull(),
+    eventName: text("event_name"),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "summary_trigger_spans_project_id_fkey",
     }).onDelete("cascade"),
+  ]
+);
+
+export const sharedEvals = pgTable(
+  "shared_evals",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").defaultRandom().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "shared_evals_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    apiKey: text("api_key").primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    userId: uuid("user_id").notNull(),
+    name: text().default("default").notNull(),
+  },
+  (table) => [
+    index("api_keys_user_id_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "api_keys_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    pgPolicy("Enable insert for authenticated users only", {
+      as: "permissive",
+      for: "all",
+      to: ["service_role"],
+      using: sql`true`,
+      withCheck: sql`true`,
+    }),
+  ]
+);
+
+export const labelingQueues = pgTable(
+  "labeling_queues",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+    annotationSchema: jsonb("annotation_schema"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "labeling_queues_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const events = pgTable(
+  "events",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    timestamp: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+    name: text().notNull(),
+    attributes: jsonb().default({}).notNull(),
+    spanId: uuid("span_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    index("events_span_id_idx").using("btree", table.spanId.asc().nullsLast().op("uuid_ops")),
+    index("events_span_id_project_id_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.spanId.asc().nullsLast().op("uuid_ops")
+    ),
   ]
 );
 
@@ -139,6 +541,29 @@ export const llmPrices = pgTable("llm_prices", {
   inputCachedPricePerMillion: doublePrecision("input_cached_price_per_million"),
   additionalPrices: jsonb("additional_prices").default({}).notNull(),
 });
+
+export const evaluationScores = pgTable(
+  "evaluation_scores",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    resultId: uuid("result_id").defaultRandom().notNull(),
+    name: text().default("").notNull(),
+    score: doublePrecision(),
+    labelId: uuid("label_id"),
+  },
+  (table) => [
+    index("evaluation_scores_result_id_idx").using("hash", table.resultId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.resultId],
+      foreignColumns: [evaluationResults.id],
+      name: "evaluation_scores_result_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("evaluation_scores_names_unique_idx").on(table.resultId, table.name),
+  ]
+);
 
 export const datasets = pgTable(
   "datasets",
@@ -161,26 +586,50 @@ export const datasets = pgTable(
   ]
 );
 
-export const customModelCosts = pgTable(
-  "custom_model_costs",
+export const workspaces = pgTable(
+  "workspaces",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    projectId: uuid("project_id").notNull(),
-    provider: text().default("").notNull(),
-    model: text().notNull(),
-    costs: jsonb().default({}).notNull(),
+    name: text().notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    tierId: bigint("tier_id", { mode: "number" })
+      .default(sql`'1'`)
+      .notNull(),
+    subscriptionId: text("subscription_id"),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    additionalSeats: bigint("additional_seats", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
     foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "custom_model_costs_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    unique("custom_model_costs_project_id_provider_model_unique").on(table.projectId, table.provider, table.model),
+      columns: [table.tierId],
+      foreignColumns: [subscriptionTiers.id],
+      name: "workspaces_tier_id_fkey",
+    }).onUpdate("cascade"),
+  ]
+);
+
+export const users = pgTable(
+  "users",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    email: text().notNull(),
+    subscriptionId: text("subscription_id"),
+    avatarUrl: text("avatar_url"),
+  },
+  (table) => [
+    unique("users_email_key").on(table.email),
+    pgPolicy("Enable insert for authenticated users only", {
+      as: "permissive",
+      for: "insert",
+      to: ["service_role"],
+      withCheck: sql`true`,
+    }),
   ]
 );
 
@@ -201,35 +650,6 @@ export const projects = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-  ]
-);
-
-export const membersOfWorkspaces = pgTable(
-  "members_of_workspaces",
-  {
-    workspaceId: uuid("workspace_id").notNull(),
-    userId: uuid("user_id").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    memberRole: workspaceRole("member_role").default("owner").notNull(),
-  },
-  (table) => [
-    index("members_of_workspaces_user_id_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [users.id],
-      name: "members_of_workspaces_user_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    foreignKey({
-      columns: [table.workspaceId],
-      foreignColumns: [workspaces.id],
-      name: "members_of_workspaces_workspace_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    unique("members_of_workspaces_user_workspace_unique").on(table.workspaceId, table.userId),
   ]
 );
 
@@ -276,19 +696,113 @@ export const userSubscriptionInfo = pgTable(
       .onDelete("cascade"),
   ]
 );
-export const workspaceAddons = pgTable(
-  "workspace_addons",
+
+export const sharedTraces = pgTable(
+  "shared_traces",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").defaultRandom().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "shared_traces_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const workspaceDeployments = pgTable("workspace_deployments", {
+  workspaceId: uuid("workspace_id").primaryKey().notNull(),
+  mode: text().default("CLOUD").notNull(),
+  privateKey: text("private_key").default("").notNull(),
+  privateKeyNonce: text("private_key_nonce").default("").notNull(),
+  publicKey: text("public_key").default("").notNull(),
+  dataPlaneUrl: text("data_plane_url").default("").notNull(),
+  dataPlaneUrlNonce: text("data_plane_url_nonce").default("").notNull(),
+});
+
+export const datasetExportJobs = pgTable(
+  "dataset_export_jobs",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    datasetId: uuid("dataset_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    status: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.datasetId],
+      foreignColumns: [datasets.id],
+      name: "dataset_export_jobs_dataset_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "dataset_export_jobs_project_id_fkey",
+    }).onDelete("cascade"),
+    unique("dataset_export_jobs_project_dataset_key").on(table.datasetId, table.projectId),
+  ]
+);
+
+export const customModelCosts = pgTable(
+  "custom_model_costs",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").notNull(),
+    provider: text().default("").notNull(),
+    model: text().notNull(),
+    costs: jsonb().default({}).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "custom_model_costs_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("custom_model_costs_project_id_provider_model_unique").on(table.projectId, table.provider, table.model),
+  ]
+);
+
+export const reports = pgTable(
+  "reports",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
     workspaceId: uuid("workspace_id").notNull(),
-    addonSlug: text("addon_slug").notNull(),
+    type: text().notNull(),
+    weekdays: integer().array().notNull(),
+    hour: integer().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
     foreignKey({
       columns: [table.workspaceId],
       foreignColumns: [workspaces.id],
-      name: "workspace_addons_workspace_id_fkey",
+      name: "reports_workspace_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const tracesSummaries = pgTable(
+  "traces_summaries",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    traceId: uuid("trace_id").defaultRandom().notNull(),
+    summary: text(),
+    projectId: uuid("project_id").notNull(),
+    spanIdsMap: jsonb("span_ids_map"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "traces_summaries_project_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
@@ -319,162 +833,73 @@ export const slackChannelToEvents = pgTable(
   ]
 );
 
-export const apiKeys = pgTable(
-  "api_keys",
-  {
-    apiKey: text("api_key").primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    userId: uuid("user_id").notNull(),
-    name: text().default("default").notNull(),
-  },
-  (table) => [
-    index("api_keys_user_id_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [users.id],
-      name: "api_keys_user_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const events = pgTable(
-  "events",
+export const reportTargets = pgTable(
+  "report_targets",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    spanId: uuid("span_id").notNull(),
-    timestamp: timestamp({ withTimezone: true, mode: "string" }).notNull(),
-    name: text().notNull(),
-    attributes: jsonb().default({}).notNull(),
-    projectId: uuid("project_id").notNull(),
-  },
-  (table) => [
-    index("events_span_id_idx").using("btree", table.spanId.asc().nullsLast().op("uuid_ops")),
-    index("events_span_id_project_id_idx").using(
-      "btree",
-      table.projectId.asc().nullsLast().op("uuid_ops"),
-      table.spanId.asc().nullsLast().op("uuid_ops")
-    ),
-  ]
-);
-
-export const renderTemplates = pgTable(
-  "render_templates",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    projectId: uuid("project_id").defaultRandom().notNull(),
-    code: text().notNull(),
-    name: text().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "render_templates_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const workspaceInvitations = pgTable(
-  "workspace_invitations",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    workspaceId: uuid("workspace_id").defaultRandom().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    reportId: uuid("report_id").notNull(),
+    type: text().notNull(),
+    integrationId: uuid("integration_id"),
+    channelId: text("channel_id"),
+    channelName: text("channel_name"),
     email: text(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
     foreignKey({
+      columns: [table.reportId],
+      foreignColumns: [reports.id],
+      name: "report_targets_report_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
       columns: [table.workspaceId],
       foreignColumns: [workspaces.id],
-      name: "workspace_invitations_workspace_id_fkey",
+      name: "report_targets_workspace_id_fkey",
     }).onDelete("cascade"),
   ]
 );
 
-export const users = pgTable(
-  "users",
+export const alerts = pgTable(
+  "alerts",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    projectId: uuid("project_id").notNull(),
     name: text().notNull(),
-    email: text().notNull(),
-    subscriptionId: text("subscription_id"),
-    avatarUrl: text("avatar_url"),
-  },
-  (table) => [unique("users_email_key").on(table.email)]
-);
-
-export const evaluationResults = pgTable(
-  "evaluation_results",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
+    type: text().notNull(),
+    sourceId: uuid("source_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    evaluationId: uuid("evaluation_id").notNull(),
-    data: jsonb().default({}).notNull(),
-    target: jsonb().default({}).notNull(),
-    executorOutput: jsonb("executor_output"),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    indexInBatch: bigint("index_in_batch", { mode: "number" }),
-    traceId: uuid("trace_id").notNull(),
-    index: integer().default(0).notNull(),
-    metadata: jsonb(),
   },
   (table) => [
-    index("evaluation_results_evaluation_id_idx").using("btree", table.evaluationId.asc().nullsLast().op("uuid_ops")),
     foreignKey({
-      columns: [table.evaluationId],
-      foreignColumns: [evaluations.id],
-      name: "evaluation_results_evaluation_id_fkey",
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "alerts_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const datasetDatapoints = pgTable(
+  "dataset_datapoints",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    datasetId: uuid("dataset_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    data: jsonb().notNull(),
+    indexedOn: text("indexed_on"),
+    target: jsonb().default({}),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    indexInBatch: bigint("index_in_batch", { mode: "number" }),
+    metadata: jsonb().default({}),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.datasetId],
+      foreignColumns: [datasets.id],
+      name: "dataset_datapoints_dataset_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-  ]
-);
-
-export const evaluators = pgTable(
-  "evaluators",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    projectId: uuid("project_id").notNull(),
-    name: text().notNull(),
-    evaluatorType: text("evaluator_type").notNull(),
-    definition: jsonb().default({}),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "evaluators_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
-export const evaluatorSpanPaths = pgTable(
-  "evaluator_span_paths",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    evaluatorId: uuid("evaluator_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    spanPath: jsonb("span_path").default({}),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.evaluatorId],
-      foreignColumns: [evaluators.id],
-      name: "evaluator_span_paths_evaluator_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "evaluator_span_paths_project_id_fkey",
-    }).onDelete("cascade"),
   ]
 );
 
@@ -497,312 +922,57 @@ export const evaluations = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    pgPolicy("select_by_next_api_key", {
+      as: "permissive",
+      for: "select",
+      to: ["anon", "authenticated"],
+      using: sql`is_evaluation_id_accessible_for_api_key(api_key(), id)`,
+    }),
   ]
 );
 
-export const sharedPayloads = pgTable(
-  "shared_payloads",
-  {
-    payloadId: uuid("payload_id").defaultRandom().primaryKey().notNull(),
-    projectId: uuid("project_id").defaultRandom().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "shared_payloads_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
-export const playgrounds = pgTable(
-  "playgrounds",
+export const evaluationResults = pgTable(
+  "evaluation_results",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
-    projectId: uuid("project_id").notNull(),
-    promptMessages: jsonb("prompt_messages")
-      .default([{ role: "user", content: "" }])
-      .notNull(),
-    modelId: text("model_id"),
-    outputSchema: text("output_schema"),
-    tools: jsonb().default({}),
-    toolChoice: jsonb("tool_choice").default("none"),
-    maxTokens: integer("max_tokens").default(1024),
-    temperature: real().default(sql`'1'`),
-    providerOptions: jsonb("provider_options").default({}),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "playgrounds_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const evaluatorScores = pgTable(
-  "evaluator_scores",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    evaluatorId: uuid("evaluator_id"),
-    projectId: uuid("project_id").notNull(),
-    spanId: uuid("span_id").notNull(),
-    score: doublePrecision().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
-    source: text().notNull(),
-    metadata: jsonb().default({}),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "evaluator_scores_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
-export const workspaces = pgTable(
-  "workspaces",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
+    evaluationId: uuid("evaluation_id").notNull(),
+    data: jsonb().notNull(),
+    target: jsonb().default({}).notNull(),
+    executorOutput: jsonb("executor_output"),
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    tierId: bigint("tier_id", { mode: "number" })
-      .default(sql`'1'`)
-      .notNull(),
-    subscriptionId: text("subscription_id"),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    additionalSeats: bigint("additional_seats", { mode: "number" })
-      .default(sql`'0'`)
-      .notNull(),
-    resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.tierId],
-      foreignColumns: [subscriptionTiers.id],
-      name: "workspaces_tier_id_fkey",
-    }).onUpdate("cascade"),
-  ]
-);
-
-export const sqlTemplates = pgTable(
-  "sql_templates",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    name: text().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    query: text().notNull(),
-    projectId: uuid("project_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "sql_templates_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
-export const dashboardCharts = pgTable(
-  "dashboard_charts",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    name: text().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    query: text().notNull(),
-    settings: jsonb().notNull(),
-    projectId: uuid("project_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "dashboard_charts_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
-export const labelingQueues = pgTable(
-  "labeling_queues",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
-    projectId: uuid("project_id").notNull(),
-    annotationSchema: jsonb("annotation_schema"),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "labeling_queues_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const tracesAgentChats = pgTable(
-  "traces_agent_chats",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    indexInBatch: bigint("index_in_batch", { mode: "number" }),
     traceId: uuid("trace_id").notNull(),
-    projectId: uuid("project_id").notNull(),
+    index: integer().default(0).notNull(),
+    metadata: jsonb(),
   },
   (table) => [
+    index("evaluation_results_evaluation_id_idx").using("btree", table.evaluationId.asc().nullsLast().op("uuid_ops")),
     foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "traces_agent_chats_project_id_fkey",
+      columns: [table.evaluationId],
+      foreignColumns: [evaluations.id],
+      name: "evaluation_results_evaluation_id_fkey",
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-  ]
-);
-
-export const tracesAgentMessages = pgTable(
-  "traces_agent_messages",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    role: text().notNull(),
-    parts: jsonb().notNull(),
-    chatId: uuid("chat_id").notNull(),
-    traceId: uuid("trace_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "traces_agent_messages_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const sharedTraces = pgTable(
-  "shared_traces",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    projectId: uuid("project_id").defaultRandom().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "shared_traces_project_id_fkey",
-    }).onDelete("cascade"),
-  ]
-);
-
-export const projectSettings = pgTable(
-  "project_settings",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    name: text(),
-    value: text(),
-    projectId: uuid("project_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "project_settings_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const eventDefinitions = pgTable(
-  "event_definitions",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
-    prompt: text(),
-    projectId: uuid("project_id").notNull(),
-    isSemantic: boolean("is_semantic").default(false).notNull(),
-    structuredOutput: jsonb("structured_output"),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "event_definitions_project_id_fkey",
-    }).onDelete("cascade"),
-    unique("event_definitions_project_id_name_key").on(table.name, table.projectId),
-  ]
-);
-
-export const datasetExportJobs = pgTable(
-  "dataset_export_jobs",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    datasetId: uuid("dataset_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    status: text().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.datasetId],
-      foreignColumns: [datasets.id],
-      name: "dataset_export_jobs_dataset_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "dataset_export_jobs_project_id_fkey",
-    }).onDelete("cascade"),
-    unique("dataset_export_jobs_project_dataset_key").on(table.datasetId, table.projectId),
-  ]
-);
-
-export const datasetParquets = pgTable(
-  "dataset_parquets",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    datasetId: uuid("dataset_id").notNull(),
-    parquetPath: text("parquet_path").notNull(),
-    jobId: uuid("job_id").notNull(),
-    name: text(),
-    projectId: uuid("project_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.datasetId],
-      foreignColumns: [datasets.id],
-      name: "dataset_parquets_dataset_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "dataset_parquets_project_id_fkey",
-    }).onDelete("cascade"),
+    pgPolicy("select_by_next_api_key", {
+      as: "permissive",
+      for: "select",
+      to: ["anon", "authenticated"],
+      using: sql`is_evaluation_id_accessible_for_api_key(api_key(), evaluation_id)`,
+    }),
   ]
 );
 
 export const projectApiKeys = pgTable(
   "project_api_keys",
   {
-    value: text(),
+    value: text().default("").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     name: text(),
     projectId: uuid("project_id").notNull(),
-    shorthand: text(),
-    hash: text(),
+    shorthand: text().default("").notNull(),
+    hash: text().default("").notNull(),
     id: uuid().defaultRandom().primaryKey().notNull(),
     isIngestOnly: boolean("is_ingest_only").default(false).notNull(),
   },
@@ -818,110 +988,157 @@ export const projectApiKeys = pgTable(
   ]
 );
 
-export const slackIntegrations = pgTable(
-  "slack_integrations",
+export const membersOfWorkspaces = pgTable(
+  "members_of_workspaces",
   {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    token: text().notNull(),
-    teamId: text("team_id").notNull(),
-    teamName: text("team_name"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    nonceHex: text("nonce_hex").notNull(),
     workspaceId: uuid("workspace_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    memberRole: workspaceRole("member_role").default("owner").notNull(),
+  },
+  (table) => [
+    index("members_of_workspaces_user_id_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "members_of_workspaces_user_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "members_of_workspaces_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("members_of_workspaces_user_workspace_unique").on(table.workspaceId, table.userId),
+  ]
+);
+
+export const workspaceUsage = pgTable(
+  "workspace_usage",
+  {
+    workspaceId: uuid("workspace_id").defaultRandom().primaryKey().notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    spanCount: bigint("span_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    spanCountSinceReset: bigint("span_count_since_reset", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    resetTime: timestamp("reset_time", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    resetReason: text("reset_reason").default("signup").notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    stepCount: bigint("step_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    prevStepCount: bigint("prev_step_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    stepCountSinceReset: bigint("step_count_since_reset", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    bytesIngested: bigint("bytes_ingested", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    bytesIngestedSinceReset: bigint("bytes_ingested_since_reset", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    spansBytesIngested: bigint("spans_bytes_ingested", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    spansBytesIngestedSinceReset: bigint("spans_bytes_ingested_since_reset", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    browserSessionEventsBytesIngested: bigint("browser_session_events_bytes_ingested", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    browserSessionEventsBytesIngestedSinceReset: bigint("browser_session_events_bytes_ingested_since_reset", {
+      mode: "number",
+    })
+      .default(sql`'0'`)
+      .notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    prevSpanCount: bigint("prev_span_count", { mode: "number" })
+      .default(sql`'0'`)
+      .notNull(),
   },
   (table) => [
     foreignKey({
       columns: [table.workspaceId],
       foreignColumns: [workspaces.id],
-      name: "slack_integrations_workspace_id_fkey",
-    }).onDelete("cascade"),
-    unique("slack_integrations_workspace_id_key").on(table.workspaceId),
+      name: "user_usage_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
   ]
 );
 
-export const workspaceDeployments = pgTable("workspace_deployments", {
-  workspaceId: uuid("workspace_id").primaryKey().notNull(),
-  mode: text().default("CLOUD").notNull(),
-  privateKey: text("private_key"),
-  privateKeyNonce: text("private_key_nonce"),
-  publicKey: text("public_key"),
-  dataPlaneUrl: text("data_plane_url"),
-  dataPlaneUrlNonce: text("data_plane_url_nonce"),
+export const tags = pgTable("tags", {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  classId: uuid("class_id").notNull(),
+  spanId: uuid("span_id").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  userId: uuid("user_id").defaultRandom(),
+  source: tagSource().default("MANUAL").notNull(),
+  reasoning: text(),
+  projectId: uuid("project_id").notNull(),
 });
 
-export const agentSessions = pgTable(
-  "agent_sessions",
+export const alertTargets = pgTable(
+  "alert_targets",
   {
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    sessionId: uuid("session_id").defaultRandom().primaryKey().notNull(),
-    cdpUrl: text("cdp_url"),
-    vncUrl: text("vnc_url"),
-    machineId: text("machine_id"),
-    state: text(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    agentStatus: text("agent_status").default("idle").notNull(),
-  },
-  (table) => [
-    index("agent_sessions_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
-    index("agent_sessions_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
-  ]
-);
-
-export const agentChats = pgTable(
-  "agent_chats",
-  {
-    sessionId: uuid("session_id").defaultRandom().primaryKey().notNull(),
-    chatName: text("chat_name").default("New chat").notNull(),
-    userId: uuid("user_id").notNull(),
-    machineStatus: agentMachineStatus("machine_status").default("not_started"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    agentStatus: text("agent_status").default("idle").notNull(),
-  },
-  (table) => [
-    index("agent_chats_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamptz_ops")),
-    index("agent_chats_updated_at_idx").using("btree", table.updatedAt.asc().nullsLast().op("timestamptz_ops")),
-    index("agent_chats_user_id_idx").using("hash", table.userId.asc().nullsLast().op("uuid_ops")),
-    foreignKey({
-      columns: [table.sessionId],
-      foreignColumns: [agentSessions.sessionId],
-      name: "agent_chats_session_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-    foreignKey({
-      columns: [table.userId],
-      foreignColumns: [users.id],
-      name: "agent_chats_user_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
-
-export const agentMessages = pgTable(
-  "agent_messages",
-  {
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     id: uuid().defaultRandom().primaryKey().notNull(),
-    sessionId: uuid("session_id").notNull(),
-    content: jsonb().default({}),
-    messageType: agentMessageType("message_type").notNull(),
-    traceId: uuid("trace_id"),
+    projectId: uuid("project_id").notNull(),
+    alertId: uuid("alert_id").notNull(),
+    type: text().notNull(),
+    integrationId: uuid("integration_id"),
+    channelId: text("channel_id"),
+    channelName: text("channel_name"),
+    email: text(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
-    index("agent_messages_session_id_created_at_idx").using(
-      "btree",
-      table.createdAt.asc().nullsLast().op("timestamptz_ops"),
-      table.sessionId.asc().nullsLast().op("timestamptz_ops")
-    ),
     foreignKey({
-      columns: [table.sessionId],
-      foreignColumns: [agentSessions.sessionId],
-      name: "agent_messages_session_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
+      columns: [table.alertId],
+      foreignColumns: [alerts.id],
+      name: "alert_targets_alert_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "alert_targets_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const sqlTemplates = pgTable(
+  "sql_templates",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+    query: text().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "sql_templates_project_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 
@@ -949,6 +1166,183 @@ export const eventClusterConfigs = pgTable(
   ]
 );
 
+export const workspaceAddons = pgTable(
+  "workspace_addons",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    addonSlug: text("addon-slug").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "workspace_addons_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const subscriptionTiers = pgTable("subscription_tiers", {
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
+    name: "subscription_tiers_id_seq",
+    startWith: 1,
+    increment: 1,
+    minValue: 1,
+    maxValue: 9223372036854775807,
+    cache: 1,
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  name: text().notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  logRetentionDays: bigint("log_retention_days", { mode: "number" }).notNull(),
+  stripeProductId: text("stripe_product_id").default("").notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  bytesIngested: bigint("bytes_ingested", { mode: "number" })
+    .default(sql`'0'`)
+    .notNull(),
+  extraBytePrice: doublePrecision("extra_byte_price")
+    .default(sql`'0'`)
+    .notNull(),
+  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+  signalRuns: bigint("signal_runs", { mode: "number" }).notNull(),
+  extraSignalRunPrice: doublePrecision("extra_signal_run_price").default(0).notNull(),
+});
+
+export const playgrounds = pgTable(
+  "playgrounds",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+    promptMessages: jsonb("prompt_messages")
+      .default([{ role: "user", content: "" }])
+      .notNull(),
+    modelId: text("model_id").default("").notNull(),
+    outputSchema: text("output_schema"),
+    maxTokens: integer("max_tokens").default(1024),
+    temperature: real().default(sql`'1'`),
+    providerOptions: jsonb("provider_options").default({}),
+    toolChoice: jsonb("tool_choice").default("none"),
+    tools: jsonb().default({}),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "playgrounds_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
+export const signalJobs = pgTable(
+  "signal_jobs",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    signalId: uuid("signal_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    totalTraces: integer("total_traces").default(0).notNull(),
+    processedTraces: integer("processed_traces").default(0).notNull(),
+    failedTraces: integer("failed_traces").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_jobs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
+    index("signal_jobs_signal_id_idx").using("btree", table.signalId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_jobs_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_jobs_signal_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const eventDefinitions = pgTable(
+  "event_definitions",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    prompt: text(),
+    projectId: uuid("project_id").notNull(),
+    isSemantic: boolean("is_semantic").default(false).notNull(),
+    structuredOutput: jsonb("structured_output"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "event_definitions_project_id_fkey",
+    }).onDelete("cascade"),
+    unique("event_definitions_project_id_name_key").on(table.name, table.projectId),
+  ]
+);
+
+export const dashboardCharts = pgTable(
+  "dashboard_charts",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    query: text().notNull(),
+    settings: jsonb().notNull(),
+    projectId: uuid("project_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "dashboard_charts_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const sharedPayloads = pgTable(
+  "shared_payloads",
+  {
+    payloadId: uuid("payload_id").defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").defaultRandom().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "shared_payloads_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const projectSettings = pgTable(
+  "project_settings",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    name: text(),
+    value: text(),
+    projectId: uuid("project_id").defaultRandom().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "project_settings_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
 export const eventClusters = pgTable(
   "event_clusters",
   {
@@ -965,7 +1359,7 @@ export const eventClusters = pgTable(
     centroid: jsonb().notNull(),
     name: text().notNull(),
     eventName: text("event_name").notNull(),
-    eventSource: text("event_source").default("SEMANTIC").notNull(),
+    eventSource: text("event_source").default("").notNull(),
   },
   (table) => [
     foreignKey({
@@ -999,118 +1393,22 @@ export const rolloutSessions = pgTable(
   ]
 );
 
-export const signalJobs = pgTable("signal_jobs", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  signalId: uuid("signal_id").notNull(),
-  projectId: uuid("project_id").notNull(),
-  totalTraces: integer("total_traces").default(0).notNull(),
-  processedTraces: integer("processed_traces").default(0).notNull(),
-  failedTraces: integer("failed_traces").default(0).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-});
-
-export const signalTriggers = pgTable("signal_triggers", {
-  id: uuid().defaultRandom().primaryKey().notNull(),
-  projectId: uuid("project_id").notNull(),
-  value: jsonb().notNull(),
-  signalId: uuid("signal_id").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-});
-
-export const signals = pgTable(
-  "signals",
+export const signalTriggers = pgTable(
+  "signal_triggers",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     projectId: uuid("project_id").notNull(),
-    name: text().notNull(),
-    prompt: text().notNull(),
-    structuredOutputSchema: jsonb("structured_output_schema").notNull(),
+    value: jsonb().notNull(),
+    signalId: uuid("signal_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [unique("signals_project_id_name_key").on(table.projectId, table.name)]
-);
-
-export const sharedEvals = pgTable(
-  "shared_evals",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    projectId: uuid("project_id").defaultRandom().notNull(),
+    clusteringKey: text("clustering_key"),
   },
   (table) => [
     foreignKey({
       columns: [table.projectId],
       foreignColumns: [projects.id],
-      name: "shared_evals_project_id_fkey",
+      name: "signal_triggers_project_id_fkey",
     }).onDelete("cascade"),
-  ]
-);
-
-export const subscriptionTiers = pgTable("subscription_tiers", {
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-    name: "subscription_tiers_id_seq",
-    startWith: 1,
-    increment: 1,
-    minValue: 1,
-    maxValue: 9223372036854775807,
-    cache: 1,
-  }),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  name: text().notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  logRetentionDays: bigint("log_retention_days", { mode: "number" }).notNull(),
-  stripeProductId: text("stripe_product_id"),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  bytesIngested: bigint("bytes_ingested", { mode: "number" })
-    .default(sql`'0'`)
-    .notNull(),
-  extraBytePrice: doublePrecision("extra_byte_price")
-    .default(sql`'0'`)
-    .notNull(),
-  // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  signalRuns: bigint("signal_runs", { mode: "number" }).default(0).notNull(),
-  extraSignalRunPrice: doublePrecision("extra_signal_run_price").default(0).notNull(),
-});
-
-export const modelCosts = pgTable(
-  "model_costs",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    model: text().notNull(),
-    costs: jsonb().default({}).notNull(),
-  },
-  (table) => [unique("model_costs_model_unique").on(table.model)]
-);
-
-export const labelingQueueItems = pgTable(
-  "labeling_queue_items",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    queueId: uuid("queue_id").defaultRandom().notNull(),
-    metadata: jsonb().default({}),
-    payload: jsonb().default({}),
-    idempotencyKey: text("idempotency_key"),
-  },
-  (table) => [
-    uniqueIndex("labeling_queue_items_queue_id_idempotency_key_idx")
-      .using(
-        "btree",
-        table.queueId.asc().nullsLast().op("text_ops"),
-        table.idempotencyKey.asc().nullsLast().op("text_ops")
-      )
-      .where(sql`(idempotency_key IS NOT NULL)`),
-    foreignKey({
-      columns: [table.queueId],
-      foreignColumns: [labelingQueues.id],
-      name: "labelling_queue_items_queue_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
   ]
 );
 
@@ -1120,8 +1418,8 @@ export const tagClasses = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     name: text().notNull(),
     projectId: uuid("project_id").notNull(),
-    color: text().default("rgb(190, 194, 200)").notNull(),
     description: text(),
+    color: text().default("rgb(190, 194, 200)").notNull(),
   },
   (table) => [
     foreignKey({
@@ -1132,7 +1430,6 @@ export const tagClasses = pgTable(
       .onUpdate("cascade")
       .onDelete("cascade"),
     primaryKey({ columns: [table.name, table.projectId], name: "tag_classes_pkey" }),
-    unique("label_classes_name_project_id_unique").on(table.name, table.projectId),
     unique("tag_classes_name_project_id_unique").on(table.name, table.projectId),
   ]
 );
@@ -1219,6 +1516,64 @@ export const clusters = pgTable(
   ]
 );
 
+export const spans = pgTable(
+  "spans",
+  {
+    spanId: uuid("span_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    parentSpanId: uuid("parent_span_id"),
+    name: text().notNull(),
+    attributes: jsonb(),
+    input: jsonb(),
+    output: jsonb(),
+    spanType: spanType("span_type").notNull(),
+    startTime: timestamp("start_time", { withTimezone: true, mode: "string" }).notNull(),
+    endTime: timestamp("end_time", { withTimezone: true, mode: "string" }).notNull(),
+    traceId: uuid("trace_id").notNull(),
+    inputPreview: text("input_preview"),
+    outputPreview: text("output_preview"),
+    projectId: uuid("project_id").notNull(),
+    inputUrl: text("input_url"),
+    outputUrl: text("output_url"),
+    status: text(),
+  },
+  (table) => [
+    index("spans_name_idx").using("btree", table.name.asc().nullsLast().op("text_ops")),
+    index("spans_project_id_start_time_idx").using(
+      "btree",
+      table.projectId.asc().nullsLast().op("uuid_ops"),
+      table.startTime.asc().nullsLast().op("timestamptz_ops")
+    ),
+    index("spans_root_project_id_start_time_trace_id_idx")
+      .using(
+        "btree",
+        table.projectId.asc().nullsLast().op("uuid_ops"),
+        table.startTime.asc().nullsLast().op("uuid_ops"),
+        table.traceId.asc().nullsLast().op("uuid_ops")
+      )
+      .where(sql`(parent_span_id IS NULL)`),
+    index("spans_trace_id_start_time_idx").using(
+      "btree",
+      table.traceId.asc().nullsLast().op("timestamptz_ops"),
+      table.startTime.asc().nullsLast().op("uuid_ops")
+    ),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "spans_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    primaryKey({ columns: [table.spanId, table.projectId], name: "spans_pkey" }),
+    pgPolicy("select_by_next_api_key", {
+      as: "permissive",
+      for: "select",
+      to: ["public"],
+      using: sql`is_project_id_accessible_for_api_key(api_key(), project_id)`,
+    }),
+  ]
+);
+
 export const traces = pgTable(
   "traces",
   {
@@ -1236,7 +1591,6 @@ export const traces = pgTable(
       .default(sql`'0'`)
       .notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    traceType: traceType("trace_type"),
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
     inputTokenCount: bigint("input_token_count", { mode: "number" })
       .default(sql`'0'`)
@@ -1262,10 +1616,18 @@ export const traces = pgTable(
     numSpans: bigint("num_spans", { mode: "number" }),
     topSpanName: text("top_span_name"),
     topSpanType: smallint("top_span_type"),
+    traceType: traceType("trace_type"),
     type: smallint(),
     spanNames: jsonb("span_names"),
+    rootSpanInput: text("root_span_input"),
+    rootSpanOutput: text("root_span_output"),
   },
   (table) => [
+    index("traces_pkey").using(
+      "btree",
+      table.id.asc().nullsLast().op("uuid_ops"),
+      table.projectId.asc().nullsLast().op("uuid_ops")
+    ),
     index("traces_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
     index("traces_session_id_idx").using("btree", table.sessionId.asc().nullsLast().op("text_ops")),
     foreignKey({
@@ -1275,7 +1637,12 @@ export const traces = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-    primaryKey({ columns: [table.id, table.projectId], name: "traces_pkey" }),
-    unique("traces_project_id_id_unique").on(table.id, table.projectId),
+    primaryKey({ columns: [table.id, table.projectId], name: "traces_pkey_constraint" }),
+    pgPolicy("select_by_next_api_key", {
+      as: "permissive",
+      for: "select",
+      to: ["anon", "authenticated"],
+      using: sql`is_project_id_accessible_for_api_key(api_key(), project_id)`,
+    }),
   ]
 );

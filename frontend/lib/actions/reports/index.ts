@@ -25,7 +25,7 @@ export async function getReports(workspaceId: string): Promise<ReportWithDetails
       type: reports.type,
       workspaceId: reports.workspaceId,
       createdAt: reports.createdAt,
-      weekday: reports.weekday,
+      weekdays: reports.weekdays,
       hour: reports.hour,
     })
     .from(reports)
@@ -64,10 +64,10 @@ export async function getReports(workspaceId: string): Promise<ReportWithDetails
     return {
       id: r.id,
       reportType,
-      label: getReportLabel({ weekday: r.weekday, hour: r.hour }),
+      label: getReportLabel({ weekdays: r.weekdays, hour: r.hour }),
       workspaceId: r.workspaceId,
       createdAt: r.createdAt,
-      schedule: { weekday: r.weekday, hour: r.hour },
+      schedule: { weekdays: r.weekdays, hour: r.hour },
       targets: targetsByReport.get(r.id) ?? [],
     };
   });

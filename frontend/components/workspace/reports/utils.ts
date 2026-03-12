@@ -26,7 +26,7 @@ export function formatSchedule(schedule: ReportSchedule): string {
   const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
   const timeStr = `${displayHour}:00 ${period} UTC`;
 
-  const days = schedule.weekday;
+  const days = schedule.weekdays;
 
   if (days.length === 0) return timeStr;
 

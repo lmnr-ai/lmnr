@@ -361,15 +361,15 @@ FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:Str
   },
 ];
 
-export const defaultReports: { type: ReportType; weekday: number[]; hour: number }[] = [
+export const defaultReports: { type: ReportType; weekdays: number[]; hour: number }[] = [
   {
     type: "SIGNAL_EVENTS_SUMMARY",
-    weekday: [0, 1, 2, 3, 4],
+    weekdays: [0, 1, 2, 3, 4],
     hour: 10,
   },
   {
     type: "SIGNAL_EVENTS_SUMMARY",
-    weekday: [6],
+    weekdays: [6],
     hour: 10,
   },
 ];

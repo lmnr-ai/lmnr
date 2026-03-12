@@ -91,7 +91,7 @@ export const createWorkspace = async (input: z.infer<typeof CreateWorkspaceSchem
       defaultReports.map((r) => ({
         workspaceId: workspace.id,
         type: r.type,
-        weekday: r.weekday,
+        weekdays: r.weekdays,
         hour: r.hour,
       }))
     )

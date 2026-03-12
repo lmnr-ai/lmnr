@@ -7,7 +7,7 @@ export type AlertType = (typeof ALERT_TYPE)[keyof typeof ALERT_TYPE];
 export interface AlertTarget {
   id: string;
   type: string;
-  integrationId: string;
+  integrationId: string | null;
   channelId: string | null;
   channelName: string | null;
   email: string | null;
