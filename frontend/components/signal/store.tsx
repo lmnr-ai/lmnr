@@ -286,7 +286,7 @@ export const createSignalStore = (initProps: EventsProps) =>
       abortSignal,
     }: FetchClusterStatsParams) => {
       if (!pastHours && !startDate) {
-        set({ clusterStatsData: [] });
+        set({ clusterStatsData: [], isClusterStatsLoading: false });
         return;
       }
 
@@ -382,7 +382,11 @@ export const createSignalStore = (initProps: EventsProps) =>
           isClusterStatsLoading: false,
         });
       } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (err instanceof DOMException && err.name === "AbortError") {
+          set({ isClusterStatsLoading: false });
+          return;
+        }
+        set({ isClusterStatsLoading: false });
         throw err;
       }
     },
