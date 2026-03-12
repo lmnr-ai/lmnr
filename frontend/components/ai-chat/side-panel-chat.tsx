@@ -242,12 +242,12 @@ export default function SidePanelChat() {
                                     // Handle render tool results - extract tool name from part type
                                     const toolName = part.type.startsWith("tool-") ? part.type.slice(5) : null;
                                     const RenderComponent = toolName ? RENDER_COMPONENT_REGISTRY[toolName] : null;
-                                    if (RenderComponent && (part as any).result) {
+                                    if (RenderComponent && (part as any).output) {
                                       try {
                                         const data =
-                                          typeof (part as any).result === "string"
-                                            ? JSON.parse((part as any).result)
-                                            : (part as any).result;
+                                          typeof (part as any).output === "string"
+                                            ? JSON.parse((part as any).output)
+                                            : (part as any).output;
                                         return (
                                           <div key={`${message.id}-${i}`}>
                                             <RenderComponent data={data} />
