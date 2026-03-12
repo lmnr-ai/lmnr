@@ -24,7 +24,17 @@ use crate::{
     utils::json_value_to_string,
 };
 
-use super::openai::OpenAIChatMessageContentPartImageUrl;
+#[derive(Serialize, Debug)]
+struct LangChainChatMessageContentPartImageUrlInner {
+    url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    detail: Option<String>,
+}
+
+#[derive(Serialize, Debug)]
+struct LangChainChatMessageContentPartImageUrl {
+    image_url: LangChainChatMessageContentPartImageUrlInner,
+}
 
 #[derive(Serialize, Debug)]
 struct LangChainChatMessageContentPartText {
@@ -82,7 +92,7 @@ enum LangChainChatMessageContentPart {
         dead_code,
         reason = "While LangChain supports OpenAI-style image URLs, we convert to LangChain-style image, source_type=url"
     )]
-    ImageUrl(OpenAIChatMessageContentPartImageUrl),
+    ImageUrl(LangChainChatMessageContentPartImageUrl),
     Image(LangChainChatMessageContentPartImage),
     File(LangChainChatMessageContentPartFile),
     #[allow(

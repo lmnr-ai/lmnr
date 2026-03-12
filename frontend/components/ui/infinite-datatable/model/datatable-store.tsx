@@ -32,6 +32,7 @@ export interface SelectionState {
   selectedRows: Set<string>;
   columnVisibility: Record<string, boolean>;
   columnOrder: string[];
+  columnSizing: Record<string, number>;
   draggingColumnId: string | null;
 }
 
@@ -43,6 +44,7 @@ export interface SelectionActions {
   clearSelection: () => void;
   setColumnVisibility: (visibility: Record<string, boolean>) => void;
   setColumnOrder: (order: string[]) => void;
+  setColumnSizing: (sizing: Record<string, number>) => void;
   setDraggingColumnId: (columnId: string | null) => void;
   resetColumns: () => void;
   getStorageKey: () => string;
@@ -73,6 +75,7 @@ function createDataTableStore<TData>(
     pageSize,
     columnVisibility: {},
     columnOrder: defaultColumnOrder,
+    columnSizing: {},
     draggingColumnId: null,
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
     setCurrentPage: (currentPage) => set({ currentPage }),
@@ -82,11 +85,13 @@ function createDataTableStore<TData>(
     setHasMore: (hasMore) => set({ hasMore }),
     setColumnVisibility: (visibility) => set({ columnVisibility: visibility }),
     setColumnOrder: (order) => set({ columnOrder: order }),
+    setColumnSizing: (sizing) => set({ columnSizing: sizing }),
     setDraggingColumnId: (columnId) => set({ draggingColumnId: columnId }),
     resetColumns: () =>
       set({
         columnVisibility: {},
         columnOrder: defaultColumnOrder,
+        columnSizing: {},
       }),
     appendData: (items, count) =>
       set((state) => {
@@ -161,18 +166,23 @@ function createDataTableStore<TData>(
         partialize: (state) => ({
           columnVisibility: state.columnVisibility,
           columnOrder: state.columnOrder,
+          columnSizing: state.columnSizing,
         }),
         merge: (persistedState, currentState) => {
-          const persisted = persistedState as Partial<Pick<SelectionState, "columnVisibility" | "columnOrder">>;
+          const persisted = persistedState as Partial<
+            Pick<SelectionState, "columnVisibility" | "columnOrder" | "columnSizing">
+          >;
           const validColumns = intersection(persisted?.columnOrder ?? [], defaultColumnOrder);
           const newColumns = defaultColumnOrder.filter((col) => !validColumns.includes(col));
           const mergedColumnOrder = [...validColumns, ...newColumns];
           const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, defaultColumnOrder);
+          const filteredColumnSizing = pick(persisted?.columnSizing ?? {}, defaultColumnOrder);
 
           return {
             ...currentState,
             columnVisibility: filteredColumnVisibility,
             columnOrder: mergedColumnOrder,
+            columnSizing: filteredColumnSizing,
           };
         },
       })
