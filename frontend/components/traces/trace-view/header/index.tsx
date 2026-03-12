@@ -55,6 +55,7 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
   const fetchSignals = useCallback(async () => {
     if (!trace?.id) return;
     if (loadedTraceIdRef.current === trace.id) return;
+    setTraceSignals([]);
     try {
       const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/signals`);
       if (res.ok) {
