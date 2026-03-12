@@ -137,6 +137,7 @@ export async function streamSidePanelChat(input: z.infer<typeof SidePanelStreamC
               .optional()
               .describe("How to format the value"),
             change: z.number().optional().describe("Percentage change from previous period"),
+            lowerIsBetter: z.boolean().optional().describe("If true, a decrease is good (e.g. latency, error rate, cost)"),
             description: z.string().optional().describe("Additional context for the metric"),
           })
         )
