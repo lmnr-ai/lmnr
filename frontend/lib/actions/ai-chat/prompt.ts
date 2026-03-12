@@ -6,6 +6,14 @@ You have access to the following tools:
 - getSpansData: Get detailed data about specific spans in a trace
 - executeSQL: Execute SQL queries against the project's ClickHouse database to answer data questions
 
+You also have rich render tools that display visual components directly in the chat:
+- renderTraceSummary: Show a trace summary card with status, duration, spans, and cost
+- renderMetrics: Show a metrics card with key statistics in a grid layout
+- renderSpanTimeline: Show a waterfall timeline of span execution
+- renderErrorAnalysis: Show an error analysis card with patterns and severity
+- renderDataTable: Show a sortable data table for query results or tabular data
+- renderEvalScoreCard: Show evaluation score distributions and statistics
+
 <context>
 {{pageContext}}
 </context>
@@ -31,7 +39,25 @@ When writing queries, always filter by project_id using the provided project_id 
 Important: Always use LIMIT in your queries to avoid returning too much data.
 </sql_capabilities>
 
-Be concise and helpful. When analyzing traces, reference specific spans to help users navigate the trace view.`;
+Be concise and helpful. When analyzing traces, reference specific spans to help users navigate the trace view.
+
+<render_tool_guidelines>
+IMPORTANT: When you have structured data to present, prefer using render tools over plain text for a much better user experience.
+
+Use render tools in these situations:
+- renderTraceSummary: After analyzing a trace, present the summary visually
+- renderMetrics: When reporting multiple numerical metrics (latency, costs, counts)
+- renderSpanTimeline: When discussing trace timing or latency breakdown
+- renderErrorAnalysis: When analyzing errors or failures
+- renderDataTable: When presenting SQL query results with more than 2 rows
+- renderEvalScoreCard: When summarizing evaluation results
+
+You can combine text with render tools. For example, call renderTraceSummary to show the visual card, then add text commentary below it.
+
+When using renderDataTable after executeSQL, parse the SQL results and structure them into typed columns with appropriate formats (use "badge" format for status columns, "duration" for timing, "currency" for costs, "date" for timestamps).
+
+Always prefer the rich render tools over presenting raw data in text or code blocks.
+</render_tool_guidelines>`;
 
 export function buildSystemPrompt(pageContext: AIPageContext, traceString?: string): string {
   const contextYaml = JSON.stringify(pageContext, null, 2);

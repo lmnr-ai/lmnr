@@ -2,11 +2,12 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { AnimatePresence,motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, Database, Loader2, MessageCircleQuestion, RotateCcw, Sparkles, X } from "lucide-react";
 import { useParams, usePathname } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
+import { RENDER_COMPONENT_REGISTRY } from "@/components/ai-chat/render-components";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
 import { Button } from "@/components/ui/button";
@@ -237,6 +238,27 @@ export default function SidePanelChat() {
                                         </div>
                                       </div>
                                     );
+                                  default: {
+                                    // Handle render tool results - extract tool name from part type
+                                    const toolName = part.type.startsWith("tool-") ? part.type.slice(5) : null;
+                                    const RenderComponent = toolName ? RENDER_COMPONENT_REGISTRY[toolName] : null;
+                                    if (RenderComponent && (part as any).result) {
+                                      try {
+                                        const data =
+                                          typeof (part as any).result === "string"
+                                            ? JSON.parse((part as any).result)
+                                            : (part as any).result;
+                                        return (
+                                          <div key={`${message.id}-${i}`}>
+                                            <RenderComponent data={data} />
+                                          </div>
+                                        );
+                                      } catch {
+                                        // Fall through to null if parse fails
+                                      }
+                                    }
+                                    return null;
+                                  }
                                 }
                               })}
                             </div>
