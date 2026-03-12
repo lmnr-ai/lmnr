@@ -235,6 +235,7 @@ const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) =
       "inputTokens",
       "outputTokens",
       "totalTokens",
+      "cacheReadInputTokens",
       "inputCost",
       "outputCost",
       "totalCost",
