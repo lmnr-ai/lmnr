@@ -38,8 +38,14 @@ export default function ClusterItem({
   const hasChildren = iconVariant === "folder";
   const displayCount = filteredCount ?? 0;
   const showFilteredRange = filteredCount !== undefined;
-  const createdAgo = useMemo(() => formatShortRelativeTime(new Date(cluster.createdAt)), [cluster.createdAt]);
-  const updatedAgo = useMemo(() => formatShortRelativeTime(new Date(cluster.updatedAt)), [cluster.updatedAt]);
+  const createdAgo = useMemo(() => {
+    const d = new Date(cluster.createdAt);
+    return isNaN(d.getTime()) ? null : formatShortRelativeTime(d);
+  }, [cluster.createdAt]);
+  const updatedAgo = useMemo(() => {
+    const d = new Date(cluster.updatedAt);
+    return isNaN(d.getTime()) ? null : formatShortRelativeTime(d);
+  }, [cluster.updatedAt]);
 
   const [hovered, setHovered] = useState(false);
   const [rect, setRect] = useState<HoverRect | null>(null);
@@ -173,12 +179,16 @@ export default function ClusterItem({
                       <span className="text-foreground">{displayCount}</span>
                       {showFilteredRange ? ` / ${cluster.numEvents} events in selected range` : ` events`}
                     </span>
-                    <span>
-                      Created <span className="text-foreground">{createdAgo}</span>
-                    </span>
-                    <span>
-                      Updated <span className="text-foreground">{updatedAgo}</span>
-                    </span>
+                    {createdAgo && (
+                      <span>
+                        Created <span className="text-foreground">{createdAgo}</span>
+                      </span>
+                    )}
+                    {updatedAgo && (
+                      <span>
+                        Updated <span className="text-foreground">{updatedAgo}</span>
+                      </span>
+                    )}
                   </motion.div>
                 </motion.button>
               </motion.div>
