@@ -15,9 +15,13 @@ export default async function DebuggerSessionPage(props: { params: Promise<{ pro
   let trace;
   try {
     session = await getDebuggerSession({ projectId, id });
+  } catch {
+    return notFound();
+  }
 
-    if (!session) return notFound();
+  if (!session) return notFound();
 
+  try {
     trace = await getLatestTraceBySessionId({ projectId, sessionId: id });
   } catch {
     return notFound();
