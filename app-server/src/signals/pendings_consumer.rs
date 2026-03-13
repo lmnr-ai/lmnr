@@ -434,6 +434,8 @@ pub async fn process_succeeded_batch(
 
         new_messages.extend(new_run_messages);
 
+        log::debug!("[Pendings consumer] got step_result: {:?}", step_result);
+
         match step_result {
             StepResult::CompletedNoEvent => {
                 succeeded_runs.push(run.completed());

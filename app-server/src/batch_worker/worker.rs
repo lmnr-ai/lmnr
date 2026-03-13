@@ -134,7 +134,7 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
 
                 // Interval tick
                 _ = interval.tick() => {
-                    log::debug!("====== Interval tick triggered for {} ======", self.worker_type);
+                    log::trace!("====== Interval tick triggered for {} ======", self.worker_type);
                     let result = self.handler
                         .handle_interval(&mut self.state)
                         .await;
