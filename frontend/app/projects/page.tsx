@@ -63,7 +63,11 @@ export default async function ProjectsPage() {
           return redirect(`/project/${project.id}/traces`);
         }
       }
-    } catch {
+    } catch (e) {
+      // Re-throw Next.js internal errors (redirect, notFound)
+      if (e && typeof e === "object" && "digest" in e) {
+        throw e;
+      }
       // Ignore cookie-based redirect failure, fall through to workspace redirect
     }
   }
