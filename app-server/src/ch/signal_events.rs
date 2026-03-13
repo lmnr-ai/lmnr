@@ -179,6 +179,7 @@ pub struct SignalEventContextRow {
     pub trace_id: Uuid,
     pub summary: String,
     pub payload: String,
+    pub timestamp: i64,
 }
 
 /// Get the most recent signal events (up to `limit`) for the given project and time range.
@@ -198,7 +199,7 @@ pub async fn get_signal_events_for_summary(
     let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
 
     let query_str = format!(
-        "SELECT id, signal_id, trace_id, summary, payload
+        "SELECT id, signal_id, trace_id, summary, payload, timestamp
          FROM signal_events
          WHERE project_id = ?
            AND signal_id IN ({})

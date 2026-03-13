@@ -518,6 +518,11 @@ fn build_noteworthy_events(
                 .cloned()
                 .unwrap_or_else(|| "Unknown Signal".to_string());
 
+            let timestamp_secs = event.timestamp / 1_000_000_000;
+            let timestamp_str = chrono::DateTime::from_timestamp(timestamp_secs, 0)
+                .map(|dt| dt.format("%b %d, %Y %H:%M UTC").to_string())
+                .unwrap_or_else(|| "Unknown time".to_string());
+
             // Truncate payload for display
             let payload_display = match event.payload.char_indices().nth(500) {
                 Some((idx, _)) => format!("{}...", &event.payload[..idx]),
@@ -528,7 +533,7 @@ fn build_noteworthy_events(
                 signal_name,
                 payload: payload_display,
                 summary: event.summary.clone(),
-                timestamp: String::new(), // Context rows don't have formatted timestamp
+                timestamp: timestamp_str,
                 trace_id: event.trace_id.to_string(),
             });
         }
