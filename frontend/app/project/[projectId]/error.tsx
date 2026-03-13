@@ -1,4 +1,4 @@
-"use client"; // Error components must be Client Components
+"use client";
 
 import * as Sentry from "@sentry/nextjs";
 import { ArrowLeft, RefreshCw } from "lucide-react";
@@ -8,7 +8,7 @@ import { useEffect } from "react";
 import icon from "@/assets/logo/icon.png";
 import { Button } from "@/components/ui/button.tsx";
 
-export default function Error({ error }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function ProjectError({ error }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     Sentry.captureException(error);
   }, [error]);
@@ -37,7 +37,7 @@ export default function Error({ error }: { error: Error & { digest?: string }; r
             variant="outline"
           >
             <ArrowLeft className="mr-2 size-4" />
-            Back
+            Back to projects
           </Button>
           <Button
             onClick={() => {
@@ -48,7 +48,7 @@ export default function Error({ error }: { error: Error & { digest?: string }; r
             variant="outlinePrimary"
           >
             <RefreshCw className="mr-2 size-4" />
-            Try Again
+            Try again
           </Button>
         </div>
       </div>

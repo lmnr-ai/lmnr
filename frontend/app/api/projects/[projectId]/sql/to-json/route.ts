@@ -1,31 +1,18 @@
-import { type NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
-import { prettifyError, ZodError } from "zod/v4";
 
 import { sqlToJson } from "@/lib/actions/sql";
+import { handleRoute } from "@/lib/api/route-handler";
 import { authOptions } from "@/lib/auth";
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
-  try {
-    const session = await getServerSession(authOptions);
-    const body = await request.json();
-    const projectId = (await params).projectId;
+export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const session = await getServerSession(authOptions);
 
-    if (!session) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const data = await sqlToJson({ projectId, sql: body.sql });
-
-    return Response.json({ success: true, jsonStructure: JSON.stringify(data) });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ success: false, error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { success: false, error: error instanceof Error ? error.message : "Failed to convert SQL to JSON." },
-      { status: 500 }
-    );
+  if (!session) {
+    throw new Error("Unauthorized");
   }
-}
+
+  const body = await req.json();
+  const data = await sqlToJson({ projectId: params.projectId, sql: body.sql });
+
+  return { success: true, jsonStructure: JSON.stringify(data) };
+});

@@ -1,101 +1,36 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { deleteDashboardChart, getChart, updateChart, updateChartName } from "@/lib/actions/dashboard";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function GET(
-  _req: NextRequest,
-  props: { params: Promise<{ projectId: string; id: string }> }
-): Promise<Response> {
-  const { projectId, id } = await props.params;
+export const GET = handleRoute<{ projectId: string; id: string }, unknown>(async (_req, params) => {
+  const { projectId, id } = params;
 
-  try {
-    const chart = await getChart({ projectId, id });
+  const chart = await getChart({ projectId, id });
 
-    if (!chart) {
-      return Response.json({ error: "Chart not found" }, { status: 404 });
-    }
-
-    return Response.json(chart);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to get chart. Please try again." },
-      { status: 500 }
-    );
+  if (!chart) {
+    throw new Error("Chart not found");
   }
-}
 
-export async function DELETE(
-  _req: NextRequest,
-  props: { params: Promise<{ projectId: string; id: string }> }
-): Promise<Response> {
-  const { projectId, id } = await props.params;
+  return chart;
+});
 
-  try {
-    await deleteDashboardChart({ projectId, id });
+export const DELETE = handleRoute<{ projectId: string; id: string }, unknown>(async (_req, params) => {
+  const { projectId, id } = params;
 
-    return Response.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
+  await deleteDashboardChart({ projectId, id });
+  return { success: true };
+});
 
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to delete chart. Please try again." },
-      { status: 500 }
-    );
-  }
-}
+export const PATCH = handleRoute<{ projectId: string; id: string }, unknown>(async (req, params) => {
+  const { projectId, id } = params;
+  const body = await req.json();
 
-export async function PATCH(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; id: string }> }
-): Promise<Response> {
-  const { projectId, id } = await props.params;
+  await updateChartName({ projectId, id, ...body });
+  return { success: true };
+});
 
-  try {
-    const body = await req.json();
+export const PUT = handleRoute<{ projectId: string; id: string }, unknown>(async (req, params) => {
+  const { projectId, id } = params;
+  const body = await req.json();
 
-    // PATCH is used for partial updates (name only)
-    await updateChartName({ projectId, id, ...body });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update chart name. Please try again." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PUT(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; id: string }> }
-): Promise<Response> {
-  const { projectId, id } = await props.params;
-
-  try {
-    const body = await req.json();
-
-    const chart = await updateChart({ projectId, id, ...body });
-
-    return NextResponse.json(chart);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update chart. Please try again." },
-      { status: 500 }
-    );
-  }
-}
+  return await updateChart({ projectId, id, ...body });
+});

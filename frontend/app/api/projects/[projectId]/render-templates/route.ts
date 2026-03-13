@@ -1,49 +1,17 @@
-import { NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { createRenderTemplate } from "@/lib/actions/render-template";
 import { getRenderTemplates } from "@/lib/actions/render-templates";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function GET(_req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const { projectId } = params;
+export const GET = handleRoute<{ projectId: string }, unknown>(
+  async (_req, params) => await getRenderTemplates({ projectId: params.projectId })
+);
 
-    const templates = await getRenderTemplates({ projectId });
+export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const body = await req.json();
 
-    return NextResponse.json(templates);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to get templates. Please try again." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
-  try {
-    const params = await props.params;
-    const { projectId } = params;
-    const body = await req.json();
-
-    const result = await createRenderTemplate({
-      projectId,
-      name: body.name,
-      code: body.code,
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to create template. Please try again." },
-      { status: 500 }
-    );
-  }
-}
+  return await createRenderTemplate({
+    projectId: params.projectId,
+    name: body.name,
+    code: body.code,
+  });
+});

@@ -1,48 +1,14 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { createSqlTemplate, getSqlTemplates } from "@/lib/actions/sql/templates";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function GET(_req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const { projectId } = params;
+export const GET = handleRoute<{ projectId: string }, unknown>(
+  async (_req, params) => await getSqlTemplates({ projectId: params.projectId })
+);
 
-    const result = await getSqlTemplates({ projectId });
-
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to get SQL templates" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const { projectId } = await props.params;
-
-    const body = await req.json();
-
-    const template = await createSqlTemplate({
-      ...body,
-      projectId,
-    });
-
-    return Response.json(template);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to create SQL template." },
-      { status: 500 }
-    );
-  }
-}
+export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const body = await req.json();
+  return await createSqlTemplate({
+    ...body,
+    projectId: params.projectId,
+  });
+});

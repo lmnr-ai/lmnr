@@ -1,9 +1,9 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, z } from "zod/v4";
+import { z } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { EvalFilterSchema } from "@/lib/actions/evaluation/query-builder";
 import { getSharedEvaluationStatistics } from "@/lib/actions/shared/evaluation";
+import { handleRoute } from "@/lib/api/route-handler";
 
 const SharedEvaluationStatisticsSchema = z.object({
   filter: z
@@ -14,7 +14,7 @@ const SharedEvaluationStatisticsSchema = z.object({
         .map((filter) => {
           try {
             return EvalFilterSchema.parse(JSON.parse(filter));
-          } catch (error) {
+          } catch {
             ctx.issues.push({ code: "custom", message: `Invalid filter: ${filter}`, input: filter });
             return undefined;
           }
@@ -26,36 +26,28 @@ const SharedEvaluationStatisticsSchema = z.object({
   columns: z.string().optional(),
 });
 
-export async function GET(req: NextRequest, props: { params: Promise<{ evaluationId: string }> }): Promise<Response> {
-  const { evaluationId } = await props.params;
-
-  const parseResult = parseUrlParams(req.nextUrl.searchParams, SharedEvaluationStatisticsSchema);
+export const GET = handleRoute<{ evaluationId: string }, unknown>(async (req, { evaluationId }) => {
+  const url = new URL(req.url);
+  const parseResult = parseUrlParams(url.searchParams, SharedEvaluationStatisticsSchema);
 
   if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    throw parseResult.error;
   }
 
-  try {
-    const { filter, search, searchIn, columns: columnsJson } = parseResult.data;
-    const columns = columnsJson ? JSON.parse(columnsJson) : undefined;
+  const { filter, search, searchIn, columns: columnsJson } = parseResult.data;
+  const columns = columnsJson ? JSON.parse(columnsJson) : undefined;
 
-    const result = await getSharedEvaluationStatistics({
-      evaluationId,
-      filters: filter ?? [],
-      search,
-      searchIn,
-      columns,
-    });
+  const result = await getSharedEvaluationStatistics({
+    evaluationId,
+    filters: filter ?? [],
+    search,
+    searchIn,
+    columns,
+  });
 
-    if (!result) {
-      return Response.json({ error: "Evaluation not found or not public" }, { status: 404 });
-    }
-
-    return Response.json(result);
-  } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch shared evaluation statistics." },
-      { status: 500 }
-    );
+  if (!result) {
+    throw new Error("Evaluation not found or not public");
   }
-}
+
+  return result;
+});

@@ -1,61 +1,17 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { deleteWorkspace, getWorkspace, updateWorkspace } from "@/lib/actions/workspace";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function POST(req: NextRequest, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const { workspaceId } = params;
+export const POST = handleRoute<{ workspaceId: string }, { message: string }>(async (req, { workspaceId }) => {
+  const body = await req.json();
+  await updateWorkspace({ workspaceId, ...body });
+  return { message: "Workspace renamed successfully." };
+});
 
-  try {
-    const body = await req.json();
+export const GET = handleRoute<{ workspaceId: string }, Awaited<ReturnType<typeof getWorkspace>>>(
+  async (_req, { workspaceId }) => getWorkspace({ workspaceId })
+);
 
-    await updateWorkspace({ workspaceId, ...body });
-
-    return Response.json({ message: "Workspace renamed successfully." });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to update workspace." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function GET(_req: Request, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const workspace = await getWorkspace({ workspaceId: params.workspaceId });
-
-    return Response.json(workspace);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json({ error: "Failed to get workspace. Please try again." }, { status: 500 });
-  }
-}
-
-export async function DELETE(_req: Request, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const { workspaceId } = params;
-
-  try {
-    await deleteWorkspace({ workspaceId });
-
-    return Response.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to delete workspace. Please try again." },
-      { status: 500 }
-    );
-  }
-}
+export const DELETE = handleRoute<{ workspaceId: string }, { success: boolean }>(async (_req, { workspaceId }) => {
+  await deleteWorkspace({ workspaceId });
+  return { success: true };
+});

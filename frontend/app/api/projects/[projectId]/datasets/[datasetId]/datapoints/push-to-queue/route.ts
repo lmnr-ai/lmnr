@@ -1,40 +1,26 @@
-import { NextResponse } from "next/server";
-
 import { pushDatapointsToQueue, PushDatapointsToQueueSchema } from "@/lib/actions/datapoints";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function POST(
-  req: Request,
-  props: { params: Promise<{ projectId: string; datasetId: string }> }
-): Promise<Response> {
-  const params = await props.params;
+export const POST = handleRoute<{ projectId: string; datasetId: string }, unknown>(async (req, params) => {
+  const body = await req.json();
 
-  try {
-    const body = await req.json();
-
-    const result = PushDatapointsToQueueSchema.omit({ projectId: true, datasetId: true }).safeParse(body);
-    if (!result.success) {
-      return NextResponse.json({ error: "Invalid request body", details: result.error.issues }, { status: 400 });
-    }
-
-    const { datapointIds, queueId } = result.data;
-
-    const queueItems = await pushDatapointsToQueue({
-      datapointIds,
-      projectId: params.projectId,
-      datasetId: params.datasetId,
-      queueId,
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: `Successfully pushed ${datapointIds.length} datapoints to queue`,
-      queueItems,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  const result = PushDatapointsToQueueSchema.omit({ projectId: true, datasetId: true }).safeParse(body);
+  if (!result.success) {
+    throw new Error("Invalid request body");
   }
-}
+
+  const { datapointIds, queueId } = result.data;
+
+  const queueItems = await pushDatapointsToQueue({
+    datapointIds,
+    projectId: params.projectId,
+    datasetId: params.datasetId,
+    queueId,
+  });
+
+  return {
+    success: true,
+    message: `Successfully pushed ${datapointIds.length} datapoints to queue`,
+    queueItems,
+  };
+});

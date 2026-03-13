@@ -1,68 +1,43 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError } from "zod/v4";
-
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createQueue, deleteQueues, getQueues, GetQueuesSchema } from "@/lib/actions/queues";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const projectId = params.projectId;
+export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const body = await req.json();
 
-    const body = await req.json();
+  return await createQueue({
+    projectId: params.projectId,
+    name: body.name,
+  });
+});
 
-    const queue = await createQueue({
-      projectId,
-      name: body.name,
-    });
+export const GET = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const { searchParams } = new URL(req.url);
 
-    return NextResponse.json(queue);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const parseResult = parseUrlParams(searchParams, GetQueuesSchema.omit({ projectId: true }));
+
+  if (!parseResult.success) {
+    throw parseResult.error;
   }
-}
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const projectId = params.projectId;
+  return await getQueues({
+    ...parseResult.data,
+    projectId: params.projectId,
+  });
+});
 
-    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetQueuesSchema.omit({ projectId: true }));
+export const DELETE = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const { searchParams } = new URL(req.url);
+  const queueIds = searchParams.get("queueIds")?.split(",");
 
-    if (!parseResult.success) {
-      return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
-    }
-
-    const queuesData = await getQueues({
-      ...parseResult.data,
-      projectId,
-    });
-
-    return NextResponse.json(queuesData);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!queueIds) {
+    throw new Error("At least one Queue ID is required");
   }
-}
 
-export async function DELETE(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const projectId = params.projectId;
+  await deleteQueues({
+    projectId: params.projectId,
+    queueIds,
+  });
 
-    const { searchParams } = new URL(req.url);
-    const queueIds = searchParams.get("queueIds")?.split(",");
-
-    if (!queueIds) {
-      return NextResponse.json({ error: "At least one Queue ID is required" }, { status: 400 });
-    }
-
-    await deleteQueues({
-      projectId,
-      queueIds,
-    });
-
-    return NextResponse.json({ message: "Queues deleted successfully" });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
+  return { message: "Queues deleted successfully" };
+});

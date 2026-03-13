@@ -1,34 +1,14 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { getSignalRuns, GetSignalRunsSchema } from "@/lib/actions/signal-runs";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function GET(
-  req: NextRequest,
-  props: { params: Promise<{ projectId: string; id: string }> }
-): Promise<Response> {
-  const params = await props.params;
-  const { projectId, id: signalId } = params;
-  const parseResult = parseUrlParams(
-    req.nextUrl.searchParams,
-    GetSignalRunsSchema.omit({ projectId: true, signalId: true })
-  );
+export const GET = handleRoute(async (req, { projectId, id: signalId }) => {
+  const url = new URL(req.url);
+  const parseResult = parseUrlParams(url.searchParams, GetSignalRunsSchema.omit({ projectId: true, signalId: true }));
 
   if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    throw parseResult.error;
   }
 
-  try {
-    const result = await getSignalRuns({ ...parseResult.data, projectId, signalId });
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch signal runs." },
-      { status: 500 }
-    );
-  }
-}
+  return getSignalRuns({ ...parseResult.data, projectId, signalId });
+});

@@ -1,30 +1,20 @@
-import { type NextRequest } from "next/server";
-import { z } from "zod/v4";
-
 import { getEvaluatorsBySpanPath } from "@/lib/actions/evaluators/span-path";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const { projectId } = await props.params;
-    const spanPath = req.nextUrl.searchParams.get("spanPath");
+export const GET = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const { projectId } = params;
+  const url = new URL(req.url);
 
-    if (!spanPath) {
-      return Response.json({ error: "Span path is required. " }, { status: 400 });
-    }
+  const spanPath = url.searchParams.get("spanPath");
 
-    const spanPathResult = JSON.parse(spanPath);
-
-    const result = await getEvaluatorsBySpanPath({
-      projectId,
-      spanPath: spanPathResult,
-    });
-
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return Response.json({ error: "Validation error", details: error.issues }, { status: 400 });
-    }
-
-    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
+  if (!spanPath) {
+    throw new Error("Span path is required. ");
   }
-}
+
+  const spanPathResult = JSON.parse(spanPath);
+
+  return await getEvaluatorsBySpanPath({
+    projectId,
+    spanPath: spanPathResult,
+  });
+});

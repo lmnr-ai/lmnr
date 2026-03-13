@@ -1,67 +1,38 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createDataset, deleteDatasets, getDatasets, getDatasetsSchema } from "@/lib/actions/datasets";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
   const body = await req.json();
   const { name } = body;
 
-  try {
-    const dataset = await createDataset({ name, projectId });
-    return NextResponse.json(dataset, { status: 200 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json({ error: "Failed to create dataset" }, { status: 500 });
-  }
-}
+  return await createDataset({ name, projectId: params.projectId });
+});
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const GET = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const { searchParams } = new URL(req.url);
 
-  const parseResult = parseUrlParams(req.nextUrl.searchParams, getDatasetsSchema.omit({ projectId: true }));
+  const parseResult = parseUrlParams(searchParams, getDatasetsSchema.omit({ projectId: true }));
 
   if (!parseResult.success) {
-    return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    throw parseResult.error;
   }
 
-  try {
-    const response = await getDatasets({
-      ...parseResult.data,
-      projectId,
-    });
-    return NextResponse.json(response, { status: 200 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return NextResponse.json({ error: "Failed to get datasets" }, { status: 500 });
-  }
-}
+  return await getDatasets({
+    ...parseResult.data,
+    projectId: params.projectId,
+  });
+});
 
-export async function DELETE(req: Request, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-
+export const DELETE = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
   const { searchParams } = new URL(req.url);
   const datasetIds = searchParams.get("datasetIds")?.split(",");
 
   if (!datasetIds) {
-    return NextResponse.json({ error: "At least one Dataset ID is required" }, { status: 400 });
+    throw new Error("At least one Dataset ID is required");
   }
 
-  try {
-    await deleteDatasets({ projectId, datasetIds });
+  await deleteDatasets({ projectId: params.projectId, datasetIds });
 
-    return NextResponse.json({ message: "datasets deleted successfully" }, { status: 200 });
-  } catch (error) {
-    console.error("Error deleting datasets:", error);
-    return NextResponse.json({ error: "Error deleting datasets" }, { status: 500 });
-  }
-}
+  return { message: "datasets deleted successfully" };
+});

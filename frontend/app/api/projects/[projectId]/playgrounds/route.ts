@@ -1,67 +1,43 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { prettifyError } from "zod/v4";
-
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createPlayground, deletePlaygrounds, getPlaygrounds, GetPlaygroundsSchema } from "@/lib/actions/playgrounds";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }) {
-  try {
-    const params = await props.params;
-    const projectId = params.projectId;
+export const GET = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const { searchParams } = new URL(req.url);
 
-    const parseResult = parseUrlParams(req.nextUrl.searchParams, GetPlaygroundsSchema.omit({ projectId: true }));
+  const parseResult = parseUrlParams(searchParams, GetPlaygroundsSchema.omit({ projectId: true }));
 
-    if (!parseResult.success) {
-      return NextResponse.json({ error: prettifyError(parseResult.error) }, { status: 400 });
-    }
-
-    const result = await getPlaygrounds({
-      ...parseResult.data,
-      projectId,
-    });
-
-    return NextResponse.json(result);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!parseResult.success) {
+    throw parseResult.error;
   }
-}
 
-export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
-  try {
-    const params = await props.params;
-    const projectId = params.projectId;
-    const body = await req.json();
+  return await getPlaygrounds({
+    ...parseResult.data,
+    projectId: params.projectId,
+  });
+});
 
-    const result = await createPlayground({
-      projectId,
-      name: body.name,
-    });
+export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const body = await req.json();
 
-    return NextResponse.json(result);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  return await createPlayground({
+    projectId: params.projectId,
+    name: body.name,
+  });
+});
+
+export const DELETE = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const { searchParams } = new URL(req.url);
+  const playgroundIds = searchParams.get("playgroundIds")?.split(",").filter(Boolean);
+
+  if (!playgroundIds) {
+    throw new Error("At least one playground id is required");
   }
-}
 
-export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const projectId = params.projectId;
+  await deletePlaygrounds({
+    projectId: params.projectId,
+    playgroundIds,
+  });
 
-    const searchParams = req.nextUrl.searchParams;
-    const playgroundIds = searchParams.get("playgroundIds")?.split(",").filter(Boolean);
-
-    if (!playgroundIds) {
-      return NextResponse.json({ error: "At least one playground id is required" }, { status: 400 });
-    }
-
-    await deletePlaygrounds({
-      projectId,
-      playgroundIds,
-    });
-
-    return NextResponse.json({ message: "Playgrounds deleted successfully" });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
+  return { message: "Playgrounds deleted successfully" };
+});

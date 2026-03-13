@@ -1,23 +1,14 @@
-import { type NextRequest } from "next/server";
-
 import { getAutocompleteSuggestions } from "@/lib/actions/autocomplete";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const { searchParams } = req.nextUrl;
+export const GET = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const { searchParams } = new URL(req.url);
 
-  try {
-    const suggestions = await getAutocompleteSuggestions({
-      projectId: params.projectId,
-      entity: "spans",
-      field: searchParams.get("field") || undefined,
-    });
+  const suggestions = await getAutocompleteSuggestions({
+    projectId: params.projectId,
+    entity: "spans",
+    field: searchParams.get("field") || undefined,
+  });
 
-    return Response.json({ suggestions });
-  } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch autocomplete suggestions" },
-      { status: 500 }
-    );
-  }
-}
+  return { suggestions };
+});

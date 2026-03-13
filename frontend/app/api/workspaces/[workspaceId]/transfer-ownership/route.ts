@@ -1,30 +1,12 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { transferOwnership } from "@/lib/actions/workspace";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function POST(req: NextRequest, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
-  try {
-    const params = await props.params;
-    const body = await req.json();
-
-    await transferOwnership({
-      workspaceId: params.workspaceId,
-      currentOwnerId: body.currentOwnerId,
-      newOwnerId: body.newOwnerId,
-    });
-
-    return Response.json({ success: true });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return Response.json(
-      {
-        error: error instanceof Error ? error.message : "Failed to transfer ownership.",
-      },
-      { status: 500 }
-    );
-  }
-}
+export const POST = handleRoute<{ workspaceId: string }, { success: boolean }>(async (req, { workspaceId }) => {
+  const body = await req.json();
+  await transferOwnership({
+    workspaceId,
+    currentOwnerId: body.currentOwnerId,
+    newOwnerId: body.newOwnerId,
+  });
+  return { success: true };
+});

@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { handleRoute } from "@/lib/api/route-handler";
 import { db } from "@/lib/db/drizzle";
 import { playgrounds } from "@/lib/db/migrations/schema";
 
@@ -18,16 +19,13 @@ const updatePlaygroundSchema = z.object({
     .optional(),
 });
 
-export async function POST(req: Request, props: { params: Promise<{ projectId: string; playgroundId: string }> }) {
-  const params = await props.params;
+export const POST = handleRoute<{ projectId: string; playgroundId: string }, unknown>(async (req, params) => {
   const body = await req.json();
 
   const parsed = updatePlaygroundSchema.safeParse(body);
 
   if (!parsed.success) {
-    return new Response(JSON.stringify({ error: parsed.error.issues }), {
-      status: 400,
-    });
+    throw parsed.error;
   }
 
   const res = await db
@@ -45,5 +43,5 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     .where(eq(playgrounds.id, params.playgroundId))
     .returning();
 
-  return new Response(JSON.stringify(res));
-}
+  return res;
+});

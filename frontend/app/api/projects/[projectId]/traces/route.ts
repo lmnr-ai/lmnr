@@ -1,51 +1,31 @@
-import { type NextRequest } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
+import { prettifyError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { deleteTraces, DeleteTracesSchema, getTraces, GetTracesSchema } from "@/lib/actions/traces";
+import { handleRoute } from "@/lib/api/route-handler";
 
-export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
+export const GET = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const { projectId } = params;
 
-  const parseResult = parseUrlParams(req.nextUrl.searchParams, GetTracesSchema.omit({ projectId: true }));
+  const parseResult = parseUrlParams(new URL(req.url).searchParams, GetTracesSchema.omit({ projectId: true }));
 
   if (!parseResult.success) {
-    return Response.json({ items: [] });
+    return { items: [] };
   }
 
-  try {
-    const result = await getTraces({ ...parseResult.data, projectId });
-    return Response.json(result);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch traces." },
-      { status: 500 }
-    );
-  }
-}
+  return await getTraces({ ...parseResult.data, projectId });
+});
 
-export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const traceIds = req.nextUrl.searchParams.getAll("traceId");
+export const DELETE = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const { projectId } = params;
+  const traceIds = new URL(req.url).searchParams.getAll("traceId");
 
   const parseResult = DeleteTracesSchema.safeParse({ projectId, traceIds });
 
   if (!parseResult.success) {
-    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    throw new Error(prettifyError(parseResult.error));
   }
 
-  try {
-    await deleteTraces(parseResult.data);
-    return new Response("Traces deleted successfully.", { status: 200 });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return Response.json({ error: prettifyError(error) }, { status: 400 });
-    }
-    return new Response(error instanceof Error ? error.message : "Error deleting traces.", { status: 500 });
-  }
-}
+  await deleteTraces(parseResult.data);
+  return { success: true };
+});

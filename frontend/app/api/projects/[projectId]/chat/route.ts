@@ -1,39 +1,21 @@
-import { NextResponse } from "next/server";
-import { prettifyError, ZodError } from "zod/v4";
-
 import { handleChatGeneration } from "@/lib/actions/chat";
+import { handleRoute } from "@/lib/api/route-handler";
 import { parseSystemMessages } from "@/lib/playground/utils";
 
-export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
-  try {
-    const body = await req.json();
-    const { projectId } = await props.params;
+export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
+  const { projectId } = params;
+  const body = await req.json();
 
-    const convertedMessages = body.messages ? parseSystemMessages(body.messages) : [];
+  const convertedMessages = body.messages ? parseSystemMessages(body.messages) : [];
 
-    const params = {
-      ...body,
-      messages: convertedMessages,
-      projectId,
-    };
+  const chatParams = {
+    ...body,
+    messages: convertedMessages,
+    projectId,
+  };
 
-    const result = await handleChatGeneration({
-      ...params,
-      abortSignal: req.signal,
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    console.error(error);
-    if (error instanceof ZodError) {
-      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
-    }
-
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Internal server error.",
-      },
-      { status: 500 }
-    );
-  }
-}
+  return await handleChatGeneration({
+    ...chatParams,
+    abortSignal: req.signal,
+  });
+});
