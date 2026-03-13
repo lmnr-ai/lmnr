@@ -215,9 +215,13 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
         }),
       });
       if (!res.ok) {
+        await mutate(`/api/projects/${projectId}/sql/templates`);
+        router.push(`/project/${projectId}/sql`);
         toast({ variant: "destructive", title: "Error", description: "Failed to create query" });
       }
     } catch {
+      await mutate(`/api/projects/${projectId}/sql/templates`);
+      router.push(`/project/${projectId}/sql`);
       toast({ variant: "destructive", title: "Error", description: "Failed to create query" });
     }
   }, [mutate, projectId, router, toast]);
