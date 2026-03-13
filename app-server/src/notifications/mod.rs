@@ -4,7 +4,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use backoff::ExponentialBackoffBuilder;
 use resend_rs::Resend;
-use resend_rs::types::CreateEmailBaseOptions;
+use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -25,6 +25,9 @@ pub enum NotificationType {
     Email,
 }
 
+const LAMINAR_LOGO_PNG: &[u8] = include_bytes!("../../data/logo.png");
+const LAMINAR_LOGO_CID: &str = "laminar-logo";
+
 /// Payload for email notifications sent through the notification queue
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmailPayload {
@@ -32,6 +35,9 @@ pub struct EmailPayload {
     pub to: Vec<String>,
     pub subject: String,
     pub html: String,
+    /// When true, the Laminar logo PNG is attached inline with CID for email rendering.
+    #[serde(default)]
+    pub inline_logo: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -189,12 +195,21 @@ impl NotificationHandler {
         let total = email_payload.to.len();
 
         for recipient in &email_payload.to {
-            let email = CreateEmailBaseOptions::new(
+            let mut email = CreateEmailBaseOptions::new(
                 &email_payload.from,
                 [recipient.as_str()],
                 &email_payload.subject,
             )
             .with_html(&email_payload.html);
+
+            if email_payload.inline_logo {
+                email = email.with_attachment(
+                    CreateAttachment::from_content(LAMINAR_LOGO_PNG.to_vec())
+                        .with_filename("logo.png")
+                        .with_content_type("image/png")
+                        .with_content_id(LAMINAR_LOGO_CID),
+                );
+            }
 
             match send_email_with_retry(&resend, email).await {
                 Ok(response) => {

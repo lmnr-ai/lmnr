@@ -64,21 +64,6 @@ impl CHSignalEvent {
     }
 }
 
-/// ClickHouse row for report signal event samples
-#[derive(Row, Serialize, Deserialize, Debug)]
-pub struct SignalEventSampleRow {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub signal_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub trace_id: Uuid,
-    pub name: String,
-    pub payload: String,
-    pub summary: String,
-    pub timestamp: i64,
-}
-
 /// ClickHouse row for signal event counts
 #[derive(Row, Serialize, Deserialize, Debug)]
 pub struct SignalEventCountRow {
@@ -124,15 +109,30 @@ pub async fn get_signal_event_counts(
     Ok(rows)
 }
 
-/// Get the most recent N sample events per signal for the given project and time range.
-pub async fn get_signal_event_samples(
+/// ClickHouse row for signal events used as LLM summary context
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct SignalEventContextRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub signal_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub trace_id: Uuid,
+    pub summary: String,
+    pub payload: String,
+    pub timestamp: i64,
+}
+
+/// Get the most recent signal events (up to `limit`) for the given project and time range.
+/// Returns id, signal_id, trace_id, summary, and payload for use as LLM summary context.
+pub async fn get_signal_events_for_summary(
     clickhouse: &clickhouse::Client,
     project_id: &Uuid,
     signal_ids: &[Uuid],
     start_ts: i64,
     end_ts: i64,
-    limit_per_signal: u64,
-) -> Result<Vec<SignalEventSampleRow>> {
+    limit: u64,
+) -> Result<Vec<SignalEventContextRow>> {
     if signal_ids.is_empty() {
         return Ok(vec![]);
     }
@@ -140,18 +140,14 @@ pub async fn get_signal_event_samples(
     let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
 
     let query_str = format!(
-        "SELECT id, signal_id, trace_id, name, payload, summary, timestamp
-         FROM (
-             SELECT id, signal_id, trace_id, name, payload, summary, timestamp,
-                    row_number() OVER (PARTITION BY signal_id ORDER BY timestamp DESC) as rn
-             FROM signal_events
-             WHERE project_id = ?
-               AND signal_id IN ({})
-               AND timestamp >= toDateTime64(?, 9)
-               AND timestamp < toDateTime64(?, 9)
-         )
-         WHERE rn <= ?
-         ORDER BY signal_id, timestamp DESC",
+        "SELECT id, signal_id, trace_id, summary, payload, timestamp
+         FROM signal_events
+         WHERE project_id = ?
+           AND signal_id IN ({})
+           AND timestamp >= toDateTime64(?, 9)
+           AND timestamp < toDateTime64(?, 9)
+         ORDER BY timestamp DESC
+         LIMIT ?",
         placeholders.join(",")
     );
 
@@ -161,9 +157,9 @@ pub async fn get_signal_event_samples(
         query = query.bind(signal_id);
     }
 
-    query = query.bind(start_ts).bind(end_ts).bind(limit_per_signal);
+    query = query.bind(start_ts).bind(end_ts).bind(limit);
 
-    let rows = query.fetch_all::<SignalEventSampleRow>().await?;
+    let rows = query.fetch_all::<SignalEventContextRow>().await?;
 
     Ok(rows)
 }
