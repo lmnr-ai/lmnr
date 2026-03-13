@@ -30,7 +30,7 @@ export default function Error({ error }: { error: Error & { digest?: string }; r
         <div className="flex flex-col sm:flex-row gap-3 mt-4">
           <Button
             onClick={() => {
-              window.location.href = "/projects";
+              window.history.back();
             }}
             className="px-4"
             size="lg"
