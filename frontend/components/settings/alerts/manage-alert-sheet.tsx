@@ -284,7 +284,7 @@ export default function ManageAlertSheet({
   }, [workspaceId, channelId, signalName, toast]);
 
   const sheetContent = (
-    <SheetContent side="right" className="min-w-[50vw] w-full flex flex-col gap-0">
+    <SheetContent side="right" className="min-w-[50vw] w-full flex flex-col gap-0 focus:outline-none">
       <SheetHeader className="py-4 px-4 border-b">
         <SheetTitle>{isEditMode ? "Edit alert" : "New alert"}</SheetTitle>
       </SheetHeader>
