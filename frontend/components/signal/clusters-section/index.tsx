@@ -6,12 +6,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import {
-  selectChartClusters,
-  selectCurrentNode,
-  selectDrillDownDepth,
-  selectFilteredCountByCluster,
-  selectIsLeaf,
-  selectVisibleClusters,
+  getChartClusters,
+  getCurrentNode,
+  getDrillDownDepth,
+  getFilteredCountByCluster,
+  getIsLeaf,
+  getVisibleClusters,
   useSignalStoreContext,
 } from "@/components/signal/store.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -27,10 +27,8 @@ export default function ClustersSection() {
   const [clusterId, setClusterId] = useClusterId();
 
   // For leaf nodes, stay at the parent's navigation level
-  const isLeafSelector = useMemo(() => selectIsLeaf(clusterId), [clusterId]);
-  const isLeaf = useSignalStoreContext(isLeafSelector);
-  const currentNodeSelector = useMemo(() => selectCurrentNode(clusterId), [clusterId]);
-  const currentNode = useSignalStoreContext(currentNodeSelector);
+  const isLeaf = useSignalStoreContext((state) => getIsLeaf(state, clusterId));
+  const currentNode = useSignalStoreContext((state) => getCurrentNode(state, clusterId));
   const displayId = isLeaf ? (currentNode?.parentId ?? null) : clusterId;
 
   const isClustersLoading = useSignalStoreContext((state) => state.isClustersLoading);
@@ -40,24 +38,18 @@ export default function ClustersSection() {
   const fetchClusters = useSignalStoreContext((state) => state.fetchClusters);
   const fetchClusterStats = useSignalStoreContext((state) => state.fetchClusterStats);
 
-  // Depth uses displayId (parent level for leaves), chart uses clusterId (shows selected node's data)
-  const drillDownDepthSelector = useMemo(() => selectDrillDownDepth(displayId), [displayId]);
-  const chartClustersSelector = useMemo(() => selectChartClusters(clusterId), [clusterId]);
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const hasTimeRange = !!(pastHours || startDate);
-  const filteredCountSelector = useMemo(
-    () => selectFilteredCountByCluster(displayId, hasTimeRange),
-    [displayId, hasTimeRange]
+
+  // Depth uses displayId (parent level for leaves), chart uses clusterId (shows selected node's data)
+  const visibleClusters = useSignalStoreContext((state) => getVisibleClusters(state, displayId));
+  const drillDownDepth = useSignalStoreContext((state) => getDrillDownDepth(state, displayId));
+  const chartClusters = useSignalStoreContext((state) => getChartClusters(state, clusterId));
+  const filteredCountByCluster = useSignalStoreContext((state) =>
+    getFilteredCountByCluster(state, displayId, hasTimeRange)
   );
-
-  const visibleClustersSelector = useMemo(() => selectVisibleClusters(displayId), [displayId]);
-  const visibleClusters = useSignalStoreContext(visibleClustersSelector);
-
-  const drillDownDepth = useSignalStoreContext(drillDownDepthSelector);
-  const chartClusters = useSignalStoreContext(chartClustersSelector);
-  const filteredCountByCluster = useSignalStoreContext(filteredCountSelector);
 
   // Build stable color map from sibling list so colors match between list and chart
   const colorMap = useMemo(() => {

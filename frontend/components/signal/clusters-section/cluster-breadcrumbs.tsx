@@ -1,20 +1,16 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
-import { selectBreadcrumb, selectIsLeaf, useSignalStoreContext } from "@/components/signal/store.tsx";
+import { getBreadcrumb, useSignalStoreContext } from "@/components/signal/store.tsx";
 
 import ClusterBreadcrumb from "./cluster-breadcrumb";
 
 export default function ClusterBreadcrumbs() {
   const [clusterId, setClusterId] = useClusterId();
 
-  const isLeafSelector = useMemo(() => selectIsLeaf(clusterId), [clusterId]);
-  const isLeaf = useSignalStoreContext(isLeafSelector);
-
-  const breadcrumbSelector = useMemo(() => selectBreadcrumb(clusterId), [clusterId]);
-  const breadcrumb = useSignalStoreContext(breadcrumbSelector);
+  const breadcrumb = useSignalStoreContext((state) => getBreadcrumb(state, clusterId));
 
   const isClustersLoading = useSignalStoreContext((state) => state.isClustersLoading);
 

@@ -79,59 +79,42 @@ export type Store = SignalState & SignalActions;
 
 export const selectTree = (state: Store): ClusterNode[] => state.clusterTree;
 
-export const selectCurrentNode =
-  (clusterId: string | null) =>
-  (state: Store): ClusterNode | null => {
-    if (!clusterId) return null;
-    return findNodeById(selectTree(state), clusterId);
-  };
+export const getCurrentNode = (state: Store, clusterId: string | null): ClusterNode | null => {
+  if (!clusterId) return null;
+  return findNodeById(state.clusterTree, clusterId);
+};
 
-export const selectBreadcrumb =
-  (clusterId: string | null) =>
-  (state: Store): ClusterNode[] => {
-    if (!clusterId) return [];
-    if (clusterId === UNCLUSTERED_ID) return [selectUnclusteredVirtualCluster(state)];
-    return buildPath(selectTree(state), clusterId);
-  };
+export const getBreadcrumb = (state: Store, clusterId: string | null): ClusterNode[] => {
+  if (!clusterId) return [];
+  if (clusterId === UNCLUSTERED_ID) return [getUnclusteredVirtualCluster(state)];
+  return buildPath(state.clusterTree, clusterId);
+};
 
-export const selectVisibleClusters =
-  (clusterId: string | null) =>
-  (state: Store): ClusterNode[] => {
-    const node = selectCurrentNode(clusterId)(state);
-    if (!node) return selectTree(state);
-    return node.children;
-  };
+export const getVisibleClusters = (state: Store, clusterId: string | null): ClusterNode[] => {
+  const node = getCurrentNode(state, clusterId);
+  if (!node) return state.clusterTree;
+  return node.children;
+};
 
-export const selectIsLeaf =
-  (clusterId: string | null) =>
-  (state: Store): boolean => {
-    if (clusterId === UNCLUSTERED_ID) return true;
-    const node = selectCurrentNode(clusterId)(state);
-    return node !== null && node.children.length === 0;
-  };
+export const getIsLeaf = (state: Store, clusterId: string | null): boolean => {
+  if (clusterId === UNCLUSTERED_ID) return true;
+  const node = getCurrentNode(state, clusterId);
+  return node !== null && node.children.length === 0;
+};
 
-export const selectDrillDownDepth =
-  (clusterId: string | null) =>
-  (state: Store): number =>
-    selectBreadcrumb(clusterId)(state).length;
+export const getDrillDownDepth = (state: Store, clusterId: string | null): number =>
+  getBreadcrumb(state, clusterId).length;
 
 export const selectUnclusteredCount = (state: Store): number =>
   Math.max(0, state.totalEventCount - state.clusteredEventCount);
 
-export const selectFilterClusterIds =
-  (clusterId: string | null) =>
-  (state: Store): string[] => {
-    const node = selectCurrentNode(clusterId)(state);
-    if (!node) return [];
-    return collectDescendantIds(node);
-  };
+export const getFilterClusterIds = (state: Store, clusterId: string | null): string[] => {
+  const node = getCurrentNode(state, clusterId);
+  if (!node) return [];
+  return collectDescendantIds(node);
+};
 
-export const selectIsUnclusteredFilter =
-  (clusterId: string | null) =>
-  (_state: Store): boolean =>
-    clusterId === UNCLUSTERED_ID;
-
-export const selectUnclusteredVirtualCluster = (state: Store): ClusterNode => ({
+export const getUnclusteredVirtualCluster = (state: Store): ClusterNode => ({
   id: UNCLUSTERED_ID,
   name: "Unclustered Events",
   parentId: null,
@@ -143,46 +126,46 @@ export const selectUnclusteredVirtualCluster = (state: Store): ClusterNode => ({
   children: [],
 });
 
-export const selectChartClusters =
-  (clusterId: string | null) =>
-  (state: Store): ClusterNode[] => {
-    // Unclustered selected — show only unclustered
-    if (clusterId === UNCLUSTERED_ID) {
-      return [selectUnclusteredVirtualCluster(state)];
-    }
-    // Leaf selected — show only that leaf
-    const node = selectCurrentNode(clusterId)(state);
-    if (node && node.children.length === 0) {
-      return [node];
-    }
-    // Parent or root — show children + unclustered at root
-    const visible = selectVisibleClusters(clusterId)(state);
-    const depth = selectDrillDownDepth(clusterId)(state);
-    const unclustered = selectUnclusteredCount(state);
-    const clusters: ClusterNode[] = [...visible];
-    if (depth === 0 && unclustered > 0) {
-      clusters.push(selectUnclusteredVirtualCluster(state));
-    }
-    return clusters;
-  };
+export const getChartClusters = (state: Store, clusterId: string | null): ClusterNode[] => {
+  // Unclustered selected — show only unclustered
+  if (clusterId === UNCLUSTERED_ID) {
+    return [getUnclusteredVirtualCluster(state)];
+  }
+  // Leaf selected — show only that leaf
+  const node = getCurrentNode(state, clusterId);
+  if (node && node.children.length === 0) {
+    return [node];
+  }
+  // Parent or root — show children + unclustered at root
+  const visible = getVisibleClusters(state, clusterId);
+  const depth = getDrillDownDepth(state, clusterId);
+  const unclustered = selectUnclusteredCount(state);
+  const clusters: ClusterNode[] = [...visible];
+  if (depth === 0 && unclustered > 0) {
+    clusters.push(getUnclusteredVirtualCluster(state));
+  }
+  return clusters;
+};
 
-export const selectFilteredCountByCluster =
-  (clusterId: string | null, hasTimeRange: boolean) =>
-  (state: Store): Map<string, number> => {
-    const counts = new Map<string, number>();
-    if (hasTimeRange) {
-      for (const cluster of selectVisibleClusters(clusterId)(state)) {
-        counts.set(cluster.id, 0);
-      }
-      if (selectDrillDownDepth(clusterId)(state) === 0) {
-        counts.set(UNCLUSTERED_ID, 0);
-      }
+export const getFilteredCountByCluster = (
+  state: Store,
+  clusterId: string | null,
+  hasTimeRange: boolean
+): Map<string, number> => {
+  const counts = new Map<string, number>();
+  if (hasTimeRange) {
+    for (const cluster of getVisibleClusters(state, clusterId)) {
+      counts.set(cluster.id, 0);
     }
-    for (const row of state.clusterStatsData) {
-      counts.set(row.cluster_id, (counts.get(row.cluster_id) ?? 0) + row.count);
+    if (getDrillDownDepth(state, clusterId) === 0) {
+      counts.set(UNCLUSTERED_ID, 0);
     }
-    return counts;
-  };
+  }
+  for (const row of state.clusterStatsData) {
+    counts.set(row.cluster_id, (counts.get(row.cluster_id) ?? 0) + row.count);
+  }
+  return counts;
+};
 
 // --- Store ---
 

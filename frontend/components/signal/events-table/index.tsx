@@ -7,11 +7,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import ClustersSection from "@/components/signal/clusters-section";
 import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
-import {
-  selectFilterClusterIds,
-  selectIsUnclusteredFilter,
-  useSignalStoreContext,
-} from "@/components/signal/store.tsx";
+import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -22,6 +18,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -62,10 +59,8 @@ function PureEventsTable() {
   const [clusterId] = useClusterId();
   const signal = useSignalStoreContext((state) => state.signal);
   const selectedEvent = useSignalStoreContext((state) => state.selectedEvent);
-  const filterClusterIdsSelector = useMemo(() => selectFilterClusterIds(clusterId), [clusterId]);
-  const isUnclusteredSelector = useMemo(() => selectIsUnclusteredFilter(clusterId), [clusterId]);
-  const selectedClusterIds = useSignalStoreContext(filterClusterIdsSelector);
-  const isUnclusteredFilter = useSignalStoreContext(isUnclusteredSelector);
+  const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId));
+  const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();

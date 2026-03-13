@@ -1,12 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
-
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import {
+  getUnclusteredVirtualCluster,
+  getVisibleClusters,
   selectUnclusteredCount,
-  selectUnclusteredVirtualCluster,
-  selectVisibleClusters,
   useSignalStoreContext,
 } from "@/components/signal/store";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
@@ -32,11 +30,9 @@ export default function ClusterList({
 }: ClusterListProps) {
   const [clusterId] = useClusterId();
 
-  const visibleSelector = useMemo(() => selectVisibleClusters(displayId), [displayId]);
-  const visibleClusters = useSignalStoreContext(visibleSelector);
-
+  const visibleClusters = useSignalStoreContext((state) => getVisibleClusters(state, displayId));
   const unclusteredCount = useSignalStoreContext(selectUnclusteredCount);
-  const unclusteredVirtualCluster = useSignalStoreContext(selectUnclusteredVirtualCluster);
+  const unclusteredVirtualCluster = useSignalStoreContext(getUnclusteredVirtualCluster);
 
   const showUnclustered = drillDownDepth === 0;
 

@@ -62,9 +62,9 @@ export async function getEventClusters(
       id: string;
       name: string;
       parentId: string | null;
-      level: string;
-      numChildrenClusters: string;
-      numEvents: string;
+      level: number;
+      numChildrenClusters: number;
+      numEvents: number;
       createdAt: string;
       updatedAt: string;
     }>({
@@ -88,9 +88,9 @@ export async function getEventClusters(
     id: row.id,
     name: row.name,
     parentId: row.parentId && row.parentId !== "00000000-0000-0000-0000-000000000000" ? row.parentId : null,
-    level: parseInt(String(row.level), 10),
-    numChildrenClusters: parseInt(String(row.numChildrenClusters), 10),
-    numEvents: parseInt(String(row.numEvents), 10),
+    level: row.level,
+    numChildrenClusters: row.numChildrenClusters,
+    numEvents: row.numEvents,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }));
