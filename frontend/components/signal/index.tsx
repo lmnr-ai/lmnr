@@ -6,7 +6,6 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useState } from "react";
 
-import ClustersSection from "@/components/signal/clusters-section";
 import EventsTable from "@/components/signal/events-table";
 import EventDetailPanel from "@/components/signal/events-table/event-detail-panel";
 import SignalJobsTable from "@/components/signal/jobs-table";
@@ -117,8 +116,7 @@ function SignalContent() {
           )}
         </div>
 
-        <TabsContent value="events" className="flex flex-col gap-4 px-4 pb-4 overflow-auto">
-          <ClustersSection />
+        <TabsContent value="events" className="flex flex-col overflow-hidden">
           <EventsTable />
         </TabsContent>
         <TabsContent value="triggers" className="flex flex-col gap-4 px-4 pb-4 overflow-hidden">

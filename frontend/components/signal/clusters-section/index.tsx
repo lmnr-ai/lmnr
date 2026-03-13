@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import {
-  selectBreadcrumb,
   selectChartClusters,
   selectCurrentNode,
   selectDrillDownDepth,
@@ -15,12 +14,10 @@ import {
   selectVisibleClusters,
   useSignalStoreContext,
 } from "@/components/signal/store.tsx";
-import DateRangeFilter from "@/components/ui/date-range-filter";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 
-import ClusterBreadcrumb from "./cluster-breadcrumb";
 import ClusterList from "./cluster-list";
 import ClusterStackedChart from "./cluster-stacked-chart";
 import { getClusterColor, UNCLUSTERED_COLOR } from "./colors";
@@ -43,8 +40,6 @@ export default function ClustersSection() {
   const fetchClusters = useSignalStoreContext((state) => state.fetchClusters);
   const fetchClusterStats = useSignalStoreContext((state) => state.fetchClusterStats);
 
-  // Breadcrumb uses clusterId (shows the leaf in the path)
-  const breadcrumbSelector = useMemo(() => selectBreadcrumb(clusterId), [clusterId]);
   // Depth uses displayId (parent level for leaves), chart uses clusterId (shows selected node's data)
   const drillDownDepthSelector = useMemo(() => selectDrillDownDepth(displayId), [displayId]);
   const chartClustersSelector = useMemo(() => selectChartClusters(clusterId), [clusterId]);
@@ -60,7 +55,6 @@ export default function ClustersSection() {
   const visibleClustersSelector = useMemo(() => selectVisibleClusters(displayId), [displayId]);
   const visibleClusters = useSignalStoreContext(visibleClustersSelector);
 
-  const breadcrumb = useSignalStoreContext(breadcrumbSelector);
   const drillDownDepth = useSignalStoreContext(drillDownDepthSelector);
   const chartClusters = useSignalStoreContext(chartClustersSelector);
   const filteredCountByCluster = useSignalStoreContext(filteredCountSelector);
@@ -123,41 +117,22 @@ export default function ClustersSection() {
     [setClusterId, clusterId, isLeaf, displayId]
   );
 
-  const navigateToBreadcrumb = useCallback(
-    (index: number) => {
-      if (index < 0) {
-        setClusterId(null);
-      } else {
-        setClusterId(breadcrumb[index].id);
-      }
-    },
-    [setClusterId, breadcrumb]
-  );
-
   if (isClustersLoading) {
     return (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 text-sm">
-            <span className="font-semibold text-secondary-foreground">All Events</span>
+      <div className="flex border rounded-lg overflow-hidden h-[240px] w-full bg-secondary" style={{ maxHeight: 300 }}>
+        <div className="w-[320px] shrink-0 border-r overflow-y-auto">
+          <div className="flex flex-col gap-0.5 py-2 px-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm">
+                <Circle className="size-4 shrink-0 fill-muted stroke-none" />
+                <div className="h-4 w-40 bg-muted rounded animate-pulse truncate" />
+                <div className="h-3 w-6 bg-muted rounded animate-pulse ml-auto shrink-0" />
+              </div>
+            ))}
           </div>
-          <DateRangeFilter />
         </div>
-        <div className="flex border rounded-lg overflow-hidden h-[300px]" style={{ maxHeight: 300 }}>
-          <div className="w-[320px] shrink-0 border-r bg-secondary overflow-y-auto">
-            <div className="flex flex-col gap-0.5 py-2 px-2">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded text-sm">
-                  <Circle className="size-4 shrink-0 fill-muted stroke-none" />
-                  <div className="h-4 w-40 bg-muted rounded animate-pulse truncate" />
-                  <div className="h-3 w-6 bg-muted rounded animate-pulse ml-auto shrink-0" />
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="flex-1 p-2 bg-secondary flex items-center justify-center text-muted-foreground text-sm shimmer duration-[2s]">
-            Loading clusters
-          </div>
+        <div className="flex-1 p-2 bg-secondary flex items-center justify-center text-muted-foreground text-sm shimmer duration-[2s]">
+          Loading clusters
         </div>
       </div>
     );
@@ -165,51 +140,40 @@ export default function ClustersSection() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <ClusterBreadcrumb
-            breadcrumb={breadcrumb}
-            selectedClusterId={clusterId}
-            onNavigateToBreadcrumb={navigateToBreadcrumb}
+      <ResizablePanelGroup
+        id="clusters-section"
+        orientation="horizontal"
+        className="border rounded-lg overflow-hidden h-[240px] min-h-[240px] max-h-[240px]"
+      >
+        <ResizablePanel defaultSize={"30%"} minSize={"200px"} className="overflow-hidden">
+          <ClusterList
+            className="h-full w-full"
+            displayId={displayId}
+            drillDownDepth={drillDownDepth}
+            filteredCountByCluster={filteredCountByCluster}
+            onNavigateToCluster={navigateToCluster}
           />
-          <DateRangeFilter />
-        </div>
+        </ResizablePanel>
 
-        <ResizablePanelGroup
-          id="clusters-section"
-          orientation="horizontal"
-          className="border rounded-lg overflow-hidden h-[300px] min-h-[300px] max-h-[300px]"
-        >
-          <ResizablePanel defaultSize={"30%"} minSize={"200px"} className="overflow-hidden">
-            <ClusterList
-              className="h-full w-full"
-              displayId={displayId}
-              drillDownDepth={drillDownDepth}
-              filteredCountByCluster={filteredCountByCluster}
-              onNavigateToCluster={navigateToCluster}
-            />
-          </ResizablePanel>
+        <ResizableHandle />
 
-          <ResizableHandle />
-
-          <ResizablePanel defaultSize={"70%"} minSize={"200px"}>
-            <div className="h-full p-2 bg-secondary" ref={chartContainerRef}>
-              {isClusterStatsLoading ? (
-                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                  Loading chart...
-                </div>
-              ) : (
-                <ClusterStackedChart
-                  clusters={chartClusters}
-                  statsData={clusterStatsData}
-                  containerWidth={localChartWidth}
-                  colorMap={colorMap}
-                />
-              )}
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
+        <ResizablePanel defaultSize={"70%"} minSize={"200px"}>
+          <div className="h-full p-2 bg-secondary" ref={chartContainerRef}>
+            {isClusterStatsLoading ? (
+              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                Loading chart...
+              </div>
+            ) : (
+              <ClusterStackedChart
+                clusters={chartClusters}
+                statsData={clusterStatsData}
+                containerWidth={localChartWidth}
+                colorMap={colorMap}
+              />
+            )}
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </TooltipProvider>
   );
 }

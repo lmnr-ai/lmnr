@@ -16,12 +16,36 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
     ["run_id", createStringFilter],
   ]),
   defaultProcessor: (filter, paramKey) => {
-    const { column, value } = filter;
+    const { column, value, dataType } = filter;
 
     // Handle payload field filters (payload.fieldName)
     if (column.startsWith("payload.")) {
       const fieldName = column.slice("payload.".length);
       const opSymbol = OperatorLabelMap[filter.operator];
+
+      if (dataType === "number") {
+        const numValue = parseFloat(String(value));
+        return {
+          condition: `(simpleJSONExtractFloat(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:Float64})`,
+          params: {
+            [`${paramKey}_key`]: fieldName,
+            [`${paramKey}_val`]: numValue,
+          },
+        };
+      }
+
+      if (dataType === "boolean") {
+        const boolStr = String(value) === "true" ? "true" : "false";
+        return {
+          condition: `(simpleJSONExtractBool(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:Bool})`,
+          params: {
+            [`${paramKey}_key`]: fieldName,
+            [`${paramKey}_val`]: boolStr,
+          },
+        };
+      }
+
+      // Default: string comparison (covers dataType "string", "json", "enum", etc.)
       return {
         condition:
           `(simpleJSONExtractString(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String}` +

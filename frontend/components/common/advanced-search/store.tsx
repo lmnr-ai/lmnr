@@ -7,7 +7,7 @@ import { createContext, type PropsWithChildren, type RefObject, useContext, useM
 import { createStore, type StoreApi, useStore } from "zustand";
 
 import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { type Filter, FilterSchema } from "@/lib/actions/common/filters";
+import { type Filter, type FilterDataType, FilterSchema } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 
 import {
@@ -22,6 +22,11 @@ import {
   type TagFocusPosition,
 } from "./types";
 import { getNextField, getPreviousField } from "./utils";
+
+/** Map UI column dataType (which includes "enum") to the Filter schema's FilterDataType */
+function toFilterDataType(uiDataType: ColumnFilter["dataType"]): FilterDataType {
+  return uiDataType === "enum" ? "string" : uiDataType;
+}
 
 interface AdvancedSearchStore {
   // State
@@ -154,6 +159,7 @@ const createAdvancedSearchStore = (
       const newTag: FilterTag = {
         id: `tag-${uniqueId()}`,
         field,
+        dataType: toFilterDataType(columnFilter.dataType),
         operator: defaultOperator,
         value: defaultValue,
       };
@@ -183,6 +189,7 @@ const createAdvancedSearchStore = (
       const newTag: FilterTag = {
         id: `tag-${uniqueId()}`,
         field,
+        dataType: toFilterDataType(columnFilter.dataType),
         operator,
         value: tagValue,
       };
@@ -242,8 +249,11 @@ const createAdvancedSearchStore = (
     },
 
     updateTagField: (tagId, field) => {
+      const { filters } = get();
+      const columnFilter = filters.find((f) => f.key === field);
+      const dataType = columnFilter ? toFilterDataType(columnFilter.dataType) : "string";
       set((state) => ({
-        tags: state.tags.map((t) => (t.id === tagId ? { ...t, field } : t)),
+        tags: state.tags.map((t) => (t.id === tagId ? { ...t, field, dataType } : t)),
       }));
     },
 

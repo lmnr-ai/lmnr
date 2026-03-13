@@ -207,7 +207,7 @@ export function buildEventsColumns(schemaFields: SchemaField[]): {
 
   const columns = [...staticColumnsBeforePayload, ...payloadColumns, ...staticColumnsAfterPayload];
 
-  const columnOrder = ["timestamp", ...validFields.map((f) => `payload:${f.name}`), "id", "traceId"];
+  const columnOrder = ["timestamp", "traceId", ...validFields.map((f) => `payload:${f.name}`), "id"];
 
   const filters = [...staticFilters, ...payloadFilters];
 

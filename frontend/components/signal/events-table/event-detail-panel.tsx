@@ -56,7 +56,7 @@ export default function EventDetailPanel({ event, schemaFields, onClose, onOpenT
     <div className="flex flex-col h-full">
       <div className="flex flex-col pl-4 pr-3 py-3 border-b">
         <div className="flex items-center justify-between px-0.5">
-          <span className="text-base font-medium">Event Payload</span>
+          <span className="text-base font-medium">Event</span>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="size-4" />
           </Button>

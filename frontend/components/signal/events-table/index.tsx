@@ -4,6 +4,8 @@ import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 
+import ClustersSection from "@/components/signal/clusters-section";
+import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import {
   selectFilterClusterIds,
@@ -12,6 +14,7 @@ import {
 } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
+import DateRangeFilter from "@/components/ui/date-range-filter";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -198,7 +201,7 @@ function PureEventsTable() {
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
   return (
-    <div className="flex flex-col gap-2 flex-1 min-w-0">
+    <div className="flex flex-1 overflow-hidden px-4 pb-4">
       <InfiniteDataTable<EventRow>
         className="w-full"
         columns={columns}
@@ -215,7 +218,7 @@ function PureEventsTable() {
         estimatedRowHeight={80}
         emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
       >
-        <div className="flex flex-1 w-full space-x-2">
+        <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
           <ColumnsMenu
             columnLabels={columns.map((column) => ({
@@ -223,8 +226,11 @@ function PureEventsTable() {
               label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
+          <DateRangeFilter />
         </div>
+        <ClusterBreadcrumbs />
         <DataTableFilterList />
+        <ClustersSection />
       </InfiniteDataTable>
     </div>
   );

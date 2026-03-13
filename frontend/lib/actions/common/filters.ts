@@ -3,12 +3,18 @@ import { z } from "zod/v4";
 
 import { ARRAY_OPERATORS, BOOLEAN_OPERATORS, JSON_OPERATORS, NUMBER_OPERATORS, STRING_OPERATORS } from "./operators";
 
+export type FilterDataType = "string" | "number" | "boolean" | "json" | "array";
+
+const FilterDataTypeSchema = z.enum(["string", "number", "boolean", "json", "array"]);
+
 const BaseFilterSchema = z.object({
+  dataType: FilterDataTypeSchema.optional(),
   column: z.string(),
   value: z.union([z.string().min(1), z.number()]),
 });
 
 const BaseFilterSchemaRelaxed = z.object({
+  dataType: FilterDataTypeSchema.optional(),
   column: z.string(),
   value: z.union([z.string(), z.number()]),
 });
@@ -30,12 +36,14 @@ export const JsonFilterSchema = BaseFilterSchema.extend({
 });
 
 export const ArrayFilterSchema = z.object({
+  dataType: FilterDataTypeSchema.optional(),
   column: z.string(),
   value: z.array(z.string().min(1)),
   operator: z.enum(ARRAY_OPERATORS),
 });
 
 const ArrayFilterSchemaRelaxed = z.object({
+  dataType: FilterDataTypeSchema.optional(),
   column: z.string(),
   value: z.array(z.string()),
   operator: z.enum(ARRAY_OPERATORS),
