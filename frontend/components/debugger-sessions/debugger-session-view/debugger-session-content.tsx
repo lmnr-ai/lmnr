@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
@@ -214,8 +215,8 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
         filters.forEach((filter) => params.append("filter", JSON.stringify(filter)));
 
         if (trace) {
-          const startDate = new Date(new Date(trace.startTime).getTime() - 1000);
-          const endDate = new Date(new Date(trace.endTime).getTime() + 1000);
+          const startDate = new Date(parseTimestampToMs(trace.startTime) - 1000);
+          const endDate = new Date(parseTimestampToMs(trace.endTime) + 1000);
           params.set("startDate", startDate.toISOString());
           params.set("endDate", endDate.toISOString());
         }

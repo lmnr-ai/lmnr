@@ -5,8 +5,9 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
 import { type CategoricalChartFunc } from "recharts/types/chart/generateCategoricalChart";
 
-import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
+import { numberFormatter, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { parseTimestampToDate } from "@/lib/time/timestamp";
 
 import RoundedBar from "./bar";
 import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
@@ -130,7 +131,7 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
               <ChartTooltipContent
                 labelKey="timestamp"
                 labelFormatter={(_, payload) =>
-                  payload && payload[0] ? formatter.format(parseUtcTimestamp(payload[0].payload.timestamp)) : "-"
+                  payload && payload[0] ? formatter.format(parseTimestampToDate(payload[0].payload.timestamp)) : "-"
                 }
               />
             }

@@ -2,6 +2,7 @@ import { compact } from "lodash";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { type Filter } from "@/lib/actions/common/filters";
+import { toClickHouseParam } from "@/lib/time/timestamp";
 
 export interface QueryParams {
   [key: string]: string | number | string[] | number[];
@@ -69,12 +70,12 @@ const buildTimeRangeConditions = (options: TimeRangeOptions): ConditionResult =>
 
     if (startTime) {
       conditions.push(`${timeColumn} >= {startTime:String}`);
-      params.startTime = startTime.replace("Z", "");
+      params.startTime = toClickHouseParam(startTime);
     }
 
     if (endTime) {
       conditions.push(`${timeColumn} <= {endTime:String}`);
-      params.endTime = endTime.replace("Z", "");
+      params.endTime = toClickHouseParam(endTime);
     } else if (startTime) {
       // Only add "now()" upper bound if we have startTime but no endTime
       conditions.push(`${timeColumn} <= now()`);
@@ -119,14 +120,14 @@ const buildTimeRangeWithFill = (
 
   if (startTime) {
     const conditions: string[] = [`${timeColumn} >= {startTime:String}`];
-    const params: QueryParams = { startTime: startTime.replace("Z", "") };
+    const params: QueryParams = { startTime: toClickHouseParam(startTime) };
 
     let fillFrom = `toDateTime64({startTime:String}, 9)`;
     let fillTo = endTime ? `toDateTime64({endTime:String}, 9)` : `now()`;
 
     if (endTime) {
       conditions.push(`${timeColumn} <= {endTime:String}`);
-      params.endTime = endTime.replace("Z", "");
+      params.endTime = toClickHouseParam(endTime);
     } else {
       conditions.push(`${timeColumn} <= now()`);
     }

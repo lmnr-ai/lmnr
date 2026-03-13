@@ -8,7 +8,7 @@ import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesCountQueryWithParams, buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange } from "@/lib/clickhouse/utils";
+import { SafeParseTimeRangeSchema } from "@/lib/time";
 import { type TraceRow } from "@/lib/traces/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
@@ -62,7 +62,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
         projectId,
         traceId: undefined,
         searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
+        timeRange: SafeParseTimeRangeSchema.parse(input),
         searchType: searchIn as SpanSearchType[],
       })
     : [];
@@ -126,7 +126,7 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
         projectId,
         traceId: undefined,
         searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
+        timeRange: SafeParseTimeRangeSchema.parse(input),
         searchType: searchIn as SpanSearchType[],
       })
     : [];
@@ -167,8 +167,8 @@ export async function getTracesByIds(input: z.infer<typeof GetTracesByIdsSchema>
   const query = `
     SELECT
       id,
-      formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
-      formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+      start_time as startTime,
+      end_time as endTime,
       input_cost as inputCost,
       output_cost as outputCost,
       total_cost as totalCost,

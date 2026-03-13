@@ -8,7 +8,7 @@ import { GetTracesSchema } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesStatsWhereConditions, generateEmptyTimeBuckets } from "@/lib/actions/traces/utils";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { getTimeRange } from "@/lib/clickhouse/utils";
+import { SafeParseTimeRangeSchema } from "@/lib/time";
 
 export const GetTraceStatsSchema = GetTracesSchema.omit({
   pageNumber: true,
@@ -47,14 +47,17 @@ export async function getTraceStats(
         projectId,
         traceId: undefined,
         searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
+        timeRange: SafeParseTimeRangeSchema.parse(input),
         searchType: searchIn as SpanSearchType[],
       })
     : [];
   const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
   if (search && traceIds?.length === 0) {
-    const timeRange = getTimeRange(pastHours, startTime, endTime);
+    const timeRange = SafeParseTimeRangeSchema.parse(input) ?? {
+      start: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      end: new Date(),
+    };
     const items = generateEmptyTimeBuckets(timeRange);
     return { items };
   }

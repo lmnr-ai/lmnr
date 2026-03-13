@@ -1,6 +1,11 @@
 import { z } from "zod/v4";
 
 import {
+  createDatapoints as createClickHouseDatapoints,
+  type DatapointResult,
+  deleteDatapoints as deleteClickHouseDatapoints,
+} from "@/lib/actions/datapoints/clickhouse";
+import {
   buildAllDatapointsQueryWithParams,
   buildDatapointCountQueryWithParams,
   buildDatapointsByIdsQueryWithParams,
@@ -8,11 +13,6 @@ import {
 } from "@/lib/actions/datapoints/utils";
 import { pushQueueItems } from "@/lib/actions/queue";
 import { executeQuery } from "@/lib/actions/sql";
-import {
-  createDatapoints as createClickHouseDatapoints,
-  type DatapointResult,
-  deleteDatapoints as deleteClickHouseDatapoints,
-} from "@/lib/clickhouse/datapoints";
 import { generateSequentialUuidsV7 } from "@/lib/utils";
 
 export const ListDatapointsSchema = z.object({

@@ -14,13 +14,13 @@ import {
 } from "@/lib/actions/spans/utils";
 import { executeQuery } from "@/lib/actions/sql";
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { getOptionalTimeRange, getTimeRange } from "@/lib/clickhouse/utils.ts";
+import { SafeParseTimeRangeSchema } from "@/lib/time";
 import { type Span } from "@/lib/traces/types";
 
 import { searchSpans } from "../traces/search";
 import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
+import { searchTypeToQueryFilter } from "./utils";
 
 export const GetSpansSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -113,7 +113,7 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
         projectId,
         traceId: undefined,
         searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
+        timeRange: SafeParseTimeRangeSchema.parse(input),
         searchType: searchIn as SpanSearchType[],
       })
     : [];
@@ -244,8 +244,8 @@ const fetchTraceSpans = async ({
       "output_cost as outputCost",
       "total_cost as totalCost",
       "span_type as spanType",
-      "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
-      "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
+      "start_time as startTime",
+      "end_time as endTime",
       "attributes",
       "model",
       "status",
@@ -277,7 +277,7 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const { projectId, search, traceId, searchIn, filter: inputFilters, startDate, endDate, pastHours } = input;
   const filters: Filter[] = compact(inputFilters);
 
-  const timeRange = getOptionalTimeRange(pastHours, startDate, endDate);
+  const timeRange = SafeParseTimeRangeSchema.parse(input);
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
         projectId,
@@ -341,3 +341,21 @@ export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {
     },
   });
 }
+export const getSpansCountInProject = async (projectId: string): Promise<{ count: number }[]> => {
+  const query = `
+    SELECT
+      count(*) as count
+    FROM spans
+    WHERE project_id = {projectId: UUID}
+  `;
+
+  const result = await clickhouseClient.query({
+    query,
+    format: "JSONEachRow",
+    query_params: {
+      projectId,
+    },
+  });
+
+  return await result.json();
+};

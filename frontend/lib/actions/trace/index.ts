@@ -180,8 +180,8 @@ export async function getTrace(input: z.infer<typeof GetTraceSchema>): Promise<T
       query: `
       SELECT
         id,
-        formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime,
-        formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime,
+        start_time as startTime,
+        end_time as endTime,
         input_tokens as inputTokens,
         output_tokens as outputTokens,
         total_tokens as totalTokens,

@@ -144,7 +144,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Start Time",
     enableSorting: false,
     meta: {
-      sql: "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ')",
+      sql: "start_time",
       dataType: "datetime",
       filterable: false,
       comparable: true,
@@ -157,7 +157,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "End Time",
     enableSorting: false,
     meta: {
-      sql: "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ')",
+      sql: "end_time",
       dataType: "datetime",
       filterable: false,
       comparable: true,
@@ -198,7 +198,7 @@ export const STATIC_COLUMNS: ColumnDef<EvalRow>[] = [
     header: "Created At",
     enableSorting: true,
     meta: {
-      sql: "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ')",
+      sql: "created_at",
       dataType: "datetime",
       filterable: false,
       comparable: false,

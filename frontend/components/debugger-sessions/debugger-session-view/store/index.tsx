@@ -13,6 +13,7 @@ import {
 } from "@/components/traces/trace-view/store/base.ts";
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils.ts";
 import { type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 import { SpanType, type TraceRow } from "@/lib/traces/types.ts";
 import { tryParseJson } from "@/lib/utils.ts";
 
@@ -163,7 +164,7 @@ const createDebuggerSessionStore = ({
             } else {
               const existing = historyRuns[existingIndex];
               const newEndTime =
-                new Date(newTrace.endTime).getTime() > new Date(existing.endTime).getTime()
+                parseTimestampToMs(newTrace.endTime) > parseTimestampToMs(existing.endTime)
                   ? newTrace.endTime
                   : existing.endTime;
 
@@ -191,7 +192,7 @@ const createDebuggerSessionStore = ({
               const sPath = s.attributes?.["lmnr.span.path"];
               return sPath && Array.isArray(sPath) && sPath.join(".") === spanPathKey;
             })
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+            .sort((a, b) => parseTimestampToMs(a.startTime) - parseTimestampToMs(b.startTime));
 
           const spanIndex = spansWithSamePath.findIndex((s) => s.spanId === span.spanId);
 
@@ -202,12 +203,12 @@ const createDebuggerSessionStore = ({
 
         setCheckpoint: (span: TraceViewSpan) => {
           const spans = get().spans;
-          const clickedSpanTime = new Date(span.startTime).getTime();
+          const clickedSpanTime = parseTimestampToMs(span.startTime);
 
           const spansBefore = spans
             .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
-            .filter((s) => new Date(s.startTime).getTime() < clickedSpanTime)
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+            .filter((s) => parseTimestampToMs(s.startTime) < clickedSpanTime)
+            .sort((a, b) => parseTimestampToMs(a.startTime) - parseTimestampToMs(b.startTime));
 
           const newCachedCounts: Record<string, number> = {};
 
@@ -422,8 +423,8 @@ const createDebuggerSessionStore = ({
             const spanParams = new URLSearchParams();
             spanParams.append("searchIn", "input");
             spanParams.append("searchIn", "output");
-            spanParams.set("startDate", new Date(new Date(startTime).getTime() - 1000).toISOString());
-            spanParams.set("endDate", new Date(new Date(endTime).getTime() + 1000).toISOString());
+            spanParams.set("startDate", new Date(parseTimestampToMs(startTime) - 1000).toISOString());
+            spanParams.set("endDate", new Date(parseTimestampToMs(endTime) + 1000).toISOString());
 
             const [traceResult, spansResult] = await Promise.allSettled([
               fetch(`/api/projects/${projectId}/traces/${traceId}`, { signal }).then((r) =>

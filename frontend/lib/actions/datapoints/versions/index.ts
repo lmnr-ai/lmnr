@@ -1,8 +1,8 @@
 import { z } from "zod/v4";
 
 import { buildSelectQuery, type QueryParams, type SelectQueryOptions } from "@/lib/actions/common/query-builder";
+import { createDatapoints, type DatapointResult } from "@/lib/actions/datapoints/clickhouse";
 import { executeQuery } from "@/lib/actions/sql";
-import { createDatapoints, type DatapointResult } from "@/lib/clickhouse/datapoints";
 import { tryParseJson } from "@/lib/utils";
 
 // Schema for listing versions of a datapoint
@@ -24,7 +24,7 @@ export const CreateDatapointVersionSchema = z.object({
 const datapointVersionSelectColumns = [
   "id",
   "dataset_id as datasetId",
-  "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt",
+  "created_at as createdAt",
   "data",
   "target",
   "metadata",
@@ -86,7 +86,7 @@ const buildSpecificDatapointVersionQueryWithParams = (
       params: { datasetId },
     },
     {
-      condition: `formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') = {versionCreatedAt:String}`,
+      condition: `created_at = {versionCreatedAt:String}`,
       params: { versionCreatedAt },
     },
   ];

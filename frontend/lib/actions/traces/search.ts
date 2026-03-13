@@ -1,5 +1,5 @@
 import { type SpanSearchType } from "@/lib/clickhouse/types";
-import { type TimeRange } from "@/lib/clickhouse/utils";
+import { type TimeRange } from "@/lib/time";
 import { fetcherJSON } from "@/lib/utils";
 
 export const searchSpans = async ({
@@ -20,26 +20,11 @@ export const searchSpans = async ({
     return [];
   }
 
-  let startTime: string | undefined;
-  let endTime: string | undefined;
-
-  if (timeRange) {
-    if ("start" in timeRange && "end" in timeRange) {
-      startTime = timeRange.start.toISOString();
-      endTime = timeRange.end.toISOString();
-    } else if ("pastHours" in timeRange) {
-      const end = new Date();
-      const start = new Date(end.getTime() - timeRange.pastHours * 60 * 60 * 1000);
-      startTime = start.toISOString();
-      endTime = end.toISOString();
-    }
-  }
-
   const body = {
     traceId: traceId,
     searchQuery: trimmedQuery,
-    startTime,
-    endTime,
+    startTime: timeRange?.start.toISOString(),
+    endTime: timeRange?.end.toISOString(),
     searchIn: searchType?.map((t) => t.toString()),
     // Pagination is currently disabled (defaults on app-server side): API paginates by traces, search engine by spans
     limit: 0,

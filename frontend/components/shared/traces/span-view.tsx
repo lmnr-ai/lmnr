@@ -14,6 +14,7 @@ import ContentRenderer from "@/components/ui/content-renderer";
 import MonoWithCopy from "@/components/ui/mono-with-copy";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { parseTimestampToDate } from "@/lib/time/timestamp";
 import { type Span } from "@/lib/traces/types";
 import { type ErrorEventAttributes } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
@@ -55,9 +56,9 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
             </div>
             <div className="flex flex-col gap-1.5 py-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <SpanStatsShields span={span} variant="outline"/>
+                <SpanStatsShields span={span} variant="outline" />
                 <div className="text-xs font-mono rounded-md py-0.5 px-2 border border-muted">
-                  {new Date(span.startTime).toLocaleString()}
+                  {parseTimestampToDate(span.startTime).toLocaleString()}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">

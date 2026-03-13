@@ -213,7 +213,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
               {browserSession && (
                 <>
                   <ResizableHandle className="z-50" withHandle />
-                  <ResizablePanel>
+                  <ResizablePanel className="overflow-hidden">
                     <SessionPlayer
                       onClose={() => setBrowserSession(false)}
                       hasBrowserSession={hasBrowserSession}

@@ -276,10 +276,10 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
         </Button>
       </div>
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 flex flex-col min-h-0">
         <div
           ref={browserContentRef}
-          className={`h-full min-w-0 overflow-hidden flex flex-col ${activeTab === "browser-session" ? "block" : "hidden"}`}
+          className={`h-full flex flex-col ${activeTab === "browser-session" ? "flex" : "hidden"}`}
         >
           {!hasBrowserSession ? (
             <div className="flex w-full h-full gap-2 p-4 items-center justify-center">
@@ -324,12 +324,12 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
               </div>
 
               {currentUrl && (
-                <div className="flex items-center px-4 py-1 border-b shrink-0">
+                <div className="px-4 py-1 border-b shrink-0">
                   <a
                     href={currentUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground truncate transition-colors"
+                    className="font-mono text-xs text-secondary-foreground hover:underline hover:text-foreground transition-colors truncate block"
                     title={currentUrl}
                   >
                     {currentUrl}

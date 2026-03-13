@@ -9,7 +9,7 @@ import {
 const datapointSelectColumns = [
   "id",
   "dataset_id as datasetId",
-  "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt",
+  "created_at as createdAt",
   "data",
   "target",
   "metadata",
@@ -18,7 +18,7 @@ const datapointSelectColumns = [
 const datapointSelectColumnsWithSubstring = [
   "id",
   "dataset_id as datasetId",
-  "formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt",
+  "created_at as createdAt",
   "substring(data, 1, 1000) as data",
   "substring(target, 1, 1000) as target",
   "metadata",

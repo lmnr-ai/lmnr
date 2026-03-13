@@ -12,6 +12,7 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import Mono from "@/components/ui/mono";
 import { useToast } from "@/lib/hooks/use-toast";
+import { parseTimestampToMs } from "@/lib/time/timestamp";
 import { type Trace } from "@/lib/traces/types";
 
 // ... existing columns definition (unchanged) ...
@@ -91,12 +92,12 @@ const columns: ColumnDef<Trace, any>[] = [
   },
   {
     accessorFn: (row) => {
-      const start = new Date(row.startTime);
-      const end = new Date(row.endTime);
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+      const startMs = parseTimestampToMs(row.startTime);
+      const endMs = parseTimestampToMs(row.endTime);
+      if (isNaN(startMs) || isNaN(endMs) || endMs < startMs) {
         return "-";
       }
-      const duration = end.getTime() - start.getTime();
+      const duration = endMs - startMs;
       return `${(duration / 1000).toFixed(2)}s`;
     },
     header: "Latency",

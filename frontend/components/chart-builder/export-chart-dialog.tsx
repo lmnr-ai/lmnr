@@ -36,14 +36,19 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
 
     setIsLoading(true);
     try {
-      await fetch(`/api/projects/${projectId}/dashboard-charts`, {
-        method: "PUT",
+      const res = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+        method: "POST",
         body: JSON.stringify({
           query,
           name,
           config: chartConfig,
         }),
       });
+
+      if (!res.ok) {
+        const error = (await res.json()) as { error: string };
+        throw new Error(error?.error || "Failed to export chart. Please try again.");
+      }
 
       setOpen(false);
       toast({
@@ -58,7 +63,11 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
         ),
       });
     } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to export chart. Please try again." });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: e instanceof Error ? e.message : "Failed to export chart. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }

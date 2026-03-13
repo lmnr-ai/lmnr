@@ -2,10 +2,9 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { v4 as uuidv4, v7 as uuidv7 } from "uuid";
 
-import { GroupByInterval } from "./clickhouse/modifiers";
+import { parseTimestampToDate, parseTimestampToMs } from "./time/timestamp";
 
-export const TIME_MILLISECONDS_FORMAT = "timeMilliseconds";
-export const TIME_SECONDS_FORMAT = "timeSeconds";
+const TIME_SECONDS_FORMAT = "timeSeconds";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -51,33 +50,6 @@ export const swrFetcher = async (url: string) => {
   return res.json();
 };
 
-// return string such as 0319 for March 19 or 1201 for December 1
-// Note that the date is calculated for local time
-export function getCurrentMonthDayStr() {
-  const date = new Date();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  if (month < 10) {
-    if (day < 10) {
-      return `0${month}0${day}`;
-    }
-    return `0${month}${day}`;
-  }
-  if (day < 10) {
-    return `${month}0${day}`;
-  }
-  return `${month}${day}`;
-}
-
-export function formatDate(input: string | number | Date): string {
-  const date = new Date(input);
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 export const formatUTCDate = (date: string) => {
   const timeZoneOffset = new Date().getTimezoneOffset();
   return new Date(new Date(date).getTime() + timeZoneOffset * 60000).toLocaleDateString("en-US", {
@@ -87,62 +59,14 @@ export const formatUTCDate = (date: string) => {
   });
 };
 
-// E.g. 2024-09-04T20:18:58.330355+00:00 -> 13:18:58.330
-export function convertToLocalTimeWithMillis(isoDateString: string): string {
-  const date = new Date(isoDateString);
-
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  const milliseconds = String(date.getMilliseconds()).padStart(3, "0");
-
-  return `${hours}:${minutes}:${seconds}.${milliseconds}`;
-}
-
 export function formatTimestamp(timestampStr: string): string {
-  const date = new Date(timestampStr);
+  const date = parseTimestampToDate(timestampStr);
   return innerFormatTimestamp(date);
 }
 
 export function formatTimestampWithSeconds(timestampStr: string): string {
-  const date = new Date(timestampStr);
+  const date = parseTimestampToDate(timestampStr);
   return innerFormatTimestamp(date, TIME_SECONDS_FORMAT);
-}
-
-export function formatTimestampFromSeconds(seconds: number): string {
-  const date = new Date(seconds * 1000);
-  return innerFormatTimestamp(date);
-}
-
-export function formatTimestampWithInterval(timestampStr: string, interval: GroupByInterval): string {
-  const date = new Date(`${timestampStr}Z`);
-  return innerFormatTimestampWithInterval(date, interval);
-}
-
-export function formatTimestampFromSecondsWithInterval(seconds: number, interval: GroupByInterval): string {
-  const date = new Date(seconds * 1000);
-  return innerFormatTimestampWithInterval(date, interval);
-}
-
-function innerFormatTimestampWithInterval(date: Date, interval: GroupByInterval): string {
-  if (interval === GroupByInterval.Day) {
-    return date.toLocaleDateString("en-US", {
-      day: "2-digit",
-      month: "numeric",
-    });
-  } else if (interval === GroupByInterval.Hour) {
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  } else {
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  }
 }
 
 // Note that the formatted time is calculated for local time
@@ -312,17 +236,8 @@ export const inferImageType = (base64: string): `image/${string}` | null => {
   return null;
 };
 export const getDurationString = (startTime: string, endTime: string) => {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  const duration = end.getTime() - start.getTime();
-
+  const duration = parseTimestampToMs(endTime) - parseTimestampToMs(startTime);
   return `${(duration / 1000).toFixed(2)}s`;
-};
-
-export const getDuration = (startTime: string, endTime: string) => {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  return Math.max(end.getTime() - start.getTime(), 0);
 };
 
 export const tryParseJson = (value: string) => {
