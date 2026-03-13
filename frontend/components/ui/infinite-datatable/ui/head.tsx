@@ -149,6 +149,29 @@ export function InfiniteTableHead<TData extends RowData>({
                     <DropdownMenuSeparator />
                   </>
                 )}
+                {(() => {
+                  const items = header.column.columnDef.meta?.customDropdownItems?.(header.getContext().table);
+                  if (!items || items.length === 0) return null;
+                  return (
+                    <>
+                      {items.map((item) => (
+                        <DropdownMenuItem
+                          key={item.label}
+                          className="flex w-full items-center"
+                          isActive={item.isActive}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            item.onClick();
+                          }}
+                        >
+                          {item.icon ?? <span className="size-3.5" />}
+                          {item.label}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                    </>
+                  );
+                })()}
                 <DropdownMenuItem
                   className="flex w-full items-center"
                   onClick={(e) => {

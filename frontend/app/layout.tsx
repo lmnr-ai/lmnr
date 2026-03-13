@@ -2,6 +2,7 @@ import "@/app/globals.css";
 import "@/app/scroll.css";
 
 import { type Metadata } from "next";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
 import { Toaster } from "@/components/ui/toaster";
@@ -78,12 +79,14 @@ export default async function RootLayout({ children }: PropsWithChildren) {
       <FeatureFlagsProvider flags={featureFlags}>
         <PostHogProvider telemetryEnabled={featureFlags[Feature.POSTHOG]}>
           <body className="flex flex-col h-full">
-            <div className="flex">
-              <div className="flex flex-col grow max-w-full min-h-screen">
-                <main className="z-10 flex flex-col grow">{children}</main>
-                <Toaster />
+            <NuqsAdapter>
+              <div className="flex">
+                <div className="flex flex-col grow max-w-full min-h-screen">
+                  <main className="z-10 flex flex-col grow">{children}</main>
+                  <Toaster />
+                </div>
               </div>
-            </div>
+            </NuqsAdapter>
           </body>
         </PostHogProvider>
       </FeatureFlagsProvider>

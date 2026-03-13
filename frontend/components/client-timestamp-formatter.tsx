@@ -6,7 +6,7 @@ import { differenceInDays, differenceInHours, differenceInMinutes, differenceInS
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, formatTimestamp } from "@/lib/utils.ts";
 
-function formatShortRelativeTime(date: Date): string {
+export function formatShortRelativeTime(date: Date): string {
   const now = new Date();
   const seconds = differenceInSeconds(now, date);
   const minutes = differenceInMinutes(now, date);

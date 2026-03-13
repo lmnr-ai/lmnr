@@ -1,7 +1,7 @@
 import { uniqueId } from "lodash";
 
 import { type ColumnFilter, dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
-import { type Filter } from "@/lib/actions/common/filters";
+import { type Filter, type FilterDataType } from "@/lib/actions/common/filters";
 import { type Operator } from "@/lib/actions/common/operators";
 
 export type { ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
@@ -21,6 +21,7 @@ export interface FilterTagRef {
 export interface FilterTag {
   id: string;
   field: string;
+  dataType?: FilterDataType;
   operator: Operator;
   value: string | string[];
 }
@@ -38,6 +39,7 @@ export type FilterTagFocusState =
 
 export function createFilterFromTag(tag: FilterTag): Filter {
   return {
+    dataType: tag.dataType,
     column: tag.field,
     operator: tag.operator,
     value: tag.value,
@@ -48,6 +50,7 @@ export function createTagFromFilter(filter: Filter): FilterTag {
   return {
     id: `tag-${uniqueId()}`,
     field: filter.column,
+    dataType: filter.dataType,
     operator: filter.operator,
     // Preserve array values directly, stringify others
     value: Array.isArray(filter.value) ? filter.value : String(filter.value),
