@@ -17,7 +17,8 @@ export default async function EvaluationsPage(props: { params: Promise<{ project
   const anyInProject = await db
     .$count(evaluations, eq(evaluations.projectId, projectId))
     .then((count) => count > 0)
-    .catch(() => {
+    .catch((e) => {
+      console.error("Failed to load evaluations:", e);
       throw new Error("Failed to load evaluations");
     });
 

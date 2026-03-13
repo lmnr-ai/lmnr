@@ -17,7 +17,8 @@ export default async function DatasetPage(props: { params: Promise<{ projectId: 
     .findFirst({
       where: and(eq(labelingQueues.projectId, params.projectId), eq(labelingQueues.id, params.queueId)),
     })
-    .catch(() => {
+    .catch((e) => {
+      console.error("Failed to load labeling queue:", e);
       throw new Error("Failed to load labeling queue");
     });
 

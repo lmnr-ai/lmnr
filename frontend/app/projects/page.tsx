@@ -37,7 +37,8 @@ export default async function ProjectsPage() {
     .innerJoin(workspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
     .where(eq(membersOfWorkspaces.userId, user.id))
     .orderBy(desc(workspaces.createdAt))
-    .catch(() => {
+    .catch((e) => {
+      console.error("Failed to load workspaces:", e);
       throw new Error("Failed to load workspaces");
     });
 

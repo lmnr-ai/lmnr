@@ -25,7 +25,8 @@ export default async function OnboardingPage() {
     .from(membersOfWorkspaces)
     .where(eq(membersOfWorkspaces.userId, session.user.id))
     .then(([result]) => result.count)
-    .catch(() => {
+    .catch((e) => {
+      console.error("Failed to load onboarding data:", e);
       throw new Error("Failed to load onboarding data");
     });
 

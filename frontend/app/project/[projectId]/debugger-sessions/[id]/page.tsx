@@ -11,7 +11,8 @@ import {
 export default async function DebuggerSessionPage(props: { params: Promise<{ projectId: string; id: string }> }) {
   const { projectId, id } = await props.params;
 
-  const session = await getDebuggerSession({ projectId, id }).catch(() => {
+  const session = await getDebuggerSession({ projectId, id }).catch((e) => {
+    console.error("Failed to load debugger session:", e);
     throw new Error("Failed to load debugger session");
   });
 

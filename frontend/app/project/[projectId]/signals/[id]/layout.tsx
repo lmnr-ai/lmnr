@@ -9,7 +9,8 @@ import { EVENTS_TRACE_VIEW_WIDTH } from "@/lib/actions/traces";
 const Layout = async (props: PropsWithChildren<{ params: Promise<{ projectId: string; id: string }> }>) => {
   const { projectId, id } = await props.params;
 
-  const signal = (await getSignal({ projectId, id }).catch(() => {
+  const signal = (await getSignal({ projectId, id }).catch((e) => {
+    console.error("Failed to load signal:", e);
     throw new Error("Failed to load signal");
   })) as Signal | undefined;
 

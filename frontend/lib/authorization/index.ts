@@ -30,7 +30,8 @@ export async function requireWorkspaceAccess(workspaceId: string) {
     .from(membersOfWorkspaces)
     .where(and(eq(membersOfWorkspaces.userId, session.user.id), eq(membersOfWorkspaces.workspaceId, workspaceId)))
     .limit(1)
-    .catch(() => {
+    .catch((e) => {
+      console.error("Failed to verify workspace access:", e);
       throw new Error("Failed to verify workspace access");
     });
 
@@ -73,7 +74,8 @@ export async function requireProjectAccess(projectId: string) {
     .innerJoin(projects, eq(membersOfWorkspaces.workspaceId, projects.workspaceId))
     .where(and(eq(projects.id, projectId), eq(membersOfWorkspaces.userId, session.user.id)))
     .limit(1)
-    .catch(() => {
+    .catch((e) => {
+      console.error("Failed to verify project access:", e);
       throw new Error("Failed to verify project access");
     });
 

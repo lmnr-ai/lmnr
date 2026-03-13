@@ -25,7 +25,8 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
 
   const user = session.user;
 
-  const workspace = await getWorkspace({ workspaceId: params.workspaceId }).catch(() => {
+  const workspace = await getWorkspace({ workspaceId: params.workspaceId }).catch((e) => {
+    console.error("Failed to load workspace:", e);
     throw new Error("Failed to load workspace");
   });
 
@@ -35,7 +36,8 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     .where(and(eq(membersOfWorkspaces.userId, user.id), eq(membersOfWorkspaces.workspaceId, params.workspaceId)))
     .limit(1)
     .then((res) => res[0])
-    .catch(() => {
+    .catch((e) => {
+      console.error("Failed to verify workspace access:", e);
       throw new Error("Failed to verify workspace access");
     });
 
@@ -46,7 +48,8 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
   const isOwner = userMembership.role === "owner";
   const currentUserRole = userMembership.role || "member";
 
-  const stats = await getWorkspaceStats(params.workspaceId).catch(() => {
+  const stats = await getWorkspaceStats(params.workspaceId).catch((e) => {
+    console.error("Failed to load workspace usage data:", e);
     throw new Error("Failed to load workspace usage data");
   });
 

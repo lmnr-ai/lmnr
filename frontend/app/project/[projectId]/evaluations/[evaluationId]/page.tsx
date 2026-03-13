@@ -24,7 +24,8 @@ export default async function EvaluationPage(props: { params: Promise<{ projectI
         name: true,
       },
     })
-    .catch(() => {
+    .catch((e) => {
+      console.error("Failed to load evaluation:", e);
       throw new Error("Failed to load evaluation");
     });
 
@@ -37,7 +38,8 @@ export default async function EvaluationPage(props: { params: Promise<{ projectI
       where: and(eq(evaluations.projectId, params.projectId), eq(evaluations.groupId, evaluationInfo.groupId)),
       orderBy: desc(evaluations.createdAt),
     })
-    .catch(() => {
+    .catch((e) => {
+      console.error("Failed to load evaluation history:", e);
       throw new Error("Failed to load evaluation history");
     });
 

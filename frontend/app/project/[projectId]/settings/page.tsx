@@ -18,7 +18,8 @@ export default async function ApiKeysPage(props: { params: Promise<{ projectId: 
     redirect("/sign-in");
   }
 
-  const apiKeys = await getApiKeys({ projectId: params.projectId }).catch(() => {
+  const apiKeys = await getApiKeys({ projectId: params.projectId }).catch((e) => {
+    console.error("Failed to load API keys:", e);
     throw new Error("Failed to load API keys");
   });
 

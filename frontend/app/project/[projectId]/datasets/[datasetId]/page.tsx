@@ -26,7 +26,8 @@ export default async function DatasetPage(props: { params: Promise<{ projectId: 
     .findFirst({
       where: and(eq(datasets.projectId, projectId), eq(datasets.id, datasetId)),
     })
-    .catch(() => {
+    .catch((e) => {
+      console.error("Failed to load dataset:", e);
       throw new Error("Failed to load dataset");
     });
 
