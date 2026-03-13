@@ -1,7 +1,6 @@
 "use client";
 
 import { Clock, Hash, Loader2, Mail, X } from "lucide-react";
-import { useState } from "react";
 
 import { type SlackIntegrationInfo } from "@/components/slack/slack-connection-card";
 import { Badge } from "@/components/ui/badge";
@@ -116,8 +115,6 @@ function ReportRow({
   onSlackSubscribe,
   onSlackUnsubscribe,
 }: ReportRowProps) {
-  const [selectedChannelId, setSelectedChannelId] = useState("");
-
   return (
     <div className="flex flex-col gap-3 px-4 py-3 transition-colors">
       <div className="flex items-center justify-between gap-4">
@@ -164,14 +161,7 @@ function ReportRow({
                   #{currentSlackTarget.channelName || currentSlackTarget.channelId}
                 </span>
               ) : (
-                <Select
-                  value={selectedChannelId}
-                  onValueChange={(value) => {
-                    setSelectedChannelId(value);
-                    onSlackSubscribe(report, value);
-                  }}
-                  disabled={isToggling}
-                >
+                <Select onValueChange={(value) => onSlackSubscribe(report, value)} disabled={isToggling}>
                   <SelectTrigger className="h-7 text-xs w-48">
                     <SelectValue placeholder="Select Slack channel" />
                   </SelectTrigger>
