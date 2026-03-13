@@ -35,6 +35,8 @@ struct RealtimeTrace {
     status: Option<String>,
     user_id: Option<String>,
     tags: Vec<String>,
+    root_span_input: Option<String>,
+    root_span_output: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -205,6 +207,8 @@ impl RealtimeTrace {
             status: trace.status(),
             user_id: trace.user_id(),
             tags: trace.tags().clone(),
+            root_span_input: trace.root_span_input(),
+            root_span_output: trace.root_span_output(),
         }
     }
 }

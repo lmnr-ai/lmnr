@@ -1,9 +1,10 @@
 use std::{collections::HashMap, sync::LazyLock};
 
+use base64::Engine;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::is_url;
+use crate::utils::{infer_image_type, is_url};
 
 static DATA_URL_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^data:((?:application|image)/[a-zA-Z-]+);base64,.*$").unwrap());
@@ -137,14 +138,6 @@ pub struct ChatMessageToolCall {
     pub arguments: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatMessageImageRawBytes {
-    pub image: Vec<u8>,
-    #[serde(default)]
-    pub mime_type: Option<String>,
-}
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessageAISDKToolResult {
@@ -163,11 +156,6 @@ pub enum ChatMessageContentPart {
     Document(ChatMessageDocument),
     DocumentUrl(ChatMessageDocumentUrl),
     ToolCall(ChatMessageToolCall),
-    #[serde(skip_serializing)]
-    ImageRawBytes(ChatMessageImageRawBytes),
-    // TODO: move this (and related) frontend logic
-    // to provider-specific types, once we implement conversion
-    // to AI SDK messages, similar to what we have for OpenAI and LangChain.
     #[serde(rename = "tool-result")]
     AISDKToolResult(ChatMessageAISDKToolResult),
 }
@@ -307,9 +295,14 @@ impl ChatMessageContentPart {
                     })
                 }
                 InstrumentationChatMessageImage::AISDKRawBytes(image_raw_bytes) => {
-                    ChatMessageContentPart::ImageRawBytes(ChatMessageImageRawBytes {
-                        image: image_raw_bytes.image,
-                        mime_type: image_raw_bytes.mime_type,
+                    let base64_data =
+                        base64::engine::general_purpose::STANDARD.encode(&image_raw_bytes.image);
+                    let mime_type = image_raw_bytes
+                        .mime_type
+                        .unwrap_or(infer_image_type(&base64_data).to_string());
+                    ChatMessageContentPart::ImageUrl(ChatMessageImageUrl {
+                        url: format!("data:{};base64,{}", mime_type, base64_data),
+                        detail: None,
                     })
                 }
                 InstrumentationChatMessageImage::AISDKImageData(image_data) => {
@@ -419,7 +412,6 @@ impl ChatMessageContentPart {
             }
         }
     }
-
 }
 
 /// Extract the raw base64 data from a data URL.

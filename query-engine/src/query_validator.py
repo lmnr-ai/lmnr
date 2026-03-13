@@ -84,6 +84,8 @@ class TableRegistry:
             "top_span_type",
             "tags",
             "span_names",
+            "root_span_input",
+            "root_span_output",
         }
 
         dataset_datapoints_columns = {

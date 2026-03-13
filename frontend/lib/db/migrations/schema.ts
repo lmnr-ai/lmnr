@@ -181,22 +181,41 @@ export const tracesAgentMessages = pgTable(
 
 export const userSubscriptionTiers = pgTable("user_subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" })
-    .primaryKey()
-    .generatedByDefaultAsIdentity({
-      name: "user_subscription_tiers_id_seq",
-      startWith: 1,
-      increment: 1,
-      minValue: 1,
-      maxValue: 9223372036854775807,
-      cache: 1,
-    }),
+  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
+    name: "user_subscription_tiers_id_seq",
+    startWith: 1,
+    increment: 1,
+    minValue: 1,
+    maxValue: 9223372036854775807,
+    cache: 1,
+  }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   stripeProductId: text("stripe_product_id").default("").notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
   indexChatMessages: bigint("index_chat_messages", { mode: "number" }).default(sql`'0'`),
 });
+
+export const slackIntegrations = pgTable(
+  "slack_integrations",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    token: text().notNull(),
+    teamId: text("team_id").notNull(),
+    teamName: text("team_name"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    nonceHex: text("nonce_hex").notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "slack_integrations_workspace_id_fkey",
+    }).onDelete("cascade"),
+    unique("slack_integrations_workspace_id_key").on(table.workspaceId),
+  ]
+);
 
 export const evaluators = pgTable(
   "evaluators",
@@ -258,27 +277,6 @@ export const evaluatorScores = pgTable(
       foreignColumns: [projects.id],
       name: "evaluator_scores_project_id_fkey",
     }).onDelete("cascade"),
-  ]
-);
-
-export const slackIntegrations = pgTable(
-  "slack_integrations",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    projectId: uuid("project_id").notNull(),
-    token: text().notNull(),
-    teamId: text("team_id").notNull(),
-    teamName: text("team_name"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    nonceHex: text("nonce_hex").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "slack_integrations_project_id_fkey",
-    }).onDelete("cascade"),
-    unique("slack_integrations_project_id_key").on(table.projectId),
   ]
 );
 
@@ -771,6 +769,25 @@ export const customModelCosts = pgTable(
   ]
 );
 
+export const reports = pgTable(
+  "reports",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    type: text().notNull(),
+    weekdays: integer().array().notNull(),
+    hour: integer().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "reports_workspace_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const tracesSummaries = pgTable(
   "traces_summaries",
   {
@@ -792,27 +809,49 @@ export const tracesSummaries = pgTable(
   ]
 );
 
-export const slackChannelToEvents = pgTable(
-  "slack_channel_to_events",
+export const reportTargets = pgTable(
+  "report_targets",
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    channelId: text("channel_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    eventName: text("event_name").notNull(),
-    integrationId: uuid("integration_id").notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    reportId: uuid("report_id").notNull(),
+    type: text().notNull(),
+    integrationId: uuid("integration_id"),
+    channelId: text("channel_id"),
+    channelName: text("channel_name"),
+    email: text(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
     foreignKey({
-      columns: [table.integrationId],
-      foreignColumns: [slackIntegrations.id],
-      name: "slack_channel_to_events_integration_id_fkey",
+      columns: [table.reportId],
+      foreignColumns: [reports.id],
+      name: "report_targets_report_id_fkey",
     }).onDelete("cascade"),
-    unique("slack_channel_to_events_integration_channel_event_key").on(
-      table.channelId,
-      table.eventName,
-      table.integrationId
-    ),
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "report_targets_workspace_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const alerts = pgTable(
+  "alerts",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    name: text().notNull(),
+    type: text().notNull(),
+    sourceId: uuid("source_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "alerts_project_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 
@@ -1034,6 +1073,33 @@ export const tags = pgTable("tags", {
   projectId: uuid("project_id").notNull(),
 });
 
+export const alertTargets = pgTable(
+  "alert_targets",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    projectId: uuid("project_id").notNull(),
+    alertId: uuid("alert_id").notNull(),
+    type: text().notNull(),
+    integrationId: uuid("integration_id"),
+    channelId: text("channel_id"),
+    channelName: text("channel_name"),
+    email: text(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.alertId],
+      foreignColumns: [alerts.id],
+      name: "alert_targets_alert_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "alert_targets_project_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const sqlTemplates = pgTable(
   "sql_templates",
   {
@@ -1082,7 +1148,7 @@ export const workspaceAddons = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     workspaceId: uuid("workspace_id").notNull(),
-    addonSlug: text("addon-slug").notNull(),
+    addonSlug: text("addon_slug").notNull(),
   },
   (table) => [
     foreignKey({
@@ -1097,16 +1163,14 @@ export const workspaceAddons = pgTable(
 
 export const subscriptionTiers = pgTable("subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" })
-    .primaryKey()
-    .generatedByDefaultAsIdentity({
-      name: "subscription_tiers_id_seq",
-      startWith: 1,
-      increment: 1,
-      minValue: 1,
-      maxValue: 9223372036854775807,
-      cache: 1,
-    }),
+  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
+    name: "subscription_tiers_id_seq",
+    startWith: 1,
+    increment: 1,
+    minValue: 1,
+    maxValue: 9223372036854775807,
+    cache: 1,
+  }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -1313,7 +1377,6 @@ export const signalTriggers = pgTable(
     value: jsonb().notNull(),
     signalId: uuid("signal_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    clusteringKey: text("clustering_key"),
   },
   (table) => [
     foreignKey({
@@ -1531,6 +1594,8 @@ export const traces = pgTable(
     traceType: traceType("trace_type"),
     type: smallint(),
     spanNames: jsonb("span_names"),
+    rootSpanInput: text("root_span_input"),
+    rootSpanOutput: text("root_span_output"),
   },
   (table) => [
     index("traces_pkey").using(

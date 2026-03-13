@@ -189,25 +189,16 @@ export const DateRangeFilterProvider = ({
   );
 
   useEffect(() => {
-    if (mode === "state") return;
+    const store = storeState.getState();
+    if (store.pastHours === pastHours && store.startDate === startDate && store.endDate === endDate) return;
 
-    const store = storeState?.getState();
-    if (!store) return;
-
-    const urlPastHours = searchParams.get("pastHours");
-    const urlStartDate = searchParams.get("startDate");
-    const urlEndDate = searchParams.get("endDate");
-
-    if (store.pastHours !== urlPastHours || store.startDate !== urlStartDate || store.endDate !== urlEndDate) {
-      storeState.setState({
-        pastHours: urlPastHours,
-        startDate: urlStartDate,
-        endDate: urlEndDate,
-        calendarDate:
-          urlStartDate && urlEndDate ? { from: new Date(urlStartDate), to: new Date(urlEndDate) } : undefined,
-      });
-    }
-  }, [searchParams, mode, storeState]);
+    storeState.setState({
+      pastHours,
+      startDate,
+      endDate,
+      calendarDate: startDate && endDate ? { from: new Date(startDate), to: new Date(endDate) } : undefined,
+    });
+  }, [pastHours, startDate, endDate, storeState]);
 
   return <DateRangeFilterStoreContext.Provider value={storeState}>{children}</DateRangeFilterStoreContext.Provider>;
 };

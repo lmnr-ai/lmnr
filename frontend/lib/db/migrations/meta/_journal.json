@@ -512,6 +512,20 @@
       "when": 1773143358151,
       "tag": "0072_redundant_star_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1773313672483,
+      "tag": "0073_thankful_prism",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1773418233295,
+      "tag": "0074_normal_gertrude_yorkes",
+      "breakpoints": true
     }
   ]
 }

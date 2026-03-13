@@ -2,6 +2,7 @@ import { times } from "lodash";
 import { type PropsWithChildren, type ReactNode } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 interface SettingsSectionHeaderProps {
   title: string;
@@ -29,6 +30,7 @@ interface SettingsTableProps {
   isEmpty?: boolean;
   emptyMessage?: string;
   loadingRowCount?: number;
+  colSpan?: number;
 }
 
 export function SettingsTable({
@@ -38,6 +40,7 @@ export function SettingsTable({
   isEmpty = false,
   emptyMessage = "No items found.",
   loadingRowCount = 5,
+  colSpan = 2,
 }: SettingsTableProps) {
   return (
     <div className="border rounded-md">
@@ -57,14 +60,14 @@ export function SettingsTable({
           {isLoading ? (
             times(loadingRowCount, (i) => (
               <SettingsTableRow key={i}>
-                <td className="p-2">
+                <td colSpan={colSpan} className="p-2">
                   <Skeleton className="h-8 w-full" />
                 </td>
               </SettingsTableRow>
             ))
           ) : isEmpty ? (
             <SettingsTableRow>
-              <td align="center" className="p-2">
+              <td colSpan={colSpan} align="center" className="p-2">
                 <span className="text-center text-secondary-foreground text-sm font-medium">{emptyMessage}</span>
               </td>
             </SettingsTableRow>
@@ -77,6 +80,15 @@ export function SettingsTable({
   );
 }
 
-export function SettingsTableRow({ children }: PropsWithChildren) {
-  return <tr className="border-b last:border-b-0 h-12">{children}</tr>;
+interface SettingsTableRowProps extends PropsWithChildren {
+  className?: string;
+  onClick?: () => void;
+}
+
+export function SettingsTableRow({ children, className, onClick }: SettingsTableRowProps) {
+  return (
+    <tr className={cn("border-b last:border-b-0 h-12", className)} onClick={onClick}>
+      {children}
+    </tr>
+  );
 }

@@ -13,6 +13,7 @@ import { signals, signalTriggers } from "@/lib/db/migrations/schema";
 export type SignalRow = {
   id: string;
   name: string;
+  prompt: string;
   createdAt: string;
   projectId: string;
   prompt: string;
@@ -109,6 +110,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       id: signals.id,
       createdAt: signals.createdAt,
       name: signals.name,
+      prompt: signals.prompt,
       projectId: signals.projectId,
       prompt: signals.prompt,
     })
