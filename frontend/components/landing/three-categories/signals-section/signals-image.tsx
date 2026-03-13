@@ -7,9 +7,11 @@ import { cn } from "@/lib/utils";
 import AnimatedThreads0 from "./animated-threads-0";
 import AnimatedThreads1 from "./animated-threads-1";
 import AnimatedThreads2 from "./animated-threads-2";
+import AnimatedThreads3 from "./animated-threads-3";
 import ClustersPanel from "./clusters-panel";
 import DefinitionCard from "./definition-card";
 import EventsTable from "./events-table";
+import ReportsPanel from "./reports-panel";
 import SectionTitle from "./section-title";
 
 const SECTION_WIDTH = "w-[420px] md:w-[515px]";
@@ -29,12 +31,14 @@ const SignalsImage = ({ className, scrollProgress: scrollProgressProp }: Props) 
   const x = useTransform(scrollProgress, [0, 1], ["0%", "-100%"]);
 
   // Map scroll ranges to 0→1 progress for each child
-  const threads0Progress = useTransform(scrollProgress, [0.0, 0.15], [0, 1]);
-  const threads1Progress = useTransform(scrollProgress, [0.2, 0.5], [0, 1]);
-  const threads2Progress = useTransform(scrollProgress, [0.55, 0.9], [0, 1]);
-  const typingProgress = useTransform(scrollProgress, [0.12, 0.3], [0, 1]);
-  const eventsScrollProgress = useTransform(scrollProgress, [0.3, 1], [0, 1]);
-  const clustersProgress = useTransform(scrollProgress, [0.7, 1], [0, 1]);
+  const threads0Progress = useTransform(scrollProgress, [0.0, 0.12], [0, 1]);
+  const threads1Progress = useTransform(scrollProgress, [0.16, 0.36], [0, 1]);
+  const threads2Progress = useTransform(scrollProgress, [0.44, 0.64], [0, 1]);
+  const threads3Progress = useTransform(scrollProgress, [0.72, 0.88], [0, 1]);
+  const typingProgress = useTransform(scrollProgress, [0.1, 0.24], [0, 1]);
+  const eventsScrollProgress = useTransform(scrollProgress, [0.24, 0.72], [0, 1]);
+  const clustersProgress = useTransform(scrollProgress, [0.56, 0.8], [0, 1]);
+  const reportsProgress = useTransform(scrollProgress, [0.8, 1], [0, 1]);
 
   return (
     <div
@@ -94,6 +98,24 @@ const SignalsImage = ({ className, scrollProgress: scrollProgressProp }: Props) 
 
           <div className={cn("flex flex-col justify-center w-full", SECTION_HEIGHT)}>
             <ClustersPanel progress={clustersProgress} />
+          </div>
+        </div>
+
+        {/* Connector 3: Straight horizontal lines (duplicate of Connector 1) */}
+        <div className="flex h-full items-end shrink-0">
+          <div className={cn("flex flex-col items-center justify-center rounded w-[220px]", SECTION_HEIGHT)}>
+            <div className="h-[62px] w-[220px]">
+              <AnimatedThreads3 progress={threads3Progress} />
+            </div>
+          </div>
+        </div>
+
+        {/* Column 5: Reports (Email + Slack) */}
+        <div className={cn("flex flex-col h-full items-start justify-between shrink-0", SECTION_WIDTH)}>
+          <SectionTitle lines={["Receive insights about your traces", "automatically in email and Slack"]} />
+
+          <div className={cn("flex flex-col justify-center w-full", SECTION_HEIGHT)}>
+            <ReportsPanel progress={reportsProgress} />
           </div>
         </div>
       </motion.div>
