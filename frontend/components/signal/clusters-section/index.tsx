@@ -48,8 +48,9 @@ export default function ClustersSection() {
   const visibleClusters = useSignalStoreContext((state) => getVisibleClusters(state, displayId), shallow);
   const drillDownDepth = useSignalStoreContext((state) => getDrillDownDepth(state, displayId));
   const chartClusters = useSignalStoreContext((state) => getChartClusters(state, clusterId), shallow);
-  const filteredCountByCluster = useSignalStoreContext((state) =>
-    getFilteredCountByCluster(state, displayId, hasTimeRange)
+  const filteredCountByCluster = useSignalStoreContext(
+    (state) => getFilteredCountByCluster(state, displayId, hasTimeRange),
+    shallow
   );
 
   // Build stable color map from sibling list so colors match between list and chart
