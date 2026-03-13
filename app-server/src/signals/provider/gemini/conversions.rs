@@ -44,9 +44,21 @@ impl From<GenerateContentResponse> for ProviderResponse {
                     (c, t) => Some(c.unwrap_or(0).saturating_add(t.unwrap_or(0))),
                 },
                 total_token_count: u.total_token_count,
-                cache_tokens_details: u
-                    .cache_tokens_details
-                    .map(|d| serde_json::to_value(d).unwrap()),
+                cache_read_input_tokens: u.cache_tokens_details.as_ref().map(|details| {
+                    details
+                        .iter()
+                        .filter_map(|modality_entry| {
+                            match modality_entry.modality {
+                                Modality::Gemini(GeminiModality::Text) => {
+                                    Some(modality_entry.token_count as i32)
+                                }
+                                // ignore other modalities for now
+                                _ => None,
+                            }
+                        })
+                        .sum()
+                }),
+                cache_creation_input_tokens: None,
             }),
             model_version: resp.model_version,
         }

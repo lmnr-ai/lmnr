@@ -168,7 +168,9 @@ pub struct ProviderUsageMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_token_count: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_tokens_details: Option<serde_json::Value>,
+    pub cache_read_input_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_creation_input_tokens: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

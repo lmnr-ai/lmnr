@@ -434,8 +434,6 @@ pub async fn process_succeeded_batch(
 
         new_messages.extend(new_run_messages);
 
-        log::debug!("[Pendings consumer] got step_result: {:?}", step_result);
-
         match step_result {
             StepResult::CompletedNoEvent => {
                 succeeded_runs.push(run.completed());
@@ -692,7 +690,10 @@ async fn process_single_response(
             input: None,
             output: span_output,
             input_tokens: usage.as_ref().and_then(|u| u.prompt_token_count).map(|c| c),
-            input_cached_tokens: None,
+            input_cached_tokens: usage
+                .as_ref()
+                .and_then(|u| u.cache_read_input_tokens)
+                .map(|c| c as i64),
             output_tokens: usage
                 .as_ref()
                 .and_then(|u| u.candidates_token_count)

@@ -213,7 +213,8 @@ impl LanguageModelClient for BedrockClient {
             prompt_token_count: Some(u.input_tokens() as i32),
             candidates_token_count: Some(u.output_tokens() as i32),
             total_token_count: Some(u.total_tokens() as i32),
-            cache_tokens_details: None,
+            cache_read_input_tokens: u.cache_read_input_tokens(),
+            cache_creation_input_tokens: u.cache_write_input_tokens(),
         });
 
         Ok(ProviderResponse {
