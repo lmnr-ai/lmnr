@@ -168,6 +168,60 @@ pub async fn get_signal_event_samples(
     Ok(rows)
 }
 
+/// ClickHouse row for signal events used as LLM summary context
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct SignalEventContextRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub signal_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub trace_id: Uuid,
+    pub summary: String,
+    pub payload: String,
+}
+
+/// Get the most recent signal events (up to `limit`) for the given project and time range.
+/// Returns id, signal_id, trace_id, summary, and payload for use as LLM summary context.
+pub async fn get_signal_events_for_summary(
+    clickhouse: &clickhouse::Client,
+    project_id: &Uuid,
+    signal_ids: &[Uuid],
+    start_ts: i64,
+    end_ts: i64,
+    limit: u64,
+) -> Result<Vec<SignalEventContextRow>> {
+    if signal_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let placeholders: Vec<String> = signal_ids.iter().map(|_| "?".to_string()).collect();
+
+    let query_str = format!(
+        "SELECT id, signal_id, trace_id, summary, payload
+         FROM signal_events
+         WHERE project_id = ?
+           AND signal_id IN ({})
+           AND timestamp >= toDateTime64(?, 9)
+           AND timestamp < toDateTime64(?, 9)
+         ORDER BY timestamp DESC
+         LIMIT ?",
+        placeholders.join(",")
+    );
+
+    let mut query = clickhouse.query(&query_str).bind(project_id);
+
+    for signal_id in signal_ids {
+        query = query.bind(signal_id);
+    }
+
+    query = query.bind(start_ts).bind(end_ts).bind(limit);
+
+    let rows = query.fetch_all::<SignalEventContextRow>().await?;
+
+    Ok(rows)
+}
+
 /// Insert signal events into ClickHouse
 pub async fn insert_signal_events(
     clickhouse: clickhouse::Client,
