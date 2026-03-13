@@ -41,7 +41,7 @@ export const generateMetadata = async (props: { params: Promise<{ evaluationId: 
 export default async function SharedEvaluationPage(props: { params: Promise<{ evaluationId: string }> }) {
   const { evaluationId } = await props.params;
 
-  const shared = await getCachedSharedEvaluation(evaluationId).catch(() => notFound());
+  const shared = await getCachedSharedEvaluation(evaluationId);
 
   if (!shared) {
     return notFound();

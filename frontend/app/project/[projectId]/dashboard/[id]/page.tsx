@@ -1,5 +1,4 @@
 import { type Metadata } from "next";
-import { notFound } from "next/navigation";
 
 import DashboardEditor from "@/components/dashboard/editor";
 import { getChart } from "@/lib/actions/dashboard";
@@ -12,7 +11,7 @@ export default async function ManageDashboardPage(props: { params: Promise<{ pro
   const params = await props.params;
 
   if (params.id !== "new") {
-    const chart = await getChart(params).catch(() => notFound());
+    const chart = await getChart(params);
     return <DashboardEditor chart={chart} />;
   }
 
