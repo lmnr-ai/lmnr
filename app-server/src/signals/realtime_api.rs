@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use backoff::ExponentialBackoffBuilder;
 use std::{sync::Arc, time::Duration};
-use uuid::Uuid;
 
 use crate::{
     cache::Cache,
@@ -12,12 +11,12 @@ use crate::{
         SignalRun, SignalWorkerConfig,
         common::{ProcessRunResult, handle_failed_runs, process_run},
         llm_model, llm_provider,
-        pendings_consumer::process_succeeded_batch,
         provider::{
             LanguageModelClient, ProviderClient,
-            models::{ProviderBatchOutput, ProviderInlineResponse, ProviderRequestItem},
+            models::{ProviderBatchOutput, ProviderInlineResponse},
         },
-        queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue},
+        queue::{SignalMessage, push_to_realtime_queue},
+        response_processor::{finalize_runs, process_provider_responses},
     },
     utils::get_unsigned_env_with_default,
     worker::{HandlerError, MessageHandler},
@@ -99,7 +98,7 @@ impl MessageHandler for SignalJobRealtimeHandler {
                         })?;
                 }
 
-                self.process_realtime_request(request, updated_message)
+                self.process_realtime_request(request.request, updated_message)
                     .await;
             }
             Err(e) => {
@@ -120,11 +119,15 @@ impl MessageHandler for SignalJobRealtimeHandler {
 }
 
 impl SignalJobRealtimeHandler {
-    async fn process_realtime_request(&self, request: ProviderRequestItem, message: SignalMessage) {
+    async fn process_realtime_request(
+        &self,
+        request: crate::signals::provider::models::ProviderRequest,
+        message: SignalMessage,
+    ) {
         let max_retry_count = get_unsigned_env_with_default("SIGNALS_MAX_RETRY_COUNT", 4);
         let model_str = llm_model();
         let llm_client = self.llm_client.clone();
-        let req_clone = request.request.clone();
+        let req_clone = request.clone();
 
         let generate_fn = || async {
             llm_client
@@ -161,23 +164,63 @@ impl SignalJobRealtimeHandler {
                     responses: vec![inline_response],
                 };
 
-                let pending_message = SignalJobPendingBatchMessage {
-                    messages: vec![message.clone()],
-                    batch_id: format!("realtime_{}", Uuid::new_v4()),
+                let batch_id = format!("realtime_{}", message.run_id);
+
+                let processed = match process_provider_responses(
+                    &[message.clone()],
+                    &batch_output.responses,
+                    &batch_id,
+                    self.clickhouse.clone(),
+                    self.queue.clone(),
+                    self.config.clone(),
+                    self.db.clone(),
+                )
+                .await
+                {
+                    Ok(p) => p,
+                    Err(e) => {
+                        log::error!("[SIGNAL JOB] Failed to process realtime response: {:?}", e);
+                        return;
+                    }
                 };
 
-                if let Err(e) = process_succeeded_batch(
-                    &pending_message,
-                    Some(batch_output),
-                    self.db.clone(),
-                    self.queue.clone(),
+                // Route pending runs back to the realtime queue (not the batch pipeline)
+                let mut extra_failed: Vec<SignalRun> = Vec::new();
+                for run_id in &processed.pending_run_ids {
+                    let msg = processed.run_to_message.get(run_id).unwrap();
+                    let mut next_step_msg = msg.clone();
+                    next_step_msg.step += 1;
+
+                    if let Err(e) = push_to_realtime_queue(next_step_msg, self.queue.clone()).await {
+                        log::error!(
+                            "[SIGNAL JOB] Failed to push pending realtime run {} to realtime queue: {:?}",
+                            run_id,
+                            e
+                        );
+                        let run = SignalRun::from_message(msg, msg.signal.id).next_step();
+                        extra_failed.push(run.failed(format!("Failed to enqueue for next step: {}", e)));
+                    }
+                }
+
+                // Permanently fail any response-processing failures (API-level retries are
+                // handled above by the backoff; no further retry routing needed here).
+                let permanently_failed: Vec<SignalRun> = processed
+                    .failed_runs
+                    .into_iter()
+                    .chain(extra_failed)
+                    .collect();
+
+                if let Err(e) = finalize_runs(
+                    &processed.succeeded_runs,
+                    &permanently_failed,
+                    processed.new_messages,
                     self.clickhouse.clone(),
-                    self.config.clone(),
+                    self.db.clone(),
                     self.cache.clone(),
                 )
                 .await
                 {
-                    log::error!("[SIGNAL JOB] Failed to process realtime response: {:?}", e);
+                    log::error!("[SIGNAL JOB] Failed to finalize realtime runs: {:?}", e);
                 }
             }
             Err(e) => {
