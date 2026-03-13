@@ -184,8 +184,7 @@ export async function getClusterEventCounts(
     WHERE signal_id = {signalId: UUID}
       ${timeClause}
     GROUP BY cluster_id, timestamp
-    ORDER BY cluster_id, timestamp ASC
-    ${withFillClause}
+    ORDER BY cluster_id, timestamp ASC ${withFillClause}
   `;
 
   const unclusteredQuery = `
