@@ -29,7 +29,7 @@ function SubmitButton({ isLoading }: { isLoading: boolean }) {
   const id = watch("id");
 
   return (
-    <Button type="submit" size="md" disabled={isLoading || !isValid} handleEnter>
+    <Button type="submit" size="md" disabled={isLoading || !isValid}>
       <Loader2 className={cn("hidden", isLoading && "animate-spin block")} size={16} />
       {id ? "Save" : "Create"}
     </Button>
