@@ -136,7 +136,7 @@ export default function Playground({ playground }: { playground: PlaygroundType 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <Header path={`playgrounds/${playground.name}`}>
-        {isUpdating && <div className="w-1.5 h-1.5 rounded-full bg-yellow-400" />}
+        {isUpdating && <div className="w-1.5 h-1.5 rounded-full bg-warning" />}
       </Header>
       {isApiKeysLoading ? (
         <div className="flex flex-col gap-4 py-4 px-4">

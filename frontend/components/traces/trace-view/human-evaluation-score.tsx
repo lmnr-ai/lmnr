@@ -245,19 +245,14 @@ const HumanEvaluationScore = ({
             />
           </div>
           <div className="flex justify-end">
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              variant="default"
-              handleEnter
-            >
+            <Button type="submit" disabled={isSubmitting} variant="default" handleEnter>
               {isSubmitting && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
               <span>Save score</span>
             </Button>
           </div>
         </>
       )}
-      {errors.score && <p className="text-sm text-red-500">{errors.score.message}</p>}
+      {errors.score && <p className="text-sm text-destructive">{errors.score.message}</p>}
     </form>
   );
 };

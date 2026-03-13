@@ -173,7 +173,7 @@ const HybridSetup = ({ isSaving, isVerified, onVerifiedChange }: HybridSetupProp
               className="shrink-0"
             >
               {isVerifying && <Loader2 className="animate-spin h-3.5 w-3.5 mr-1.5" />}
-              {isVerified && <CheckCircle2 className="h-3.5 w-3.5 mr-1.5 text-green-600" />}
+              {isVerified && <CheckCircle2 className="h-3.5 w-3.5 mr-1.5 text-success" />}
               {isVerified ? "Verified" : "Verify"}
             </Button>
           </div>
@@ -188,7 +188,7 @@ const HybridSetup = ({ isSaving, isVerified, onVerifiedChange }: HybridSetupProp
 function StepIndicator({ step, isComplete, isActive }: { step: number; isComplete: boolean; isActive: boolean }) {
   if (isComplete) {
     return (
-      <div className="flex items-center justify-center h-5 w-5 rounded-full bg-green-600 text-white mt-0.5 shrink-0">
+      <div className="flex items-center justify-center h-5 w-5 rounded-full bg-success text-white mt-0.5 shrink-0">
         <CheckCircle2 className="h-3.5 w-3.5" />
       </div>
     );

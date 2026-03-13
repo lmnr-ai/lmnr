@@ -511,7 +511,7 @@ export default function DebuggerSessionContent({ sessionId, spanId }: DebuggerSe
             </ResizablePanel>
             {browserSession && (
               <>
-                <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" withHandle />
+                <ResizableHandle className="hover:bg-chart-1 z-10 transition-colors hover:scale-200" withHandle />
                 <ResizablePanel>
                   {!isLoading && trace?.id && (
                     <SessionPlayer

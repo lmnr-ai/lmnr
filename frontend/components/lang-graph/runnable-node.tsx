@@ -22,10 +22,10 @@ const RunnableNode = memo(({ data }: RunnableNodeProps) => {
   return (
     <div
       className={cn(
-        "shadow-md rounded-lg border-2 border-blue-400/70 bg-gray-50 flex flex-col justify-center p-3 overflow-hidden",
+        "shadow-md rounded-lg border-2 border-chart-1/50 bg-card flex flex-col justify-center p-3 overflow-hidden",
         {
-          "border-blue-400/70 bg-gray-50": isAgent,
-          "border-[#E3A008]": isTool,
+          "border-chart-1/50 bg-card": isAgent,
+          "border-tool": isTool,
         }
       )}
       style={{
@@ -41,30 +41,28 @@ const RunnableNode = memo(({ data }: RunnableNodeProps) => {
       >
         {isAgent && (
           <div
-            className={cn("flex items-center justify-center w-[22px] h-[22px] z-10 rounded bg-blue-400/70", className)}
+            className={cn("flex items-center justify-center w-[22px] h-[22px] z-10 rounded bg-chart-1/40", className)}
           >
             <Braces className="w-4 h-4" />
           </div>
         )}
         {isTool && (
-          <div
-            className={cn("flex items-center justify-center w-[22px] h-[22px] z-10 rounded bg-[#E3A008]", className)}
-          >
+          <div className={cn("flex items-center justify-center w-[22px] h-[22px] z-10 rounded bg-tool", className)}>
             <Bolt className="w-4 h-4" />
           </div>
         )}
         {!isAgent && !isTool && (
           <div
-            className={cn("flex items-center justify-center w-[22px] h-[22px] z-10 rounded bg-blue-400/70", className)}
+            className={cn("flex items-center justify-center w-[22px] h-[22px] z-10 rounded bg-chart-1/40", className)}
           >
             <Braces className="w-4 h-4" />
           </div>
         )}
-        <div className="text-sm font-medium text-gray-900 wrap-break-word leading-tight">{label}</div>
+        <div className="text-sm font-medium text-foreground wrap-break-word leading-tight">{label}</div>
       </div>
 
       {originalData?.id && (
-        <div title={originalData.id.join(".")} className="text-xs text-gray-500 truncate leading-tight">
+        <div title={originalData.id.join(".")} className="text-xs text-muted-foreground truncate leading-tight">
           {originalData.id.join(".")}
         </div>
       )}

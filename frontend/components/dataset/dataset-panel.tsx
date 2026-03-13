@@ -416,7 +416,7 @@ export default function DatasetPanel({
                     }}
                   />
                   {!isValidJsonData && (
-                    <p className="text-sm text-red-500">
+                    <p className="text-sm text-destructive">
                       {newData === null ? "Data cannot be null" : "Invalid JSON format"}
                     </p>
                   )}
@@ -437,7 +437,7 @@ export default function DatasetPanel({
                       }
                     }}
                   />
-                  {!isValidJsonTarget && <p className="text-sm text-red-500">Invalid JSON format</p>}
+                  {!isValidJsonTarget && <p className="text-sm text-destructive">Invalid JSON format</p>}
                 </div>
                 <div className="flex flex-col space-y-2 pb-4">
                   <Label className="font-medium">Metadata</Label>
@@ -465,7 +465,7 @@ export default function DatasetPanel({
                     }}
                   />
                   {!isValidJsonMetadata && (
-                    <p className="text-sm text-red-500">Invalid JSON object. Metadata must be a JSON map.</p>
+                    <p className="text-sm text-destructive">Invalid JSON object. Metadata must be a JSON map.</p>
                   )}
                 </div>
               </div>

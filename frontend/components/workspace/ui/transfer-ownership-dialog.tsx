@@ -88,7 +88,7 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-amber-600 dark:text-amber-500">Transfer ownership</DialogTitle>
+          <DialogTitle className="text-warning">Transfer ownership</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
@@ -122,7 +122,7 @@ const TransferOwnershipDialog = ({ open, onOpenChange, workspace, workspaceUsers
                 value={workspaceNameInput}
                 onChange={(e) => setWorkspaceNameInput(e.target.value)}
                 className={cn(
-                  !isWorkspaceNameValid && workspaceNameInput && "border-amber-500 focus-visible:ring-amber-500"
+                  !isWorkspaceNameValid && workspaceNameInput && "border-warning focus-visible:ring-warning"
                 )}
               />
             </div>
