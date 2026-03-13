@@ -11,12 +11,8 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use super::ReportTriggerMessage;
-use super::email_template::{
-    NoteworthyEvent, ProjectReportData, ReportData, render_report_email,
-};
-use crate::ch::signal_events::{
-    get_signal_event_counts, get_signal_events_for_summary,
-};
+use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData, render_report_email};
+use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
 use crate::db::reports::{get_report_target_emails, get_signals_for_workspace};
@@ -26,16 +22,16 @@ use crate::notifications::{
     EmailPayload, NotificationMessage, NotificationType, push_to_notification_queue,
 };
 use crate::signals::llm_model;
-use crate::signals::provider::{
-    LanguageModelClient, ProviderClient, ProviderContent, ProviderPart, ProviderRequest,
-};
 use crate::signals::provider::models::{
     ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderTool,
+};
+use crate::signals::provider::{
+    LanguageModelClient, ProviderClient, ProviderContent, ProviderPart, ProviderRequest,
 };
 use crate::worker::{HandlerError, MessageHandler};
 
 const MAX_EVENTS_FOR_SUMMARY: u64 = 128;
-const REPORT_FROM_EMAIL: &str = "Laminar <reports@lmnr.ai>";
+const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
 
 /// Report type identifier for signal events summary reports.
 const REPORT_TYPE_SIGNAL_EVENTS_SUMMARY: &str = "SIGNAL_EVENTS_SUMMARY";
@@ -88,8 +84,7 @@ async fn process_report_trigger(
 
     // Use the trigger timestamp from the scheduler (not Utc::now()) so that the
     // report period is computed correctly even if message processing is delayed.
-    let triggered_at = DateTime::from_timestamp(message.triggered_at, 0)
-        .unwrap_or_else(Utc::now);
+    let triggered_at = DateTime::from_timestamp(message.triggered_at, 0).unwrap_or_else(Utc::now);
     let (period_start, period_end) = report_period(triggered_at, &message.weekdays, message.hour);
 
     let report_name = match report_type.as_str() {
@@ -226,7 +221,7 @@ async fn process_report_trigger(
 
     if total_events == 0 {
         log::info!(
-            "[Reports Generator] No signal events found for workspace {} in period",
+            "[Reports Generator] No signal events found for workspace {}, in period",
             workspace_id
         );
         return Ok(());
@@ -267,6 +262,7 @@ async fn process_report_trigger(
         to: emails,
         subject,
         html,
+        inline_logo: true,
     };
 
     let notification_message = NotificationMessage {
@@ -359,8 +355,7 @@ async fn generate_project_summary(
     signal_event_counts: &BTreeMap<String, u64>,
     events: &[crate::ch::signal_events::SignalEventContextRow],
 ) -> anyhow::Result<(String, Vec<Uuid>)> {
-    let context =
-        build_summary_context(project_name, signal_name_map, signal_event_counts, events);
+    let context = build_summary_context(project_name, signal_name_map, signal_event_counts, events);
 
     let system_instruction = ProviderContent {
         role: None,
