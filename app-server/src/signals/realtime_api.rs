@@ -184,21 +184,60 @@ impl SignalJobRealtimeHandler {
                     }
                 };
 
-                // Route pending runs back to the realtime queue (not the batch pipeline)
+                // Insert new conversation messages BEFORE routing any runs to queues.
+                // A consumer could pick up the run before finalize_runs persists them, causing
+                // process_run to read stale message history (e.g. missing retry guidance).
+                if let Err(e) =
+                    insert_signal_run_messages(self.clickhouse.clone(), &processed.new_messages)
+                        .await
+                {
+                    log::error!(
+                        "[SIGNAL JOB] Failed to insert messages for realtime run: {:?}",
+                        e
+                    );
+                    // Treat as fatal for this run — don't route it to queue with missing context.
+                    let permanently_failed: Vec<SignalRun> = processed
+                        .run_to_message
+                        .values()
+                        .map(|msg| {
+                            SignalRun::from_message(msg, msg.signal.id)
+                                .failed(format!("Failed to insert messages: {}", e))
+                        })
+                        .collect();
+                    if let Err(fe) = finalize_runs(
+                        &[],
+                        &permanently_failed,
+                        self.clickhouse.clone(),
+                        self.db.clone(),
+                        self.cache.clone(),
+                    )
+                    .await
+                    {
+                        log::error!(
+                            "[SIGNAL JOB] Failed to finalize after message insert error: {:?}",
+                            fe
+                        );
+                    }
+                    return;
+                }
+
+                // Route pending runs back to the realtime queue
                 let mut extra_failed: Vec<SignalRun> = Vec::new();
                 for run_id in &processed.pending_run_ids {
                     let msg = processed.run_to_message.get(run_id).unwrap();
                     let mut next_step_msg = msg.clone();
                     next_step_msg.step += 1;
 
-                    if let Err(e) = push_to_realtime_queue(next_step_msg, self.queue.clone()).await {
+                    if let Err(e) = push_to_realtime_queue(next_step_msg, self.queue.clone()).await
+                    {
                         log::error!(
                             "[SIGNAL JOB] Failed to push pending realtime run {} to realtime queue: {:?}",
                             run_id,
                             e
                         );
                         let run = SignalRun::from_message(msg, msg.signal.id).next_step();
-                        extra_failed.push(run.failed(format!("Failed to enqueue for next step: {}", e)));
+                        extra_failed
+                            .push(run.failed(format!("Failed to enqueue for next step: {}", e)));
                     }
                 }
 
@@ -213,7 +252,6 @@ impl SignalJobRealtimeHandler {
                 if let Err(e) = finalize_runs(
                     &processed.succeeded_runs,
                     &permanently_failed,
-                    processed.new_messages,
                     self.clickhouse.clone(),
                     self.db.clone(),
                     self.cache.clone(),

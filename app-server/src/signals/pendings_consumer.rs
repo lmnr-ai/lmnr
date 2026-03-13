@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     ch::{
-        signal_run_messages::delete_signal_run_messages,
+        signal_run_messages::{delete_signal_run_messages, insert_signal_run_messages},
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::DB,
@@ -328,6 +328,11 @@ pub async fn process_succeeded_batch(
     )
     .await?;
 
+    // Insert new conversation messages BEFORE routing any runs to queues.
+    // A consumer could pick up the run before finalize_runs persists them, causing
+    // process_run to read stale message history (e.g. missing retry guidance).
+    insert_signal_run_messages(clickhouse.clone(), &processed.new_messages).await?;
+
     // Route pending runs to the signals queue (batch pipeline next step)
     for run_id in &processed.pending_run_ids {
         let msg = processed.run_to_message.get(run_id).unwrap();
@@ -358,7 +363,6 @@ pub async fn process_succeeded_batch(
     finalize_runs(
         &processed.succeeded_runs,
         &permanently_failed_runs,
-        processed.new_messages,
         clickhouse.clone(),
         db.clone(),
         cache.clone(),

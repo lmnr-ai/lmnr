@@ -205,18 +205,16 @@ pub async fn process_provider_responses(
 }
 
 /// Insert results into ClickHouse, clean up messages, and update job stats.
-/// This is the shared finalization step after routing of pending/failed runs has been handled.
+/// Callers must insert `new_messages` into ClickHouse **before** routing pending/failed runs to
+/// any queue, to avoid a race where a consumer picks up a run before its conversation history
+/// (e.g. tool results or retry guidance) has been persisted.
 pub async fn finalize_runs(
     succeeded_runs: &[SignalRun],
     permanently_failed_runs: &[SignalRun],
-    new_messages: Vec<CHSignalRunMessage>,
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     cache: Arc<Cache>,
 ) -> Result<(), HandlerError> {
-    // Insert new conversation messages
-    insert_signal_run_messages(clickhouse.clone(), &new_messages).await?;
-
     // Insert succeeded runs and update usage limits
     let succeeded_runs_ch: Vec<CHSignalRun> = succeeded_runs.iter().map(CHSignalRun::from).collect();
     insert_signal_runs(clickhouse.clone(), &succeeded_runs_ch).await?;
