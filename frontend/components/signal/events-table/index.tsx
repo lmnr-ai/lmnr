@@ -3,6 +3,7 @@
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
 import ClustersSection from "@/components/signal/clusters-section";
 import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
@@ -59,7 +60,7 @@ function PureEventsTable() {
   const [clusterId] = useClusterId();
   const signal = useSignalStoreContext((state) => state.signal);
   const selectedEvent = useSignalStoreContext((state) => state.selectedEvent);
-  const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId));
+  const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
   const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
   const searchParams = useSearchParams();
   const pathName = usePathname();
