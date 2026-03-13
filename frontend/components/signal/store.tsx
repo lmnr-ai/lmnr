@@ -323,10 +323,10 @@ export const createSignalStore = (initProps: EventsProps) =>
 
 export const SignalContext = createContext<SignalStoreApi | null>(null);
 
-export const useSignalStoreContext = <T,>(selector: (state: Store) => T): T => {
+export const useSignalStoreContext = <T,>(selector: (state: Store) => T, equalityFn?: (a: T, b: T) => boolean): T => {
   const store = useContext(SignalContext);
   if (!store) throw new Error("Missing SignalContext.Provider in the tree");
-  return useStore(store, selector);
+  return useStore(store, selector, equalityFn);
 };
 
 export const SignalStoreProvider = ({ children, ...props }: PropsWithChildren<EventsProps>) => {

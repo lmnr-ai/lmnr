@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { shallow } from "zustand/shallow";
 
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { getBreadcrumb, useSignalStoreContext } from "@/components/signal/store.tsx";
@@ -10,7 +11,7 @@ import ClusterBreadcrumb from "./cluster-breadcrumb";
 export default function ClusterBreadcrumbs() {
   const [clusterId, setClusterId] = useClusterId();
 
-  const breadcrumb = useSignalStoreContext((state) => getBreadcrumb(state, clusterId));
+  const breadcrumb = useSignalStoreContext((state) => getBreadcrumb(state, clusterId), shallow);
 
   const isClustersLoading = useSignalStoreContext((state) => state.isClustersLoading);
 

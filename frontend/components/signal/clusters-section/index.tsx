@@ -3,6 +3,7 @@
 import { Circle } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { shallow } from "zustand/shallow";
 
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import {
@@ -44,9 +45,9 @@ export default function ClustersSection() {
   const hasTimeRange = !!(pastHours || startDate);
 
   // Depth uses displayId (parent level for leaves), chart uses clusterId (shows selected node's data)
-  const visibleClusters = useSignalStoreContext((state) => getVisibleClusters(state, displayId));
+  const visibleClusters = useSignalStoreContext((state) => getVisibleClusters(state, displayId), shallow);
   const drillDownDepth = useSignalStoreContext((state) => getDrillDownDepth(state, displayId));
-  const chartClusters = useSignalStoreContext((state) => getChartClusters(state, clusterId));
+  const chartClusters = useSignalStoreContext((state) => getChartClusters(state, clusterId), shallow);
   const filteredCountByCluster = useSignalStoreContext((state) =>
     getFilteredCountByCluster(state, displayId, hasTimeRange)
   );

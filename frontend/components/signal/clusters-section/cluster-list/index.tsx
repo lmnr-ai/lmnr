@@ -1,5 +1,7 @@
 "use client";
 
+import { shallow } from "zustand/shallow";
+
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import {
   getUnclusteredVirtualCluster,
@@ -30,7 +32,7 @@ export default function ClusterList({
 }: ClusterListProps) {
   const [clusterId] = useClusterId();
 
-  const visibleClusters = useSignalStoreContext((state) => getVisibleClusters(state, displayId));
+  const visibleClusters = useSignalStoreContext((state) => getVisibleClusters(state, displayId), shallow);
   const unclusteredCount = useSignalStoreContext(selectUnclusteredCount);
   const unclusteredVirtualCluster = useSignalStoreContext(getUnclusteredVirtualCluster);
 
