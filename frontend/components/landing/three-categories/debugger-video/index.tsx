@@ -10,9 +10,9 @@ import ChapterButton from "./chapter-button";
 
 const chapters = [
   { label: "Run local,\ndebug in browser", startTime: 0 },
-  { label: "Rerun at step N with\nprevious context preserved", startTime: 26 },
-  { label: "Tune your\nsystem prompts", startTime: 37 },
-  { label: "Instantly reflect\nchanges as you save", startTime: 50 },
+  { label: "Rerun at step N with\nprevious context preserved", startTime: 12 },
+  { label: "Tune your\nsystem prompts", startTime: 14 },
+  { label: "Instantly reflect\nchanges as you save", startTime: 24 },
 ];
 
 const DebuggerVideo = () => {
@@ -71,7 +71,7 @@ const DebuggerVideo = () => {
         ))}
       </div>
 
-      <div className="relative w-full aspect-74/45 border border-landing-surface-400 rounded-lg overflow-hidden">
+      <div className="relative w-full aspect-74/44 border border-landing-surface-400 rounded-lg overflow-hidden">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center z-10">
             <Loader2 size={40} className="text-landing-text-400 animate-spin" />
@@ -80,7 +80,7 @@ const DebuggerVideo = () => {
         <MuxPlayer
           ref={playerRef}
           className={cn("block", { invisible: isLoading })}
-          playbackId="GHkdcXx8unYRtXWDvuSoY8LDwDgWAx6p5soFBTI02vTU"
+          playbackId="wzXovPCSl4Hig02iX9zk01hk2vBzfJ02ccLfFUMkECvWBc"
           metadata={{
             video_title: "Debugger",
           }}
