@@ -12,10 +12,10 @@ use uuid::Uuid;
 
 use super::ReportTriggerMessage;
 use super::email_template::{
-    NoteworthyEvent, ProjectReportData, ReportData, SignalEventSample, render_report_email,
+    NoteworthyEvent, ProjectReportData, ReportData, render_report_email,
 };
 use crate::ch::signal_events::{
-    get_signal_event_counts, get_signal_event_samples, get_signal_events_for_summary,
+    get_signal_event_counts, get_signal_events_for_summary,
 };
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
@@ -34,7 +34,6 @@ use crate::signals::provider::models::{
 };
 use crate::worker::{HandlerError, MessageHandler};
 
-const MAX_SAMPLES_PER_SIGNAL: u64 = 5;
 const MAX_EVENTS_FOR_SUMMARY: u64 = 128;
 const REPORT_FROM_EMAIL: &str = "Laminar <reports@lmnr.ai>";
 
@@ -162,48 +161,7 @@ async fn process_report_trigger(
             }
         }
 
-        // Query ClickHouse for sample events per signal
-        let samples = get_signal_event_samples(
-            &clickhouse,
-            &project.id,
-            &signal_ids,
-            start_ts,
-            end_ts,
-            MAX_SAMPLES_PER_SIGNAL,
-        )
-        .await
-        .map_err(|e| HandlerError::transient(e))?;
-
-        let mut signals_map: BTreeMap<String, Vec<SignalEventSample>> = BTreeMap::new();
-        for row in samples {
-            let signal_name = signal_name_map
-                .get(&row.signal_id)
-                .cloned()
-                .unwrap_or_else(|| "Unknown Signal".to_string());
-
-            let timestamp_secs = row.timestamp / 1_000_000_000;
-            let timestamp_str = chrono::DateTime::from_timestamp(timestamp_secs, 0)
-                .map(|dt| dt.format("%b %d, %Y %H:%M UTC").to_string())
-                .unwrap_or_else(|| "Unknown time".to_string());
-
-            // Truncate payload for display if too long (char-boundary safe)
-            let payload_display = match row.payload.char_indices().nth(500) {
-                Some((idx, _)) => format!("{}...", &row.payload[..idx]),
-                None => row.payload.clone(),
-            };
-
-            signals_map
-                .entry(signal_name)
-                .or_default()
-                .push(SignalEventSample {
-                    payload: payload_display,
-                    summary: row.summary,
-                    timestamp: timestamp_str,
-                    trace_id: row.trace_id.to_string(),
-                });
-        }
-
-        if signals_map.is_empty() {
+        if signal_event_counts.is_empty() {
             continue;
         }
 
@@ -260,7 +218,6 @@ async fn process_report_trigger(
         project_reports.push(ProjectReportData {
             project_name: project.name.clone(),
             project_id: project.id,
-            signals: signals_map,
             signal_event_counts,
             ai_summary,
             noteworthy_events,
@@ -277,6 +234,7 @@ async fn process_report_trigger(
 
     // Build the report
     let report_data = ReportData {
+        workspace_id,
         workspace_name: workspace_name.clone(),
         period_label: report_name.clone(),
         period_start: period_start.format("%b %d, %Y").to_string(),
@@ -523,15 +481,8 @@ fn build_noteworthy_events(
                 .map(|dt| dt.format("%b %d, %Y %H:%M UTC").to_string())
                 .unwrap_or_else(|| "Unknown time".to_string());
 
-            // Truncate payload for display
-            let payload_display = match event.payload.char_indices().nth(500) {
-                Some((idx, _)) => format!("{}...", &event.payload[..idx]),
-                None => event.payload.clone(),
-            };
-
             result.push(NoteworthyEvent {
                 signal_name,
-                payload: payload_display,
                 summary: event.summary.clone(),
                 timestamp: timestamp_str,
                 trace_id: event.trace_id.to_string(),
