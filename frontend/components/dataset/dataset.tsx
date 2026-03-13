@@ -97,7 +97,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
     const data = await res.json();
     return data.totalCount;
-  }, [projectId, dataset.id, toast]);
+  }, [projectId, dataset.id]);
 
   useEffect(() => {
     fetchCount()
