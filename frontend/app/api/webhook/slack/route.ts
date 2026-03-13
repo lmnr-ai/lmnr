@@ -22,6 +22,14 @@ export async function POST(req: NextRequest): Promise<Response> {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
+    const contentType = req.headers.get("content-type");
+
+    // Interactive actions (block_actions, etc.) are sent as form-urlencoded with a `payload` field.
+    // We don't process them, just acknowledge with 200 so Slack stops showing errors.
+    if (contentType?.includes("application/x-www-form-urlencoded")) {
+      return NextResponse.json({ ok: true }, { status: 200 });
+    }
+
     const payload = JSON.parse(body);
     const data = SlackWebhookRequestSchema.parse(payload);
 
