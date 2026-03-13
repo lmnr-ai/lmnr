@@ -23,29 +23,37 @@ export default function ProviderApiKeys() {
   } = useSWR<ProviderApiKey[]>(`/api/projects/${projectId}/provider-api-keys`, swrFetcher);
 
   const postProviderApiKey = async (name: string, value: string) => {
-    const res = await fetch(`/api/projects/${projectId}/provider-api-keys`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name, value }),
-    });
+    try {
+      const res = await fetch(`/api/projects/${projectId}/provider-api-keys`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, value }),
+      });
 
-    if (res.ok) {
-      mutate();
+      if (res.ok) {
+        mutate();
+      }
+    } catch {
+      // Network error - silently fail, user can retry
     }
   };
 
   const deleteProviderApiKey = async (name: string) => {
-    const res = await fetch(`/api/projects/${projectId}/provider-api-keys?name=${name}`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    try {
+      const res = await fetch(`/api/projects/${projectId}/provider-api-keys?name=${name}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
-    if (res.ok) {
-      mutate();
+      if (res.ok) {
+        mutate();
+      }
+    } catch {
+      // Network error - silently fail, user can retry
     }
   };
 

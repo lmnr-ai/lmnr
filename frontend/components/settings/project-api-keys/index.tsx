@@ -34,32 +34,45 @@ export default function ProjectApiKeys({ apiKeys }: ApiKeysProps) {
         method: "POST",
         body: JSON.stringify({ name: newName, isIngestOnly }),
       });
+      if (!res.ok) {
+        throw new Error("Failed to generate API key");
+      }
       const newKey = (await res.json()) as GenerateProjectApiKeyResponse;
-
       setNewApiKey(newKey);
     },
     [projectId]
   );
 
   const getProjectApiKeys = useCallback(async () => {
-    const res = await fetch(`/api/projects/${projectId}/api-keys`, {
-      method: "GET",
-    });
-    const data = await res.json();
-    setProjectApiKeys(data);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/api-keys`, {
+        method: "GET",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setProjectApiKeys(data);
+    } catch {
+      // Silently fail - list will remain stale
+    }
   }, [projectId]);
 
   const deleteApiKey = useCallback(
     async (id: string) => {
-      const res = await fetch(`/api/projects/${projectId}/api-keys`, {
-        method: "DELETE",
-        body: JSON.stringify({ id: id }),
-      });
-      await res.text();
-
-      getProjectApiKeys();
+      try {
+        const res = await fetch(`/api/projects/${projectId}/api-keys`, {
+          method: "DELETE",
+          body: JSON.stringify({ id: id }),
+        });
+        if (!res.ok) {
+          toast({ variant: "destructive", title: "Error", description: "Failed to revoke API key" });
+          return;
+        }
+        getProjectApiKeys();
+      } catch {
+        toast({ variant: "destructive", title: "Error", description: "Failed to revoke API key" });
+      }
     },
-    [projectId, getProjectApiKeys]
+    [projectId, getProjectApiKeys, toast]
   );
 
   const handleGenerateKey = useCallback(async () => {

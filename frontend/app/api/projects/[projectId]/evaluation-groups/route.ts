@@ -5,25 +5,32 @@ import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 
 export async function GET(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const groupedEvaluations = db.$with("grouped_evaluations").as(
-    db
+  try {
+    const params = await props.params;
+    const projectId = params.projectId;
+    const groupedEvaluations = db.$with("grouped_evaluations").as(
+      db
+        .select({
+          groupId: evaluations.groupId,
+          lastEvaluationCreatedAt: sql<Date>`MAX(${evaluations.createdAt})`.as("lastEvaluationCreatedAt"),
+        })
+        .from(evaluations)
+        .where(eq(evaluations.projectId, projectId))
+        .groupBy(evaluations.groupId)
+    );
+    const groups = await db
+      .with(groupedEvaluations)
       .select({
-        groupId: evaluations.groupId,
-        lastEvaluationCreatedAt: sql<Date>`MAX(${evaluations.createdAt})`.as("lastEvaluationCreatedAt"),
+        groupId: groupedEvaluations.groupId,
+        lastEvaluationCreatedAt: groupedEvaluations.lastEvaluationCreatedAt,
       })
-      .from(evaluations)
-      .where(eq(evaluations.projectId, projectId))
-      .groupBy(evaluations.groupId)
-  );
-  const groups = await db
-    .with(groupedEvaluations)
-    .select({
-      groupId: groupedEvaluations.groupId,
-      lastEvaluationCreatedAt: groupedEvaluations.lastEvaluationCreatedAt,
-    })
-    .from(groupedEvaluations)
-    .orderBy(desc(groupedEvaluations.lastEvaluationCreatedAt));
-  return NextResponse.json(groups);
+      .from(groupedEvaluations)
+      .orderBy(desc(groupedEvaluations.lastEvaluationCreatedAt));
+    return NextResponse.json(groups);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch evaluation groups" },
+      { status: 500 }
+    );
+  }
 }

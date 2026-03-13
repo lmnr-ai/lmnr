@@ -68,7 +68,8 @@ export default function ManualAddDatapointDialog({ datasetId, onUpdate }: TypeDa
       });
 
       if (res.status != 200) {
-        showError((await res.json())["details"]);
+        const err = await res.json().catch(() => ({}));
+        showError((err as Record<string, string>)["details"] ?? "Failed to add datapoint");
         setIsLoading(false);
         return;
       }

@@ -36,7 +36,7 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
 
       try {
         if (templateId && id) {
-          await fetch(`/api/projects/${projectId}/sql/templates/${templateId}`, {
+          const res = await fetch(`/api/projects/${projectId}/sql/templates/${templateId}`, {
             method: "PUT",
             headers: {
               "Content-Type": "application/json",
@@ -46,8 +46,11 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
               query: query,
             }),
           });
+          if (!res.ok) {
+            throw new Error("Failed to save");
+          }
         }
-      } catch (error) {
+      } catch {
         toast({
           title: "Save failed",
           description: "Failed to save template. Please try again.",
@@ -59,36 +62,43 @@ export default function TemplateEditor({ className }: TemplateEditorProps) {
   );
 
   const handleCreate = useCallback(async () => {
-    const optimisticData: SQLTemplate = {
-      id: v4(),
-      name: "Untitled Query",
-      query: "",
-      createdAt: new Date().toISOString(),
-      projectId: projectId as string,
-    };
+    try {
+      const optimisticData: SQLTemplate = {
+        id: v4(),
+        name: "Untitled Query",
+        query: "",
+        createdAt: new Date().toISOString(),
+        projectId: projectId as string,
+      };
 
-    await mutate<SQLTemplate[]>(
-      `/api/projects/${projectId}/sql/templates`,
-      (currentData = []) => [optimisticData, ...currentData],
-      {
-        revalidate: false,
+      await mutate<SQLTemplate[]>(
+        `/api/projects/${projectId}/sql/templates`,
+        (currentData = []) => [optimisticData, ...currentData],
+        {
+          revalidate: false,
+        }
+      );
+
+      router.push(`/project/${projectId}/sql/${optimisticData.id}`);
+
+      const res = await fetch(`/api/projects/${projectId}/sql/templates`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: optimisticData.id,
+          name: `Untitled Query`,
+          query: optimisticData.query,
+        }),
+      });
+      if (!res.ok) {
+        toast({ variant: "destructive", title: "Error", description: "Failed to create query" });
       }
-    );
-
-    router.push(`/project/${projectId}/sql/${optimisticData.id}`);
-
-    await fetch(`/api/projects/${projectId}/sql/templates`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        id: optimisticData.id,
-        name: `Untitled Query`,
-        query: optimisticData.query,
-      }),
-    });
-  }, [mutate, projectId, router]);
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to create query" });
+    }
+  }, [mutate, projectId, router, toast]);
 
   const debouncedAutoSave = useMemo(() => debounce(autoSaveTemplate, 500), [autoSaveTemplate]);
 

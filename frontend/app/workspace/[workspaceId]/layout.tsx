@@ -1,4 +1,5 @@
 import { type Metadata } from "next";
+import { notFound } from "next/navigation";
 import { type PropsWithChildren } from "react";
 
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
@@ -11,7 +12,15 @@ export const metadata: Metadata = {
 
 export default async function WorkspaceLayout(props: PropsWithChildren<{ params: Promise<{ workspaceId: string }> }>) {
   const params = await props.params;
-  const session = await requireWorkspaceAccess(params.workspaceId);
+
+  let session;
+  try {
+    session = await requireWorkspaceAccess(params.workspaceId);
+  } catch (e) {
+    // Re-throw Next.js navigation errors (redirect, notFound)
+    if (e && typeof e === "object" && "digest" in e) throw e;
+    return notFound();
+  }
 
   return (
     <UserContextProvider user={session.user}>

@@ -6,20 +6,27 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ projectId: string; datasetId: string; idx: string }> }
 ) {
-  const { projectId, datasetId, idx } = await params;
+  try {
+    const { projectId, datasetId, idx } = await params;
 
-  const { stream, fileName, contentLength } = await streamParquet(projectId, datasetId, parseInt(idx));
+    const { stream, fileName, contentLength } = await streamParquet(projectId, datasetId, parseInt(idx));
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/octet-stream",
-    "Content-Disposition": `attachment; filename="${fileName}"`,
-    "Cache-Control": "no-cache",
-  };
+    const headers: Record<string, string> = {
+      "Content-Type": "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Cache-Control": "no-cache",
+    };
 
-  // Add Content-Length if available for better streaming behavior
-  if (contentLength) {
-    headers["Content-Length"] = contentLength.toString();
+    // Add Content-Length if available for better streaming behavior
+    if (contentLength) {
+      headers["Content-Length"] = contentLength.toString();
+    }
+
+    return new Response(stream, { headers });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to stream parquet file" },
+      { status: 500 }
+    );
   }
-
-  return new Response(stream, { headers });
 }

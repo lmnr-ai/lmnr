@@ -9,15 +9,22 @@ export async function GET(
   req: Request,
   props: { params: Promise<{ projectId: string; datasetId: string }> }
 ): Promise<Response> {
-  const params = await props.params;
-  const projectId = params.projectId;
-  const datasetId = params.datasetId;
+  try {
+    const params = await props.params;
+    const projectId = params.projectId;
+    const datasetId = params.datasetId;
 
-  const dataset = await db.query.datasets.findFirst({
-    where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
-  });
+    const dataset = await db.query.datasets.findFirst({
+      where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
+    });
 
-  return new Response(JSON.stringify(dataset), { status: 200 });
+    return new Response(JSON.stringify(dataset), { status: 200 });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch dataset" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function PATCH(

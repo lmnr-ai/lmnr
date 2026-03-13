@@ -44,12 +44,16 @@ const TagsContextProvider = ({ children, spanId }: PropsWithChildren<{ spanId: s
     const tagClassNames = new Set(tagClasses.map((tc) => tc.name));
     const newTags = tags.filter((tag) => !tagClassNames.has(tag.name));
     for (const tag of newTags) {
-      await fetch(`/api/projects/${params?.projectId}/tag-classes/${tag.name}`, {
-        method: "POST",
-        body: JSON.stringify({
-          color: tag.color,
-        }),
-      });
+      try {
+        await fetch(`/api/projects/${params?.projectId}/tag-classes/${tag.name}`, {
+          method: "POST",
+          body: JSON.stringify({
+            color: tag.color,
+          }),
+        });
+      } catch {
+        // Silently continue - tag class creation is best-effort
+      }
     }
     if (newTags.length > 0) {
       mutateTagClass();

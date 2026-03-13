@@ -36,7 +36,7 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
 
     setIsLoading(true);
     try {
-      await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+      const res = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
         method: "PUT",
         body: JSON.stringify({
           query,
@@ -44,6 +44,10 @@ const ExportChartDialog = ({ children }: PropsWithChildren) => {
           config: chartConfig,
         }),
       });
+
+      if (!res.ok) {
+        throw new Error("Failed to export chart");
+      }
 
       setOpen(false);
       toast({

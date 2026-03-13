@@ -6,7 +6,12 @@ import LandingHeader from "@/components/landing/header";
 import { authOptions } from "@/lib/auth";
 
 export default async function BlogLayout({ children }: PropsWithChildren) {
-  const session = await getServerSession(authOptions);
+  let session: Awaited<ReturnType<typeof getServerSession>> = null;
+  try {
+    session = await getServerSession(authOptions);
+  } catch {
+    // Session fetch failed - continue without session
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-landing-surface-800">

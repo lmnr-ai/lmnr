@@ -1,6 +1,7 @@
 import "@/app/globals.css";
 
 import { cookies } from "next/headers";
+import { notFound } from "next/navigation";
 import { type ReactNode } from "react";
 
 import PostHogClient from "@/app/posthog";
@@ -25,12 +26,29 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const { children } = props;
 
   const projectId = params.projectId;
-  const session = await requireProjectAccess(projectId);
-  const projectDetails = await getProjectDetails(projectId);
+
+  let session;
+  try {
+    session = await requireProjectAccess(projectId);
+  } catch (e) {
+    // Re-throw Next.js navigation errors (redirect, notFound)
+    if (e && typeof e === "object" && "digest" in e) throw e;
+    return notFound();
+  }
+
+  let projectDetails;
+  let workspace;
+  let projects;
+  try {
+    projectDetails = await getProjectDetails(projectId);
+    workspace = await getWorkspaceInfo(projectDetails.workspaceId);
+    projects = await getProjectsByWorkspace(projectDetails.workspaceId);
+  } catch (e) {
+    if (e && typeof e === "object" && "digest" in e) throw e;
+    return notFound();
+  }
 
   const user = session?.user;
-  const workspace = await getWorkspaceInfo(projectDetails.workspaceId);
-  const projects = await getProjectsByWorkspace(projectDetails.workspaceId);
   const showBanner =
     isFeatureEnabled(Feature.SUBSCRIPTION) &&
     projectDetails.isFreeTier &&

@@ -68,9 +68,12 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
   };
 
   const deleteTag = async (tag: SpanTag) => {
-    await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags/${tag.id}`, {
+    const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags/${tag.id}`, {
       method: "DELETE",
     });
+    if (!res.ok) {
+      throw new Error("Failed to remove tag");
+    }
     return [tag];
   };
 

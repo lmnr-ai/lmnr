@@ -27,25 +27,35 @@ export default function RenameProject() {
   const renameProject = async () => {
     setIsLoading(true);
 
-    const res = await fetch(`/api/projects/${projectId}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: newProjectName,
-      }),
-    });
-
-    if (res.ok) {
-      toast({
-        title: "Project Renamed",
-        description: `Project renamed successfully!.`,
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newProjectName,
+        }),
       });
-      router.refresh();
-      setIsRenameDialogOpen(false);
-    } else {
+
+      if (res.ok) {
+        toast({
+          title: "Project Renamed",
+          description: "Project renamed successfully!",
+        });
+        router.refresh();
+        setIsRenameDialogOpen(false);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: (err as { error?: string }).error ?? "Something went wrong. Please try again later.",
+        });
+      }
+    } catch {
       toast({
+        variant: "destructive",
         title: "Error",
         description: "Something went wrong. Please try again later.",
       });

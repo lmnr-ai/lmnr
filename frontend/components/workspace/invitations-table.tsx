@@ -27,20 +27,12 @@ const InvitationsTable = ({ workspaceId, invitations }: InvitationsTableProps) =
       });
 
       if (!response.ok) {
-        const text = await response.json();
-        if (text) {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: text,
-          });
-        } else {
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Failed to revoke invitation. Please try again.",
-          });
-        }
+        const err = await response.json().catch(() => null);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: (err as { error?: string })?.error ?? "Failed to revoke invitation. Please try again.",
+        });
         return;
       }
 

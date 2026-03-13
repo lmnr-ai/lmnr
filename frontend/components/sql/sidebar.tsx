@@ -23,16 +23,24 @@ import { cn } from "@/lib/utils";
 import { type SQLTemplate, useSqlEditorStore } from "./sql-editor-store";
 
 const updateTemplate = async (projectId: string, template: SQLTemplate) => {
-  await fetch(`/api/projects/${projectId}/sql/templates/${template.id}`, {
+  const res = await fetch(`/api/projects/${projectId}/sql/templates/${template.id}`, {
     method: "PUT",
     body: JSON.stringify(template),
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? "Failed to update query");
+  }
 };
 
 const deleteTemplate = async (projectId: string, id: string) => {
-  await fetch(`/api/projects/${projectId}/sql/templates/${id}`, {
+  const res = await fetch(`/api/projects/${projectId}/sql/templates/${id}`, {
     method: "DELETE",
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? "Failed to delete query");
+  }
 };
 
 const QueryItem = ({ handleDelete, template }: { template: SQLTemplate; handleDelete: () => void }) => {
@@ -176,36 +184,43 @@ const Sidebar = ({ templates, isLoading }: { templates: SQLTemplate[]; isLoading
   const setCurrentTemplate = useSqlEditorStore((state) => state.setCurrentTemplate);
 
   const handleCreate = useCallback(async () => {
-    const optimisticData: SQLTemplate = {
-      id: v4(),
-      name: "Untitled Query",
-      query: "",
-      createdAt: new Date().toISOString(),
-      projectId: projectId as string,
-    };
+    try {
+      const optimisticData: SQLTemplate = {
+        id: v4(),
+        name: "Untitled Query",
+        query: "",
+        createdAt: new Date().toISOString(),
+        projectId: projectId as string,
+      };
 
-    await mutate<SQLTemplate[]>(
-      `/api/projects/${projectId}/sql/templates`,
-      (currentData = []) => [optimisticData, ...currentData],
-      {
-        revalidate: false,
+      await mutate<SQLTemplate[]>(
+        `/api/projects/${projectId}/sql/templates`,
+        (currentData = []) => [optimisticData, ...currentData],
+        {
+          revalidate: false,
+        }
+      );
+
+      router.push(`/project/${projectId}/sql/${optimisticData.id}`);
+
+      const res = await fetch(`/api/projects/${projectId}/sql/templates`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: optimisticData.id,
+          name: `Untitled Query`,
+          query: optimisticData.query,
+        }),
+      });
+      if (!res.ok) {
+        toast({ variant: "destructive", title: "Error", description: "Failed to create query" });
       }
-    );
-
-    router.push(`/project/${projectId}/sql/${optimisticData.id}`);
-
-    await fetch(`/api/projects/${projectId}/sql/templates`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        id: optimisticData.id,
-        name: `Untitled Query`,
-        query: optimisticData.query,
-      }),
-    });
-  }, [mutate, projectId, router]);
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to create query" });
+    }
+  }, [mutate, projectId, router, toast]);
 
   const handleDelete = useCallback(
     async (template: SQLTemplate) => {

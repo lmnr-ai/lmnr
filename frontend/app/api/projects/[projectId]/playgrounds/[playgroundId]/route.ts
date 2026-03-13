@@ -19,31 +19,38 @@ const updatePlaygroundSchema = z.object({
 });
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string; playgroundId: string }> }) {
-  const params = await props.params;
-  const body = await req.json();
+  try {
+    const params = await props.params;
+    const body = await req.json();
 
-  const parsed = updatePlaygroundSchema.safeParse(body);
+    const parsed = updatePlaygroundSchema.safeParse(body);
 
-  if (!parsed.success) {
-    return new Response(JSON.stringify({ error: parsed.error.issues }), {
-      status: 400,
-    });
+    if (!parsed.success) {
+      return new Response(JSON.stringify({ error: parsed.error.issues }), {
+        status: 400,
+      });
+    }
+
+    const res = await db
+      .update(playgrounds)
+      .set({
+        tools: parsed.data.tools,
+        toolChoice: parsed.data.toolChoice,
+        promptMessages: parsed.data.promptMessages,
+        modelId: parsed.data.modelId,
+        outputSchema: parsed.data.outputSchema ?? null,
+        temperature: parsed.data.temperature,
+        maxTokens: parsed.data.maxTokens,
+        providerOptions: parsed.data.providerOptions,
+      })
+      .where(eq(playgrounds.id, params.playgroundId))
+      .returning();
+
+    return new Response(JSON.stringify(res));
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to update playground" },
+      { status: 500 }
+    );
   }
-
-  const res = await db
-    .update(playgrounds)
-    .set({
-      tools: parsed.data.tools,
-      toolChoice: parsed.data.toolChoice,
-      promptMessages: parsed.data.promptMessages,
-      modelId: parsed.data.modelId,
-      outputSchema: parsed.data.outputSchema ?? null,
-      temperature: parsed.data.temperature,
-      maxTokens: parsed.data.maxTokens,
-      providerOptions: parsed.data.providerOptions,
-    })
-    .where(eq(playgrounds.id, params.playgroundId))
-    .returning();
-
-  return new Response(JSON.stringify(res));
 }
