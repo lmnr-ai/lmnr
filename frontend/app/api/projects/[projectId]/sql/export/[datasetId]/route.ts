@@ -149,6 +149,6 @@ export async function POST(
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (e) {
     console.error(e);
-    return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 }) as unknown as NextResponse;
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
