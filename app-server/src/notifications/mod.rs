@@ -98,6 +98,16 @@ pub async fn push_to_notification_queue(
     Ok(())
 }
 
+/// Derive the notification category from the event name.
+/// Report events are prefixed with "report_"; everything else is an alert.
+fn notification_category(event_name: &str) -> &'static str {
+    if event_name.starts_with("report_") {
+        "report"
+    } else {
+        "alert"
+    }
+}
+
 /// Handler for notifications
 pub struct NotificationHandler {
     pub db: Arc<DB>,
@@ -179,7 +189,7 @@ impl NotificationHandler {
                 id: Uuid::new_v4(),
                 workspace_id: message.workspace_id,
                 project_id: message.project_id,
-                notification_type: message.event_name.clone(),
+                notification_type: notification_category(&message.event_name).to_string(),
                 channel: "slack".to_string(),
                 recipient: channel_id.to_string(),
                 subject: message.event_name.clone(),
@@ -270,7 +280,7 @@ impl NotificationHandler {
                 id: Uuid::new_v4(),
                 workspace_id: message.workspace_id,
                 project_id: message.project_id,
-                notification_type: message.event_name.clone(),
+                notification_type: notification_category(&message.event_name).to_string(),
                 channel: "email".to_string(),
                 recipient: recipient.clone(),
                 subject: email_payload.subject.clone(),
