@@ -196,6 +196,27 @@ export const userSubscriptionTiers = pgTable("user_subscription_tiers", {
   indexChatMessages: bigint("index_chat_messages", { mode: "number" }).default(sql`'0'`),
 });
 
+export const slackIntegrations = pgTable(
+  "slack_integrations",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    token: text().notNull(),
+    teamId: text("team_id").notNull(),
+    teamName: text("team_name"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    nonceHex: text("nonce_hex").notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "slack_integrations_workspace_id_fkey",
+    }),
+    unique("slack_integrations_workspace_id_key").on(table.workspaceId),
+  ]
+);
+
 export const evaluators = pgTable(
   "evaluators",
   {
@@ -256,27 +277,6 @@ export const evaluatorScores = pgTable(
       foreignColumns: [projects.id],
       name: "evaluator_scores_project_id_fkey",
     }).onDelete("cascade"),
-  ]
-);
-
-export const slackIntegrations = pgTable(
-  "slack_integrations",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    token: text().notNull(),
-    teamId: text("team_id").notNull(),
-    teamName: text("team_name"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    nonceHex: text("nonce_hex").notNull(),
-    workspaceId: uuid("workspace_id").notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.workspaceId],
-      foreignColumns: [workspaces.id],
-      name: "slack_integrations_workspace_id_fkey",
-    }).onDelete("cascade"),
-    unique("slack_integrations_workspace_id_key").on(table.workspaceId),
   ]
 );
 
@@ -809,30 +809,6 @@ export const tracesSummaries = pgTable(
   ]
 );
 
-export const slackChannelToEvents = pgTable(
-  "slack_channel_to_events",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    channelId: text("channel_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    eventName: text("event_name").notNull(),
-    integrationId: uuid("integration_id").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.integrationId],
-      foreignColumns: [slackIntegrations.id],
-      name: "slack_channel_to_events_integration_id_fkey",
-    }).onDelete("cascade"),
-    unique("slack_channel_to_events_integration_channel_event_key").on(
-      table.channelId,
-      table.eventName,
-      table.integrationId
-    ),
-  ]
-);
-
 export const reportTargets = pgTable(
   "report_targets",
   {
@@ -1172,7 +1148,7 @@ export const workspaceAddons = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     workspaceId: uuid("workspace_id").notNull(),
-    addonSlug: text("addon-slug").notNull(),
+    addonSlug: text("addon_slug").notNull(),
   },
   (table) => [
     foreignKey({
@@ -1401,7 +1377,6 @@ export const signalTriggers = pgTable(
     value: jsonb().notNull(),
     signalId: uuid("signal_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    clusteringKey: text("clustering_key"),
   },
   (table) => [
     foreignKey({
