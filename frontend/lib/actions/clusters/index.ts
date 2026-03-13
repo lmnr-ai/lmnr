@@ -201,29 +201,18 @@ export async function getClusterEventCounts(
     ${withFillClause}
   `;
 
-  const [clusterRows, unclusteredRows] = await Promise.all([
-    executeQuery<{ cluster_id: string; timestamp: string; count: string }>({
+  const [clusterRows, unclusteredCounts] = await Promise.all([
+    executeQuery<{ cluster_id: string; timestamp: string; count: number }>({
       query: clusterQuery,
       parameters: queryParams,
       projectId,
     }),
-    executeQuery<{ timestamp: string; count: string }>({
+    executeQuery<{ timestamp: string; count: number }>({
       query: unclusteredQuery,
       parameters: queryParams,
       projectId,
     }),
   ]);
 
-  const items: ClusterStatsDataPoint[] = clusterRows.map((row) => ({
-    cluster_id: row.cluster_id,
-    timestamp: row.timestamp,
-    count: parseInt(String(row.count), 10),
-  }));
-
-  const unclusteredCounts: TimeSeriesDataPoint[] = unclusteredRows.map((row) => ({
-    timestamp: row.timestamp,
-    count: parseInt(String(row.count), 10),
-  }));
-
-  return { items, unclusteredCounts };
+  return { items: clusterRows, unclusteredCounts };
 }

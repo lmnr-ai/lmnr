@@ -52,7 +52,7 @@ export default function SignalOverviewContent({
         <div className="relative flex-1 min-h-0">
           <div
             onClick={onEditClick}
-            className="absolute inset-0 px-3 py-2 rounded border border-border/50 overflow-hidden cursor-pointer group hover:bg-sidebar-border/50"
+            className="absolute inset-0 px-3 pt-1.5 pb-2 rounded border border-border/50 overflow-hidden cursor-pointer group hover:bg-sidebar-border/50"
           >
             <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-normal">
               {signal.prompt || "No prompt defined"}

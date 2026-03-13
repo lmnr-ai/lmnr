@@ -35,7 +35,7 @@ export default function SignalOverviewTooltip({
         <TooltipContent
           side="bottom"
           align="start"
-          className="w-[800px] p-0 bg-secondary outline outline-sidebar-border shadow-xl shadow-background/80 rounded-lg"
+          className="w-[800px] p-0 bg-secondary outline outline-sidebar-border shadow-lg shadow-background/80 rounded-lg"
         >
           <SignalOverviewContent
             signal={signal}
