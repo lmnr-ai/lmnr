@@ -23,6 +23,20 @@ pub struct ProjectInfo {
     pub name: String,
 }
 
+pub async fn get_workspace_id_for_project(
+    pool: &PgPool,
+    project_id: &Uuid,
+) -> anyhow::Result<Option<Uuid>> {
+    let row = sqlx::query_scalar::<_, Uuid>(
+        "SELECT workspace_id FROM projects WHERE id = $1",
+    )
+    .bind(project_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
+}
+
 pub async fn get_projects_for_workspace(
     pool: &PgPool,
     workspace_id: &Uuid,

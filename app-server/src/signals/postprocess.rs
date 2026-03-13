@@ -30,6 +30,12 @@ pub async fn process_event_notifications_and_clustering(
     let targets =
         db::alert_targets::get_slack_targets_for_event(&db.pool, project_id, &event_name).await?;
 
+    // Resolve workspace_id once for all notifications from this project
+    let workspace_id = db::projects::get_workspace_id_for_project(&db.pool, &project_id)
+        .await
+        .unwrap_or(None)
+        .unwrap_or(Uuid::nil());
+
     for target in targets {
         let payload = EventIdentificationPayload {
             event_name: event_name.to_string(),
@@ -44,7 +50,7 @@ pub async fn process_event_notifications_and_clustering(
             notification_type: NotificationType::Slack,
             event_name: event_name.to_string(),
             payload: serde_json::to_value(SlackMessagePayload::EventIdentification(payload))?,
-            workspace_id: Uuid::nil(),
+            workspace_id,
         };
 
         if let Err(e) =
