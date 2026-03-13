@@ -7,8 +7,8 @@ import useSWR from "swr";
 
 import TimeSeriesChart from "@/components/charts/time-series-chart";
 import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
+import { type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
-import { type EventsStatsDataPoint } from "@/components/signal/store";
 import { Button } from "@/components/ui/button";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Input } from "@/components/ui/input";
@@ -143,7 +143,7 @@ export default function ManageAlertSheet({
     endDate: dateRange.endDate ?? null,
   });
 
-  const { data: eventsStats, isLoading: isLoadingStats } = useSWR<{ items: EventsStatsDataPoint[] }>(
+  const { data: eventsStats, isLoading: isLoadingStats } = useSWR<{ items: TimeSeriesDataPoint[] }>(
     selectedSignal && statsUrl ? statsUrl : null,
     swrFetcher,
     {
