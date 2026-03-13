@@ -20,9 +20,6 @@ export async function GET(
 
     return new Response(JSON.stringify(dataset), { status: 200 });
   } catch (e) {
-    if (e instanceof ZodError) {
-      return new Response(JSON.stringify({ error: prettifyError(e) }), { status: 400 });
-    }
     console.error(e);
     return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 });
   }
