@@ -1,5 +1,5 @@
 {
-  "id": "7b79b3c0-1447-4762-9ecc-ff16e1b925fd",
+  "id": "0b94e105-b55c-4ce4-9dcc-b0516459900a",
   "prevId": "cd6e42e7-7be5-4540-8721-6cf560e6c1dc",
   "version": "7",
   "dialect": "postgresql",
@@ -3539,7 +3539,7 @@
           "tableTo": "workspaces",
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

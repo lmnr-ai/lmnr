@@ -212,7 +212,7 @@ export const slackIntegrations = pgTable(
       columns: [table.workspaceId],
       foreignColumns: [workspaces.id],
       name: "slack_integrations_workspace_id_fkey",
-    }),
+    }).onDelete("cascade"),
     unique("slack_integrations_workspace_id_key").on(table.workspaceId),
   ]
 );
