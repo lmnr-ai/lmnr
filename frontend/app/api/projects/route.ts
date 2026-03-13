@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 
 import { createProject } from "@/lib/actions/projects";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 import { authOptions } from "@/lib/auth";
 
 export const POST = handleRoute(async (req) => {
@@ -9,7 +9,7 @@ export const POST = handleRoute(async (req) => {
   const user = session!.user;
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new HttpError("Unauthorized", 401);
   }
 
   const body = await req.json();

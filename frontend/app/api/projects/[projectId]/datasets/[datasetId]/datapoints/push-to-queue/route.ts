@@ -1,12 +1,12 @@
 import { pushDatapointsToQueue, PushDatapointsToQueueSchema } from "@/lib/actions/datapoints";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const POST = handleRoute<{ projectId: string; datasetId: string }, unknown>(async (req, params) => {
   const body = await req.json();
 
   const result = PushDatapointsToQueueSchema.omit({ projectId: true, datasetId: true }).safeParse(body);
   if (!result.success) {
-    throw new Error("Invalid request body");
+    throw new HttpError("Invalid request body", 400);
   }
 
   const { datapointIds, queueId } = result.data;

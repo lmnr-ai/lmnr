@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { createDatapoints, CreateDatapointsSchema } from "@/lib/actions/datapoints";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
 import { downloadS3ObjectHttp } from "@/lib/s3";
@@ -104,7 +104,7 @@ export const POST = handleRoute<{ projectId: string; datasetId: string }, unknow
   });
 
   if (!dataset) {
-    throw new Error("Dataset not found");
+    throw new HttpError("Dataset not found", 404);
   }
 
   const body = await req.json();
@@ -112,7 +112,7 @@ export const POST = handleRoute<{ projectId: string; datasetId: string }, unknow
   // Validate request body
   const parseResult = CreateDatapointsSchema.safeParse(body);
   if (!parseResult.success) {
-    throw new Error("Invalid request body");
+    throw new HttpError("Invalid request body", 400);
   }
   const { datapoints } = parseResult.data;
 

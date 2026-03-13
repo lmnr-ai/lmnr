@@ -2,7 +2,7 @@ import { prettifyError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { deleteTraces, DeleteTracesSchema, getTraces, GetTracesSchema } from "@/lib/actions/traces";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const GET = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
   const { projectId } = params;
@@ -23,7 +23,7 @@ export const DELETE = handleRoute<{ projectId: string }, unknown>(async (req, pa
   const parseResult = DeleteTracesSchema.safeParse({ projectId, traceIds });
 
   if (!parseResult.success) {
-    throw new Error(prettifyError(parseResult.error));
+    throw new HttpError(prettifyError(parseResult.error), 400);
   }
 
   await deleteTraces(parseResult.data);

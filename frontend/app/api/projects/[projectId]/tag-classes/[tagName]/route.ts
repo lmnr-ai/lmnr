@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { createOrUpdateTagClass } from "@/lib/actions/tags";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 import { db } from "@/lib/db/drizzle";
 import { tagClasses } from "@/lib/db/migrations/schema";
 
@@ -21,7 +21,7 @@ export const DELETE = handleRoute<{ projectId: string; tagName: string }, unknow
     .returning();
 
   if (affectedRows.length === 0) {
-    throw new Error("Tag class not found");
+    throw new HttpError("Tag class not found", 404);
   }
 
   return { success: true };

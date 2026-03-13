@@ -1,5 +1,5 @@
 import { getEvaluationCellValue } from "@/lib/actions/evaluation";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const GET = handleRoute<{ projectId: string; evaluationId: string }, unknown>(async (req, params) => {
   const { projectId, evaluationId } = params;
@@ -9,7 +9,7 @@ export const GET = handleRoute<{ projectId: string; evaluationId: string }, unkn
   const column = url.searchParams.get("column");
 
   if (!datapointId || !column) {
-    throw new Error("datapointId and column are required");
+    throw new HttpError("datapointId and column are required", 400);
   }
 
   const value = await getEvaluationCellValue({

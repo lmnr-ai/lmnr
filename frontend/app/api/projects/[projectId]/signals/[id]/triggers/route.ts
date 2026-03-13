@@ -6,7 +6,7 @@ import {
   GetSignalTriggersSchema,
   updateSignalTrigger,
 } from "@/lib/actions/signal-triggers";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const GET = handleRoute(async (req, { projectId, id: signalId }) => {
   const url = new URL(req.url);
@@ -41,7 +41,7 @@ export const PUT = handleRoute(async (req, { projectId, id: signalId }) => {
   });
 
   if (!result) {
-    throw new Error("Trigger not found");
+    throw new HttpError("Trigger not found", 404);
   }
 
   return result;

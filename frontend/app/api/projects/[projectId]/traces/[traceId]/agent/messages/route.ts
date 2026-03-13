@@ -7,7 +7,7 @@ import {
   GetChatMessagesSchema,
   saveChatMessage,
 } from "@/lib/actions/trace/agent/messages";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const GET = handleRoute<{ projectId: string; traceId: string }, unknown>(async (_req, params) => {
   const { projectId, traceId } = params;
@@ -18,7 +18,7 @@ export const GET = handleRoute<{ projectId: string; traceId: string }, unknown>(
   });
 
   if (!parseResult.success) {
-    throw new Error(prettifyError(parseResult.error));
+    throw new HttpError(prettifyError(parseResult.error), 400);
   }
 
   return await getChatMessages(parseResult.data);
@@ -46,7 +46,7 @@ export const POST = handleRoute<{ projectId: string; traceId: string }, unknown>
   const parseResult = SaveMessageSchema.safeParse(body);
 
   if (!parseResult.success) {
-    throw new Error(prettifyError(parseResult.error));
+    throw new HttpError(prettifyError(parseResult.error), 400);
   }
 
   const { role, parts, messageId } = parseResult.data;

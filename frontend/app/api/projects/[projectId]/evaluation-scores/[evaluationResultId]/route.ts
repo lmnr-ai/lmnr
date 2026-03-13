@@ -1,5 +1,5 @@
 import { getEvaluationScore, updateEvaluationScore } from "@/lib/actions/evaluation-score";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const GET = handleRoute<{ projectId: string; evaluationResultId: string }, unknown>(async (req, params) => {
   const { evaluationResultId, projectId } = params;
@@ -8,7 +8,7 @@ export const GET = handleRoute<{ projectId: string; evaluationResultId: string }
   const name = url.searchParams.get("name");
 
   if (!name) {
-    throw new Error("Score name is required");
+    throw new HttpError("Score name is required", 400);
   }
 
   return await getEvaluationScore({

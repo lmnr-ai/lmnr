@@ -4,7 +4,7 @@ import { PaginationSchema, SortSchema } from "@/lib/actions/common/types";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { EvalFilterSchema, type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { getSharedEvaluationDatapoints } from "@/lib/actions/shared/evaluation";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 const SharedEvaluationDatapointsSchema = z.object({
   ...PaginationSchema.shape,
@@ -73,7 +73,7 @@ export const GET = handleRoute<{ evaluationId: string }, unknown>(async (req, { 
   });
 
   if (!result) {
-    throw new Error("Evaluation not found or not public");
+    throw new HttpError("Evaluation not found or not public", 404);
   }
 
   return result;

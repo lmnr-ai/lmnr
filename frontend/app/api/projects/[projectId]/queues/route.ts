@@ -1,6 +1,6 @@
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createQueue, deleteQueues, getQueues, GetQueuesSchema } from "@/lib/actions/queues";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
   const body = await req.json();
@@ -31,7 +31,7 @@ export const DELETE = handleRoute<{ projectId: string }, unknown>(async (req, pa
   const queueIds = searchParams.get("queueIds")?.split(",");
 
   if (!queueIds) {
-    throw new Error("At least one Queue ID is required");
+    throw new HttpError("At least one Queue ID is required", 400);
   }
 
   await deleteQueues({

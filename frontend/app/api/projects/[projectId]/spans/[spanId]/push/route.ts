@@ -1,5 +1,5 @@
 import { PushSpanSchema, pushSpanToLabelingQueue } from "@/lib/actions/span";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const POST = handleRoute<{ projectId: string; spanId: string }, unknown>(async (req, params) => {
   const { projectId, spanId } = params;
@@ -13,7 +13,7 @@ export const POST = handleRoute<{ projectId: string; spanId: string }, unknown>(
   });
 
   if (!result.success) {
-    throw new Error("Invalid request body");
+    throw new HttpError("Invalid request body", 400);
   }
 
   await pushSpanToLabelingQueue(result.data);

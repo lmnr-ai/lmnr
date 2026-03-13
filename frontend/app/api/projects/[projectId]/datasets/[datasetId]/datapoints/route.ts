@@ -1,5 +1,5 @@
 import { createDatapoints, CreateDatapointsSchema, deleteDatapoints, getDatapoints } from "@/lib/actions/datapoints";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const GET = handleRoute<{ projectId: string; datasetId: string }, unknown>(async (req, params) => {
   const { searchParams } = new URL(req.url);
@@ -20,7 +20,7 @@ export const POST = handleRoute<{ projectId: string; datasetId: string }, unknow
   // Validate request body
   const parseResult = CreateDatapointsSchema.safeParse(body);
   if (!parseResult.success) {
-    throw new Error("Invalid request body");
+    throw new HttpError("Invalid request body", 400);
   }
 
   const { datapoints, sourceSpanId } = parseResult.data;
@@ -41,7 +41,7 @@ export const DELETE = handleRoute<{ projectId: string; datasetId: string }, unkn
   const datapointIds = body.datapointIds;
 
   if (!datapointIds) {
-    throw new Error("At least one Datapoint ID is required");
+    throw new HttpError("At least one Datapoint ID is required", 400);
   }
 
   await deleteDatapoints({

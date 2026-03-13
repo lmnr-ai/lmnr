@@ -1,5 +1,5 @@
 import { getTrace, updateTraceVisibility } from "@/lib/actions/trace";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const GET = handleRoute<{ projectId: string; traceId: string }, unknown>(async (_req, params) => {
   const { projectId, traceId } = params;
@@ -7,7 +7,7 @@ export const GET = handleRoute<{ projectId: string; traceId: string }, unknown>(
   const trace = await getTrace({ traceId, projectId });
 
   if (!trace) {
-    throw new Error("Trace not found");
+    throw new HttpError("Trace not found", 404);
   }
 
   return trace;

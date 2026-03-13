@@ -6,7 +6,7 @@ import {
   RenameEvaluationSchema,
 } from "@/lib/actions/evaluation";
 import { updateEvaluationVisibility } from "@/lib/actions/evaluation/visibility";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const GET = handleRoute<{ projectId: string; evaluationId: string }, unknown>(async (req, params) => {
   const { projectId, evaluationId } = params;
@@ -51,7 +51,7 @@ export const PUT = handleRoute<{ projectId: string; evaluationId: string }, unkn
   const { visibility } = body;
 
   if (visibility !== "public" && visibility !== "private") {
-    throw new Error("visibility must be 'public' or 'private'");
+    throw new HttpError("visibility must be 'public' or 'private'", 400);
   }
 
   await updateEvaluationVisibility({ evaluationId, projectId, visibility });

@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { EvalFilterSchema } from "@/lib/actions/evaluation/query-builder";
 import { getSharedEvaluationStatistics } from "@/lib/actions/shared/evaluation";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 const SharedEvaluationStatisticsSchema = z.object({
   filter: z
@@ -46,7 +46,7 @@ export const GET = handleRoute<{ evaluationId: string }, unknown>(async (req, { 
   });
 
   if (!result) {
-    throw new Error("Evaluation not found or not public");
+    throw new HttpError("Evaluation not found or not public", 404);
   }
 
   return result;

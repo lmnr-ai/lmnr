@@ -1,6 +1,6 @@
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createPlayground, deletePlaygrounds, getPlaygrounds, GetPlaygroundsSchema } from "@/lib/actions/playgrounds";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const GET = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
   const { searchParams } = new URL(req.url);
@@ -31,7 +31,7 @@ export const DELETE = handleRoute<{ projectId: string }, unknown>(async (req, pa
   const playgroundIds = searchParams.get("playgroundIds")?.split(",").filter(Boolean);
 
   if (!playgroundIds) {
-    throw new Error("At least one playground id is required");
+    throw new HttpError("At least one playground id is required", 400);
   }
 
   await deletePlaygrounds({

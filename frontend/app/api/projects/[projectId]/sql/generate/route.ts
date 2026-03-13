@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 
 import { generateSql } from "@/lib/actions/sql";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 const GenerateSchema = z.object({
   prompt: z.string().min(1, "Prompt is required"),
@@ -16,7 +16,7 @@ export const POST = handleRoute<{ projectId: string }, unknown>(async (req, _par
   const result = await generateSql(prompt, mode, currentQuery);
 
   if (!result.success) {
-    throw new Error(result.error);
+    throw new HttpError(result.error, 400);
   }
 
   return { query: result.result };

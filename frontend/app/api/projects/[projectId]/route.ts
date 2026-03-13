@@ -1,12 +1,12 @@
 import { deleteProject, updateProject, UpdateProjectSchema } from "@/lib/actions/project";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const POST = handleRoute<{ projectId: string }, { message: string }>(async (req, { projectId }) => {
   const { name } = await req.json();
   const result = UpdateProjectSchema.safeParse({ name, projectId });
 
   if (!result.success) {
-    throw new Error("Invalid request body");
+    throw new HttpError("Invalid request body", 400);
   }
 
   await updateProject({ projectId, name });

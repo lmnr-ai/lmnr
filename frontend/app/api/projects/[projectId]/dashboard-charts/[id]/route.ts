@@ -1,5 +1,5 @@
 import { deleteDashboardChart, getChart, updateChart, updateChartName } from "@/lib/actions/dashboard";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const GET = handleRoute<{ projectId: string; id: string }, unknown>(async (_req, params) => {
   const { projectId, id } = params;
@@ -7,7 +7,7 @@ export const GET = handleRoute<{ projectId: string; id: string }, unknown>(async
   const chart = await getChart({ projectId, id });
 
   if (!chart) {
-    throw new Error("Chart not found");
+    throw new HttpError("Chart not found", 404);
   }
 
   return chart;

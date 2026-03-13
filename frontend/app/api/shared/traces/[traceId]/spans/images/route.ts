@@ -1,5 +1,5 @@
 import { getSharedSpanImages } from "@/lib/actions/shared/spans/images";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const POST = handleRoute<{ traceId: string }, { images: Awaited<ReturnType<typeof getSharedSpanImages>> }>(
   async (req, { traceId }) => {
@@ -7,7 +7,7 @@ export const POST = handleRoute<{ traceId: string }, { images: Awaited<ReturnTyp
     const { spanIds } = body;
 
     if (!Array.isArray(spanIds)) {
-      throw new Error("spanIds must be an array");
+      throw new HttpError("spanIds must be an array", 400);
     }
 
     const images = await getSharedSpanImages({ traceId, spanIds });

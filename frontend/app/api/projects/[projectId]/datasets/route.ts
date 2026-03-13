@@ -1,6 +1,6 @@
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { createDataset, deleteDatasets, getDatasets, getDatasetsSchema } from "@/lib/actions/datasets";
-import { handleRoute } from "@/lib/api/route-handler";
+import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
   const body = await req.json();
@@ -29,7 +29,7 @@ export const DELETE = handleRoute<{ projectId: string }, unknown>(async (req, pa
   const datasetIds = searchParams.get("datasetIds")?.split(",");
 
   if (!datasetIds) {
-    throw new Error("At least one Dataset ID is required");
+    throw new HttpError("At least one Dataset ID is required", 400);
   }
 
   await deleteDatasets({ projectId: params.projectId, datasetIds });
