@@ -18,9 +18,30 @@ pub struct EventIdentificationPayload {
     pub integration_id: Uuid,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ReportSummaryPayload {
+    pub workspace_name: String,
+    pub report_name: String,
+    pub period_start: String,
+    pub period_end: String,
+    /// Per-project summary lines: "project_name: ai_summary"
+    pub project_summaries: Vec<ProjectSlackSummary>,
+    pub total_events: u64,
+    pub channel_id: String,
+    pub integration_id: Uuid,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProjectSlackSummary {
+    pub project_name: String,
+    pub ai_summary: String,
+    pub event_count: u64,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum SlackMessagePayload {
     EventIdentification(EventIdentificationPayload),
+    ReportSummary(ReportSummaryPayload),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -149,6 +170,48 @@ fn format_event_identification_blocks(
     ])
 }
 
+fn format_report_summary_blocks(payload: &ReportSummaryPayload) -> serde_json::Value {
+    let mut blocks = vec![
+        json!({
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": format!("{} – {}", payload.report_name, payload.workspace_name),
+                "emoji": true
+            }
+        }),
+        json!({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!(
+                    "*Period:* {} – {}\n*Total events:* {}",
+                    payload.period_start, payload.period_end, payload.total_events
+                )
+            }
+        }),
+        json!({ "type": "divider" }),
+    ];
+
+    for project in &payload.project_summaries {
+        let summary_text = if project.ai_summary.is_empty() {
+            format!("_{} events_", project.event_count)
+        } else {
+            format!("_{} events_ — {}", project.event_count, project.ai_summary)
+        };
+
+        blocks.push(json!({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!("*{}*\n{}", project.project_name, summary_text)
+            }
+        }));
+    }
+
+    json!(blocks)
+}
+
 pub fn format_message_blocks(
     payload: &SlackMessagePayload,
     project_id: &str,
@@ -164,12 +227,16 @@ pub fn format_message_blocks(
                 event_payload.extracted_information.clone(),
             )
         }
+        SlackMessagePayload::ReportSummary(report_payload) => {
+            format_report_summary_blocks(report_payload)
+        }
     }
 }
 
 pub fn get_channel_id(payload: &SlackMessagePayload) -> &str {
     match payload {
         SlackMessagePayload::EventIdentification(event_payload) => &event_payload.channel_id,
+        SlackMessagePayload::ReportSummary(report_payload) => &report_payload.channel_id,
     }
 }
 

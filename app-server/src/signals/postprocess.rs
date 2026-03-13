@@ -44,6 +44,7 @@ pub async fn process_event_notifications_and_clustering(
             notification_type: NotificationType::Slack,
             event_name: event_name.to_string(),
             payload: serde_json::to_value(SlackMessagePayload::EventIdentification(payload))?,
+            workspace_id: Uuid::nil(),
         };
 
         if let Err(e) =

@@ -12,17 +12,39 @@ import {
   type ReportWithDetails,
 } from "./types";
 
-const OptInSchema = z.object({
+const EmailOptInSchema = z.object({
   reportId: z.uuid(),
   workspaceId: z.uuid(),
+  email: z.email(),
+  targetType: z.literal(REPORT_TARGET_TYPE.EMAIL),
+});
+
+const SlackOptInSchema = z.object({
+  reportId: z.uuid(),
+  workspaceId: z.uuid(),
+  targetType: z.literal(REPORT_TARGET_TYPE.SLACK),
+  integrationId: z.uuid(),
+  channelId: z.string().min(1),
+  channelName: z.string(),
+});
+
+const OptInSchema = z.discriminatedUnion("targetType", [EmailOptInSchema, SlackOptInSchema]);
+
+const EmailOptOutSchema = z.object({
+  reportId: z.uuid(),
+  workspaceId: z.uuid(),
+  targetType: z.literal(REPORT_TARGET_TYPE.EMAIL),
   email: z.email(),
 });
 
-const OptOutSchema = z.object({
+const SlackOptOutSchema = z.object({
   reportId: z.uuid(),
   workspaceId: z.uuid(),
-  email: z.email(),
+  targetType: z.literal(REPORT_TARGET_TYPE.SLACK),
+  channelId: z.string().min(1),
 });
+
+const OptOutSchema = z.discriminatedUnion("targetType", [EmailOptOutSchema, SlackOptOutSchema]);
 
 export async function getReports(workspaceId: string): Promise<ReportWithDetails[]> {
   const reportRows = await db
@@ -80,46 +102,91 @@ export async function getReports(workspaceId: string): Promise<ReportWithDetails
 }
 
 export async function optInReport(input: z.infer<typeof OptInSchema>) {
-  const { reportId, workspaceId, email } = OptInSchema.parse(input);
+  const parsed = OptInSchema.parse(input);
 
-  const existing = await db
-    .select({ id: reportTargets.id })
-    .from(reportTargets)
-    .where(
-      and(
-        eq(reportTargets.reportId, reportId),
-        eq(reportTargets.workspaceId, workspaceId),
-        eq(reportTargets.email, email)
+  if (parsed.targetType === REPORT_TARGET_TYPE.EMAIL) {
+    const { reportId, workspaceId, email } = parsed;
+
+    const existing = await db
+      .select({ id: reportTargets.id })
+      .from(reportTargets)
+      .where(
+        and(
+          eq(reportTargets.reportId, reportId),
+          eq(reportTargets.workspaceId, workspaceId),
+          eq(reportTargets.type, REPORT_TARGET_TYPE.EMAIL),
+          eq(reportTargets.email, email)
+        )
       )
-    )
-    .limit(1);
+      .limit(1);
 
-  if (existing.length > 0) {
-    return { success: true, alreadySubscribed: true };
+    if (existing.length > 0) {
+      return { success: true, alreadySubscribed: true };
+    }
+
+    await db.insert(reportTargets).values({
+      workspaceId,
+      reportId,
+      type: REPORT_TARGET_TYPE.EMAIL,
+      email,
+    });
+  } else {
+    const { reportId, workspaceId, integrationId, channelId, channelName } = parsed;
+
+    // Remove existing Slack targets for this report (only one Slack channel per report)
+    await db
+      .delete(reportTargets)
+      .where(
+        and(
+          eq(reportTargets.reportId, reportId),
+          eq(reportTargets.workspaceId, workspaceId),
+          eq(reportTargets.type, REPORT_TARGET_TYPE.SLACK)
+        )
+      );
+
+    await db.insert(reportTargets).values({
+      workspaceId,
+      reportId,
+      type: REPORT_TARGET_TYPE.SLACK,
+      integrationId,
+      channelId,
+      channelName,
+    });
   }
-
-  await db.insert(reportTargets).values({
-    workspaceId,
-    reportId,
-    type: REPORT_TARGET_TYPE.EMAIL,
-    email,
-  });
 
   return { success: true };
 }
 
 export async function optOutReport(input: z.infer<typeof OptOutSchema>) {
-  const { reportId, workspaceId, email } = OptOutSchema.parse(input);
+  const parsed = OptOutSchema.parse(input);
 
-  await db
-    .delete(reportTargets)
-    .where(
-      and(
-        eq(reportTargets.reportId, reportId),
-        eq(reportTargets.workspaceId, workspaceId),
-        eq(reportTargets.email, email)
-      )
-    );
+  if (parsed.targetType === REPORT_TARGET_TYPE.EMAIL) {
+    const { reportId, workspaceId, email } = parsed;
+
+    await db
+      .delete(reportTargets)
+      .where(
+        and(
+          eq(reportTargets.reportId, reportId),
+          eq(reportTargets.workspaceId, workspaceId),
+          eq(reportTargets.type, REPORT_TARGET_TYPE.EMAIL),
+          eq(reportTargets.email, email)
+        )
+      );
+  } else {
+    const { reportId, workspaceId, channelId } = parsed;
+
+    await db
+      .delete(reportTargets)
+      .where(
+        and(
+          eq(reportTargets.reportId, reportId),
+          eq(reportTargets.workspaceId, workspaceId),
+          eq(reportTargets.type, REPORT_TARGET_TYPE.SLACK),
+          eq(reportTargets.channelId, channelId)
+        )
+      );
+  }
 
   return { success: true };
 }

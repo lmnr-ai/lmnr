@@ -73,7 +73,13 @@ export default function WorkspaceComponent({
             slackRedirectUri={slackRedirectUri}
           />
         )}
-        {menu === "reports" && <WorkspaceReports workspaceId={workspace.id} />}
+        {menu === "reports" && (
+          <WorkspaceReports
+            workspaceId={workspace.id}
+            slackClientId={slackClientId}
+            slackRedirectUri={slackRedirectUri}
+          />
+        )}
         {menu === "settings" && <WorkspaceSettings workspace={workspace} isOwner={isOwner} />}
         {featureFlags[Feature.DEPLOYMENT] && menu === "deployment" && <WorkspaceDeployment workspace={workspace} />}
       </div>

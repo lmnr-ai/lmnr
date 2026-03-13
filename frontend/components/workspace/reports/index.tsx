@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 
 import { SettingsSectionHeader } from "@/components/settings/settings-section";
+import SlackConnectionCard, { useSlackIntegration } from "@/components/slack/slack-connection-card";
 import { useUserContext } from "@/contexts/user-context";
 import { REPORT_TARGET_TYPE, type ReportWithDetails } from "@/lib/actions/reports/types";
+import { type SlackChannel } from "@/lib/actions/slack";
 import { useToast } from "@/lib/hooks/use-toast";
 import { swrFetcher } from "@/lib/utils";
 
@@ -13,9 +15,11 @@ import ReportsList from "./reports-list";
 
 interface WorkspaceReportsProps {
   workspaceId: string;
+  slackClientId?: string;
+  slackRedirectUri?: string;
 }
 
-export default function WorkspaceReports({ workspaceId }: WorkspaceReportsProps) {
+export default function WorkspaceReports({ workspaceId, slackClientId, slackRedirectUri }: WorkspaceReportsProps) {
   const { email } = useUserContext();
   const { toast } = useToast();
 
@@ -25,6 +29,13 @@ export default function WorkspaceReports({ workspaceId }: WorkspaceReportsProps)
     mutate,
     error,
   } = useSWR<ReportWithDetails[]>(`/api/workspaces/${workspaceId}/reports`, swrFetcher);
+
+  const { data: slackIntegration } = useSlackIntegration(workspaceId);
+
+  const { data: channels } = useSWR<SlackChannel[]>(
+    slackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
+    swrFetcher
+  );
 
   useEffect(() => {
     if (error) {
@@ -38,19 +49,24 @@ export default function WorkspaceReports({ workspaceId }: WorkspaceReportsProps)
 
   const [togglingReportId, setTogglingReportId] = useState<string | null>(null);
 
-  const isSubscribed = useCallback(
+  const isEmailSubscribed = useCallback(
     (report: ReportWithDetails) => report.targets.some((t) => t.type === REPORT_TARGET_TYPE.EMAIL && t.email === email),
     [email]
   );
 
-  const handleToggle = useCallback(
+  const slackTarget = useCallback(
+    (report: ReportWithDetails) => report.targets.find((t) => t.type === REPORT_TARGET_TYPE.SLACK),
+    []
+  );
+
+  const handleEmailToggle = useCallback(
     async (report: ReportWithDetails, subscribe: boolean) => {
       setTogglingReportId(report.id);
       try {
         const res = await fetch(`/api/workspaces/${workspaceId}/reports`, {
           method: subscribe ? "POST" : "DELETE",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reportId: report.id, email }),
+          body: JSON.stringify({ reportId: report.id, email, targetType: REPORT_TARGET_TYPE.EMAIL }),
         });
 
         if (!res.ok) {
@@ -78,17 +94,110 @@ export default function WorkspaceReports({ workspaceId }: WorkspaceReportsProps)
     [workspaceId, email, mutate, toast]
   );
 
+  const handleSlackSubscribe = useCallback(
+    async (report: ReportWithDetails, channelId: string) => {
+      if (!slackIntegration) return;
+      setTogglingReportId(report.id);
+      try {
+        const channel = channels?.find((ch) => ch.id === channelId);
+        const res = await fetch(`/api/workspaces/${workspaceId}/reports`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reportId: report.id,
+            targetType: REPORT_TARGET_TYPE.SLACK,
+            integrationId: slackIntegration.id,
+            channelId,
+            channelName: channel?.name ?? "",
+          }),
+        });
+
+        if (!res.ok) {
+          const error = (await res.json().catch(() => ({ error: "Failed to update" }))) as { error: string };
+          throw new Error(error?.error ?? "Failed to subscribe to Slack");
+        }
+
+        toast({
+          title: "Slack subscription added",
+          description: `Reports will be sent to #${channel?.name ?? channelId}.`,
+        });
+        await mutate();
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: e instanceof Error ? e.message : "Failed to subscribe to Slack. Please try again.",
+        });
+      } finally {
+        setTogglingReportId(null);
+      }
+    },
+    [workspaceId, slackIntegration, channels, mutate, toast]
+  );
+
+  const handleSlackUnsubscribe = useCallback(
+    async (report: ReportWithDetails) => {
+      setTogglingReportId(report.id);
+      try {
+        const target = slackTarget(report);
+        if (!target) return;
+        const res = await fetch(`/api/workspaces/${workspaceId}/reports`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reportId: report.id,
+            targetType: REPORT_TARGET_TYPE.SLACK,
+            channelId: target.channelId,
+          }),
+        });
+
+        if (!res.ok) {
+          const error = (await res.json().catch(() => ({ error: "Failed to update" }))) as { error: string };
+          throw new Error(error?.error ?? "Failed to unsubscribe from Slack");
+        }
+
+        toast({
+          title: "Slack subscription removed",
+          description: "Reports will no longer be sent to this Slack channel.",
+        });
+        await mutate();
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: e instanceof Error ? e.message : "Failed to unsubscribe from Slack. Please try again.",
+        });
+      } finally {
+        setTogglingReportId(null);
+      }
+    },
+    [workspaceId, slackTarget, mutate, toast]
+  );
+
   return (
     <>
-      <SettingsSectionHeader title="Reports" description="Periodic reports delivered to your email." />
+      <SettingsSectionHeader title="Reports" description="Periodic reports delivered to your email or Slack." />
       <ReportsList
         reports={reports ?? []}
         isLoading={isLoading}
         email={email}
         togglingReportId={togglingReportId}
-        isSubscribed={isSubscribed}
-        onToggle={handleToggle}
+        isEmailSubscribed={isEmailSubscribed}
+        slackTarget={slackTarget}
+        slackIntegration={slackIntegration ?? null}
+        channels={channels ?? []}
+        onEmailToggle={handleEmailToggle}
+        onSlackSubscribe={handleSlackSubscribe}
+        onSlackUnsubscribe={handleSlackUnsubscribe}
       />
+      {!slackIntegration && (
+        <SlackConnectionCard
+          workspaceId={workspaceId}
+          slackClientId={slackClientId}
+          slackRedirectUri={slackRedirectUri}
+          returnPath={`/workspace/${workspaceId}?tab=reports`}
+        />
+      )}
     </>
   );
 }

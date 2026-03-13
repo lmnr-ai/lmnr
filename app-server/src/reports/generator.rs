@@ -15,11 +15,14 @@ use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData, rend
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
-use crate::db::reports::{get_report_target_emails, get_signals_for_workspace};
+use crate::db::reports::{
+    get_report_target_emails, get_report_target_slack_channels, get_signals_for_workspace,
+};
 use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::notifications::{
-    EmailPayload, NotificationMessage, NotificationType, push_to_notification_queue,
+    EmailPayload, NotificationMessage, NotificationType, ProjectSlackSummary,
+    ReportSummaryPayload, SlackMessagePayload, push_to_notification_queue,
 };
 use crate::signals::llm_model;
 use crate::signals::provider::models::{
@@ -240,46 +243,87 @@ async fn process_report_trigger(
 
     let html = render_report_email(&report_data);
 
+    let subject = format!("{} – {}", report_name, workspace_name);
+
     // Get email targets from report_targets table
     let emails = get_report_target_emails(&db.pool, &report_id, &workspace_id)
         .await
         .map_err(|e| HandlerError::transient(e))?;
 
-    if emails.is_empty() {
+    if !emails.is_empty() {
+        let email_payload = EmailPayload {
+            from: REPORT_FROM_EMAIL.to_string(),
+            to: emails,
+            subject: subject.clone(),
+            html,
+            inline_logo: true,
+        };
+
+        let notification_message = NotificationMessage {
+            project_id: Uuid::nil(),
+            trace_id: Uuid::nil(),
+            notification_type: NotificationType::Email,
+            event_name: "report_email".to_string(),
+            payload: serde_json::to_value(email_payload)
+                .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?,
+            workspace_id,
+        };
+
+        push_to_notification_queue(notification_message, queue.clone()).await?;
+
         log::info!(
-            "[Reports Generator] No email targets found for report {} in workspace {}",
-            report_id,
+            "[Reports Generator] Report email notification pushed to queue for workspace {}",
             workspace_id
         );
-        return Ok(());
     }
 
-    let subject = format!("{} – {}", report_name, workspace_name);
+    // Get Slack targets from report_targets table
+    let slack_targets = get_report_target_slack_channels(&db.pool, &report_id, &workspace_id)
+        .await
+        .map_err(|e| HandlerError::transient(e))?;
 
-    // Push email notification to the notification queue
-    let email_payload = EmailPayload {
-        from: REPORT_FROM_EMAIL.to_string(),
-        to: emails,
-        subject,
-        html,
-        inline_logo: true,
-    };
+    if !slack_targets.is_empty() {
+        let project_summaries: Vec<ProjectSlackSummary> = report_data
+            .projects
+            .iter()
+            .map(|p| ProjectSlackSummary {
+                project_name: p.project_name.clone(),
+                ai_summary: p.ai_summary.clone(),
+                event_count: p.signal_event_counts.values().sum(),
+            })
+            .collect();
 
-    let notification_message = NotificationMessage {
-        project_id: Uuid::nil(),
-        trace_id: Uuid::nil(),
-        notification_type: NotificationType::Email,
-        event_name: "report_email".to_string(),
-        payload: serde_json::to_value(email_payload)
-            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?,
-    };
+        for target in &slack_targets {
+            let report_payload = ReportSummaryPayload {
+                workspace_name: workspace_name.clone(),
+                report_name: report_name.clone(),
+                period_start: report_data.period_start.clone(),
+                period_end: report_data.period_end.clone(),
+                project_summaries: project_summaries.clone(),
+                total_events,
+                channel_id: target.channel_id.clone(),
+                integration_id: target.integration_id,
+            };
 
-    push_to_notification_queue(notification_message, queue).await?;
+            let notification_message = NotificationMessage {
+                project_id: Uuid::nil(),
+                trace_id: Uuid::nil(),
+                notification_type: NotificationType::Slack,
+                event_name: "report_slack".to_string(),
+                payload: serde_json::to_value(SlackMessagePayload::ReportSummary(report_payload))
+                    .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?,
+                workspace_id,
+            };
 
-    log::info!(
-        "[Reports Generator] Report email notification pushed to queue for workspace {}",
-        workspace_id
-    );
+            push_to_notification_queue(notification_message, queue.clone()).await?;
+        }
+
+        log::info!(
+            "[Reports Generator] Report Slack notifications pushed to queue for workspace {} ({} channels)",
+            workspace_id,
+            slack_targets.len()
+        );
+    }
 
     Ok(())
 }

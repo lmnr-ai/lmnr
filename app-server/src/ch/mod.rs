@@ -5,6 +5,7 @@ pub mod datapoints;
 pub mod evaluation_datapoints;
 pub mod limits;
 pub mod logs;
+pub mod notification_log;
 pub mod service;
 pub mod signal_events;
 pub mod signal_run_messages;

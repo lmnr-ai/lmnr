@@ -1200,6 +1200,7 @@ fn main() -> anyhow::Result<()> {
                     // Spawn notification workers
                     {
                         let db = db_for_consumer.clone();
+                        let ch = clickhouse_for_consumer.clone();
                         let client = reqwest::Client::new();
                         let resend = resend_client.clone();
 
@@ -1207,7 +1208,7 @@ fn main() -> anyhow::Result<()> {
                             WorkerType::Notifications,
                             num_notification_workers as usize,
                             move || {
-                                NotificationHandler::new(db.clone(), client.clone(), resend.clone())
+                                NotificationHandler::new(db.clone(), ch.clone(), client.clone(), resend.clone())
                             },
                             QueueConfig {
                                 queue_name: NOTIFICATIONS_QUEUE,

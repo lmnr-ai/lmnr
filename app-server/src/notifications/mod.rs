@@ -8,12 +8,15 @@ use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::ch::notification_log::{CHNotificationLog, insert_notification_logs};
 use crate::db::DB;
 use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
 use crate::worker::{HandlerError, MessageHandler};
 
 mod slack;
-pub use slack::{EventIdentificationPayload, SlackMessagePayload};
+pub use slack::{
+    EventIdentificationPayload, ProjectSlackSummary, ReportSummaryPayload, SlackMessagePayload,
+};
 
 pub const NOTIFICATIONS_EXCHANGE: &str = "notifications";
 pub const NOTIFICATIONS_QUEUE: &str = "notifications";
@@ -48,6 +51,8 @@ pub struct NotificationMessage {
     pub notification_type: NotificationType,
     pub event_name: String,
     pub payload: serde_json::Value,
+    #[serde(default)]
+    pub workspace_id: Uuid,
 }
 
 /// Push a notification message to the notification queue.
@@ -96,14 +101,21 @@ pub async fn push_to_notification_queue(
 /// Handler for notifications
 pub struct NotificationHandler {
     pub db: Arc<DB>,
+    pub clickhouse: clickhouse::Client,
     pub slack_client: reqwest::Client,
     pub resend: Option<Arc<Resend>>,
 }
 
 impl NotificationHandler {
-    pub fn new(db: Arc<DB>, slack_client: reqwest::Client, resend: Option<Arc<Resend>>) -> Self {
+    pub fn new(
+        db: Arc<DB>,
+        clickhouse: clickhouse::Client,
+        slack_client: reqwest::Client,
+        resend: Option<Arc<Resend>>,
+    ) -> Self {
         Self {
             db,
+            clickhouse,
             slack_client,
             resend,
         }
@@ -129,6 +141,7 @@ impl NotificationHandler {
 
         let integration_id = match &slack_payload {
             SlackMessagePayload::EventIdentification(payload) => payload.integration_id,
+            SlackMessagePayload::ReportSummary(payload) => payload.integration_id,
         };
 
         let integration =
@@ -153,9 +166,35 @@ impl NotificationHandler {
 
             let channel_id = slack::get_channel_id(&slack_payload);
 
-            slack::send_message(&self.slack_client, &decrypted_token, channel_id, blocks)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
+            let send_result =
+                slack::send_message(&self.slack_client, &decrypted_token, channel_id, blocks.clone())
+                    .await;
+
+            let (status, error_msg) = match &send_result {
+                Ok(()) => ("success".to_string(), String::new()),
+                Err(e) => ("error".to_string(), e.to_string()),
+            };
+
+            let log_entry = CHNotificationLog {
+                id: Uuid::new_v4(),
+                workspace_id: message.workspace_id,
+                project_id: message.project_id,
+                notification_type: message.event_name.clone(),
+                channel: "slack".to_string(),
+                recipient: channel_id.to_string(),
+                subject: message.event_name.clone(),
+                body: serde_json::to_string(&blocks).unwrap_or_default(),
+                event_name: message.event_name.clone(),
+                status,
+                error: error_msg,
+                created_at: CHNotificationLog::now_millis(),
+            };
+
+            if let Err(e) = insert_notification_logs(&self.clickhouse, vec![log_entry]).await {
+                log::warn!("[Notifications] Failed to write Slack notification log to ClickHouse: {:?}", e);
+            }
+
+            send_result.map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
 
             log::debug!(
                 "Successfully sent Slack notification for trace_id={}",
@@ -193,6 +232,7 @@ impl NotificationHandler {
 
         let mut send_failures = 0;
         let total = email_payload.to.len();
+        let mut log_entries = Vec::with_capacity(total);
 
         for recipient in &email_payload.to {
             let mut email = CreateEmailBaseOptions::new(
@@ -211,18 +251,39 @@ impl NotificationHandler {
                 );
             }
 
-            match send_email_with_retry(&resend, email).await {
+            let (status, error_msg) = match send_email_with_retry(&resend, email).await {
                 Ok(response) => {
                     log::info!(
                         "[Notifications] Email sent to recipient. Email ID: {:?}",
                         response.id
                     );
+                    ("success".to_string(), String::new())
                 }
                 Err(e) => {
                     send_failures += 1;
                     log::error!("[Notifications] Failed to send email: {:?}", e);
+                    ("error".to_string(), format!("{:?}", e))
                 }
-            }
+            };
+
+            log_entries.push(CHNotificationLog {
+                id: Uuid::new_v4(),
+                workspace_id: message.workspace_id,
+                project_id: message.project_id,
+                notification_type: message.event_name.clone(),
+                channel: "email".to_string(),
+                recipient: recipient.clone(),
+                subject: email_payload.subject.clone(),
+                body: email_payload.html.clone(),
+                event_name: message.event_name.clone(),
+                status,
+                error: error_msg,
+                created_at: CHNotificationLog::now_millis(),
+            });
+        }
+
+        if let Err(e) = insert_notification_logs(&self.clickhouse, log_entries).await {
+            log::warn!("[Notifications] Failed to write email notification logs to ClickHouse: {:?}", e);
         }
 
         if send_failures == total {
