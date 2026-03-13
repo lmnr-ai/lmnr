@@ -12,12 +12,7 @@ export default async function ManageDashboardPage(props: { params: Promise<{ pro
   const params = await props.params;
 
   if (params.id !== "new") {
-    let chart;
-    try {
-      chart = await getChart(params);
-    } catch {
-      return notFound();
-    }
+    const chart = await getChart(params).catch(() => notFound());
     return <DashboardEditor chart={chart} />;
   }
 

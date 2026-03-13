@@ -31,17 +31,15 @@ export default async function ProjectsPage() {
 
   const user = session.user;
 
-  let workspaceLists;
-  try {
-    workspaceLists = await db
-      .select({ workspaceId: membersOfWorkspaces.workspaceId })
-      .from(membersOfWorkspaces)
-      .innerJoin(workspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
-      .where(eq(membersOfWorkspaces.userId, user.id))
-      .orderBy(desc(workspaces.createdAt));
-  } catch {
-    throw new Error("Failed to load workspaces");
-  }
+  const workspaceLists = await db
+    .select({ workspaceId: membersOfWorkspaces.workspaceId })
+    .from(membersOfWorkspaces)
+    .innerJoin(workspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
+    .where(eq(membersOfWorkspaces.userId, user.id))
+    .orderBy(desc(workspaces.createdAt))
+    .catch(() => {
+      throw new Error("Failed to load workspaces");
+    });
 
   if (workspaceLists.length === 0) {
     return redirect("/onboarding");

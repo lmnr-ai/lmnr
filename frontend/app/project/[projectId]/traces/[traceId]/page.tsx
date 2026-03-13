@@ -8,12 +8,7 @@ export default async function TracePage(props: { params: Promise<{ projectId: st
   const projectId = params.projectId;
   const traceId = params.traceId;
 
-  let trace;
-  try {
-    trace = await getTrace({ projectId, traceId });
-  } catch {
-    return notFound();
-  }
+  const trace = await getTrace({ projectId, traceId }).catch(() => notFound());
 
   if (!trace) {
     return notFound();

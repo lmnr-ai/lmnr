@@ -25,24 +25,19 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
 
   const user = session.user;
 
-  let workspace;
-  try {
-    workspace = await getWorkspace({ workspaceId: params.workspaceId });
-  } catch {
+  const workspace = await getWorkspace({ workspaceId: params.workspaceId }).catch(() => {
     throw new Error("Failed to load workspace");
-  }
+  });
 
-  let userMembership;
-  try {
-    userMembership = await db
-      .select({ role: membersOfWorkspaces.memberRole })
-      .from(membersOfWorkspaces)
-      .where(and(eq(membersOfWorkspaces.userId, user.id), eq(membersOfWorkspaces.workspaceId, params.workspaceId)))
-      .limit(1)
-      .then((res) => res[0]);
-  } catch {
-    throw new Error("Failed to verify workspace access");
-  }
+  const userMembership = await db
+    .select({ role: membersOfWorkspaces.memberRole })
+    .from(membersOfWorkspaces)
+    .where(and(eq(membersOfWorkspaces.userId, user.id), eq(membersOfWorkspaces.workspaceId, params.workspaceId)))
+    .limit(1)
+    .then((res) => res[0])
+    .catch(() => {
+      throw new Error("Failed to verify workspace access");
+    });
 
   if (!userMembership) {
     return notFound();
@@ -51,21 +46,16 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
   const isOwner = userMembership.role === "owner";
   const currentUserRole = userMembership.role || "member";
 
-  let stats;
-  try {
-    stats = await getWorkspaceStats(params.workspaceId);
-  } catch {
+  const stats = await getWorkspaceStats(params.workspaceId).catch(() => {
     throw new Error("Failed to load workspace usage data");
-  }
+  });
 
-  let invitations: WorkspaceInvitation[];
-  try {
-    invitations = (await db.query.workspaceInvitations.findMany({
+  const invitations = await db.query.workspaceInvitations
+    .findMany({
       where: eq(workspaceInvitations.workspaceId, params.workspaceId),
-    })) as WorkspaceInvitation[];
-  } catch {
-    invitations = [];
-  }
+    })
+    .then((res) => res as WorkspaceInvitation[])
+    .catch((): WorkspaceInvitation[] => []);
 
   const canManageBilling = isFeatureEnabled(Feature.SUBSCRIPTION) && ["owner", "admin"].includes(currentUserRole);
 

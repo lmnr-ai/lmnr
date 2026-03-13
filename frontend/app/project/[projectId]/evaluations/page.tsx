@@ -14,12 +14,12 @@ export default async function EvaluationsPage(props: { params: Promise<{ project
   const params = await props.params;
   const projectId = params.projectId;
 
-  let anyInProject = false;
-  try {
-    anyInProject = (await db.$count(evaluations, eq(evaluations.projectId, projectId))) > 0;
-  } catch {
-    throw new Error("Failed to load evaluations");
-  }
+  const anyInProject = await db
+    .$count(evaluations, eq(evaluations.projectId, projectId))
+    .then((count) => count > 0)
+    .catch(() => {
+      throw new Error("Failed to load evaluations");
+    });
 
   if (!anyInProject) {
     return <EvalsPagePlaceholder />;

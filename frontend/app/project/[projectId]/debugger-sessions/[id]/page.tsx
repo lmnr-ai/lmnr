@@ -11,21 +11,13 @@ import {
 export default async function DebuggerSessionPage(props: { params: Promise<{ projectId: string; id: string }> }) {
   const { projectId, id } = await props.params;
 
-  let session;
-  try {
-    session = await getDebuggerSession({ projectId, id });
-  } catch {
+  const session = await getDebuggerSession({ projectId, id }).catch(() => {
     throw new Error("Failed to load debugger session");
-  }
+  });
 
   if (!session) return notFound();
 
-  let trace;
-  try {
-    trace = await getLatestTraceBySessionId({ projectId, sessionId: id });
-  } catch {
-    trace = undefined;
-  }
+  const trace = await getLatestTraceBySessionId({ projectId, sessionId: id }).catch(() => undefined);
 
   return (
     <DebuggerSession

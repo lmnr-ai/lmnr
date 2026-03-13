@@ -27,25 +27,18 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
   const projectId = params.projectId;
   const session = await requireProjectAccess(projectId);
 
-  let projectDetails;
-  try {
-    projectDetails = await getProjectDetails(projectId);
-  } catch {
+  const projectDetails = await getProjectDetails(projectId).catch(() => {
     throw new Error("Failed to load project");
-  }
+  });
 
   const user = session?.user;
 
-  let workspace;
-  let projects;
-  try {
-    [workspace, projects] = await Promise.all([
-      getWorkspaceInfo(projectDetails.workspaceId),
-      getProjectsByWorkspace(projectDetails.workspaceId),
-    ]);
-  } catch {
+  const [workspace, projects] = await Promise.all([
+    getWorkspaceInfo(projectDetails.workspaceId),
+    getProjectsByWorkspace(projectDetails.workspaceId),
+  ]).catch(() => {
     throw new Error("Failed to load project data");
-  }
+  });
   const showBanner =
     isFeatureEnabled(Feature.SUBSCRIPTION) &&
     projectDetails.isFreeTier &&

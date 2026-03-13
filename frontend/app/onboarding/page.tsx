@@ -20,16 +20,14 @@ export default async function OnboardingPage() {
     return redirect("/sign-in?callbackUrl=/onboarding");
   }
 
-  let count = 0;
-  try {
-    const [result] = await db
-      .select({ count: sql`count(*)`.mapWith(Number) })
-      .from(membersOfWorkspaces)
-      .where(eq(membersOfWorkspaces.userId, session.user.id));
-    count = result.count;
-  } catch {
-    throw new Error("Failed to load onboarding data");
-  }
+  const count = await db
+    .select({ count: sql`count(*)`.mapWith(Number) })
+    .from(membersOfWorkspaces)
+    .where(eq(membersOfWorkspaces.userId, session.user.id))
+    .then(([result]) => result.count)
+    .catch(() => {
+      throw new Error("Failed to load onboarding data");
+    });
 
   if (count > 0) {
     // legacy, redirect to projects to later redirect user to first workspace.

@@ -9,23 +9,15 @@ import { EVENTS_TRACE_VIEW_WIDTH } from "@/lib/actions/traces";
 const Layout = async (props: PropsWithChildren<{ params: Promise<{ projectId: string; id: string }> }>) => {
   const { projectId, id } = await props.params;
 
-  let signal: Signal | undefined;
-  try {
-    signal = (await getSignal({ projectId, id })) as Signal | undefined;
-  } catch {
+  const signal = (await getSignal({ projectId, id }).catch(() => {
     throw new Error("Failed to load signal");
-  }
+  })) as Signal | undefined;
 
   if (!signal) {
     return notFound();
   }
 
-  let lastEvent;
-  try {
-    lastEvent = await getLastEvent({ projectId, signalId: signal.id });
-  } catch {
-    lastEvent = undefined;
-  }
+  const lastEvent = await getLastEvent({ projectId, signalId: signal.id }).catch(() => undefined);
 
   const cookieStore = await cookies();
   const traceViewWidthCookie = cookieStore.get(EVENTS_TRACE_VIEW_WIDTH);
