@@ -346,13 +346,13 @@ fn build_summary_tool() -> ProviderTool {
                         "type": "string",
                         "description": "A concise 2-4 sentence summary of the signal events for this project. Highlight the most important trends, notable spikes, and actionable insights. Do not use markdown formatting. Write in plain text only."
                     },
-                    "signal_ids": {
+                    "event_ids": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "Array of signal event IDs (UUIDs) that are particularly interesting or worth investigating. These events will be highlighted in the email report with links to their traces. Select the most noteworthy events that the recipient should review."
+                        "description": "Array of event IDs (UUIDs from [Event ID: ...]) that are particularly interesting or worth investigating. These events will be highlighted in the email report with links to their traces. Select the most noteworthy events that the recipient should review."
                     }
                 },
-                "required": ["summary", "signal_ids"]
+                "required": ["summary", "event_ids"]
             }),
         }],
     }
@@ -471,8 +471,8 @@ async fn generate_project_summary(
                         .trim()
                         .to_string();
 
-                    let signal_ids: Vec<Uuid> = args
-                        .get("signal_ids")
+                    let event_ids: Vec<Uuid> = args
+                        .get("event_ids")
                         .and_then(|v| v.as_array())
                         .map(|arr| {
                             arr.iter()
@@ -482,7 +482,7 @@ async fn generate_project_summary(
                         })
                         .unwrap_or_default();
 
-                    return Ok((summary, signal_ids));
+                    return Ok((summary, event_ids));
                 }
             }
         }
