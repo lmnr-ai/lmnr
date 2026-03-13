@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import { HttpError } from "@/lib/api/route-handler";
 import { db } from "@/lib/db/drizzle";
 import { customModelCosts } from "@/lib/db/migrations/schema";
 
@@ -62,9 +63,9 @@ export async function getCustomModelCosts(
   return rows as CustomModelCost[];
 }
 
-export class DuplicateModelCostError extends Error {
+export class DuplicateModelCostError extends HttpError {
   constructor() {
-    super("A cost entry for this provider and model already exists");
+    super("A cost entry for this provider and model already exists", 409);
     this.name = "DuplicateModelCostError";
   }
 }
