@@ -1,43 +1,81 @@
+import { type NextRequest } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
+
 import { createEvaluator, deleteEvaluators, getEvaluators, GetEvaluatorsSchema } from "@/lib/actions/evaluators";
-import { handleRoute } from "@/lib/api/route-handler";
 
-export const GET = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
-  const { projectId } = params;
-  const url = new URL(req.url);
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  try {
+    const params = await props.params;
 
-  const pageSize = url.searchParams.get("pageSize");
-  const pageNumber = url.searchParams.get("pageNumber");
+    const { projectId } = params;
 
-  const parseResult = GetEvaluatorsSchema.safeParse({
-    pageNumber,
-    pageSize,
-    projectId,
-  });
+    const pageSize = req.nextUrl.searchParams.get("pageSize");
+    const pageNumber = req.nextUrl.searchParams.get("pageNumber");
 
-  if (!parseResult.success) {
-    throw parseResult.error;
+    const parseResult = GetEvaluatorsSchema.safeParse({
+      pageNumber,
+      pageSize,
+      projectId,
+    });
+
+    if (!parseResult.success) {
+      return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    }
+    const result = await getEvaluators(parseResult.data);
+
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to get evaluators" },
+      { status: 500 }
+    );
   }
+}
 
-  return await getEvaluators(parseResult.data);
-});
+export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  try {
+    const { projectId } = await props.params;
 
-export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
-  const { projectId } = params;
-  const body = await req.json();
+    const body = await req.json();
 
-  return await createEvaluator({
-    ...body,
-    projectId,
-  });
-});
+    const evaluator = await createEvaluator({
+      ...body,
+      projectId,
+    });
 
-export const DELETE = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
-  const { projectId } = params;
-  const url = new URL(req.url);
+    return Response.json(evaluator);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
 
-  const evaluatorIds = url.searchParams.getAll("id");
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to  create evaluator." },
+      { status: 500 }
+    );
+  }
+}
 
-  await deleteEvaluators({ evaluatorIds, projectId });
+export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  try {
+    const { projectId } = await props.params;
 
-  return { message: "Evaluators deleted successfully" };
-});
+    const evaluatorIds = req.nextUrl.searchParams.getAll("id");
+
+    await deleteEvaluators({ evaluatorIds, projectId });
+
+    return Response.json({ message: "Evaluators deleted successfully" });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to delete evaluators." },
+      { status: 500 }
+    );
+  }
+}

@@ -1,13 +1,20 @@
-import { handleRoute } from "@/lib/api/route-handler";
+import { type NextRequest, NextResponse } from "next/server";
+
 import { getEvaluationTimeProgression } from "@/lib/clickhouse/evaluation-scores";
 import { type AggregationFunction } from "@/lib/clickhouse/types";
 
-export const POST = handleRoute<{ projectId: string; groupId: string }, unknown>(async (req, params) => {
+export const POST = async (
+  request: NextRequest,
+  props: { params: Promise<{ projectId: string; groupId: string }> }
+) => {
+  const params = await props.params;
   const { projectId, groupId } = params;
 
-  const body = (await req.json()) as { ids?: string[]; aggregate?: string };
+  const body = (await request.json()) as { ids?: string[]; aggregate?: string };
   const ids = body.ids ?? [];
   const aggregationFunction = (body.aggregate ?? "AVG") as AggregationFunction;
 
-  return await getEvaluationTimeProgression(projectId, groupId, aggregationFunction, ids);
-});
+  const progression = await getEvaluationTimeProgression(projectId, groupId, aggregationFunction, ids);
+
+  return NextResponse.json(progression);
+};

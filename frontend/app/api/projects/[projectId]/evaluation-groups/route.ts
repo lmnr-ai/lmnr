@@ -1,12 +1,12 @@
 import { desc, eq, sql } from "drizzle-orm";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { handleRoute } from "@/lib/api/route-handler";
 import { db } from "@/lib/db/drizzle";
 import { evaluations } from "@/lib/db/migrations/schema";
 
-export const GET = handleRoute<{ projectId: string }, unknown>(async (_req, params) => {
-  const { projectId } = params;
-
+export async function GET(request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
+  const params = await props.params;
+  const projectId = params.projectId;
   const groupedEvaluations = db.$with("grouped_evaluations").as(
     db
       .select({
@@ -17,7 +17,6 @@ export const GET = handleRoute<{ projectId: string }, unknown>(async (_req, para
       .where(eq(evaluations.projectId, projectId))
       .groupBy(evaluations.groupId)
   );
-
   const groups = await db
     .with(groupedEvaluations)
     .select({
@@ -26,6 +25,5 @@ export const GET = handleRoute<{ projectId: string }, unknown>(async (_req, para
     })
     .from(groupedEvaluations)
     .orderBy(desc(groupedEvaluations.lastEvaluationCreatedAt));
-
-  return groups;
-});
+  return NextResponse.json(groups);
+}

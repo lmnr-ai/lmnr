@@ -1,26 +1,43 @@
 import { removeQueueItem, RemoveQueueItemRequestSchema } from "@/lib/actions/queue";
-import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
-export const POST = handleRoute<{ projectId: string; queueId: string }, unknown>(async (req, params) => {
-  const body = await req.json();
-  const result = RemoveQueueItemRequestSchema.safeParse(body);
+export async function POST(request: Request, props: { params: Promise<{ projectId: string; queueId: string }> }) {
+  const params = await props.params;
+  const { projectId } = params;
 
-  if (!result.success) {
-    throw new HttpError("Invalid request body", 400);
+  try {
+    const body = await request.json();
+    const result = RemoveQueueItemRequestSchema.safeParse(body);
+
+    if (!result.success) {
+      return new Response(JSON.stringify({ error: "Invalid request body", details: result.error }), {
+        status: 400,
+      });
+    }
+
+    const { id, data, target, metadata, datasetId, skip } = result.data;
+
+    await removeQueueItem({
+      queueId: params.queueId,
+      id,
+      skip,
+      datasetId,
+      data,
+      target,
+      metadata,
+      projectId,
+    });
+
+    return new Response(JSON.stringify({ success: true }));
+  } catch (error) {
+    console.error("Error removing queue item:", error);
+    if (error instanceof Error && error.message.includes("Invalid request parameters")) {
+      return new Response(
+        JSON.stringify({
+          error: "Invalid request parameters",
+        }),
+        { status: 400 }
+      );
+    }
+    return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 });
   }
-
-  const { id, data, target, metadata, datasetId, skip } = result.data;
-
-  await removeQueueItem({
-    queueId: params.queueId,
-    id,
-    skip,
-    datasetId,
-    data,
-    target,
-    metadata,
-    projectId: params.projectId,
-  });
-
-  return { success: true };
-});
+}

@@ -7,22 +7,32 @@ import {
   GetChatMessagesSchema,
   saveChatMessage,
 } from "@/lib/actions/trace/agent/messages";
-import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
-export const GET = handleRoute<{ projectId: string; traceId: string }, unknown>(async (_req, params) => {
-  const { projectId, traceId } = params;
+export async function GET(req: Request, props: { params: Promise<{ projectId: string; traceId: string }> }) {
+  const params = await props.params;
+  const projectId = params.projectId;
+  const traceId = params.traceId;
 
-  const parseResult = GetChatMessagesSchema.safeParse({
-    traceId,
-    projectId,
-  });
+  try {
+    const parseResult = GetChatMessagesSchema.safeParse({
+      traceId,
+      projectId,
+    });
 
-  if (!parseResult.success) {
-    throw new HttpError(prettifyError(parseResult.error), 400);
+    if (!parseResult.success) {
+      return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    }
+
+    const result = await getChatMessages(parseResult.data);
+    return Response.json(result);
+  } catch (error) {
+    console.error("Error fetching chat messages:", error);
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch messages" },
+      { status: 500 }
+    );
   }
-
-  return await getChatMessages(parseResult.data);
-});
+}
 
 const SaveMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -39,29 +49,36 @@ const SaveMessageSchema = z.object({
   messageId: z.string().optional(),
 });
 
-export const POST = handleRoute<{ projectId: string; traceId: string }, unknown>(async (req, params) => {
-  const { projectId, traceId } = params;
+export async function POST(req: Request, props: { params: Promise<{ projectId: string; traceId: string }> }) {
+  const params = await props.params;
+  const projectId = params.projectId;
+  const traceId = params.traceId;
 
-  const body = await req.json();
-  const parseResult = SaveMessageSchema.safeParse(body);
+  try {
+    const body = await req.json();
+    const parseResult = SaveMessageSchema.safeParse(body);
 
-  if (!parseResult.success) {
-    throw new HttpError(prettifyError(parseResult.error), 400);
+    if (!parseResult.success) {
+      return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+    }
+
+    const { role, parts, messageId } = parseResult.data;
+
+    // Find or create chat session
+    const chatId = await findOrCreateChatSession(traceId, projectId);
+
+    // Save the message
+    await saveChatMessage({
+      chatId,
+      traceId,
+      projectId,
+      role,
+      parts,
+    });
+
+    return Response.json({ success: true, message: "Message saved successfully" });
+  } catch (error) {
+    console.error("Error saving message:", error);
+    return Response.json({ error: error instanceof Error ? error.message : "Failed to save message" }, { status: 500 });
   }
-
-  const { role, parts, messageId } = parseResult.data;
-
-  // Find or create chat session
-  const chatId = await findOrCreateChatSession(traceId, projectId);
-
-  // Save the message
-  await saveChatMessage({
-    chatId,
-    traceId,
-    projectId,
-    role,
-    parts,
-  });
-
-  return { success: true, message: "Message saved successfully" };
-});
+}

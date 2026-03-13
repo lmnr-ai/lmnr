@@ -1,24 +1,59 @@
+import { type NextRequest, NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
+
 import { getTrace, updateTraceVisibility } from "@/lib/actions/trace";
-import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
-export const GET = handleRoute<{ projectId: string; traceId: string }, unknown>(async (_req, params) => {
-  const { projectId, traceId } = params;
+export async function GET(
+  _req: NextRequest,
+  props: { params: Promise<{ projectId: string; traceId: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const projectId = params.projectId;
+  const traceId = params.traceId;
 
-  const trace = await getTrace({ traceId, projectId });
+  try {
+    const trace = await getTrace({ traceId, projectId });
 
-  if (!trace) {
-    throw new HttpError("Trace not found", 404);
+    if (!trace) {
+      return NextResponse.json({ error: "Trace not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(trace);
+  } catch (error) {
+    console.error("Error fetching trace:", error);
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to fetch trace",
+      },
+      { status: 500 }
+    );
   }
+}
 
-  return trace;
-});
+export async function PUT(
+  req: Request,
+  props: { params: Promise<{ projectId: string; traceId: string }> }
+): Promise<Response> {
+  const params = await props.params;
 
-export const PUT = handleRoute<{ projectId: string; traceId: string }, unknown>(async (req, params) => {
-  const { projectId, traceId } = params;
+  const projectId = params.projectId;
+  const traceId = params.traceId;
 
   const body = (await req.json()) as { visibility: "private" | "public" };
 
-  await updateTraceVisibility({ projectId, visibility: body?.visibility, traceId });
+  try {
+    await updateTraceVisibility({ projectId, visibility: body?.visibility, traceId });
 
-  return "Updated trace visibility successfully.";
-});
+    return NextResponse.json("Updated trace visibility successfully.");
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Error updating visibility. Please try again." },
+      {
+        status: 500,
+      }
+    );
+  }
+}

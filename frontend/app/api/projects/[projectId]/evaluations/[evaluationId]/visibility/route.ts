@@ -1,9 +1,21 @@
-import { isEvaluationPublic } from "@/lib/actions/evaluation/visibility";
-import { handleRoute } from "@/lib/api/route-handler";
+import { type NextRequest } from "next/server";
 
-export const GET = handleRoute<{ projectId: string; evaluationId: string }, unknown>(async (_req, params) => {
+import { isEvaluationPublic } from "@/lib/actions/evaluation/visibility";
+
+export async function GET(
+  _req: NextRequest,
+  props: { params: Promise<{ projectId: string; evaluationId: string }> }
+): Promise<Response> {
+  const params = await props.params;
   const { evaluationId } = params;
 
-  const isPublic = await isEvaluationPublic(evaluationId);
-  return { visibility: isPublic ? "public" : "private" };
-});
+  try {
+    const isPublic = await isEvaluationPublic(evaluationId);
+    return Response.json({ visibility: isPublic ? "public" : "private" });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch evaluation visibility." },
+      { status: 500 }
+    );
+  }
+}

@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
+import { type NextRequest, NextResponse } from "next/server";
 
 import { createDatapoints, CreateDatapointsSchema } from "@/lib/actions/datapoints";
-import { handleRoute,HttpError } from "@/lib/api/route-handler";
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
 import { downloadS3ObjectHttp } from "@/lib/s3";
@@ -27,6 +27,7 @@ type ImageBase64 = Omit<ImageUrl, "type" | "url"> & {
 
 const isRelativeImageUrl = (payload: JSONValue, projectId: string): payload is RelativeImageUrl => {
   if (typeof payload === "object" && payload !== null && !Array.isArray(payload)) {
+    const keys = Object.keys(payload);
     const url = payload.url;
     const uuidRegex = "[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}";
     const imageUrlRegex = new RegExp(`^/api/projects/${projectId}/payloads/${uuidRegex}`);
@@ -96,15 +97,20 @@ const materializeAttachments = async (payload: JSONValue, projectId: string): Pr
   return payload;
 };
 
-export const POST = handleRoute<{ projectId: string; datasetId: string }, unknown>(async (req, params) => {
-  const { projectId, datasetId } = params;
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; datasetId: string }> }
+): Promise<NextResponse> {
+  const params = await props.params;
+  const projectId = params.projectId;
+  const datasetId = params.datasetId;
 
   const dataset = await db.query.datasets.findFirst({
     where: and(eq(datasets.id, datasetId), eq(datasets.projectId, projectId)),
   });
 
   if (!dataset) {
-    throw new HttpError("Dataset not found", 404);
+    return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
   }
 
   const body = await req.json();
@@ -112,7 +118,13 @@ export const POST = handleRoute<{ projectId: string; datasetId: string }, unknow
   // Validate request body
   const parseResult = CreateDatapointsSchema.safeParse(body);
   if (!parseResult.success) {
-    throw new HttpError("Invalid request body", 400);
+    return NextResponse.json(
+      {
+        error: "Invalid request body",
+        details: parseResult.error.issues,
+      },
+      { status: 400 }
+    );
   }
   const { datapoints } = parseResult.data;
 
@@ -133,5 +145,5 @@ export const POST = handleRoute<{ projectId: string; datasetId: string }, unknow
     datapoints: materializedDatapoints,
   });
 
-  return { success: true };
-});
+  return NextResponse.json({ success: true }, { status: 200 });
+}

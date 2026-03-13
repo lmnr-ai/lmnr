@@ -1,32 +1,68 @@
+import { type NextRequest } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
+
 import { getEvaluationScore, updateEvaluationScore } from "@/lib/actions/evaluation-score";
-import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
-export const GET = handleRoute<{ projectId: string; evaluationResultId: string }, unknown>(async (req, params) => {
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; evaluationResultId: string }> }
+): Promise<Response> {
+  const params = await props.params;
   const { evaluationResultId, projectId } = params;
-  const url = new URL(req.url);
 
-  const name = url.searchParams.get("name");
+  try {
+    const name = req.nextUrl.searchParams.get("name");
 
-  if (!name) {
-    throw new HttpError("Score name is required", 400);
+    if (!name) {
+      return new Response(JSON.stringify({ error: "Score name is required" }), { status: 400 });
+    }
+
+    const evaluationScore = await getEvaluationScore({
+      evaluationResultId,
+      name,
+      projectId,
+    });
+
+    return new Response(JSON.stringify(evaluationScore), {
+      status: 200,
+    });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return new Response(JSON.stringify({ error: prettifyError(error) }), { status: 400 });
+    }
+
+    return new Response(JSON.stringify({ error: "Failed to get evaluation score. Please try again." }), {
+      status: 500,
+    });
   }
+}
 
-  return await getEvaluationScore({
-    evaluationResultId,
-    name,
-    projectId,
-  });
-});
-
-export const POST = handleRoute<{ projectId: string; evaluationResultId: string }, unknown>(async (req, params) => {
+export async function POST(
+  req: Request,
+  props: { params: Promise<{ projectId: string; evaluationResultId: string }> }
+): Promise<Response> {
+  const params = await props.params;
   const { evaluationResultId, projectId } = params;
 
-  const body = (await req.json()) as { score: number; name: string };
+  try {
+    const body = (await req.json()) as { score: number; name: string };
+    const updatedEvaluationScore = await updateEvaluationScore({
+      evaluationResultId,
+      score: body.score,
+      name: body.name,
+      projectId,
+    });
 
-  return await updateEvaluationScore({
-    evaluationResultId,
-    score: body.score,
-    name: body.name,
-    projectId,
-  });
-});
+    return new Response(JSON.stringify(updatedEvaluationScore), {
+      status: 200,
+    });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return new Response(JSON.stringify({ error: prettifyError(error) }), { status: 400 });
+    }
+
+    return new Response(JSON.stringify({ error: "Failed to update evaluation score. Please try again." }), {
+      status: 500,
+    });
+  }
+}

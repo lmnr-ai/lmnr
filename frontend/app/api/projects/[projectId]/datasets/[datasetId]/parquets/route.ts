@@ -1,10 +1,22 @@
+import { type NextRequest, NextResponse } from "next/server";
+
 import { getParquets, startParquetExportJob } from "@/lib/actions/dataset";
-import { handleRoute } from "@/lib/api/route-handler";
 
-export const GET = handleRoute<{ projectId: string; datasetId: string }, unknown>(
-  async (_req, params) => await getParquets(params.projectId, params.datasetId)
-);
+export async function GET(req: NextRequest, { params }: { params: Promise<{ projectId: string; datasetId: string }> }) {
+  const { projectId, datasetId } = await params;
 
-export const POST = handleRoute<{ projectId: string; datasetId: string }, unknown>(
-  async (_req, params) => await startParquetExportJob(params.projectId, params.datasetId)
-);
+  const parquets = await getParquets(projectId, datasetId);
+
+  return NextResponse.json(parquets);
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ projectId: string; datasetId: string }> }
+) {
+  const { projectId, datasetId } = await params;
+
+  const job = await startParquetExportJob(projectId, datasetId);
+
+  return NextResponse.json(job);
+}

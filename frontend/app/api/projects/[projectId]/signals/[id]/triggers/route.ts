@@ -1,3 +1,6 @@
+import { type NextRequest } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
+
 import { parseUrlParams } from "@/lib/actions/common/utils.ts";
 import {
   createSignalTrigger,
@@ -6,52 +9,120 @@ import {
   GetSignalTriggersSchema,
   updateSignalTrigger,
 } from "@/lib/actions/signal-triggers";
-import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
-export const GET = handleRoute(async (req, { projectId, id: signalId }) => {
-  const url = new URL(req.url);
+export async function GET(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; id: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const { projectId, id: signalId } = params;
+
   const parseResult = parseUrlParams(
-    url.searchParams,
+    req.nextUrl.searchParams,
     GetSignalTriggersSchema.omit({ projectId: true, signalId: true })
   );
 
   if (!parseResult.success) {
-    throw parseResult.error;
+    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
 
-  return getSignalTriggers({ ...parseResult.data, projectId, signalId });
-});
+  try {
+    const result = await getSignalTriggers({ ...parseResult.data, projectId, signalId });
 
-export const POST = handleRoute(async (req, { projectId, id: signalId }) => {
-  const body = await req.json();
-  return createSignalTrigger({
-    projectId,
-    signalId,
-    filters: body.filters,
-  });
-});
-
-export const PUT = handleRoute(async (req, { projectId, id: signalId }) => {
-  const body = await req.json();
-  const result = await updateSignalTrigger({
-    projectId,
-    signalId,
-    triggerId: body.triggerId,
-    filters: body.filters,
-  });
-
-  if (!result) {
-    throw new HttpError("Trigger not found", 404);
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch triggers." },
+      { status: 500 }
+    );
   }
+}
 
-  return result;
-});
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; id: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const { projectId, id: signalId } = params;
 
-export const DELETE = handleRoute(async (req, { projectId, id: signalId }) => {
-  const body = await req.json();
-  return deleteSignalTriggers({
-    projectId,
-    signalId,
-    triggerIds: body.triggerIds,
-  });
-});
+  try {
+    const body = await req.json();
+    const result = await createSignalTrigger({
+      projectId,
+      signalId,
+      filters: body.filters,
+    });
+
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to create trigger." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; id: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const { projectId, id: signalId } = params;
+
+  try {
+    const body = await req.json();
+    const result = await updateSignalTrigger({
+      projectId,
+      signalId,
+      triggerId: body.triggerId,
+      filters: body.filters,
+    });
+
+    if (!result) {
+      return Response.json({ error: "Trigger not found" }, { status: 404 });
+    }
+
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to update trigger." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; id: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const { projectId, id: signalId } = params;
+
+  try {
+    const body = await req.json();
+    const result = await deleteSignalTriggers({
+      projectId,
+      signalId,
+      triggerIds: body.triggerIds,
+    });
+
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to delete triggers." },
+      { status: 500 }
+    );
+  }
+}

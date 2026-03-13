@@ -1,16 +1,35 @@
 import { addSpanTag, getSpanTags } from "@/lib/actions/tags";
-import { handleRoute } from "@/lib/api/route-handler";
 
-export const GET = handleRoute<{ projectId: string; spanId: string }, unknown>(async (_req, params) => {
-  const { spanId, projectId } = params;
+export async function GET(
+  _req: Request,
+  props: { params: Promise<{ projectId: string; spanId: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const spanId = params.spanId;
+  const projectId = params.projectId;
 
-  return await getSpanTags({ spanId, projectId });
-});
+  const res = await getSpanTags({
+    spanId,
+    projectId,
+  });
 
-export const POST = handleRoute<{ projectId: string; spanId: string }, unknown>(async (req, params) => {
-  const { projectId, spanId } = params;
+  return new Response(JSON.stringify(res), { status: 200 });
+}
+
+export async function POST(
+  req: Request,
+  props: { params: Promise<{ projectId: string; spanId: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const projectId = params.projectId;
+  const spanId = params.spanId;
 
   const body = (await req.json()) as { name: string };
 
-  return await addSpanTag({ spanId, projectId, name: body.name });
-});
+  const res = await addSpanTag({
+    spanId,
+    projectId,
+    name: body.name,
+  });
+  return new Response(JSON.stringify(res), { status: 200 });
+}

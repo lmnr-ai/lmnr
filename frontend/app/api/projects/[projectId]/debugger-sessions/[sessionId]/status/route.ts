@@ -1,12 +1,31 @@
+import { NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
+
 import { updateDebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
-import { handleRoute } from "@/lib/api/route-handler";
 
-export const PATCH = handleRoute<{ projectId: string; sessionId: string }, unknown>(async (req, params) => {
-  const body = await req.json();
+export async function PATCH(req: Request, props: { params: Promise<{ projectId: string; sessionId: string }> }) {
+  try {
+    const params = await props.params;
+    const { sessionId, projectId } = params;
+    const body = await req.json();
 
-  return await updateDebuggerSessionStatus({
-    projectId: params.projectId,
-    sessionId: params.sessionId,
-    ...body,
-  });
-});
+    const result = await updateDebuggerSessionStatus({
+      projectId,
+      sessionId,
+      ...body,
+    });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to update debugger session status.",
+      },
+      { status: 500 }
+    );
+  }
+}

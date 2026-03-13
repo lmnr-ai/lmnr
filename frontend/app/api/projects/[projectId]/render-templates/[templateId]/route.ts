@@ -1,29 +1,74 @@
+import { NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
+
 import { deleteRenderTemplate, getRenderTemplate, updateRenderTemplate } from "@/lib/actions/render-template";
-import { handleRoute } from "@/lib/api/route-handler";
 
-export const GET = handleRoute<{ projectId: string; templateId: string }, unknown>(
-  async (_req, params) =>
-    await getRenderTemplate({
-      projectId: params.projectId,
-      templateId: params.templateId,
-    })
-);
+export async function GET(
+  _request: Request,
+  props: {
+    params: Promise<{ projectId: string; templateId: string }>;
+  }
+) {
+  try {
+    const params = await props.params;
+    const { projectId, templateId } = params;
 
-export const PUT = handleRoute<{ projectId: string; templateId: string }, unknown>(async (req, params) => {
-  const body = await req.json();
+    const template = await getRenderTemplate({ projectId, templateId });
 
-  return await updateRenderTemplate({
-    projectId: params.projectId,
-    templateId: params.templateId,
-    name: body.name,
-    code: body.code,
-  });
-});
+    return NextResponse.json(template);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
 
-export const DELETE = handleRoute<{ projectId: string; templateId: string }, unknown>(
-  async (_req, params) =>
-    await deleteRenderTemplate({
-      projectId: params.projectId,
-      templateId: params.templateId,
-    })
-);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to get template. Please try again." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: Request, props: { params: Promise<{ projectId: string; templateId: string }> }) {
+  try {
+    const params = await props.params;
+    const { projectId, templateId } = params;
+    const body = await request.json();
+
+    const result = await updateRenderTemplate({
+      projectId,
+      templateId,
+      name: body.name,
+      code: body.code,
+    });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to update template" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(_request: Request, props: { params: Promise<{ projectId: string; templateId: string }> }) {
+  try {
+    const params = await props.params;
+    const { projectId, templateId } = params;
+
+    const result = await deleteRenderTemplate({ projectId, templateId });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete template" },
+      { status: 500 }
+    );
+  }
+}

@@ -1,15 +1,33 @@
-import { getTraceSystemMessages } from "@/lib/actions/spans/system-messages";
-import { handleRoute,HttpError } from "@/lib/api/route-handler";
+import { type NextRequest, NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-export const POST = handleRoute<{ projectId: string; traceId: string }, unknown>(async (req, params) => {
+import { getTraceSystemMessages } from "@/lib/actions/spans/system-messages";
+
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; traceId: string }> }
+): Promise<Response> {
+  const params = await props.params;
   const { projectId, traceId } = params;
 
-  const body = await req.json();
-  const paths = body.paths as string[][];
+  try {
+    const body = await req.json();
+    const paths = body.paths as string[][];
 
-  if (!Array.isArray(paths)) {
-    throw new HttpError("paths must be an array of path arrays", 400);
+    if (!Array.isArray(paths)) {
+      return NextResponse.json({ error: "paths must be an array of path arrays" }, { status: 400 });
+    }
+
+    const systemMessages = await getTraceSystemMessages({ projectId, traceId, paths });
+
+    return NextResponse.json(systemMessages);
+  } catch (e) {
+    if (e instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(e) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Failed to get system messages." },
+      { status: 500 }
+    );
   }
-
-  return await getTraceSystemMessages({ projectId, traceId, paths });
-});
+}

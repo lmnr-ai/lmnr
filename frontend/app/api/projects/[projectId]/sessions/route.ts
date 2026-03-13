@@ -1,26 +1,49 @@
+import { type NextRequest } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
+
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { deleteSessions, getSessions, GetSessionsSchema } from "@/lib/actions/sessions";
-import { handleRoute } from "@/lib/api/route-handler";
 
-export const GET = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
-  const { projectId } = params;
-  const url = new URL(req.url);
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
+  const projectId = params.projectId;
 
-  const parseResult = parseUrlParams(url.searchParams, GetSessionsSchema.omit({ projectId: true }));
+  const parseResult = parseUrlParams(req.nextUrl.searchParams, GetSessionsSchema.omit({ projectId: true }));
 
   if (!parseResult.success) {
-    throw parseResult.error;
+    return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
   }
 
-  return await getSessions({ ...parseResult.data, projectId });
-});
+  try {
+    const result = await getSessions({ ...parseResult.data, projectId });
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch sessions." },
+      { status: 500 }
+    );
+  }
+}
 
-export const DELETE = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
-  const { projectId } = params;
-  const url = new URL(req.url);
+export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
+  const projectId = params.projectId;
 
-  const sessionIds = url.searchParams.getAll("id");
+  const sessionIds = req.nextUrl.searchParams.getAll("id");
 
-  await deleteSessions({ projectId, sessionIds });
-  return { success: true };
-});
+  try {
+    await deleteSessions({ projectId, sessionIds });
+    return Response.json({ success: true });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to delete sessions." },
+      { status: 500 }
+    );
+  }
+}

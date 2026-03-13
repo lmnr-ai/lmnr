@@ -1,18 +1,35 @@
+import { NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
+
 import { getSpan, updateSpanOutput } from "@/lib/actions/span";
-import { handleRoute } from "@/lib/api/route-handler";
 
-export const GET = handleRoute<{ projectId: string; traceId: string; spanId: string }, unknown>(
-  async (_req, params) => {
-    const { projectId, traceId, spanId } = params;
+export async function GET(
+  _req: Request,
+  props: { params: Promise<{ projectId: string; traceId: string; spanId: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const { projectId, traceId, spanId } = params;
 
-    return await getSpan({ spanId, traceId, projectId });
+  try {
+    const span = await getSpan({ spanId, traceId, projectId });
+
+    return NextResponse.json(span);
+  } catch (e) {
+    if (e instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(e) }, { status: 400 });
+    }
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to get span." }, { status: 500 });
   }
-);
+}
 
-export const PATCH = handleRoute<{ projectId: string; traceId: string; spanId: string }, unknown>(
-  async (req, params) => {
-    const { projectId, spanId, traceId } = params;
+export async function PATCH(
+  req: Request,
+  props: { params: Promise<{ projectId: string; traceId: string; spanId: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const { projectId, spanId, traceId } = params;
 
+  try {
     const body = await req.json();
 
     await updateSpanOutput({
@@ -22,6 +39,16 @@ export const PATCH = handleRoute<{ projectId: string; traceId: string; spanId: s
       output: body?.output,
     });
 
-    return { success: true };
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ error: "Failed to update span" }, { status: 500 });
   }
-);
+}

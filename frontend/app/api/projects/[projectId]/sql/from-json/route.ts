@@ -1,8 +1,24 @@
-import { jsonToSql } from "@/lib/actions/sql";
-import { handleRoute } from "@/lib/api/route-handler";
+import { type NextRequest } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
-  const body = await req.json();
-  const data = await jsonToSql({ projectId: params.projectId, ...body });
-  return { success: true, sql: data };
-});
+import { jsonToSql } from "@/lib/actions/sql";
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
+  try {
+    const body = await request.json();
+    const projectId = (await params).projectId;
+
+    const data = await jsonToSql({ projectId, ...body });
+
+    return Response.json({ success: true, sql: data });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ success: false, error: prettifyError(error) }, { status: 400 });
+    }
+
+    return Response.json(
+      { success: false, error: error instanceof Error ? error.message : "Failed to convert JSON to SQL." },
+      { status: 500 }
+    );
+  }
+}

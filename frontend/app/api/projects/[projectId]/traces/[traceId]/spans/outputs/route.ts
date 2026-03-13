@@ -1,11 +1,29 @@
-import { getSpanOutputs } from "@/lib/actions/spans/outputs.ts";
-import { handleRoute } from "@/lib/api/route-handler";
+import { type NextRequest, NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
 
-export const POST = handleRoute<{ projectId: string; traceId: string }, unknown>(async (req, params) => {
+import { getSpanOutputs } from "@/lib/actions/spans/outputs.ts";
+
+export async function POST(
+  req: NextRequest,
+  props: { params: Promise<{ projectId: string; traceId: string }> }
+): Promise<Response> {
+  const params = await props.params;
   const { projectId, traceId } = params;
 
-  const body = await req.json();
-  const { spanIds, startDate, endDate } = body;
+  try {
+    const body = await req.json();
+    const { spanIds, startDate, endDate } = body;
 
-  return { outputs: await getSpanOutputs({ projectId, traceId, spanIds, startDate, endDate }) };
-});
+    const outputs = await getSpanOutputs({ projectId, traceId, spanIds, startDate, endDate });
+
+    return NextResponse.json({ outputs });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch span outputs." },
+      { status: 500 }
+    );
+  }
+}

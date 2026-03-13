@@ -1,33 +1,73 @@
+import { type NextRequest, NextResponse } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
+
 import { deleteSignal, getSignal, updateSignal } from "@/lib/actions/signals";
-import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
-export const GET = handleRoute(async (_req, { id, projectId }) => {
-  const result = await getSignal({ id, projectId });
+export async function GET(_request: NextRequest, props: { params: Promise<{ projectId: string; id: string }> }) {
+  const params = await props.params;
+  const { id, projectId } = params;
 
-  if (!result) {
-    throw new HttpError("Signal not found", 404);
+  try {
+    const result = await getSignal({ id, projectId });
+
+    if (!result) {
+      return NextResponse.json({ error: "Signal not found" }, { status: 404 });
+    }
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch signal." },
+      { status: 500 }
+    );
   }
+}
 
-  return result;
-});
+export async function PUT(request: NextRequest, props: { params: Promise<{ projectId: string; id: string }> }) {
+  const params = await props.params;
+  const { projectId, id } = params;
 
-export const PUT = handleRoute(async (req, { projectId, id }) => {
-  const body = await req.json();
-  const result = await updateSignal({ id, projectId, ...body });
+  try {
+    const body = await request.json();
+    const result = await updateSignal({ id, projectId, ...body });
 
-  if (!result) {
-    throw new HttpError("Signal not found", 404);
+    if (!result) {
+      return NextResponse.json({ error: "Signal not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to update signal." },
+      { status: 500 }
+    );
   }
+}
 
-  return result;
-});
+export async function DELETE(_request: NextRequest, props: { params: Promise<{ projectId: string; id: string }> }) {
+  const params = await props.params;
+  const { projectId, id } = params;
 
-export const DELETE = handleRoute(async (_req, { projectId, id }) => {
-  const result = await deleteSignal({ projectId, id });
+  try {
+    const result = await deleteSignal({ projectId, id });
 
-  if (!result) {
-    throw new HttpError("Signal not found", 404);
+    if (!result) {
+      return NextResponse.json({ error: "Signal not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to delete signal." },
+      { status: 500 }
+    );
   }
-
-  return result;
-});
+}

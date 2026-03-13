@@ -1,7 +1,7 @@
-import { z } from "zod/v4";
+import { type NextRequest } from "next/server";
+import { prettifyError, z, ZodError } from "zod/v4";
 
 import { generateSql } from "@/lib/actions/sql";
-import { handleRoute,HttpError } from "@/lib/api/route-handler";
 
 const GenerateSchema = z.object({
   prompt: z.string().min(1, "Prompt is required"),
@@ -9,15 +9,27 @@ const GenerateSchema = z.object({
   currentQuery: z.string().optional(),
 });
 
-export const POST = handleRoute<{ projectId: string }, unknown>(async (req, _params) => {
-  const body = await req.json();
-  const { prompt, mode, currentQuery } = GenerateSchema.parse(body);
+export async function POST(request: NextRequest, { params }: { params: Promise<{ projectId: string }> }) {
+  try {
+    await params;
+    const body = await request.json();
+    const { prompt, mode, currentQuery } = GenerateSchema.parse(body);
 
-  const result = await generateSql(prompt, mode, currentQuery);
+    const result = await generateSql(prompt, mode, currentQuery);
 
-  if (!result.success) {
-    throw new HttpError(result.error, 400);
+    if (!result.success) {
+      return Response.json({ error: result.error }, { status: 400 });
+    }
+
+    return Response.json({ query: result.result });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to generate query." },
+      { status: 500 }
+    );
   }
-
-  return { query: result.result };
-});
+}

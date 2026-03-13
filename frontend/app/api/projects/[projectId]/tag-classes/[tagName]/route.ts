@@ -1,28 +1,51 @@
 import { and, eq } from "drizzle-orm";
+import { prettifyError, ZodError } from "zod";
 
 import { createOrUpdateTagClass } from "@/lib/actions/tags";
-import { handleRoute,HttpError } from "@/lib/api/route-handler";
 import { db } from "@/lib/db/drizzle";
 import { tagClasses } from "@/lib/db/migrations/schema";
 
-export const POST = handleRoute<{ projectId: string; tagName: string }, unknown>(async (req, params) => {
+export async function POST(
+  req: Request,
+  props: { params: Promise<{ projectId: string; tagName: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const projectId = params.projectId;
+  const tagName = params.tagName;
   const body = await req.json();
-  return await createOrUpdateTagClass({
-    projectId: params.projectId,
-    name: params.tagName,
-    color: body.color,
-  });
-});
 
-export const DELETE = handleRoute<{ projectId: string; tagName: string }, unknown>(async (_req, params) => {
+  try {
+    const result = await createOrUpdateTagClass({
+      projectId,
+      name: tagName,
+      color: body.color,
+    });
+    return Response.json(result, { status: 200 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+
+    return Response.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: Request,
+  props: { params: Promise<{ projectId: string; tagName: string }> }
+): Promise<Response> {
+  const params = await props.params;
+  const projectId = params.projectId;
+  const tagName = params.tagName;
+
   const affectedRows = await db
     .delete(tagClasses)
-    .where(and(eq(tagClasses.name, params.tagName), eq(tagClasses.projectId, params.projectId)))
+    .where(and(eq(tagClasses.name, tagName), eq(tagClasses.projectId, projectId)))
     .returning();
 
   if (affectedRows.length === 0) {
-    throw new HttpError("Tag class not found", 404);
+    return new Response("Tag class not found", { status: 404 });
   }
 
-  return { success: true };
-});
+  return new Response(null, { status: 200 });
+}

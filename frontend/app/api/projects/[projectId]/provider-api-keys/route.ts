@@ -1,33 +1,77 @@
+import { type NextRequest } from "next/server";
+import { prettifyError, ZodError } from "zod/v4";
+
 import { createProviderApiKey, deleteProviderApiKey, getProviderApiKeys } from "@/lib/actions/provider-api-keys";
-import { handleRoute } from "@/lib/api/route-handler";
 
-export const GET = handleRoute<{ projectId: string }, unknown>(
-  async (_req, params) =>
-    await getProviderApiKeys({
+export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
+
+  try {
+    const apiKeys = await getProviderApiKeys({
       projectId: params.projectId,
-    })
-);
+    });
 
-export const POST = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
-  const body = await req.json();
+    return new Response(JSON.stringify(apiKeys), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Error fetching provider API keys:", error);
+    if (error instanceof ZodError) {
+      return new Response(prettifyError(error), { status: 400 });
+    }
+    if (error instanceof Error) {
+      return new Response(error.message, { status: 500 });
+    }
+    return new Response("Internal Server Error", { status: 500 });
+  }
+}
 
-  await createProviderApiKey({
-    projectId: params.projectId,
-    name: body.name,
-    value: body.value,
-  });
+export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
 
-  return { success: true };
-});
+  try {
+    const body = await req.json();
 
-export const DELETE = handleRoute<{ projectId: string }, unknown>(async (req, params) => {
-  const { searchParams } = new URL(req.url);
-  const name = searchParams.get("name") ?? "";
+    await createProviderApiKey({
+      projectId: params.projectId,
+      name: body.name,
+      value: body.value,
+    });
 
-  await deleteProviderApiKey({
-    projectId: params.projectId,
-    name,
-  });
+    return new Response(null, { status: 200 });
+  } catch (error) {
+    console.error("Error creating provider API key:", error);
+    if (error instanceof ZodError) {
+      return new Response(prettifyError(error), { status: 400 });
+    }
+    if (error instanceof Error) {
+      return new Response(error.message, { status: 500 });
+    }
+    return new Response("Internal Server Error", { status: 500 });
+  }
+}
 
-  return { success: true };
-});
+export async function DELETE(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
+
+  try {
+    const name = req.nextUrl.searchParams.get("name") ?? "";
+
+    await deleteProviderApiKey({
+      projectId: params.projectId,
+      name,
+    });
+
+    return new Response(null, { status: 200 });
+  } catch (error) {
+    console.error("Error deleting provider API key:", error);
+    if (error instanceof ZodError) {
+      return new Response(prettifyError(error), { status: 400 });
+    }
+    if (error instanceof Error) {
+      return new Response(error.message, { status: 404 });
+    }
+    return new Response("Internal Server Error", { status: 500 });
+  }
+}
