@@ -1,9 +1,11 @@
 pub mod bedrock;
 pub mod gemini;
+pub mod mock;
 pub mod models;
 
 pub use bedrock::BedrockClient;
 pub use gemini::GeminiClient;
+pub use mock::MockProviderClient;
 pub use models::*;
 
 use enum_dispatch::enum_dispatch;
@@ -86,6 +88,7 @@ pub trait LanguageModelClient: Send + Sync {
 pub enum ProviderClient {
     Gemini(GeminiClient),
     Bedrock(BedrockClient),
+    Mock(MockProviderClient),
 }
 
 static ALWAYS_USE_REALTIME: OnceLock<bool> = OnceLock::new();
@@ -135,14 +138,24 @@ pub fn default_model_for_provider(provider: &str) -> String {
     }
 }
 
+fn finalize_client<C: LanguageModelClient>(client: &C) -> Result<(), ProviderError> {
+    let always_realtime_env = std::env::var("SIGNALS_ALWAYS_USE_REALTIME")
+        .is_ok_and(|v| v.trim().to_lowercase() == "true");
+    ALWAYS_USE_REALTIME
+        .set(always_realtime_env || !client.supports_batch())
+        .map_err(|e| {
+            ProviderError::ConfigError(format!(
+                "Failed to update global provider config. Trying to overwrite provider. Existing supports_batch: {e}",
+            ))
+        })
+}
+
 /// Initialize a provider client based on configuration and available credentials.
 ///
 /// Uses [`resolve_provider_name`] for provider selection, then validates credentials
 /// and constructs the appropriate client.
 pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
     let provider_name = resolve_provider_name();
-    let always_realtime_env = std::env::var("SIGNALS_ALWAYS_USE_REALTIME")
-        .is_ok_and(|v| v.trim().to_lowercase() == "true");
 
     match provider_name.as_str() {
         "gemini" => {
@@ -156,13 +169,7 @@ pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
                 ProviderError::ConfigError(format!("Failed to create Gemini client: {e}"))
             })?;
             log::info!("Initialized Gemini provider");
-            ALWAYS_USE_REALTIME
-                .set(always_realtime_env || !client.supports_batch())
-                .map_err(|e| {
-                    ProviderError::ConfigError(format!(
-                        "Failed to update global provider config. Trying to overwrite provider. Existing supports_batch: {e}",
-                    ))
-                })?;
+            finalize_client(&client)?;
             Ok(ProviderClient::Gemini(client))
         }
         "bedrock" => {
@@ -173,17 +180,17 @@ pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
             }
             let client = BedrockClient::new().await?;
             log::info!("Initialized Bedrock provider");
-            ALWAYS_USE_REALTIME
-                .set(always_realtime_env || !client.supports_batch())
-                .map_err(|e| {
-                    ProviderError::ConfigError(format!(
-                        "Failed to update global provider config. Trying to overwrite provider. Existing supports_batch: {e}",
-                    ))
-                })?;
+            finalize_client(&client)?;
             Ok(ProviderClient::Bedrock(client))
         }
+        "mock" => {
+            let client = MockProviderClient::new();
+            log::info!("Initialized Mock provider");
+            finalize_client(&client)?;
+            Ok(ProviderClient::Mock(client))
+        }
         other => Err(ProviderError::ConfigError(format!(
-            "Unknown provider: '{other}'. Supported providers: gemini, bedrock",
+            "Unknown provider: '{other}'. Supported providers: gemini, bedrock, mock",
         ))),
     }
 }
