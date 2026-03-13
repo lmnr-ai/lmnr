@@ -2,9 +2,10 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Circle, CircleDashed, Folder } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { formatShortRelativeTime } from "@/components/client-timestamp-formatter";
 import { cn } from "@/lib/utils";
 
 import { withOpacity } from "../colors";
@@ -37,6 +38,8 @@ export default function ClusterItem({
   const hasChildren = iconVariant === "folder";
   const displayCount = filteredCount ?? 0;
   const showFilteredRange = filteredCount !== undefined;
+  const createdAgo = useMemo(() => formatShortRelativeTime(new Date(cluster.createdAt)), [cluster.createdAt]);
+  const updatedAgo = useMemo(() => formatShortRelativeTime(new Date(cluster.updatedAt)), [cluster.updatedAt]);
 
   const [hovered, setHovered] = useState(false);
   const [rect, setRect] = useState<HoverRect | null>(null);
@@ -169,6 +172,12 @@ export default function ClusterItem({
                     <span>
                       <span className="text-foreground">{displayCount}</span>
                       {showFilteredRange ? ` / ${cluster.numEvents} events in selected range` : ` events`}
+                    </span>
+                    <span>
+                      Created <span className="text-foreground">{createdAgo}</span>
+                    </span>
+                    <span>
+                      Updated <span className="text-foreground">{updatedAgo}</span>
                     </span>
                   </motion.div>
                 </motion.button>
