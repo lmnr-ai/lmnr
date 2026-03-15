@@ -140,7 +140,7 @@ pub struct SearchSpansRequest {
     pub offset: usize,
 }
 
-const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 3] = ["input", "output", "attributes"];
+const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
 
 #[derive(Serialize, Deserialize)]
 struct QuickwitHit {
@@ -184,7 +184,7 @@ pub async fn search_spans(
         format!("({})", escaped_query),
     ];
 
-    let mut sort_by = "_score,start_time"; // default sort for scores and timestamp in quickwit is desc!
+    let mut sort_by = "start_time"; // default sort for scores and timestamp in quickwit is desc!
 
     if let Some(trace_id) = request.trace_id {
         query_parts.push(format!("trace_id:{}", trace_id));

@@ -1,6 +1,14 @@
 version: "0.8"
-index_id: spans
+index_id: spans_v2
 doc_mapping:
+  mode: dynamic
+  dynamic_mapping:
+    indexed: true
+    stored: false
+    tokenizer: default
+    record: position
+    expand_dots: true
+    fast: false
   field_mappings:
     - name: span_id
       type: text
@@ -31,16 +39,11 @@ doc_mapping:
       fast: false
       stored: false
       record: position
-    - name: attributes
-      type: text
-      tokenizer: default
-      fast: false
-      stored: false
-      record: position
   tag_fields: []
   timestamp_field: start_time
+  partition_key: hash_mod(project_id, 100)
 search_settings:
-  default_search_fields: [input, output, attributes]
+  default_search_fields: [input, output]
 retention:
   period: 90 days
   schedule: daily

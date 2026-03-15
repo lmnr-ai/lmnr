@@ -5,6 +5,8 @@ pub mod producer;
 mod proto;
 mod utils;
 
+use std::sync::OnceLock;
+
 use chrono::{DateTime, Utc};
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
@@ -19,8 +21,16 @@ use utils::extract_text_from_json_value;
 pub const SPANS_INDEXER_QUEUE: &str = "spans_indexer_queue";
 pub const SPANS_INDEXER_EXCHANGE: &str = "spans_indexer_exchange";
 pub const SPANS_INDEXER_ROUTING_KEY: &str = "spans_indexer_routing_key";
-pub const SPANS_INDEX_ID: &str = "spans";
+const DEFAULT_SPANS_INDEX_ID: &str = "spans_v2";
 pub const EVENTS_INDEX_ID: &str = "events";
+
+static SPANS_INDEX_ID: OnceLock<String> = OnceLock::new();
+
+pub fn spans_index_id() -> &'static str {
+    SPANS_INDEX_ID.get_or_init(|| {
+        std::env::var("QUICKWIT_SPANS_INDEX_ID").unwrap_or(DEFAULT_SPANS_INDEX_ID.to_string())
+    })
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuickwitIndexedSpan {
@@ -30,7 +40,6 @@ pub struct QuickwitIndexedSpan {
     pub start_time: DateTime<Utc>,
     pub input: Option<String>,
     pub output: Option<String>,
-    pub attributes: Value,
 }
 
 impl From<&Span> for QuickwitIndexedSpan {
@@ -42,7 +51,6 @@ impl From<&Span> for QuickwitIndexedSpan {
             start_time: span.start_time,
             input: span.input.as_ref().map(json_value_to_string),
             output: span.output.as_ref().map(json_value_to_string),
-            attributes: span.attributes.to_value(),
         }
     }
 }
@@ -89,11 +97,7 @@ pub trait FlattenJson {
 }
 
 impl FlattenJson for QuickwitIndexedSpan {
-    fn flatten_json(&mut self) {
-        let attributes_text = extract_text_from_json_value(&self.attributes);
-        let attributes_text = attributes_text.replace('{', " { ").replace('}', " } ");
-        self.attributes = serde_json::Value::String(attributes_text);
-    }
+    fn flatten_json(&mut self) {}
 }
 
 impl FlattenJson for QuickwitIndexedEvent {
@@ -118,7 +122,7 @@ impl IndexerQueuePayload {
     /// Get the index ID for this payload type
     pub fn index_id(&self) -> &'static str {
         match self {
-            IndexerQueuePayload::Spans(_) => SPANS_INDEX_ID,
+            IndexerQueuePayload::Spans(_) => spans_index_id(),
             IndexerQueuePayload::Events(_) => EVENTS_INDEX_ID,
         }
     }

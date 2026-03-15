@@ -154,7 +154,11 @@ impl QuickwitClient {
         &self,
         query_body: serde_json::Value,
     ) -> anyhow::Result<serde_json::Value> {
-        let url = format!("{}/api/v1/spans/search", self.inner.search_endpoint);
+        let url = format!(
+            "{}/api/v1/{}/search",
+            self.inner.search_endpoint,
+            super::spans_index_id()
+        );
 
         let response = self
             .inner
