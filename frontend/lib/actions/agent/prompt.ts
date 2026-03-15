@@ -1,6 +1,6 @@
-import { agentCatalog } from "@/components/laminar-agent/cards/catalog";
+import { agentCatalogServer } from "@/components/laminar-agent/cards/catalog-server";
 
-const cardInstructions = agentCatalog.prompt({ mode: "inline" });
+const cardInstructions = agentCatalogServer.prompt({ mode: "inline" });
 
 export interface UrlContext {
   pageType: string;
