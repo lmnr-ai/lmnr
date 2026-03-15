@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Database, Loader2, Route } from "lucide-react";
+import { ChevronRight, Database, Loader2, Route } from "lucide-react";
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -31,13 +31,12 @@ function QuerySQLInvocation({ state, input, output }: Omit<ToolInvocationProps, 
         <span className="font-medium text-muted-foreground">
           {isLoading ? "Executing SQL query..." : "Executed SQL query"}
         </span>
-        <div className="ml-auto">
-          {expanded ? (
-            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+        <ChevronRight
+          className={cn(
+            "w-3.5 h-3.5 text-muted-foreground ml-auto transition-transform duration-200",
+            expanded && "rotate-90"
           )}
-        </div>
+        />
       </button>
       {expanded && (
         <div className="px-3 pb-2 space-y-2">
