@@ -2,11 +2,15 @@
 
 ## Open
 
-(none)
+(empty)
 
 ## Fixed
 
-- [x] [QA] Phase 4: CreateSignalCard "Continue to create signal" prefill broken — signals page now reads `create`, `name`, `description`, `prompt` URL params and auto-opens ManageSignalSheet with prefilled values — fixed in commit 37749a20
+- [x] [QA] Phase 4: CreateSignalCard prefill still broken — added useEffect in ManageSignalSheet that watches initialValues and calls form.reset() when they change — fixed in commit 741f6629
+- [x] [QA] Phase 4: Agent API route crashes at module load time — moved pipeJsonRender to dynamic import() to avoid @json-render/react createContext at module evaluation — fixed in commit 514ad2a3
+- [x] [QA] Phase 4: Error message displays raw HTML — added HTML detection in onError handler and inline error display, shows generic message when HTML is detected — fixed in commit 1c761734
+
+- [x] [QA] Phase 4: CreateSignalCard "Continue to create signal" prefill broken — signals page now reads `create`, `name`, `description`, `prompt` URL params and auto-opens ManageSignalSheet with prefilled values — fixed in commit 37749a20 — NOTE: re-verified and still broken, see Open item above
 - [x] [QA] Phase 4: Agent API calls fail silently — added onError toast handler and inline error message in agent-chat-panel.tsx — fixed in commit 329a1cbe
 - [x] [QA] Phase 4: Cannot verify end-to-end card rendering (all 6 card types) — environment-dependent, not a code bug
 - [x] [QA] Phase 4: Cannot verify "Clicking open trace navigates to the trace view" — environment-dependent, not a code bug
