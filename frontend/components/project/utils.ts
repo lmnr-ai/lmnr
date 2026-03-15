@@ -8,6 +8,7 @@ import {
   Radio,
   Rows4,
   Settings,
+  Sparkles,
   SquareTerminal,
 } from "lucide-react";
 
@@ -56,6 +57,11 @@ export const getSidebarMenus = (projectId: string) => [
     name: "debugger",
     href: `/project/${projectId}/debugger-sessions`,
     icon: GitFork,
+  },
+  {
+    name: "laminar agent",
+    href: `/project/${projectId}/agent`,
+    icon: Sparkles,
   },
   {
     name: "settings",
