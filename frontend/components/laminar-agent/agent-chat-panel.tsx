@@ -29,9 +29,12 @@ export default function AgentChatPanel({ header, maxWidth = "max-w-3xl" }: Agent
   const { messages, setMessages, sendMessage, status, error } = useChat({
     chat,
     onError: (err) => {
+      const containsHtml = /<[a-z][\s\S]*>/i.test(err.message);
       toast({
         title: "Agent error",
-        description: err.message || "Failed to get a response. Please try again.",
+        description: containsHtml
+          ? "Something went wrong. Please try again."
+          : err.message || "Failed to get a response. Please try again.",
         variant: "destructive",
       });
     },
@@ -88,7 +91,10 @@ export default function AgentChatPanel({ header, maxWidth = "max-w-3xl" }: Agent
                 <MessageList messages={messages} status={status} />
                 {error && (
                   <div className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
-                    Something went wrong: {error.message || "Failed to get a response."}
+                    Something went wrong:{" "}
+                    {/<[a-z][\s\S]*>/i.test(error.message)
+                      ? "Please try again."
+                      : error.message || "Failed to get a response."}
                   </div>
                 )}
               </>
