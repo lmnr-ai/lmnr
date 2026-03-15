@@ -40,7 +40,7 @@ export default function QuerySQLCard({ props }: { props: QuerySQLCardProps }) {
   }, [projectId, query]);
 
   return (
-    <div className="rounded-lg border bg-muted/50 text-xs">
+    <div className="rounded-lg border bg-muted/50 text-xs shadow-sm">
       <div className="flex items-center gap-2 px-3 py-2">
         <Database className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
         <button
