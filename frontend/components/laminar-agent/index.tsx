@@ -2,7 +2,7 @@
 
 import { Columns2, PanelRight } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import Header from "@/components/ui/header";
@@ -14,16 +14,20 @@ export default function LaminarAgent() {
   const setViewMode = useLaminarAgentStore((s) => s.setViewMode);
   const router = useRouter();
   const { projectId } = useParams();
+  const intentionalSwitchRef = useRef(false);
 
   useEffect(() => {
     setViewMode("fullscreen");
     return () => {
-      setViewMode("collapsed");
+      if (!intentionalSwitchRef.current) {
+        setViewMode("collapsed");
+      }
     };
   }, [setViewMode]);
 
   const switchModeAndNavigateAway = useCallback(
     (mode: AgentViewMode) => {
+      intentionalSwitchRef.current = true;
       setViewMode(mode);
       router.push(`/project/${projectId}/traces`);
     },
