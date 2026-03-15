@@ -153,7 +153,7 @@ impl MessageHandler for NotificationHandler {
 
             if let Err(e) = self
                 .ch_service
-                .insert_batch(message.project_id, &[log_entry])
+                .insert_batch_for_workspace(message.workspace_id, &[log_entry])
                 .await
             {
                 log::error!("Failed to insert notification log: {:?}", e);

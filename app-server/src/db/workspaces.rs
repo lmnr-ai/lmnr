@@ -70,3 +70,44 @@ pub async fn get_workspace_deployment_by_project_id(
 
     Ok(result)
 }
+
+pub async fn get_workspace_deployment_by_workspace_id(
+    pool: &PgPool,
+    workspace_id: &Uuid,
+) -> Result<WorkspaceDeployment> {
+    let result = sqlx::query_as::<_, WorkspaceDeployment>(
+        "
+        SELECT
+            $1 as workspace_id,
+            COALESCE(workspace_deployments.mode, 'CLOUD') as mode,
+            workspace_deployments.public_key,
+            workspace_deployments.private_key,
+            workspace_deployments.private_key_nonce,
+            workspace_deployments.data_plane_url,
+            workspace_deployments.data_plane_url_nonce
+        FROM
+            workspace_deployments
+        WHERE
+            workspace_deployments.workspace_id = $1",
+    )
+    .bind(workspace_id)
+    .fetch_one(pool)
+    .await;
+
+    match result {
+        Ok(deployment) => Ok(deployment),
+        Err(sqlx::Error::RowNotFound) => {
+            // No workspace_deployments row means CLOUD mode (the default)
+            Ok(WorkspaceDeployment {
+                workspace_id: *workspace_id,
+                mode: DeploymentMode::CLOUD,
+                private_key: None,
+                private_key_nonce: None,
+                public_key: None,
+                data_plane_url: None,
+                data_plane_url_nonce: None,
+            })
+        }
+        Err(e) => Err(e.into()),
+    }
+}
