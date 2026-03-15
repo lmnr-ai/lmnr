@@ -43,6 +43,9 @@ pub async fn process_event_notifications_and_clustering(
             integration_id: target.integration_id,
         };
 
+        // Serialize the inner payload directly for the ClickHouse notification log
+        let log_payload_str = serde_json::to_string(&payload)?;
+
         let message_payload =
             serde_json::to_value(SlackMessagePayload::EventIdentification(payload))?;
 
@@ -51,11 +54,11 @@ pub async fn process_event_notifications_and_clustering(
             trace_id,
             notification_type: NotificationType::Slack,
             event_name: event_name.to_string(),
-            payload: message_payload.clone(),
+            payload: message_payload,
         };
 
         match notifications::push_to_notification_queue(notification_message, queue.clone()).await {
-            Ok(()) => queued_notifications.push((target, message_payload)),
+            Ok(()) => queued_notifications.push((target, log_payload_str)),
             Err(e) => {
                 log::error!(
                     "Failed to push to notification queue for channel {}: {:?}",
@@ -69,7 +72,7 @@ pub async fn process_event_notifications_and_clustering(
     // Log only successfully queued alert notifications to ClickHouse
     let notification_logs: Vec<CHNotificationLog> = queued_notifications
         .iter()
-        .map(|(target, message_payload)| CHNotificationLog {
+        .map(|(target, log_payload_str)| CHNotificationLog {
             id: Uuid::new_v4(),
             workspace_id: target.workspace_id,
             project_id,
@@ -77,7 +80,7 @@ pub async fn process_event_notifications_and_clustering(
             definition_id: target.alert_id,
             target_id: target.id,
             target_type: "SLACK".to_string(),
-            payload: message_payload.to_string(),
+            payload: log_payload_str.clone(),
             created_at: now_ms,
         })
         .collect();
