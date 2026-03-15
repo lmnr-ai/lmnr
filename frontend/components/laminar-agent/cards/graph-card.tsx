@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
-import { type ChartConfig } from "@/components/chart-builder/types";
+import { type ChartConfig, ChartType } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 
 interface GraphCardProps {
@@ -20,9 +20,15 @@ export default function GraphCard({ props }: { props: GraphCardProps }) {
   const typedData = data as Record<string, string | number | boolean>[];
   const columns = useMemo(() => transformDataToColumns(typedData), [typedData]);
 
+  const chartTypeMap: Record<string, ChartType> = {
+    line: ChartType.LineChart,
+    bar: ChartType.BarChart,
+    horizontalBar: ChartType.HorizontalBarChart,
+  };
+
   const config: ChartConfig = useMemo(
     () => ({
-      type: chartType as ChartConfig["type"],
+      type: chartTypeMap[chartType] ?? ChartType.LineChart,
       x: xColumn,
       y: yColumn,
     }),
