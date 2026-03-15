@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { type ReactNode, useCallback, useState } from "react";
 
 import SidebarPanel from "./sidebar-panel";
@@ -16,6 +17,7 @@ interface AgentSidebarLayoutProps {
 export default function AgentSidebarLayout({ children }: AgentSidebarLayoutProps) {
   const viewMode = useLaminarAgentStore((s) => s.viewMode);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const isSidebar = viewMode === "sidebar";
 
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
@@ -40,22 +42,31 @@ export default function AgentSidebarLayout({ children }: AgentSidebarLayoutProps
     [sidebarWidth]
   );
 
-  if (viewMode !== "sidebar") {
-    return <div className="flex-1 flex flex-col min-h-0">{children}</div>;
-  }
-
   return (
     <div className="flex-1 flex min-h-0 overflow-hidden">
       <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">{children}</div>
-      <div className="relative flex-none border-l" style={{ width: sidebarWidth }}>
-        <div
-          className="absolute top-0 left-0 h-full cursor-col-resize z-50 group w-2 -ml-1"
-          onMouseDown={handleResizeStart}
-        >
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-all" />
-        </div>
-        <SidebarPanel />
-      </div>
+      <AnimatePresence>
+        {isSidebar && (
+          <motion.div
+            key="agent-sidebar"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: sidebarWidth, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="relative flex-none border-l overflow-hidden"
+          >
+            <div className="h-full" style={{ minWidth: sidebarWidth }}>
+              <div
+                className="absolute top-0 left-0 h-full cursor-col-resize z-50 group w-2 -ml-1"
+                onMouseDown={handleResizeStart}
+              >
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-all" />
+              </div>
+              <SidebarPanel />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
