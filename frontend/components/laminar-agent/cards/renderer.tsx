@@ -1,6 +1,6 @@
 "use client";
 
-import { type DataPart, Renderer, useJsonRenderMessage,VisibilityProvider } from "@json-render/react";
+import { type DataPart, JSONUIProvider, Renderer, useJsonRenderMessage } from "@json-render/react";
 
 import { agentCardRegistry } from "./registry";
 
@@ -16,10 +16,10 @@ export default function AgentCardRenderer({ parts }: AgentCardRendererProps) {
   }
 
   return (
-    <VisibilityProvider>
+    <JSONUIProvider registry={agentCardRegistry}>
       <div className="space-y-2">
         <Renderer spec={spec} registry={agentCardRegistry} />
       </div>
-    </VisibilityProvider>
+    </JSONUIProvider>
   );
 }
