@@ -4,6 +4,7 @@ import { Clock, DollarSign, ExternalLink, Hash } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
 
+import MiniTimeline from "@/components/laminar-agent/cards/mini-timeline";
 import { Button } from "@/components/ui/button";
 
 interface TraceCardProps {
@@ -73,6 +74,9 @@ export default function TraceCard({ props }: { props: TraceCardProps }) {
           <Clock className="w-3.5 h-3.5" />
           <span>{formatTimestamp(timestamp)}</span>
         </div>
+      </div>
+      <div className="px-4 pb-3">
+        <MiniTimeline traceId={traceId} />
       </div>
     </div>
   );
