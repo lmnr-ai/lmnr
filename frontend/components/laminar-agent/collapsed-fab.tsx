@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -54,19 +54,31 @@ export default function CollapsedFab({ suggestions = [] }: CollapsedFabProps) {
     >
       <AnimatePresence>
         {bannerText && (
-          <motion.button
+          <motion.div
             initial={{ opacity: 0, x: 20, scale: 0.9 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 20, scale: 0.9 }}
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            onClick={handleBannerClick}
-            className="bg-background border rounded-lg shadow-lg px-3 py-2 text-xs text-foreground/80 hover:text-foreground hover:bg-muted/40 transition-colors max-w-[240px] text-left cursor-pointer"
+            className="bg-background border rounded-lg shadow-lg px-3 py-2 text-xs text-foreground/80 max-w-[280px] text-left flex items-start gap-1"
           >
-            <span className="flex items-center gap-1.5">
+            <button
+              onClick={handleBannerClick}
+              className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer flex-1 min-w-0"
+            >
               <Sparkles className="w-3 h-3 text-primary flex-none" />
               <span className="line-clamp-2">{bannerText}</span>
-            </span>
-          </motion.button>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setBannerText(null);
+              }}
+              className="flex-none p-0.5 rounded hover:bg-muted/60 transition-colors cursor-pointer"
+              aria-label="Dismiss suggestion"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
       <Button
