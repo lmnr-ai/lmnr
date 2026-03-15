@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, DollarSign, ExternalLink, Hash } from "lucide-react";
+import { CalendarDays, CheckCircle, Clock, DollarSign, ExternalLink, Hash, XCircle } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
 
@@ -49,7 +49,11 @@ export default function TraceCard({ props }: { props: TraceCardProps }) {
     <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div className="flex items-center gap-2 min-w-0">
-          <div className={`w-2 h-2 rounded-full shrink-0 ${status === "error" ? "bg-destructive" : "bg-green-500"}`} />
+          {status === "error" ? (
+            <XCircle className="w-4 h-4 text-destructive shrink-0" />
+          ) : (
+            <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+          )}
           <span className="font-medium text-sm truncate">{topSpanName}</span>
         </div>
         <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs shrink-0" onClick={openTrace}>
@@ -71,7 +75,7 @@ export default function TraceCard({ props }: { props: TraceCardProps }) {
           <span>{totalTokens.toLocaleString()} tokens</span>
         </div>
         <div className="flex items-center gap-1.5 text-muted-foreground">
-          <Clock className="w-3.5 h-3.5" />
+          <CalendarDays className="w-3.5 h-3.5" />
           <span>{formatTimestamp(timestamp)}</span>
         </div>
       </div>
