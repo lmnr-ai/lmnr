@@ -72,14 +72,14 @@ impl QueueConfig {
     /// Create a new QueueConfig with prefetch count resolved from environment.
     ///
     /// The prefetch count is determined by looking up an env var based on the queue name:
-    /// `{QUEUE_NAME}_PREFETCH_COUNT` (e.g. `observations_PREFETCH_COUNT` for queue `observations`).
+    /// `{QUEUE_NAME}_PREFETCH_COUNT` (e.g. `OBSERVATIONS_QUEUE_PREFETCH_COUNT`).
     /// Falls back to DEFAULT_PREFETCH_COUNT (128) if not set.
     pub fn new(
         queue_name: &'static str,
         exchange_name: &'static str,
         routing_key: &'static str,
     ) -> Self {
-        let env_key = format!("{}_PREFETCH_COUNT", queue_name);
+        let env_key = format!("{}_PREFETCH_COUNT", queue_name.to_uppercase());
         let prefetch_count = std::env::var(&env_key)
             .ok()
             .and_then(|v| v.parse().ok())
