@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import ChatInput from "@/components/laminar-agent/chat-input";
@@ -11,6 +11,7 @@ import MessageList from "@/components/laminar-agent/message-list";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { useLaminarAgentStore } from "./store";
+import { getRotatingSuggestion } from "./url-context";
 import { usePageContext } from "./use-page-context";
 
 interface AgentChatPanelProps {
@@ -27,8 +28,14 @@ export default function AgentChatPanel({ header, maxWidth = "max-w-3xl" }: Agent
   const { toast } = useToast();
 
   const pageContext = usePageContext();
-  // Pick the first suggestion as contextual hint below the input
-  const contextualSuggestion = useMemo(() => pageContext.suggestions[0] ?? null, [pageContext.suggestions]);
+  // Rotate through suggestions periodically for the below-input hint
+  const [suggestionSeed, setSuggestionSeed] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setSuggestionSeed((s) => s + 1), 10_000);
+    return () => clearInterval(interval);
+  }, []);
+  const contextualSuggestion =
+    pageContext.suggestions.length > 0 ? getRotatingSuggestion(pageContext.suggestions, suggestionSeed) : null;
 
   const chat = getOrCreateChat(projectId);
   const { messages, setMessages, sendMessage, status, error } = useChat({
