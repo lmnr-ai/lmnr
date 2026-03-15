@@ -4,6 +4,7 @@ import { type UIMessage } from "ai";
 import { Loader2 } from "lucide-react";
 
 import { Response } from "@/components/ai-elements/response";
+import AgentCardRenderer from "@/components/laminar-agent/cards/renderer";
 import ToolInvocationCard from "@/components/laminar-agent/tool-invocation";
 import { cn } from "@/lib/utils";
 
@@ -14,10 +15,6 @@ interface MessageListProps {
 
 function isToolPart(part: { type: string }): boolean {
   return part.type.startsWith("tool-");
-}
-
-function getToolName(partType: string): string {
-  return partType.replace(/^tool-/, "");
 }
 
 export default function MessageList({ messages, status }: MessageListProps) {
@@ -49,7 +46,7 @@ export default function MessageList({ messages, status }: MessageListProps) {
                   return (
                     <ToolInvocationCard
                       key={`${message.id}-${i}`}
-                      toolName={getToolName(toolPart.type)}
+                      toolName={toolPart.type.replace(/^tool-/, "")}
                       state={toolPart.state}
                       input={toolPart.input as Record<string, unknown>}
                       output={toolPart.output}
@@ -58,6 +55,7 @@ export default function MessageList({ messages, status }: MessageListProps) {
                 }
                 return null;
               })}
+              {message.role === "assistant" && <AgentCardRenderer parts={message.parts} />}
             </div>
           </div>
         </div>

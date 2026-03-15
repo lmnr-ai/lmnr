@@ -1,3 +1,6 @@
+import { pipeJsonRender } from "@json-render/core";
+import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
+
 import { AgentStreamChatSchema, streamAgentChat } from "@/lib/actions/agent/stream";
 
 export async function POST(req: Request, props: { params: Promise<{ projectId: string }> }) {
@@ -17,7 +20,14 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     }
 
     const result = await streamAgentChat(parseResult.data);
-    return result.toUIMessageStreamResponse();
+
+    const stream = createUIMessageStream({
+      execute: async ({ writer }) => {
+        writer.merge(pipeJsonRender(result.toUIMessageStream()));
+      },
+    });
+
+    return createUIMessageStreamResponse({ stream });
   } catch (error) {
     console.error("Error in agent chat API:", error);
     return Response.json({ error: error instanceof Error ? error.message : "Internal Server Error" }, { status: 500 });
