@@ -2,6 +2,8 @@
 
 import { MessageCircleQuestion } from "lucide-react";
 
+import { useLaminarAgentStore } from "./store";
+
 const EXAMPLE_QUESTIONS = [
   "How many traces did I receive today?",
   "Show me my most used models",
@@ -14,8 +16,11 @@ interface EmptyStateProps {
 }
 
 export default function EmptyState({ onSuggestionClick }: EmptyStateProps) {
+  const viewMode = useLaminarAgentStore((s) => s.viewMode);
+  const isPanel = viewMode === "sidebar" || viewMode === "floating";
+
   return (
-    <div className="flex flex-col items-center justify-end h-full px-4 pb-4">
+    <div className={`flex flex-col items-center h-full px-4 pb-4 ${isPanel ? "justify-center" : "justify-end"}`}>
       <p className="text-sm text-muted-foreground text-center mb-6 max-w-sm">
         Ask questions about your project — traces, evaluations, metrics, and more.
       </p>
