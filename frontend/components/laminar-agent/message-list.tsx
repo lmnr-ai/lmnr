@@ -4,11 +4,20 @@ import { type UIMessage } from "ai";
 import { Loader2 } from "lucide-react";
 
 import { Response } from "@/components/ai-elements/response";
+import ToolInvocationCard from "@/components/laminar-agent/tool-invocation";
 import { cn } from "@/lib/utils";
 
 interface MessageListProps {
   messages: UIMessage[];
   status: string;
+}
+
+function isToolPart(part: { type: string }): boolean {
+  return part.type.startsWith("tool-");
+}
+
+function getToolName(partType: string): string {
+  return partType.replace(/^tool-/, "");
 }
 
 export default function MessageList({ messages, status }: MessageListProps) {
@@ -28,6 +37,23 @@ export default function MessageList({ messages, status }: MessageListProps) {
                     <div key={`${message.id}-${i}`}>
                       <Response>{part.text}</Response>
                     </div>
+                  );
+                }
+                if (isToolPart(part)) {
+                  const toolPart = part as {
+                    type: string;
+                    state: string;
+                    input?: Record<string, unknown>;
+                    output?: unknown;
+                  };
+                  return (
+                    <ToolInvocationCard
+                      key={`${message.id}-${i}`}
+                      toolName={getToolName(toolPart.type)}
+                      state={toolPart.state}
+                      input={toolPart.input as Record<string, unknown>}
+                      output={toolPart.output}
+                    />
                   );
                 }
                 return null;
