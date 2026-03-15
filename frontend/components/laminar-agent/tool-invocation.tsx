@@ -19,7 +19,10 @@ function QuerySQLInvocation({ state, input, output }: Omit<ToolInvocationProps, 
 
   return (
     <div className="bg-muted/50 rounded-lg border text-xs">
-      <button className="flex items-center gap-2 w-full px-3 py-2" onClick={() => setExpanded(!expanded)}>
+      <button
+        className="flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-muted transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
         {isLoading ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
         ) : (
