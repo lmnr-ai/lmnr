@@ -132,12 +132,12 @@ impl MessageHandler for NotificationHandler {
     type Message = NotificationMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        let result = match message.notification_type {
-            NotificationType::Slack => self.handle_slack(&message).await,
-            NotificationType::Email => self.handle_email(&message).await,
+        let delivered = match message.notification_type {
+            NotificationType::Slack => self.handle_slack(&message).await?,
+            NotificationType::Email => self.handle_email(&message).await?,
         };
 
-        if result.is_ok() {
+        if delivered {
             let now_ms = chrono::Utc::now().timestamp_millis();
             let log_entry = CHNotificationLog {
                 id: Uuid::new_v4(),
@@ -160,12 +160,14 @@ impl MessageHandler for NotificationHandler {
             }
         }
 
-        result
+        Ok(())
     }
 }
 
 impl NotificationHandler {
-    async fn handle_slack(&self, message: &NotificationMessage) -> Result<(), HandlerError> {
+    /// Returns `Ok(true)` if the Slack message was actually sent,
+    /// `Ok(false)` if delivery was skipped (e.g. integration not found).
+    async fn handle_slack(&self, message: &NotificationMessage) -> Result<bool, HandlerError> {
         let slack_payload: SlackMessagePayload = serde_json::from_value(message.payload.clone())
             .map_err(|e| anyhow::anyhow!("Failed to parse SlackMessagePayload: {}", e))?;
 
@@ -178,42 +180,45 @@ impl NotificationHandler {
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
 
-        if let Some(integration) = integration {
-            let decrypted_token = slack::decode_slack_token(
-                &integration.team_id,
-                &integration.nonce_hex,
-                &integration.token,
-            )
-            .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
-
-            let blocks = slack::format_message_blocks(
-                &slack_payload,
-                &message.project_id.to_string(),
-                &message.trace_id.to_string(),
-                &message.event_name,
-            );
-
-            let channel_id = slack::get_channel_id(&slack_payload);
-
-            slack::send_message(&self.slack_client, &decrypted_token, channel_id, blocks)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
-
-            log::debug!(
-                "Successfully sent Slack notification for trace_id={}",
-                message.trace_id
-            );
-        } else {
+        let Some(integration) = integration else {
             log::warn!(
                 "Slack integration not found for integration_id: {}",
                 integration_id
             );
-        }
+            return Ok(false);
+        };
 
-        Ok(())
+        let decrypted_token = slack::decode_slack_token(
+            &integration.team_id,
+            &integration.nonce_hex,
+            &integration.token,
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
+
+        let blocks = slack::format_message_blocks(
+            &slack_payload,
+            &message.project_id.to_string(),
+            &message.trace_id.to_string(),
+            &message.event_name,
+        );
+
+        let channel_id = slack::get_channel_id(&slack_payload);
+
+        slack::send_message(&self.slack_client, &decrypted_token, channel_id, blocks)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
+
+        log::debug!(
+            "Successfully sent Slack notification for trace_id={}",
+            message.trace_id
+        );
+
+        Ok(true)
     }
 
-    async fn handle_email(&self, message: &NotificationMessage) -> Result<(), HandlerError> {
+    /// Returns `Ok(true)` if the email was actually sent to at least one recipient,
+    /// `Ok(false)` if delivery was skipped (e.g. Resend not configured, no recipients).
+    async fn handle_email(&self, message: &NotificationMessage) -> Result<bool, HandlerError> {
         let resend = match &self.resend {
             Some(r) => r.clone(),
             None => {
@@ -221,7 +226,7 @@ impl NotificationHandler {
                     "[Notifications] Resend client not configured (RESEND_API_KEY not set), \
                      skipping email notification"
                 );
-                return Ok(());
+                return Ok(false);
             }
         };
 
@@ -230,7 +235,7 @@ impl NotificationHandler {
 
         if email_payload.to.is_empty() {
             log::warn!("[Notifications] Email notification has no recipients, skipping");
-            return Ok(());
+            return Ok(false);
         }
 
         let mut send_failures = 0;
@@ -285,7 +290,7 @@ impl NotificationHandler {
             );
         }
 
-        Ok(())
+        Ok(true)
     }
 }
 
