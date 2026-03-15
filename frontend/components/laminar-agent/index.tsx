@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { Columns2, PanelRight } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import ChatInput from "@/components/laminar-agent/chat-input";
@@ -18,11 +18,29 @@ export default function LaminarAgent() {
   const projectId = useParams().projectId as string;
   const setViewMode = useLaminarAgentStore((s) => s.setViewMode);
   const getOrCreateChat = useLaminarAgentStore((s) => s.getOrCreateChat);
+  const setPersistedMessages = useLaminarAgentStore((s) => s.setPersistedMessages);
+  const persistedMessages = useLaminarAgentStore((s) => s.persistedMessages);
   const [input, setInput] = useState("");
 
   const chat = getOrCreateChat(projectId);
 
-  const { messages, sendMessage, status } = useChat({ chat });
+  const { messages, setMessages, sendMessage, status } = useChat({ chat });
+
+  // Restore persisted messages on mount when the chat hook starts empty
+  const hasRestoredRef = useRef(false);
+  useEffect(() => {
+    if (!hasRestoredRef.current && messages.length === 0 && persistedMessages.length > 0) {
+      setMessages(persistedMessages);
+      hasRestoredRef.current = true;
+    }
+  }, [messages.length, persistedMessages, setMessages]);
+
+  // Sync messages to the store whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      setPersistedMessages(messages);
+    }
+  }, [messages, setPersistedMessages]);
 
   const handleSend = useCallback(() => {
     if (input.trim()) {
