@@ -33,6 +33,7 @@ pub async fn process_event_notifications_and_clustering(
         db::alert_targets::get_slack_targets_for_event(&db.pool, project_id, &event_name).await?;
 
     let now_ms = chrono::Utc::now().timestamp_millis();
+    let mut queued_targets = Vec::new();
 
     for target in &targets {
         let payload = EventIdentificationPayload {
@@ -50,19 +51,20 @@ pub async fn process_event_notifications_and_clustering(
             payload: serde_json::to_value(SlackMessagePayload::EventIdentification(payload))?,
         };
 
-        if let Err(e) =
-            notifications::push_to_notification_queue(notification_message, queue.clone()).await
-        {
-            log::error!(
-                "Failed to push to notification queue for channel {}: {:?}",
-                target.channel_id,
-                e
-            );
+        match notifications::push_to_notification_queue(notification_message, queue.clone()).await {
+            Ok(()) => queued_targets.push(target),
+            Err(e) => {
+                log::error!(
+                    "Failed to push to notification queue for channel {}: {:?}",
+                    target.channel_id,
+                    e
+                );
+            }
         }
     }
 
-    // Log alert notifications to ClickHouse
-    let notification_logs: Vec<CHNotificationLog> = targets
+    // Log only successfully queued alert notifications to ClickHouse
+    let notification_logs: Vec<CHNotificationLog> = queued_targets
         .iter()
         .map(|target| CHNotificationLog {
             id: Uuid::new_v4(),
