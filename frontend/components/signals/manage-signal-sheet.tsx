@@ -20,7 +20,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useEffect, useState } from "react";
 import {
   type Control,
   Controller,
@@ -671,6 +671,13 @@ export default function ManageSignalSheet({
     defaultValues: convertToFormValues(initialValues),
     mode: "onChange",
   });
+
+  // Reset form when initialValues change (e.g. prefill from URL params set after mount)
+  useEffect(() => {
+    if (initialValues) {
+      form.reset(convertToFormValues(initialValues));
+    }
+  }, [initialValues, form, convertToFormValues]);
 
   const onOpenChange = useCallback(
     (open: boolean) => {
