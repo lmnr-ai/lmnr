@@ -10,6 +10,7 @@ import ChatInput from "@/components/laminar-agent/chat-input";
 import EmptyState from "@/components/laminar-agent/empty-state";
 import MessageList from "@/components/laminar-agent/message-list";
 import { Button } from "@/components/ui/button";
+import Header from "@/components/ui/header";
 
 import { useLaminarAgentStore } from "./store";
 
@@ -48,9 +49,8 @@ export default function LaminarAgent() {
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex items-center justify-between px-4 py-2 border-b">
-        <h2 className="text-sm font-medium">Laminar Agent</h2>
-        <div className="flex items-center gap-1">
+      <Header path="laminar agent">
+        <div className="flex items-center gap-1 ml-auto">
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewMode("floating")}>
             <Columns2 className="w-4 h-4" />
           </Button>
@@ -58,7 +58,7 @@ export default function LaminarAgent() {
             <PanelRight className="w-4 h-4" />
           </Button>
         </div>
-      </div>
+      </Header>
 
       <div className="grow flex flex-col overflow-auto relative minimal-scrollbar">
         <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-0 left-0 absolute z-10 pointer-none" />
