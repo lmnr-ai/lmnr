@@ -1,4 +1,3 @@
-import { pipeJsonRender } from "@json-render/core";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 
 import { AgentStreamChatSchema, streamAgentChat } from "@/lib/actions/agent/stream";
@@ -20,6 +19,10 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     }
 
     const result = await streamAgentChat(parseResult.data);
+
+    // Dynamically import to avoid @json-render/react's createContext
+    // being evaluated at module load time in server components
+    const { pipeJsonRender } = await import("@json-render/core");
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
