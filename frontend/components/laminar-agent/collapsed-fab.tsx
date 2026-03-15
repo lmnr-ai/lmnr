@@ -22,6 +22,7 @@ export default function CollapsedFab() {
         size="icon"
         className="h-12 w-12 rounded-full shadow-lg hover:shadow-xl transition-shadow"
         onClick={() => setViewMode("floating")}
+        aria-label="Open Laminar Agent"
       >
         <Sparkles className="w-5 h-5" />
       </Button>
