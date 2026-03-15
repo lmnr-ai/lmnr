@@ -1,6 +1,6 @@
 "use client";
 
-import { type DataPart, Renderer, useJsonRenderMessage } from "@json-render/react";
+import { type DataPart, Renderer, useJsonRenderMessage,VisibilityProvider } from "@json-render/react";
 
 import { agentCardRegistry } from "./registry";
 
@@ -16,8 +16,10 @@ export default function AgentCardRenderer({ parts }: AgentCardRendererProps) {
   }
 
   return (
-    <div className="space-y-2">
-      <Renderer spec={spec} registry={agentCardRegistry} />
-    </div>
+    <VisibilityProvider>
+      <div className="space-y-2">
+        <Renderer spec={spec} registry={agentCardRegistry} />
+      </div>
+    </VisibilityProvider>
   );
 }
