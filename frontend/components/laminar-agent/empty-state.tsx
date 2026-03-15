@@ -22,7 +22,7 @@ export default function EmptyState({ onSuggestionClick, suggestions }: EmptyStat
           <button
             key={index}
             onClick={() => onSuggestionClick(question)}
-            className="w-full text-left px-3 py-2 text-sm rounded-md border border-border/50 bg-muted/30 hover:bg-muted/60 hover:border-border transition-colors text-foreground/80 hover:text-foreground"
+            className="w-full text-left px-3 py-2 text-sm rounded-md border border-border/50 bg-muted/30 hover:bg-muted/60 hover:border-border transition-colors text-foreground/80 hover:text-foreground cursor-pointer"
           >
             {question}
           </button>
