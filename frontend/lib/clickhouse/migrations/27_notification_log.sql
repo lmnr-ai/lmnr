@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS notification_log
     channel_name       String DEFAULT '',
     email              String DEFAULT '',
     integration_id     UUID,
+    payload            String DEFAULT '',
     created_at         DateTime64(3, 'UTC')
 )
 ENGINE = MergeTree()

@@ -268,26 +268,29 @@ async fn process_report_trigger(
         inline_logo: true,
     };
 
+    let message_payload = serde_json::to_value(&email_payload)
+        .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
+
     let notification_message = NotificationMessage {
         project_id: Uuid::nil(),
         trace_id: Uuid::nil(),
         notification_type: NotificationType::Email,
         event_name: "report_email".to_string(),
-        payload: serde_json::to_value(email_payload)
-            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?,
+        payload: message_payload.clone(),
     };
 
     push_to_notification_queue(notification_message, queue).await?;
 
     // Log report notifications to ClickHouse
     let now_ms = chrono::Utc::now().timestamp_millis();
+    let payload_str = message_payload.to_string();
     let notification_logs: Vec<CHNotificationLog> = email_targets
         .iter()
         .map(|target| CHNotificationLog {
             id: Uuid::new_v4(),
             workspace_id,
             project_id: Uuid::nil(),
-            definition_type: "report".to_string(),
+            definition_type: "REPORT".to_string(),
             definition_id: report_id,
             target_id: target.id,
             target_type: "EMAIL".to_string(),
@@ -295,6 +298,7 @@ async fn process_report_trigger(
             channel_name: String::new(),
             email: target.email.clone(),
             integration_id: Uuid::nil(),
+            payload: payload_str.clone(),
             created_at: now_ms,
         })
         .collect();

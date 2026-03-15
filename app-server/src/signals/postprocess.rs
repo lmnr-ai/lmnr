@@ -33,7 +33,7 @@ pub async fn process_event_notifications_and_clustering(
         db::alert_targets::get_slack_targets_for_event(&db.pool, project_id, &event_name).await?;
 
     let now_ms = chrono::Utc::now().timestamp_millis();
-    let mut queued_targets = Vec::new();
+    let mut queued_notifications = Vec::new();
 
     for target in &targets {
         let payload = EventIdentificationPayload {
@@ -43,16 +43,19 @@ pub async fn process_event_notifications_and_clustering(
             integration_id: target.integration_id,
         };
 
+        let message_payload =
+            serde_json::to_value(SlackMessagePayload::EventIdentification(payload))?;
+
         let notification_message = notifications::NotificationMessage {
             project_id,
             trace_id,
             notification_type: NotificationType::Slack,
             event_name: event_name.to_string(),
-            payload: serde_json::to_value(SlackMessagePayload::EventIdentification(payload))?,
+            payload: message_payload.clone(),
         };
 
         match notifications::push_to_notification_queue(notification_message, queue.clone()).await {
-            Ok(()) => queued_targets.push(target),
+            Ok(()) => queued_notifications.push((target, message_payload)),
             Err(e) => {
                 log::error!(
                     "Failed to push to notification queue for channel {}: {:?}",
@@ -64,13 +67,13 @@ pub async fn process_event_notifications_and_clustering(
     }
 
     // Log only successfully queued alert notifications to ClickHouse
-    let notification_logs: Vec<CHNotificationLog> = queued_targets
+    let notification_logs: Vec<CHNotificationLog> = queued_notifications
         .iter()
-        .map(|target| CHNotificationLog {
+        .map(|(target, message_payload)| CHNotificationLog {
             id: Uuid::new_v4(),
             workspace_id: target.workspace_id,
             project_id,
-            definition_type: "alert".to_string(),
+            definition_type: "ALERT".to_string(),
             definition_id: target.alert_id,
             target_id: target.id,
             target_type: "SLACK".to_string(),
@@ -78,6 +81,7 @@ pub async fn process_event_notifications_and_clustering(
             channel_name: target.channel_name.clone(),
             email: String::new(),
             integration_id: target.integration_id,
+            payload: message_payload.to_string(),
             created_at: now_ms,
         })
         .collect();

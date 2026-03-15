@@ -23,6 +23,7 @@ pub struct CHNotificationLog {
     pub email: String,
     #[serde(with = "clickhouse::serde::uuid")]
     pub integration_id: Uuid,
+    pub payload: String,
     pub created_at: i64,
 }
 
