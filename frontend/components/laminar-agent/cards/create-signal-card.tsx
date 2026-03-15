@@ -33,9 +33,7 @@ export default function CreateSignalCard({ props }: { props: CreateSignalCardPro
         <div className="flex flex-col gap-2 min-w-0 flex-1">
           <span className="font-medium text-sm">{signalName}</span>
           <p className="text-xs text-muted-foreground">{signalDescription}</p>
-          <p className="text-xs text-foreground/80 bg-muted/50 rounded p-2 font-mono max-h-32 overflow-y-auto">
-            {prompt}
-          </p>
+          <p className="text-xs text-foreground bg-muted/50 rounded p-2 font-mono max-h-32 overflow-y-auto">{prompt}</p>
           <Button variant="outline" size="sm" className="self-start gap-1.5 text-xs" onClick={navigateToSignals}>
             Continue to create signal
             <ArrowRight className="w-3 h-3" />
