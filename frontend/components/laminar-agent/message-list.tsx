@@ -15,9 +15,11 @@ export default function MessageList({ messages, status }: MessageListProps) {
   return (
     <>
       {messages.map((message) => (
-        <div key={message.id} className={cn("flex", message.role === "user" ? "px-3" : "px-5")}>
+        <div key={message.id} className={cn("flex", message.role === "user" ? "px-3 justify-end" : "px-5")}>
           <div
-            className={cn("w-full", message.role === "user" ? "bg-muted/50 rounded px-2 py-1 border" : "bg-background")}
+            className={cn(
+              message.role === "user" ? "bg-muted/50 rounded px-2 py-1 border max-w-[85%]" : "w-full bg-background"
+            )}
           >
             <div className="text-sm text-foreground leading-relaxed space-y-2">
               {message.parts.map((part, i) => {
