@@ -4,18 +4,12 @@ import { MessageCircleQuestion } from "lucide-react";
 
 import { useLaminarAgentStore } from "./store";
 
-const EXAMPLE_QUESTIONS = [
-  "How many traces did I receive today?",
-  "Show me my most used models",
-  "What is my average latency?",
-  "Are there any recent failed traces?",
-];
-
 interface EmptyStateProps {
   onSuggestionClick: (question: string) => void;
+  suggestions: string[];
 }
 
-export default function EmptyState({ onSuggestionClick }: EmptyStateProps) {
+export default function EmptyState({ onSuggestionClick, suggestions }: EmptyStateProps) {
   const viewMode = useLaminarAgentStore((s) => s.viewMode);
   const isPanel = viewMode === "sidebar" || viewMode === "floating";
 
@@ -29,7 +23,7 @@ export default function EmptyState({ onSuggestionClick }: EmptyStateProps) {
           <MessageCircleQuestion className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-xs text-muted-foreground font-medium">Try asking</span>
         </div>
-        {EXAMPLE_QUESTIONS.map((question, index) => (
+        {suggestions.map((question, index) => (
           <button
             key={index}
             onClick={() => onSuggestionClick(question)}

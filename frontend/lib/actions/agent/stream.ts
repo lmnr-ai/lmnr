@@ -5,22 +5,30 @@ import { z } from "zod";
 import { executeQuery } from "@/lib/actions/sql";
 import { getTraceStructureAsString } from "@/lib/actions/trace/agent/spans";
 
-import { LaminarAgentPrompt } from "./prompt";
+import { buildLaminarAgentPrompt, type UrlContext } from "./prompt";
 
 export const AgentStreamChatSchema = z.object({
   messages: z.array(z.any()).describe("Array of UI messages"),
   projectId: z.string().describe("The project ID"),
+  urlContext: z
+    .object({
+      pageType: z.string(),
+      ids: z.record(z.string(), z.string()),
+      systemPromptFragment: z.string(),
+    })
+    .optional()
+    .describe("URL-based context about the current page"),
 });
 
 export const streamAgentChat = async (input: z.infer<typeof AgentStreamChatSchema>) => {
-  const { messages: uiMessages, projectId } = input;
+  const { messages: uiMessages, projectId, urlContext } = input;
 
   const result = streamText({
     model: google("gemini-2.5-flash"),
     messages: convertToModelMessages(uiMessages as UIMessage[]),
     maxRetries: 5,
     stopWhen: stepCountIs(10),
-    system: LaminarAgentPrompt,
+    system: buildLaminarAgentPrompt(urlContext as UrlContext | undefined),
     tools: {
       querySQL: tool({
         description:

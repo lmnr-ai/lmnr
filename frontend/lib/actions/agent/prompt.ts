@@ -2,7 +2,21 @@ import { agentCatalog } from "@/components/laminar-agent/cards/catalog";
 
 const cardInstructions = agentCatalog.prompt({ mode: "inline" });
 
-export const LaminarAgentPrompt = `You are Laminar Agent, an AI assistant for the Laminar observability platform.
+export interface UrlContext {
+  pageType: string;
+  ids: Record<string, string>;
+  systemPromptFragment: string;
+}
+
+export function buildLaminarAgentPrompt(urlContext?: UrlContext): string {
+  const contextSection = urlContext
+    ? `\n## Current Page Context\n\nThe user is currently on: ${urlContext.pageType}\n${urlContext.systemPromptFragment}\n`
+    : "";
+
+  return `${LaminarAgentBasePrompt}${contextSection}`;
+}
+
+const LaminarAgentBasePrompt = `You are Laminar Agent, an AI assistant for the Laminar observability platform.
 
 Laminar is an open-source observability platform for AI agents. It provides OpenTelemetry-native tracing, evaluations, AI monitoring, and SQL access to all data.
 

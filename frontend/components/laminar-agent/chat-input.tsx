@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
@@ -12,9 +12,18 @@ interface ChatInputProps {
   onInputChange: (value: string) => void;
   onSend: () => void;
   isDisabled: boolean;
+  contextualSuggestion?: string;
+  onSuggestionClick?: (suggestion: string) => void;
 }
 
-export default function ChatInput({ input, onInputChange, onSend, isDisabled }: ChatInputProps) {
+export default function ChatInput({
+  input,
+  onInputChange,
+  onSend,
+  isDisabled,
+  contextualSuggestion,
+  onSuggestionClick,
+}: ChatInputProps) {
   const handleSubmit = () => {
     if (input.trim()) {
       onSend();
@@ -67,6 +76,15 @@ export default function ChatInput({ input, onInputChange, onSend, isDisabled }: 
           </div>
         </form>
       </motion.div>
+      {contextualSuggestion && onSuggestionClick && (
+        <button
+          onClick={() => onSuggestionClick(contextualSuggestion)}
+          className="flex items-center gap-1.5 mt-1.5 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/40 w-fit"
+        >
+          <Sparkles className="w-3 h-3" />
+          <span>{contextualSuggestion}</span>
+        </button>
+      )}
     </div>
   );
 }

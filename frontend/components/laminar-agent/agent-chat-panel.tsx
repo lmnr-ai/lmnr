@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import ChatInput from "@/components/laminar-agent/chat-input";
@@ -11,6 +11,7 @@ import MessageList from "@/components/laminar-agent/message-list";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { useLaminarAgentStore } from "./store";
+import { usePageContext } from "./use-page-context";
 
 interface AgentChatPanelProps {
   header?: React.ReactNode;
@@ -24,6 +25,10 @@ export default function AgentChatPanel({ header, maxWidth = "max-w-3xl" }: Agent
   const persistedMessages = useLaminarAgentStore((s) => s.persistedMessages);
   const [input, setInput] = useState("");
   const { toast } = useToast();
+
+  const pageContext = usePageContext();
+  // Pick the first suggestion as contextual hint below the input
+  const contextualSuggestion = useMemo(() => pageContext.suggestions[0] ?? null, [pageContext.suggestions]);
 
   const chat = getOrCreateChat(projectId);
   const { messages, setMessages, sendMessage, status, error } = useChat({
@@ -85,7 +90,7 @@ export default function AgentChatPanel({ header, maxWidth = "max-w-3xl" }: Agent
         <Conversation>
           <ConversationContent className={`space-y-4 py-4 px-0 pb-12 ${maxWidth} mx-auto w-full`}>
             {isEmpty ? (
-              <EmptyState onSuggestionClick={handleSuggestionClick} />
+              <EmptyState onSuggestionClick={handleSuggestionClick} suggestions={pageContext.suggestions} />
             ) : (
               <>
                 <MessageList messages={messages} status={status} />
@@ -103,7 +108,14 @@ export default function AgentChatPanel({ header, maxWidth = "max-w-3xl" }: Agent
         </Conversation>
 
         <div className={`${maxWidth} mx-auto w-full`}>
-          <ChatInput input={input} onInputChange={setInput} onSend={handleSend} isDisabled={isStreaming} />
+          <ChatInput
+            input={input}
+            onInputChange={setInput}
+            onSend={handleSend}
+            isDisabled={isStreaming}
+            contextualSuggestion={isEmpty ? undefined : (contextualSuggestion ?? undefined)}
+            onSuggestionClick={handleSuggestionClick}
+          />
           <span className="text-[10px] text-muted-foreground/50 text-center pb-4 block">
             Laminar Agent is in beta and can make mistakes
           </span>

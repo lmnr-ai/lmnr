@@ -7,11 +7,12 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
   const projectId = params.projectId;
 
   try {
-    const { messages } = await req.json();
+    const { messages, urlContext } = await req.json();
 
     const parseResult = AgentStreamChatSchema.safeParse({
       projectId,
       messages,
+      urlContext,
     });
 
     if (!parseResult.success) {
