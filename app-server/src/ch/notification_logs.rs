@@ -28,7 +28,7 @@ pub struct CHNotificationLog {
 }
 
 /// Insert notification log entries into ClickHouse
-pub async fn insert_notification_log(
+pub async fn insert_notification_logs(
     clickhouse: clickhouse::Client,
     entries: Vec<CHNotificationLog>,
 ) -> Result<()> {
@@ -37,7 +37,7 @@ pub async fn insert_notification_log(
     }
 
     let ch_insert = clickhouse
-        .insert::<CHNotificationLog>("notification_log")
+        .insert::<CHNotificationLog>("notification_logs")
         .await;
     match ch_insert {
         Ok(mut ch_insert) => {
@@ -46,7 +46,7 @@ pub async fn insert_notification_log(
                 ch_insert.write(&entry).await?;
             }
             ch_insert.end().await.map_err(|e| {
-                anyhow::anyhow!("Clickhouse notification_log insertion failed: {:?}", e)
+                anyhow::anyhow!("Clickhouse notification_logs insertion failed: {:?}", e)
             })?;
             Ok(())
         }

@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS notification_log
+CREATE TABLE IF NOT EXISTS notification_logs
 (
     id                 UUID,
     workspace_id       UUID,
