@@ -74,7 +74,11 @@ function TraceSkeletonInvocation({ state, input }: Omit<ToolInvocationProps, "to
         <span className="font-medium text-muted-foreground">
           {isLoading ? "Fetching trace structure..." : "Fetched trace structure"}
         </span>
-        {traceId && <span className={cn("font-mono text-foreground/70 truncate max-w-[200px]")}>{traceId}</span>}
+        {traceId && (
+          <span className="font-mono text-foreground/70 truncate max-w-[200px]" title={traceId}>
+            {traceId}
+          </span>
+        )}
       </div>
     </div>
   );
