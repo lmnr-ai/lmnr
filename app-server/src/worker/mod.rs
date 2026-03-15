@@ -74,6 +74,10 @@ impl QueueConfig {
     /// The prefetch count is determined by looking up an env var based on the queue name:
     /// `{QUEUE_NAME}_PREFETCH_COUNT` (e.g. `OBSERVATIONS_QUEUE_PREFETCH_COUNT`).
     /// Falls back to DEFAULT_PREFETCH_COUNT (128) if not set.
+    ///
+    /// Note: the env var key is derived from the actual RabbitMQ queue name string
+    /// (e.g. `semantic_event_queue` → `SEMANTIC_EVENT_QUEUE_PREFETCH_COUNT`),
+    /// which may differ from the Rust constant name.
     pub fn new(
         queue_name: &'static str,
         exchange_name: &'static str,
@@ -84,6 +88,13 @@ impl QueueConfig {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(DEFAULT_PREFETCH_COUNT);
+
+        log::info!(
+            "Queue '{}' prefetch_count={} (override via {})",
+            queue_name,
+            prefetch_count,
+            env_key,
+        );
 
         Self {
             queue_name,
