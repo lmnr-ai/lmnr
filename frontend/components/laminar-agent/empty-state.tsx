@@ -15,7 +15,7 @@ interface EmptyStateProps {
 
 export default function EmptyState({ onSuggestionClick }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center h-full px-4 py-8">
+    <div className="flex flex-col items-center justify-end h-full px-4 pb-4">
       <p className="text-sm text-muted-foreground text-center mb-6 max-w-sm">
         Ask questions about your project — traces, evaluations, metrics, and more.
       </p>
