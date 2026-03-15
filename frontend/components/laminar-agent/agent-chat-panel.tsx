@@ -8,6 +8,7 @@ import { Conversation, ConversationContent } from "@/components/ai-elements/conv
 import ChatInput from "@/components/laminar-agent/chat-input";
 import EmptyState from "@/components/laminar-agent/empty-state";
 import MessageList from "@/components/laminar-agent/message-list";
+import { useToast } from "@/lib/hooks/use-toast";
 
 import { useLaminarAgentStore } from "./store";
 
@@ -22,9 +23,19 @@ export default function AgentChatPanel({ header, maxWidth = "max-w-3xl" }: Agent
   const setPersistedMessages = useLaminarAgentStore((s) => s.setPersistedMessages);
   const persistedMessages = useLaminarAgentStore((s) => s.persistedMessages);
   const [input, setInput] = useState("");
+  const { toast } = useToast();
 
   const chat = getOrCreateChat(projectId);
-  const { messages, setMessages, sendMessage, status } = useChat({ chat });
+  const { messages, setMessages, sendMessage, status, error } = useChat({
+    chat,
+    onError: (err) => {
+      toast({
+        title: "Agent error",
+        description: err.message || "Failed to get a response. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const hasRestoredRef = useRef(false);
   useEffect(() => {
@@ -73,7 +84,14 @@ export default function AgentChatPanel({ header, maxWidth = "max-w-3xl" }: Agent
             {isEmpty ? (
               <EmptyState onSuggestionClick={handleSuggestionClick} />
             ) : (
-              <MessageList messages={messages} status={status} />
+              <>
+                <MessageList messages={messages} status={status} />
+                {error && (
+                  <div className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+                    Something went wrong: {error.message || "Failed to get a response."}
+                  </div>
+                )}
+              </>
             )}
           </ConversationContent>
         </Conversation>
