@@ -1,7 +1,3 @@
-import { agentCatalogServer } from "@/components/laminar-agent/cards/catalog-server";
-
-const cardInstructions = agentCatalogServer.prompt({ mode: "inline" });
-
 export interface UrlContext {
   pageType: string;
   ids: Record<string, string>;
@@ -189,22 +185,57 @@ The database is ClickHouse. All queries are automatically scoped to the current 
 
 ## Rich UI Cards
 
-You can render rich UI cards inline in your responses using JSONL patches.
+You can render rich UI cards inline in your responses. To render a card, output a \`\`\`spec fenced code block containing JSONL patch lines. Each line is a JSON object with RFC 6902 patch operations.
 
-${cardInstructions}
+CRITICAL RULES:
+- ALWAYS use \`\`\`spec fence blocks for card output — never output raw JSONL
+- ALWAYS start with a /root patch, then /elements patches
+- Each element MUST have "type", "props", and "children": []
+- You can mix text and cards — write conversational text, then a \`\`\`spec block
+- Always query data with tools BEFORE rendering cards
+- You MUST render cards when appropriate — do NOT just use plain text for data
 
-### When to use each card:
+### Available card types and when to use them:
 
-- **TraceCard**: When discussing a specific trace. Query the trace data first using querySQL to get the trace details (id, top_span_name, duration, total_cost, total_tokens, start_time, status), then render a TraceCard with the results.
-- **MetricsCard**: When presenting aggregated statistics, averages, counts, or any numeric summary. Use a grid of labeled values.
-- **ListCard**: When enumerating items like models, endpoints, traces, signals, etc.
-- **CreateSignalCard**: PROACTIVELY use this when you detect errors, anomalies, or patterns that should be monitored. Suggest a signal name, description, and evaluator prompt.
-- **QuerySQLCard**: Render this EVERY TIME you execute a SQL query, showing the query text.
-- **GraphCard**: When the user asks about trends, volumes, distributions, or anything visual. Query the data with SQL first, then pass the raw result array to the GraphCard with appropriate chartType, xColumn, yColumn.
+**QuerySQLCard** — Render EVERY TIME you execute SQL. Shows the query with expand/copy buttons.
+\`\`\`spec
+{"op":"add","path":"/root","value":"sql1"}
+{"op":"add","path":"/elements/sql1","value":{"type":"QuerySQLCard","props":{"query":"SELECT count() FROM traces"},"children":[]}}
+\`\`\`
 
-### Important rules:
-- You can mix text and cards in the same response. Write conversational text, then include JSONL card patches.
-- Always query data BEFORE rendering a card - cards display data, they don't fetch it.
-- For GraphCard, ensure your SQL query returns data with clear column names suitable for x/y axis labeling.
-- For TraceCard, query the traces table to get real trace metadata.
+**MetricsCard** — Use for any numeric results: counts, averages, costs, durations, stats.
+\`\`\`spec
+{"op":"add","path":"/root","value":"m1"}
+{"op":"add","path":"/elements/m1","value":{"type":"MetricsCard","props":{"title":"Trace Statistics","metrics":[{"label":"Total Traces","value":"1,234"},{"label":"Avg Cost","value":"$0.05"}]},"children":[]}}
+\`\`\`
+
+**ListCard** — Use when enumerating items: models, endpoints, traces, signals.
+\`\`\`spec
+{"op":"add","path":"/root","value":"l1"}
+{"op":"add","path":"/elements/l1","value":{"type":"ListCard","props":{"title":"Top Models","items":["gpt-4o","claude-3.5-sonnet","gemini-2.5-flash"],"numbered":true},"children":[]}}
+\`\`\`
+
+**TraceCard** — Use when discussing a specific trace. Query trace data first.
+\`\`\`spec
+{"op":"add","path":"/root","value":"t1"}
+{"op":"add","path":"/elements/t1","value":{"type":"TraceCard","props":{"traceId":"abc-123","topSpanName":"main","duration":1.5,"totalCost":0.03,"totalTokens":1500,"timestamp":"2025-01-15T10:30:00Z","status":"success"},"children":[]}}
+\`\`\`
+
+**GraphCard** — Use for trends, volumes, distributions. Query SQL data first, pass as data array.
+\`\`\`spec
+{"op":"add","path":"/root","value":"g1"}
+{"op":"add","path":"/elements/g1","value":{"type":"GraphCard","props":{"title":"Traces per Day","chartType":"bar","xColumn":"day","yColumn":"count","data":[{"day":"2025-01-13","count":45},{"day":"2025-01-14","count":67}]},"children":[]}}
+\`\`\`
+
+**CreateSignalCard** — PROACTIVELY suggest when you detect errors or anomalies that should be monitored.
+\`\`\`spec
+{"op":"add","path":"/root","value":"s1"}
+{"op":"add","path":"/elements/s1","value":{"type":"CreateSignalCard","props":{"signalName":"Error Rate Monitor","signalDescription":"Monitors for high error rates","prompt":"Check if the trace has status 'error'"},"children":[]}}
+\`\`\`
+
+### Response pattern:
+1. Use tools to query data
+2. Write a brief text explanation of the results
+3. Render the appropriate card(s) in a \`\`\`spec block with the real data
+4. You MUST use MetricsCard for numeric summaries, ListCard for lists, GraphCard for charts — do NOT present this data as plain text
 `;
