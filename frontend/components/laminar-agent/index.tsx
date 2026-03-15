@@ -63,7 +63,7 @@ export default function LaminarAgent() {
       <div className="grow flex flex-col overflow-auto relative minimal-scrollbar">
         <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-0 left-0 absolute z-10 pointer-none" />
         <Conversation>
-          <ConversationContent className="space-y-4 py-4 px-0 pb-12">
+          <ConversationContent className="space-y-4 py-4 px-0 pb-12 max-w-3xl mx-auto w-full">
             {isEmpty ? (
               <EmptyState onSuggestionClick={handleSuggestionClick} />
             ) : (
@@ -72,10 +72,12 @@ export default function LaminarAgent() {
           </ConversationContent>
         </Conversation>
 
-        <ChatInput input={input} onInputChange={setInput} onSend={handleSend} isDisabled={isStreaming} />
-        <span className="text-xs text-muted-foreground/50 text-center pb-2">
-          Laminar Agent is in beta and can make mistakes
-        </span>
+        <div className="max-w-3xl mx-auto w-full">
+          <ChatInput input={input} onInputChange={setInput} onSend={handleSend} isDisabled={isStreaming} />
+          <span className="text-xs text-muted-foreground/50 text-center pb-2 block">
+            Laminar Agent is in beta and can make mistakes
+          </span>
+        </div>
       </div>
     </div>
   );
