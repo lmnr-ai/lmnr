@@ -67,7 +67,7 @@ export default function AgentChatPanel({ header, maxWidth = "max-w-3xl" }: Agent
     <div className="flex flex-col h-full w-full">
       {header}
       <div className="grow flex flex-col overflow-auto relative minimal-scrollbar">
-        <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-0 left-0 absolute z-10 pointer-none" />
+        <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-0 left-0 absolute z-10 pointer-events-none" />
         <Conversation>
           <ConversationContent className={`space-y-4 py-4 px-0 pb-12 ${maxWidth} mx-auto w-full`}>
             {isEmpty ? (
