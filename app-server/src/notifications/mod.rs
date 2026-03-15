@@ -8,9 +8,8 @@ use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::ch::ClickhouseTrait;
-use crate::ch::cloud::CloudClickhouse;
 use crate::ch::notification_logs::CHNotificationLog;
+use crate::ch::service::ClickhouseService;
 use crate::db::DB;
 use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
 use crate::worker::{HandlerError, MessageHandler};
@@ -109,7 +108,7 @@ pub struct NotificationHandler {
     pub db: Arc<DB>,
     pub slack_client: reqwest::Client,
     pub resend: Option<Arc<Resend>>,
-    pub ch: CloudClickhouse,
+    pub ch_service: Arc<ClickhouseService>,
 }
 
 impl NotificationHandler {
@@ -117,13 +116,13 @@ impl NotificationHandler {
         db: Arc<DB>,
         slack_client: reqwest::Client,
         resend: Option<Arc<Resend>>,
-        ch: CloudClickhouse,
+        ch_service: Arc<ClickhouseService>,
     ) -> Self {
         Self {
             db,
             slack_client,
             resend,
-            ch,
+            ch_service,
         }
     }
 }
@@ -152,7 +151,11 @@ impl MessageHandler for NotificationHandler {
                 created_at: now_ms,
             };
 
-            if let Err(e) = self.ch.insert_batch(&[log_entry], None).await {
+            if let Err(e) = self
+                .ch_service
+                .insert_batch(message.project_id, &[log_entry])
+                .await
+            {
                 log::error!("Failed to insert notification log: {:?}", e);
             }
         }
