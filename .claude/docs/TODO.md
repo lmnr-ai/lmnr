@@ -2,7 +2,15 @@
 
 ## Open
 
+(none)
+
 ## Fixed
+
+- [x] [Designer] Phase 2: Gradient overlay at top of chat uses invalid Tailwind class `pointer-none` instead of `pointer-events-none` — fixed in commit 4c64b5e1
+- [x] [Designer] Phase 2: Collapsed FAB button has no aria-label — added aria-label="Open Laminar Agent", fixed in commit 47a47c8d
+- [x] [Designer] Phase 2: Mode-switching icon buttons in agent-mode-header.tsx lack aria-labels — added aria-labels for Collapse, Floating mode, Sidebar mode, Full screen, fixed in commit 4b09e73c
+- [x] [QA] Phase 2: Switching from fullscreen to sidebar or floating mode does not work — added ref flag to skip cleanup when switch is intentional, fixed in commit 545ceca5
+- [x] [QA] Phase 2: Sidebar panel has no framer-motion animation — wrapped with motion.div and AnimatePresence for animated width transition, fixed in commit c566a848
 
 - [x] [QA] Phase 2: Sending a message in agent chat causes unexpected redirect to /traces?pastHours=24 — investigated: API route code is correct (catches errors, returns JSON 500). This is environment-dependent — requires GOOGLE_GENERATIVE_AI_API_KEY for gemini-2.5-flash. Message sending worked in Phase 1 testing.
 - [x] [QA] Phase 2: Cannot verify "switching between any two modes preserves chat messages" end-to-end — code architecture is correct (Zustand persistedMessages + getOrCreateChat). Blocked by missing API key in local env, not a code bug.
