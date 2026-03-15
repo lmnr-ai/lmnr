@@ -176,9 +176,21 @@ impl NotificationHandler {
     /// Returns `Ok(true)` if the Slack message was actually sent,
     /// `Ok(false)` if delivery was skipped (e.g. integration not found).
     async fn handle_slack(&self, message: &NotificationMessage) -> Result<bool, HandlerError> {
+        // Try new format (EventIdentificationPayload directly) first,
+        // then fall back to old format (SlackMessagePayload enum wrapper)
+        // for backward compatibility with in-flight messages.
         let event_payload: EventIdentificationPayload =
-            serde_json::from_value(message.payload.clone())
-                .map_err(|e| anyhow::anyhow!("Failed to parse EventIdentificationPayload: {}", e))?;
+            serde_json::from_value::<EventIdentificationPayload>(message.payload.clone())
+                .or_else(|_| {
+                    let wrapped: SlackMessagePayload =
+                        serde_json::from_value(message.payload.clone())?;
+                    match wrapped {
+                        SlackMessagePayload::EventIdentification(inner) => Ok(inner),
+                    }
+                })
+                .map_err(|e: serde_json::Error| {
+                    anyhow::anyhow!("Failed to parse Slack payload: {}", e)
+                })?;
 
         let integration =
             crate::db::slack_integrations::get_integration_by_id(
