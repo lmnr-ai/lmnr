@@ -53,11 +53,18 @@ pub struct NotificationMessage {
     /// (e.g. `EventIdentificationPayload` or `EmailPayload`) — no enum wrapper.
     /// The handler wraps it as needed for delivery and logs it directly to ClickHouse.
     pub payload: serde_json::Value,
-    /// Metadata for notification logging
+    /// Metadata for notification logging.
+    /// Fields below use `serde(default)` for backward compatibility with in-flight
+    /// messages enqueued before this schema change.
+    #[serde(default)]
     pub workspace_id: Uuid,
+    #[serde(default)]
     pub definition_type: String,
+    #[serde(default)]
     pub definition_id: Uuid,
+    #[serde(default)]
     pub target_id: Uuid,
+    #[serde(default)]
     pub target_type: String,
 }
 
