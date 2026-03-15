@@ -2,6 +2,7 @@
 
 import { AnimatePresence } from "framer-motion";
 import { usePathname } from "next/navigation";
+import { useMemo } from "react";
 
 import CollapsedFab from "./collapsed-fab";
 import FloatingSidebar from "./floating-sidebar";
@@ -13,7 +14,7 @@ export default function AgentViewController() {
   const pathname = usePathname();
 
   const isAgentFullscreenPage = pathname.endsWith("/agent");
-  const pageContext = getPageContext(pathname);
+  const pageContext = useMemo(() => getPageContext(pathname), [pathname]);
 
   return (
     <AnimatePresence mode="wait">
