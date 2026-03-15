@@ -5,6 +5,7 @@ import { ArrowUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
+import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
   input: string;
@@ -51,7 +52,12 @@ export default function ChatInput({ input, onInputChange, onSend, isDisabled }: 
             <Button
               type="submit"
               size="icon"
-              className="absolute right-1 bottom-2 h-7 w-7 rounded-full border bg-primary"
+              className={cn(
+                "absolute right-1 bottom-2 h-7 w-7 rounded-full border",
+                input.trim() === "" || isDisabled
+                  ? "bg-muted text-muted-foreground opacity-50"
+                  : "bg-primary text-primary-foreground"
+              )}
               variant="ghost"
               disabled={input.trim() === "" || isDisabled}
             >
