@@ -7,8 +7,6 @@ CREATE TABLE IF NOT EXISTS notification_logs
     definition_id      UUID,
     target_id          UUID,
     target_type        LowCardinality(String),
-    target_payload     String DEFAULT '',
-    integration_id     UUID,
     payload            String DEFAULT '',
     created_at         DateTime64(3, 'UTC')
 )

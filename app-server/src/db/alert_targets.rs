@@ -7,7 +7,6 @@ pub struct SlackAlertTarget {
     pub alert_id: Uuid,
     pub workspace_id: Uuid,
     pub channel_id: String,
-    pub channel_name: String,
     pub integration_id: Uuid,
 }
 
@@ -23,8 +22,7 @@ pub async fn get_slack_targets_for_event(
     let records = sqlx::query_as::<_, SlackAlertTarget>(
         r#"
         SELECT at.id, at.alert_id, p.workspace_id,
-               at.channel_id, COALESCE(at.channel_name, '') as channel_name,
-               at.integration_id
+               at.channel_id, at.integration_id
         FROM alert_targets at
         INNER JOIN alerts a ON a.id = at.alert_id
         INNER JOIN signals s ON s.id = a.source_id

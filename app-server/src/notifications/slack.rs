@@ -19,6 +19,7 @@ pub struct EventIdentificationPayload {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(untagged)]
 pub enum SlackMessagePayload {
     EventIdentification(EventIdentificationPayload),
 }

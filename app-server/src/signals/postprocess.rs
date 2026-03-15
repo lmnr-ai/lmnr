@@ -77,12 +77,6 @@ pub async fn process_event_notifications_and_clustering(
             definition_id: target.alert_id,
             target_id: target.id,
             target_type: "SLACK".to_string(),
-            target_payload: serde_json::json!({
-                "channel_id": target.channel_id,
-                "channel_name": target.channel_name,
-            })
-            .to_string(),
-            integration_id: target.integration_id,
             payload: message_payload.to_string(),
             created_at: now_ms,
         })

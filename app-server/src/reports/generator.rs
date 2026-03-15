@@ -294,11 +294,6 @@ async fn process_report_trigger(
             definition_id: report_id,
             target_id: target.id,
             target_type: "EMAIL".to_string(),
-            target_payload: serde_json::json!({
-                "email": target.email,
-            })
-            .to_string(),
-            integration_id: Uuid::nil(),
             payload: payload_str.clone(),
             created_at: now_ms,
         })
