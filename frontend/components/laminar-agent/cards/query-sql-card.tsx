@@ -6,6 +6,7 @@ import { useCallback, useState } from "react";
 import { v4 } from "uuid";
 
 import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface QuerySQLCardProps {
@@ -35,7 +36,7 @@ export default function QuerySQLCard({ props }: { props: QuerySQLCardProps }) {
         window.open(`/project/${projectId}/sql/${id}`, "_blank");
       }
     } catch {
-      // silently fail
+      toast({ title: "Failed to open in SQL editor", variant: "destructive" });
     }
   }, [projectId, query]);
 
