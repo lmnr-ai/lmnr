@@ -41,14 +41,14 @@ function QuerySQLInvocation({ state, input, output }: Omit<ToolInvocationProps, 
       {expanded && (
         <div className="px-3 pb-2 space-y-2">
           {query && (
-            <pre className="bg-background rounded p-2 overflow-x-auto text-foreground/80 font-mono whitespace-pre-wrap">
+            <pre className="bg-background rounded p-2 overflow-x-auto text-[13px] text-foreground/80 font-mono whitespace-pre-wrap">
               {query}
             </pre>
           )}
           {state === "output-available" && output != null && (
             <div className="space-y-1">
               <span className="text-muted-foreground font-medium">Result preview</span>
-              <pre className="bg-background rounded p-2 overflow-x-auto text-foreground/80 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+              <pre className="bg-background rounded p-2 overflow-x-auto text-[13px] text-foreground/80 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
                 {typeof output === "string" ? truncateOutput(output) : truncateOutput(JSON.stringify(output, null, 2))}
               </pre>
             </div>
