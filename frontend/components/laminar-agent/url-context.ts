@@ -84,7 +84,7 @@ const ROUTE_MATCHES: RouteMatch[] = [
     ],
   },
   {
-    pattern: /\/project\/([^/]+)\/dashboards/,
+    pattern: /\/project\/([^/]+)\/dashboard/,
     pageType: "dashboard",
     extractIds: (m) => ({ projectId: m[1] }),
     promptFragment: () =>
