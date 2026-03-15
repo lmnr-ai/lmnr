@@ -2,10 +2,14 @@
 
 import { SquareArrowOutUpRight } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import { defaultSignalsColumnsOrder, signalsColumns, signalsTableFilters } from "@/components/signals/columns.tsx";
-import ManageSignalSheet from "@/components/signals/manage-signal-sheet.tsx";
+import ManageSignalSheet, {
+  getDefaultValues,
+  type ManageSignalForm,
+} from "@/components/signals/manage-signal-sheet.tsx";
+import { getDefaultSchemaFields } from "@/components/signals/utils";
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import Header from "@/components/ui/header.tsx";
@@ -55,6 +59,7 @@ export default function Signals() {
 function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [prefillValues, setPrefillValues] = useState<ManageSignalForm | undefined>(undefined);
   const { toast } = useToast();
   const { rowSelection, onRowSelectionChange } = useSelection();
 
@@ -64,6 +69,24 @@ function SignalsContent() {
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
   const search = searchParams.get("search");
+
+  const shouldCreate = searchParams.get("create");
+  const prefillName = searchParams.get("name");
+  const prefillDescription = searchParams.get("description");
+  const prefillPrompt = searchParams.get("prompt");
+
+  useEffect(() => {
+    if (shouldCreate === "true") {
+      const defaults = getDefaultValues(String(projectId));
+      setPrefillValues({
+        ...defaults,
+        name: prefillName ?? defaults.name,
+        prompt: prefillPrompt ?? defaults.prompt,
+        schemaFields: getDefaultSchemaFields(),
+      });
+      setIsDialogOpen(true);
+    }
+  }, [shouldCreate, prefillName, prefillDescription, prefillPrompt, projectId]);
 
   const FETCH_SIZE = 50;
 
@@ -156,7 +179,12 @@ function SignalsContent() {
       <Header path="signals" />
       <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
         <div className="flex items-center gap-2">
-          <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+          <ManageSignalSheet
+            open={isDialogOpen}
+            setOpen={setIsDialogOpen}
+            defaultValues={prefillValues}
+            onSuccess={handleSuccess}
+          >
             <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
               Signal
             </Button>
