@@ -1,6 +1,33 @@
-import { defineCatalog } from "@json-render/core";
-import { schema } from "@json-render/react";
+import { defineCatalog, defineSchema } from "@json-render/core";
 import { z } from "zod";
+
+// Create schema from core only — NOT from @json-render/react which uses
+// createContext and crashes in server-side API routes.
+const schema = defineSchema((s) => ({
+  spec: s.object({
+    root: s.string(),
+    elements: s.record(
+      s.object({
+        type: s.ref("catalog.components"),
+        props: s.propsOf("catalog.components"),
+        children: s.array(s.string()),
+        visible: s.any(),
+      })
+    ),
+  }),
+  catalog: s.object({
+    components: s.map({
+      props: s.zod(),
+      slots: s.array(s.string()),
+      description: s.string(),
+      example: s.any(),
+    }),
+    actions: s.map({
+      params: s.zod(),
+      description: s.string(),
+    }),
+  }),
+}));
 
 export const agentCatalog = defineCatalog(schema, {
   components: {
