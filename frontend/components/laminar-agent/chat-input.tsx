@@ -60,6 +60,7 @@ export default function ChatInput({ input, onInputChange, onSend, isDisabled }: 
               )}
               variant="ghost"
               disabled={input.trim() === "" || isDisabled}
+              aria-label="Send message"
             >
               <ArrowUp className="w-4 h-4" />
             </Button>
