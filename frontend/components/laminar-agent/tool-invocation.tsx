@@ -14,6 +14,7 @@ interface ToolInvocationProps {
 
 function QuerySQLInvocation({ state, input, output }: Omit<ToolInvocationProps, "toolName">) {
   const [expanded, setExpanded] = useState(false);
+  const [showFullOutput, setShowFullOutput] = useState(false);
   const query = (input as { query?: string })?.query;
   const isLoading = state === "input-streaming" || state === "input-available";
 
@@ -46,12 +47,11 @@ function QuerySQLInvocation({ state, input, output }: Omit<ToolInvocationProps, 
             </pre>
           )}
           {state === "output-available" && output != null && (
-            <div className="space-y-1">
-              <span className="text-muted-foreground font-medium">Result preview</span>
-              <pre className="bg-background rounded p-2 overflow-x-auto text-[13px] text-foreground/80 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
-                {typeof output === "string" ? truncateOutput(output) : truncateOutput(JSON.stringify(output, null, 2))}
-              </pre>
-            </div>
+            <ResultPreview
+              output={output}
+              showFull={showFullOutput}
+              onToggle={() => setShowFullOutput(!showFullOutput)}
+            />
           )}
         </div>
       )}
@@ -84,9 +84,30 @@ function TraceSkeletonInvocation({ state, input }: Omit<ToolInvocationProps, "to
   );
 }
 
-function truncateOutput(text: string, maxLength = 500): string {
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength) + "\n... (truncated)";
+const TRUNCATE_MAX_LENGTH = 500;
+
+function formatOutput(output: unknown): string {
+  return typeof output === "string" ? output : JSON.stringify(output, null, 2);
+}
+
+function ResultPreview({ output, showFull, onToggle }: { output: unknown; showFull: boolean; onToggle: () => void }) {
+  const fullText = formatOutput(output);
+  const isTruncated = fullText.length > TRUNCATE_MAX_LENGTH;
+  const displayText = showFull || !isTruncated ? fullText : fullText.slice(0, TRUNCATE_MAX_LENGTH) + "\n...";
+
+  return (
+    <div className="space-y-1">
+      <span className="text-muted-foreground font-medium">Result preview</span>
+      <pre className="bg-background rounded p-2 overflow-x-auto text-[13px] text-foreground/80 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+        {displayText}
+      </pre>
+      {isTruncated && (
+        <button className="text-muted-foreground hover:text-foreground transition-colors text-xs" onClick={onToggle}>
+          {showFull ? "Show less" : `Show more (${fullText.length.toLocaleString()} chars total)`}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export default function ToolInvocation({ toolName, state, input, output }: ToolInvocationProps) {
