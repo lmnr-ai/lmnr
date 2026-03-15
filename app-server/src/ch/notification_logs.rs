@@ -18,9 +18,7 @@ pub struct CHNotificationLog {
     #[serde(with = "clickhouse::serde::uuid")]
     pub target_id: Uuid,
     pub target_type: String,
-    pub channel_id: String,
-    pub channel_name: String,
-    pub email: String,
+    pub target_payload: String,
     #[serde(with = "clickhouse::serde::uuid")]
     pub integration_id: Uuid,
     pub payload: String,
