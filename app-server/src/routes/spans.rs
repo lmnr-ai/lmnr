@@ -184,11 +184,10 @@ pub async fn search_spans(
         format!("({})", escaped_query),
     ];
 
-    let mut sort_by = "start_time"; // default sort for scores and timestamp in quickwit is desc!
+    let sort_by = "start_time";
 
     if let Some(trace_id) = request.trace_id {
         query_parts.push(format!("trace_id:{}", trace_id));
-        sort_by = "start_time"; // sort by timestamp (desc) inside a single trace
     }
 
     let query_string = query_parts.join(" AND ");
