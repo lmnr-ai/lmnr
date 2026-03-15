@@ -8,6 +8,9 @@ use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::ch::ClickhouseTrait;
+use crate::ch::cloud::CloudClickhouse;
+use crate::ch::notification_logs::CHNotificationLog;
 use crate::db::DB;
 use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
 use crate::worker::{HandlerError, MessageHandler};
@@ -48,6 +51,14 @@ pub struct NotificationMessage {
     pub notification_type: NotificationType,
     pub event_name: String,
     pub payload: serde_json::Value,
+    /// Metadata for notification logging
+    pub workspace_id: Uuid,
+    pub definition_type: String,
+    pub definition_id: Uuid,
+    pub target_id: Uuid,
+    pub target_type: String,
+    /// Payload serialized for the notification log (inner struct, not the queue envelope)
+    pub log_payload: String,
 }
 
 /// Push a notification message to the notification queue.
@@ -98,14 +109,21 @@ pub struct NotificationHandler {
     pub db: Arc<DB>,
     pub slack_client: reqwest::Client,
     pub resend: Option<Arc<Resend>>,
+    pub ch: CloudClickhouse,
 }
 
 impl NotificationHandler {
-    pub fn new(db: Arc<DB>, slack_client: reqwest::Client, resend: Option<Arc<Resend>>) -> Self {
+    pub fn new(
+        db: Arc<DB>,
+        slack_client: reqwest::Client,
+        resend: Option<Arc<Resend>>,
+        ch: CloudClickhouse,
+    ) -> Self {
         Self {
             db,
             slack_client,
             resend,
+            ch,
         }
     }
 }
@@ -115,15 +133,36 @@ impl MessageHandler for NotificationHandler {
     type Message = NotificationMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        match message.notification_type {
-            NotificationType::Slack => self.handle_slack(message).await,
-            NotificationType::Email => self.handle_email(message).await,
+        let result = match message.notification_type {
+            NotificationType::Slack => self.handle_slack(&message).await,
+            NotificationType::Email => self.handle_email(&message).await,
+        };
+
+        if result.is_ok() {
+            let now_ms = chrono::Utc::now().timestamp_millis();
+            let log_entry = CHNotificationLog {
+                id: Uuid::new_v4(),
+                workspace_id: message.workspace_id,
+                project_id: message.project_id,
+                definition_type: message.definition_type,
+                definition_id: message.definition_id,
+                target_id: message.target_id,
+                target_type: message.target_type,
+                payload: message.log_payload,
+                created_at: now_ms,
+            };
+
+            if let Err(e) = self.ch.insert_batch(&[log_entry], None).await {
+                log::error!("Failed to insert notification log: {:?}", e);
+            }
         }
+
+        result
     }
 }
 
 impl NotificationHandler {
-    async fn handle_slack(&self, message: NotificationMessage) -> Result<(), HandlerError> {
+    async fn handle_slack(&self, message: &NotificationMessage) -> Result<(), HandlerError> {
         let slack_payload: SlackMessagePayload = serde_json::from_value(message.payload.clone())
             .map_err(|e| anyhow::anyhow!("Failed to parse SlackMessagePayload: {}", e))?;
 
@@ -171,7 +210,7 @@ impl NotificationHandler {
         Ok(())
     }
 
-    async fn handle_email(&self, message: NotificationMessage) -> Result<(), HandlerError> {
+    async fn handle_email(&self, message: &NotificationMessage) -> Result<(), HandlerError> {
         let resend = match &self.resend {
             Some(r) => r.clone(),
             None => {

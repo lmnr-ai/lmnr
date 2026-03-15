@@ -12,9 +12,6 @@ use uuid::Uuid;
 
 use super::ReportTriggerMessage;
 use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData, render_report_email};
-use crate::ch::ClickhouseTrait;
-use crate::ch::cloud::CloudClickhouse;
-use crate::ch::notification_logs::CHNotificationLog;
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
@@ -257,61 +254,49 @@ async fn process_report_trigger(
         return Ok(());
     }
 
-    let emails: Vec<String> = email_targets.iter().map(|t| t.email.clone()).collect();
-
     let subject = format!("{} – {}", report_name, workspace_name);
 
-    // Push email notification to the notification queue
-    let email_payload = EmailPayload {
-        from: REPORT_FROM_EMAIL.to_string(),
-        to: emails,
-        subject,
-        html,
-        inline_logo: true,
-    };
+    // Push one notification per email target so each gets its own notification log entry
+    for target in &email_targets {
+        let email_payload = EmailPayload {
+            from: REPORT_FROM_EMAIL.to_string(),
+            to: vec![target.email.clone()],
+            subject: subject.clone(),
+            html: html.clone(),
+            inline_logo: true,
+        };
 
-    let message_payload = serde_json::to_value(&email_payload)
-        .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
+        let log_payload = serde_json::to_string(&email_payload)
+            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
 
-    let notification_message = NotificationMessage {
-        project_id: Uuid::nil(),
-        trace_id: Uuid::nil(),
-        notification_type: NotificationType::Email,
-        event_name: "report_email".to_string(),
-        payload: message_payload.clone(),
-    };
+        let message_payload = serde_json::to_value(&email_payload)
+            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
 
-    push_to_notification_queue(notification_message, queue).await?;
-
-    // Log report notifications to ClickHouse
-    let now_ms = chrono::Utc::now().timestamp_millis();
-    let payload_str = message_payload.to_string();
-    let notification_logs: Vec<CHNotificationLog> = email_targets
-        .iter()
-        .map(|target| CHNotificationLog {
-            id: Uuid::new_v4(),
-            workspace_id,
+        let notification_message = NotificationMessage {
             project_id: Uuid::nil(),
+            trace_id: Uuid::nil(),
+            notification_type: NotificationType::Email,
+            event_name: "report_email".to_string(),
+            payload: message_payload,
+            workspace_id,
             definition_type: "REPORT".to_string(),
             definition_id: report_id,
             target_id: target.id,
             target_type: "EMAIL".to_string(),
-            payload: payload_str.clone(),
-            created_at: now_ms,
-        })
-        .collect();
+            log_payload,
+        };
 
-    let ch = CloudClickhouse::new(clickhouse);
-    if let Err(e) = ch.insert_batch(&notification_logs, None).await {
-        log::error!(
-            "[Reports Generator] Failed to insert report notification log for workspace {}: {:?}",
-            workspace_id,
-            e
-        );
+        if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
+            log::error!(
+                "[Reports Generator] Failed to push report notification for {}: {:?}",
+                target.email,
+                e
+            );
+        }
     }
 
     log::info!(
-        "[Reports Generator] Report email notification pushed to queue for workspace {}",
+        "[Reports Generator] Report email notifications pushed to queue for workspace {}",
         workspace_id
     );
 

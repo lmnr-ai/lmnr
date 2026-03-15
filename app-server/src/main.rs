@@ -1202,12 +1202,18 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let client = reqwest::Client::new();
                         let resend = resend_client.clone();
+                        let ch = CloudClickhouse::new(clickhouse_for_consumer.clone());
 
                         worker_pool_clone.spawn(
                             WorkerType::Notifications,
                             num_notification_workers as usize,
                             move || {
-                                NotificationHandler::new(db.clone(), client.clone(), resend.clone())
+                                NotificationHandler::new(
+                                    db.clone(),
+                                    client.clone(),
+                                    resend.clone(),
+                                    ch.clone(),
+                                )
                             },
                             QueueConfig {
                                 queue_name: NOTIFICATIONS_QUEUE,
