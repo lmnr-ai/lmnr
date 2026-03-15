@@ -20,7 +20,7 @@ export default function ListCard({ props }: { props: ListCardProps }) {
         {numbered ? (
           <ol className="list-decimal list-inside space-y-1.5 text-sm">
             {items.map((item, i) => (
-              <li key={i} className="text-foreground/90">
+              <li key={i} className="text-foreground">
                 {item}
               </li>
             ))}
@@ -28,7 +28,7 @@ export default function ListCard({ props }: { props: ListCardProps }) {
         ) : (
           <ul className="list-disc list-inside space-y-1.5 text-sm">
             {items.map((item, i) => (
-              <li key={i} className="text-foreground/90">
+              <li key={i} className="text-foreground">
                 {item}
               </li>
             ))}
