@@ -74,7 +74,7 @@ export default function LaminarAgent() {
 
         <div className="max-w-3xl mx-auto w-full">
           <ChatInput input={input} onInputChange={setInput} onSend={handleSend} isDisabled={isStreaming} />
-          <span className="text-xs text-muted-foreground/50 text-center pb-2 block">
+          <span className="text-[10px] text-muted-foreground/50 text-center pb-4 block">
             Laminar Agent is in beta and can make mistakes
           </span>
         </div>
