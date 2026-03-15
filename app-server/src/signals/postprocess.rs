@@ -12,9 +12,7 @@ use crate::clustering::queue::push_to_event_clustering_queue;
 use crate::db;
 use crate::features::{Feature, is_feature_enabled};
 use crate::mq::MessageQueue;
-use crate::notifications::{
-    self, EventIdentificationPayload, NotificationType, SlackMessagePayload,
-};
+use crate::notifications::{self, EventIdentificationPayload, NotificationType};
 
 /// Process notifications and clustering for an identified signal event
 pub async fn process_event_notifications_and_clustering(
@@ -38,10 +36,7 @@ pub async fn process_event_notifications_and_clustering(
             integration_id: target.integration_id,
         };
 
-        let log_payload_str = serde_json::to_string(&payload)?;
-
-        let message_payload =
-            serde_json::to_value(SlackMessagePayload::EventIdentification(payload))?;
+        let message_payload = serde_json::to_value(&payload)?;
 
         let notification_message = notifications::NotificationMessage {
             project_id,
@@ -54,7 +49,6 @@ pub async fn process_event_notifications_and_clustering(
             definition_id: target.alert_id,
             target_id: target.id,
             target_type: "SLACK".to_string(),
-            log_payload: log_payload_str,
         };
 
         if let Err(e) =

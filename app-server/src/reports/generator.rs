@@ -282,7 +282,6 @@ async fn process_report_trigger(
             definition_id: report_id,
             target_id: target.id,
             target_type: "EMAIL".to_string(),
-            log_payload: String::new(),
         };
 
         if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {

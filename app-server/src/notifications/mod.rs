@@ -49,6 +49,9 @@ pub struct NotificationMessage {
     #[serde(rename = "type")]
     pub notification_type: NotificationType,
     pub event_name: String,
+    /// The notification payload. For both Slack and Email this is the inner struct
+    /// (e.g. `EventIdentificationPayload` or `EmailPayload`) — no enum wrapper.
+    /// The handler wraps it as needed for delivery and logs it directly to ClickHouse.
     pub payload: serde_json::Value,
     /// Metadata for notification logging
     pub workspace_id: Uuid,
@@ -56,8 +59,6 @@ pub struct NotificationMessage {
     pub definition_id: Uuid,
     pub target_id: Uuid,
     pub target_type: String,
-    /// Payload serialized for the notification log (inner struct, not the queue envelope)
-    pub log_payload: String,
 }
 
 /// Push a notification message to the notification queue.
@@ -139,14 +140,6 @@ impl MessageHandler for NotificationHandler {
 
         if delivered {
             let now_ms = chrono::Utc::now().timestamp_millis();
-            // Use log_payload if the producer set it (e.g. Slack strips the enum wrapper),
-            // otherwise derive it from the queue payload to avoid duplicating large bodies
-            // (e.g. email HTML) in the MQ message.
-            let log_payload = if message.log_payload.is_empty() {
-                message.payload.to_string()
-            } else {
-                message.log_payload
-            };
             let log_entry = CHNotificationLog {
                 id: Uuid::new_v4(),
                 workspace_id: message.workspace_id,
@@ -155,7 +148,7 @@ impl MessageHandler for NotificationHandler {
                 definition_id: message.definition_id,
                 target_id: message.target_id,
                 target_type: message.target_type,
-                payload: log_payload,
+                payload: message.payload.to_string(),
                 created_at: now_ms,
             };
 
@@ -176,22 +169,22 @@ impl NotificationHandler {
     /// Returns `Ok(true)` if the Slack message was actually sent,
     /// `Ok(false)` if delivery was skipped (e.g. integration not found).
     async fn handle_slack(&self, message: &NotificationMessage) -> Result<bool, HandlerError> {
-        let slack_payload: SlackMessagePayload = serde_json::from_value(message.payload.clone())
-            .map_err(|e| anyhow::anyhow!("Failed to parse SlackMessagePayload: {}", e))?;
-
-        let integration_id = match &slack_payload {
-            SlackMessagePayload::EventIdentification(payload) => payload.integration_id,
-        };
+        let event_payload: EventIdentificationPayload =
+            serde_json::from_value(message.payload.clone())
+                .map_err(|e| anyhow::anyhow!("Failed to parse EventIdentificationPayload: {}", e))?;
 
         let integration =
-            crate::db::slack_integrations::get_integration_by_id(&self.db.pool, &integration_id)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
+            crate::db::slack_integrations::get_integration_by_id(
+                &self.db.pool,
+                &event_payload.integration_id,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
 
         let Some(integration) = integration else {
             log::warn!(
                 "Slack integration not found for integration_id: {}",
-                integration_id
+                event_payload.integration_id
             );
             return Ok(false);
         };
@@ -202,6 +195,9 @@ impl NotificationHandler {
             &integration.token,
         )
         .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
+
+        // Wrap into SlackMessagePayload for message formatting
+        let slack_payload = SlackMessagePayload::EventIdentification(event_payload);
 
         let blocks = slack::format_message_blocks(
             &slack_payload,
