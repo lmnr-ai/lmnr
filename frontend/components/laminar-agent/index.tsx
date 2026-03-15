@@ -1,10 +1,9 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
 import { Columns2, PanelRight } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import ChatInput from "@/components/laminar-agent/chat-input";
@@ -17,20 +16,12 @@ import { useLaminarAgentStore } from "./store";
 export default function LaminarAgent() {
   const projectId = useParams().projectId as string;
   const setViewMode = useLaminarAgentStore((s) => s.setViewMode);
+  const getOrCreateChat = useLaminarAgentStore((s) => s.getOrCreateChat);
   const [input, setInput] = useState("");
 
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: `/api/projects/${projectId}/agent`,
-      }),
-    [projectId]
-  );
+  const chat = getOrCreateChat(projectId);
 
-  const { messages, sendMessage, status } = useChat({
-    id: `laminar-agent-${projectId}`,
-    transport,
-  });
+  const { messages, sendMessage, status } = useChat({ chat });
 
   const handleSend = useCallback(() => {
     if (input.trim()) {
