@@ -47,7 +47,7 @@ export default function AgentSidebarLayout({ children }: AgentSidebarLayoutProps
   return (
     <div className="flex-1 flex min-h-0 overflow-hidden">
       <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">{children}</div>
-      <div className="relative flex-none" style={{ width: sidebarWidth }}>
+      <div className="relative flex-none border-l" style={{ width: sidebarWidth }}>
         <div
           className="absolute top-0 left-0 h-full cursor-col-resize z-50 group w-2 -ml-1"
           onMouseDown={handleResizeStart}
