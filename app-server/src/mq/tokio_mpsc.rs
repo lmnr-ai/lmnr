@@ -124,6 +124,7 @@ impl MessageQueueTrait for TokioMpscQueue {
         _queue_name: &str,
         exchange: &str,
         routing_key: &str,
+        _prefetch_count: u16,
     ) -> anyhow::Result<MessageQueueReceiver> {
         let key = self.key(exchange, routing_key);
 

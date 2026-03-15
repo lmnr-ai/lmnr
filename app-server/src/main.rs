@@ -688,11 +688,7 @@ fn main() -> anyhow::Result<()> {
 
             log::info!("RabbitMQ channels: {}", max_channel_pool_size);
 
-            let prefetch_count =
-                get_unsigned_env_with_default("RABBITMQ_CONSUMER_PREFETCH_COUNT", 256) as u16;
-
             let rabbit_mq = mq::rabbit::RabbitMQ::new(
-                prefetch_count,
                 publisher_conn.clone(),
                 consumer_connection.clone(),
                 max_channel_pool_size,
@@ -1055,11 +1051,11 @@ fn main() -> anyhow::Result<()> {
                                     flush_interval,
                                 },
                             },
-                            QueueConfig {
-                                queue_name: OBSERVATIONS_QUEUE,
-                                exchange_name: OBSERVATIONS_EXCHANGE,
-                                routing_key: OBSERVATIONS_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                OBSERVATIONS_QUEUE,
+                                OBSERVATIONS_EXCHANGE,
+                                OBSERVATIONS_ROUTING_KEY,
+                            ),
                         );
                     }
 
@@ -1099,11 +1095,11 @@ fn main() -> anyhow::Result<()> {
                                     flush_interval,
                                 },
                             },
-                            QueueConfig {
-                                queue_name: SPANS_DATA_PLANE_QUEUE,
-                                exchange_name: SPANS_DATA_PLANE_EXCHANGE,
-                                routing_key: SPANS_DATA_PLANE_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                SPANS_DATA_PLANE_QUEUE,
+                                SPANS_DATA_PLANE_EXCHANGE,
+                                SPANS_DATA_PLANE_ROUTING_KEY,
+                            ),
                         );
                     }
 
@@ -1117,11 +1113,11 @@ fn main() -> anyhow::Result<()> {
                             move || QuickwitIndexerHandler {
                                 quickwit_client: quickwit.clone(),
                             },
-                            QueueConfig {
-                                queue_name: SPANS_INDEXER_QUEUE,
-                                exchange_name: SPANS_INDEXER_EXCHANGE,
-                                routing_key: SPANS_INDEXER_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                SPANS_INDEXER_QUEUE,
+                                SPANS_INDEXER_EXCHANGE,
+                                SPANS_INDEXER_ROUTING_KEY,
+                            ),
                         );
                     } else {
                         log::warn!("Quickwit not available - skipping spans indexer workers");
@@ -1155,11 +1151,11 @@ fn main() -> anyhow::Result<()> {
                                     flush_interval,
                                 },
                             },
-                            QueueConfig {
-                                queue_name: BROWSER_SESSIONS_QUEUE,
-                                exchange_name: BROWSER_SESSIONS_EXCHANGE,
-                                routing_key: BROWSER_SESSIONS_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                BROWSER_SESSIONS_QUEUE,
+                                BROWSER_SESSIONS_EXCHANGE,
+                                BROWSER_SESSIONS_ROUTING_KEY,
+                            ),
                         );
                     }
 
@@ -1187,11 +1183,11 @@ fn main() -> anyhow::Result<()> {
                                     },
                                 )
                             },
-                            QueueConfig {
-                                queue_name: SIGNALS_QUEUE,
-                                exchange_name: SIGNALS_EXCHANGE,
-                                routing_key: SIGNALS_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                SIGNALS_QUEUE,
+                                SIGNALS_EXCHANGE,
+                                SIGNALS_ROUTING_KEY,
+                            ),
                         );
                     } else {
                         log::warn!("Gemini client not available - skipping signals workers");
@@ -1209,11 +1205,11 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 NotificationHandler::new(db.clone(), client.clone(), resend.clone())
                             },
-                            QueueConfig {
-                                queue_name: NOTIFICATIONS_QUEUE,
-                                exchange_name: NOTIFICATIONS_EXCHANGE,
-                                routing_key: NOTIFICATIONS_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                NOTIFICATIONS_QUEUE,
+                                NOTIFICATIONS_EXCHANGE,
+                                NOTIFICATIONS_ROUTING_KEY,
+                            ),
                         );
                     }
 
@@ -1242,11 +1238,11 @@ fn main() -> anyhow::Result<()> {
                                     },
                                 )
                             },
-                            QueueConfig {
-                                queue_name: EVENT_CLUSTERING_QUEUE,
-                                exchange_name: EVENT_CLUSTERING_EXCHANGE,
-                                routing_key: EVENT_CLUSTERING_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                EVENT_CLUSTERING_QUEUE,
+                                EVENT_CLUSTERING_EXCHANGE,
+                                EVENT_CLUSTERING_ROUTING_KEY,
+                            ),
                         );
                     }
 
@@ -1258,11 +1254,11 @@ fn main() -> anyhow::Result<()> {
                             WorkerType::Clustering,
                             num_clustering_workers as usize,
                             move || ClusteringHandler::new(cache.clone(), client.clone()),
-                            QueueConfig {
-                                queue_name: EVENT_CLUSTERING_BATCH_QUEUE,
-                                exchange_name: EVENT_CLUSTERING_BATCH_EXCHANGE,
-                                routing_key: EVENT_CLUSTERING_BATCH_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                EVENT_CLUSTERING_BATCH_QUEUE,
+                                EVENT_CLUSTERING_BATCH_EXCHANGE,
+                                EVENT_CLUSTERING_BATCH_ROUTING_KEY,
+                            ),
                         );
                     }
 
@@ -1285,11 +1281,11 @@ fn main() -> anyhow::Result<()> {
                                     config.clone(),
                                 )
                             },
-                            QueueConfig {
-                                queue_name: SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
-                                exchange_name: SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
-                                routing_key: SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                SIGNAL_JOB_SUBMISSION_BATCH_QUEUE,
+                                SIGNAL_JOB_SUBMISSION_BATCH_EXCHANGE,
+                                SIGNAL_JOB_SUBMISSION_BATCH_ROUTING_KEY,
+                            ),
                         );
                     } else {
                         log::warn!(
@@ -1318,11 +1314,11 @@ fn main() -> anyhow::Result<()> {
                                     config.clone(),
                                 )
                             },
-                            QueueConfig {
-                                queue_name: SIGNAL_JOB_PENDING_BATCH_QUEUE,
-                                exchange_name: SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
-                                routing_key: SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                SIGNAL_JOB_PENDING_BATCH_QUEUE,
+                                SIGNAL_JOB_PENDING_BATCH_EXCHANGE,
+                                SIGNAL_JOB_PENDING_BATCH_ROUTING_KEY,
+                            ),
                         );
                     } else {
                         log::warn!("LLM provider not available - skipping batch pending workers");
@@ -1350,11 +1346,11 @@ fn main() -> anyhow::Result<()> {
                                     config.clone(),
                                 )
                             },
-                            QueueConfig {
-                                queue_name: SIGNALS_REALTIME_QUEUE,
-                                exchange_name: SIGNALS_REALTIME_EXCHANGE,
-                                routing_key: SIGNALS_REALTIME_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                SIGNALS_REALTIME_QUEUE,
+                                SIGNALS_REALTIME_EXCHANGE,
+                                SIGNALS_REALTIME_ROUTING_KEY,
+                            ),
                         );
                     } else {
                         log::warn!("LLM provider not available - skipping realtime workers");
@@ -1373,11 +1369,11 @@ fn main() -> anyhow::Result<()> {
                                 cache: cache.clone(),
                                 clickhouse: clickhouse.clone(),
                             },
-                            QueueConfig {
-                                queue_name: LOGS_QUEUE,
-                                exchange_name: LOGS_EXCHANGE,
-                                routing_key: LOGS_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                LOGS_QUEUE,
+                                LOGS_EXCHANGE,
+                                LOGS_ROUTING_KEY,
+                            ),
                         );
                     }
 
@@ -1396,11 +1392,11 @@ fn main() -> anyhow::Result<()> {
                                 queue: queue.clone(),
                                 llm_client: llm_client.clone(),
                             },
-                            QueueConfig {
-                                queue_name: REPORT_TRIGGERS_QUEUE,
-                                exchange_name: REPORT_TRIGGERS_EXCHANGE,
-                                routing_key: REPORT_TRIGGERS_ROUTING_KEY,
-                            },
+                            QueueConfig::new(
+                                REPORT_TRIGGERS_QUEUE,
+                                REPORT_TRIGGERS_EXCHANGE,
+                                REPORT_TRIGGERS_ROUTING_KEY,
+                            ),
                         );
                     }
 

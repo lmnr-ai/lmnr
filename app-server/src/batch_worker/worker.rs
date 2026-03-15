@@ -156,6 +156,7 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
         let queue_name = self.config.queue_name;
         let exchange = self.config.exchange_name;
         let routing_key = self.config.routing_key;
+        let prefetch_count = self.config.prefetch_count;
         let worker_id = self.id;
         let worker_type = self.worker_type;
 
@@ -164,7 +165,7 @@ impl<H: BatchMessageHandler> BatchQueueWorker<H> {
 
             async move {
                 queue
-                    .get_receiver(queue_name, exchange, routing_key)
+                    .get_receiver(queue_name, exchange, routing_key, prefetch_count)
                     .await
                     .map_err(|e| {
                         log::error!(
@@ -352,11 +353,11 @@ mod tests {
             BatchWorkerType::ClusteringBatching,
             handler,
             queue,
-            QueueConfig {
-                queue_name: TEST_QUEUE,
-                exchange_name: TEST_EXCHANGE,
-                routing_key: TEST_ROUTING_KEY,
-            },
+            QueueConfig::new(
+                TEST_QUEUE,
+                TEST_EXCHANGE,
+                TEST_ROUTING_KEY,
+            ),
         )
     }
 

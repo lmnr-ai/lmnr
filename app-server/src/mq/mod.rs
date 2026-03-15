@@ -106,6 +106,7 @@ pub trait MessageQueueTrait {
         queue_name: &str,
         exchange: &str,
         routing_key: &str,
+        prefetch_count: u16,
     ) -> anyhow::Result<MessageQueueReceiver>;
 
     /// Check if the message queue connections are healthy.

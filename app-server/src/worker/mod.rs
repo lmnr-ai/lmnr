@@ -10,6 +10,8 @@ use crate::mq::{
     MessageQueueTrait,
 };
 
+const DEFAULT_PREFETCH_COUNT: u16 = 128;
+
 /// Message handler trait - implement this to process messages
 #[async_trait]
 pub trait MessageHandler: Send + Sync + 'static {
@@ -63,6 +65,33 @@ pub struct QueueConfig {
     pub queue_name: &'static str,
     pub exchange_name: &'static str,
     pub routing_key: &'static str,
+    pub prefetch_count: u16,
+}
+
+impl QueueConfig {
+    /// Create a new QueueConfig with prefetch count resolved from environment.
+    ///
+    /// The prefetch count is determined by looking up an env var based on the queue name:
+    /// `{QUEUE_NAME}_PREFETCH_COUNT` (e.g. `observations_PREFETCH_COUNT` for queue `observations`).
+    /// Falls back to DEFAULT_PREFETCH_COUNT (128) if not set.
+    pub fn new(
+        queue_name: &'static str,
+        exchange_name: &'static str,
+        routing_key: &'static str,
+    ) -> Self {
+        let env_key = format!("{}_PREFETCH_COUNT", queue_name);
+        let prefetch_count = std::env::var(&env_key)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_PREFETCH_COUNT);
+
+        Self {
+            queue_name,
+            exchange_name,
+            routing_key,
+            prefetch_count,
+        }
+    }
 }
 
 /// Worker type enumeration
@@ -175,6 +204,7 @@ impl<H: MessageHandler> QueueWorker<H> {
         let queue_name = self.config.queue_name;
         let exchange = self.config.exchange_name;
         let routing_key = self.config.routing_key;
+        let prefetch_count = self.config.prefetch_count;
         let worker_id = self.id;
         let worker_type = self.worker_type;
 
@@ -183,7 +213,7 @@ impl<H: MessageHandler> QueueWorker<H> {
 
             async move {
                 queue
-                    .get_receiver(queue_name, exchange, routing_key)
+                    .get_receiver(queue_name, exchange, routing_key, prefetch_count)
                     .await
                     .map_err(|e| {
                         log::error!(
