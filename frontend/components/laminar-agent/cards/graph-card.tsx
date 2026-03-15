@@ -6,6 +6,12 @@ import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { type ChartConfig, ChartType } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 
+const chartTypeMap: Record<string, ChartType> = {
+  line: ChartType.LineChart,
+  bar: ChartType.BarChart,
+  horizontalBar: ChartType.HorizontalBarChart,
+};
+
 interface GraphCardProps {
   title: string | null;
   chartType: "line" | "bar" | "horizontalBar";
@@ -19,12 +25,6 @@ export default function GraphCard({ props }: { props: GraphCardProps }) {
 
   const typedData = data as Record<string, string | number | boolean>[];
   const columns = useMemo(() => transformDataToColumns(typedData), [typedData]);
-
-  const chartTypeMap: Record<string, ChartType> = {
-    line: ChartType.LineChart,
-    bar: ChartType.BarChart,
-    horizontalBar: ChartType.HorizontalBarChart,
-  };
 
   const config: ChartConfig = useMemo(
     () => ({
