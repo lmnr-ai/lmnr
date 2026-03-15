@@ -52,7 +52,7 @@ export default function AgentSidebarLayout({ children }: AgentSidebarLayoutProps
           className="absolute top-0 left-0 h-full cursor-col-resize z-50 group w-2 -ml-1"
           onMouseDown={handleResizeStart}
         >
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-all" />
         </div>
         <SidebarPanel />
       </div>
