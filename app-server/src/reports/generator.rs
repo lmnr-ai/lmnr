@@ -12,10 +12,11 @@ use uuid::Uuid;
 
 use super::ReportTriggerMessage;
 use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData, render_report_email};
+use crate::ch::notification_log::{CHNotificationLog, insert_notification_log};
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
-use crate::db::reports::{get_report_target_emails, get_signals_for_workspace};
+use crate::db::reports::{get_email_report_targets, get_signals_for_workspace};
 use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::notifications::{
@@ -241,11 +242,11 @@ async fn process_report_trigger(
     let html = render_report_email(&report_data);
 
     // Get email targets from report_targets table
-    let emails = get_report_target_emails(&db.pool, &report_id, &workspace_id)
+    let email_targets = get_email_report_targets(&db.pool, &report_id, &workspace_id)
         .await
         .map_err(|e| HandlerError::transient(e))?;
 
-    if emails.is_empty() {
+    if email_targets.is_empty() {
         log::info!(
             "[Reports Generator] No email targets found for report {} in workspace {}",
             report_id,
@@ -253,6 +254,8 @@ async fn process_report_trigger(
         );
         return Ok(());
     }
+
+    let emails: Vec<String> = email_targets.iter().map(|t| t.email.clone()).collect();
 
     let subject = format!("{} – {}", report_name, workspace_name);
 
@@ -275,6 +278,34 @@ async fn process_report_trigger(
     };
 
     push_to_notification_queue(notification_message, queue).await?;
+
+    // Log report notifications to ClickHouse
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let notification_logs: Vec<CHNotificationLog> = email_targets
+        .iter()
+        .map(|target| CHNotificationLog {
+            id: Uuid::new_v4(),
+            workspace_id,
+            project_id: Uuid::nil(),
+            definition_type: "report".to_string(),
+            definition_id: report_id,
+            target_id: target.id,
+            target_type: "EMAIL".to_string(),
+            channel_id: String::new(),
+            channel_name: String::new(),
+            email: target.email.clone(),
+            integration_id: Uuid::nil(),
+            created_at: now_ms,
+        })
+        .collect();
+
+    if let Err(e) = insert_notification_log(clickhouse, notification_logs).await {
+        log::error!(
+            "[Reports Generator] Failed to insert report notification log for workspace {}: {:?}",
+            workspace_id,
+            e
+        );
+    }
 
     log::info!(
         "[Reports Generator] Report email notification pushed to queue for workspace {}",

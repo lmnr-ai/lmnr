@@ -7,6 +7,7 @@
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::ch::notification_log::{CHNotificationLog, insert_notification_log};
 use crate::ch::signal_events::CHSignalEvent;
 use crate::clustering::queue::push_to_event_clustering_queue;
 use crate::db;
@@ -20,6 +21,7 @@ use crate::notifications::{
 pub async fn process_event_notifications_and_clustering(
     db: Arc<db::DB>,
     queue: Arc<MessageQueue>,
+    clickhouse: clickhouse::Client,
     project_id: Uuid,
     trace_id: Uuid,
     signal_event: CHSignalEvent,
@@ -30,7 +32,9 @@ pub async fn process_event_notifications_and_clustering(
     let targets =
         db::alert_targets::get_slack_targets_for_event(&db.pool, project_id, &event_name).await?;
 
-    for target in targets {
+    let now_ms = chrono::Utc::now().timestamp_millis();
+
+    for target in &targets {
         let payload = EventIdentificationPayload {
             event_name: event_name.to_string(),
             extracted_information: Some(attributes.clone()),
@@ -55,6 +59,33 @@ pub async fn process_event_notifications_and_clustering(
                 e
             );
         }
+    }
+
+    // Log alert notifications to ClickHouse
+    let notification_logs: Vec<CHNotificationLog> = targets
+        .iter()
+        .map(|target| CHNotificationLog {
+            id: Uuid::new_v4(),
+            workspace_id: target.workspace_id,
+            project_id,
+            definition_type: "alert".to_string(),
+            definition_id: target.alert_id,
+            target_id: target.id,
+            target_type: "SLACK".to_string(),
+            channel_id: target.channel_id.clone(),
+            channel_name: target.channel_name.clone(),
+            email: String::new(),
+            integration_id: target.integration_id,
+            created_at: now_ms,
+        })
+        .collect();
+
+    if let Err(e) = insert_notification_log(clickhouse, notification_logs).await {
+        log::error!(
+            "Failed to insert alert notification log for event {}: {:?}",
+            event_name,
+            e
+        );
     }
 
     if is_feature_enabled(Feature::Clustering) {

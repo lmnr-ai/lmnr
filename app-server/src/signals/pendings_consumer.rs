@@ -1027,11 +1027,12 @@ async fn handle_create_event(
         timestamp,
         summary,
     );
-    insert_signal_events(clickhouse, vec![signal_event.clone()]).await?;
+    insert_signal_events(clickhouse.clone(), vec![signal_event.clone()]).await?;
 
     process_event_notifications_and_clustering(
         db,
         queue.clone(),
+        clickhouse,
         signal_message.project_id,
         run.trace_id,
         signal_event,
