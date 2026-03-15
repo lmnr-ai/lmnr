@@ -33,10 +33,22 @@ export default function LaminarAgent() {
   const header = (
     <Header path="laminar agent">
       <div className="flex items-center gap-1 ml-auto">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => switchModeAndNavigateAway("floating")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          aria-label="Floating mode"
+          onClick={() => switchModeAndNavigateAway("floating")}
+        >
           <Columns2 className="w-4 h-4" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => switchModeAndNavigateAway("sidebar")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          aria-label="Sidebar mode"
+          onClick={() => switchModeAndNavigateAway("sidebar")}
+        >
           <PanelRight className="w-4 h-4" />
         </Button>
       </div>

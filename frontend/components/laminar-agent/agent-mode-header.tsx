@@ -30,36 +30,72 @@ export default function AgentModeHeader({ currentMode }: AgentModeHeaderProps) {
       <div className="flex items-center gap-0.5">
         {currentMode === "sidebar" && (
           <>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewMode("collapsed")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Collapse"
+              onClick={() => setViewMode("collapsed")}
+            >
               <Minus className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewMode("floating")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Floating mode"
+              onClick={() => setViewMode("floating")}
+            >
               <Columns2 className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={goFullscreen}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Full screen" onClick={goFullscreen}>
               <Maximize className="w-4 h-4" />
             </Button>
           </>
         )}
         {currentMode === "floating" && (
           <>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewMode("collapsed")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Collapse"
+              onClick={() => setViewMode("collapsed")}
+            >
               <Minus className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewMode("sidebar")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Sidebar mode"
+              onClick={() => setViewMode("sidebar")}
+            >
               <PanelRight className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={goFullscreen}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Full screen" onClick={goFullscreen}>
               <Maximize className="w-4 h-4" />
             </Button>
           </>
         )}
         {currentMode === "fullscreen" && (
           <>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewMode("floating")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Floating mode"
+              onClick={() => setViewMode("floating")}
+            >
               <Columns2 className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewMode("sidebar")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Sidebar mode"
+              onClick={() => setViewMode("sidebar")}
+            >
               <PanelRight className="w-4 h-4" />
             </Button>
           </>
