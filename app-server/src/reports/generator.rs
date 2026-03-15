@@ -258,6 +258,7 @@ async fn process_report_trigger(
 
     // Push one notification per email target so each gets its own notification log entry
     let mut push_failures = 0;
+    let mut has_permanent_failure = false;
     for target in &email_targets {
         let email_payload = EmailPayload {
             from: REPORT_FROM_EMAIL.to_string(),
@@ -286,6 +287,9 @@ async fn process_report_trigger(
 
         if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
             push_failures += 1;
+            if matches!(&e, HandlerError::Permanent(_)) {
+                has_permanent_failure = true;
+            }
             log::error!(
                 "[Reports Generator] Failed to push report notification for {}: {:?}",
                 target.email,
@@ -295,11 +299,17 @@ async fn process_report_trigger(
     }
 
     if push_failures == email_targets.len() {
-        return Err(HandlerError::transient(anyhow::anyhow!(
+        let msg = format!(
             "Failed to push all {} report notifications to queue for workspace {}",
             email_targets.len(),
             workspace_id
-        )));
+        );
+        // If any failure was permanent (e.g. payload too large), retrying won't help
+        return Err(if has_permanent_failure {
+            HandlerError::permanent(anyhow::anyhow!(msg))
+        } else {
+            HandlerError::transient(anyhow::anyhow!(msg))
+        });
     }
 
     log::info!(
