@@ -3,8 +3,9 @@
 ## Open
 
 
-
 ## Fixed
+
+- [x] [QA] Phase 1: Chat state does not persist when navigating away and back. The useChat hook lost its internal state on unmount. Added persistedMessages to Zustand store with restore-on-mount and sync-on-change effects. — fixed in commit ddf3418d
 
 - [x] [Designer] Phase 1: Header does not use the shared `<Header>` component (`components/ui/header.tsx`). Every other page in the app uses `<Header path="...">` which provides consistent h-12 height, SidebarTrigger, and standard padding (pl-2.5 pr-4). The agent page instead uses a custom `div` with `px-4 py-2 border-b` and an `h2`. Replace with `<Header path="laminar agent">` and move the view-mode icons into the Header's `children` slot. — fixed in commit dffb6aac
 - [x] [Designer] Phase 1: Chat content area has no max-width constraint. On wide screens the user message bubbles and assistant responses stretch across the entire viewport width, making text lines very long and hard to read. Add a `max-w-3xl mx-auto` (or similar) wrapper around the conversation content, matching the pattern of modern chat UIs. The chat input should have the same max-width constraint so everything aligns. — fixed in commit 28f2fc9d
