@@ -139,6 +139,14 @@ impl MessageHandler for NotificationHandler {
 
         if delivered {
             let now_ms = chrono::Utc::now().timestamp_millis();
+            // Use log_payload if the producer set it (e.g. Slack strips the enum wrapper),
+            // otherwise derive it from the queue payload to avoid duplicating large bodies
+            // (e.g. email HTML) in the MQ message.
+            let log_payload = if message.log_payload.is_empty() {
+                message.payload.to_string()
+            } else {
+                message.log_payload
+            };
             let log_entry = CHNotificationLog {
                 id: Uuid::new_v4(),
                 workspace_id: message.workspace_id,
@@ -147,7 +155,7 @@ impl MessageHandler for NotificationHandler {
                 definition_id: message.definition_id,
                 target_id: message.target_id,
                 target_type: message.target_type,
-                payload: message.log_payload,
+                payload: log_payload,
                 created_at: now_ms,
             };
 

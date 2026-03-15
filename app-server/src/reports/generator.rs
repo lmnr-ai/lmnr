@@ -267,9 +267,6 @@ async fn process_report_trigger(
             inline_logo: true,
         };
 
-        let log_payload = serde_json::to_string(&email_payload)
-            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
-
         let message_payload = serde_json::to_value(&email_payload)
             .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
 
@@ -284,7 +281,7 @@ async fn process_report_trigger(
             definition_id: report_id,
             target_id: target.id,
             target_type: "EMAIL".to_string(),
-            log_payload,
+            log_payload: String::new(),
         };
 
         if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
