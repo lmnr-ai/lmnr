@@ -6,6 +6,8 @@ import { type ReactNode } from "react";
 import PostHogClient from "@/app/posthog";
 import PostHogIdentifier from "@/app/posthog-identifier";
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
+import AgentSidebarLayout from "@/components/laminar-agent/agent-sidebar-layout";
+import AgentViewController from "@/components/laminar-agent/agent-view-controller";
 import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -58,7 +60,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
               <ProjectSidebar details={projectDetails} />
               <SidebarInset className="flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
                 {showBanner && <ProjectUsageBanner details={projectDetails} />}
-                {children}
+                <AgentSidebarLayout>{children}</AgentSidebarLayout>
+                <AgentViewController />
               </SidebarInset>
             </SidebarProvider>
           </div>
