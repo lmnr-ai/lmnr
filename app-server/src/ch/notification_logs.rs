@@ -1,7 +1,9 @@
-use anyhow::Result;
 use clickhouse::Row;
+use clickhouse::insert::Insert;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use super::{ClickhouseInsertable, DataPlaneBatch, Table};
 
 /// ClickHouse representation of a notification log entry
 #[derive(Row, Serialize, Deserialize, Clone, Debug)]
@@ -22,32 +24,14 @@ pub struct CHNotificationLog {
     pub created_at: i64,
 }
 
-/// Insert notification log entries into ClickHouse
-pub async fn insert_notification_logs(
-    clickhouse: clickhouse::Client,
-    entries: Vec<CHNotificationLog>,
-) -> Result<()> {
-    if entries.is_empty() {
-        return Ok(());
+impl ClickhouseInsertable for CHNotificationLog {
+    const TABLE: Table = Table::NotificationLogs;
+
+    fn configure_insert(insert: Insert<Self>) -> Insert<Self> {
+        insert.with_option("wait_for_async_insert", "0")
     }
 
-    let ch_insert = clickhouse
-        .insert::<CHNotificationLog>("notification_logs")
-        .await;
-    match ch_insert {
-        Ok(mut ch_insert) => {
-            ch_insert = ch_insert.with_option("wait_for_async_insert", "0");
-            for entry in entries {
-                ch_insert.write(&entry).await?;
-            }
-            ch_insert.end().await.map_err(|e| {
-                anyhow::anyhow!("Clickhouse notification_logs insertion failed: {:?}", e)
-            })?;
-            Ok(())
-        }
-        Err(e) => Err(anyhow::anyhow!(
-            "Failed to insert notification log into Clickhouse: {:?}",
-            e
-        )),
+    fn to_data_plane_batch(items: Vec<Self>) -> DataPlaneBatch {
+        DataPlaneBatch::NotificationLogs(items)
     }
 }

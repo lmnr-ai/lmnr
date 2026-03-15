@@ -12,7 +12,9 @@ use uuid::Uuid;
 
 use super::ReportTriggerMessage;
 use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData, render_report_email};
-use crate::ch::notification_logs::{CHNotificationLog, insert_notification_logs};
+use crate::ch::ClickhouseTrait;
+use crate::ch::cloud::CloudClickhouse;
+use crate::ch::notification_logs::CHNotificationLog;
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
@@ -299,7 +301,8 @@ async fn process_report_trigger(
         })
         .collect();
 
-    if let Err(e) = insert_notification_logs(clickhouse, notification_logs).await {
+    let ch = CloudClickhouse::new(clickhouse);
+    if let Err(e) = ch.insert_batch(&notification_logs, None).await {
         log::error!(
             "[Reports Generator] Failed to insert report notification log for workspace {}: {:?}",
             workspace_id,

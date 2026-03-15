@@ -7,7 +7,9 @@
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::ch::notification_logs::{CHNotificationLog, insert_notification_logs};
+use crate::ch::ClickhouseTrait;
+use crate::ch::cloud::CloudClickhouse;
+use crate::ch::notification_logs::CHNotificationLog;
 use crate::ch::signal_events::CHSignalEvent;
 use crate::clustering::queue::push_to_event_clustering_queue;
 use crate::db;
@@ -85,7 +87,8 @@ pub async fn process_event_notifications_and_clustering(
         })
         .collect();
 
-    if let Err(e) = insert_notification_logs(clickhouse, notification_logs).await {
+    let ch = CloudClickhouse::new(clickhouse);
+    if let Err(e) = ch.insert_batch(&notification_logs, None).await {
         log::error!(
             "Failed to insert alert notification log for event {}: {:?}",
             event_name,
