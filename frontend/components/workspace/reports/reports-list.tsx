@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock, Hash, Loader2, Mail, X } from "lucide-react";
+import { useState } from "react";
 
 import { type SlackIntegrationInfo } from "@/components/slack/slack-connection-card";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,7 @@ interface ReportsListProps {
   slackIntegration: SlackIntegrationInfo | null;
   channels: SlackChannel[];
   onEmailToggle: (report: ReportWithDetails, subscribe: boolean) => void;
-  onSlackSubscribe: (report: ReportWithDetails, channelId: string) => void;
+  onSlackSubscribe: (report: ReportWithDetails, channelId: string) => Promise<boolean>;
   onSlackUnsubscribe: (report: ReportWithDetails) => void;
 }
 
@@ -99,7 +100,7 @@ interface ReportRowProps {
   channels: SlackChannel[];
   isToggling: boolean;
   onEmailToggle: (report: ReportWithDetails, subscribe: boolean) => void;
-  onSlackSubscribe: (report: ReportWithDetails, channelId: string) => void;
+  onSlackSubscribe: (report: ReportWithDetails, channelId: string) => Promise<boolean>;
   onSlackUnsubscribe: (report: ReportWithDetails) => void;
 }
 
@@ -115,6 +116,8 @@ function ReportRow({
   onSlackSubscribe,
   onSlackUnsubscribe,
 }: ReportRowProps) {
+  const [selectKey, setSelectKey] = useState(0);
+
   return (
     <div className="flex flex-col gap-3 px-4 py-3 transition-colors">
       <div className="flex items-center justify-between gap-4">
@@ -161,7 +164,15 @@ function ReportRow({
                   #{currentSlackTarget.channelName || currentSlackTarget.channelId}
                 </span>
               ) : (
-                <Select onValueChange={(value) => onSlackSubscribe(report, value)} disabled={isToggling}>
+                <Select
+                  key={selectKey}
+                  onValueChange={(value) => {
+                    onSlackSubscribe(report, value).then((ok) => {
+                      if (!ok) setSelectKey((k) => k + 1);
+                    });
+                  }}
+                  disabled={isToggling}
+                >
                   <SelectTrigger className="h-7 text-xs w-48">
                     <SelectValue placeholder="Select Slack channel" />
                   </SelectTrigger>

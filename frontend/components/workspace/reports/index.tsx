@@ -95,8 +95,8 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
   );
 
   const handleSlackSubscribe = useCallback(
-    async (report: ReportWithDetails, channelId: string) => {
-      if (!slackIntegration) return;
+    async (report: ReportWithDetails, channelId: string): Promise<boolean> => {
+      if (!slackIntegration) return false;
       setTogglingReportId(report.id);
       try {
         const channel = channels?.find((ch) => ch.id === channelId);
@@ -122,12 +122,14 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
           description: `Reports will be sent to #${channel?.name ?? channelId}.`,
         });
         await mutate();
+        return true;
       } catch (e) {
         toast({
           variant: "destructive",
           title: "Error",
           description: e instanceof Error ? e.message : "Failed to subscribe to Slack. Please try again.",
         });
+        return false;
       } finally {
         setTogglingReportId(null);
       }
