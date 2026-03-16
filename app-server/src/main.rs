@@ -995,7 +995,7 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(2);
 
         log::info!(
-            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
             num_spans_workers,
             num_data_plane_spans_workers,
             num_spans_indexer_workers,
@@ -1006,7 +1006,8 @@ fn main() -> anyhow::Result<()> {
             num_clustering_workers,
             num_signal_job_submission_batch_workers,
             num_signal_job_pending_batch_workers,
-            num_logs_workers
+            num_logs_workers,
+            num_reports_workers
         );
 
         let queue_for_health = mq_for_http.clone();
@@ -1187,11 +1188,7 @@ fn main() -> anyhow::Result<()> {
                                     },
                                 )
                             },
-                            QueueConfig::new(
-                                SIGNALS_QUEUE,
-                                SIGNALS_EXCHANGE,
-                                SIGNALS_ROUTING_KEY,
-                            ),
+                            QueueConfig::new(SIGNALS_QUEUE, SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY),
                         );
                     } else {
                         log::warn!("Gemini client not available - skipping signals workers");
@@ -1384,16 +1381,12 @@ fn main() -> anyhow::Result<()> {
                                 cache: cache.clone(),
                                 clickhouse: clickhouse.clone(),
                             },
-                            QueueConfig::new(
-                                LOGS_QUEUE,
-                                LOGS_EXCHANGE,
-                                LOGS_ROUTING_KEY,
-                            ),
+                            QueueConfig::new(LOGS_QUEUE, LOGS_EXCHANGE, LOGS_ROUTING_KEY),
                         );
                     }
 
                     // Spawn reports workers
-                    {
+                    if is_feature_enabled(Feature::Reports) {
                         let db = db_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
