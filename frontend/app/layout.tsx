@@ -46,25 +46,25 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    title: "Laminar - Open-source observability for AI agents",
+    title: "Laminar - Open-source observability for long-running agents",
     description:
       "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
     siteName: "Laminar",
     images: {
       url: "/opengraph-image.png",
-      alt: "Laminar - Open-source observability for AI agents",
+      alt: "Laminar - Open-source observability for long-running agents",
       width: 1200,
       height: 630,
     },
   },
   twitter: {
     card: "summary_large_image",
-    title: "Laminar - Open-source observability for AI agents",
+    title: "Laminar - Open-source observability for long-running agents",
     description:
       "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
     images: {
       url: "/twitter-image.png",
-      alt: "Laminar - Open-source observability for AI agents",
+      alt: "Laminar - Open-source observability for long-running agents",
       width: 1200,
       height: 630,
     },
