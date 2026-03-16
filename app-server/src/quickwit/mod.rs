@@ -5,7 +5,7 @@ pub mod producer;
 mod proto;
 mod utils;
 
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 use chrono::{DateTime, Utc};
 use enum_dispatch::enum_dispatch;
@@ -21,17 +21,12 @@ use utils::extract_text_from_json_value;
 pub const SPANS_INDEXER_QUEUE: &str = "spans_indexer_queue";
 pub const SPANS_INDEXER_EXCHANGE: &str = "spans_indexer_exchange";
 pub const SPANS_INDEXER_ROUTING_KEY: &str = "spans_indexer_routing_key";
-const DEFAULT_SPANS_INDEX_ID: &str = "spans_v2";
 pub const OLD_SPANS_INDEX_ID: &str = "spans";
 pub const EVENTS_INDEX_ID: &str = "events";
 
-static SPANS_INDEX_ID: OnceLock<String> = OnceLock::new();
-
-pub fn spans_index_id() -> &'static str {
-    SPANS_INDEX_ID.get_or_init(|| {
-        std::env::var("QUICKWIT_SPANS_INDEX_ID").unwrap_or(DEFAULT_SPANS_INDEX_ID.to_string())
-    })
-}
+pub static SPANS_INDEX_ID: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("QUICKWIT_SPANS_INDEX_ID").unwrap_or("spans_v2".to_string())
+});
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuickwitIndexedSpan {
@@ -123,7 +118,7 @@ impl IndexerQueuePayload {
     /// Get the index ID for this payload type
     pub fn index_id(&self) -> &'static str {
         match self {
-            IndexerQueuePayload::Spans(_) => spans_index_id(),
+            IndexerQueuePayload::Spans(_) => &SPANS_INDEX_ID,
             IndexerQueuePayload::Events(_) => EVENTS_INDEX_ID,
         }
     }

@@ -1,7 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, sync::LazyLock};
 
 use actix_web::{HttpResponse, post, web};
-use chrono::{DateTime, Duration, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -10,7 +10,7 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     db::spans::{Span, SpanType},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
-    quickwit::{OLD_SPANS_INDEX_ID, client::QuickwitClient, spans_index_id},
+    quickwit::{OLD_SPANS_INDEX_ID, SPANS_INDEX_ID, client::QuickwitClient},
     routes::{ResponseResult, error::Error},
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
@@ -142,11 +142,12 @@ pub struct SearchSpansRequest {
 
 const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
 
-// Old spans indexed before this timestamp live in the old "spans" index.
-// Adjust this right before deploying the new index.
-fn new_index_cutover_ts() -> DateTime<Utc> {
-    Utc.with_ymd_and_hms(2026, 3, 16, 16, 0, 0).unwrap()
-}
+static NEW_INDEX_CUTOVER_TS: LazyLock<DateTime<Utc>> = LazyLock::new(|| {
+    std::env::var("QUICKWIT_NEW_INDEX_CUTOVER_TS")
+        .unwrap_or("2026-03-16T16:00:00Z".to_string())
+        .parse::<DateTime<Utc>>()
+        .expect("QUICKWIT_NEW_INDEX_CUTOVER_TS must be a valid RFC 3339 timestamp")
+});
 
 #[derive(Serialize, Deserialize)]
 struct QuickwitHit {
@@ -241,12 +242,12 @@ pub async fn search_spans(
 
     // TEMPORARY: Determine which index to query based on the timestamp
     // TODO: Remove this logic once we have switched to the new index completely.
-    let cutover = new_index_cutover_ts();
+    let cutover = *NEW_INDEX_CUTOVER_TS;
     let start = request.start_time;
     let end = request.end_time;
 
     let old_start = start;
-    let old_end = Some(end.map_or(cutover, |e| e.min(cutover + Duration::hours(2))));
+    let old_end = Some(end.map_or(cutover, |e| e.min(cutover)));
     let new_start = Some(start.map_or(cutover, |s| s.max(cutover)));
     let new_end = end;
 
@@ -260,7 +261,7 @@ pub async fn search_spans(
     let mut hits = if has_new_interval {
         let mut body = search_body.clone();
         set_body_timestamps(&mut body, new_start, new_end);
-        search_index(quickwit_client, spans_index_id(), body).await?
+        search_index(quickwit_client, &SPANS_INDEX_ID, body).await?
     } else {
         vec![]
     };
