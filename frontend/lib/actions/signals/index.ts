@@ -142,8 +142,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       {} as Record<string, number>
     );
 
-    const eventCounts = await executeQuery<{ signal_id: string; count: string }>({
-      projectId,
+    const eventCountsResult = await clickhouseClient.query({
       query: `
         SELECT
           signal_id,
@@ -153,11 +152,14 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
           AND signal_id IN ({signalIds: Array(UUID)})
         GROUP BY signal_id
       `,
-      parameters: {
+      query_params: {
         projectId,
         signalIds,
       },
+      format: "JSONEachRow",
     });
+
+    const eventCounts = (await eventCountsResult.json()) as { signal_id: string; count: string }[];
 
     eventCountBySignal = eventCounts.reduce(
       (acc, row) => ({
@@ -167,8 +169,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       {} as Record<string, number>
     );
 
-    const clusterCounts = await executeQuery<{ signal_id: string; count: string }>({
-      projectId,
+    const clusterCountsResult = await clickhouseClient.query({
       query: `
         SELECT
           signal_id,
@@ -178,10 +179,13 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
           AND level != 0
         GROUP BY signal_id
       `,
-      parameters: {
+      query_params: {
         signalIds,
       },
+      format: "JSONEachRow",
     });
+
+    const clusterCounts = (await clusterCountsResult.json()) as { signal_id: string; count: string }[];
 
     clusterCountBySignal = clusterCounts.reduce(
       (acc, row) => ({
@@ -191,8 +195,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       {} as Record<string, number>
     );
 
-    const lastEvents = await executeQuery<{ signal_id: string; last_event_at: string }>({
-      projectId,
+    const lastEventResult = await clickhouseClient.query({
       query: `
         SELECT
           signal_id,
@@ -202,11 +205,14 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
           AND signal_id IN ({signalIds: Array(UUID)})
         GROUP BY signal_id
       `,
-      parameters: {
+      query_params: {
         projectId,
         signalIds,
       },
+      format: "JSONEachRow",
     });
+
+    const lastEvents = (await lastEventResult.json()) as { signal_id: string; last_event_at: string }[];
 
     lastEventBySignal = lastEvents.reduce(
       (acc, row) => ({

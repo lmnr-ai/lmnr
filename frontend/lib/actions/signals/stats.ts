@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { executeQuery } from "@/lib/actions/sql";
+import { clickhouseClient } from "@/lib/clickhouse/client";
 
 export const GetSignalsStatsSchema = z.object({
   projectId: z.string(),
@@ -45,8 +45,7 @@ export async function getSignalsStats(input: z.infer<typeof GetSignalsStatsSchem
   const { projectId, signalIds, scale } = GetSignalsStatsSchema.parse(input);
   const config = SCALE_CONFIG[scale];
 
-  const rows = await executeQuery<SignalStatsDataPoint>({
-    projectId,
+  const result = await clickhouseClient.query({
     query: `
       SELECT
         signal_id,
@@ -59,11 +58,14 @@ export async function getSignalsStats(input: z.infer<typeof GetSignalsStatsSchem
       GROUP BY signal_id, timestamp
       ORDER BY signal_id, timestamp ASC
     `,
-    parameters: {
+    query_params: {
       projectId,
       signalIds,
     },
+    format: "JSONEachRow",
   });
+
+  const rows = (await result.json()) as SignalStatsDataPoint[];
 
   // Build a lookup of actual counts per signal, keyed by floored epoch ms
   const countsBySignal = new Map<string, Map<number, number>>();
