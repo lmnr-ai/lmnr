@@ -93,7 +93,7 @@ use crate::{
     clustering::clustering::ClusteringHandler,
 };
 use crate::{
-    ch::{cloud::CloudClickhouse, data_plane::DataPlaneClickhouse},
+    ch::{cloud::CloudClickhouse, data_plane::DataPlaneClickhouse, service::ClickhouseService},
     reports::generator::ReportsGenerator,
 };
 
@@ -1198,12 +1198,23 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let client = reqwest::Client::new();
                         let resend = resend_client.clone();
+                        let ch_service = Arc::new(ClickhouseService::new(
+                            clickhouse_for_consumer.clone(),
+                            db_for_consumer.pool.clone(),
+                            cache_for_consumer.clone(),
+                            reqwest::Client::new(),
+                        ));
 
                         worker_pool_clone.spawn(
                             WorkerType::Notifications,
                             num_notification_workers as usize,
                             move || {
-                                NotificationHandler::new(db.clone(), client.clone(), resend.clone())
+                                NotificationHandler::new(
+                                    db.clone(),
+                                    client.clone(),
+                                    resend.clone(),
+                                    ch_service.clone(),
+                                )
                             },
                             QueueConfig::new(
                                 NOTIFICATIONS_QUEUE,

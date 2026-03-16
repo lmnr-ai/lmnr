@@ -15,7 +15,7 @@ use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData, rend
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
-use crate::db::reports::{get_report_target_emails, get_signals_for_workspace};
+use crate::db::reports::{get_email_report_targets, get_signals_for_workspace};
 use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::notifications::{
@@ -241,11 +241,11 @@ async fn process_report_trigger(
     let html = render_report_email(&report_data);
 
     // Get email targets from report_targets table
-    let emails = get_report_target_emails(&db.pool, &report_id, &workspace_id)
+    let email_targets = get_email_report_targets(&db.pool, &report_id, &workspace_id)
         .await
         .map_err(|e| HandlerError::transient(e))?;
 
-    if emails.is_empty() {
+    if email_targets.is_empty() {
         log::info!(
             "[Reports Generator] No email targets found for report {} in workspace {}",
             report_id,
@@ -256,28 +256,63 @@ async fn process_report_trigger(
 
     let subject = format!("{} – {}", report_name, workspace_name);
 
-    // Push email notification to the notification queue
-    let email_payload = EmailPayload {
-        from: REPORT_FROM_EMAIL.to_string(),
-        to: emails,
-        subject,
-        html,
-        inline_logo: true,
-    };
+    // Push one notification per email target so each gets its own notification log entry
+    let mut push_failures = 0;
+    let mut has_permanent_failure = false;
+    for target in &email_targets {
+        let email_payload = EmailPayload {
+            from: REPORT_FROM_EMAIL.to_string(),
+            to: vec![target.email.clone()],
+            subject: subject.clone(),
+            html: html.clone(),
+            inline_logo: true,
+        };
 
-    let notification_message = NotificationMessage {
-        project_id: Uuid::nil(),
-        trace_id: Uuid::nil(),
-        notification_type: NotificationType::Email,
-        event_name: "report_email".to_string(),
-        payload: serde_json::to_value(email_payload)
-            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?,
-    };
+        let message_payload = serde_json::to_value(&email_payload)
+            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
 
-    push_to_notification_queue(notification_message, queue).await?;
+        let notification_message = NotificationMessage {
+            project_id: Uuid::nil(),
+            trace_id: Uuid::nil(),
+            notification_type: NotificationType::Email,
+            event_name: "report_email".to_string(),
+            payload: message_payload,
+            workspace_id,
+            definition_type: "REPORT".to_string(),
+            definition_id: report_id,
+            target_id: target.id,
+            target_type: "EMAIL".to_string(),
+        };
+
+        if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
+            push_failures += 1;
+            if matches!(&e, HandlerError::Permanent(_)) {
+                has_permanent_failure = true;
+            }
+            log::error!(
+                "[Reports Generator] Failed to push report notification for {}: {:?}",
+                target.email,
+                e
+            );
+        }
+    }
+
+    if push_failures == email_targets.len() {
+        let msg = format!(
+            "Failed to push all {} report notifications to queue for workspace {}",
+            email_targets.len(),
+            workspace_id
+        );
+        // If any failure was permanent (e.g. payload too large), retrying won't help
+        return Err(if has_permanent_failure {
+            HandlerError::permanent(anyhow::anyhow!(msg))
+        } else {
+            HandlerError::transient(anyhow::anyhow!(msg))
+        });
+    }
 
     log::info!(
-        "[Reports Generator] Report email notification pushed to queue for workspace {}",
+        "[Reports Generator] Report email notifications pushed to queue for workspace {}",
         workspace_id
     );
 

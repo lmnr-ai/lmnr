@@ -167,6 +167,7 @@ export const TRACE_SUMMARIES_CACHE_KEY = "trace_summaries";
 export const SIGNAL_TRIGGERS_CACHE_KEY = "signal_triggers";
 export const SUMMARY_TRIGGER_SPANS_CACHE_KEY = "summary_trigger_spans";
 export const WORKSPACE_DEPLOYMENTS_CACHE_KEY = "workspace_deployment_config";
+export const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY = "workspace_deployment_config_by_ws";
 
 export const WORKSPACE_MEMBER_CACHE_KEY = (workspaceId: string, userId: string) =>
   `workspace_member:${workspaceId}:${userId}`;

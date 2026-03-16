@@ -3,7 +3,7 @@ import _sodium from "libsodium-wrappers";
 import { z } from "zod/v4";
 
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils.ts";
-import { cache, WORKSPACE_DEPLOYMENTS_CACHE_KEY } from "@/lib/cache.ts";
+import { cache, WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY,WORKSPACE_DEPLOYMENTS_CACHE_KEY } from "@/lib/cache.ts";
 import { decryptValue, encryptValue, generateKeyPair } from "@/lib/crypto.ts";
 import { db } from "@/lib/db/drizzle.ts";
 import { projects, workspaceDeployments } from "@/lib/db/migrations/schema.ts";
@@ -136,6 +136,8 @@ export const updateDeployment = async (input: z.infer<typeof UpdateDeploymentSch
   for (const project of projs) {
     await cache.remove(`${WORKSPACE_DEPLOYMENTS_CACHE_KEY}:${project.id}`);
   }
+
+  await cache.remove(`${WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY}:${workspaceId}`);
 };
 
 export const verifyDeployment = async (input: z.infer<typeof VerifyDeploymentSchema>) => {
