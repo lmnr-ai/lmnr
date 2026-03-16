@@ -3,10 +3,11 @@ import { pick } from "lodash";
 import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { memo, useMemo } from "react";
 
+import { DeviationBadge } from "@/components/traces/trace-view/deviation-badge";
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type Span } from "@/lib/traces/types.ts";
-import { cn, getDurationString } from "@/lib/utils";
+import { cn, getDuration, getDurationString } from "@/lib/utils";
 
 import { Label } from "../ui/label";
 
@@ -101,9 +102,18 @@ interface StatsShieldsProps {
   className?: string;
   variant?: "filled" | "outline";
   labelPrefix?: string;
+  avgDurationMs?: number;
+  avgCost?: number;
 }
 
-function StatsShields({ stats, className, variant = "filled", labelPrefix }: StatsShieldsProps) {
+function StatsShields({
+  stats,
+  className,
+  variant = "filled",
+  labelPrefix,
+  avgDurationMs,
+  avgCost,
+}: StatsShieldsProps) {
   const label = (text: string) =>
     labelPrefix ? `${labelPrefix} ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
   const durationContent = (
@@ -185,6 +195,8 @@ function StatsShields({ stats, className, variant = "filled", labelPrefix }: Sta
     </TooltipProvider>
   );
 
+  const durationMs = getDuration(stats.startTime, stats.endTime);
+
   return (
     <div
       className={cn(
@@ -196,6 +208,14 @@ function StatsShields({ stats, className, variant = "filled", labelPrefix }: Sta
       {durationContent}
       {tokensContent}
       {costContent}
+      {(avgDurationMs != null || avgCost != null) && (
+        <DeviationBadge
+          actualMs={durationMs}
+          avgMs={avgDurationMs ?? 0}
+          actualCost={stats.totalCost ?? 0}
+          avgCost={avgCost ?? 0}
+        />
+      )}
     </div>
   );
 }
@@ -204,9 +224,11 @@ interface TraceStatsShieldsProps {
   trace: TraceViewTrace;
   spans?: TraceViewSpan[];
   className?: string;
+  avgDurationMs?: number;
+  avgCost?: number;
 }
 
-const PureTraceStatsShields = ({ trace, spans, className }: TraceStatsShieldsProps) => {
+const PureTraceStatsShields = ({ trace, spans, className, avgDurationMs, avgCost }: TraceStatsShieldsProps) => {
   const stats = useMemo(() => {
     if (spans && spans.length > 0) {
       return computeSpanStats(spans);
@@ -225,7 +247,15 @@ const PureTraceStatsShields = ({ trace, spans, className }: TraceStatsShieldsPro
     ]);
   }, [trace, spans]);
 
-  return <StatsShields stats={stats} className={className} labelPrefix="Trace" />;
+  return (
+    <StatsShields
+      stats={stats}
+      className={className}
+      labelPrefix="Trace"
+      avgDurationMs={avgDurationMs}
+      avgCost={avgCost}
+    />
+  );
 };
 
 interface SpanStatsShieldsProps {

@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { useSpanAveragesContext } from "@/components/traces/trace-view/averages-context";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { type PathInfo } from "@/components/traces/trace-view/store/utils";
@@ -62,6 +63,8 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   }));
 
   const isCached = cachingEnabled ? isSpanCached(span) : false;
+
+  const spanAverages = useSpanAveragesContext();
 
   const llmMetrics = getLLMMetrics(span);
   const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
@@ -157,6 +160,8 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
                 tokens={llmMetrics?.tokens}
                 cost={llmMetrics?.cost}
                 cacheReadInputTokens={llmMetrics?.cacheReadInputTokens}
+                avgDurationMs={spanAverages?.spans[span.name]?.avgDurationMs}
+                avgCost={spanAverages?.spans[span.name]?.avgCost}
               />
             )}
             {isExpandable && (
