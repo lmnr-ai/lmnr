@@ -117,7 +117,8 @@ function CostPill({ cost }: { cost: { percent: number; direction: "more" | "less
           : "text-orange-600 dark:text-orange-400 bg-orange-500/10"
       )}
     >
-      <Icon size={10} />${cost.percent}%
+      <Icon size={10} />
+      {cost.percent}%
     </span>
   );
 }
