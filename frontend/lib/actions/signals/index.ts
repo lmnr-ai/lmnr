@@ -18,6 +18,7 @@ export type SignalRow = {
   projectId: string;
   triggersCount: number;
   eventsCount: number;
+  clustersCount: number;
   lastEventAt: string | null;
 };
 
@@ -121,6 +122,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
   const signalIds = results.map((r) => r.id);
   let triggerCountBySignal: Record<string, number> = {};
   let eventCountBySignal: Record<string, number> = {};
+  let clusterCountBySignal: Record<string, number> = {};
   let lastEventBySignal: Record<string, string> = {};
 
   if (signalIds.length > 0) {
@@ -166,6 +168,32 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       {} as Record<string, number>
     );
 
+    const clusterCountsResult = await clickhouseClient.query({
+      query: `
+        SELECT
+          signal_id,
+          count(*) as count
+        FROM clusters
+        WHERE signal_id IN ({signalIds: Array(UUID)})
+          AND level != 0
+        GROUP BY signal_id
+      `,
+      query_params: {
+        signalIds,
+      },
+      format: "JSONEachRow",
+    });
+
+    const clusterCounts = (await clusterCountsResult.json()) as { signal_id: string; count: string }[];
+
+    clusterCountBySignal = clusterCounts.reduce(
+      (acc, row) => ({
+        ...acc,
+        [row.signal_id]: parseInt(row.count, 10),
+      }),
+      {} as Record<string, number>
+    );
+
     const lastEventResult = await clickhouseClient.query({
       query: `
         SELECT
@@ -198,6 +226,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
     ...signal,
     triggersCount: triggerCountBySignal[signal.id] || 0,
     eventsCount: eventCountBySignal[signal.id] || 0,
+    clustersCount: clusterCountBySignal[signal.id] || 0,
     lastEventAt: lastEventBySignal[signal.id] || null,
   }));
 

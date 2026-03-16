@@ -1,34 +1,25 @@
 "use client";
 
+import { Loader2, SquareArrowOutUpRight } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  defaultSignalsColumnsOrder,
-  signalsColumns,
-  signalsTableFilters,
-  type SignalTableMeta,
-  type SparklineScale,
-} from "@/components/signals/columns.tsx";
+import { type SparklineScale } from "@/components/signals/columns.tsx";
 import ManageSignalSheet from "@/components/signals/manage-signal-sheet";
+import SignalCards from "@/components/signals/signal-cards";
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import Header from "@/components/ui/header.tsx";
-import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
+import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
-import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import EmptyRow from "./empty-row";
-
 export default function Signals() {
   return (
-    <DataTableStateProvider storageKey="signals-table" uniqueKey="id" defaultColumnOrder={defaultSignalsColumnsOrder}>
+    <DataTableStateProvider storageKey="signals-cards" uniqueKey="id" defaultColumnOrder={[]}>
       <SignalsContent />
     </DataTableStateProvider>
   );
@@ -38,9 +29,10 @@ function SignalsContent() {
   const { projectId } = useParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
-  const { rowSelection, onRowSelectionChange } = useSelection();
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [sparklineScale, setSparklineScale] = useState<SparklineScale>("week");
   const [sparklineData, setSparklineData] = useState<SignalSparklineData>({});
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const searchParams = useSearchParams();
   const filter = searchParams.getAll("filter");
@@ -85,7 +77,7 @@ function SignalsContent() {
   );
 
   const {
-    data: eventDefinitions,
+    data: signals,
     hasMore,
     isFetching,
     isLoading,
@@ -99,7 +91,7 @@ function SignalsContent() {
   });
 
   // Fetch sparkline stats when signals data or scale changes
-  const signalIdsCacheKey = useMemo(() => eventDefinitions.map((s) => s.id).join(","), [eventDefinitions]);
+  const signalIdsCacheKey = useMemo(() => signals.map((s) => s.id).join(","), [signals]);
 
   useEffect(() => {
     if (signalIdsCacheKey.length === 0) return;
@@ -151,8 +143,8 @@ function SignalsContent() {
           throw new Error("Failed to delete signals");
         }
 
-        updateData((currentData) => currentData.filter((eventDef) => !selectedRowIds.includes(eventDef.id)));
-        onRowSelectionChange({});
+        updateData((currentData) => currentData.filter((s) => !selectedRowIds.includes(s.id)));
+        setRowSelection({});
 
         toast({
           title: "Signals deleted",
@@ -166,7 +158,7 @@ function SignalsContent() {
         });
       }
     },
-    [projectId, toast, updateData, onRowSelectionChange]
+    [projectId, toast, updateData]
   );
 
   const sparklineMaxCount = useMemo(() => {
@@ -179,63 +171,95 @@ function SignalsContent() {
     return max || undefined;
   }, [sparklineData]);
 
-  const tableMeta: SignalTableMeta = useMemo(
-    () => ({
-      sparklineData,
-      sparklineScale,
-      sparklineMaxCount,
-      onScaleChange: setSparklineScale,
-    }),
-    [sparklineData, sparklineScale, sparklineMaxCount]
-  );
+  const selectedRowIds = useMemo(() => Object.keys(rowSelection).filter((id) => rowSelection[id]), [rowSelection]);
+
+  // Infinite scroll via scroll container
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !hasMore || isFetching) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      if (scrollHeight - scrollTop - clientHeight < 200) {
+        fetchNextPage();
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [hasMore, isFetching, fetchNextPage]);
 
   return (
     <>
       <Header path="signals" />
-      <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4">
-        <InfiniteDataTable<SignalRow>
-          columns={signalsColumns}
-          data={eventDefinitions}
-          getRowId={(row) => row.id}
-          getRowHref={(row) => `/project/${projectId}/signals/${row.original.id}`}
-          hasMore={hasMore}
-          isFetching={isFetching}
-          isLoading={isLoading}
-          fetchNextPage={fetchNextPage}
-          enableRowSelection
-          state={{
-            rowSelection,
-          }}
-          onRowSelectionChange={onRowSelectionChange}
-          lockedColumns={["__row_selection"]}
-          meta={tableMeta}
-          estimatedRowHeight={64}
-          selectionPanel={(selectedRowIds) => (
-            <div className="flex flex-col space-y-2">
+      <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4 h-full">
+        <div className="flex items-center gap-2 pt-1">
+          {selectedRowIds.length > 0 && (
+            <>
+              <span className="text-sm text-muted-foreground">{selectedRowIds.length} selected</span>
               <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
-            </div>
+            </>
           )}
-          emptyRow={filter.length === 0 && !search ? <EmptyRow /> : undefined}
-        >
-          <div className="flex flex-1 w-full space-x-2 pt-1">
-            <DataTableFilter columns={signalsTableFilters} />
-            <ColumnsMenu
-              lockedColumns={["__row_selection"]}
-              columnLabels={signalsColumns.map((column) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-            />
-            <DataTableSearch className="mr-0.5" placeholder="Search by signal name..." />
-            <div className="flex-1" />
-            <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-              <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
-                Signal
-              </Button>
-            </ManageSignalSheet>
-          </div>
-          <DataTableFilterList />
-        </InfiniteDataTable>
+          <div className="flex-1" />
+          <Select value={sparklineScale} onValueChange={(v) => setSparklineScale(v as SparklineScale)}>
+            <SelectTrigger className="w-[100px] text-secondary-foreground">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="day">Day</SelectItem>
+              <SelectItem value="week">Week</SelectItem>
+              <SelectItem value="month">Month</SelectItem>
+            </SelectContent>
+          </Select>
+          <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
+            <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
+              Signal
+            </Button>
+          </ManageSignalSheet>
+        </div>
+
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex flex-1 justify-center py-12">
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : signals.length === 0 ? (
+            <div className="flex flex-1 justify-center py-12">
+              <div className="flex flex-col gap-2 items-center max-w-md">
+                <h3 className="text-base font-medium text-secondary-foreground">No signals yet</h3>
+                <p className="text-sm text-muted-foreground text-center">
+                  Signals let you track outcomes, behaviors, and failures in your traces using LLM-based evaluation.
+                  Click + Signal above to get started.
+                </p>
+                <a
+                  href="https://docs.laminar.sh/signals"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  Learn more
+                  <SquareArrowOutUpRight className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </div>
+          ) : (
+            <>
+              <SignalCards
+                signals={signals}
+                projectId={projectId as string}
+                sparklineData={sparklineData}
+                sparklineMaxCount={sparklineMaxCount}
+                selectedIds={rowSelection}
+                onSelectionChange={setRowSelection}
+              />
+              {isFetching && (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </>
   );
