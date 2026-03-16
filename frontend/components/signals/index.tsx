@@ -4,7 +4,6 @@ import { Loader2, SquareArrowOutUpRight } from "lucide-react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { type SparklineScale } from "@/components/signals/columns.tsx";
 import ManageSignalSheet from "@/components/signals/manage-signal-sheet";
 import SignalCards from "@/components/signals/signal-cards";
 import SignalsBanner, { SignalsBannerInfoButton } from "@/components/signals/signals-banner";
@@ -17,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
 import { useToast } from "@/lib/hooks/use-toast";
+
+type SparklineScale = "day" | "week" | "month";
 
 export default function Signals() {
   return (
