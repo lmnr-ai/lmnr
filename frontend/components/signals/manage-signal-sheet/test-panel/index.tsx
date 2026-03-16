@@ -1,7 +1,6 @@
 "use client";
 
 import { ChevronLeft, Loader2, PlayIcon, X } from "lucide-react";
-import { useState } from "react";
 import { type UseFormWatch } from "react-hook-form";
 
 import TracePicker from "@/components/traces/trace-picker";
@@ -11,7 +10,7 @@ import { type TraceRow } from "@/lib/traces/types";
 import { type ManageSignalForm } from "../types";
 import TestResultsView from "./test-results-view";
 
-type TestView = "picker" | "results";
+export type TestView = "picker" | "results";
 
 export default function TestPanel({
   watch,
@@ -21,6 +20,8 @@ export default function TestPanel({
   testOutput,
   execute,
   onClose,
+  testView,
+  setTestView,
 }: {
   watch: UseFormWatch<ManageSignalForm>;
   selectedTrace: TraceRow | null;
@@ -29,22 +30,11 @@ export default function TestPanel({
   testOutput: string;
   execute: () => void;
   onClose: () => void;
+  testView: TestView;
+  setTestView: (view: TestView) => void;
 }) {
-  const [testView, setTestView] = useState<TestView>("picker");
   const schemaFields = watch("schemaFields");
   const hasValidFields = schemaFields?.some((f) => f.name.trim());
-
-  // Auto-switch to results when execution completes
-  const [prevExecuting, setPrevExecuting] = useState(false);
-  if (isExecuting && !prevExecuting) {
-    setPrevExecuting(true);
-  }
-  if (!isExecuting && prevExecuting && testOutput) {
-    setPrevExecuting(false);
-    if (testView === "picker") {
-      setTestView("results");
-    }
-  }
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden border-l min-w-0 animate-in slide-in-from-right-4 fade-in duration-200">

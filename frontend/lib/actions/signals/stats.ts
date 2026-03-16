@@ -47,6 +47,7 @@ export async function getSignalsStats(input: z.infer<typeof GetSignalsStatsSchem
         FROM ${fillFrom}
         TO ${fillTo}
         STEP INTERVAL ${config.interval}
+        INTERPOLATE (signal_id AS signal_id)
     `,
     query_params: {
       projectId,

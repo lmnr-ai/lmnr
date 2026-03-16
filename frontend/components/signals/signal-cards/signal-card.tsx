@@ -34,21 +34,25 @@ export default function SignalCard({
   onToggleSelect: () => void;
 }) {
   const data = sparklineData[signal.id] ?? [];
+  const signalUrl = `/project/${projectId}/signals/${signal.id}`;
 
   return (
     <Card className="hover:border-primary/40 transition-colors h-full relative">
       <CardHeader className="px-3 pt-3 pb-1">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} aria-label={`Select ${signal.name}`} />
-            <Link href={`/project/${projectId}/signals/${signal.id}`} className="truncate">
+            {/* stopPropagation prevents checkbox clicks from triggering card navigation */}
+            <div onClick={(e) => e.stopPropagation()}>
+              <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} aria-label={`Select ${signal.name}`} />
+            </div>
+            <Link href={signalUrl} className="truncate">
               <h3 className="font-medium text-sm truncate hover:underline">{signal.name}</h3>
             </Link>
           </div>
         </div>
       </CardHeader>
-      <Link href={`/project/${projectId}/signals/${signal.id}`}>
-        <CardContent className="px-3 pt-0 pb-2 space-y-2 cursor-pointer">
+      <CardContent className="px-3 pt-0 pb-2 space-y-2 cursor-pointer">
+        <Link href={signalUrl} className="block space-y-2">
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -84,14 +88,14 @@ export default function SignalCard({
           <div className="h-[36px] w-full">
             <SignalSparkline data={data} maxCount={sparklineMaxCount} />
           </div>
-        </CardContent>
-        <CardFooter className="px-3 pb-3 pt-0 flex items-center justify-between text-[10px] text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Calendar className="size-3" />
-            Created {formatShortDate(signal.createdAt)}
-          </div>
-        </CardFooter>
-      </Link>
+        </Link>
+      </CardContent>
+      <CardFooter className="px-3 pb-3 pt-0 flex items-center justify-between text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-1">
+          <Calendar className="size-3" />
+          Created {formatShortDate(signal.createdAt)}
+        </div>
+      </CardFooter>
     </Card>
   );
 }

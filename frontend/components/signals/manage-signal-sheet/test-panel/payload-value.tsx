@@ -27,5 +27,7 @@ export default function PayloadValue({ value, field }: { value: unknown; field: 
       return <span className="tabular-nums">{String(value)}</span>;
     case "string":
       return <span className="whitespace-pre-wrap break-words text-secondary-foreground">{String(value)}</span>;
+    default:
+      return <span className="text-secondary-foreground">{String(value)}</span>;
   }
 }

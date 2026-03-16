@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { type UseFormGetValues } from "react-hook-form";
 
 import { schemaFieldsToJsonSchema } from "@/components/signals/utils";
@@ -10,13 +10,16 @@ export default function useTestExecution({
   getValues,
   projectId,
   selectedTrace,
+  onComplete,
 }: {
   getValues: UseFormGetValues<ManageSignalForm>;
   projectId: string;
   selectedTrace: TraceRow | null;
+  onComplete?: () => void;
 }) {
   const [isExecuting, setIsExecuting] = useState(false);
   const [testOutput, setTestOutput] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
 
   const execute = useCallback(async () => {
     const prompt = getValues("prompt");
@@ -24,6 +27,10 @@ export default function useTestExecution({
     const traceId = selectedTrace?.id;
 
     if (!prompt || !schemaFields?.length || !traceId) return;
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setIsExecuting(true);
     setTestOutput("");
@@ -39,21 +46,29 @@ export default function useTestExecution({
             structured_output_schema: schemaFieldsToJsonSchema(schemaFields),
           },
         }),
+        signal: controller.signal,
       });
 
-      const result = await executeRes.json();
-
       if (!executeRes.ok) {
-        setTestOutput(`Error: ${result.error || "Failed to execute signal"}`);
+        const text = await executeRes.text();
+        try {
+          const err = JSON.parse(text);
+          setTestOutput(`Error: ${err.error || "Failed to execute signal"}`);
+        } catch {
+          setTestOutput(`Error: ${text || `HTTP ${executeRes.status}`}`);
+        }
       } else {
+        const result = await executeRes.json();
         setTestOutput(typeof result === "string" ? result : JSON.stringify(result, null, 2));
       }
+      onComplete?.();
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       setTestOutput(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsExecuting(false);
     }
-  }, [getValues, projectId, selectedTrace]);
+  }, [getValues, projectId, selectedTrace, onComplete]);
 
   return { isExecuting, testOutput, execute };
 }

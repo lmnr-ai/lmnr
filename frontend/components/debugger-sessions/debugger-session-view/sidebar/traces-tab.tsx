@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useCallback } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import TracePicker from "@/components/traces/trace-picker";
 import type { TraceRow } from "@/lib/traces/types";
@@ -12,10 +13,12 @@ const TRACE_FETCH_PARAMS = { traceType: "DEFAULT" } as const;
 
 export default function TracesTab() {
   const { projectId } = useParams<{ projectId: string; id: string }>();
-  const { loadHistoryTrace, trace } = useDebuggerSessionStore((state) => ({
-    loadHistoryTrace: state.loadHistoryTrace,
-    trace: state.trace,
-  }));
+  const { loadHistoryTrace, trace } = useDebuggerSessionStore(
+    useShallow((state) => ({
+      loadHistoryTrace: state.loadHistoryTrace,
+      trace: state.trace,
+    }))
+  );
 
   const handleTraceSelect = useCallback(
     (t: TraceRow) => {

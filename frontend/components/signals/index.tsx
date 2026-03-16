@@ -38,6 +38,7 @@ function SignalsContent() {
 
   const searchParams = useSearchParams();
   const filter = searchParams.getAll("filter");
+  const filterKey = useMemo(() => JSON.stringify(filter), [filter]);
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
@@ -56,7 +57,7 @@ function SignalsContent() {
         if (startDate != null) urlParams.set("startDate", startDate);
         if (endDate != null) urlParams.set("endDate", endDate);
 
-        filter.forEach((f) => urlParams.append("filter", f));
+        (JSON.parse(filterKey) as string[]).forEach((f) => urlParams.append("filter", f));
 
         if (typeof search === "string" && search.length > 0) {
           urlParams.set("search", search);
@@ -75,7 +76,7 @@ function SignalsContent() {
         throw error;
       }
     },
-    [endDate, filter, pastHours, projectId, startDate, search, toast]
+    [endDate, filterKey, pastHours, projectId, startDate, search, toast]
   );
 
   const {
@@ -89,19 +90,20 @@ function SignalsContent() {
   } = useInfiniteScroll<SignalRow>({
     fetchFn: fetchSignals,
     enabled: true,
-    deps: [endDate, filter, pastHours, projectId, startDate, search],
+    deps: [endDate, filterKey, pastHours, projectId, startDate, search],
   });
 
   // Fetch sparkline stats when signals data or scale changes
-  const signalIdsCacheKey = useMemo(() => signals.map((s) => s.id).join(","), [signals]);
+  const signalIdsCacheKey = useMemo(() => JSON.stringify(signals.map((s) => s.id)), [signals]);
 
   useEffect(() => {
-    if (signalIdsCacheKey.length === 0) return;
+    const ids = JSON.parse(signalIdsCacheKey) as string[];
+    if (ids.length === 0) return;
 
+    setSparklineData({});
     const abortController = new AbortController();
-    const signalIds = signalIdsCacheKey.split(",");
     const urlParams = new URLSearchParams();
-    signalIds.forEach((id) => urlParams.append("signalId", id));
+    ids.forEach((id) => urlParams.append("signalId", id));
     urlParams.set("scale", sparklineScale);
 
     fetch(`/api/projects/${projectId}/signals/stats?${urlParams.toString()}`, {
@@ -170,7 +172,7 @@ function SignalsContent() {
         if (p.count > max) max = p.count;
       }
     }
-    return max || undefined;
+    return max;
   }, [sparklineData]);
 
   const selectedRowIds = useMemo(() => Object.keys(rowSelection).filter((id) => rowSelection[id]), [rowSelection]);

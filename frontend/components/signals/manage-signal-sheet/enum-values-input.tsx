@@ -28,6 +28,24 @@ export default function EnumValuesInput({
     [inputValue, values, onChange]
   );
 
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLInputElement>) => {
+      const pasted = e.clipboardData.getData("text");
+      if (pasted.includes(",")) {
+        e.preventDefault();
+        const newValues = pasted
+          .split(",")
+          .map((v) => v.trim())
+          .filter((v) => v && !values?.includes(v));
+        if (newValues.length) {
+          onChange([...(values || []), ...newValues]);
+          setInputValue("");
+        }
+      }
+    },
+    [values, onChange]
+  );
+
   const removeValue = useCallback(
     (valueToRemove: string) => {
       const newValues = values?.filter((v) => v !== valueToRemove);
@@ -58,6 +76,7 @@ export default function EnumValuesInput({
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         placeholder={values?.length ? "" : "Add values..."}
         className="flex-1 min-w-16 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
       />

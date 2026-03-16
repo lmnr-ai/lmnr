@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useCallback } from "react";
 
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
@@ -24,15 +25,18 @@ export default function SignalCards({
   selectedIds,
   onSelectionChange,
 }: SignalCardsProps) {
-  const toggleSelect = (id: string) => {
-    const next = { ...selectedIds };
-    if (next[id]) {
-      delete next[id];
-    } else {
-      next[id] = true;
-    }
-    onSelectionChange(next);
-  };
+  const toggleSelect = useCallback(
+    (id: string) => {
+      const next = { ...selectedIds };
+      if (next[id]) {
+        delete next[id];
+      } else {
+        next[id] = true;
+      }
+      onSelectionChange(next);
+    },
+    [selectedIds, onSelectionChange]
+  );
 
   return (
     <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -41,7 +45,7 @@ export default function SignalCards({
           key={signal.id}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.2, delay: index * 0.03 }}
+          transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.5) }}
         >
           <SignalCard
             signal={signal}

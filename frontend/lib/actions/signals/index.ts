@@ -95,7 +95,8 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
   }
 
   if (search) {
-    whereConditions.push(ilike(signals.name, `%${search}%`));
+    const escapedSearch = search.replace(/%/g, "\\%").replace(/_/g, "\\_");
+    whereConditions.push(ilike(signals.name, `%${escapedSearch}%`));
   }
 
   const filterConditions = parseFilters(filter, {

@@ -36,6 +36,8 @@ function SubmitButton({ isLoading }: { isLoading: boolean }) {
   );
 }
 
+type TestView = "picker" | "results";
+
 function DrawerContent({
   setOpen,
   onSuccess,
@@ -49,6 +51,7 @@ function DrawerContent({
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTrace, setSelectedTrace] = useState<TraceRow | null>(null);
+  const [testView, setTestView] = useState<TestView>("picker");
 
   const { projectId } = useParams();
   const { toast } = useToast();
@@ -70,10 +73,15 @@ function DrawerContent({
     setIsLoading,
   });
 
+  const handleTestComplete = useCallback(() => {
+    setTestView("results");
+  }, []);
+
   const { isExecuting, testOutput, execute } = useTestExecution({
     getValues,
     projectId: String(projectId),
     selectedTrace,
+    onComplete: handleTestComplete,
   });
 
   return (
@@ -82,7 +90,7 @@ function DrawerContent({
       <form onSubmit={handleSubmit(submit)} className="flex flex-col flex-1 overflow-hidden min-w-0">
         <div className="flex items-center justify-between px-5 pt-3">
           <SheetTitle className="text-base">{id ? "Edit Signal" : "Create Signal"}</SheetTitle>
-          <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(false)}>
+          <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close">
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -115,6 +123,8 @@ function DrawerContent({
           testOutput={testOutput}
           execute={execute}
           onClose={() => setShowTest(false)}
+          testView={testView}
+          setTestView={setTestView}
         />
       )}
     </div>

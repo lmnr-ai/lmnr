@@ -1,4 +1,3 @@
-import { get } from "lodash";
 import { useCallback } from "react";
 
 import { schemaFieldsToJsonSchema } from "@/components/signals/utils";
@@ -31,14 +30,24 @@ export default function useSubmitHandler({
         const url = isUpdate ? `/api/projects/${projectId}/signals/${data.id}` : `/api/projects/${projectId}/signals`;
         const method = isUpdate ? "PUT" : "POST";
 
-        const res = await fetch(url, { method, body: JSON.stringify(signal) });
+        const res = await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(signal),
+        });
 
         if (!res.ok) {
-          const error = (await res.json()) as { error: string };
+          let errorMessage = `Failed to ${isUpdate ? "update" : "create"} the signal`;
+          try {
+            const error = (await res.json()) as { error?: string };
+            if (error?.error) errorMessage = error.error;
+          } catch {
+            // Response was not JSON
+          }
           toast({
             variant: "destructive",
             title: "Error",
-            description: get(error, "error", `Failed to ${isUpdate ? "update" : "create"} the signal`),
+            description: errorMessage,
           });
           return;
         }
