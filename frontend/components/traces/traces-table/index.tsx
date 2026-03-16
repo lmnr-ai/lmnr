@@ -82,9 +82,16 @@ function TracesTableContent() {
   const removeCustomColumn = useTracesTableStore((s) => s.removeCustomColumn);
   const buildFetchParams = useTracesTableStore((s) => s.buildFetchParams);
 
+  const customColumns = useTracesTableStore((s) => s.customColumns);
+
   useEffect(() => {
     rebuildColumns();
-  }, [rebuildColumns]);
+  }, [customColumns, rebuildColumns]);
+
+  // SQL strings from column defs — only changes when columns structurally change.
+  // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
+  // produce the same string → no spurious re-fetch.
+  const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
 
   // Sync datatable columnOrder with traces store columnDefs
   const datatableStore = useDataTableStore();
@@ -218,7 +225,18 @@ function TracesTableContent() {
   } = useInfiniteScroll<TraceRow>({
     fetchFn: fetchTraces,
     enabled: !!(pastHours || (startDate && endDate)),
-    deps: [endDate, filter, pastHours, projectId, searchIn, sortBy, sortDirection, startDate, textSearchFilter],
+    deps: [
+      endDate,
+      filter,
+      pastHours,
+      projectId,
+      searchIn,
+      sortBy,
+      sortDirection,
+      startDate,
+      textSearchFilter,
+      columnSqls,
+    ],
   });
 
   useEffect(() => {
