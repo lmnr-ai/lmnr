@@ -26,7 +26,7 @@ const SignalsSection = ({ className }: Props) => {
   const bufferHeight = useTransform(springBufferHeight, (v) => `${v}vh`);
 
   return (
-    <div className="h-[2000px] w-full" ref={ref}>
+    <div className="h-[2500px] w-full" ref={ref}>
       <div className={cn("sticky top-[calc(50%-430px)] flex flex-col md:gap-[54px] items-start w-full", "gap-8")}>
         <div className="flex flex-col gap-1 items-start w-full">
           <motion.div className="w-full" style={{ height: bufferHeight }} />
