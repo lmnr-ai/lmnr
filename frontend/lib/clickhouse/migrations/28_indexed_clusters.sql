@@ -100,4 +100,4 @@ LEFT JOIN
         project_id,
         event_id
 ) AS c ON (signal_events.project_id = c.project_id) AND (signal_events.id = c.event_id)
-WHERE signal_events.project_id = {project_id:UUID}
+WHERE signal_events.project_id = {project_id:UUID};
