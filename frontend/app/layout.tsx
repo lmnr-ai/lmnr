@@ -16,7 +16,7 @@ import { PostHogProvider } from "./providers";
 export const metadata: Metadata = {
   metadataBase: new URL("https://laminar.sh"),
   title: {
-    default: "Laminar - Open-source observability for AI agents",
+    default: "Laminar - Open-source observability for long-running agents",
     template: "%s | Laminar",
   },
   description:

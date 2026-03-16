@@ -83,7 +83,7 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
               h2: (props) => <MDHeading props={props} level={1} />,
               h3: (props) => <MDHeading props={props} level={2} />,
               h4: (props) => <MDHeading props={props} level={3} />,
-              p: (props) => <p className="pt-4 text-white/85 font-light leading-relaxed" {...props} />,
+              p: (props) => <p className="pt-4 text-white/85 font-light" {...props} />,
               a: (props) => (
                 <a
                   className="text-white underline hover:text-primary"
@@ -107,6 +107,7 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
                   {props.children}
                 </li>
               ),
+              strong: (props) => <strong className="text-white/90 font-semibold" {...props} />,
               img: (props) => (
                 <LightboxImage className="md:w-[1000px] relative w-full border rounded-lg mb-8" {...props} />
               ),
