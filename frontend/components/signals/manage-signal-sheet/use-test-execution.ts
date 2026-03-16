@@ -65,6 +65,7 @@ export default function useTestExecution({
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setTestOutput(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      onComplete?.();
     } finally {
       setIsExecuting(false);
     }
