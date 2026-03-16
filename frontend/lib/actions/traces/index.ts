@@ -88,11 +88,20 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     }
   }
 
-  // Parse custom columns from JSON
+  // Parse and validate custom columns from JSON
   let customColumns: CustomColumn[] | undefined;
   if (customColumnsJson) {
     try {
-      customColumns = JSON.parse(customColumnsJson);
+      const parsed = JSON.parse(customColumnsJson);
+      const CustomColumnSchema = z.array(
+        z.object({
+          id: z.string().min(1),
+          sql: z.string().min(1),
+          filterSql: z.string().optional(),
+          dbType: z.string().optional(),
+        })
+      );
+      customColumns = CustomColumnSchema.parse(parsed);
     } catch {
       // ignore malformed custom columns
     }
