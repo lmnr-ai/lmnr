@@ -884,19 +884,6 @@ fn main() -> anyhow::Result<()> {
         .ok()
         .map(|key| Arc::new(resend_rs::Resend::new(key.as_str())));
 
-    // == Reports Scheduler ==
-    let db_for_scheduler = db.clone();
-    let queue_for_scheduler = queue.clone();
-    let cache_for_scheduler = cache.clone();
-    runtime_handle.spawn(async move {
-        reports::scheduler::run_reports_scheduler(
-            db_for_scheduler.pool.clone(),
-            queue_for_scheduler,
-            cache_for_scheduler,
-        )
-        .await;
-    });
-
     if !enable_producer() && !enable_consumer() {
         log::error!(
             "Neither producer nor consumer mode is enabled. Set OPERATION_MODE to 'producer' or 'consumer', or unset to run both"
@@ -908,6 +895,23 @@ fn main() -> anyhow::Result<()> {
 
     if enable_consumer() {
         log::info!("Enabling consumer mode, spinning up queue workers");
+
+        if is_feature_enabled(Feature::Reports) {
+            log::info!("Reports feature enabled - starting reports scheduler");
+            let db_for_scheduler = db.clone();
+            let queue_for_scheduler = queue.clone();
+            let cache_for_scheduler = cache.clone();
+            runtime_handle.spawn(async move {
+                reports::scheduler::run_reports_scheduler(
+                    db_for_scheduler.pool.clone(),
+                    queue_for_scheduler,
+                    cache_for_scheduler,
+                )
+                .await;
+            });
+        } else {
+            log::info!("Reports feature disabled - skipping reports scheduler");
+        }
 
         let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
         let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));

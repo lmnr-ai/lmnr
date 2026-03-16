@@ -19,6 +19,7 @@ pub enum Feature {
     Tracing,
     Clustering,
     Signals,
+    Reports,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -49,6 +50,7 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::Signals => {
             env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok_and(|s| !s.is_empty())
         }
+        Feature::Reports => env::var("ENABLE_REPORTS").is_ok_and(|s| s == "true"),
     }
 }
 
