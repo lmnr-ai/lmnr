@@ -103,7 +103,7 @@ const Hero = ({ className, hasSession }: Props) => {
     >
       <div className="flex flex-col h-dvh w-full">
         <div className="flex items-center justify-center gap-3 bg-primary px-4 py-1 text-sm text-white">
-          <span>We raised $3M to to build the future of AI observability</span>
+          <span>We raised $3M to build the future of AI observability</span>
           <Link
             href="https://www.producthunt.com"
             target="_blank"
