@@ -20,7 +20,7 @@ use crate::{
     },
     db::{
         DB,
-        spans::Span,
+        spans::{Span, SpanType},
         trace::{Trace, upsert_trace_statistics_batch},
         workspaces::WorkspaceDeployment,
     },
@@ -42,6 +42,7 @@ use crate::{
 };
 
 const SIGNAL_TRIGGER_LOCK_TTL_SECONDS: u64 = 3600; // 1 hour
+const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
 #[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, config))]
 pub async fn process_span_messages(
@@ -157,7 +158,14 @@ pub async fn process_span_messages(
     send_span_updates(&spans_for_realtime, &pubsub).await;
 
     // Index spans and events in Quickwit
-    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable.iter().map(|s| (*s).into()).collect();
+    // Non-LLM spans are only indexed if their size is <= 5KB
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable
+        .iter()
+        .filter(|s| {
+            s.span_type == SpanType::LLM || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES
+        })
+        .map(|s| (*s).into())
+        .collect();
     let quickwit_events: Vec<QuickwitIndexedEvent> = recordable
         .iter()
         .flat_map(|s| s.events.iter().map(|e| e.into()))
