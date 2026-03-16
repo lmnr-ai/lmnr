@@ -164,12 +164,10 @@ impl SignalJobRealtimeHandler {
                     responses: vec![inline_response],
                 };
 
-                let batch_id = format!("realtime_{}", message.run_id);
-
                 let processed = match process_provider_responses(
                     &[message.clone()],
                     &batch_output.responses,
-                    &batch_id,
+                    None,
                     self.clickhouse.clone(),
                     self.queue.clone(),
                     self.config.clone(),

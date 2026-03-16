@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     ch::signal_events::{CHSignalEvent, insert_signal_events},
-    ch::signal_run_messages::{CHSignalRunMessage, delete_signal_run_messages, insert_signal_run_messages},
+    ch::signal_run_messages::{CHSignalRunMessage, delete_signal_run_messages},
     ch::signal_runs::{CHSignalRun, insert_signal_runs},
     db::DB,
     db::spans::SpanType,
@@ -26,7 +26,9 @@ use crate::{
         queue::SignalMessage,
         spans::{get_trace_span_ids_and_end_time, span_short_id},
         tools::get_full_spans,
-        utils::{InternalSpan, emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links},
+        utils::{
+            InternalSpan, emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links,
+        },
     },
     utils::limits::update_workspace_signal_runs_used,
     worker::HandlerError,
@@ -75,7 +77,7 @@ pub struct ProcessedResponses {
 pub async fn process_provider_responses(
     messages: &[SignalMessage],
     responses: &[ProviderInlineResponse],
-    batch_id: &str,
+    batch_id: Option<String>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     config: Arc<SignalWorkerConfig>,
@@ -110,8 +112,8 @@ pub async fn process_provider_responses(
             Some(id) => id,
             None => {
                 log::warn!(
-                    "Response missing run_id in metadata, skipping response. Batch ID: {}",
-                    batch_id
+                    "Response missing run_id in metadata, skipping response. Batch ID: {:?}",
+                    &batch_id
                 );
                 continue;
             }
@@ -138,7 +140,7 @@ pub async fn process_provider_responses(
             clickhouse.clone(),
             queue.clone(),
             config.clone(),
-            batch_id.to_string(),
+            batch_id.clone(),
         )
         .await;
 
@@ -216,7 +218,8 @@ pub async fn finalize_runs(
     cache: Arc<Cache>,
 ) -> Result<(), HandlerError> {
     // Insert succeeded runs and update usage limits
-    let succeeded_runs_ch: Vec<CHSignalRun> = succeeded_runs.iter().map(CHSignalRun::from).collect();
+    let succeeded_runs_ch: Vec<CHSignalRun> =
+        succeeded_runs.iter().map(CHSignalRun::from).collect();
     insert_signal_runs(clickhouse.clone(), &succeeded_runs_ch).await?;
     if is_feature_enabled(Feature::UsageLimit) {
         let mut runs_by_project_id: HashMap<Uuid, usize> = HashMap::new();
@@ -239,8 +242,10 @@ pub async fn finalize_runs(
     }
 
     // Insert permanently failed runs
-    let permanently_failed_runs_ch: Vec<CHSignalRun> =
-        permanently_failed_runs.iter().map(CHSignalRun::from).collect();
+    let permanently_failed_runs_ch: Vec<CHSignalRun> = permanently_failed_runs
+        .iter()
+        .map(CHSignalRun::from)
+        .collect();
     if let Err(e) = insert_signal_runs(clickhouse.clone(), &permanently_failed_runs_ch).await {
         log::error!(
             "[SIGNAL JOB] Failed to insert permanently failed runs: {:?}",
@@ -249,7 +254,10 @@ pub async fn finalize_runs(
     }
 
     // Delete messages for completed and permanently failed runs
-    let final_runs: Vec<&SignalRun> = succeeded_runs.iter().chain(permanently_failed_runs.iter()).collect();
+    let final_runs: Vec<&SignalRun> = succeeded_runs
+        .iter()
+        .chain(permanently_failed_runs.iter())
+        .collect();
     if !final_runs.is_empty() {
         let project_run_pairs: Vec<(Uuid, Uuid)> = final_runs
             .iter()
@@ -306,14 +314,14 @@ pub async fn finalize_runs(
     Ok(())
 }
 
-pub async fn process_single_response(
+async fn process_single_response(
     provider_response: &ProviderInlineResponse,
     signal_message: &SignalMessage,
     run: &SignalRun,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     config: Arc<SignalWorkerConfig>,
-    provider_batch_id: String,
+    provider_batch_id: Option<String>,
 ) -> (StepResult, Vec<CHSignalRunMessage>) {
     let mut new_messages: Vec<CHSignalRunMessage> = Vec::new();
 
@@ -383,21 +391,15 @@ pub async fn process_single_response(
             start_time: signal_message.request_start_time,
             input: None,
             output: span_output,
-            input_tokens: usage.as_ref().and_then(|u| u.prompt_token_count).map(|c| c),
-            input_cached_tokens: usage
-                .as_ref()
-                .and_then(|u| u.cache_read_input_tokens)
-                .map(|c| c as i64),
-            output_tokens: usage
-                .as_ref()
-                .and_then(|u| u.candidates_token_count)
-                .map(|c| c),
+            input_tokens: usage.as_ref().and_then(|u| u.prompt_token_count),
+            input_cached_tokens: usage.as_ref().and_then(|u| u.cache_read_input_tokens),
+            output_tokens: usage.as_ref().and_then(|u| u.candidates_token_count),
             model: model_version.unwrap_or(llm_model()),
             provider: llm_provider(),
             internal_project_id: config.internal_project_id,
             job_id: run.job_id,
             error: span_error,
-            provider_batch_id: Some(provider_batch_id),
+            provider_batch_id,
         },
     )
     .await;

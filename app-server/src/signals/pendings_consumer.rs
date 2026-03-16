@@ -320,7 +320,7 @@ pub async fn process_succeeded_batch(
     let mut processed = process_provider_responses(
         &message.messages,
         &response.responses,
-        &message.batch_id,
+        Some(message.batch_id.clone()),
         clickhouse.clone(),
         queue.clone(),
         config.clone(),
