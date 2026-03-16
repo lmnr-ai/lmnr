@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Operator } from "@/lib/actions/common/operators";
-import { type QueryParams, type QueryResult } from "@/lib/actions/common/query-builder";
+import { backtickEscape, type QueryParams, type QueryResult } from "@/lib/actions/common/query-builder";
 
 // -- Types --
 
@@ -43,10 +43,6 @@ export interface EvalStatsQueryOptions {
 }
 
 // -- Helpers --
-
-function backtickEscape(id: string): string {
-  return `\`${id.replace(/`/g, "``")}\``;
-}
 
 function buildFilterConditions(
   filters: EvalFilter[],

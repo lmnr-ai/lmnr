@@ -3,6 +3,7 @@ import { scaleUtc } from "d3-scale";
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { type Filter } from "@/lib/actions/common/filters";
 import {
+  backtickEscape,
   buildSelectQuery,
   type ColumnFilterConfig,
   createArrayColumnFilter,
@@ -147,10 +148,6 @@ export interface BuildTracesQueryOptions {
   sortSql?: string;
   sortDirection?: "ASC" | "DESC";
   customColumns?: CustomColumn[];
-}
-
-function backtickEscape(id: string): string {
-  return `\`${id.replace(/`/g, "``")}\``;
 }
 
 export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): QueryResult => {
