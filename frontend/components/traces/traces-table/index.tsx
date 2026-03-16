@@ -94,6 +94,9 @@ function TracesTableContent() {
   }));
 
   useEffect(() => {
+    // Skip sync before the store has hydrated columnDefs to avoid wiping saved column order.
+    if (columnDefs.length === 0) return;
+
     const visibleIds = columnDefs.map((c) => c.id!);
     const currentSet = new Set(columnOrder);
     const defSet = new Set(visibleIds);
