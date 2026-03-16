@@ -250,32 +250,25 @@ pub async fn search_spans(
     let new_start = Some(start.map_or(cutover, |s| s.max(cutover)));
     let new_end = end;
 
-    let should_query_old = !matches!((old_start, old_end), (Some(s), Some(e)) if s >= e);
-    let should_query_new = !matches!((new_start, new_end), (Some(s), Some(e)) if s >= e);
+    let has_old_interval = !matches!((old_start, old_end), (Some(s), Some(e)) if s >= e);
+    let has_new_interval = !matches!((new_start, new_end), (Some(s), Some(e)) if s >= e);
 
-    let (new_hits, old_hits) = tokio::join!(
-        async {
-            if should_query_new {
-                let mut body = search_body.clone();
-                set_body_timestamps(&mut body, new_start, new_end);
-                search_index(quickwit_client, spans_index_id(), body).await
-            } else {
-                Ok(vec![])
-            }
-        },
-        async {
-            if should_query_old {
-                let mut body = search_body.clone();
-                set_body_timestamps(&mut body, old_start, old_end);
-                search_index(quickwit_client, OLD_SPANS_INDEX_ID, body).await
-            } else {
-                Ok(vec![])
-            }
-        },
-    );
+    let max_hits = search_body["max_hits"].as_u64().unwrap_or(DEFAULT_SEARCH_MAX_HITS as u64) as usize;
 
-    let mut hits = new_hits?;
-    hits.extend(old_hits?);
+    let mut hits = if has_new_interval {
+        let mut body = search_body.clone();
+        set_body_timestamps(&mut body, new_start, new_end);
+        search_index(quickwit_client, spans_index_id(), body).await?
+    } else {
+        vec![]
+    };
+
+    if has_old_interval && hits.len() < max_hits {
+        let mut body = search_body;
+        body["max_hits"] = serde_json::Value::Number((max_hits - hits.len()).into());
+        set_body_timestamps(&mut body, old_start, old_end);
+        hits.extend(search_index(quickwit_client, OLD_SPANS_INDEX_ID, body).await?);
+    }
 
     Ok(HttpResponse::Ok().json(hits))
 }
