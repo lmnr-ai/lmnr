@@ -52,3 +52,52 @@ INSERT INTO signal_event_clusters(
 FROM clusters FINAL;
 
 DROP TABLE IF EXISTS clusters;
+
+DROP VIEW IF EXISTS clusters_v0;
+
+CREATE VIEW IF NOT EXISTS clusters_v0
+SQL SECURITY INVOKER
+AS SELECT
+    id,
+    signal_id,
+    name,
+    level,
+    centroid,
+    parent_id,
+    num_signal_events,
+    num_children_clusters,
+    created_at,
+    updated_at
+FROM clusters
+FINAL
+WHERE project_id = {project_id:UUID};
+
+DROP VIEW IF EXISTS signal_events_v0;
+
+CREATE VIEW default.signal_events_v0
+SQL SECURITY INVOKER
+AS SELECT
+    id,
+    project_id,
+    signal_id,
+    trace_id,
+    run_id,
+    name,
+    payload,
+    timestamp,
+    c.clusters AS clusters
+FROM default.signal_events
+LEFT JOIN
+(
+    SELECT
+        project_id,
+        event_id,
+        arrayDistinct(groupArray(cluster_id)) AS clusters
+    FROM default.events_to_clusters
+    FINAL
+    WHERE project_id = {project_id:UUID}
+    GROUP BY
+        project_id,
+        event_id
+) AS c ON (signal_events.project_id = c.project_id) AND (signal_events.id = c.event_id)
+WHERE signal_events.project_id = {project_id:UUID}
