@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type SparklineScale } from "@/components/signals/columns.tsx";
 import ManageSignalSheet from "@/components/signals/manage-signal-sheet";
 import SignalCards from "@/components/signals/signal-cards";
+import SignalsBanner, { SignalsBannerInfoButton } from "@/components/signals/signals-banner";
 import { Button } from "@/components/ui/button";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import Header from "@/components/ui/header.tsx";
@@ -191,8 +192,11 @@ function SignalsContent() {
 
   return (
     <>
-      <Header path="signals" />
+      <Header path="signals">
+        <SignalsBannerInfoButton />
+      </Header>
       <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4 h-full">
+        <SignalsBanner onCreateSignal={() => setIsDialogOpen(true)} />
         <div className="flex items-center gap-2 pt-1">
           {selectedRowIds.length > 0 && (
             <>
