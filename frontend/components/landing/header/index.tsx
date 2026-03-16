@@ -31,15 +31,14 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
   return (
     <>
       <div className="flex items-center justify-center gap-3 bg-primary px-4 py-1 text-sm text-white">
-        <span>Laminar raises $3M seed to power AI observability</span>
+        <span>Laminar raises $3M seed to build observability for long-running agents</span>
         <Link
-          // TODO: replace dummy link
-          href="https://www.producthunt.com"
+          href="/blog/2026-03-16-laminar-launch"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
         >
-          Learn more
+          Read more
           <ArrowRight className="size-3" />
         </Link>
       </div>
