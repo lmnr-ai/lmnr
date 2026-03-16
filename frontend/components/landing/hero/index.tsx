@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -101,6 +102,18 @@ const Hero = ({ className, hasSession }: Props) => {
       )}
     >
       <div className="flex flex-col h-dvh w-full">
+        <div className="flex items-center justify-center gap-3 bg-primary px-4 py-1 text-sm text-white">
+          <span>We raised $3M to to build the future of AI observability</span>
+          <Link
+            href="https://www.producthunt.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
+          >
+            Learn more
+            <ArrowRight className="size-3" />
+          </Link>
+        </div>
         <Header hasSession={hasSession} isIncludePadding />
         <div className={cn("flex flex-col items-center justify-between flex-1 md:px-[48px]", "px-4")}>
           <div className={cn("flex flex-col md:gap-[60px] items-center flex-1 justify-center", "gap-8")}>
