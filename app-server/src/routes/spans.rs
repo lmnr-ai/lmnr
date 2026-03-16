@@ -145,7 +145,7 @@ const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
 // Old spans indexed before this timestamp live in the old "spans" index.
 // Adjust this right before deploying the new index.
 fn new_index_cutover_ts() -> DateTime<Utc> {
-    Utc.with_ymd_and_hms(2026, 3, 16, 0, 0, 0).unwrap()
+    Utc.with_ymd_and_hms(2026, 3, 16, 16, 0, 0).unwrap()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -253,7 +253,9 @@ pub async fn search_spans(
     let has_old_interval = !matches!((old_start, old_end), (Some(s), Some(e)) if s >= e);
     let has_new_interval = !matches!((new_start, new_end), (Some(s), Some(e)) if s >= e);
 
-    let max_hits = search_body["max_hits"].as_u64().unwrap_or(DEFAULT_SEARCH_MAX_HITS as u64) as usize;
+    let max_hits = search_body["max_hits"]
+        .as_u64()
+        .unwrap_or(DEFAULT_SEARCH_MAX_HITS as u64) as usize;
 
     let mut hits = if has_new_interval {
         let mut body = search_body.clone();
