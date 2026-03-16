@@ -31,7 +31,7 @@
 
 ## Documentation
 
-Check out full documentation here [docs.laminar.sh](https://docs.laminar.sh).
+Check out full documentation here [docs.laminar.sh](https://docs.laminar.sh). You can also learn more about our [pricing](https://laminar.sh/pricing) and [privacy policy](https://laminar.sh/policies/privacy).
 
 ## Getting started
 
