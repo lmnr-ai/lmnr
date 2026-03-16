@@ -36,11 +36,7 @@ export default async function ProjectsPage() {
     .from(membersOfWorkspaces)
     .innerJoin(workspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
     .where(eq(membersOfWorkspaces.userId, user.id))
-    .orderBy(desc(workspaces.createdAt))
-    .catch((e) => {
-      console.error("Error fetching workspace list:", e);
-      return [];
-    });
+    .orderBy(desc(workspaces.createdAt));
 
   if (workspaceLists.length === 0) {
     return redirect("/onboarding");
