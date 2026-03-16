@@ -38,10 +38,10 @@ const ROUTE_MATCHES: RouteMatch[] = [
     promptFragment: (ids) =>
       `The user is viewing a specific trace (ID: ${ids.traceId}). They can see the trace timeline, spans, and details. You can use getTraceSkeleton with this trace ID to help answer questions about it.`,
     suggestions: [
-      "Summarize this trace",
-      "What went wrong here?",
-      "Which spans took the longest?",
-      "What models were used in this trace?",
+      "Analyze this trace for issues",
+      "Why did this trace fail?",
+      "What's the slowest part of this trace?",
+      "Compare this trace to similar ones",
     ],
   },
   {
@@ -51,10 +51,10 @@ const ROUTE_MATCHES: RouteMatch[] = [
     promptFragment: () =>
       "The user is on the traces list page. They can see a table of recent traces with names, durations, costs, and statuses.",
     suggestions: [
-      "Show me recent failed traces",
-      "What's my average latency?",
-      "Which endpoints are slowest?",
-      "Show trace volume by hour",
+      "Find traces with errors in the last hour",
+      "Show me my slowest endpoints",
+      "Analyze my latency trends today",
+      "What's causing the most failures?",
     ],
   },
   {
@@ -64,10 +64,10 @@ const ROUTE_MATCHES: RouteMatch[] = [
     promptFragment: (ids) =>
       `The user is viewing a specific evaluation (ID: ${ids.evaluationId}). They can see evaluation scores, datapoints, and results.`,
     suggestions: [
-      "Compare this eval to the last one",
-      "Which scores dropped?",
-      "What's the average score?",
-      "Show the worst performing datapoints",
+      "Analyze this evaluation's weak spots",
+      "Compare this eval to the previous run",
+      "Which scores regressed the most?",
+      "Find the worst performing datapoints",
     ],
   },
   {
@@ -77,10 +77,10 @@ const ROUTE_MATCHES: RouteMatch[] = [
     promptFragment: () =>
       "The user is on the evaluations list page. They can see a list of evaluation runs with their scores and statuses.",
     suggestions: [
-      "Compare this eval to the last one",
-      "Which scores dropped?",
-      "Show evaluation trends over time",
-      "What's my best performing evaluation?",
+      "Which evaluation had the biggest score drop?",
+      "Show me evaluation trends this week",
+      "Find evaluations with failing scores",
+      "Compare my latest two evaluations",
     ],
   },
   {
@@ -90,10 +90,10 @@ const ROUTE_MATCHES: RouteMatch[] = [
     promptFragment: () =>
       "The user is on the dashboard page. They can see overview metrics, charts, and key performance indicators.",
     suggestions: [
-      "What are my top endpoints?",
-      "Show trace volume by hour",
-      "What's my cost trend this week?",
-      "Which models have the highest latency?",
+      "Analyze my error rate trend today",
+      "Which endpoints need optimization?",
+      "Show me cost anomalies this week",
+      "What's driving my highest latency?",
     ],
   },
   {
@@ -102,10 +102,10 @@ const ROUTE_MATCHES: RouteMatch[] = [
     extractIds: (m) => ({ projectId: m[1] }),
     promptFragment: () => "The user is on the signals page. They can see configured signals and recent signal events.",
     suggestions: [
-      "Which signals fired today?",
-      "Show me the most active signals",
-      "Are there any error patterns I should monitor?",
-      "Create a signal for failed traces",
+      "Which signals are firing the most?",
+      "Create a signal for error rate spikes",
+      "Are there error patterns I'm not monitoring?",
+      "Show me signals that need attention",
     ],
   },
   {
@@ -148,13 +148,36 @@ const ROUTE_MATCHES: RouteMatch[] = [
 ];
 
 /**
- * Parse a pathname and return contextual information about the current page.
+ * Parse a pathname (and optional search params) and return contextual
+ * information about the current page. Search params are used because
+ * some pages encode entity IDs as query params (e.g. ?traceId=xxx on
+ * the traces list page) rather than path segments.
  */
-export function getPageContext(pathname: string): PageContext {
+export function getPageContext(pathname: string, searchParams?: URLSearchParams): PageContext {
   for (const route of ROUTE_MATCHES) {
     const match = pathname.match(route.pattern);
     if (match) {
       const ids = route.extractIds(match);
+
+      // Check for traceId in query params (traces list page opens traces this way)
+      if (searchParams) {
+        const qTraceId = searchParams.get("traceId");
+        if (qTraceId && !ids.traceId) {
+          const traceDetailRoute = ROUTE_MATCHES.find((r) => r.pageType === "trace detail");
+          if (traceDetailRoute) {
+            const traceIds: Record<string, string> = { ...ids, traceId: qTraceId };
+            const qSpanId = searchParams.get("spanId");
+            if (qSpanId) traceIds.spanId = qSpanId;
+            return {
+              pageType: traceDetailRoute.pageType,
+              ids: traceIds,
+              systemPromptFragment: traceDetailRoute.promptFragment(traceIds),
+              suggestions: traceDetailRoute.suggestions,
+            };
+          }
+        }
+      }
+
       return {
         pageType: route.pageType,
         ids,

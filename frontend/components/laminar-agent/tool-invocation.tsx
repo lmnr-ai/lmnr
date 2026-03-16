@@ -1,8 +1,12 @@
 "use client";
 
-import { ChevronRight, Database, Loader2, Route } from "lucide-react";
-import { useState } from "react";
+import { Check, ChevronRight, Copy, Database, ExternalLink, Loader2, Route } from "lucide-react";
+import { useParams } from "next/navigation";
+import { useCallback, useState } from "react";
+import { v4 } from "uuid";
 
+import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface ToolInvocationProps {
@@ -15,30 +19,66 @@ interface ToolInvocationProps {
 function QuerySQLInvocation({ state, input, output }: Omit<ToolInvocationProps, "toolName">) {
   const [expanded, setExpanded] = useState(false);
   const [showFullOutput, setShowFullOutput] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const { projectId } = useParams();
   const query = (input as { query?: string })?.query;
   const isLoading = state === "input-streaming" || state === "input-available";
 
+  const copyQuery = useCallback(async () => {
+    if (!query) return;
+    await navigator.clipboard.writeText(query);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [query]);
+
+  const openInEditor = useCallback(async () => {
+    if (!query) return;
+    const id = v4();
+    try {
+      const res = await fetch(`/api/projects/${projectId}/sql/templates`, {
+        method: "POST",
+        body: JSON.stringify({ id, name: "Agent query", query }),
+      });
+      if (res.ok) {
+        window.open(`/project/${projectId}/sql/${id}`, "_blank");
+      }
+    } catch {
+      toast({ title: "Failed to open in SQL editor", variant: "destructive" });
+    }
+  }, [projectId, query]);
+
   return (
     <div className="bg-muted/50 rounded-lg border text-xs">
-      <button
-        className="flex items-center gap-2 w-full px-3 py-2 rounded-lg hover:bg-muted transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
+      <div className="flex items-center gap-2 px-3 py-2">
         {isLoading ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
         ) : (
           <Database className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
         )}
-        <span className="font-medium text-muted-foreground">
+        <button
+          className="flex items-center gap-1 font-medium text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setExpanded(!expanded)}
+        >
           {isLoading ? "Executing SQL query..." : "Executed SQL query"}
-        </span>
-        <ChevronRight
-          className={cn(
-            "w-3.5 h-3.5 text-muted-foreground ml-auto transition-transform duration-200",
-            expanded && "rotate-90"
-          )}
-        />
-      </button>
+          <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200", expanded && "rotate-90")} />
+        </button>
+        {!isLoading && query && (
+          <div className="flex items-center gap-0.5 ml-auto">
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={copyQuery} aria-label="Copy SQL">
+              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={openInEditor}
+              aria-label="Open in SQL editor"
+            >
+              <ExternalLink className="w-3 h-3" />
+            </Button>
+          </div>
+        )}
+      </div>
       {expanded && (
         <div className="px-3 pb-2 space-y-2">
           {query && (

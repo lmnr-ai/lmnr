@@ -12,13 +12,15 @@ interface CollapsedFabProps {
   suggestions?: string[];
 }
 
-const BANNER_SHOW_INTERVAL = 30_000; // 30 seconds between banners
-const BANNER_DISPLAY_DURATION = 6_000; // Show banner for 6 seconds
+const BANNER_SHOW_INTERVAL = 20_000; // 20 seconds between banners
+const BANNER_DISPLAY_DURATION = 8_000; // Show banner for 8 seconds
+const CONTEXT_CHANGE_DELAY = 500; // Show banner 500ms after context change
 
 export default function CollapsedFab({ suggestions = [] }: CollapsedFabProps) {
   const setViewMode = useLaminarAgentStore((s) => s.setViewMode);
   const [bannerText, setBannerText] = useState<string | null>(null);
   const suggestionIndexRef = useRef(0);
+  const prevSuggestionsRef = useRef<string[]>(suggestions);
 
   const showBanner = useCallback(() => {
     if (suggestions.length === 0) return;
@@ -28,15 +30,32 @@ export default function CollapsedFab({ suggestions = [] }: CollapsedFabProps) {
     setTimeout(() => setBannerText(null), BANNER_DISPLAY_DURATION);
   }, [suggestions]);
 
+  // Show banner immediately when suggestions change (context change)
+  useEffect(() => {
+    const prev = prevSuggestionsRef.current;
+    prevSuggestionsRef.current = suggestions;
+
+    if (suggestions.length === 0) return;
+
+    const changed = prev.length !== suggestions.length || prev.some((s, i) => s !== suggestions[i]);
+    if (changed) {
+      suggestionIndexRef.current = 0;
+      const timeout = setTimeout(showBanner, CONTEXT_CHANGE_DELAY);
+      return () => clearTimeout(timeout);
+    }
+  }, [suggestions, showBanner]);
+
+  // Show first banner quickly on mount, then regular interval
+  const hasShownInitialRef = useRef(false);
   useEffect(() => {
     if (suggestions.length === 0) return;
-    // Show first banner after a delay
-    const initialTimeout = setTimeout(showBanner, BANNER_SHOW_INTERVAL);
+    if (!hasShownInitialRef.current) {
+      hasShownInitialRef.current = true;
+      const initial = setTimeout(showBanner, 3_000);
+      return () => clearTimeout(initial);
+    }
     const interval = setInterval(showBanner, BANNER_SHOW_INTERVAL + BANNER_DISPLAY_DURATION);
-    return () => {
-      clearTimeout(initialTimeout);
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [showBanner, suggestions.length]);
 
   const handleBannerClick = () => {
@@ -59,14 +78,14 @@ export default function CollapsedFab({ suggestions = [] }: CollapsedFabProps) {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 20, scale: 0.9 }}
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            className="bg-background border rounded-lg shadow-lg px-3 py-2 text-xs text-foreground/80 max-w-[280px] text-left flex items-start gap-1"
+            className="border border-primary bg-background rounded-lg shadow-lg px-3 py-2 text-xs text-primary max-w-[280px] text-left flex items-start gap-1"
           >
             <button
               onClick={handleBannerClick}
-              className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer flex-1 min-w-0"
+              className="flex items-center gap-1.5 hover:text-primary/80 transition-colors cursor-pointer flex-1 min-w-0"
             >
               <Sparkles className="w-3 h-3 text-primary flex-none" />
-              <span className="line-clamp-2">{bannerText}</span>
+              <span className="line-clamp-2 font-medium">{bannerText}</span>
             </button>
             <button
               onClick={(e) => {

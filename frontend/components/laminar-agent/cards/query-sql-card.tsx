@@ -52,10 +52,16 @@ export default function QuerySQLCard({ props }: { props: QuerySQLCardProps }) {
           <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200", expanded && "rotate-90")} />
         </button>
         <div className="flex items-center gap-0.5 ml-auto">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={copyQuery} title="Copy SQL">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={copyQuery} aria-label="Copy SQL">
             {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={openInEditor} title="Open in SQL editor">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={openInEditor}
+            aria-label="Open in SQL editor"
+          >
             <ExternalLink className="w-3 h-3" />
           </Button>
         </div>
