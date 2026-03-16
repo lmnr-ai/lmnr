@@ -123,6 +123,12 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
         }
     };
 
+    log::debug!(
+        "Workspace signal runs check: {}/{}",
+        signal_runs,
+        project_info.signal_runs_limit
+    );
+
     Ok(signal_runs >= project_info.signal_runs_limit)
 }
 

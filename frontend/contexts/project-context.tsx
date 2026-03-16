@@ -2,11 +2,12 @@
 
 import React, { createContext, type PropsWithChildren, use } from "react";
 
+import { type ProjectDetails } from "@/lib/actions/project";
 import { type Project, type Workspace } from "@/lib/workspaces/types";
 
 type ProjectContextType = {
   workspace?: Workspace;
-  project?: Project;
+  project?: ProjectDetails;
   projects: Project[];
 };
 

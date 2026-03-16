@@ -284,6 +284,7 @@ mod tests {
                 "test",
                 EVENT_CLUSTERING_BATCH_EXCHANGE,
                 EVENT_CLUSTERING_BATCH_ROUTING_KEY,
+                128,
             )
             .await
             .unwrap();
@@ -333,6 +334,7 @@ mod tests {
                 "test",
                 EVENT_CLUSTERING_BATCH_EXCHANGE,
                 EVENT_CLUSTERING_BATCH_ROUTING_KEY,
+                128,
             )
             .await
             .unwrap();

@@ -10,7 +10,7 @@ use super::spans::{
     strip_signature_fields,
 };
 use super::utils::{nanoseconds_to_iso, try_parse_json};
-use crate::signals::gemini::{FunctionDeclaration, Tool};
+use crate::signals::provider::models::{ProviderFunctionDeclaration, ProviderTool};
 use crate::signals::prompts::{GET_FULL_SPAN_INFO_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION};
 
 /// Full span info returned by get_full_spans tool
@@ -31,7 +31,7 @@ pub struct SpanInfo {
     pub exception: Option<Value>,
 }
 
-pub fn build_tool_definitions(output_schema: &Value) -> Tool {
+pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
     let properties = output_schema
         .get("properties")
         .cloned()
@@ -44,7 +44,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
         .unwrap_or_default();
 
     let function_declarations = vec![
-        FunctionDeclaration {
+        ProviderFunctionDeclaration {
             name: "get_full_spans".to_string(),
             description: GET_FULL_SPAN_INFO_DESCRIPTION.to_string(),
             parameters: serde_json::json!({
@@ -59,7 +59,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
                 "required": ["span_ids"]
             }),
         },
-        FunctionDeclaration {
+        ProviderFunctionDeclaration {
             name: "submit_identification".to_string(),
             description: SUBMIT_IDENTIFICATION_DESCRIPTION.to_string(),
             parameters: serde_json::json!({
@@ -85,7 +85,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> Tool {
         },
     ];
 
-    Tool {
+    ProviderTool {
         function_declarations,
     }
 }

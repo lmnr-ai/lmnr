@@ -1,7 +1,7 @@
 "use client";
 
 import { isEmpty } from "lodash";
-import { AlertTriangle, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Copy, Pencil, Trash2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
@@ -401,9 +401,8 @@ export default function CustomModelCosts() {
           mode="add"
           onSave={upsertCost}
           trigger={
-            <Button variant="outline" className="w-fit">
-              <Plus size={14} className="mr-1" />
-              Add model cost
+            <Button icon="plus" variant="outline" className="w-fit">
+              Model cost
             </Button>
           }
         />
@@ -414,6 +413,7 @@ export default function CustomModelCosts() {
         isLoading={isLoading}
         isEmpty={isEmpty(customModelCosts)}
         emptyMessage="No custom model costs defined."
+        colSpan={5}
       >
         {customModelCosts?.map((cost) => {
           const costObj = cost.costs as Record<string, number>;

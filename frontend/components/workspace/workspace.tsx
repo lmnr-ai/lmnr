@@ -10,6 +10,8 @@ import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptiona
 
 import WorkspaceBilling from "./billing";
 import WorkspaceDeployment from "./deployment-settings/workspace-deployment.tsx";
+import WorkspaceReports from "./reports";
+import WorkspaceIntegrations from "./workspace-integrations";
 import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";
@@ -23,6 +25,8 @@ interface WorkspaceProps {
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
   canManageBilling: boolean;
+  slackClientId?: string;
+  slackRedirectUri?: string;
 }
 
 export default function WorkspaceComponent({
@@ -34,6 +38,8 @@ export default function WorkspaceComponent({
   subscription,
   upcomingInvoice,
   canManageBilling,
+  slackClientId,
+  slackRedirectUri,
 }: WorkspaceProps) {
   const { menu } = useWorkspaceMenuContext();
   const featureFlags = useFeatureFlags();
@@ -60,6 +66,14 @@ export default function WorkspaceComponent({
             upcomingInvoice={upcomingInvoice}
           />
         )}
+        {menu === "integrations" && (
+          <WorkspaceIntegrations
+            workspaceId={workspace.id}
+            slackClientId={slackClientId}
+            slackRedirectUri={slackRedirectUri}
+          />
+        )}
+        {menu === "reports" && <WorkspaceReports workspaceId={workspace.id} />}
         {menu === "settings" && <WorkspaceSettings workspace={workspace} isOwner={isOwner} />}
         {featureFlags[Feature.DEPLOYMENT] && menu === "deployment" && <WorkspaceDeployment workspace={workspace} />}
       </div>
