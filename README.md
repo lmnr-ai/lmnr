@@ -21,6 +21,8 @@
     - [x] Powerful dashboard builder for traces, metrics, and events with support of custom SQL queries.
 - [x] Data annotation & Datasets. [Docs](https://docs.laminar.sh/datasets/introduction)
     - [x] Custom data rendering UI for fast data annotation and dataset creation for evals.
+- [x] Agent debugger. [Docs](https://docs.laminar.sh/agent-debugger)
+    - [x] Step-through debugger for replaying and debugging agent traces.
 - [x] Extremely high performance.
     - [x] Written in Rust 🦀
     - [x] Custom realtime engine for viewing traces as they happen.
