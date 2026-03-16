@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Duration, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -246,7 +246,7 @@ pub async fn search_spans(
     let end = request.end_time;
 
     let old_start = start;
-    let old_end = Some(end.map_or(cutover, |e| e.min(cutover)));
+    let old_end = Some(end.map_or(cutover, |e| e.min(cutover + Duration::hours(2))));
     let new_start = Some(start.map_or(cutover, |s| s.max(cutover)));
     let new_end = end;
 
