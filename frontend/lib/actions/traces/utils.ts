@@ -9,6 +9,7 @@ import {
   createCustomFilter,
   createNumberFilter,
   createStringFilter,
+  type OrderByOptions,
   type QueryParams,
   type QueryResult,
   type SelectQueryOptions,
@@ -125,6 +126,13 @@ const tracesSelectColumns = [
 
 export const DEFAULT_SEARCH_MAX_HITS = 500;
 
+export interface CustomColumn {
+  id: string;
+  sql: string;
+  filterSql?: string;
+  dbType?: string;
+}
+
 export interface BuildTracesQueryOptions {
   projectId: string;
   traceType: "DEFAULT" | "EVALUATION" | "EVENT" | "PLAYGROUND";
@@ -135,10 +143,31 @@ export interface BuildTracesQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  sortBy?: string;
+  sortSql?: string;
+  sortDirection?: "ASC" | "DESC";
+  customColumns?: CustomColumn[];
+}
+
+function backtickEscape(id: string): string {
+  return `\`${id.replace(/`/g, "``")}\``;
 }
 
 export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): QueryResult => {
-  const { traceType, traceIds, filters, limit, offset, startTime, endTime, pastHours } = options;
+  const {
+    traceType,
+    traceIds,
+    filters,
+    limit,
+    offset,
+    startTime,
+    endTime,
+    pastHours,
+    sortBy,
+    sortSql,
+    sortDirection,
+    customColumns,
+  } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -157,9 +186,25 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     });
   }
 
+  // Build select columns: static columns + any custom columns
+  const selectColumns = [...tracesSelectColumns];
+  if (customColumns && customColumns.length > 0) {
+    for (const col of customColumns) {
+      selectColumns.push(`${col.sql} as ${backtickEscape(col.id)}`);
+    }
+  }
+
+  // Resolve sort order
+  const orderBy: OrderByOptions[] = [];
+  if (sortBy && sortSql) {
+    orderBy.push({ column: sortSql, direction: sortDirection ?? "DESC" });
+  } else {
+    orderBy.push({ column: "start_time", direction: "DESC" });
+  }
+
   const queryOptions: SelectQueryOptions = {
     select: {
-      columns: tracesSelectColumns,
+      columns: selectColumns,
       table: "traces",
     },
     timeRange: {
@@ -170,12 +215,7 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     },
     filters,
     columnFilterConfig: tracesColumnFilterConfig,
-    orderBy: [
-      {
-        column: "start_time",
-        direction: "DESC",
-      },
-    ],
+    orderBy,
     customConditions,
     pagination: {
       limit,

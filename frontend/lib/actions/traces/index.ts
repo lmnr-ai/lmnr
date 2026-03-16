@@ -5,7 +5,11 @@ import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { searchSpans } from "@/lib/actions/traces/search";
-import { buildTracesCountQueryWithParams, buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
+import {
+  buildTracesCountQueryWithParams,
+  buildTracesQueryWithParams,
+  type CustomColumn,
+} from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
@@ -26,6 +30,8 @@ export const GetTracesSchema = PaginationFiltersSchema.extend({
     .transform((val) => val || "DEFAULT"),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
+  sortSql: z.string().optional(),
+  customColumns: z.string().optional(),
 });
 
 export const DeleteTracesSchema = z.object({
@@ -50,6 +56,10 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     search,
     searchIn,
     filter: inputFilters,
+    sortBy,
+    sortSql,
+    sortDirection,
+    customColumns: customColumnsJson,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
@@ -78,6 +88,16 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     }
   }
 
+  // Parse custom columns from JSON
+  let customColumns: CustomColumn[] | undefined;
+  if (customColumnsJson) {
+    try {
+      customColumns = JSON.parse(customColumnsJson);
+    } catch {
+      // ignore malformed custom columns
+    }
+  }
+
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
     projectId,
     traceType,
@@ -88,6 +108,10 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     startTime,
     endTime,
     pastHours,
+    sortBy,
+    sortSql,
+    sortDirection: sortDirection as "ASC" | "DESC" | undefined,
+    customColumns,
   });
 
   const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });

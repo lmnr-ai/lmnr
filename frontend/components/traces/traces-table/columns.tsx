@@ -27,7 +27,7 @@ const detailedFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 8,
 });
 
-export const columns: ColumnDef<TraceRow, any>[] = [
+export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
       <div
@@ -49,11 +49,14 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorKey: "id",
     id: "id",
     size: 150,
+    meta: { sql: "id" },
   },
   {
     accessorKey: "topSpanType",
     header: "Root span",
     id: "top_span_type",
+    enableSorting: true,
+    meta: { sql: "top_span_type" },
     cell: (row) => {
       const topSpanId = row.row.original.topSpanId;
       const hasTopSpan = !!topSpanId && topSpanId !== "00000000-0000-0000-0000-000000000000";
@@ -107,6 +110,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     header: "Timestamp",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "start_time",
+    enableSorting: true,
+    meta: { sql: "start_time" },
     size: 150,
   },
   {
@@ -121,12 +126,16 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     },
     header: "Duration",
     id: "duration",
+    enableSorting: true,
+    meta: { sql: "duration" },
     size: 80,
   },
   {
     accessorFn: (row) => row.totalCost,
     header: "Cost",
     id: "cost",
+    enableSorting: true,
+    meta: { sql: "total_cost" },
     cell: (row) => {
       if (row.getValue() > 0) {
         return (
@@ -162,6 +171,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorFn: (row) => row.totalTokens ?? "-",
     header: "Tokens",
     id: "total_tokens",
+    enableSorting: true,
+    meta: { sql: "total_tokens" },
     cell: (row) => (
       <div className="truncate">
         {`${row.row.original.inputTokens ?? "-"}`}
@@ -223,14 +234,21 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     header: "Session ID",
     accessorKey: "sessionId",
     id: "session_id",
+    enableSorting: true,
+    meta: { sql: "session_id" },
   },
   {
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
     header: "User ID",
     accessorKey: "userId",
     id: "user_id",
+    enableSorting: true,
+    meta: { sql: "user_id" },
   },
 ];
+
+/** @deprecated Use STATIC_COLUMNS and useTracesTableStore().columnDefs instead */
+export const columns = STATIC_COLUMNS;
 
 export const filters: ColumnFilter[] = [
   {
