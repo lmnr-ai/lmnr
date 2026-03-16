@@ -22,6 +22,7 @@ pub const SPANS_INDEXER_QUEUE: &str = "spans_indexer_queue";
 pub const SPANS_INDEXER_EXCHANGE: &str = "spans_indexer_exchange";
 pub const SPANS_INDEXER_ROUTING_KEY: &str = "spans_indexer_routing_key";
 const DEFAULT_SPANS_INDEX_ID: &str = "spans_v2";
+pub const OLD_SPANS_INDEX_ID: &str = "spans";
 pub const EVENTS_INDEX_ID: &str = "events";
 
 static SPANS_INDEX_ID: OnceLock<String> = OnceLock::new();

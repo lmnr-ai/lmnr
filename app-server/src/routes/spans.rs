@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -10,7 +10,7 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     db::spans::{Span, SpanType},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
-    quickwit::client::QuickwitClient,
+    quickwit::{OLD_SPANS_INDEX_ID, client::QuickwitClient, spans_index_id},
     routes::{ResponseResult, error::Error},
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
@@ -142,6 +142,12 @@ pub struct SearchSpansRequest {
 
 const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
 
+// Old spans indexed before this timestamp live in the old "spans" index.
+// Adjust this right before deploying the new index.
+fn new_index_cutover_ts() -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(2026, 3, 16, 0, 0, 0).unwrap()
+}
+
 #[derive(Serialize, Deserialize)]
 struct QuickwitHit {
     trace_id: String,
@@ -222,14 +228,6 @@ pub async fn search_spans(
     let search_field_str = search_fields.join(",");
     search_body["search_field"] = serde_json::Value::String(search_field_str);
 
-    // Handle timestamps
-    if let Some(start) = request.start_time {
-        search_body["start_timestamp"] = serde_json::Value::Number(start.timestamp().into());
-    }
-    if let Some(end) = request.end_time {
-        search_body["end_timestamp"] = serde_json::Value::Number(end.timestamp().into());
-    }
-
     // Handle pagination
     if request.limit != 0 {
         search_body["max_hits"] = serde_json::Value::Number(request.limit.into())
@@ -241,19 +239,74 @@ pub async fn search_spans(
         search_body["start_offset"] = serde_json::Value::Number(request.offset.into());
     }
 
-    let response_value = quickwit_client
-        .search_spans(search_body)
-        .await
-        .map_err(|e| {
-            log::error!("Quickwit search error: {:?}", e);
-            Error::InternalAnyhowError(anyhow::anyhow!("Failed to search spans"))
-        })?;
+    // TEMPORARY: Determine which index to query based on the timestamp
+    // TODO: Remove this logic once we have switched to the new index completely.
+    let cutover = new_index_cutover_ts();
+    let start = request.start_time;
+    let end = request.end_time;
+
+    let old_start = start;
+    let old_end = Some(end.map_or(cutover, |e| e.min(cutover)));
+    let new_start = Some(start.map_or(cutover, |s| s.max(cutover)));
+    let new_end = end;
+
+    let should_query_old = !matches!((old_start, old_end), (Some(s), Some(e)) if s >= e);
+    let should_query_new = !matches!((new_start, new_end), (Some(s), Some(e)) if s >= e);
+
+    let (new_hits, old_hits) = tokio::join!(
+        async {
+            if should_query_new {
+                let mut body = search_body.clone();
+                set_body_timestamps(&mut body, new_start, new_end);
+                search_index(quickwit_client, spans_index_id(), body).await
+            } else {
+                Ok(vec![])
+            }
+        },
+        async {
+            if should_query_old {
+                let mut body = search_body.clone();
+                set_body_timestamps(&mut body, old_start, old_end);
+                search_index(quickwit_client, OLD_SPANS_INDEX_ID, body).await
+            } else {
+                Ok(vec![])
+            }
+        },
+    );
+
+    let mut hits = new_hits?;
+    hits.extend(old_hits?);
+
+    Ok(HttpResponse::Ok().json(hits))
+}
+
+fn set_body_timestamps(
+    body: &mut serde_json::Value,
+    start: Option<DateTime<Utc>>,
+    end: Option<DateTime<Utc>>,
+) {
+    if let Some(s) = start {
+        body["start_timestamp"] = serde_json::Value::Number(s.timestamp().into());
+    }
+    if let Some(e) = end {
+        body["end_timestamp"] = serde_json::Value::Number(e.timestamp().into());
+    }
+}
+
+async fn search_index(
+    client: &QuickwitClient,
+    index_id: &str,
+    body: serde_json::Value,
+) -> Result<Vec<QuickwitHit>, Error> {
+    let response_value = client.search_index(index_id, body).await.map_err(|e| {
+        log::error!("Quickwit search error (index {}): {:?}", index_id, e);
+        Error::InternalAnyhowError(anyhow::anyhow!("Failed to search spans"))
+    })?;
 
     let quickwit_response: QuickwitResponse =
         serde_json::from_value(response_value).map_err(|e| {
             Error::InternalAnyhowError(anyhow::anyhow!("Failed to parse Quickwit response: {}", e))
         })?;
 
-    let hits = quickwit_response.hits;
-    Ok(HttpResponse::Ok().json(hits))
+    Ok(quickwit_response.hits)
 }
