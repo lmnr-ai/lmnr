@@ -146,7 +146,7 @@ const ReportsPanel = ({ progress }: Props) => {
           <p className="font-sans text-[10px] md:text-xs text-landing-text-400 w-full">
             Description:
             <br />
-            {`The LLM in the 'refine_report' task failed to follow the instruction to keep the summary to 3-4 sentences,.`}
+            {`The LLM in the 'refine_report' task failed to follow the instruction to keep the summary to 3-4 sentences.`}
           </p>
         </div>
       </motion.div>

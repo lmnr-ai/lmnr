@@ -5,9 +5,8 @@ import { motion, type MotionValue, useTransform } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 import AnimatedThreads0 from "./animated-threads-0";
-import AnimatedThreads1 from "./animated-threads-1";
+import AnimatedThreads from "./animated-threads-1";
 import AnimatedThreads2 from "./animated-threads-2";
-import AnimatedThreads3 from "./animated-threads-3";
 import ClustersPanel from "./clusters-panel";
 import DefinitionCard from "./definition-card";
 import EventsTable from "./events-table";
@@ -70,7 +69,7 @@ const SignalsImage = ({ className, scrollProgress: scrollProgressProp }: Props) 
         <div className="flex h-full items-end shrink-0">
           <div className={cn("flex flex-col items-center justify-center rounded w-[220px]", SECTION_HEIGHT)}>
             <div className="h-[62px] w-[220px]">
-              <AnimatedThreads1 progress={threads1Progress} />
+              <AnimatedThreads progress={threads1Progress} />
             </div>
           </div>
         </div>
@@ -105,7 +104,7 @@ const SignalsImage = ({ className, scrollProgress: scrollProgressProp }: Props) 
         <div className="flex h-full items-end shrink-0">
           <div className={cn("flex flex-col items-center justify-center rounded w-[220px]", SECTION_HEIGHT)}>
             <div className="h-[62px] w-[220px]">
-              <AnimatedThreads3 progress={threads3Progress} />
+              <AnimatedThreads progress={threads3Progress} offsets={[0.08, -0.18, 0.13, -0.07, 0.21, -0.12]} />
             </div>
           </div>
         </div>
