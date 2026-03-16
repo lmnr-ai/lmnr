@@ -29,8 +29,14 @@ const FETCH_SIZE = 50;
 const DEFAULT_TARGET_BARS = 48;
 
 export default function TracesTable() {
+  const customColumns = useTracesTableStore((s) => s.customColumns);
+  const defaultColumnOrder = useMemo(
+    () => [...defaultTracesColumnOrder, ...customColumns.map((cc) => `custom:${cc.name}`)],
+    [customColumns]
+  );
+
   return (
-    <DataTableStateProvider storageKey="traces-table" defaultColumnOrder={defaultTracesColumnOrder}>
+    <DataTableStateProvider storageKey="traces-table" defaultColumnOrder={defaultColumnOrder}>
       <TracesTableContent />
     </DataTableStateProvider>
   );
