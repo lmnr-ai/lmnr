@@ -20,7 +20,7 @@ export default async function ApiKeysPage(props: { params: Promise<{ projectId: 
   }
 
   const [apiKeys, projectDetails] = await Promise.all([
-    getApiKeys({ projectId: params.projectId }),
+    getApiKeys({ projectId: params.projectId }).catch(() => []),
     getProjectDetails(params.projectId),
   ]);
 

@@ -14,7 +14,7 @@ import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { Feature } from "@/lib/features/features";
 
 interface WorkspaceUsageProps {
-  workspaceStats: WorkspaceStats;
+  workspaceStats: WorkspaceStats | null;
 }
 
 const TIER_USAGE_HINTS: Record<
@@ -103,7 +103,7 @@ export default function WorkspaceUsage({ workspaceStats }: WorkspaceUsageProps) 
     return new Intl.NumberFormat("en-US").format(num);
   };
 
-  const usageDescription = getUsageDescription(workspaceStats.tierName);
+  const usageDescription = getUsageDescription(workspaceStats?.tierName);
 
   return (
     <>

@@ -1,11 +1,9 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
-import { ArrowLeft, RefreshCw } from "lucide-react";
-import Image from "next/image";
-import { useEffect } from "react";
+import { ArrowLeft, RefreshCw, TriangleAlert } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
 
-import icon from "@/assets/logo/icon.png";
 import { Button } from "@/components/ui/button.tsx";
 
 interface ErrorPageProps {
@@ -15,38 +13,51 @@ interface ErrorPageProps {
 }
 
 export default function ErrorPage({ error, backAction, backLabel }: ErrorPageProps) {
+  const refreshIconRef = useRef<SVGSVGElement>(null);
+
   useEffect(() => {
     Sentry.captureException(error);
   }, [error]);
 
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen">
-      <div className="flex flex-col max-w-lg items-center justify-center gap-4 text-secondary-foreground">
-        <button
-          onClick={() => {
-            window.location.href = "/projects";
-          }}
-          className="flex h-10 mb-8 items-center justify-center"
-        >
-          <Image alt="Laminar icon" className="rounded-lg" src={icon} width={80} />
-        </button>
-        <h1 className="text-2xl font-medium text-center">Oops, something went wrong</h1>
-        <h1 className="font-medium text-center text-destructive">{error?.name}</h1>
+  const handleRetry = useCallback(() => {
+    refreshIconRef.current?.animate([{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }], {
+      duration: 400,
+      easing: "ease-in-out",
+    });
+    setTimeout(() => window.location.reload(), 400);
+  }, []);
 
-        <div className="flex flex-col sm:flex-row gap-3 mt-4">
-          <Button onClick={backAction} className="px-4" size="lg" variant="outline">
-            <ArrowLeft className="mr-2 size-4" />
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen px-4">
+      <div className="flex flex-col max-w-md w-full items-center gap-6">
+        <div className="flex items-center justify-center rounded-full bg-destructive/10 size-16">
+          <TriangleAlert className="size-7 text-destructive" />
+        </div>
+
+        <div className="flex flex-col items-center gap-2">
+          <h1 className="text-2xl font-semibold text-center text-foreground">Something went wrong</h1>
+          <p className="text-sm text-center text-secondary-foreground leading-relaxed">
+            An unexpected error occurred. Please try again, or go back.
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto mt-2">
+          <Button
+            onClick={backAction}
+            className="group gap-2 pl-3 pr-5 active:scale-[0.97] transition-transform"
+            size="lg"
+            variant="outline"
+          >
+            <ArrowLeft className="size-4 transition-transform group-active:-translate-x-0.5" />
             {backLabel}
           </Button>
           <Button
-            onClick={() => {
-              window.location.reload();
-            }}
-            className="px-4"
+            onClick={handleRetry}
+            className="gap-2 pl-3 pr-5 active:scale-[0.97] transition-transform"
             size="lg"
-            variant="outlinePrimary"
+            variant="default"
           >
-            <RefreshCw className="mr-2 size-4" />
+            <RefreshCw ref={refreshIconRef} className="size-4" />
             Try again
           </Button>
         </div>

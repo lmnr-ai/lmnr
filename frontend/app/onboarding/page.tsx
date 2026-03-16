@@ -23,7 +23,11 @@ export default async function OnboardingPage() {
   const [{ count }] = await db
     .select({ count: sql`count(*)`.mapWith(Number) })
     .from(membersOfWorkspaces)
-    .where(eq(membersOfWorkspaces.userId, session.user.id));
+    .where(eq(membersOfWorkspaces.userId, session.user.id))
+    .catch((e) => {
+      console.error("Error checking workspace membership:", e);
+      return [{ count: 0 }];
+    });
 
   if (count > 0) {
     // legacy, redirect to projects to later redirect user to first workspace.

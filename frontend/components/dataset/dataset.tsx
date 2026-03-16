@@ -92,7 +92,11 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
     });
 
     if (!res.ok) {
-      throw new Error("Failed to fetch count");
+      const errMessage = await res
+        .json()
+        .then((d) => d?.error)
+        .catch(() => null);
+      throw new Error(errMessage ?? "Failed to fetch count");
     }
 
     const data = await res.json();
@@ -100,9 +104,13 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   }, [projectId, dataset.id, toast]);
 
   useEffect(() => {
-    fetchCount().then((count) => {
-      setTotalCount(count);
-    });
+    fetchCount()
+      .then((count) => {
+        setTotalCount(count);
+      })
+      .catch((e) => {
+        console.error("Error fetching dataset count:", e);
+      });
   }, [fetchCount]);
 
   const datapointId = searchParams.get("datapointId");

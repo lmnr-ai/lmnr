@@ -78,17 +78,21 @@ export default async function InvitationsPage(props: {
 
   const decoded = verifyToken(token);
 
-  const workspace = await db.query.workspaces.findFirst({
-    where: eq(workspaces.id, decoded.workspaceId),
-  });
+  const workspace = await db.query.workspaces
+    .findFirst({
+      where: eq(workspaces.id, decoded.workspaceId),
+    })
+    .catch(() => notFound());
 
   if (!workspace) {
     return notFound();
   }
 
-  const invitation = await db.query.workspaceInvitations.findFirst({
-    where: eq(workspaceInvitations.id, decoded.id),
-  });
+  const invitation = await db.query.workspaceInvitations
+    .findFirst({
+      where: eq(workspaceInvitations.id, decoded.id),
+    })
+    .catch(() => notFound());
 
   const isExpired =
     !invitation || differenceInMinutes(new Date(), new Date(invitation?.createdAt)) > INVITATION_EXPIRY_MINUTES;

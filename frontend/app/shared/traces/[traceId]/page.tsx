@@ -58,13 +58,18 @@ export default async function SharedTracePage(props: {
 }) {
   const { traceId } = await props.params;
 
-  const trace = await getCachedSharedTrace(traceId);
+  let trace;
+  try {
+    trace = await getCachedSharedTrace(traceId);
+  } catch {
+    return notFound();
+  }
 
   if (!trace || trace.visibility !== "public") {
     return notFound();
   }
 
-  const spans = await getSharedSpans({ traceId });
+  const spans = await getSharedSpans({ traceId }).catch(() => []);
 
   return <TraceView trace={trace} spans={spans} />;
 }

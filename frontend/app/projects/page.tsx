@@ -36,22 +36,28 @@ export default async function ProjectsPage() {
     .from(membersOfWorkspaces)
     .innerJoin(workspaces, eq(membersOfWorkspaces.workspaceId, workspaces.id))
     .where(eq(membersOfWorkspaces.userId, user.id))
-    .orderBy(desc(workspaces.createdAt));
+    .orderBy(desc(workspaces.createdAt))
+    .catch((e) => {
+      console.error("Error fetching workspace list:", e);
+      return [];
+    });
 
   if (workspaceLists.length === 0) {
     return redirect("/onboarding");
   }
 
-  const lastProjectId = await getLastProjectIdCookie();
+  const lastProjectId = await getLastProjectIdCookie().catch(() => undefined);
 
   if (lastProjectId) {
-    const project = await db.query.projects.findFirst({
-      where: eq(projects.id, lastProjectId),
-      columns: {
-        id: true,
-        workspaceId: true,
-      },
-    });
+    const project = await db.query.projects
+      .findFirst({
+        where: eq(projects.id, lastProjectId),
+        columns: {
+          id: true,
+          workspaceId: true,
+        },
+      })
+      .catch(() => undefined);
 
     if (project) {
       const hasAccess = workspaceLists.some((w) => w.workspaceId === project.workspaceId);
@@ -61,7 +67,7 @@ export default async function ProjectsPage() {
     }
   }
 
-  const lastWorkspaceId = await getLastWorkspaceIdCookie();
+  const lastWorkspaceId = await getLastWorkspaceIdCookie().catch(() => undefined);
 
   const lastWorkspace = workspaceLists.find((w) => w.workspaceId === lastWorkspaceId);
 
