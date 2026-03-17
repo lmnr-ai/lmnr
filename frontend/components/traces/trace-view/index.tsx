@@ -431,7 +431,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                           className="min-w-0 overflow-hidden"
                           trace={trace}
                           spans={filteredSpansForStats}
-                          avgDurationMs={averages?.avgDurationMs}
                           avgCost={averages?.avgCost}
                         />
                       )}
