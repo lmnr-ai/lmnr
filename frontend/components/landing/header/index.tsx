@@ -34,8 +34,6 @@ export default function LandingHeader({ hasSession, className, isIncludePadding 
         <span>Laminar raises $3M seed to build observability for long-running agents</span>
         <Link
           href="/blog/2026-03-16-laminar-launch"
-          target="_blank"
-          rel="noopener noreferrer"
           className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-0.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
         >
           Read more
