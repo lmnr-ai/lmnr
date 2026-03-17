@@ -50,7 +50,10 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::Signals => {
             env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok_and(|s| !s.is_empty())
         }
-        Feature::Reports => env::var("ENABLE_REPORTS").is_ok_and(|s| s == "true"),
+        Feature::Reports => {
+            env::var("ENABLE_REPORTS").is_ok_and(|s| s == "true")
+                && env::var("RESEND_API_KEY").is_ok_and(|s| !s.is_empty())
+        }
     }
 }
 
