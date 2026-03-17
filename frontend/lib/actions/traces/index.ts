@@ -102,7 +102,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     });
   }
 
-  // Enrich traces with associated signal data (non-critical, don't block traces on failure)
+  // Enrich traces with associated signal data (non-critical, failures are silently ignored)
   const fetchedTraceIds = items.map((item) => item.id);
   if (fetchedTraceIds.length > 0) {
     try {

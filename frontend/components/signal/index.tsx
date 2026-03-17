@@ -160,7 +160,7 @@ function SignalContent() {
                 setSelectedEventId(null);
               }}
               onOpenTrace={(traceId) => {
-                setSelectedEventId(null);
+                setSelectedEventId(null, { history: "replace" });
                 setTraceId(traceId);
                 const params = new URLSearchParams(searchParams);
                 params.delete("eventId");
