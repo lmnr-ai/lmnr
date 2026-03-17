@@ -20,7 +20,7 @@ import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils.ts";
 
 import { DateRangeFilterProvider, useDateRangeFilterContext } from "./store";
-import { getTimeDifference, QUICK_RANGES } from "./utils.ts";
+import { type DateRange, getTimeDifference, QUICK_RANGES } from "./utils.ts";
 
 const useIsMounted = () =>
   useSyncExternalStore(
@@ -59,12 +59,16 @@ const QuickRangesList = ({
   onAbsoluteClick,
   maxHours,
   workspaceId,
+  ranges = QUICK_RANGES,
+  hideAbsoluteDate = false,
 }: {
   pastHours: string | null;
   onSelect: (value: string) => void;
   onAbsoluteClick: () => void;
   maxHours?: number;
   workspaceId?: string;
+  ranges?: DateRange[];
+  hideAbsoluteDate?: boolean;
 }) => (
   <motion.div
     key="ranges"
@@ -76,7 +80,7 @@ const QuickRangesList = ({
     <div className="p-1 w-62">
       <div className="px-2 py-1.5 text-xs text-muted-foreground mb-1">Quick ranges</div>
       <div>
-        {QUICK_RANGES.map((range) => {
+        {ranges.map((range) => {
           const exceedsRetention = maxHours != null && parseInt(range.value) > maxHours;
           const item = (
             <div
@@ -120,13 +124,15 @@ const QuickRangesList = ({
 
           return item;
         })}
-        <div
-          className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-          onClick={onAbsoluteClick}
-        >
-          <span className="font-medium">Absolute date</span>
-          <ChevronRight className="size-4" />
-        </div>
+        {!hideAbsoluteDate && (
+          <div
+            className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm py-1.5 px-2 text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+            onClick={onAbsoluteClick}
+          >
+            <span className="font-medium">Absolute date</span>
+            <ChevronRight className="size-4" />
+          </div>
+        )}
       </div>
     </div>
   </motion.div>
@@ -213,10 +219,14 @@ export const DateRangeFilterInner = ({
   disabled = [{ after: new Date() }, { before: subYears(new Date(), 1) }],
   buttonDisabled = false,
   className,
+  quickRanges,
+  hideAbsoluteDate = false,
 }: {
   disabled?: CalendarProps["disabled"];
   buttonDisabled?: boolean;
   className?: string;
+  quickRanges?: DateRange[];
+  hideAbsoluteDate?: boolean;
 }) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -280,6 +290,8 @@ export const DateRangeFilterInner = ({
               onAbsoluteClick={() => setShowCalendar(true)}
               maxHours={maxHours}
               workspaceId={workspace?.id}
+              ranges={quickRanges}
+              hideAbsoluteDate={hideAbsoluteDate}
             />
           ) : (
             <AbsoluteDatePicker
@@ -309,6 +321,8 @@ export default function DateRangeFilter({
   mode = "url",
   value,
   onChange,
+  quickRanges,
+  hideAbsoluteDate = false,
 }: {
   disabled?: CalendarProps["disabled"];
   buttonDisabled?: boolean;
@@ -316,6 +330,8 @@ export default function DateRangeFilter({
   mode?: "url" | "state";
   value?: { pastHours?: string; startDate?: string; endDate?: string };
   onChange?: (value: { pastHours?: string; startDate?: string; endDate?: string }) => void;
+  quickRanges?: DateRange[];
+  hideAbsoluteDate?: boolean;
 }) {
   return (
     <DateRangeFilterProvider
@@ -325,9 +341,16 @@ export default function DateRangeFilter({
       initialEndDate={value?.endDate}
       onChange={onChange}
     >
-      <DateRangeFilterInner disabled={disabled} buttonDisabled={buttonDisabled} className={className} />
+      <DateRangeFilterInner
+        disabled={disabled}
+        buttonDisabled={buttonDisabled}
+        className={className}
+        quickRanges={quickRanges}
+        hideAbsoluteDate={hideAbsoluteDate}
+      />
     </DateRangeFilterProvider>
   );
 }
 
 export { DateRangeFilterProvider } from "./store";
+export { type DateRange } from "./utils";
