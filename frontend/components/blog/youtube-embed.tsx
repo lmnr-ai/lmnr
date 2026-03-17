@@ -15,7 +15,7 @@ function isValidYouTubeId(id: string | null): id is string {
 export function extractYouTubeId(url: string): string | null {
   try {
     const parsed = new URL(url);
-    const host = parsed.hostname.replace("www.", "");
+    const host = parsed.hostname.replace(/^www\./, "");
 
     if (host === "youtube.com" || host === "m.youtube.com") {
       if (parsed.pathname === "/watch") {
