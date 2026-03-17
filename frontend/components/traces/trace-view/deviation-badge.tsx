@@ -16,7 +16,7 @@ function formatDuration(ms: number): string {
 function computeDeviation(actual: number, avg: number): { percent: number; isFaster: boolean } | null {
   if (avg === 0) return null;
   const diff = ((actual - avg) / avg) * 100;
-  if (Math.abs(diff) < 1) return null;
+  if (isNaN(diff) || Math.abs(diff) < 1) return null;
   return {
     percent: Math.abs(Math.round(diff)),
     isFaster: diff < 0,
