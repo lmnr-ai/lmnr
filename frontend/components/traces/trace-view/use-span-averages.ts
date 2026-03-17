@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
-import { type SpanAverageStats } from "@/lib/actions/trace/averages";
+import { type TraceAverageStats } from "@/lib/actions/trace/averages";
 
-export function useSpanAverages(projectId: string | undefined, traceId: string | undefined) {
-  const [averages, setAverages] = useState<SpanAverageStats | null>(null);
+export function useTraceAverages(projectId: string | undefined, traceId: string | undefined) {
+  const [averages, setAverages] = useState<TraceAverageStats | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export function useSpanAverages(projectId: string | undefined, traceId: string |
         if (response.ok) return response.json();
         return null;
       })
-      .then((data: SpanAverageStats | null) => {
+      .then((data: TraceAverageStats | null) => {
         if (data && !controller.signal.aborted) {
           setAverages(data);
         }

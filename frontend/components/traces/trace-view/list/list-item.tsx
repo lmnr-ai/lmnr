@@ -6,7 +6,6 @@ import React, { useMemo, useState } from "react";
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
-import { useSpanAveragesContext } from "@/components/traces/trace-view/averages-context";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import { MiniTree } from "@/components/traces/trace-view/list/mini-tree";
@@ -41,7 +40,6 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
     isSpanCached: s.isSpanCached,
   }));
 
-  const spanAverages = useSpanAveragesContext();
   const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
 
   const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
@@ -140,8 +138,6 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
                   tokens={span.totalTokens}
                   cost={span.totalCost}
                   cacheReadInputTokens={span.cacheReadInputTokens}
-                  avgDurationMs={spanAverages?.spans[span.name]?.avgDurationMs}
-                  avgCost={spanAverages?.spans[span.name]?.avgCost}
                 />
               )}
               <Button
