@@ -35,7 +35,7 @@ Check out full documentation here [docs.laminar.sh](https://docs.laminar.sh).
 
 ## Getting started
 
-The fastest and easiest way to get started is with our managed platform -> [laminar.sh](https://laminar.sh)
+The fastest and easiest way to get started is with our managed platform at [laminar.sh](https://laminar.sh).
 
 ### Self-hosting with Docker compose
 
