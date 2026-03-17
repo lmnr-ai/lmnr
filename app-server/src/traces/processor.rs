@@ -18,6 +18,7 @@ use crate::{
         spans::CHSpan,
         traces::{CHTrace, TraceAggregation},
     },
+    db::trace::TraceType,
     db::{
         DB,
         spans::{Span, SpanType},
@@ -107,7 +108,14 @@ pub async fn process_span_messages(
             send_trace_updates(&updated_traces, &pubsub).await;
 
             if is_feature_enabled(Feature::Signals) {
-                let traces_by_project = group_traces_by_project(&updated_traces);
+                let default_traces: Vec<Trace> = updated_traces
+                    .into_iter()
+                    .filter(|trace| {
+                        let default_val: u8 = TraceType::DEFAULT.into();
+                        trace.trace_type() == default_val as i16
+                    })
+                    .collect();
+                let traces_by_project = group_traces_by_project(&default_traces);
                 for (project_id, project_traces) in &traces_by_project {
                     check_and_push_signals(
                         *project_id,
