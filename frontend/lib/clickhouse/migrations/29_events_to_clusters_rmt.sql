@@ -17,6 +17,7 @@ INSERT INTO new_events_to_clusters(
     content,
     created_at
 )
+SELECT project_id, event_id, cluster_id, content, created_at
 FROM events_to_clusters;
 
 RENAME TABLE events_to_clusters TO old_events_to_clusters;
