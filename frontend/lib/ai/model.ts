@@ -9,15 +9,15 @@ import type { LanguageModel } from "ai";
 type ModelTier = "default" | "fast" | "lite";
 
 const GEMINI_MODELS: Record<ModelTier, string> = {
-  default: "gemini-2.5-flash",
+  default: "gemini-3-flash-preview",
   fast: "gemini-3-flash-preview",
-  lite: "gemini-2.5-flash-lite",
+  lite: "gemini-3.1-flash-lite-preview",
 };
 
 const BEDROCK_MODELS: Record<ModelTier, string> = {
-  default: "anthropic.claude-sonnet-4-6",
-  fast: "anthropic.claude-sonnet-4-6",
-  lite: "anthropic.claude-haiku-4-5-20251001-v1:0",
+  default: "global.anthropic.claude-sonnet-4-6",
+  fast: "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+  lite: "global.anthropic.claude-haiku-4-5-20251001-v1:0",
 };
 
 type AIProvider = "gemini" | "bedrock";
