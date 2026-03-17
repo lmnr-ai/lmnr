@@ -36,7 +36,7 @@ export default function SignalsCell({ signals }: SignalsCellProps) {
             <div className="flex flex-col gap-1">
               {signals.map((signal) => (
                 <NextLink
-                  key={signal.signalId}
+                  key={signal.eventId}
                   href={`/project/${projectId}/signals/${signal.signalId}?eventId=${signal.eventId}`}
                   onClick={(e) => e.stopPropagation()}
                   className="block"
