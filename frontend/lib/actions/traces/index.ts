@@ -9,7 +9,7 @@ import { buildTracesCountQueryWithParams, buildTracesQueryWithParams } from "@/l
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
-import { type TraceRow } from "@/lib/traces/types.ts";
+import { type TraceRow, type TraceSignal } from "@/lib/traces/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
 
@@ -100,6 +100,19 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       const indexB = traceIdIndexMap.get(b.id) ?? Infinity;
       return indexA - indexB;
     });
+  }
+
+  // Enrich traces with associated signal data (non-critical, don't block traces on failure)
+  const fetchedTraceIds = items.map((item) => item.id);
+  if (fetchedTraceIds.length > 0) {
+    try {
+      const signalsByTrace = await getSignalsForTraceIds(projectId, fetchedTraceIds);
+      for (const item of items) {
+        item.signals = signalsByTrace.get(item.id) ?? [];
+      }
+    } catch {
+      // Signal enrichment is supplementary — fall back to empty signals
+    }
   }
 
   return {
@@ -200,4 +213,40 @@ export async function deleteTraces(input: z.infer<typeof DeleteTracesSchema>) {
   });
 }
 
-export { EVENTS_TRACE_VIEW_WIDTH, TRACES_TRACE_VIEW_WIDTH };
+async function getSignalsForTraceIds(projectId: string, traceIds: string[]): Promise<Map<string, TraceSignal[]>> {
+  const result = new Map<string, TraceSignal[]>();
+
+  if (traceIds.length === 0) {
+    return result;
+  }
+
+  const signalRows = await executeQuery<{
+    traceId: string;
+    signalId: string;
+    signalName: string;
+    eventId: string;
+  }>({
+    query: `
+      SELECT
+        trace_id as traceId,
+        signal_id as signalId,
+        name as signalName,
+        argMax(id, timestamp) as eventId
+      FROM signal_events
+      WHERE trace_id IN ({traceIds:Array(UUID)})
+      GROUP BY trace_id, signal_id, name
+    `,
+    parameters: { traceIds },
+    projectId,
+  });
+
+  for (const row of signalRows) {
+    const existing = result.get(row.traceId) ?? [];
+    existing.push({ signalId: row.signalId, signalName: row.signalName, eventId: row.eventId });
+    result.set(row.traceId, existing);
+  }
+
+  return result;
+}
+
+export { EVENTS_TRACE_VIEW_WIDTH, getSignalsForTraceIds, TRACES_TRACE_VIEW_WIDTH };

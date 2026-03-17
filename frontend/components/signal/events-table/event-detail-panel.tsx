@@ -1,14 +1,17 @@
 "use client";
 
-import { Check, List, X } from "lucide-react";
+import { Check, List, Loader2, X } from "lucide-react";
 import { useMemo } from "react";
+import useSWR from "swr";
 
 import { type SchemaField } from "@/components/signals/utils";
 import { Button } from "@/components/ui/button";
 import { type EventRow } from "@/lib/events/types";
+import { swrFetcher } from "@/lib/utils";
 
 interface EventDetailPanelProps {
-  event: EventRow;
+  eventId: string;
+  projectId: string;
   schemaFields: SchemaField[];
   onClose: () => void;
   onOpenTrace: (traceId: string) => void;
@@ -48,9 +51,33 @@ function PayloadValue({ value, field }: { value: unknown; field: SchemaField }) 
   }
 }
 
-export default function EventDetailPanel({ event, schemaFields, onClose, onOpenTrace }: EventDetailPanelProps) {
-  const parsed = useMemo(() => parsePayload(event.payload), [event.payload]);
+export default function EventDetailPanel({
+  eventId,
+  projectId,
+  schemaFields,
+  onClose,
+  onOpenTrace,
+}: EventDetailPanelProps) {
+  const { data: event, isLoading } = useSWR<EventRow>(`/api/projects/${projectId}/events/${eventId}`, swrFetcher);
+
+  const parsed = useMemo(() => (event ? parsePayload(event.payload) : {}), [event]);
   const validFields = schemaFields.filter((f) => f.name.trim());
+
+  if (isLoading || !event) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between pl-4 pr-3 py-3 border-b">
+          <span className="text-base font-medium">Event</span>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">

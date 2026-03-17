@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
 import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useState } from "react";
 
@@ -44,16 +45,17 @@ function SignalContent() {
     initialTraceViewWidth: state.initialTraceViewWidth,
   }));
 
-  const { setSignal, traceId, spanId, setTraceId, setSpanId, selectedEvent, setSelectedEvent } = useSignalStoreContext(
-    (state) => ({
-      setSignal: state.setSignal,
-      traceId: state.traceId,
-      spanId: state.spanId,
-      setTraceId: state.setTraceId,
-      setSpanId: state.setSpanId,
-      selectedEvent: state.selectedEvent,
-      setSelectedEvent: state.setSelectedEvent,
-    })
+  const { setSignal, traceId, spanId, setTraceId, setSpanId } = useSignalStoreContext((state) => ({
+    setSignal: state.setSignal,
+    traceId: state.traceId,
+    spanId: state.spanId,
+    setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
+  }));
+
+  const [selectedEventId, setSelectedEventId] = useQueryState(
+    "eventId",
+    parseAsString.withOptions({ history: "push" })
   );
 
   const { width, handleResizeStop } = useResizableTraceViewWidth({
@@ -141,7 +143,7 @@ function SignalContent() {
       )}
 
       <AnimatePresence>
-        {selectedEvent && !traceId && (
+        {selectedEventId && !traceId && (
           <motion.div
             key="event-drawer"
             initial={{ x: 400 }}
@@ -151,19 +153,16 @@ function SignalContent() {
             className="absolute top-0 right-0 bottom-0 bg-background border-l z-40 w-[400px]"
           >
             <EventDetailPanel
-              event={selectedEvent}
+              eventId={selectedEventId}
+              projectId={params.projectId}
               schemaFields={signal.schemaFields}
               onClose={() => {
-                setSelectedEvent(null);
-                const params = new URLSearchParams(searchParams);
-                params.delete("eventId");
-                push(`${pathName}?${params.toString()}`);
+                setSelectedEventId(null);
               }}
               onOpenTrace={(traceId) => {
-                setSelectedEvent(null);
+                setSelectedEventId(null);
                 setTraceId(traceId);
                 const params = new URLSearchParams(searchParams);
-                params.delete("eventId");
                 params.set("traceId", traceId);
                 push(`${pathName}?${params.toString()}`);
               }}

@@ -1,11 +1,12 @@
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
+import { buildSelectQuery } from "@/lib/actions/common/query-builder";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
 import { type EventRow } from "@/lib/events/types";
 
-import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./utils";
+import { buildEventsCountQueryWithParams, buildEventsQueryWithParams, eventsSelectColumns } from "./utils";
 
 export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -70,4 +71,14 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     items,
     count: countResult?.count || 0,
   };
+}
+
+export async function getEventById(projectId: string, eventId: string): Promise<EventRow | null> {
+  const query = buildSelectQuery({
+    select: { columns: eventsSelectColumns, table: "signal_events" },
+    customConditions: [{ condition: "id = {eventId:UUID}", params: { eventId } }],
+    pagination: { limit: 1, offset: 0 },
+  });
+  const rows = await executeQuery<EventRow>({ ...query, projectId });
+  return rows[0] ?? null;
 }

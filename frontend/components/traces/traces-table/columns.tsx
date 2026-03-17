@@ -4,6 +4,7 @@ import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
+import SignalsCell from "@/components/traces/traces-table/signals-cell";
 import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
@@ -212,6 +213,13 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     id: "tags",
   },
   {
+    accessorFn: (row) => row.signals,
+    cell: (row) => <SignalsCell signals={row.row.original.signals} />,
+    header: "Signals",
+    id: "signals",
+    size: 100,
+  },
+  {
     accessorFn: (row) => row.metadata,
     header: "Metadata",
     id: "metadata",
@@ -344,6 +352,7 @@ export const defaultTracesColumnOrder = [
   "cost",
   "total_tokens",
   "tags",
+  "signals",
   "metadata",
   "session_id",
   "user_id",

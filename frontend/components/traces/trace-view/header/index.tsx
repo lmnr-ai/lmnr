@@ -1,7 +1,7 @@
-import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Radio, Sparkles, X } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
@@ -12,10 +12,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
+import { type TraceSignal } from "@/lib/traces/types";
 
 import Metadata from "../metadata";
 import CondensedTimelineControls from "./timeline-toggle";
@@ -44,6 +48,31 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
     projectId: projectId as string,
     params: { type: "trace", traceId: String(trace?.id) },
   });
+
+  const [traceSignalsState, setTraceSignalsState] = useState<{ traceId: string; signals: TraceSignal[] } | null>(null);
+
+  useEffect(() => {
+    if (!trace?.id || !projectId) return;
+
+    let cancelled = false;
+    const fetchTraceId = trace.id;
+
+    fetch(`/api/projects/${projectId}/traces/${fetchTraceId}/signals`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: TraceSignal[]) => {
+        if (!cancelled) setTraceSignalsState({ traceId: fetchTraceId, signals: data });
+      })
+      .catch(() => {
+        if (!cancelled) setTraceSignalsState({ traceId: fetchTraceId, signals: [] });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [trace?.id, projectId]);
+
+  const traceSignals =
+    traceSignalsState !== null && traceSignalsState.traceId === trace?.id ? traceSignalsState.signals : [];
 
   const handleCopyTraceId = useCallback(async () => {
     if (trace?.id) {
@@ -96,6 +125,25 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
                     {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
                     Open in SQL editor
                   </DropdownMenuItem>
+                  {traceSignals.length > 0 && (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <Radio className="size-3.5" />
+                        Open signal events
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {traceSignals.map((signal) => (
+                          <DropdownMenuItem key={signal.signalId} asChild>
+                            <NextLink
+                              href={`/project/${projectId}/signals/${signal.signalId}?eventId=${signal.eventId}`}
+                            >
+                              {signal.signalName}
+                            </NextLink>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

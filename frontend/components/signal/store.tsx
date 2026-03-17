@@ -9,19 +9,15 @@ import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type Filter } from "@/lib/actions/common/filters.ts";
 import { type Signal } from "@/lib/actions/signals";
-import { type EventRow } from "@/lib/events/types";
 
 import { buildPath, buildTree, type ClusterNode, collectDescendantIds, findNodeById } from "./clusters-section/utils";
 
 export type { ClusterStatsDataPoint };
 
 export type SignalState = {
-  events?: EventRow[];
-  totalCount: number;
   signal: Omit<ManageSignalForm, "id"> & { id: string };
   traceId: string | null;
   spanId: string | null;
-  selectedEvent: EventRow | null;
   runsFilters: Filter[];
   jobsFilters: Filter[];
   triggersFilters: Filter[];
@@ -51,8 +47,6 @@ export type FetchClusterStatsParams = {
 export type SignalActions = {
   setTraceId: (traceId: string | null) => void;
   setSpanId: (spanId: string | null) => void;
-  setSelectedEvent: (event: EventRow | null) => void;
-  fetchEvents: (params: URLSearchParams) => Promise<void>;
   setSignal: (eventDefinition?: SignalState["signal"]) => void;
   setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
   setJobsFilters: Dispatch<SetStateAction<Filter[]>>;
@@ -173,10 +167,8 @@ export type SignalStoreApi = ReturnType<typeof createSignalStore>;
 
 export const createSignalStore = (initProps: EventsProps) =>
   createStore<Store>()((set, get) => ({
-    totalCount: 0,
     traceId: initProps.traceId || null,
     spanId: initProps.spanId || null,
-    selectedEvent: null,
     runsFilters: [],
     jobsFilters: [],
     triggersFilters: [],
@@ -198,7 +190,6 @@ export const createSignalStore = (initProps: EventsProps) =>
     setSignal: (signal) => set({ signal }),
     setTraceId: (traceId) => set({ traceId }),
     setSpanId: (spanId) => set({ spanId }),
-    setSelectedEvent: (event) => set({ selectedEvent: event }),
     setRunsFilters: (filters) =>
       set((state) => ({
         runsFilters: typeof filters === "function" ? filters(state.runsFilters) : filters,
@@ -211,26 +202,6 @@ export const createSignalStore = (initProps: EventsProps) =>
       set((state) => ({
         triggersFilters: typeof filters === "function" ? filters(state.triggersFilters) : filters,
       })),
-    fetchEvents: async (params: URLSearchParams) => {
-      const { signal } = get();
-
-      set({ events: undefined });
-
-      try {
-        const response = await fetch(
-          `/api/projects/${signal.projectId}/signals/${signal.id}/events?${params.toString()}`
-        );
-        if (!response.ok) throw new Error("Failed to fetch events");
-        const data: { items: EventRow[]; count: number } = await response.json();
-        set({
-          events: data.items,
-          totalCount: data.count,
-        });
-      } catch (error) {
-        set({ events: [], totalCount: 0 });
-        console.error("Error fetching events:", error);
-      }
-    },
     // Cluster actions
     fetchClusters: async () => {
       const { signal } = get();
