@@ -111,7 +111,8 @@ interface StatsShieldsProps {
 }
 
 function StatsShields({ stats, className, variant = "filled", avgCost }: StatsShieldsProps) {
-  const costDev = avgCost != null && avgCost > 0 ? computeDeviation(stats.totalCost ?? 0, avgCost) : null;
+  const costDev =
+    avgCost != null && avgCost > 0 && stats.totalCost != null ? computeDeviation(stats.totalCost, avgCost) : null;
 
   const durationContent = (
     <div className="flex space-x-1 items-center">
