@@ -163,6 +163,7 @@ function SignalContent() {
                 setSelectedEventId(null);
                 setTraceId(traceId);
                 const params = new URLSearchParams(searchParams);
+                params.delete("eventId");
                 params.set("traceId", traceId);
                 push(`${pathName}?${params.toString()}`);
               }}
