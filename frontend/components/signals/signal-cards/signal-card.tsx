@@ -1,7 +1,6 @@
 "use client";
 
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { Calendar } from "lucide-react";
 import Link from "next/link";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
@@ -24,6 +23,7 @@ export default function SignalCard({
   projectId,
   sparklineData,
   sparklineMaxCount,
+  isSparklineLoading,
   isSelected,
   onToggleSelect,
 }: {
@@ -31,6 +31,7 @@ export default function SignalCard({
   projectId: string;
   sparklineData: SignalSparklineData;
   sparklineMaxCount?: number;
+  isSparklineLoading?: boolean;
   isSelected: boolean;
   onToggleSelect: () => void;
 }) {
@@ -38,22 +39,25 @@ export default function SignalCard({
   const signalUrl = `/project/${projectId}/signals/${signal.id}`;
 
   return (
-    <Card className="hover:border-primary/40 transition-colors h-full relative">
-      <CardHeader className="px-3 pt-3 pb-1">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            {/* stopPropagation prevents checkbox clicks from triggering card navigation */}
-            <div onClick={(e) => e.stopPropagation()}>
-              <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} aria-label={`Select ${signal.name}`} />
+    <Link href={signalUrl} className="block h-full">
+      <Card className="hover:border-primary/40 transition-colors h-full">
+        <CardHeader className="px-3 pt-3 pb-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onToggleSelect();
+                }}
+              >
+                <Checkbox checked={isSelected} aria-label={`Select ${signal.name}`} />
+              </div>
+              <h3 className="font-medium text-sm truncate">{signal.name}</h3>
             </div>
-            <Link href={signalUrl} className="truncate">
-              <h3 className="font-medium text-sm truncate hover:underline">{signal.name}</h3>
-            </Link>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="px-3 pt-0 pb-2 space-y-2 cursor-pointer">
-        <Link href={signalUrl} className="block space-y-2">
+        </CardHeader>
+        <CardContent className="px-3 pt-0 pb-2 space-y-2">
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -90,16 +94,13 @@ export default function SignalCard({
             </div>
           </div>
           <div className="h-[36px] w-full">
-            <SignalSparkline data={data} maxCount={sparklineMaxCount} />
+            <SignalSparkline data={data} maxCount={sparklineMaxCount} isLoading={isSparklineLoading} />
           </div>
-        </Link>
-      </CardContent>
-      <CardFooter className="px-3 pb-3 pt-0 flex items-center justify-between text-[10px] text-muted-foreground">
-        <div title={signal.createdAt} className="flex items-center gap-1">
-          <Calendar className="size-3" />
-          Created {formatShortDate(signal.createdAt)}
-        </div>
-      </CardFooter>
-    </Card>
+        </CardContent>
+        <CardFooter className="px-3 pb-3 pt-0 flex items-center justify-between text-[10px] text-muted-foreground">
+          <div title={signal.createdAt}>Created {formatShortDate(signal.createdAt)}</div>
+        </CardFooter>
+      </Card>
+    </Link>
   );
 }

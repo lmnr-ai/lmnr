@@ -23,7 +23,7 @@ const STEPS = [
   {
     number: 3,
     title: "Find insights",
-    description: "See trace analysis in Events, and see high-level\npatterns with Event Clusters.",
+    description: "See trace analysis in Events, and see high-level\npatterns with Clusters.",
   },
 ];
 
@@ -46,12 +46,19 @@ export default function SignalsBanner({ onCreateSignal }: SignalsBannerProps) {
         >
           <div className="rounded-xl border bg-secondary overflow-hidden">
             {/* Top section */}
-            <div className="flex items-end justify-between pl-6 pr-4 pt-4 pb-4 h-[120px]">
-              <p className="text-xl font-medium leading-6 text-foreground">
-                Signals answer any question,
-                <br />
-                from any trace, at scale.
-              </p>
+            <div className="flex justify-between pl-6 pr-4 pt-4 pb-4">
+              <div className="flex flex-col gap-2">
+                <p className="text-xl font-medium leading-6 text-foreground">
+                  Signals answer any question,
+                  <br />
+                  from any trace, at scale.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Our agent extracts structured insights from your traces to help you
+                  <br />
+                  track outcomes, detect failures, and identify behavioral patterns.
+                </p>
+              </div>
               <div className="flex flex-col items-end justify-between self-stretch">
                 <button
                   onClick={dismiss}

@@ -5,7 +5,7 @@ import { executeQuery } from "@/lib/actions/sql";
 export const GetSignalsStatsSchema = z.object({
   projectId: z.string(),
   signalIds: z.array(z.string()).min(1),
-  scale: z.enum(["day", "week", "month"]).default("day"),
+  pastHours: z.coerce.number().positive(),
 });
 
 export interface SignalStatsDataPoint {
@@ -18,63 +18,50 @@ export interface SignalSparklineData {
   [signalId: string]: { timestamp: string; count: number }[];
 }
 
-const SCALE_CONFIG = {
-  day: { interval: "1 HOUR", range: "24 HOUR" },
-  week: { interval: "6 HOUR", range: "7 DAY" },
-  month: { interval: "1 DAY", range: "30 DAY" },
-} as const;
-
-// Interval durations in milliseconds for generating fill points
-const INTERVAL_MS = {
-  "1 HOUR": 60 * 60 * 1000,
-  "6 HOUR": 6 * 60 * 60 * 1000,
-  "1 DAY": 24 * 60 * 60 * 1000,
-} as const;
-
-const RANGE_MS = {
-  "24 HOUR": 24 * 60 * 60 * 1000,
-  "7 DAY": 7 * 24 * 60 * 60 * 1000,
-  "30 DAY": 30 * 24 * 60 * 60 * 1000,
-} as const;
+function getIntervalForHours(hours: number): { interval: string; intervalMs: number } {
+  if (hours <= 1) return { interval: "1 MINUTE", intervalMs: 60_000 };
+  if (hours <= 3) return { interval: "5 MINUTE", intervalMs: 5 * 60_000 };
+  if (hours <= 24) return { interval: "1 HOUR", intervalMs: 3_600_000 };
+  if (hours <= 72) return { interval: "3 HOUR", intervalMs: 3 * 3_600_000 };
+  if (hours <= 168) return { interval: "6 HOUR", intervalMs: 6 * 3_600_000 };
+  if (hours <= 336) return { interval: "12 HOUR", intervalMs: 12 * 3_600_000 };
+  return { interval: "1 DAY", intervalMs: 86_400_000 };
+}
 
 function floorToInterval(ts: number, intervalMs: number): number {
   return Math.floor(ts / intervalMs) * intervalMs;
 }
 
 export async function getSignalsStats(input: z.infer<typeof GetSignalsStatsSchema>): Promise<SignalSparklineData> {
-  const { projectId, signalIds, scale } = GetSignalsStatsSchema.parse(input);
-  const config = SCALE_CONFIG[scale];
+  const { projectId, signalIds, pastHours } = GetSignalsStatsSchema.parse(input);
+  const { interval, intervalMs } = getIntervalForHours(pastHours);
+  const rangeMs = pastHours * 3_600_000;
 
   const rows = await executeQuery<SignalStatsDataPoint>({
     projectId,
     query: `
       SELECT
         signal_id,
-        toStartOfInterval(timestamp, INTERVAL ${config.interval}) as timestamp,
+        toStartOfInterval(timestamp, INTERVAL ${interval}) as timestamp,
         count() as count
       FROM signal_events
       WHERE signal_id IN ({signalIds: Array(UUID)})
-        AND timestamp >= now() - INTERVAL ${config.range}
+        AND timestamp >= now() - INTERVAL ${pastHours} HOUR
       GROUP BY signal_id, timestamp
       ORDER BY signal_id, timestamp ASC
     `,
     parameters: { signalIds },
   });
 
-  // Build a lookup of actual counts per signal, keyed by floored epoch ms
   const countsBySignal = new Map<string, Map<number, number>>();
   for (const row of rows) {
     if (!countsBySignal.has(row.signal_id)) {
       countsBySignal.set(row.signal_id, new Map());
     }
-    // ClickHouse returns timestamps like "2026-03-15 12:00:00" (UTC)
     const epochMs = new Date(row.timestamp.replace(" ", "T") + "Z").getTime();
     countsBySignal.get(row.signal_id)!.set(epochMs, parseInt(row.count, 10));
   }
 
-  // Generate zero-filled time series for each signal
-  const intervalMs = INTERVAL_MS[config.interval];
-  const rangeMs = RANGE_MS[config.range];
   const now = Date.now();
   const fillFrom = floorToInterval(now - rangeMs, intervalMs);
   const fillTo = floorToInterval(now, intervalMs);

@@ -8,16 +8,25 @@ import ManageSignalSheet from "@/components/signals/manage-signal-sheet";
 import SignalCards from "@/components/signals/signal-cards";
 import SignalsBanner, { SignalsBannerInfoButton } from "@/components/signals/signals-banner";
 import { Button } from "@/components/ui/button";
+import DateRangeFilter, { type DateRange } from "@/components/ui/date-range-filter";
+import { type DateRangeValue } from "@/components/ui/date-range-filter/store";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import Header from "@/components/ui/header.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
 import { useToast } from "@/lib/hooks/use-toast";
 
-type SparklineScale = "day" | "week" | "month";
+const SIGNAL_QUICK_RANGES: DateRange[] = [
+  { name: "1 hour", value: "1" },
+  { name: "3 hours", value: "3" },
+  { name: "1 day", value: "24" },
+  { name: "3 days", value: String(24 * 3) },
+  { name: "1 week", value: String(24 * 7) },
+  { name: "2 weeks", value: String(24 * 14) },
+  { name: "1 month", value: String(24 * 30) },
+];
 
 export default function Signals() {
   return (
@@ -32,16 +41,14 @@ function SignalsContent() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
-  const [sparklineScale, setSparklineScale] = useState<SparklineScale>("week");
   const [sparklineData, setSparklineData] = useState<SignalSparklineData>({});
+  const [isSparklineLoading, setIsSparklineLoading] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ pastHours: "168" });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const searchParams = useSearchParams();
   const filter = searchParams.getAll("filter");
   const filterKey = useMemo(() => JSON.stringify(filter), [filter]);
-  const startDate = searchParams.get("startDate");
-  const endDate = searchParams.get("endDate");
-  const pastHours = searchParams.get("pastHours");
   const search = searchParams.get("search");
 
   const FETCH_SIZE = 50;
@@ -52,10 +59,6 @@ function SignalsContent() {
         const urlParams = new URLSearchParams();
         urlParams.set("pageNumber", pageNumber.toString());
         urlParams.set("pageSize", FETCH_SIZE.toString());
-
-        if (pastHours != null) urlParams.set("pastHours", pastHours);
-        if (startDate != null) urlParams.set("startDate", startDate);
-        if (endDate != null) urlParams.set("endDate", endDate);
 
         (JSON.parse(filterKey) as string[]).forEach((f) => urlParams.append("filter", f));
 
@@ -76,7 +79,7 @@ function SignalsContent() {
         throw error;
       }
     },
-    [endDate, filterKey, pastHours, projectId, startDate, search, toast]
+    [filterKey, projectId, search, toast]
   );
 
   const {
@@ -90,21 +93,21 @@ function SignalsContent() {
   } = useInfiniteScroll<SignalRow>({
     fetchFn: fetchSignals,
     enabled: true,
-    deps: [endDate, filterKey, pastHours, projectId, startDate, search],
+    deps: [filterKey, projectId, search],
   });
 
-  // Fetch sparkline stats when signals data or scale changes
   const signalIdsCacheKey = useMemo(() => JSON.stringify(signals.map((s) => s.id)), [signals]);
+  const pastHours = dateRange.pastHours ?? "168";
 
   useEffect(() => {
     const ids = JSON.parse(signalIdsCacheKey) as string[];
     if (ids.length === 0) return;
 
-    setSparklineData({});
+    setIsSparklineLoading(true);
     const abortController = new AbortController();
     const urlParams = new URLSearchParams();
     ids.forEach((id) => urlParams.append("signalId", id));
-    urlParams.set("scale", sparklineScale);
+    urlParams.set("pastHours", pastHours);
 
     fetch(`/api/projects/${projectId}/signals/stats?${urlParams.toString()}`, {
       signal: abortController.signal,
@@ -115,9 +118,11 @@ function SignalsContent() {
       })
       .then((data: SignalSparklineData) => {
         setSparklineData(data);
+        setIsSparklineLoading(false);
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
+        setIsSparklineLoading(false);
         toast({
           title: "Failed to load sparkline data",
           description: err instanceof Error ? err.message : "Unknown error",
@@ -126,7 +131,7 @@ function SignalsContent() {
       });
 
     return () => abortController.abort();
-  }, [signalIdsCacheKey, sparklineScale, projectId, toast]);
+  }, [signalIdsCacheKey, pastHours, projectId, toast]);
 
   const handleSuccess = useCallback(async () => {
     await refetch();
@@ -210,16 +215,13 @@ function SignalsContent() {
             </>
           )}
           <div className="flex-1" />
-          <Select value={sparklineScale} onValueChange={(v) => setSparklineScale(v as SparklineScale)}>
-            <SelectTrigger className="w-[100px] text-secondary-foreground">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="day">Day</SelectItem>
-              <SelectItem value="week">Week</SelectItem>
-              <SelectItem value="month">Month</SelectItem>
-            </SelectContent>
-          </Select>
+          <DateRangeFilter
+            mode="state"
+            value={dateRange}
+            onChange={setDateRange}
+            quickRanges={SIGNAL_QUICK_RANGES}
+            hideAbsoluteDate
+          />
           <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
             <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
               Signal
@@ -258,6 +260,7 @@ function SignalsContent() {
                 projectId={projectId as string}
                 sparklineData={sparklineData}
                 sparklineMaxCount={sparklineMaxCount}
+                isSparklineLoading={isSparklineLoading}
                 selectedIds={rowSelection}
                 onSelectionChange={setRowSelection}
               />
