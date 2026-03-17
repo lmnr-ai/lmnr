@@ -62,14 +62,14 @@ export default function WelcomeEmail() {
           <Link style={link} href="https://github.com/lmnr-ai/lmnr" target="_blank">
             {" star ⭐ our repo on GitHub"}
           </Link>
-          !
+          {"!"}
         </Text>
         <Text style={text}>
           Got questions or want to pair on your setup? Just
           <Link style={link} href="https://cal.com/robert-lmnr/demo" target="_blank">
             {" grab a slot on my calendar"}
           </Link>
-          .
+          {"."}
         </Text>
         <Text style={text}>Happy building!</Text>
         <Text style={signature}>Robert</Text>
