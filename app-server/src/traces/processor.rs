@@ -273,6 +273,18 @@ async fn check_and_push_signals(
             return;
         }
     }
+    // First N runs in each project are granted realtime execution regardless of the setting
+    // We can be generous and grant even while some are being processed
+    let grant_realtime = should_grant_realtime(project_id, clickhouse.clone(), cache.clone())
+        .await
+        .map_err(|e| {
+            log::warn!(
+                "Failed to get signals count for project {}: {}",
+                project_id,
+                e
+            );
+        })
+        .unwrap_or_default();
 
     for trigger in triggers {
         let matching_traces = traces
@@ -331,19 +343,6 @@ async fn check_and_push_signals(
 
             // TODO: fetch a trigger config whether to process in realtime from Trigger definition
             let trigger_should_use_realtime = false;
-            // First N runs in each project are granted realtime execution regardless of the setting
-            // We can be generous and grant even while some are being processed
-            let grant_realtime =
-                should_grant_realtime(project_id, clickhouse.clone(), cache.clone())
-                    .await
-                    .map_err(|e| {
-                        log::warn!(
-                            "Failed to get signals count for project {}: {}",
-                            project_id,
-                            e
-                        );
-                    })
-                    .unwrap_or_default();
             let should_use_realtime = trigger_should_use_realtime || grant_realtime;
 
             // Lock acquired - enqueue signal trigger run
