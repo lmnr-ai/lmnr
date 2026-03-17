@@ -9,7 +9,7 @@ export default function ScopedErrorPage({ error }: { error: Error & { digest?: s
       backAction={() => {
         window.location.href = "/projects";
       }}
-      backLabel="Back to projects"
+      backLabel="Back"
     />
   );
 }
