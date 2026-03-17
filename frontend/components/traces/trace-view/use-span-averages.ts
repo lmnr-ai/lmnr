@@ -2,18 +2,18 @@ import { useEffect, useRef, useState } from "react";
 
 import { type TraceAverageStats } from "@/lib/actions/trace/averages";
 
-export function useTraceAverages(projectId: string | undefined, traceId: string | undefined) {
+export function useTraceAverages(projectId: string | undefined) {
   const [averages, setAverages] = useState<TraceAverageStats | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!projectId || !traceId) return;
+    if (!projectId) return;
 
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
-    fetch(`/api/projects/${projectId}/traces/${traceId}/averages`, {
+    fetch(`/api/projects/${projectId}/traces/averages`, {
       signal: controller.signal,
     })
       .then((response) => {
@@ -32,7 +32,7 @@ export function useTraceAverages(projectId: string | undefined, traceId: string 
     return () => {
       controller.abort();
     };
-  }, [projectId, traceId]);
+  }, [projectId]);
 
   return averages;
 }

@@ -46,7 +46,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const pathName = usePathname();
   const { projectId } = useParams();
   const [chatOpen, setChatOpen] = useState(false);
-  const averages = useTraceAverages(projectId as string, traceId);
+  const averages = useTraceAverages(projectId as string);
 
   // Data states
   const {
