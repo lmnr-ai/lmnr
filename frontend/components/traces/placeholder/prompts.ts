@@ -80,10 +80,13 @@ Laminar.patch({ OpenAI: OpenAI });
 export const openai = new OpenAI();
 \`\`\`
 
-**Vercel AI SDK** — pass the Laminar tracer to every \`generateText\`/\`streamText\` call:
+**Vercel AI SDK** — pass the Laminar tracer to every \`generateText\`/\`streamText\` call.
+The \`openai()\` provider function comes from \`@ai-sdk/openai\`, NOT from the \`openai\` package:
 
 \`\`\`typescript
 import { getTracer } from '@lmnr-ai/lmnr';
+import { openai } from '@ai-sdk/openai'; // Vercel AI SDK provider, not the raw OpenAI SDK
+import { generateText } from 'ai';
 const { text } = await generateText({
   model: openai('gpt-4.1-nano'),
   prompt: '...',
@@ -102,11 +105,15 @@ These are traced automatically after initialization. Do not wrap their calls wit
 | **OpenAI** | TS+Py | TS: \`instrumentModules: { OpenAI }\`. Py: auto. |
 | **Anthropic** | TS+Py | TS: \`instrumentModules: { anthropic }\` (lowercase key). Py: auto. |
 | **Google Gemini** | Py | Auto. |
+| **Mistral** | Py | Auto. |
+| **Groq** | Py | Auto. |
+| **Amazon Bedrock** | Py | Auto via boto3. |
 | **Cohere** | Py | Auto. Chat, Embed, Rerank. |
 | **LiteLLM** | Py | Auto. Remove deprecated \`LaminarLiteLLMCallback\`. |
 | **OpenRouter** | TS+Py | Use OpenAI SDK with \`baseURL: 'https://openrouter.ai/api/v1'\`. |
 | **LangChain/LangGraph** | Py | Auto. Chains, agents, tools, graph nodes. |
-| **Vercel AI SDK** | TS | Pass \`getTracer()\` via \`experimental_telemetry\` (see above). |
+| **CrewAI** | Py | Auto. Agents, tasks, crew execution. |
+| **Vercel AI SDK** | TS | Pass \`getTracer()\` via \`experimental_telemetry\` (see above). Requires \`@ai-sdk/openai\` for OpenAI provider. |
 | **Pydantic AI** | Py | Configure OTLP exporter → \`https://api.lmnr.ai:8443/v1/traces\`, then \`Agent.instrument_all()\`. |
 | **Claude Agent SDK** | TS+Py | TS: \`Laminar.wrapClaudeAgentQuery(origQuery)\`. Py: auto. |
 | **OpenHands SDK** | Py | Fully automatic when \`LMNR_PROJECT_API_KEY\` is set. |
