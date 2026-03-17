@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import React from "react";
+import remarkGfm from "remark-gfm";
 
 import BlogMeta from "@/components/blog/blog-meta";
 import LightboxImage from "@/components/blog/lightbox-image";
@@ -80,6 +81,7 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
         <div className="pt-4 text-base">
           <MDXRemote
             source={content}
+            options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
             components={{
               h1: (props) => <MDHeading props={props} level={0} />,
               h2: (props) => <MDHeading props={props} level={1} />,
