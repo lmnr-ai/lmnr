@@ -58,12 +58,16 @@ export default function EventDetailPanel({
   onClose,
   onOpenTrace,
 }: EventDetailPanelProps) {
-  const { data: event, isLoading } = useSWR<EventRow>(`/api/projects/${projectId}/events/${eventId}`, swrFetcher);
+  const {
+    data: event,
+    isLoading,
+    error,
+  } = useSWR<EventRow>(`/api/projects/${projectId}/events/${eventId}`, swrFetcher);
 
   const parsed = useMemo(() => (event ? parsePayload(event.payload) : {}), [event]);
   const validFields = schemaFields.filter((f) => f.name.trim());
 
-  if (isLoading || !event) {
+  if (isLoading || (!event && !error)) {
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center justify-between pl-4 pr-3 py-3 border-b">
@@ -74,6 +78,22 @@ export default function EventDetailPanel({
         </div>
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !event) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between pl-4 pr-3 py-3 border-b">
+          <span className="text-base font-medium">Event</span>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="size-4" />
+          </Button>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-sm text-muted-foreground">Failed to load event</span>
         </div>
       </div>
     );
