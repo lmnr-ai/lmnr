@@ -6,6 +6,12 @@
  * - https://www.youtube.com/embed/VIDEO_ID
  * - https://youtube.com/shorts/VIDEO_ID
  */
+const YOUTUBE_ID_RE = /^[a-zA-Z0-9_-]+$/;
+
+function isValidYouTubeId(id: string | null): id is string {
+  return id !== null && id.length > 0 && YOUTUBE_ID_RE.test(id);
+}
+
 export function extractYouTubeId(url: string): string | null {
   try {
     const parsed = new URL(url);
@@ -13,7 +19,8 @@ export function extractYouTubeId(url: string): string | null {
 
     if (host === "youtube.com" || host === "m.youtube.com") {
       if (parsed.pathname === "/watch") {
-        return parsed.searchParams.get("v");
+        const v = parsed.searchParams.get("v");
+        return isValidYouTubeId(v) ? v : null;
       }
       const embedOrShortsMatch = parsed.pathname.match(/^\/(embed|shorts)\/([a-zA-Z0-9_-]+)/);
       if (embedOrShortsMatch) {
@@ -22,7 +29,8 @@ export function extractYouTubeId(url: string): string | null {
     }
 
     if (host === "youtu.be") {
-      return parsed.pathname.slice(1).split("/")[0] || null;
+      const id = parsed.pathname.slice(1).split("/")[0];
+      return isValidYouTubeId(id) ? id : null;
     }
   } catch {
     return null;

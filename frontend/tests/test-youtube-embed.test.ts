@@ -43,4 +43,16 @@ describe("extractYouTubeId", () => {
   it("returns null for YouTube URL without video ID", () => {
     assert.strictEqual(extractYouTubeId("https://www.youtube.com/"), null);
   });
+
+  it("rejects path-traversal characters in watch v param", () => {
+    assert.strictEqual(extractYouTubeId("https://www.youtube.com/watch?v=../malicious"), null);
+  });
+
+  it("rejects special characters in youtu.be path", () => {
+    assert.strictEqual(extractYouTubeId("https://youtu.be/foo%2F..%2Fbar"), null);
+  });
+
+  it("rejects empty v param", () => {
+    assert.strictEqual(extractYouTubeId("https://www.youtube.com/watch?v="), null);
+  });
 });
