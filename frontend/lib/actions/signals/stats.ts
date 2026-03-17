@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { clickhouseClient } from "@/lib/clickhouse/client";
+import { executeQuery } from "@/lib/actions/sql";
 
 export const GetSignalsStatsSchema = z.object({
   projectId: z.string(),
@@ -45,27 +45,21 @@ export async function getSignalsStats(input: z.infer<typeof GetSignalsStatsSchem
   const { projectId, signalIds, scale } = GetSignalsStatsSchema.parse(input);
   const config = SCALE_CONFIG[scale];
 
-  const result = await clickhouseClient.query({
+  const rows = await executeQuery<SignalStatsDataPoint>({
+    projectId,
     query: `
       SELECT
         signal_id,
         toStartOfInterval(timestamp, INTERVAL ${config.interval}) as timestamp,
         count() as count
       FROM signal_events
-      WHERE project_id = {projectId: UUID}
-        AND signal_id IN ({signalIds: Array(UUID)})
+      WHERE signal_id IN ({signalIds: Array(UUID)})
         AND timestamp >= now() - INTERVAL ${config.range}
       GROUP BY signal_id, timestamp
       ORDER BY signal_id, timestamp ASC
     `,
-    query_params: {
-      projectId,
-      signalIds,
-    },
-    format: "JSONEachRow",
+    parameters: { signalIds },
   });
-
-  const rows = (await result.json()) as SignalStatsDataPoint[];
 
   // Build a lookup of actual counts per signal, keyed by floored epoch ms
   const countsBySignal = new Map<string, Map<number, number>>();

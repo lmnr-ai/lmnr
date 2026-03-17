@@ -16,7 +16,6 @@ export type SignalRow = {
   prompt: string;
   createdAt: string;
   projectId: string;
-  triggersCount: number;
   eventsCount: number;
   clustersCount: number;
   lastEventAt: string | null;
@@ -121,56 +120,28 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
     .offset(offset);
 
   const signalIds = results.map((r) => r.id);
-  let triggerCountBySignal: Record<string, number> = {};
-  let eventCountBySignal: Record<string, number> = {};
-  let clusterCountBySignal: Record<string, number> = {};
-  let lastEventBySignal: Record<string, string> = {};
+  const eventCountBySignal: Record<string, number> = {};
+  const clusterCountBySignal: Record<string, number> = {};
+  const lastEventBySignal: Record<string, string> = {};
 
   if (signalIds.length > 0) {
-    const triggerCountsResult = await db
-      .select({
-        signalId: signalTriggers.signalId,
-      })
-      .from(signalTriggers)
-      .where(and(eq(signalTriggers.projectId, projectId), inArray(signalTriggers.signalId, signalIds)));
-
-    triggerCountBySignal = triggerCountsResult.reduce(
-      (acc, row) => ({
-        ...acc,
-        [row.signalId]: (acc[row.signalId] || 0) + 1,
-      }),
-      {} as Record<string, number>
-    );
-
-    const eventCountsResult = await clickhouseClient.query({
-      query: `
+    const [eventStats, clusterCounts] = await Promise.all([
+      executeQuery<{ signal_id: string; count: string; last_event_at: string }>({
+        projectId,
+        query: `
         SELECT
           signal_id,
-          count(*) as count
+          count(*) as count,
+          formatDateTime(max(timestamp), '%Y-%m-%dT%H:%i:%S.%fZ') as last_event_at
         FROM signal_events
-        WHERE project_id = {projectId: UUID}
-          AND signal_id IN ({signalIds: Array(UUID)})
+        WHERE signal_id IN ({signalIds: Array(UUID)})
         GROUP BY signal_id
       `,
-      query_params: {
-        projectId,
-        signalIds,
-      },
-      format: "JSONEachRow",
-    });
-
-    const eventCounts = (await eventCountsResult.json()) as { signal_id: string; count: string }[];
-
-    eventCountBySignal = eventCounts.reduce(
-      (acc, row) => ({
-        ...acc,
-        [row.signal_id]: parseInt(row.count, 10),
+        parameters: { signalIds },
       }),
-      {} as Record<string, number>
-    );
-
-    const clusterCountsResult = await clickhouseClient.query({
-      query: `
+      executeQuery<{ signal_id: string; count: string }>({
+        projectId,
+        query: `
         SELECT
           signal_id,
           count(*) as count
@@ -179,53 +150,22 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
           AND level != 0
         GROUP BY signal_id
       `,
-      query_params: {
-        signalIds,
-      },
-      format: "JSONEachRow",
-    });
-
-    const clusterCounts = (await clusterCountsResult.json()) as { signal_id: string; count: string }[];
-
-    clusterCountBySignal = clusterCounts.reduce(
-      (acc, row) => ({
-        ...acc,
-        [row.signal_id]: parseInt(row.count, 10),
+        parameters: { signalIds },
       }),
-      {} as Record<string, number>
-    );
+    ]);
 
-    const lastEventResult = await clickhouseClient.query({
-      query: `
-        SELECT
-          signal_id,
-          formatDateTime(max(timestamp), '%Y-%m-%dT%H:%i:%S.%fZ') as last_event_at
-        FROM signal_events
-        WHERE project_id = {projectId: UUID}
-          AND signal_id IN ({signalIds: Array(UUID)})
-        GROUP BY signal_id
-      `,
-      query_params: {
-        projectId,
-        signalIds,
-      },
-      format: "JSONEachRow",
-    });
+    for (const row of eventStats) {
+      eventCountBySignal[row.signal_id] = parseInt(row.count, 10);
+      lastEventBySignal[row.signal_id] = row.last_event_at;
+    }
 
-    const lastEvents = (await lastEventResult.json()) as { signal_id: string; last_event_at: string }[];
-
-    lastEventBySignal = lastEvents.reduce(
-      (acc, row) => ({
-        ...acc,
-        [row.signal_id]: row.last_event_at,
-      }),
-      {} as Record<string, string>
-    );
+    for (const row of clusterCounts) {
+      clusterCountBySignal[row.signal_id] = parseInt(row.count, 10);
+    }
   }
 
   const items: SignalRow[] = results.map((signal) => ({
     ...signal,
-    triggersCount: triggerCountBySignal[signal.id] || 0,
     eventsCount: eventCountBySignal[signal.id] || 0,
     clustersCount: clusterCountBySignal[signal.id] || 0,
     lastEventAt: lastEventBySignal[signal.id] || null,
@@ -367,7 +307,6 @@ export const getLastEvent = async (input: z.infer<typeof GetLastEventSchema>) =>
     projectId,
     query,
     parameters: {
-      projectId,
       signalId,
     },
   });

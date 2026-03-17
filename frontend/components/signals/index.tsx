@@ -198,8 +198,10 @@ function SignalsContent() {
       <Header path="signals">
         <SignalsBannerInfoButton />
       </Header>
-      <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4 h-full">
+      <div className="px-4 pb-4">
         <SignalsBanner onCreateSignal={() => setIsDialogOpen(true)} />
+      </div>
+      <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4 h-full">
         <div className="flex items-center gap-2 pt-1">
           {selectedRowIds.length > 0 && (
             <>

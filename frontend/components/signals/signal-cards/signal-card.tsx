@@ -4,13 +4,14 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { Calendar } from "lucide-react";
 import Link from "next/link";
 
+import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import SignalSparkline from "@/components/signals/signal-sparkline.tsx";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
-import { formatRelativeTime, formatShortDate } from "@/lib/utils";
+import { formatShortDate } from "@/lib/utils.ts";
 
 function truncatePrompt(prompt: string, maxLen: number): string {
   if (!prompt) return "";
@@ -79,8 +80,11 @@ export default function SignalCard({
               <span className="text-[10px] text-muted-foreground">Clusters</span>
             </div>
             <div className="flex flex-col items-center p-1.5 rounded-md bg-secondary/50">
-              <span className="flex-1 flex flex-col justify-center text-sm font-medium">
-                {formatRelativeTime(signal.lastEventAt)}
+              <span
+                title={signal?.lastEventAt ?? "-"}
+                className="flex-1 flex flex-col justify-center text-sm font-medium"
+              >
+                <ClientTimestampFormatter timestamp={signal?.lastEventAt ?? "-"} />
               </span>
               <span className="text-[10px] text-muted-foreground">Last event</span>
             </div>
@@ -91,7 +95,7 @@ export default function SignalCard({
         </Link>
       </CardContent>
       <CardFooter className="px-3 pb-3 pt-0 flex items-center justify-between text-[10px] text-muted-foreground">
-        <div className="flex items-center gap-1">
+        <div title={signal.createdAt} className="flex items-center gap-1">
           <Calendar className="size-3" />
           Created {formatShortDate(signal.createdAt)}
         </div>
