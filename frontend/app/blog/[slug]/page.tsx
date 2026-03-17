@@ -3,11 +3,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
+import React from "react";
 
 import BlogMeta from "@/components/blog/blog-meta";
 import LightboxImage from "@/components/blog/lightbox-image";
 import MDHeading from "@/components/blog/md-heading";
 import PreHighlighter from "@/components/blog/pre-highlighter";
+import YouTubeEmbed, { extractYouTubeId } from "@/components/blog/youtube-embed";
 import { type BlogMetadata } from "@/lib/blog/types";
 import { getBlogPost } from "@/lib/blog/utils";
 
@@ -83,7 +85,22 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
               h2: (props) => <MDHeading props={props} level={1} />,
               h3: (props) => <MDHeading props={props} level={2} />,
               h4: (props) => <MDHeading props={props} level={3} />,
-              p: (props) => <p className="pt-4 text-white/85 font-light" {...props} />,
+              p: (props) => {
+                // Auto-embed YouTube links when they are the sole content of a paragraph.
+                // This handles the case where an author pastes a bare YouTube URL on its own line.
+                const children = React.Children.toArray(props.children);
+                if (children.length === 1) {
+                  const child = children[0];
+                  if (
+                    React.isValidElement<{ href?: string }>(child) &&
+                    typeof child.props.href === "string" &&
+                    extractYouTubeId(child.props.href)
+                  ) {
+                    return <YouTubeEmbed url={child.props.href} />;
+                  }
+                }
+                return <p className="pt-4 text-white/85 font-light" {...props} />;
+              },
               a: (props) => (
                 <a
                   className="text-white underline hover:text-primary"
@@ -111,6 +128,7 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
               img: (props) => (
                 <LightboxImage className="md:w-[1000px] relative w-full border rounded-lg mb-8" {...props} />
               ),
+              YouTubeEmbed,
             }}
           />
         </div>
