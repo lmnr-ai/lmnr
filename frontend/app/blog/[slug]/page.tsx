@@ -86,17 +86,30 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
               h3: (props) => <MDHeading props={props} level={2} />,
               h4: (props) => <MDHeading props={props} level={3} />,
               p: (props) => {
-                // Auto-embed YouTube links when they are the sole content of a paragraph.
-                // This handles the case where an author pastes a bare YouTube URL on its own line.
+                // Auto-embed YouTube links when they are the sole content of a paragraph
+                // and the link text is the URL itself (i.e. a bare pasted URL, not a named
+                // markdown link like [Watch demo](https://youtube.com/...)).
                 const children = React.Children.toArray(props.children);
                 if (children.length === 1) {
                   const child = children[0];
                   if (
-                    React.isValidElement<{ href?: string }>(child) &&
+                    React.isValidElement<{
+                      href?: string;
+                      children?: React.ReactNode;
+                    }>(child) &&
                     typeof child.props.href === "string" &&
                     extractYouTubeId(child.props.href)
                   ) {
-                    return <YouTubeEmbed url={child.props.href} />;
+                    // Only auto-embed when the link text matches the href (bare URL).
+                    // Named links like [text](url) should remain as regular links.
+                    const linkChildren = React.Children.toArray(child.props.children);
+                    const isBareUrl =
+                      linkChildren.length === 1 &&
+                      typeof linkChildren[0] === "string" &&
+                      linkChildren[0] === child.props.href;
+                    if (isBareUrl) {
+                      return <YouTubeEmbed url={child.props.href} />;
+                    }
                   }
                 }
                 return <p className="pt-4 text-white/85 font-light" {...props} />;
