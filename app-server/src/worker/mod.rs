@@ -10,6 +10,8 @@ use crate::mq::{
     MessageQueueTrait,
 };
 
+const DEFAULT_PREFETCH_COUNT: u16 = 128;
+
 /// Message handler trait - implement this to process messages
 #[async_trait]
 pub trait MessageHandler: Send + Sync + 'static {
@@ -63,6 +65,44 @@ pub struct QueueConfig {
     pub queue_name: &'static str,
     pub exchange_name: &'static str,
     pub routing_key: &'static str,
+    pub prefetch_count: u16,
+}
+
+impl QueueConfig {
+    /// Create a new QueueConfig with prefetch count resolved from environment.
+    ///
+    /// The prefetch count is determined by looking up an env var based on the queue name:
+    /// `{QUEUE_NAME}_PREFETCH_COUNT` (e.g. `OBSERVATIONS_QUEUE_PREFETCH_COUNT`).
+    /// Falls back to DEFAULT_PREFETCH_COUNT (128) if not set.
+    ///
+    /// Note: the env var key is derived from the actual RabbitMQ queue name string
+    /// (e.g. `semantic_event_queue` → `SEMANTIC_EVENT_QUEUE_PREFETCH_COUNT`),
+    /// which may differ from the Rust constant name.
+    pub fn new(
+        queue_name: &'static str,
+        exchange_name: &'static str,
+        routing_key: &'static str,
+    ) -> Self {
+        let env_key = format!("{}_PREFETCH_COUNT", queue_name.to_uppercase());
+        let prefetch_count = std::env::var(&env_key)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_PREFETCH_COUNT);
+
+        log::info!(
+            "Queue '{}' prefetch_count={} (override via {})",
+            queue_name,
+            prefetch_count,
+            env_key,
+        );
+
+        Self {
+            queue_name,
+            exchange_name,
+            routing_key,
+            prefetch_count,
+        }
+    }
 }
 
 /// Worker type enumeration
@@ -73,7 +113,9 @@ pub enum WorkerType {
     Clustering,
     SignalJobSubmissionBatch,
     SignalJobPendingBatch,
+    SignalJobRealtime,
     Logs,
+    Reports,
 }
 
 impl std::fmt::Display for WorkerType {
@@ -86,7 +128,9 @@ impl std::fmt::Display for WorkerType {
                 write!(f, "signal_job_submission_batch")
             }
             WorkerType::SignalJobPendingBatch => write!(f, "signal_job_pending_batch"),
+            WorkerType::SignalJobRealtime => write!(f, "signal_job_realtime"),
             WorkerType::Logs => write!(f, "logs"),
+            WorkerType::Reports => write!(f, "reports"),
         }
     }
 }
@@ -171,6 +215,7 @@ impl<H: MessageHandler> QueueWorker<H> {
         let queue_name = self.config.queue_name;
         let exchange = self.config.exchange_name;
         let routing_key = self.config.routing_key;
+        let prefetch_count = self.config.prefetch_count;
         let worker_id = self.id;
         let worker_type = self.worker_type;
 
@@ -179,7 +224,7 @@ impl<H: MessageHandler> QueueWorker<H> {
 
             async move {
                 queue
-                    .get_receiver(queue_name, exchange, routing_key)
+                    .get_receiver(queue_name, exchange, routing_key, prefetch_count)
                     .await
                     .map_err(|e| {
                         log::error!(

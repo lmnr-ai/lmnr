@@ -96,11 +96,14 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     throw new Error("Span not found");
   }
 
+  const parsedAttributes = tryParseJson(span.attributes) || {};
+
   return {
     ...span,
     input: tryParseJson(span.input),
     output: tryParseJson(span.output),
-    attributes: tryParseJson(span.attributes) || {},
+    attributes: parsedAttributes,
+    cacheReadInputTokens: parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0,
     events: (span.events || []).map((event) => ({
       timestamp: event.timestamp,
       name: event.name,

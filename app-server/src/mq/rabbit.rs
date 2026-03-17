@@ -68,7 +68,6 @@ impl Manager for RabbitChannelManager {
 }
 
 pub struct RabbitMQ {
-    prefetch_count: u16,
     publisher_connection: Arc<Connection>,
     consumer_connection: Option<Arc<Connection>>,
     publisher_channel_pool: Pool<RabbitChannelManager>,
@@ -120,7 +119,6 @@ impl MessageQueueReceiverTrait for RabbitMQReceiver {
 
 impl RabbitMQ {
     pub fn new(
-        prefetch_count: u16,
         publisher_connection: Arc<Connection>,
         consumer_connection: Option<Arc<Connection>>,
         max_channel_pool_size: usize,
@@ -135,7 +133,6 @@ impl RabbitMQ {
             .unwrap();
 
         Self {
-            prefetch_count,
             publisher_connection,
             consumer_connection,
             publisher_channel_pool: pool,
@@ -235,6 +232,7 @@ impl MessageQueueTrait for RabbitMQ {
         queue_name: &str,
         exchange: &str,
         routing_key: &str,
+        prefetch_count: u16,
     ) -> anyhow::Result<MessageQueueReceiver> {
         let consumer_conn = self.consumer_connection.as_ref().ok_or_else(|| {
             anyhow::anyhow!(
@@ -257,7 +255,7 @@ impl MessageQueueTrait for RabbitMQ {
         // We want to limit the number of unacknowledged messages RabbitMQ will deliver,
         // preventing unbounded memory growth of rabbitmq pod
         channel
-            .basic_qos(self.prefetch_count, BasicQosOptions::default())
+            .basic_qos(prefetch_count, BasicQosOptions::default())
             .await?;
 
         channel

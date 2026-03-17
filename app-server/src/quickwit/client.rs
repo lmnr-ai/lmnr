@@ -150,11 +150,15 @@ impl QuickwitClient {
     }
 
     #[instrument(skip(self, query_body))]
-    pub async fn search_spans(
+    pub async fn search_index(
         &self,
+        index_id: &str,
         query_body: serde_json::Value,
     ) -> anyhow::Result<serde_json::Value> {
-        let url = format!("{}/api/v1/spans/search", self.inner.search_endpoint);
+        let url = format!(
+            "{}/api/v1/{}/search",
+            self.inner.search_endpoint, index_id
+        );
 
         let response = self
             .inner

@@ -2,6 +2,7 @@ import "@/app/globals.css";
 import "@/app/scroll.css";
 
 import { type Metadata } from "next";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
 import { Toaster } from "@/components/ui/toaster";
@@ -15,7 +16,7 @@ import { PostHogProvider } from "./providers";
 export const metadata: Metadata = {
   metadataBase: new URL("https://laminar.sh"),
   title: {
-    default: "Laminar - Open-source observability for AI agents",
+    default: "Laminar - Open-source observability for long-running agents",
     template: "%s | Laminar",
   },
   description:
@@ -45,25 +46,25 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    title: "Laminar - Open-source observability for AI agents",
+    title: "Laminar - Open-source observability for long-running agents",
     description:
       "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
     siteName: "Laminar",
     images: {
       url: "/opengraph-image.png",
-      alt: "Laminar - Open-source observability for AI agents",
+      alt: "Laminar - Open-source observability for long-running agents",
       width: 1200,
       height: 630,
     },
   },
   twitter: {
     card: "summary_large_image",
-    title: "Laminar - Open-source observability for AI agents",
+    title: "Laminar - Open-source observability for long-running agents",
     description:
       "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
     images: {
       url: "/twitter-image.png",
-      alt: "Laminar - Open-source observability for AI agents",
+      alt: "Laminar - Open-source observability for long-running agents",
       width: 1200,
       height: 630,
     },
@@ -78,12 +79,14 @@ export default async function RootLayout({ children }: PropsWithChildren) {
       <FeatureFlagsProvider flags={featureFlags}>
         <PostHogProvider telemetryEnabled={featureFlags[Feature.POSTHOG]}>
           <body className="flex flex-col h-full">
-            <div className="flex">
-              <div className="flex flex-col grow max-w-full min-h-screen">
-                <main className="z-10 flex flex-col grow">{children}</main>
-                <Toaster />
+            <NuqsAdapter>
+              <div className="flex">
+                <div className="flex flex-col grow max-w-full min-h-screen">
+                  <main className="z-10 flex flex-col grow">{children}</main>
+                  <Toaster />
+                </div>
               </div>
-            </div>
+            </NuqsAdapter>
           </body>
         </PostHogProvider>
       </FeatureFlagsProvider>

@@ -232,7 +232,12 @@ function SchemaFieldRow({ index, onRemove, canRemove }: { index: number; onRemov
           name={`schemaFields.${index}.description`}
           control={control}
           render={({ field }) => (
-            <Textarea {...field} placeholder="Description of the field" rows={0} className="flex-1 text-xs! py-1.25 min-h-7!" />
+            <Textarea
+              {...field}
+              placeholder="Description of the field"
+              rows={0}
+              className="flex-1 text-xs! py-1.25 min-h-7!"
+            />
           )}
         />
         <Button type="button" variant="ghost" onClick={onRemove} disabled={!canRemove} className="py-[7px] shrink-0">
@@ -260,9 +265,7 @@ function SchemaFieldsBuilder() {
       <div className="flex items-center justify-between">
         <div>
           <Label>Output Schema</Label>
-          <p className="text-xs text-muted-foreground mt-1">
-            Define what gets extracted from each trace.
-          </p>
+          <p className="text-xs text-muted-foreground mt-1">Define what gets extracted from each trace.</p>
         </div>
         <Button
           type="button"

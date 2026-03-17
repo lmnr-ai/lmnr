@@ -99,7 +99,7 @@ App Server                               │
          ├──► PostgreSQL (5433) - main database [required]
          ├──► ClickHouse (8123) - analytics/spans [required]
          ├──► RabbitMQ (5672) - async processing [optional, has in-memory fallback]
-         ├──► Query Engine (8903) - SQL processing [required]
+#        ├──► Query Engine (8903) - SQL processing [required]
          └──► Quickwit (7280/7281) - full-text search [optional]
 ```
 
@@ -127,3 +127,23 @@ The frontend uses Husky with lint-staged. Before commits:
 - Prettier formats staged files
 - ESLint fixes issues
 - TypeScript type-check runs
+
+## Frontend Best Practices
+
+### One component per file
+
+Related components should be in a folder named by the parent component (`my-list/`) and the parent component should follow the index.tsx pattern (`my-list/index.tsx`) and all related components should be in the folder (`my-list/my-list-item.tsx`).
+
+Please do your best to keep components <150 lines.
+
+### Bias towards complex logic and state in the Zustand store
+
+When you anticipate lots of complex state management with useState and useEffects, this would be a good time to rethink or refactor and move state into a shared store and expose derived state via selectors.
+
+### Avoid syncing URL params with Zustand store antipattern
+
+Use the nuqs library to handle url param state when possible. Avoid using a useEffect to sync URL param state with the Zustand store. Prefer keeping source of truth as the useQueryState and passing in necessary state as function params to the store when needed.
+
+### Use Zustand shallow to avoid unnecessary rerenders
+
+Pass shallow as the equality function to useStore when applicable. That way even with a new selector reference each render, Zustand compares the result shallowly and won't re-render if the contents are the same.
