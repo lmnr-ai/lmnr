@@ -13,7 +13,6 @@ interface SignalCardsProps {
   projectId: string;
   sparklineData: SignalSparklineData;
   sparklineMaxCount?: number;
-  isSparklineLoading?: boolean;
   selectedIds: Record<string, boolean>;
   onSelectionChange: (ids: Record<string, boolean>) => void;
 }
@@ -23,7 +22,6 @@ export default function SignalCards({
   projectId,
   sparklineData,
   sparklineMaxCount,
-  isSparklineLoading,
   selectedIds,
   onSelectionChange,
 }: SignalCardsProps) {
@@ -54,7 +52,6 @@ export default function SignalCards({
             projectId={projectId}
             sparklineData={sparklineData}
             sparklineMaxCount={sparklineMaxCount}
-            isSparklineLoading={isSparklineLoading}
             isSelected={!!selectedIds[signal.id]}
             onToggleSelect={() => toggleSelect(signal.id)}
           />

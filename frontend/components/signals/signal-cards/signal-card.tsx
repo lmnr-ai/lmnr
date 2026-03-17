@@ -1,6 +1,7 @@
 "use client";
 
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { isNil } from "lodash";
 import Link from "next/link";
 
 import SignalSparkline from "@/components/signals/signal-sparkline.tsx";
@@ -11,18 +12,11 @@ import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
 import { formatRelativeTime, formatShortDate } from "@/lib/utils.ts";
 
-function truncatePrompt(prompt: string, maxLen: number): string {
-  if (!prompt) return "";
-  if (prompt.length <= maxLen) return prompt;
-  return prompt.slice(0, maxLen).trimEnd() + "...";
-}
-
 export default function SignalCard({
   signal,
   projectId,
   sparklineData,
   sparklineMaxCount,
-  isSparklineLoading,
   isSelected,
   onToggleSelect,
 }: {
@@ -30,11 +24,11 @@ export default function SignalCard({
   projectId: string;
   sparklineData: SignalSparklineData;
   sparklineMaxCount?: number;
-  isSparklineLoading?: boolean;
   isSelected: boolean;
   onToggleSelect: () => void;
 }) {
-  const data = sparklineData[signal.id] ?? [];
+  const data = sparklineData[signal.id];
+  const isSparklineLoading = isNil(data);
   const signalUrl = `/project/${projectId}/signals/${signal.id}`;
 
   return (
@@ -60,7 +54,7 @@ export default function SignalCard({
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <p className="text-xs text-muted-foreground line-clamp-2">{truncatePrompt(signal.prompt, 100)}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2lh]">{signal.prompt}</p>
               </TooltipTrigger>
               {signal.prompt && (
                 <TooltipPrimitive.Portal>
@@ -93,7 +87,7 @@ export default function SignalCard({
             </div>
           </div>
           <div className="h-[36px] w-full">
-            <SignalSparkline data={data} maxCount={sparklineMaxCount} isLoading={isSparklineLoading} />
+            <SignalSparkline data={data ?? []} maxCount={sparklineMaxCount} isLoading={isSparklineLoading} />
           </div>
         </CardContent>
         <CardFooter className="px-3 pb-3 pt-0 flex items-center justify-between text-[10px] text-muted-foreground">

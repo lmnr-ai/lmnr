@@ -42,7 +42,6 @@ function SignalsContent() {
   const { toast } = useToast();
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [sparklineData, setSparklineData] = useState<SignalSparklineData>({});
-  const [isSparklineLoading, setIsSparklineLoading] = useState(false);
   const [dateRange, setDateRange] = useState<DateRangeValue>({ pastHours: "168" });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -100,13 +99,17 @@ function SignalsContent() {
   const pastHours = dateRange.pastHours ?? "168";
 
   useEffect(() => {
-    const ids = JSON.parse(signalIdsCacheKey) as string[];
-    if (ids.length === 0) return;
+    setSparklineData({});
+  }, [pastHours]);
 
-    setIsSparklineLoading(true);
+  useEffect(() => {
+    const allIds = JSON.parse(signalIdsCacheKey) as string[];
+    const newIds = allIds.filter((id) => !(id in sparklineData));
+    if (newIds.length === 0) return;
+
     const abortController = new AbortController();
     const urlParams = new URLSearchParams();
-    ids.forEach((id) => urlParams.append("signalId", id));
+    newIds.forEach((id) => urlParams.append("signalId", id));
     urlParams.set("pastHours", pastHours);
 
     fetch(`/api/projects/${projectId}/signals/stats?${urlParams.toString()}`, {
@@ -117,12 +120,17 @@ function SignalsContent() {
         return res.json();
       })
       .then((data: SignalSparklineData) => {
-        setSparklineData(data);
-        setIsSparklineLoading(false);
+        setSparklineData((prev) => ({ ...prev, ...data }));
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        setIsSparklineLoading(false);
+        setSparklineData((prev) => {
+          const updated = { ...prev };
+          for (const id of newIds) {
+            if (!(id in updated)) updated[id] = [];
+          }
+          return updated;
+        });
         toast({
           title: "Failed to load sparkline data",
           description: err instanceof Error ? err.message : "Unknown error",
@@ -131,7 +139,7 @@ function SignalsContent() {
       });
 
     return () => abortController.abort();
-  }, [signalIdsCacheKey, pastHours, projectId, toast]);
+  }, [signalIdsCacheKey, sparklineData, pastHours, projectId, toast]);
 
   const handleSuccess = useCallback(async () => {
     await refetch();
@@ -260,7 +268,6 @@ function SignalsContent() {
                 projectId={projectId as string}
                 sparklineData={sparklineData}
                 sparklineMaxCount={sparklineMaxCount}
-                isSparklineLoading={isSparklineLoading}
                 selectedIds={rowSelection}
                 onSelectionChange={setRowSelection}
               />
