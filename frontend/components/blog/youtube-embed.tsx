@@ -22,8 +22,8 @@ export function extractYouTubeId(url: string): string | null {
         const v = parsed.searchParams.get("v");
         return isValidYouTubeId(v) ? v : null;
       }
-      const embedOrShortsMatch = parsed.pathname.match(/^\/(embed|shorts)\/([a-zA-Z0-9_-]+)/);
-      if (embedOrShortsMatch) {
+      const embedOrShortsMatch = parsed.pathname.match(/^\/(embed|shorts)\/([^/]+)/);
+      if (embedOrShortsMatch && isValidYouTubeId(embedOrShortsMatch[2])) {
         return embedOrShortsMatch[2];
       }
     }
