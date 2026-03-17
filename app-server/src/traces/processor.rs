@@ -31,7 +31,7 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
-    signals::provider::always_use_realtime,
+    signals::{provider::always_use_realtime, utils::should_grant_realtime},
     traces::{
         provider::convert_span_to_provider_format,
         realtime::{send_span_updates, send_trace_updates},
@@ -274,7 +274,7 @@ async fn check_and_push_signals(
         }
     }
 
-    for trigger in &triggers {
+    for trigger in triggers {
         let matching_traces = traces
             .iter()
             .filter(|trace| trace.matches_filters(spans, &trigger.filters));
@@ -330,7 +330,21 @@ async fn check_and_push_signals(
             }
 
             // TODO: fetch a trigger config whether to process in realtime from Trigger definition
-            let should_use_realtime = false;
+            let trigger_should_use_realtime = false;
+            // First N runs in each project are granted realtime execution regardless of the setting
+            // We can be generous and grant even while some are being processed
+            let grant_realtime =
+                should_grant_realtime(project_id, clickhouse.clone(), cache.clone())
+                    .await
+                    .map_err(|e| {
+                        log::warn!(
+                            "Failed to get signals count for project {}: {}",
+                            project_id,
+                            e
+                        );
+                    })
+                    .unwrap_or_default();
+            let should_use_realtime = trigger_should_use_realtime || grant_realtime;
 
             // Lock acquired - enqueue signal trigger run
             if let Err(e) = crate::signals::enqueue::enqueue_signal_trigger_run(

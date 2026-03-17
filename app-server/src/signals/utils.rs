@@ -7,13 +7,18 @@ use uuid::Uuid;
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
+    cache::{Cache, CacheTrait, keys::PROJECT_HAS_SIGNAL_RUNS_CACHE_KEY},
+    ch::signal_runs::project_has_num_signal_runs,
     db::{
         events::{Event, EventSource},
         spans::{Span, SpanType},
     },
     mq::{MessageQueue, MessageQueueTrait},
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
+    utils::get_unsigned_env_with_default,
 };
+
+const DEFAULT_NUM_SIGNAL_RUNS_TO_GRANT_REALTIME: usize = 20;
 
 // internal span for observability
 #[derive(Debug, Clone)]
@@ -248,4 +253,28 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
     }
 
     span_id
+}
+
+pub async fn should_grant_realtime(
+    project_id: Uuid,
+    clickhouse: clickhouse::Client,
+    cache: Arc<Cache>,
+) -> anyhow::Result<bool> {
+    let num_runs_to_grant = get_unsigned_env_with_default(
+        "NUM_SIGNAL_RUNS_TO_GRANT_REALTIME",
+        DEFAULT_NUM_SIGNAL_RUNS_TO_GRANT_REALTIME,
+    );
+    let cache_key = format!("{PROJECT_HAS_SIGNAL_RUNS_CACHE_KEY}:{project_id}");
+    if cache.exists(&cache_key).await? {
+        Ok(false)
+    } else {
+        let has_more =
+            project_has_num_signal_runs(clickhouse, project_id, num_runs_to_grant).await?;
+        if has_more {
+            if let Err(e) = cache.insert(&cache_key, 1).await {
+                log::warn!("Failed to insert num signal runs cache {e}");
+            }
+        }
+        Ok(!has_more)
+    }
 }

@@ -47,30 +47,6 @@ impl From<&SignalRun> for CHSignalRun {
     }
 }
 
-#[allow(dead_code)]
-#[instrument(skip(clickhouse))]
-pub async fn get_signal_runs_for_job(
-    clickhouse: clickhouse::Client,
-    project_id: Uuid,
-    signal_id: Uuid,
-    job_id: Uuid,
-) -> Result<Vec<CHSignalRun>> {
-    let runs = clickhouse
-        .query(
-            "SELECT project_id, signal_id, job_id, trigger_id, run_id, trace_id, status, event_id, error_message, updated_at
-             FROM signal_runs FINAL
-             WHERE project_id = ? AND signal_id = ? AND job_id = ?
-             ORDER BY updated_at ASC",
-        )
-        .bind(project_id)
-        .bind(signal_id)
-        .bind(job_id)
-        .fetch_all::<CHSignalRun>()
-        .await?;
-
-    Ok(runs)
-}
-
 #[instrument(skip(clickhouse, runs))]
 pub async fn insert_signal_runs(
     clickhouse: clickhouse::Client,
@@ -102,4 +78,34 @@ pub async fn insert_signal_runs(
             e
         )),
     }
+}
+
+#[derive(Row, Deserialize, Debug)]
+pub struct CHHasMoreRow {
+    has_more: bool,
+}
+
+pub async fn project_has_num_signal_runs(
+    clickhouse: clickhouse::Client,
+    project_id: Uuid,
+    number: usize,
+) -> Result<bool> {
+    let row = clickhouse
+        .query(
+            "SELECT count (*) >= ? AS has_more
+             FROM (
+                SELECT 1
+                FROM signal_runs FINAL
+                WHERE project_id = ?
+                -- small optimization to not iterate over many rows
+                LIMIT ?
+            )",
+        )
+        .bind(number)
+        .bind(project_id)
+        .bind(number + 1)
+        .fetch_one::<CHHasMoreRow>()
+        .await?;
+
+    Ok(row.has_more)
 }
