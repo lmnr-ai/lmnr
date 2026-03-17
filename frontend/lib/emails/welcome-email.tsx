@@ -15,7 +15,7 @@ export default function WelcomeEmail() {
         <div style={bulletList}>
           <Text style={bulletPoint}>
             •{" "}
-            <Link style={link} href="https://lmnr.ai/docs/tracing/introduction" target="_blank">
+            <Link style={link} href="https://docs.lmnr.ai/tracing/introduction" target="_blank">
               Trace your agents
             </Link>
             {
@@ -24,7 +24,7 @@ export default function WelcomeEmail() {
           </Text>
           <Text style={bulletPoint}>
             •{" "}
-            <Link style={link} href="https://lmnr.ai/docs/signals" target="_blank">
+            <Link style={link} href="https://docs.lmnr.ai/signals" target="_blank">
               Signals
             </Link>
             {
@@ -33,7 +33,7 @@ export default function WelcomeEmail() {
           </Text>
           <Text style={bulletPoint}>
             •{" "}
-            <Link style={link} href="https://lmnr.ai/docs/platform/debugger" target="_blank">
+            <Link style={link} href="https://docs.lmnr.ai/platform/debugger" target="_blank">
               Debugger
             </Link>
             {
@@ -42,7 +42,7 @@ export default function WelcomeEmail() {
           </Text>
           <Text style={bulletPoint}>
             •{" "}
-            <Link style={link} href="https://lmnr.ai/docs/platform/sql-editor" target="_blank">
+            <Link style={link} href="https://docs.lmnr.ai/platform/sql-editor" target="_blank">
               SQL engine
             </Link>
             {
@@ -51,7 +51,7 @@ export default function WelcomeEmail() {
           </Text>
           <Text style={bulletPoint}>
             •{" "}
-            <Link style={link} href="https://lmnr.ai/docs/evaluations" target="_blank">
+            <Link style={link} href="https://docs.lmnr.ai/evaluations" target="_blank">
               Evaluations
             </Link>
             {" — run evals against datasets locally or in CI. Catch regressions before they ship."}
