@@ -25,7 +25,7 @@ import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
 import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 
 const ManageSignalSheet = dynamic(
-  () => import("@/components/signals/manage-signal-sheet.tsx").then((mod) => mod.default),
+  () => import("@/components/signals/manage-signal-sheet/index.tsx").then((mod) => mod.default),
   { ssr: false }
 );
 
