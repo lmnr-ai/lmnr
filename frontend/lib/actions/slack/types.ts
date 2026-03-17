@@ -69,24 +69,6 @@ export const SlackEventCallbackSchema = z.looseObject({
   event_time: z.number(),
 });
 
-export const SlackSlashCommandSchema = z.looseObject({
-  token: z.string(),
-  team_id: z.string(),
-  team_domain: z.string(),
-  channel_id: z.string(),
-  channel_name: z.string(),
-  user_id: z.string(),
-  user_name: z.string(),
-  command: z.string(),
-  text: z.string(),
-  api_app_id: z.string(),
-  response_url: z.string(),
-  trigger_id: z.string(),
-  enterprise_id: z.string().optional(),
-  enterprise_name: z.string().optional(),
-  is_enterprise_install: z.string().optional(),
-});
-
 export const SlackBlockActionsSchema = z.object({
   payload: z.string(),
 });

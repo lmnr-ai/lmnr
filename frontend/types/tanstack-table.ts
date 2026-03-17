@@ -1,4 +1,5 @@
 import { type RowData } from "@tanstack/react-table";
+import { type ReactNode } from "react";
 
 // -- tanstack module augmentation --
 declare module "@tanstack/react-table" {
@@ -40,5 +41,10 @@ declare module "@tanstack/react-table" {
     fullSql?: string;
     // When true, indicates that the column value may be truncated (e.g. via substring).
     truncated?: boolean;
+    // Custom dropdown items rendered in the column header dropdown menu between
+    // sort options and "Hide column". Used for inline controls like scale selectors.
+    customDropdownItems?: (
+      table: unknown
+    ) => Array<{ label: string; icon?: ReactNode; isActive?: boolean; onClick: () => void }>;
   }
 }

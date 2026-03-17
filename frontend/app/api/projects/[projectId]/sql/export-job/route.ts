@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { createExportJob } from "@/lib/actions/sql";
+import { createExportJob } from "@/lib/actions/sql/export-job";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<NextResponse> {
   const params = await props.params;

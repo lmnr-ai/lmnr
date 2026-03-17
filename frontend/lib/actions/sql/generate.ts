@@ -1,7 +1,8 @@
-import { google } from "@ai-sdk/google";
 import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { generateObject } from "ai";
 import { z } from "zod";
+
+import { getLanguageModel } from "@/lib/ai/model";
 
 import { getGenerationPrompts } from "./prompts";
 import type { GenerationMode, GenerationResult } from "./types";
@@ -23,7 +24,7 @@ export async function generateSql(
     { name: "generateSql" },
     async () =>
       await generateObject({
-        model: google("gemini-3-flash-preview"),
+        model: getLanguageModel("fast"),
         schema: GenerationResultSchema,
         system: prompts.system,
         prompt: prompts.user(prompt),

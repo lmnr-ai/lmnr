@@ -16,7 +16,9 @@ import LeaveWorkspaceDialog from "@/components/workspace/leave-workspace-dialog"
 import RemoveUserDialog from "@/components/workspace/remove-user-dialog";
 import TransferOwnershipDialog from "@/components/workspace/ui/transfer-ownership-dialog.tsx";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";
+import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 import {
@@ -35,7 +37,6 @@ interface WorkspaceUsersProps {
   workspace: WorkspaceWithOptionalUsers;
   isOwner: boolean;
   currentUserRole: WorkspaceRole;
-  isSubscription: boolean;
 }
 
 type DialogState = {
@@ -43,16 +44,11 @@ type DialogState = {
   targetUser?: WorkspaceUser;
 };
 
-export default function WorkspaceUsers({
-  invitations,
-  workspace,
-  isOwner,
-  currentUserRole,
-  isSubscription,
-}: WorkspaceUsersProps) {
+export default function WorkspaceUsers({ invitations, workspace, isOwner, currentUserRole }: WorkspaceUsersProps) {
   const user = useUserContext();
   const { toast } = useToast();
   const router = useRouter();
+  const featureFlags = useFeatureFlags();
 
   const {
     data: users = [],
@@ -203,7 +199,7 @@ export default function WorkspaceUsers({
             description={`${users.length} member${users.length > 1 ? "s" : ""} in this workspace`}
           />
           {canManageUsers &&
-            (isSubscription && isFreeTier ? (
+            (featureFlags[Feature.SUBSCRIPTION] && isFreeTier ? (
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>

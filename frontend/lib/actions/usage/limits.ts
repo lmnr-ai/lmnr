@@ -1,4 +1,4 @@
-import { addMonths } from "date-fns";
+import { addMonths, subHours } from "date-fns";
 import { eq } from "drizzle-orm";
 
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
@@ -7,6 +7,12 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
 import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
+
+const TIER_RETENTION_DAYS: Record<string, number> = {
+  free: 15,
+  hobby: 30,
+  pro: 90,
+};
 
 interface ProjectBillingInfo {
   id: string;
@@ -136,4 +142,49 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
       `Signal runs limit exceeded. This job requires ${tracesCount} signal runs, but your workspace only has ${remaining} remaining out of ${signalRunsLimit} allowed this billing period. Please upgrade your plan.`
     );
   }
+}
+
+export async function checkDataRetentionAccess(
+  projectId: string,
+  timeRange: { pastHours?: string; startDate?: string }
+): Promise<Response | null> {
+  if (!isFeatureEnabled(Feature.SUBSCRIPTION)) {
+    return null;
+  }
+
+  const info = await getProjectBillingInfo(projectId);
+  if (!info) {
+    return null;
+  }
+
+  const tierKey = info.tierName.trim().toLowerCase();
+  const retentionDays = TIER_RETENTION_DAYS[tierKey];
+  if (retentionDays === undefined) {
+    return null;
+  }
+
+  let effectiveStart: Date | null = null;
+
+  if (timeRange.pastHours) {
+    effectiveStart = subHours(new Date(), parseInt(timeRange.pastHours));
+  } else if (timeRange.startDate) {
+    effectiveStart = new Date(timeRange.startDate);
+  }
+
+  if (!effectiveStart) {
+    return null;
+  }
+
+  const retentionCutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
+  if (effectiveStart < retentionCutoff) {
+    return Response.json(
+      {
+        error: `Forbidden.`,
+      },
+      { status: 403 }
+    );
+  }
+
+  return null;
 }

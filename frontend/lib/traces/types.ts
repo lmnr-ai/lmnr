@@ -59,6 +59,7 @@ export type Span = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  cacheReadInputTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
@@ -142,6 +143,8 @@ export type TraceRow = {
   analysis_status?: string;
   analysis_preview?: string;
   analysis?: string;
+  rootSpanInput?: string;
+  rootSpanOutput?: string;
 };
 
 export type RealtimeTracePayload = {
@@ -165,6 +168,8 @@ export type RealtimeTracePayload = {
   visibility: string | null;
   status: string | null;
   user_id: string | null;
+  root_span_input: string | null;
+  root_span_output: string | null;
 };
 
 export type TracePreview = {

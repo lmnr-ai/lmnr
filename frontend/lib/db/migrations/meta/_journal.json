@@ -491,6 +491,41 @@
       "when": 1771345330815,
       "tag": "0069_curved_king_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1772799082413,
+      "tag": "0070_strange_vance_astro",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1772817183488,
+      "tag": "0071_eager_cobalt_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1773143358151,
+      "tag": "0072_redundant_star_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1773313672483,
+      "tag": "0073_thankful_prism",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1773418233295,
+      "tag": "0074_normal_gertrude_yorkes",
+      "breakpoints": true
     }
   ]
 }

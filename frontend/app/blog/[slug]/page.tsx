@@ -15,20 +15,32 @@ export const generateMetadata = async (props: { params: Promise<{ slug: string }
   const params = await props.params;
   try {
     const { data } = getBlogPost(params.slug);
+    const description = data.description || `${data.title} - from the Laminar blog`;
+    const ogImageUrl = `/blog/${params.slug}/opengraph-image`;
     return {
       title: data.title,
-      description: data.description,
+      description,
       authors: data.coAuthors ? [data.author, ...data.coAuthors] : [data.author],
-      icons: ["https://www.lmnr.ai/favicon.ico"],
       openGraph: {
-        images: data.image ? ["https://www.lmnr.ai" + data.image] : ["https://www.lmnr.ai/favicon.ico"],
+        title: data.title,
+        description,
         type: "article",
         publishedTime: data.date,
+        url: `https://laminar.sh/blog/${params.slug}`,
+        images: [
+          {
+            url: ogImageUrl,
+            width: 1200,
+            height: 630,
+            alt: data.title,
+          },
+        ],
       },
       twitter: {
+        card: "summary_large_image",
         title: data.title,
-        description: data.description,
-        images: data.image ? ["https://www.lmnr.ai" + data.image] : ["https://www.lmnr.ai/favicon.ico"],
+        description,
+        images: [ogImageUrl],
       },
     };
   } catch {
@@ -71,7 +83,7 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
               h2: (props) => <MDHeading props={props} level={1} />,
               h3: (props) => <MDHeading props={props} level={2} />,
               h4: (props) => <MDHeading props={props} level={3} />,
-              p: (props) => <p className="pt-4 text-white/85 font-light leading-relaxed" {...props} />,
+              p: (props) => <p className="pt-4 text-white/85 font-light" {...props} />,
               a: (props) => (
                 <a
                   className="text-white underline hover:text-primary"
@@ -95,6 +107,7 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
                   {props.children}
                 </li>
               ),
+              strong: (props) => <strong className="text-white/90 font-semibold" {...props} />,
               img: (props) => (
                 <LightboxImage className="md:w-[1000px] relative w-full border rounded-lg mb-8" {...props} />
               ),

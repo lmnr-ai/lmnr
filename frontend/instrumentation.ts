@@ -14,7 +14,7 @@ export async function register() {
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { sql } = await import("drizzle-orm");
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
-      const { llmPrices, subscriptionTiers } = await import("@/lib/db/migrations/schema.ts");
+      const { subscriptionTiers, modelCosts } = await import("@/lib/db/migrations/schema.ts");
       const { db } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
@@ -23,9 +23,11 @@ export async function register() {
           const tableName: string = entry.table;
           const tables: Record<string, any> = {
             subscription_tiers: subscriptionTiers,
-            llm_prices: llmPrices,
           };
           const table = tables[tableName];
+          if (!table) {
+            continue;
+          }
           const rows: Record<string, unknown>[] = entry.data.map((row: Record<string, unknown>) =>
             Object.fromEntries(
               Object.entries(row).map(([k, v]) =>
@@ -42,6 +44,57 @@ export async function register() {
               target: table.id,
               set: Object.fromEntries(Object.keys(entry.data[0]).map((key) => [key, sql.raw(`excluded.${key}`)])),
             });
+        }
+      };
+
+      const PRICES_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json";
+
+      const SHORT_NAME_PREFIXES = ["mistral", "xai", "minimax", "moonshot"];
+
+      const initializeModelCosts = async (): Promise<boolean> => {
+        try {
+          const response = await fetch(PRICES_URL, { signal: AbortSignal.timeout(30000) });
+          if (!response.ok) {
+            throw new Error(`Failed to fetch model prices: ${response.status} ${response.statusText}`);
+          }
+          const data: Record<string, unknown> = await response.json();
+
+          const rows = new Map<string, unknown>();
+          for (const [modelName, info] of Object.entries(data)) {
+            if (modelName === "sample_spec") continue;
+            const lowerName = modelName.toLowerCase();
+            rows.set(lowerName, info);
+
+            if (SHORT_NAME_PREFIXES.some((p) => lowerName.startsWith(p))) {
+              const shortName = lowerName.includes("/") ? lowerName.split("/").pop()! : lowerName;
+              if (shortName !== lowerName && !rows.has(shortName)) {
+                rows.set(shortName, info);
+              }
+            }
+          }
+
+          const allRows = Array.from(rows.entries()).map(([model, costs]) => ({
+            model,
+            costs,
+          }));
+
+          await db
+            .insert(modelCosts)
+            .values(allRows)
+            .onConflictDoUpdate({
+              target: modelCosts.model,
+              set: {
+                costs: sql.raw(`excluded.costs`) as any,
+                updatedAt: sql.raw(`now()`) as any,
+              },
+            });
+
+          console.log(`Upserted ${allRows.length} rows into model_costs`);
+          return true;
+        } catch (error) {
+          console.error("Failed to initialize model costs:", error);
+          console.log("Continuing without model costs data...");
+          return false;
         }
       };
 
@@ -72,6 +125,13 @@ export async function register() {
       console.log("✓ Postgres migrations applied successfully");
       await initializeData();
       console.log("✓ Postgres data initialized successfully");
+
+      // Fetch model costs and populate the database
+      console.log("Fetching model costs...");
+      const modelCostsOk = await initializeModelCosts();
+      if (modelCostsOk) {
+        console.log("✓ Model costs initialized successfully");
+      }
 
       // Run ClickHouse schema application
       console.log("Applying ClickHouse schema. This may take a while...");

@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use futures_util::future::join_all;
 use itertools::Itertools;
-use opentelemetry::trace::FutureExt;
 use rayon::prelude::*;
 use tracing::instrument;
 use uuid::Uuid;
@@ -22,7 +20,7 @@ use crate::{
     },
     db::{
         DB,
-        spans::Span,
+        spans::{Span, SpanType},
         trace::{Trace, upsert_trace_statistics_batch},
         workspaces::WorkspaceDeployment,
     },
@@ -33,6 +31,7 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
+    signals::provider::always_use_realtime,
     traces::{
         provider::convert_span_to_provider_format,
         realtime::{send_span_updates, send_trace_updates},
@@ -43,6 +42,7 @@ use crate::{
 };
 
 const SIGNAL_TRIGGER_LOCK_TTL_SECONDS: u64 = 3600; // 1 hour
+const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
 #[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, config))]
 pub async fn process_span_messages(
@@ -66,40 +66,18 @@ pub async fn process_span_messages(
         })
         .collect();
 
-    // Store payloads in parallel if enabled
-    // Only for cloud deployments (config is None)
-    if is_feature_enabled(Feature::Storage) && config.is_none() {
-        let storage_futures = spans
-            .iter_mut()
-            // only upload non-llm spans to avoid parsing issues with
-            // llm-span-specific features, such as debugger
-            .filter(|span| !span.is_llm_span())
-            .map(|span| {
-                let project_id: Uuid = span.project_id;
-                let queue_clone = queue.clone();
-                async move {
-                    if let Err(e) = span.store_payloads(&project_id, queue_clone).await {
-                        log::error!(
-                            "Failed to store input images. span_id [{}], project_id [{}]: {:?}",
-                            span.span_id,
-                            project_id,
-                            e
-                        );
-                    }
-                }
-            })
-            .collect::<Vec<_>>();
-
-        join_all(storage_futures).with_current_context().await;
-    }
-
     // Enrich spans with usage info
     let mut span_usage_vec = Vec::with_capacity(spans.len());
 
     for span in &mut spans {
-        let span_usage =
-            get_llm_usage_for_span(&mut span.attributes, db.clone(), cache.clone(), &span.name)
-                .await;
+        let span_usage = get_llm_usage_for_span(
+            &mut span.attributes,
+            db.clone(),
+            cache.clone(),
+            &span.name,
+            &span.project_id,
+        )
+        .await;
 
         prepare_span_for_recording(span, &span_usage);
         convert_span_to_provider_format(span);
@@ -180,7 +158,14 @@ pub async fn process_span_messages(
     send_span_updates(&spans_for_realtime, &pubsub).await;
 
     // Index spans and events in Quickwit
-    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable.iter().map(|s| (*s).into()).collect();
+    // Non-LLM spans are only indexed if their size is <= 5KB
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable
+        .iter()
+        .filter(|s| {
+            s.span_type == SpanType::LLM || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES
+        })
+        .map(|s| (*s).into())
+        .collect();
     let quickwit_events: Vec<QuickwitIndexedEvent> = recordable
         .iter()
         .flat_map(|s| s.events.iter().map(|e| e.into()))
@@ -344,6 +329,9 @@ async fn check_and_push_signals(
                 continue;
             }
 
+            // TODO: fetch a trigger config whether to process in realtime from Trigger definition
+            let should_use_realtime = false;
+
             // Lock acquired - enqueue signal trigger run
             if let Err(e) = crate::signals::enqueue::enqueue_signal_trigger_run(
                 trace.id(),
@@ -352,6 +340,7 @@ async fn check_and_push_signals(
                 trigger.signal.clone(),
                 clickhouse.clone(),
                 queue.clone(),
+                always_use_realtime() || should_use_realtime,
             )
             .await
             {

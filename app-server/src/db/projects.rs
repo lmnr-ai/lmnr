@@ -17,6 +17,26 @@ pub struct ProjectWithWorkspaceBillingInfo {
     pub signal_runs_limit: i64,
 }
 
+#[derive(FromRow, Debug, Clone)]
+pub struct ProjectInfo {
+    pub id: Uuid,
+    pub name: String,
+}
+
+pub async fn get_projects_for_workspace(
+    pool: &PgPool,
+    workspace_id: &Uuid,
+) -> anyhow::Result<Vec<ProjectInfo>> {
+    let projects = sqlx::query_as::<_, ProjectInfo>(
+        "SELECT id, name FROM projects WHERE workspace_id = $1",
+    )
+    .bind(workspace_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(projects)
+}
+
 pub async fn get_project_and_workspace_billing_info(
     pool: &PgPool,
     project_id: &Uuid,

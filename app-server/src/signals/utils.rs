@@ -28,7 +28,7 @@ pub struct InternalSpan {
     pub input: Option<Value>,
     pub output: Option<Value>,
     pub input_tokens: Option<i32>,
-    pub input_cached_tokens: Option<i64>,
+    pub input_cached_tokens: Option<i32>,
     pub output_tokens: Option<i32>,
     pub model: String,
     pub provider: String,
@@ -72,7 +72,7 @@ pub fn extract_batch_id_from_operation(operation_name: &str) -> Result<String> {
 /// Converts short span IDs (last 4 hex chars of UUID) to full UUIDs using span_ids_map.
 ///
 /// Format: `<span id='a1b2' name='openai.chat' reference_text='...' />`
-/// Becomes: `[openai.chat](https://www.lmnr.ai/project/{project_id}/traces/{trace_id}?spanId={uuid})`
+/// Becomes: `[openai.chat](https://www.laminar.sh/project/{project_id}/traces/{trace_id}?spanId={uuid})`
 ///
 /// # Arguments
 /// * `attributes` - JSON value that may contain span tags in its string values
@@ -92,8 +92,7 @@ pub fn replace_span_tags_with_links(
     let json_str = serde_json::to_string(&attributes)?;
 
     // Pattern to match <span id='...' name='...' ... />
-    let pattern =
-        Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#)?;
+    let pattern = Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#)?;
 
     // Replace all span tags
     let replaced_str = pattern.replace_all(&json_str, |caps: &regex::Captures| {
@@ -107,7 +106,7 @@ pub fn replace_span_tags_with_links(
             .unwrap_or_else(|| short_id.to_string());
 
         format!(
-            "[{}](https://www.lmnr.ai/project/{}/traces/{}?spanId={})",
+            "[{}](https://www.laminar.sh/project/{}/traces/{}?spanId={})",
             span_name, project_id, trace_id, real_span_id
         )
     });
@@ -170,6 +169,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
             "signal.batch_id".to_string(),
             Value::String(provider_batch_id.to_string()),
         );
+        attrs.insert("gen_ai.request.batch".to_string(), Value::Bool(true));
     }
 
     attrs.insert(

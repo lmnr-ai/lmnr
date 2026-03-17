@@ -2,9 +2,11 @@ import "@/app/globals.css";
 import "@/app/scroll.css";
 
 import { type Metadata } from "next";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { type PropsWithChildren } from "react";
 
 import { Toaster } from "@/components/ui/toaster";
+import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
@@ -13,7 +15,12 @@ import { PostHogProvider } from "./providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://laminar.sh"),
-  title: "Laminar",
+  title: {
+    default: "Laminar - Open-source observability for long-running agents",
+    template: "%s | Laminar",
+  },
+  description:
+    "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
   keywords: [
     "laminar",
     "evals",
@@ -39,43 +46,50 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: "website",
-    title: "Laminar",
-    description: "Understand why your agent failed. Iterate fast to fix it.",
+    title: "Laminar - Open-source observability for long-running agents",
+    description:
+      "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
     siteName: "Laminar",
     images: {
       url: "/opengraph-image.png",
-      alt: "Laminar",
+      alt: "Laminar - Open-source observability for long-running agents",
+      width: 1200,
+      height: 630,
     },
   },
   twitter: {
-    card: "summary",
-    description: "Understand why your agent failed. Iterate fast to fix it.",
-    title: "Laminar",
+    card: "summary_large_image",
+    title: "Laminar - Open-source observability for long-running agents",
+    description:
+      "Open-source platform to trace, evaluate, and improve AI agents. Debug LLM calls, track tool use, and run evaluations on your AI applications.",
     images: {
       url: "/twitter-image.png",
-      alt: "Laminar",
+      alt: "Laminar - Open-source observability for long-running agents",
+      width: 1200,
+      height: 630,
     },
   },
 };
 
 export default async function RootLayout({ children }: PropsWithChildren) {
-  const telemetryEnabled = isFeatureEnabled(Feature.POSTHOG);
+  const featureFlags = Object.fromEntries(Object.values(Feature).map((f) => [f, isFeatureEnabled(f)])) as FeatureFlags;
 
   return (
-    <html
-      lang="en"
-      className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}
-    >
-      <PostHogProvider telemetryEnabled={telemetryEnabled}>
-        <body className="flex flex-col h-full">
-          <div className="flex">
-            <div className="flex flex-col grow max-w-full min-h-screen">
-              <main className="z-10 flex flex-col grow">{children}</main>
-              <Toaster />
-            </div>
-          </div>
-        </body>
-      </PostHogProvider>
+    <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}>
+      <FeatureFlagsProvider flags={featureFlags}>
+        <PostHogProvider telemetryEnabled={featureFlags[Feature.POSTHOG]}>
+          <body className="flex flex-col h-full">
+            <NuqsAdapter>
+              <div className="flex">
+                <div className="flex flex-col grow max-w-full min-h-screen">
+                  <main className="z-10 flex flex-col grow">{children}</main>
+                  <Toaster />
+                </div>
+              </div>
+            </NuqsAdapter>
+          </body>
+        </PostHogProvider>
+      </FeatureFlagsProvider>
     </html>
   );
 }

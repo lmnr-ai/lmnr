@@ -10,7 +10,11 @@ const TableSelect = () => {
 
   const availableTables = Object.keys(tableSchemas);
 
-  const formatTableName = (table: string) => table.charAt(0).toUpperCase() + table.slice(1);
+  const formatTableName = (table: string) =>
+    table
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
 
   return (
     <div className="grid gap-1">

@@ -1,6 +1,16 @@
 "use client";
 
-import { Activity, Cloud, CreditCard, FolderClosed, type LucideIcon, Settings, Users } from "lucide-react";
+import {
+  Activity,
+  Cloud,
+  CreditCard,
+  FileBarChart,
+  FolderClosed,
+  type LucideIcon,
+  Settings,
+  Unplug,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";
@@ -14,6 +24,8 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar.tsx";
 import { useWorkspaceMenuContext, type WorkspaceMenu } from "@/components/workspace/workspace-menu-provider.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 import { cn } from "@/lib/utils.ts";
 import { type WorkspaceTier } from "@/lib/workspaces/types.ts";
 
@@ -44,6 +56,16 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
     icon: CreditCard,
   },
   {
+    name: "Integrations",
+    value: "integrations",
+    icon: Unplug,
+  },
+  {
+    name: "Reports",
+    value: "reports",
+    icon: FileBarChart,
+  },
+  {
     name: "Settings",
     value: "settings",
     icon: Settings,
@@ -53,27 +75,21 @@ const menus: { name: string; value: WorkspaceMenu; icon: LucideIcon }[] = [
 interface WorkspaceSidebarContentProps {
   isOwner: boolean;
   tier: WorkspaceTier;
-  isSubscription: boolean;
-  isDeployment: boolean;
 }
 
-export const WorkspaceSidebarContent = ({
-  isOwner,
-  tier,
-  isSubscription,
-  isDeployment,
-}: WorkspaceSidebarContentProps) => {
+export const WorkspaceSidebarContent = ({ isOwner, tier }: WorkspaceSidebarContentProps) => {
   const { menu, setMenu } = useWorkspaceMenuContext();
   const pathName = usePathname();
+  const featureFlags = useFeatureFlags();
   const sidebarMenus = useMemo(
     () =>
       menus.filter((m) => {
         if (m.value === "settings" && !isOwner) return false;
-        if (m.value === "billing" && !isSubscription) return false;
-        if (m.value === "deployment" && !isDeployment) return false;
+        if (m.value === "billing" && !featureFlags[Feature.SUBSCRIPTION]) return false;
+        if (m.value === "deployment" && !featureFlags[Feature.DEPLOYMENT]) return false;
         return true;
       }),
-    [isOwner, isSubscription, isDeployment]
+    [isOwner, featureFlags]
   );
 
   return (

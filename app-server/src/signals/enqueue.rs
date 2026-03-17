@@ -10,7 +10,7 @@ use crate::mq::MessageQueue;
 use crate::routes::signals::SubmitSignalJobResponse;
 use crate::signals::queue::SignalMessage;
 use crate::signals::utils::{InternalSpan, emit_internal_span};
-use crate::signals::{LLM_MODEL, LLM_PROVIDER, push_to_signals_queue};
+use crate::signals::{llm_model, llm_provider, push_to_signals_queue};
 
 /// Creates a signal run and message, emits internal tracing span.
 /// Does NOT push to queue yet - caller is responsible for pushing after ClickHouse insert.
@@ -22,6 +22,7 @@ async fn create_signal_run_and_message(
     job_id: Option<Uuid>,
     trigger_id: Option<Uuid>,
     queue: Arc<MessageQueue>,
+    process_in_realtime: bool,
 ) -> (super::SignalRun, SignalMessage) {
     // get internal project id for tracing
     let internal_project_id: Option<Uuid> = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
@@ -61,8 +62,8 @@ async fn create_signal_run_and_message(
             input_tokens: None,
             input_cached_tokens: None,
             output_tokens: None,
-            model: LLM_MODEL.clone(),
-            provider: LLM_PROVIDER.clone(),
+            model: llm_model(),
+            provider: llm_provider(),
             internal_project_id,
             job_id,
             error: None,
@@ -99,6 +100,7 @@ async fn create_signal_run_and_message(
         step: 0,
         retry_count: 0,
         request_start_time: Utc::now(),
+        use_realtime_api: process_in_realtime,
     };
 
     (signal_run, message)
@@ -113,6 +115,7 @@ pub async fn enqueue_signal_job(
     trace_ids: Vec<Uuid>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
+    process_in_realtime: bool,
 ) -> anyhow::Result<SubmitSignalJobResponse> {
     let total_traces: i32 = trace_ids.len() as i32;
 
@@ -136,6 +139,7 @@ pub async fn enqueue_signal_job(
             Some(job.id),
             None,
             queue.clone(),
+            process_in_realtime,
         )
         .await;
 
@@ -161,7 +165,13 @@ pub async fn enqueue_signal_job(
     let mut failed_count = 0i32;
 
     for (idx, message) in messages.into_iter().enumerate() {
-        if push_to_signals_queue(message, queue.clone()).await.is_err() {
+        let push_result = if message.use_realtime_api {
+            crate::signals::queue::push_to_realtime_queue(message, queue.clone()).await
+        } else {
+            push_to_signals_queue(message, queue.clone()).await
+        };
+
+        if push_result.is_err() {
             // Mark the corresponding run as failed
             signal_runs[idx] = signal_runs[idx]
                 .clone()
@@ -218,6 +228,7 @@ pub async fn enqueue_signal_trigger_run(
     signal: Signal,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
+    process_in_realtime: bool,
 ) -> anyhow::Result<()> {
     // Step 1: Create run and message (without pushing to queue yet)
     let (signal_run, message) = create_signal_run_and_message(
@@ -227,6 +238,7 @@ pub async fn enqueue_signal_trigger_run(
         None,
         Some(trigger_id),
         queue.clone(),
+        process_in_realtime,
     )
     .await;
 
@@ -246,7 +258,13 @@ pub async fn enqueue_signal_trigger_run(
         })?;
 
     // Step 3: Now that ClickHouse insert succeeded, push to queue
-    if let Err(e) = push_to_signals_queue(message, queue.clone()).await {
+    let push_result = if message.use_realtime_api {
+        crate::signals::queue::push_to_realtime_queue(message, queue.clone()).await
+    } else {
+        push_to_signals_queue(message, queue.clone()).await
+    };
+
+    if let Err(e) = push_result {
         log::error!(
             "Failed to push signal run to queue: run_id={}, trace_id={}, trigger_id={}, error={:?}",
             signal_run.run_id,

@@ -49,6 +49,11 @@ export const METRIC_FUNCTION_OPTIONS: MetricFunctionOption[] = [
     label: "P99",
     createMetric: (column) => ({ fn: "quantile", column, args: [0.99], alias: `p99_${column}` }),
   },
+  {
+    value: "raw",
+    label: "Custom SQL",
+    createMetric: () => ({ fn: "raw", column: "", args: [] }),
+  },
 ];
 
 export const getMetricFunctionValue = (metric: Metric): string => {
@@ -61,12 +66,26 @@ export const getMetricFunctionValue = (metric: Metric): string => {
   return metric.fn;
 };
 
-export const createMetricFromOption = (functionValue: string, column: string, alias?: string): Metric => {
+/** Compute the correct alias for a metric given its function value and column.
+ *  Delegates to the createMetric factory in METRIC_FUNCTION_OPTIONS to avoid
+ *  duplicating alias derivation logic. */
+export const getMetricAlias = (functionValue: string, column: string): string | undefined => {
+  const option = METRIC_FUNCTION_OPTIONS.find((opt) => opt.value === functionValue);
+  return option?.createMetric(column).alias ?? undefined;
+};
+
+export const createMetricFromOption = (functionValue: string, column: string): Metric => {
   const option = METRIC_FUNCTION_OPTIONS.find((opt) => opt.value === functionValue);
   if (!option) {
-    return { fn: "count", column: "*", alias: alias || "count", args: [] };
+    return { fn: "count", column: "*", args: [] };
   }
-  return { ...option.createMetric(column), column, alias } as Metric;
+  const metric = option.createMetric(column);
+  // Don't override column for count or raw — createMetric intentionally
+  // returns column: "*" for count and column: "" for raw.
+  if (functionValue === "count" || functionValue === "raw") {
+    return metric as Metric;
+  }
+  return { ...metric, column } as Metric;
 };
 
 export const FILTER_OPERATOR_OPTIONS = [
