@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::ch::notification_logs::CHNotificationLog;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
-use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
+use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::worker::{HandlerError, MessageHandler};
 
 mod slack;
@@ -70,26 +70,13 @@ pub struct NotificationMessage {
 
 /// Push a notification message to the notification queue.
 ///
-/// Returns `HandlerError::Permanent` for payload size violations (retrying won't help)
-/// and `HandlerError::Transient` for publish failures (may be a temporary MQ issue).
+/// Returns a plain `anyhow::Result` – callers on the handler side are responsible
+/// for checking payload size and mapping errors to `HandlerError` variants.
 pub async fn push_to_notification_queue(
     message: NotificationMessage,
     queue: Arc<MessageQueue>,
-) -> Result<(), HandlerError> {
-    let serialized = serde_json::to_vec(&message)
-        .map_err(|e| HandlerError::permanent(anyhow::anyhow!("Failed to serialize notification: {}", e)))?;
-
-    if serialized.len() >= mq_max_payload() {
-        log::warn!(
-            "[Notifications] MQ payload limit exceeded. payload size: [{}], event_name: [{}]",
-            serialized.len(),
-            message.event_name,
-        );
-        return Err(HandlerError::permanent(anyhow::anyhow!(
-            "Notification payload size ({} bytes) exceeds MQ limit",
-            serialized.len()
-        )));
-    }
+) -> anyhow::Result<()> {
+    let serialized = serde_json::to_vec(&message)?;
 
     queue
         .publish(
@@ -98,8 +85,7 @@ pub async fn push_to_notification_queue(
             NOTIFICATIONS_ROUTING_KEY,
             None,
         )
-        .await
-        .map_err(|e| HandlerError::transient(e))?;
+        .await?;
 
     log::debug!(
         "Pushed notification message to queue: project_id={}, trace_id={}, event_name={}",
