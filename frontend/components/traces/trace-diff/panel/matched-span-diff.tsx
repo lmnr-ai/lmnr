@@ -10,38 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { deepParseJson } from "@/lib/actions/common/utils";
 import { type Span } from "@/lib/traces/types";
 import { getDurationString, swrFetcher } from "@/lib/utils";
 
 import DiffTextView from "./diff-text-view";
-
-/**
- * Recursively expand JSON strings nested within a value.
- */
-const deepParseJson = (value: unknown): unknown => {
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      if (typeof parsed === "object" && parsed !== null) {
-        return deepParseJson(parsed);
-      }
-      return parsed;
-    } catch {
-      return value;
-    }
-  }
-  if (Array.isArray(value)) {
-    return value.map(deepParseJson);
-  }
-  if (typeof value === "object" && value !== null) {
-    const result: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) {
-      result[k] = deepParseJson(v);
-    }
-    return result;
-  }
-  return value;
-};
 
 const prettyPrint = (value: unknown): string => {
   if (value === null || value === undefined) return "";
