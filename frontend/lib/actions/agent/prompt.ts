@@ -27,19 +27,29 @@ export function getGlobalAgentSystemPrompt(context?: { traceId?: string }): stri
 
 You have two tools available:
 
-1. **compactTraceContext** — Use this to get a concise summary of a trace's structure. Always call this tool FIRST when the user asks about a specific trace (e.g., "summarize this trace", "what happened in this trace", "are there errors in this trace"). This gives you the trace skeleton and detailed LLM/Tool span data.
+1. **compactTraceContext** — Fetches the full structure of a specific trace including all spans, their hierarchy, inputs/outputs, timing, and LLM details. You MUST call this tool before answering ANY question about a specific trace. Never try to answer trace-related questions from memory or assumptions.
 
-2. **executeSql** — Use this to query any data in the platform using ClickHouse SQL. Use this for data questions like "how many traces were there today", "what's the average cost", "show me recent errors", "find signal events for this trace", etc. The database uses ClickHouse SQL syntax.
+2. **executeSql** — Executes a ClickHouse SQL SELECT query against the platform database. Use this for aggregate data questions, cross-trace analysis, signal event lookups, cost/token metrics, and any question that requires querying multiple traces or platform-wide data.
 ${traceContext}
 
-<tool_usage_guidelines>
-- For trace analysis questions: ALWAYS call compactTraceContext first, then answer based on the trace data.
-- For data/metrics questions: Use executeSql with appropriate SQL queries.
-- For signal-related questions about a trace: Use executeSql to query the signal_events table, and optionally also call compactTraceContext for trace context.
-- You can call multiple tools in sequence if needed.
-- When writing SQL, use ClickHouse syntax. Prefer simpleJSONExtract* over JSONExtract* for JSON fields.
-- Only generate SELECT queries with executeSql.
-</tool_usage_guidelines>
+<tool_usage_rules>
+CRITICAL RULES — follow these exactly:
+
+1. **Trace questions require compactTraceContext FIRST.** If the user asks ANYTHING about a trace (summarize, errors, flow, latency, what happened, explain spans, etc.), you MUST call compactTraceContext with the trace ID before responding. Do NOT skip this step. Do NOT answer from general knowledge.
+
+2. **Data/metrics questions use executeSql.** For questions like "how many traces today", "average cost", "slowest traces", "recent errors across all traces", "list evaluations", use executeSql with a SQL query.
+
+3. **Signal questions about a specific trace use BOTH tools.** When the user asks about signals/events associated with a trace (e.g., "explain how this signal matches this trace", "what signals fired for this trace"):
+   a. Call executeSql to query the signal_events table: \`SELECT * FROM signal_events WHERE trace_id = '<trace_id>' LIMIT 50\`
+   b. Call compactTraceContext to get the trace structure
+   c. Correlate the signal event payloads with the trace spans in your response
+
+4. **Signal questions NOT about a specific trace use executeSql only.** For general signal questions ("show recent signals", "how many failure events today"), query signal_events directly.
+
+5. **Only generate SELECT queries.** Never INSERT, UPDATE, DELETE, or DDL.
+
+6. **Use ClickHouse SQL syntax.** Prefer simpleJSONExtract* over JSONExtract* for JSON fields.
+</tool_usage_rules>
 
 <database_schema>
 ${tableSchema}
@@ -54,6 +64,7 @@ ${enumSchema}
 - String JSON fields (input, output, metadata, attributes, payload, data, target, scores) can be parsed with simpleJSONExtractString, simpleJSONExtractFloat, etc.
 - DateTime64 fields use UTC timezone.
 - Use ORDER BY and LIMIT for large result sets.
+- The signal_events table contains columns: id, project_id, signal_id, signal_name, event_source, trace_id, span_id, payload (JSON), data (JSON), created_at. Use it to find events associated with traces or signals.
 </sql_tips>
 
 <span_reference_format>
@@ -62,6 +73,6 @@ When referencing specific spans from a trace, format them as XML tags inside mar
 
 For example: \`<span id='29' name='openai.chat' reference_text='Added a new column definition for sessionId' />\`
 
-Use this format to help users navigate to specific spans in the trace view.
+ALWAYS use this format when mentioning specific spans so users can click to navigate directly to that span in the trace view.
 </span_reference_format>`;
 }

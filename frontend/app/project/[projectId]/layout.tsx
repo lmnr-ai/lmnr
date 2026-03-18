@@ -16,6 +16,7 @@ import { UserContextProvider } from "@/contexts/user-context";
 import { getProjectDetails } from "@/lib/actions/project";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
+import { isAiProviderConfigured } from "@/lib/ai/model";
 import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
@@ -45,6 +46,8 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
     posthog.identify({ distinctId: user.email ?? "" });
   }
 
+  const aiEnabled = isAiProviderConfigured();
+
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get(projectSidebarCookieName)
     ? cookieStore.get(projectSidebarCookieName)?.value === "true"
@@ -59,11 +62,18 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
             <SidebarProvider cookieName={projectSidebarCookieName} className="bg-sidebar" defaultOpen={defaultOpen}>
               <ProjectSidebar details={projectDetails} />
               <SidebarInset className="flex flex-col h-[calc(100%-8px)]! border-l border-t flex-1 md:rounded-tl-lg overflow-hidden">
-                <SideBySideWrapper>
-                  {showBanner && <ProjectUsageBanner details={projectDetails} />}
-                  {children}
-                </SideBySideWrapper>
-                <LaminarAgent />
+                {aiEnabled ? (
+                  <SideBySideWrapper>
+                    {showBanner && <ProjectUsageBanner details={projectDetails} />}
+                    {children}
+                  </SideBySideWrapper>
+                ) : (
+                  <>
+                    {showBanner && <ProjectUsageBanner details={projectDetails} />}
+                    {children}
+                  </>
+                )}
+                {aiEnabled && <LaminarAgent />}
               </SidebarInset>
             </SidebarProvider>
           </div>
