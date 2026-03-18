@@ -121,6 +121,7 @@ const SpanNodeRenderer = memo(
               <div className="flex items-start gap-0.5 px-1 pt-0.5 text-[10px] leading-tight overflow-hidden">
                 {IconComponent && <IconComponent className="size-3 flex-none mt-px" />}
                 <span className={cn("break-words", !summary && "shimmer")}>{summary?.summary ?? node.span.name}</span>
+                <span className="flex-none text-secondary-foreground/70 ml-auto">{node.subtreeSpanCount}</span>
               </div>
             )}
           </div>
