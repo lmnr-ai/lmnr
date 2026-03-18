@@ -286,9 +286,21 @@ export const createUltimateTraceViewStore = (initialTraceId: string, initialTrac
     },
 
     closePanel: (key) => {
-      set((state) => ({
-        panels: state.panels.filter((p) => p.key !== key),
-      }));
+      const panel = get().panels.find((p) => p.key === key);
+      set((state) => {
+        const nextPanels = state.panels.filter((p) => p.key !== key);
+        // Clear opacity filter when closing a span-list panel
+        if (panel?.type === "span-list") {
+          return {
+            panels: nextPanels,
+            traces: updateTraceState(state.traces, panel.traceId, {
+              selectedSpanIds: new Set(),
+              visibleSpanIds: new Set(),
+            }),
+          };
+        }
+        return { panels: nextPanels };
+      });
     },
 
     closePanelsByType: (type) => {
