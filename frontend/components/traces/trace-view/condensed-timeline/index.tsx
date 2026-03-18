@@ -216,7 +216,7 @@ function CondensedTimeline() {
                 .map((condensedSpan) => (
                   <div
                     key={`marker-${condensedSpan.span.spanId}`}
-                    className="absolute z-10 cursor-pointer group/marker"
+                    className="absolute z-[1] cursor-pointer group/marker"
                     style={{
                       left: `${condensedSpan.left + condensedSpan.width / 2}%`,
                       top: Math.max(0, condensedSpan.row * ROW_HEIGHT - 5),

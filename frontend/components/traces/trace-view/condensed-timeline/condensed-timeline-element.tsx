@@ -48,8 +48,8 @@ const CondensedTimelineElement = ({
 
   return (
     <div
-      className={cn("absolute rounded-xs cursor-pointer", "hover:brightness-110", opacity, {
-        "border border-white/70 z-20": isSelected,
+      className={cn("absolute rounded-xs cursor-pointer z-[2]", "hover:brightness-110", opacity, {
+        "border border-white/70 !z-20": isSelected,
         "opacity-35 hover:opacity-60": isDimmedBySignalLens,
       })}
       data-timeline-span-id={span.spanId}
