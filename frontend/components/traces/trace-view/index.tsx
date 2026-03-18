@@ -372,15 +372,16 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   // Signal lens: fetch signal event data when signalEventId is in URL
   const signalEventIdParam = searchParams.get("signalEventId");
-  const signalLensInitialized = useRef(false);
+  const lastInitializedSignalEventId = useRef<string | null>(null);
 
   // Wait until spans have actually loaded (spans.length > 0 and not loading)
   // before initializing signal lens, so the banner can match span IDs correctly.
   const spansReady = spans.length > 0 && !isSpansLoading;
 
   useEffect(() => {
-    if (!signalEventIdParam || !projectId || !spansReady || signalLensInitialized.current) return;
-    signalLensInitialized.current = true;
+    if (!signalEventIdParam || !projectId || !spansReady || lastInitializedSignalEventId.current === signalEventIdParam)
+      return;
+    lastInitializedSignalEventId.current = signalEventIdParam;
 
     const fetchSignalEvent = async () => {
       try {
@@ -409,6 +410,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   // Signal lens dismiss handler — uses router.replace to keep searchParams in sync
   const handleSignalLensDismiss = useCallback(() => {
+    lastInitializedSignalEventId.current = null;
     const params = new URLSearchParams(searchParams);
     params.delete("signalEventId");
     router.replace(`${pathName}?${params.toString()}`);
