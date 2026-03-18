@@ -8,6 +8,7 @@ import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet"
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type Filter } from "@/lib/actions/common/filters.ts";
+import { type Trigger } from "@/lib/actions/signal-triggers";
 import { type Signal } from "@/lib/actions/signals";
 import { type EventRow } from "@/lib/events/types";
 
@@ -24,7 +25,6 @@ export type SignalState = {
   selectedEvent: EventRow | null;
   runsFilters: Filter[];
   jobsFilters: Filter[];
-  triggersFilters: Filter[];
   initialTraceViewWidth?: number;
   lastEvent?: {
     id: string;
@@ -56,14 +56,13 @@ export type SignalActions = {
   setSignal: (eventDefinition?: SignalState["signal"]) => void;
   setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
   setJobsFilters: Dispatch<SetStateAction<Filter[]>>;
-  setTriggersFilters: Dispatch<SetStateAction<Filter[]>>;
   // Cluster actions
   fetchClusters: () => Promise<void>;
   fetchClusterStats: (params: FetchClusterStatsParams) => Promise<void>;
 };
 
 export interface EventsProps {
-  signal: Signal;
+  signal: Signal & { triggers?: Trigger[] };
   traceId?: string | null;
   spanId?: string | null;
   lastEvent?: {
@@ -179,7 +178,6 @@ export const createSignalStore = (initProps: EventsProps) =>
     selectedEvent: null,
     runsFilters: [],
     jobsFilters: [],
-    triggersFilters: [],
     lastEvent: initProps.lastEvent,
     initialTraceViewWidth: initProps.initialTraceViewWidth,
     // Cluster state
@@ -194,6 +192,7 @@ export const createSignalStore = (initProps: EventsProps) =>
       ...initProps.signal,
       prompt: initProps.signal.prompt,
       schemaFields: jsonSchemaToSchemaFields(initProps.signal.structuredOutput as Record<string, unknown>),
+      triggers: (initProps.signal.triggers ?? []).map((t) => ({ id: t.id, filters: t.filters })),
     },
     setSignal: (signal) => set({ signal }),
     setTraceId: (traceId) => set({ traceId }),
@@ -206,10 +205,6 @@ export const createSignalStore = (initProps: EventsProps) =>
     setJobsFilters: (filters) =>
       set((state) => ({
         jobsFilters: typeof filters === "function" ? filters(state.jobsFilters) : filters,
-      })),
-    setTriggersFilters: (filters) =>
-      set((state) => ({
-        triggersFilters: typeof filters === "function" ? filters(state.triggersFilters) : filters,
       })),
     fetchEvents: async (params: URLSearchParams) => {
       const { signal } = get();

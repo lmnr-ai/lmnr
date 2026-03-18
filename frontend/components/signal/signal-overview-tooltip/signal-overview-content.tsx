@@ -25,13 +25,6 @@ export default function SignalOverviewContent({
         <span className="text-xs text-muted-foreground">Input</span>
         <div className="flex flex-col gap-1">
           <TabButton
-            tab="triggers"
-            activeTab={activeTab}
-            onClick={() => onTabChange("triggers")}
-            title="Triggers"
-            description="Automatically run this signal"
-          />
-          <TabButton
             tab="jobs"
             activeTab={activeTab}
             onClick={() => onTabChange("jobs")}

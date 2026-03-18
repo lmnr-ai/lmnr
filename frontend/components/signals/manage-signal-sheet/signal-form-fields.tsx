@@ -14,6 +14,7 @@ import { tryParseJson } from "@/lib/utils";
 
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
+import TriggersSection from "./triggers-section";
 import { type ManageSignalForm } from "./types";
 
 export default function SignalFormFields({ showTemplates }: { showTemplates: boolean }) {
@@ -103,6 +104,8 @@ export default function SignalFormFields({ showTemplates }: { showTemplates: boo
       </div>
 
       <SchemaFieldsBuilder />
+
+      <TriggersSection />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { Loader2, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useMemo, useState } from "react";
 import { FormProvider, useForm, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -43,11 +43,13 @@ function DrawerContent({
   onSuccess,
   showTest,
   setShowTest,
+  previousTriggerIds,
 }: {
   setOpen: (open: boolean) => void;
   onSuccess?: (signal: ManageSignalForm) => Promise<void>;
   showTest: boolean;
   setShowTest: (show: boolean) => void;
+  previousTriggerIds: string[];
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTrace, setSelectedTrace] = useState<TraceRow | null>(null);
@@ -71,6 +73,7 @@ function DrawerContent({
     reset,
     onSuccess,
     setIsLoading,
+    previousTriggerIds,
   });
 
   const handleTestComplete = useCallback(() => {
@@ -146,6 +149,11 @@ export default function ManageSignalSheet({
   const { projectId } = useParams();
   const [showTest, setShowTest] = useState(false);
 
+  const previousTriggerIds = useMemo(
+    () => (initialValues?.triggers ?? []).filter((t) => t.id).map((t) => t.id!),
+    [initialValues]
+  );
+
   const convertToFormValues = useCallback(
     (values: ManageSignalForm | undefined): ManageSignalForm => {
       if (!values) return getDefaultValues(String(projectId));
@@ -183,7 +191,13 @@ export default function ManageSignalSheet({
             showTest ? "w-[72vw]" : "w-[45vw]"
           )}
         >
-          <DrawerContent setOpen={setOpen} onSuccess={onSuccess} showTest={showTest} setShowTest={setShowTest} />
+          <DrawerContent
+            setOpen={setOpen}
+            onSuccess={onSuccess}
+            showTest={showTest}
+            setShowTest={setShowTest}
+            previousTriggerIds={previousTriggerIds}
+          />
         </SheetContent>
       </Sheet>
     </FormProvider>
