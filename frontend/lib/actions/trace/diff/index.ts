@@ -35,7 +35,7 @@ export const generateSpanMapping = async (
     { name: "generateSpanMapping" },
     async () =>
       await generateObject({
-        model: google("gemini-3-flash-preview"),
+        model: google("gemini-3.1-flash-lite-preview"),
         schema: SpanMatchSchema,
         system: SPAN_MATCHING_SYSTEM_PROMPT,
         prompt: `Here is Trace A (left):
