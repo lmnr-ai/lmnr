@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { ArrowUp, Columns2, Loader2, MessageCircleQuestion, PanelRight, RotateCcw, X } from "lucide-react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { shallow } from "zustand/shallow";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
@@ -37,12 +38,17 @@ function extractTraceIdFromPath(pathname: string): string | undefined {
 }
 
 export default function AgentPanel({ currentMode }: AgentPanelProps) {
-  const setViewMode = useLaminarAgentStore((s) => s.setViewMode);
-  const collapse = useLaminarAgentStore((s) => s.collapse);
-  const prefillInput = useLaminarAgentStore((s) => s.prefillInput);
-  const clearPrefill = useLaminarAgentStore((s) => s.clearPrefill);
-  const traceIdContext = useLaminarAgentStore((s) => s.traceIdContext);
-  const setTraceIdContext = useLaminarAgentStore((s) => s.setTraceIdContext);
+  const { setViewMode, collapse, prefillInput, clearPrefill, traceIdContext, setTraceIdContext } = useLaminarAgentStore(
+    (s) => ({
+      setViewMode: s.setViewMode,
+      collapse: s.collapse,
+      prefillInput: s.prefillInput,
+      clearPrefill: s.clearPrefill,
+      traceIdContext: s.traceIdContext,
+      setTraceIdContext: s.setTraceIdContext,
+    }),
+    shallow
+  );
 
   const projectId = useParams().projectId as string;
   const pathname = usePathname();
