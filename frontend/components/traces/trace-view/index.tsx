@@ -373,13 +373,30 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   // Signal lens: fetch signal event data when signalEventId is in URL
   const signalEventIdParam = searchParams.get("signalEventId");
   const lastInitializedSignalEventId = useRef<string | null>(null);
+  const signalLensDismissed = useRef(false);
 
   // Wait until spans have actually loaded (spans.length > 0 and not loading)
   // before initializing signal lens, so the banner can match span IDs correctly.
   const spansReady = spans.length > 0 && !isSpansLoading;
 
+  // Reset dismissed flag and last-initialized ref when the signalEventId param
+  // is removed from URL (i.e. router.replace has completed), allowing future
+  // navigations with the same event ID to re-initialize the lens.
   useEffect(() => {
-    if (!signalEventIdParam || !projectId || !spansReady || lastInitializedSignalEventId.current === signalEventIdParam)
+    if (!signalEventIdParam) {
+      signalLensDismissed.current = false;
+      lastInitializedSignalEventId.current = null;
+    }
+  }, [signalEventIdParam]);
+
+  useEffect(() => {
+    if (
+      !signalEventIdParam ||
+      !projectId ||
+      !spansReady ||
+      signalLensDismissed.current ||
+      lastInitializedSignalEventId.current === signalEventIdParam
+    )
       return;
     lastInitializedSignalEventId.current = signalEventIdParam;
 
@@ -409,9 +426,11 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     fetchSignalEvent();
   }, [signalEventIdParam, projectId, spansReady, setSignalLens]);
 
-  // Signal lens dismiss handler — uses router.replace to keep searchParams in sync
+  // Signal lens dismiss handler — uses router.replace to keep searchParams in sync.
+  // Sets dismissed flag to prevent the effect from re-triggering while router.replace
+  // asynchronously removes the URL param.
   const handleSignalLensDismiss = useCallback(() => {
-    lastInitializedSignalEventId.current = null;
+    signalLensDismissed.current = true;
     const params = new URLSearchParams(searchParams);
     params.delete("signalEventId");
     router.replace(`${pathName}?${params.toString()}`);
