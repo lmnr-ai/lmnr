@@ -1,13 +1,13 @@
 import { isEmpty } from "lodash";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 
-import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import {
   formatTimeMarkerLabel,
   useDynamicTimeIntervals,
 } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
 import { useHoverNeedle } from "@/components/traces/trace-view/condensed-timeline/use-hover-needle";
 import { useWheelZoom } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -29,9 +29,7 @@ function Timeline({ traceId }: TimelineProps) {
 
   const zoom = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.zoom ?? 1);
   const isSpansLoading = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.isSpansLoading ?? false);
-  const visibleSpanIds = useUltimateTraceViewStore(
-    (state) => state.traces.get(traceId)?.visibleSpanIds ?? emptySet
-  );
+  const visibleSpanIds = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.visibleSpanIds ?? emptySet);
   const spans = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.spans);
   const getCondensedTimelineData = useUltimateTraceViewStore((state) => state.getCondensedTimelineData);
   const selectSpan = useUltimateTraceViewStore((state) => state.selectSpan);
@@ -41,10 +39,11 @@ function Timeline({ traceId }: TimelineProps) {
   const clearSelectedSpanIds = useUltimateTraceViewStore((state) => state.clearSelectedSpanIds);
   const setZoom = useUltimateTraceViewStore((state) => state.setZoom);
 
-  const { spans: condensedSpans, totalDurationMs, totalRows } = useMemo(
-    () => getCondensedTimelineData(traceId),
-    [getCondensedTimelineData, traceId, spans]
-  );
+  const {
+    spans: condensedSpans,
+    totalDurationMs,
+    totalRows,
+  } = useMemo(() => getCondensedTimelineData(traceId), [getCondensedTimelineData, traceId, spans]);
 
   const { markers: timeMarkers, setContainerRef } = useDynamicTimeIntervals({
     totalDurationMs,
@@ -124,11 +123,15 @@ function Timeline({ traceId }: TimelineProps) {
         <div
           className={cn(
             "sticky top-0 z-30 h-6 text-xs pointer-events-none select-none",
-            isScrolled && "bg-gradient-to-b from-[hsla(240,4%,9%,90%)] via-[hsla(240,4%,9%,80%)] to-transparent"
+            isScrolled && "bg-gradient-to-b from-background/90 via-background/80 to-transparent"
           )}
         >
           {timeMarkers.map((marker, index) => (
-            <div key={index} className="absolute flex items-center h-full" style={{ left: `${marker.positionPercent}%` }}>
+            <div
+              key={index}
+              className="absolute flex items-center h-full"
+              style={{ left: `${marker.positionPercent}%` }}
+            >
               <div className="text-secondary-foreground truncate text-[10px] whitespace-nowrap pl-1">
                 {marker.label}
               </div>
@@ -140,11 +143,8 @@ function Timeline({ traceId }: TimelineProps) {
         <div ref={timelineContentRef} className="relative h-full" style={{ minHeight: contentHeight }}>
           {condensedSpans.map((condensedSpan) => {
             const hasGroupSelection = visibleSpanIds.size > 0;
-            const isIncludedInGroupSelection = hasGroupSelection
-              ? visibleSpanIds.has(condensedSpan.span.spanId)
-              : null;
-            const isSelected =
-              selectedTraceId === traceId && selectedSpanId === condensedSpan.span.spanId;
+            const isIncludedInGroupSelection = hasGroupSelection ? visibleSpanIds.has(condensedSpan.span.spanId) : null;
+            const isSelected = selectedTraceId === traceId && selectedSpanId === condensedSpan.span.spanId;
 
             return (
               <TimelineElement
@@ -168,7 +168,7 @@ function Timeline({ traceId }: TimelineProps) {
   };
 
   return (
-    <div className="flex flex-col w-full overflow-hidden relative" style={{ minHeight: 120 }}>
+    <div className="flex flex-col w-full overflow-hidden relative flex-1 min-h-0">
       <div
         ref={combinedScrollRef}
         className="flex-1 overflow-auto relative min-h-0 bg-muted/50 h-full minimal-scrollbar"
