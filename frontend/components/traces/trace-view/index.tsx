@@ -423,18 +423,24 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setActiveChipSpanId(spanId);
       selectSpanById(spanId);
 
-      // Scroll to span in tree/list and flash it
-      requestAnimationFrame(() => {
+      // Scroll to span in tree/list and flash it.
+      // The virtualizer may not have rendered the element yet (off-screen spans
+      // don't exist in the DOM), so retry until it appears after the virtualizer
+      // scrolls it into view.
+      let attempts = 0;
+      const maxAttempts = 10;
+      const tryFlash = () => {
         const el = document.querySelector(`[data-span-id="${spanId}"]`);
         if (el) {
           el.scrollIntoView({ behavior: "smooth", block: "center" });
-
-          // Trigger flash-pulse animation
           el.classList.remove("signal-lens-flash");
-          void (el as HTMLElement).offsetWidth; // Force reflow
+          void (el as HTMLElement).offsetWidth;
           el.classList.add("signal-lens-flash");
+        } else if (++attempts < maxAttempts) {
+          requestAnimationFrame(tryFlash);
         }
-      });
+      };
+      requestAnimationFrame(tryFlash);
     },
     [setActiveChipSpanId, selectSpanById]
   );
