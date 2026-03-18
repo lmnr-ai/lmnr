@@ -59,14 +59,24 @@ async function syncTriggers(
     throw new Error("Failed to sync one or more triggers");
   }
 
-  const created: TriggerFormItem[] = await Promise.all(
+  // Parse created trigger responses to get server-assigned IDs
+  const createdTriggers: TriggerFormItem[] = await Promise.all(
     createResponses.map(async (r) => {
       const body = (await r.json()) as { id: string; filters: TriggerFormItem["filters"] };
       return { id: body.id, filters: body.filters };
     })
   );
 
-  return [...created, ...toUpdate];
+  // Rebuild the list in original order, replacing new triggers with their server-assigned versions
+  let createIndex = 0;
+  return triggers
+    .filter((t) => t.filters.length > 0)
+    .map((t) => {
+      if (!t.id) {
+        return createdTriggers[createIndex++];
+      }
+      return t;
+    });
 }
 
 export default function useSubmitHandler({
