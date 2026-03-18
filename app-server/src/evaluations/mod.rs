@@ -145,8 +145,7 @@ pub async fn insert_evaluation_datapoints(
                    fromUnixTimestamp64Nano(toInt64(?), 'UTC') as dataset_datapoint_created_at, \
                    ? as group_id, ? as scores";
 
-    let union_parts: Vec<&str> = evaluation_datapoints.iter().map(|_| row_sql).collect();
-    let union_sql = union_parts.join(" UNION ALL ");
+    let union_sql = vec![row_sql; evaluation_datapoints.len()].join(" UNION ALL ");
 
     let query = format!(
         "INSERT INTO evaluation_datapoints (
@@ -263,8 +262,8 @@ pub async fn update_evaluation_datapoint(
         .fetch_optional::<TraceIdRow>()
         .await?;
 
-    let existing_row = existing_row
-        .ok_or_else(|| anyhow::anyhow!("Evaluation datapoint not found"))?;
+    let existing_row =
+        existing_row.ok_or_else(|| anyhow::anyhow!("Evaluation datapoint not found"))?;
 
     if is_shared_evaluation(pool, project_id, evaluation_id).await? {
         match trace_id {
@@ -292,8 +291,7 @@ pub async fn update_evaluation_datapoint(
     // The existing row MUST exist (verified above). We SELECT from it and override
     // only the columns being updated. ClickHouse empty() detects falsey new values
     // (empty string, nil UUID) so the existing value is preserved.
-    let query =
-        "INSERT INTO evaluation_datapoints (
+    let query = "INSERT INTO evaluation_datapoints (
             id, evaluation_id, project_id, trace_id, updated_at,
             data, target, metadata, executor_output, `index`,
             dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
@@ -320,7 +318,22 @@ pub async fn update_evaluation_datapoint(
                     jsonMergePatch(existing.scores, ?),
                     ?))
         FROM (
-            SELECT * FROM evaluation_datapoints FINAL
+            SELECT
+                id,
+                evaluation_id,
+                project_id,
+                trace_id,
+                data,
+                target,
+                metadata,
+                executor_output,
+                `index`,
+                scores,
+                dataset_id,
+                dataset_datapoint_id,
+                dataset_datapoint_created_at,
+                group_id
+            FROM evaluation_datapoints FINAL
             WHERE project_id = ? AND evaluation_id = ? AND id = ?
         ) AS existing";
 
@@ -340,12 +353,7 @@ pub async fn update_evaluation_datapoint(
         .bind(datapoint_id)
         .execute()
         .await
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Clickhouse evaluation datapoint update INSERT...SELECT failed: {:?}",
-                e
-            )
-        })?;
+        .map_err(|e| anyhow::anyhow!("Clickhouse evaluation datapoint update failed: {:?}", e))?;
 
     Ok(())
 }
