@@ -1,14 +1,26 @@
 "use client";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 interface DepthSliderBarProps {
   granularityDepth: number;
   maxDepth: number;
   onDepthChange: (depth: number) => void;
+  isLoading?: boolean;
 }
 
-export default function DepthSliderBar({ granularityDepth, maxDepth, onDepthChange }: DepthSliderBarProps) {
+export default function DepthSliderBar({ granularityDepth, maxDepth, onDepthChange, isLoading }: DepthSliderBarProps) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-4">
+        <span className="text-[11px] text-secondary-foreground select-none">Overview</span>
+        <Skeleton className="h-5 w-24 rounded-md" />
+        <span className="text-[11px] text-secondary-foreground select-none">Detail</span>
+      </div>
+    );
+  }
+
   if (maxDepth === 0) return null;
 
   return (
