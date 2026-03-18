@@ -1,0 +1,50 @@
+import React, { memo, useMemo } from "react";
+
+import { type TraceViewSpan } from "@/components/traces/trace-view/store";
+import { type CondensedTimelineSpan } from "@/components/traces/trace-view/store/utils";
+import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
+import { cn } from "@/lib/utils";
+
+const ROW_HEIGHT = 8;
+
+interface TimelineElementProps {
+  condensedSpan: CondensedTimelineSpan;
+  isSelected: boolean;
+  isIncludedInGroupSelection: boolean | null;
+  onClick: (span: TraceViewSpan) => void;
+}
+
+function TimelineElement({ condensedSpan, isSelected, isIncludedInGroupSelection, onClick }: TimelineElementProps) {
+  const { span, left, width, row } = condensedSpan;
+  const opacity = isIncludedInGroupSelection === false ? "opacity-30" : "";
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!span.pending) onClick(span);
+  };
+
+  const backgroundColor = useMemo(() => {
+    if (span.status === "error") return "rgba(204, 51, 51, 1)";
+    return SPAN_TYPE_TO_COLOR[span.spanType];
+  }, [span.status, span.spanType]);
+
+  return (
+    <div
+      className={cn("absolute rounded-xs cursor-pointer", "hover:brightness-110", opacity, {
+        "border border-white/70 z-20": isSelected,
+      })}
+      style={{
+        left: `${left}%`,
+        width: `max(${width}%, 4px)`,
+        top: row * ROW_HEIGHT + 1,
+        height: ROW_HEIGHT - 2,
+        backgroundColor,
+      }}
+      onClick={handleClick}
+    />
+  );
+}
+
+export default memo(TimelineElement);
+
+export { ROW_HEIGHT };
