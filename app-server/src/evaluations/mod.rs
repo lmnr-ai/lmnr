@@ -69,12 +69,6 @@ fn is_falsey_value(v: &Value) -> bool {
     }
 }
 
-/// Convert a serde_json Value to a ClickHouse-safe string for binding.
-/// Uses `json_value_to_string` which unwraps top-level strings (no extra quotes).
-fn value_to_ch_string(v: &Value) -> String {
-    json_value_to_string(v)
-}
-
 /// Convert a scores HashMap to a JSON string for ClickHouse.
 /// Filters out null-valued scores so that jsonMergePatch (RFC 7396) does not
 /// interpret them as deletions. Only scores with actual float values are included.
@@ -122,13 +116,13 @@ pub async fn insert_evaluation_datapoints(
     }
 
     for dp in &evaluation_datapoints {
-        let new_data = value_to_ch_string(&dp.data);
-        let new_target = value_to_ch_string(&dp.target);
+        let new_data = json_value_to_string(&dp.data);
+        let new_target = json_value_to_string(&dp.target);
         let new_metadata = metadata_to_json_string(&dp.metadata);
         let new_executor_output = dp
             .executor_output
             .as_ref()
-            .map(|v| value_to_ch_string(v))
+            .map(|v| json_value_to_string(v))
             .unwrap_or_default();
         let new_scores = scores_to_json_string(&dp.scores);
 
@@ -347,7 +341,7 @@ pub async fn update_evaluation_datapoint(
 
     let new_executor_output = executor_output
         .as_ref()
-        .map(|v| value_to_ch_string(v))
+        .map(|v| json_value_to_string(v))
         .unwrap_or_default();
     let new_scores = scores_to_json_string(&scores);
 
