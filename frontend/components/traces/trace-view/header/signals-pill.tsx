@@ -36,8 +36,13 @@ export default function SignalsPill({ traceId }: SignalsPillProps) {
   const [events, setEvents] = useState<SignalEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { setViewMode, setPrefillInput, viewMode } = useLaminarAgentStore(
-    (s) => ({ setViewMode: s.setViewMode, setPrefillInput: s.setPrefillInput, viewMode: s.viewMode }),
+  const { setViewMode, setPrefillInput, viewMode, aiEnabled } = useLaminarAgentStore(
+    (s) => ({
+      setViewMode: s.setViewMode,
+      setPrefillInput: s.setPrefillInput,
+      viewMode: s.viewMode,
+      aiEnabled: s.aiEnabled,
+    }),
     shallow
   );
 
@@ -131,10 +136,12 @@ export default function SignalsPill({ traceId }: SignalsPillProps) {
           <DropdownMenuSub key={event.id}>
             <DropdownMenuSubTrigger className="text-xs">{event.name || event.id}</DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={() => handleExplainSignal(event)} className="text-xs">
-                <Sparkles className="size-3.5" />
-                Explain signal with Laminar Agent
-              </DropdownMenuItem>
+              {aiEnabled && (
+                <DropdownMenuItem onClick={() => handleExplainSignal(event)} className="text-xs">
+                  <Sparkles className="size-3.5" />
+                  Explain signal with Laminar Agent
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => handleOpenInSignals(event)} className="text-xs">
                 <ExternalLink className="size-3.5" />
                 Open in Signals

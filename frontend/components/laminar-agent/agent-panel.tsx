@@ -38,7 +38,16 @@ function extractTraceIdFromPath(pathname: string): string | undefined {
 }
 
 export default function AgentPanel({ currentMode }: AgentPanelProps) {
-  const { setViewMode, collapse, prefillInput, clearPrefill, traceIdContext, setTraceIdContext } = useLaminarAgentStore(
+  const {
+    setViewMode,
+    collapse,
+    prefillInput,
+    clearPrefill,
+    traceIdContext,
+    setTraceIdContext,
+    storedMessages,
+    setChatMessages,
+  } = useLaminarAgentStore(
     (s) => ({
       setViewMode: s.setViewMode,
       collapse: s.collapse,
@@ -46,6 +55,8 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
       clearPrefill: s.clearPrefill,
       traceIdContext: s.traceIdContext,
       setTraceIdContext: s.setTraceIdContext,
+      storedMessages: s.chatMessages,
+      setChatMessages: s.setChatMessages,
     }),
     shallow
   );
@@ -218,7 +229,16 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
 
   const { messages, sendMessage, setMessages, status } = useChat({
     transport,
+    messages: storedMessages.length > 0 ? storedMessages : undefined,
   });
+
+  // Sync messages back to the store so they survive remounts (mode switches)
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  useEffect(() => () => {
+      // On unmount, persist current messages to the store
+      setChatMessages(messagesRef.current);
+    }, [setChatMessages]);
 
   const handleSend = useCallback(() => {
     if (input.trim()) {

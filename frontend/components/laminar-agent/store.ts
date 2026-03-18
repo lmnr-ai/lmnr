@@ -15,6 +15,8 @@ interface LaminarAgentState {
   traceIdContext: string | null;
   /** DOM element provided by SideBySideWrapper for portal rendering */
   sideBySideContainer: HTMLElement | null;
+  /** Whether an AI provider is configured (set from server layout) */
+  aiEnabled: boolean;
 }
 
 interface LaminarAgentActions {
@@ -27,6 +29,7 @@ interface LaminarAgentActions {
   setIsNewChatLoading: (loading: boolean) => void;
   setTraceIdContext: (traceId: string | null) => void;
   setSideBySideContainer: (el: HTMLElement | null) => void;
+  setAiEnabled: (enabled: boolean) => void;
 }
 
 export type LaminarAgentStore = LaminarAgentState & LaminarAgentActions;
@@ -39,6 +42,7 @@ export const useLaminarAgentStore = create<LaminarAgentStore>()((set) => ({
   isNewChatLoading: false,
   traceIdContext: null,
   sideBySideContainer: null,
+  aiEnabled: false,
 
   setViewMode: (viewMode) => set({ viewMode }),
   collapse: () => set({ viewMode: "collapsed" }),
@@ -49,4 +53,5 @@ export const useLaminarAgentStore = create<LaminarAgentStore>()((set) => ({
   setIsNewChatLoading: (isNewChatLoading) => set({ isNewChatLoading }),
   setTraceIdContext: (traceIdContext) => set({ traceIdContext }),
   setSideBySideContainer: (sideBySideContainer) => set({ sideBySideContainer }),
+  setAiEnabled: (aiEnabled) => set({ aiEnabled }),
 }));

@@ -2,21 +2,27 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { shallow } from "zustand/shallow";
 
 import AgentPanel from "./agent-panel";
 import CollapsedButton from "./collapsed-button";
 import { useLaminarAgentStore } from "./store";
 
 export default function LaminarAgent() {
-  const viewMode = useLaminarAgentStore((s) => s.viewMode);
-  const setViewMode = useLaminarAgentStore((s) => s.setViewMode);
-  const collapse = useLaminarAgentStore((s) => s.collapse);
-  const sideBySideContainer = useLaminarAgentStore((s) => s.sideBySideContainer);
+  const { viewMode, setViewMode, collapse, sideBySideContainer } = useLaminarAgentStore(
+    (s) => ({
+      viewMode: s.viewMode,
+      setViewMode: s.setViewMode,
+      collapse: s.collapse,
+      sideBySideContainer: s.sideBySideContainer,
+    }),
+    shallow
+  );
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd+Shift+L (Mac) or Ctrl+Shift+L (Windows/Linux) to toggle agent
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "l") {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "l") {
         e.preventDefault();
         if (viewMode === "collapsed") {
           setViewMode("floating");
@@ -33,7 +39,10 @@ export default function LaminarAgent() {
         const isInsideOverlay = activeEl?.closest(
           "[role='dialog'], [role='menu'], [data-radix-popper-content-wrapper]"
         );
-        if (!isInsideOverlay) {
+        // Don't collapse if user is typing in an input/textarea
+        const isTyping =
+          activeEl?.tagName === "TEXTAREA" || activeEl?.tagName === "INPUT" || activeEl?.closest("[contenteditable]");
+        if (!isInsideOverlay && !isTyping) {
           e.preventDefault();
           collapse();
         }
@@ -57,7 +66,7 @@ export default function LaminarAgent() {
 
       {/* Floating mode: render in fixed-position container */}
       {viewMode === "floating" && (
-        <div className="fixed right-6 bottom-6 z-[60] w-[400px] max-w-[calc(100vw-3rem)] h-[70vh] max-h-[calc(100vh-3rem)] rounded-lg border shadow-xl overflow-hidden bg-background">
+        <div className="fixed right-6 bottom-6 z-40 w-[400px] max-w-[calc(100vw-3rem)] h-[70vh] min-h-[300px] max-h-[calc(100vh-3rem)] rounded-lg border shadow-xl overflow-hidden bg-background">
           {agentPanel}
         </div>
       )}

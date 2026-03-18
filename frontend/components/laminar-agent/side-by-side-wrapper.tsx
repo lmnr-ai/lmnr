@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useRef } from "react";
+import { type PanelImperativeHandle } from "react-resizable-panels";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
@@ -14,6 +15,9 @@ export default function SideBySideWrapper({ children }: SideBySideWrapperProps) 
   const viewMode = useLaminarAgentStore((s) => s.viewMode);
   const setSideBySideContainer = useLaminarAgentStore((s) => s.setSideBySideContainer);
   const containerRef = useRef<HTMLDivElement>(null);
+  const agentPanelRef = useRef<PanelImperativeHandle>(null);
+
+  const isSideBySide = viewMode === "side-by-side";
 
   // Register/unregister the container element in the store
   const setRef = useCallback(
@@ -27,17 +31,32 @@ export default function SideBySideWrapper({ children }: SideBySideWrapperProps) 
   // Clear container on unmount
   useEffect(() => () => setSideBySideContainer(null), [setSideBySideContainer]);
 
-  if (viewMode !== "side-by-side") {
-    return <>{children}</>;
-  }
+  // Expand/collapse the agent panel based on viewMode
+  useEffect(() => {
+    const panel = agentPanelRef.current;
+    if (!panel) return;
+    if (isSideBySide) {
+      panel.resize(35);
+    } else {
+      panel.resize(0);
+    }
+  }, [isSideBySide]);
 
   return (
     <ResizablePanelGroup orientation="horizontal" className="h-full">
-      <ResizablePanel defaultSize={65} minSize={30}>
+      <ResizablePanel defaultSize={100} minSize={30}>
         <div className="h-full overflow-auto">{children}</div>
       </ResizablePanel>
-      <ResizableHandle withHandle />
-      <ResizablePanel defaultSize={35} minSize={20}>
+      {/* Always render handle + panel; hide handle when agent panel is collapsed */}
+      <ResizableHandle withHandle className={isSideBySide ? "" : "hidden"} />
+      <ResizablePanel
+        panelRef={agentPanelRef}
+        defaultSize={0}
+        minSize={0}
+        collapsible
+        collapsedSize={0}
+        className={isSideBySide ? "" : "hidden"}
+      >
         <div ref={setRef} className="h-full" />
       </ResizablePanel>
     </ResizablePanelGroup>

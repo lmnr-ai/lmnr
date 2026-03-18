@@ -7,6 +7,7 @@ import PostHogClient from "@/app/posthog";
 import PostHogIdentifier from "@/app/posthog-identifier";
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import LaminarAgent from "@/components/laminar-agent";
+import AiEnabledInitializer from "@/components/laminar-agent/ai-enabled-initializer";
 import SideBySideWrapper from "@/components/laminar-agent/side-by-side-wrapper";
 import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
@@ -73,6 +74,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                     {children}
                   </>
                 )}
+                <AiEnabledInitializer aiEnabled={aiEnabled} />
                 {aiEnabled && <LaminarAgent />}
               </SidebarInset>
             </SidebarProvider>
