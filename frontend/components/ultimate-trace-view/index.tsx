@@ -5,6 +5,7 @@ import { type PropsWithChildren, useCallback, useEffect, useRef, useState } from
 
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import Header from "@/components/ui/header";
+import { cn } from "@/lib/utils";
 
 import AddTraceButton from "./add-trace-button";
 import PanelContainer from "./panels/panel-container";
@@ -110,7 +111,7 @@ function TraceSection({ traceId }: { traceId: string }) {
   const removeTrace = useUltimateTraceViewStore((state) => state.removeTrace);
   const { generateBlockSummaries } = useBlockSummaries(traceId);
 
-  const isRemovable = traceOrder.length > 1;
+  const isRemovable = traceOrder.indexOf(traceId) > 0;
 
   // Trigger block summary generation once span tree is built
   useEffect(() => {
@@ -125,8 +126,10 @@ function TraceSection({ traceId }: { traceId: string }) {
 
   if (!exists) return null;
 
+  const isSecondary = traceOrder.indexOf(traceId) > 0;
+
   return (
-    <div className="flex flex-col w-full flex-1 min-h-0">
+    <div className={cn("flex flex-col w-full flex-1 min-h-0", isSecondary && "border-t")}>
       <TraceHeader traceId={traceId} onRemove={isRemovable ? handleRemove : undefined} />
       <Timeline traceId={traceId} />
     </div>
