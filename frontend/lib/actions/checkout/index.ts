@@ -224,13 +224,13 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   const newPrices = await s.prices.list({
     lookup_keys: [
       newTierConfig.lookupKey,
-      newTierConfig.overageBytesLookupKey,
+      newTierConfig.overageMegabytesLookupKey,
       newTierConfig.overageSignalRunsLookupKey,
     ],
   });
 
   const newFlatPrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.lookupKey);
-  const newBytesOveragePrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.overageBytesLookupKey);
+  const newBytesOveragePrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.overageMegabytesLookupKey);
   const newSignalRunsOveragePrice = newPrices.data.find(
     (p) => p.lookup_key === newTierConfig.overageSignalRunsLookupKey
   );

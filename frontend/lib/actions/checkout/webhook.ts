@@ -6,7 +6,8 @@ import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CAC
 import { db } from "@/lib/db/drizzle";
 import { users, userSubscriptionInfo, workspaceAddons, workspaces } from "@/lib/db/migrations/schema";
 
-import { DATAPLANE_ADDON_LOOKUP_KEY } from "./types";
+import { stripe } from "./stripe";
+import { DATAPLANE_ADDON_LOOKUP_KEY, TIER_CONFIG, USAGE_BASED_LOOKUP_KEY_TO_AGG_METER_NAME } from "./types";
 
 interface ManageWorkspaceSubscriptionEventArgs {
   stripeCustomerId: string;
@@ -56,7 +57,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
     .set({
       subscriptionId,
       tierId: sql`CASE
-      WHEN ${cancel ?? false} THEN 1 
+      WHEN ${cancel ?? false} THEN 1
       ELSE (
         SELECT id
         FROM subscription_tiers
@@ -67,7 +68,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
       // - the workspace is on the free tier
       // - the update is not a cancellation
       // - the webhook event contains actual tier change
-      ...(currentTier === "free" ? { resetTime: sql`now()` } : {}),
+      ...(currentTier === "free" ? { lastUsageCalculationTime: sql`now()` } : {}),
     })
     .where(eq(workspaces.id, workspaceId));
 
@@ -197,11 +198,83 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
   }
 };
 
-export const handleInvoiceFinalized = async (workspaceId: string, periodStart: number) => {
-  await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
-  await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
+export const handleInvoiceFinalized = async (invoice: Stripe.Invoice) => {
+  if (invoice.parent?.type !== "subscription_details") return;
+
+  const overageLookupKeys = new Set(Object.keys(USAGE_BASED_LOOKUP_KEY_TO_AGG_METER_NAME));
+  const matchingLines = invoice.lines.data.filter((line) => {
+    const priceObj = (line as any).price ?? line.pricing?.price_details?.price;
+    const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
+    return lookupKey && overageLookupKeys.has(lookupKey);
+  });
+
+  if (matchingLines.length === 0) return;
+
+  const workspaceId = invoice.metadata?.workspaceId ?? invoice.parent.subscription_details?.metadata?.workspaceId;
+  if (!workspaceId) {
+    console.log("invoice.finalized: no workspaceId in subscription metadata");
+    return;
+  }
+
+  const endTimes = matchingLines.map((line) => (line.period?.end ? line.period.end * 1000 : Date.now()));
+  endTimes.push(Date.now());
+  const minEndTime = Math.min(...endTimes);
+
+  await db
+    .update(workspaces)
+    .set({ lastUsageCalculationTime: new Date(minEndTime).toISOString() })
+    .where(eq(workspaces.id, workspaceId));
+
+  const s = stripe();
+  const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
+
+  if (!customerId) {
+    console.log("invoice.finalized: no customer id found");
+    return;
+  }
+
+  for (const line of matchingLines) {
+    const priceObj = (line as any).price ?? line.pricing?.price_details?.price;
+    const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
+    if (!lookupKey) continue;
+    const meterEventName = USAGE_BASED_LOOKUP_KEY_TO_AGG_METER_NAME[lookupKey];
+    if (!meterEventName) continue;
+
+    let includedAmount = 0;
+    let cacheKey = null;
+    let payloadKey = "megabytes";
+
+    for (const tier of Object.values(TIER_CONFIG)) {
+      if (tier.overageMegabytesLookupKey === lookupKey) {
+        includedAmount = tier.includedBytes / 1024 / 1024;
+        cacheKey = `${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`;
+        payloadKey = "megabytes";
+        break;
+      }
+      if (tier.overageSignalRunsLookupKey === lookupKey) {
+        includedAmount = tier.includedSignalRuns;
+        cacheKey = `${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`;
+        payloadKey = "signal_runs";
+        break;
+      }
+    }
+
+    const quantity = line.quantity ?? 0;
+    const negativeUsage = -(quantity + includedAmount);
+
+    await s.v2.billing.meterEvents.create({
+      event_name: meterEventName,
+      payload: {
+        stripe_customer_id: customerId,
+        [payloadKey]: String(negativeUsage),
+      },
+      identifier: `monthly-reset-${payloadKey}-${workspaceId}-${new Date().toISOString().split("T")[0]}`,
+    });
+
+    if (cacheKey) {
+      await cache.remove(cacheKey);
+    }
+  }
+
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
-  console.log(
-    `Billing cycle reset for workspace ${workspaceId}, new period start: ${new Date(periodStart * 1000).toISOString()}`
-  );
 };

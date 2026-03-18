@@ -59,17 +59,17 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   // Check if overage items already exist (idempotency – e.g. if the webhook is retried)
   const existingLookupKeys = new Set(freshSubscription.items.data.map((item) => item.price.lookup_key));
   if (
-    existingLookupKeys.has(tierConfig.overageBytesLookupKey) &&
+    existingLookupKeys.has(tierConfig.overageMegabytesLookupKey) &&
     existingLookupKeys.has(tierConfig.overageSignalRunsLookupKey)
   ) {
     return;
   }
 
   const overagePrices = await s.prices.list({
-    lookup_keys: [tierConfig.overageBytesLookupKey, tierConfig.overageSignalRunsLookupKey],
+    lookup_keys: [tierConfig.overageMegabytesLookupKey, tierConfig.overageSignalRunsLookupKey],
   });
 
-  const bytesOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageBytesLookupKey);
+  const bytesOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageMegabytesLookupKey);
   const signalRunsOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageSignalRunsLookupKey);
 
   if (!bytesOveragePrice || !signalRunsOveragePrice) {
@@ -78,7 +78,7 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   }
 
   const items: Stripe.SubscriptionUpdateParams.Item[] = [];
-  if (!existingLookupKeys.has(tierConfig.overageBytesLookupKey)) {
+  if (!existingLookupKeys.has(tierConfig.overageMegabytesLookupKey)) {
     items.push({ price: bytesOveragePrice.id });
   }
   if (!existingLookupKeys.has(tierConfig.overageSignalRunsLookupKey)) {
@@ -133,36 +133,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
     case "invoice.finalized": {
       const invoice = event.data.object;
+      await handleInvoiceFinalized(invoice);
 
-      if (invoice.parent?.type !== "subscription_details") break;
-
-      // Filter: must contain a line for a known tier or overage price.
-      // This excludes addon-only invoices and other unrelated invoices.
-      const knownLookupKeys = new Set<string>(
-        Object.values(TIER_CONFIG).flatMap((c) => [c.lookupKey, c.overageBytesLookupKey, c.overageSignalRunsLookupKey])
-      );
-      const hasRelevantLine = invoice.lines.data.some((line) => {
-        const priceObj = (line as any).price ?? line.pricing?.price_details?.price;
-        const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
-        return lookupKey && knownLookupKeys.has(lookupKey);
-      });
-      if (!hasRelevantLine) break;
-
-      const workspaceId = invoice.metadata?.workspaceId ?? invoice.parent.subscription_details?.metadata?.workspaceId;
-      if (!workspaceId) {
-        console.log("invoice.finalized: no workspaceId in subscription metadata");
-        break;
-      }
-
-      // Use the period.start of the first subscription item line as the new resetTime
-      const subscriptionLine = invoice.lines.data.find((l) => l.parent?.type === "subscription_item_details");
-      const newResetTime = subscriptionLine?.period?.start;
-      if (!newResetTime) {
-        console.log("invoice.finalized: no subscription line period start found");
-        break;
-      }
-
-      await handleInvoiceFinalized(workspaceId, newResetTime);
       break;
     }
     case "customer.subscription.deleted":
