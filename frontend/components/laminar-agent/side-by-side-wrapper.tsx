@@ -36,9 +36,12 @@ export default function SideBySideWrapper({ children }: SideBySideWrapperProps) 
     const panel = agentPanelRef.current;
     if (!panel) return;
     if (isSideBySide) {
+      // Must expand a collapsed panel before resizing — resize() alone
+      // fails silently on a panel with defaultSize={0} + collapsible.
+      panel.expand();
       panel.resize(35);
     } else {
-      panel.resize(0);
+      panel.collapse();
     }
   }, [isSideBySide]);
 

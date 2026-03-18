@@ -235,10 +235,13 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
   // Sync messages back to the store so they survive remounts (mode switches)
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
-  useEffect(() => () => {
+  useEffect(
+    () => () => {
       // On unmount, persist current messages to the store
       setChatMessages(messagesRef.current);
-    }, [setChatMessages]);
+    },
+    [setChatMessages]
+  );
 
   const handleSend = useCallback(() => {
     if (input.trim()) {
@@ -273,7 +276,13 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
           <TooltipProvider delayDuration={0}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewMode(alternateMode)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  aria-label={alternateModeLabel}
+                  onClick={() => setViewMode(alternateMode)}
+                >
                   <AlternateModeIcon className="size-4" />
                 </Button>
               </TooltipTrigger>
@@ -281,7 +290,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={collapse}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Close" onClick={collapse}>
                   <X className="size-4" />
                 </Button>
               </TooltipTrigger>

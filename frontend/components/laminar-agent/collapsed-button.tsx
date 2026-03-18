@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -64,9 +64,9 @@ function SuggestionCycler({
         }}
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
-        className="bg-primary text-primary-foreground text-sm px-3 py-2 rounded-full shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all whitespace-nowrap overflow-hidden cursor-pointer"
+        className="bg-primary text-primary-foreground text-sm px-3 py-2 rounded-full shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all whitespace-nowrap overflow-hidden cursor-pointer max-w-[200px]"
       >
-        {currentSuggestion.display}
+        <span className="truncate block">{currentSuggestion.display}</span>
       </motion.button>
     </AnimatePresence>
   );
@@ -78,8 +78,12 @@ export default function CollapsedButton() {
     shallow
   );
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const suggestions = useMemo(() => getSuggestionsForRoute(pathname), [pathname]);
+  const suggestions = useMemo(
+    () => getSuggestionsForRoute(pathname, searchParams.toString()),
+    [pathname, searchParams]
+  );
 
   const handleSuggestionClick = useCallback(
     (prompt: string) => {
