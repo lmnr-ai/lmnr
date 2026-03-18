@@ -219,7 +219,7 @@ function CondensedTimeline() {
                     className="absolute z-10 cursor-pointer group/marker"
                     style={{
                       left: `${condensedSpan.left + condensedSpan.width / 2}%`,
-                      top: condensedSpan.row * ROW_HEIGHT - 5,
+                      top: Math.max(0, condensedSpan.row * ROW_HEIGHT - 5),
                       transform: "translateX(-50%)",
                     }}
                     onClick={(e) => {

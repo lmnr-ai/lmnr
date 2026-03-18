@@ -20,17 +20,32 @@ interface TreeProps {
 const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
-  const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds, selectedSpan } =
-    useTraceViewBaseStore((state) => ({
-      getTreeSpans: state.getTreeSpans,
-      spans: state.spans,
-      trace: state.trace,
-      isSpansLoading: state.isSpansLoading,
-      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-      selectedSpan: state.selectedSpan,
-    }));
+  const {
+    getTreeSpans,
+    spans,
+    trace,
+    isSpansLoading,
+    condensedTimelineVisibleSpanIds,
+    selectedSpan,
+    signalLensActive,
+    significantSpanIds,
+  } = useTraceViewBaseStore((state) => ({
+    getTreeSpans: state.getTreeSpans,
+    spans: state.spans,
+    trace: state.trace,
+    isSpansLoading: state.isSpansLoading,
+    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+    selectedSpan: state.selectedSpan,
+    signalLensActive: state.signalLensActive,
+    significantSpanIds: state.significantSpanIds,
+  }));
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
+
+  const hasMatchingSignificantSpans = useMemo(
+    () => signalLensActive && significantSpanIds.size > 0 && spans.some((s) => significantSpanIds.has(s.spanId)),
+    [signalLensActive, significantSpanIds, spans]
+  );
 
   const [settingsSpan, setSettingsSpan] = useState<(TraceViewSpan & { pathInfo: PathInfo }) | null>(null);
 
@@ -150,6 +165,7 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
                     branchMask={spanItem.branchMask}
                     output={outputs[spanItem.span.spanId]}
                     depth={spanItem.depth}
+                    hasMatchingSignificantSpans={hasMatchingSignificantSpans}
                     pathInfo={spanItem.pathInfo}
                     onSpanSelect={onSpanSelect}
                     onOpenSettings={setSettingsSpan}

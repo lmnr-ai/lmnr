@@ -23,11 +23,20 @@ interface ListItemProps {
   output: any | undefined;
   onSpanSelect: (span: TraceViewListSpan) => void;
   onOpenSettings: (span: TraceViewListSpan) => void;
+  hasMatchingSignificantSpans: boolean;
   isFirst: boolean;
   isLast: boolean;
 }
 
-const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
+const ListItem = ({
+  span,
+  output,
+  onSpanSelect,
+  onOpenSettings,
+  hasMatchingSignificantSpans,
+  isFirst = false,
+  isLast = false,
+}: ListItemProps) => {
   const { selectedSpan, spans, signalLensActive, significantSpanIds } = useTraceViewBaseStore((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
@@ -69,8 +78,6 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
 
   const isSelected = selectedSpan?.spanId === span.spanId;
   const isSignificant = signalLensActive && significantSpanIds.has(span.spanId);
-  const hasMatchingSignificantSpans =
-    signalLensActive && significantSpanIds.size > 0 && spans.some((s) => significantSpanIds.has(s.spanId));
   const isDimmed = hasMatchingSignificantSpans && !significantSpanIds.has(span.spanId);
 
   const outerClasses = cn(

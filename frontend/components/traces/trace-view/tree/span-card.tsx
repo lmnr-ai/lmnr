@@ -29,6 +29,7 @@ interface SpanCardProps {
   output: any | undefined;
   depth: number;
   pathInfo: PathInfo;
+  hasMatchingSignificantSpans: boolean;
   onSpanSelect?: (span?: TraceViewSpan) => void;
   onOpenSettings?: (span: TraceViewSpan & { pathInfo: PathInfo }) => void;
 }
@@ -44,7 +45,16 @@ const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo
   return pathSegments.join(", ");
 };
 
-export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathInfo, onOpenSettings }: SpanCardProps) {
+export function SpanCard({
+  span,
+  branchMask,
+  output,
+  onSpanSelect,
+  depth,
+  pathInfo,
+  hasMatchingSignificantSpans,
+  onOpenSettings,
+}: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   const { selectedSpan, spans, toggleCollapse, showTreeContent, signalLensActive, significantSpanIds } =
@@ -85,8 +95,6 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const isLoadingOutput = output === undefined;
 
   const isSignificant = signalLensActive && significantSpanIds.has(span.spanId);
-  const hasMatchingSignificantSpans =
-    signalLensActive && significantSpanIds.size > 0 && spans.some((s) => significantSpanIds.has(s.spanId));
   const isDimmed = hasMatchingSignificantSpans && !significantSpanIds.has(span.spanId);
 
   const outerClasses = cn(

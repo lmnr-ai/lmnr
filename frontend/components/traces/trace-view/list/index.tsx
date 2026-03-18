@@ -23,20 +23,35 @@ interface ListProps {
 const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
-  const { getListData, spans, isSpansLoading, selectedSpan, trace, condensedTimelineVisibleSpanIds } =
-    useTraceViewBaseStore((state) => ({
-      getListData: state.getListData,
-      spans: state.spans,
-      isSpansLoading: state.isSpansLoading,
-      selectedSpan: state.selectedSpan,
-      trace: state.trace,
-      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    }));
+  const {
+    getListData,
+    spans,
+    isSpansLoading,
+    selectedSpan,
+    trace,
+    condensedTimelineVisibleSpanIds,
+    signalLensActive,
+    significantSpanIds,
+  } = useTraceViewBaseStore((state) => ({
+    getListData: state.getListData,
+    spans: state.spans,
+    isSpansLoading: state.isSpansLoading,
+    selectedSpan: state.selectedSpan,
+    trace: state.trace,
+    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+    signalLensActive: state.signalLensActive,
+    significantSpanIds: state.significantSpanIds,
+  }));
 
   const prevVisibleIdsRef = useRef<string>("");
   const [settingsSpan, setSettingsSpan] = useState<TraceViewListSpan | null>(null);
 
   const listSpans = useMemo(() => getListData(), [getListData, spans, condensedTimelineVisibleSpanIds]);
+
+  const hasMatchingSignificantSpans = useMemo(
+    () => signalLensActive && significantSpanIds.size > 0 && spans.some((s) => significantSpanIds.has(s.spanId)),
+    [signalLensActive, significantSpanIds, spans]
+  );
 
   const virtualizer = useVirtualizer({
     count: listSpans.length,
@@ -195,6 +210,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
                     isLast={isLast}
                     span={listSpan}
                     output={outputs[listSpan.spanId]}
+                    hasMatchingSignificantSpans={hasMatchingSignificantSpans}
                     onSpanSelect={handleSpanSelect}
                     onOpenSettings={setSettingsSpan}
                   />
