@@ -328,14 +328,17 @@ pub async fn update_evaluation_datapoint(
         .ok_or_else(|| anyhow::anyhow!("Evaluation datapoint not found"))?;
 
     if is_shared_evaluation(pool, project_id, evaluation_id).await? {
-        if let Some(new_trace_id) = trace_id {
-            if new_trace_id != existing_row.trace_id {
-                delete_shared_traces(pool, project_id, &[existing_row.trace_id]).await?;
-                insert_shared_traces(pool, project_id, &[new_trace_id]).await?;
+        match trace_id {
+            Some(new_trace_id) if !new_trace_id.is_nil() => {
+                if new_trace_id != existing_row.trace_id {
+                    delete_shared_traces(pool, project_id, &[existing_row.trace_id]).await?;
+                    insert_shared_traces(pool, project_id, &[new_trace_id]).await?;
+                }
             }
-        } else {
-            // Re-mark existing trace as shared in case it wasn't during creation
-            insert_shared_traces(pool, project_id, &[existing_row.trace_id]).await?;
+            _ => {
+                // None or nil trace_id: re-mark existing trace as shared
+                insert_shared_traces(pool, project_id, &[existing_row.trace_id]).await?;
+            }
         }
     }
 
