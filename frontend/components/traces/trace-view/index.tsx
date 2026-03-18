@@ -134,12 +134,15 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   }));
 
   // Signal lens states
-  const { signalLensActive, setSignalLens, setActiveChipSpanId, selectSpanById } = useTraceViewStore((state) => ({
-    signalLensActive: state.signalLensActive,
-    setSignalLens: state.setSignalLens,
-    setActiveChipSpanId: state.setActiveChipSpanId,
-    selectSpanById: state.selectSpanById,
-  }));
+  const { signalLensActive, setSignalLens, dismissSignalLens, setActiveChipSpanId, selectSpanById } = useTraceViewStore(
+    (state) => ({
+      signalLensActive: state.signalLensActive,
+      setSignalLens: state.setSignalLens,
+      dismissSignalLens: state.dismissSignalLens,
+      setActiveChipSpanId: state.setActiveChipSpanId,
+      selectSpanById: state.selectSpanById,
+    })
+  );
 
   // Local storage states
   const { treeWidth, spanPath, setSpanPath, setTreeWidth } = useTraceViewStore((state) => ({
@@ -379,15 +382,16 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   // before initializing signal lens, so the banner can match span IDs correctly.
   const spansReady = spans.length > 0 && !isSpansLoading;
 
-  // Reset dismissed flag and last-initialized ref when the signalEventId param
-  // is removed from URL (i.e. router.replace has completed), allowing future
-  // navigations with the same event ID to re-initialize the lens.
+  // When the signalEventId param is removed from the URL (via dismiss, browser
+  // navigation, or any other means), clean up both the store state and the local
+  // refs so the banner disappears and future navigations can re-initialize.
   useEffect(() => {
     if (!signalEventIdParam) {
+      dismissSignalLens();
       signalLensDismissed.current = false;
       lastInitializedSignalEventId.current = null;
     }
-  }, [signalEventIdParam]);
+  }, [signalEventIdParam, dismissSignalLens]);
 
   useEffect(() => {
     if (
