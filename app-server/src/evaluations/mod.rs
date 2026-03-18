@@ -15,8 +15,10 @@ use crate::{
         evaluations::is_shared_evaluation,
         trace::{delete_shared_traces, insert_shared_traces},
     },
-    utils::json_value_to_string,
+    utils::{get_unsigned_env_with_default, json_value_to_string},
 };
+
+const DEFAULT_CHUNK_SIZE: usize = 25;
 
 /// Helper struct for fetching a single trace_id from ClickHouse.
 #[derive(Row, serde::Serialize, serde::Deserialize)]
@@ -145,8 +147,10 @@ pub async fn insert_evaluation_datapoints(
                    fromUnixTimestamp64Nano(toInt64(?), 'UTC') as dataset_datapoint_created_at, \
                    ? as group_id, ? as scores";
 
-    const CHUNK_SIZE: usize = 50;
-    for chunk in evaluation_datapoints.chunks(CHUNK_SIZE) {
+    // for most uses (direct from SDK), the number of datapoints passed here is
+    // usually 1, so this is unused most of the times
+    let chunk_size = get_unsigned_env_with_default("EVALS_INSERT_CHUNK_SIZE", DEFAULT_CHUNK_SIZE);
+    for chunk in evaluation_datapoints.chunks(chunk_size) {
         let union_sql = vec![row_sql; chunk.len()].join(" UNION ALL ");
 
         let query = format!(
