@@ -184,7 +184,9 @@ pub async fn insert_evaluation_datapoints(
             LEFT JOIN (
                 SELECT * FROM evaluation_datapoints FINAL
                 WHERE project_id = toUUID(?) AND evaluation_id = toUUID(?)
-            ) AS existing ON new.id = existing.id"
+                  AND id IN ({id_in_list})
+            ) AS existing ON new.id = existing.id",
+            id_in_list = vec!["toUUID(?)"; chunk.len()].join(", "),
         );
 
         let mut q = clickhouse.query(&query);
@@ -231,6 +233,10 @@ pub async fn insert_evaluation_datapoints(
         // WHERE clause for the existing rows subquery
         q = q.bind(project_id);
         q = q.bind(evaluation_id);
+        // id IN (...) list – same order as the chunk
+        for dp in chunk {
+            q = q.bind(dp.id);
+        }
 
         q.execute().await.map_err(|e| {
             anyhow::anyhow!(
