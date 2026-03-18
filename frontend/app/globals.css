@@ -72,6 +72,9 @@
   --color-llm: hsl(var(--llm));
   --color-llm-foreground: hsl(var(--llm-foreground));
 
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
+
   /*TODO: unify landing and platform colors*/
   --color-landing-primary-200: rgb(218 135 95);
   --color-landing-primary-300: rgb(213 126 87);
@@ -172,6 +175,9 @@
     --tool: 42 93% 46%;
     --llm: 262 83% 58%;
     --llm-foreground: 272 100% 74%;
+
+    --info: 213 94% 56%;
+    --info-foreground: 213 100% 96%;
   }
 
   .dark {
@@ -198,5 +204,41 @@
     background-color: var(--color-landing-primary-400-50);
     color: white;
   }
+}
+
+/* Signal Lens animations */
+@keyframes flash-pulse {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--info) / 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 6px hsl(var(--info) / 0.2);
+  }
+  100% {
+    box-shadow: 0 0 0 8px hsl(var(--info) / 0);
+  }
+}
+
+.signal-lens-flash {
+  animation: flash-pulse 0.8s ease-out;
+}
+
+@keyframes banner-collapse {
+  from {
+    opacity: 1;
+    max-height: 200px;
+  }
+  to {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+  }
+}
+
+.signal-lens-banner-dismiss {
+  animation: banner-collapse 0.25s ease-out forwards;
+  overflow: hidden;
 }
 

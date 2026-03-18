@@ -159,12 +159,13 @@ function SignalContent() {
                 params.delete("eventId");
                 push(`${pathName}?${params.toString()}`);
               }}
-              onOpenTrace={(traceId) => {
+              onOpenTrace={(traceId, signalEventId) => {
                 setSelectedEvent(null);
                 setTraceId(traceId);
                 const params = new URLSearchParams(searchParams);
                 params.delete("eventId");
                 params.set("traceId", traceId);
+                params.set("signalEventId", signalEventId);
                 push(`${pathName}?${params.toString()}`);
               }}
             />

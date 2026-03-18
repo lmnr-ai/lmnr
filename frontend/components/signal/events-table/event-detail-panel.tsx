@@ -11,7 +11,7 @@ interface EventDetailPanelProps {
   event: EventRow;
   schemaFields: SchemaField[];
   onClose: () => void;
-  onOpenTrace: (traceId: string) => void;
+  onOpenTrace: (traceId: string, signalEventId: string) => void;
 }
 
 function parsePayload(payload: string): Record<string, unknown> {
@@ -65,7 +65,12 @@ export default function EventDetailPanel({ event, schemaFields, onClose, onOpenT
           <span className="text-xs font-mono rounded-md py-0.5 px-2 bg-muted">
             {new Date(event.timestamp).toLocaleString()}
           </span>
-          <Button variant="outline" size="sm" className="h-6 text-xs gap-1" onClick={() => onOpenTrace(event.traceId)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 text-xs gap-1"
+            onClick={() => onOpenTrace(event.traceId, event.id)}
+          >
             <List className="size-3" />
             View trace
           </Button>

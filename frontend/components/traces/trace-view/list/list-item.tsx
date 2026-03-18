@@ -28,9 +28,11 @@ interface ListItemProps {
 }
 
 const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
-  const { selectedSpan, spans } = useTraceViewBaseStore((state) => ({
+  const { selectedSpan, spans, signalLensActive, significantSpanIds } = useTraceViewBaseStore((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
+    signalLensActive: state.signalLensActive,
+    significantSpanIds: state.significantSpanIds,
   }));
 
   const {
@@ -66,12 +68,16 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
   );
 
   const isSelected = selectedSpan?.spanId === span.spanId;
+  const isSignificant = signalLensActive && significantSpanIds.has(span.spanId);
+  const isDimmed = signalLensActive && significantSpanIds.size > 0 && !significantSpanIds.has(span.spanId);
 
   const outerClasses = cn(
     "flex flex-row group/message cursor-pointer transition-all border-l-4",
     "hover:bg-secondary",
     isSelected ? "bg-primary/5 border-l-primary" : "border-l-transparent",
-    { "opacity-60": isCached }
+    { "opacity-60": isCached },
+    isSignificant && !isSelected && "border-l-info",
+    isDimmed && "opacity-35 hover:opacity-60"
   );
 
   const lockColumnClasses = cn("flex items-start justify-center shrink-0 w-10 p-1 self-stretch pt-2.5");
@@ -79,6 +85,14 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
   return (
     <div
       className={outerClasses}
+      data-span-id={span.spanId}
+      style={
+        isSignificant && !isSelected
+          ? {
+              backgroundColor: "hsl(var(--info) / 0.06)",
+            }
+          : undefined
+      }
       onClick={() => {
         if (!isPending) {
           onSpanSelect(span);
@@ -98,7 +112,11 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
             <div className="flex items-center gap-2 min-w-0 flex-shrink-[2]">
               <SpanTypeIcon spanType={span.spanType} className={cn({ "text-muted-foreground bg-muted": isPending })} />
               <span
-                className={cn("font-medium text-sm truncate min-w-0", isPending && "text-muted-foreground shimmer")}
+                className={cn(
+                  "font-medium text-sm truncate min-w-0",
+                  isPending && "text-muted-foreground shimmer",
+                  isSignificant && "text-info"
+                )}
               >
                 {displayName}
               </span>
@@ -131,14 +149,27 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
                   <Skeleton className="w-20 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
                 )
               ) : (
-                <SpanStatsShield
-                  className="hidden group-hover/message:flex"
-                  startTime={span.startTime}
-                  endTime={span.endTime}
-                  tokens={span.totalTokens}
-                  cost={span.totalCost}
-                  cacheReadInputTokens={span.cacheReadInputTokens}
-                />
+                <>
+                  <SpanStatsShield
+                    className="hidden group-hover/message:flex"
+                    startTime={span.startTime}
+                    endTime={span.endTime}
+                    tokens={span.totalTokens}
+                    cost={span.totalCost}
+                    cacheReadInputTokens={span.cacheReadInputTokens}
+                  />
+                  {isSignificant && (
+                    <span
+                      className="shrink-0 px-1.5 py-0 rounded-full text-[10px] leading-4"
+                      style={{
+                        backgroundColor: "hsl(var(--info) / 0.15)",
+                        color: "hsl(var(--info))",
+                      }}
+                    >
+                      significant
+                    </span>
+                  )}
+                </>
               )}
               <Button
                 disabled={isLoadingOutput}

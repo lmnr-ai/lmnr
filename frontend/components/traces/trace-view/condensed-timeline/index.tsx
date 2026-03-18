@@ -34,6 +34,8 @@ function CondensedTimeline() {
     sessionTime,
     sessionStartTime,
     browserSession,
+    signalLensActive,
+    significantSpanIds,
   } = useTraceViewBaseStore((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
     spans: state.spans,
@@ -48,6 +50,8 @@ function CondensedTimeline() {
     sessionTime: state.sessionTime,
     sessionStartTime: state.sessionStartTime,
     browserSession: state.browserSession,
+    signalLensActive: state.signalLensActive,
+    significantSpanIds: state.significantSpanIds,
   }));
 
   const {
@@ -185,16 +189,65 @@ function CondensedTimeline() {
                 ? condensedTimelineVisibleSpanIds.has(condensedSpan.span.spanId)
                 : null;
 
+              const isSignificant = signalLensActive && significantSpanIds.has(condensedSpan.span.spanId);
+              const isDimmedBySignalLens =
+                signalLensActive && significantSpanIds.size > 0 && !significantSpanIds.has(condensedSpan.span.spanId);
+
               return (
                 <CondensedTimelineElement
                   key={condensedSpan.span.spanId}
                   condensedSpan={condensedSpan}
                   selectedSpan={selectedSpan}
                   isIncludedInGroupSelection={isIncludedInGroupSelection}
+                  isSignificant={isSignificant}
+                  isDimmedBySignalLens={isDimmedBySignalLens}
                   onClick={handleSpanClick}
                 />
               );
             })}
+
+            {/* Signal lens annotation markers */}
+            {signalLensActive &&
+              condensedSpans
+                .filter((cs) => significantSpanIds.has(cs.span.spanId))
+                .map((condensedSpan) => (
+                  <div
+                    key={`marker-${condensedSpan.span.spanId}`}
+                    className="absolute z-10 cursor-pointer group/marker"
+                    style={{
+                      left: `${condensedSpan.left + condensedSpan.width / 2}%`,
+                      top: condensedSpan.row * ROW_HEIGHT - 5,
+                      transform: "translateX(-50%)",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!condensedSpan.span.pending) {
+                        setSelectedSpan(condensedSpan.span);
+                      }
+                    }}
+                  >
+                    <div
+                      className="rounded-full"
+                      style={{
+                        width: 8,
+                        height: 8,
+                        backgroundColor: "hsl(var(--info))",
+                      }}
+                    />
+                    {/* Tooltip */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover/marker:block pointer-events-none">
+                      <div
+                        className="px-2 py-1 rounded text-[11px] whitespace-nowrap"
+                        style={{
+                          backgroundColor: "hsl(var(--foreground))",
+                          color: "hsl(var(--background))",
+                        }}
+                      >
+                        {condensedSpan.span.name}
+                      </div>
+                    </div>
+                  </div>
+                ))}
 
             {/* Selection overlay - only handles drag selection, clicks go to span elements */}
             <SelectionOverlay

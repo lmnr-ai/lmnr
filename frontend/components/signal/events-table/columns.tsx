@@ -163,7 +163,8 @@ const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
             className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
             onClick={(e: MouseEvent) => {
               e.stopPropagation();
-              const event = new CustomEvent("open-trace", { detail: traceId });
+              const signalEventId = row.row.original.id;
+              const event = new CustomEvent("open-trace", { detail: { traceId, signalEventId } });
               window.dispatchEvent(event);
             }}
             title="View trace"

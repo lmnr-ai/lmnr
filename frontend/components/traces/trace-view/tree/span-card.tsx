@@ -47,12 +47,15 @@ const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo
 export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathInfo, onOpenSettings }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewBaseStore((state) => ({
-    selectedSpan: state.selectedSpan,
-    spans: state.spans,
-    toggleCollapse: state.toggleCollapse,
-    showTreeContent: state.showTreeContent,
-  }));
+  const { selectedSpan, spans, toggleCollapse, showTreeContent, signalLensActive, significantSpanIds } =
+    useTraceViewBaseStore((state) => ({
+      selectedSpan: state.selectedSpan,
+      spans: state.spans,
+      toggleCollapse: state.toggleCollapse,
+      showTreeContent: state.showTreeContent,
+      signalLensActive: state.signalLensActive,
+      significantSpanIds: state.significantSpanIds,
+    }));
 
   const {
     enabled: cachingEnabled,
@@ -81,11 +84,16 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
 
   const isLoadingOutput = output === undefined;
 
+  const isSignificant = signalLensActive && significantSpanIds.has(span.spanId);
+  const isDimmed = signalLensActive && significantSpanIds.size > 0 && !significantSpanIds.has(span.spanId);
+
   const outerClasses = cn(
     "group flex flex-row w-full min-w-full cursor-pointer transition-all border-l-2",
     "hover:bg-red-100/5",
     isSelected ? "bg-primary/15 hover:bg-primary/20 border-l-primary" : "border-l-transparent",
-    { "opacity-60": isCached }
+    { "opacity-60": isCached },
+    isSignificant && !isSelected && "border-l-info",
+    isDimmed && "opacity-35 hover:opacity-60"
   );
 
   const lockColumnClasses = cn("flex items-start justify-center shrink-0 w-10 p-1 self-stretch");
@@ -94,6 +102,16 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
     <div
       ref={ref}
       className={outerClasses}
+      data-span-id={span.spanId}
+      style={
+        isSignificant && !isSelected
+          ? {
+              backgroundColor: "hsl(var(--info) / 0.06)",
+              borderRightWidth: "0.5px",
+              borderRightColor: "hsl(var(--info) / 0.2)",
+            }
+          : undefined
+      }
       onClick={() => {
         if (!span.pending) {
           onSpanSelect?.(span);
@@ -134,7 +152,8 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
               <div
                 className={cn(
                   "text-ellipsis overflow-hidden whitespace-nowrap text-sm truncate",
-                  span.pending && "text-muted-foreground"
+                  span.pending && "text-muted-foreground",
+                  isSignificant && "text-info font-medium"
                 )}
               >
                 {getSpanDisplayName(span)}
@@ -151,13 +170,26 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
                 <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
               )
             ) : (
-              <SpanStatsShield
-                startTime={span.startTime}
-                endTime={span.endTime}
-                tokens={llmMetrics?.tokens}
-                cost={llmMetrics?.cost}
-                cacheReadInputTokens={llmMetrics?.cacheReadInputTokens}
-              />
+              <>
+                <SpanStatsShield
+                  startTime={span.startTime}
+                  endTime={span.endTime}
+                  tokens={llmMetrics?.tokens}
+                  cost={llmMetrics?.cost}
+                  cacheReadInputTokens={llmMetrics?.cacheReadInputTokens}
+                />
+                {isSignificant && (
+                  <span
+                    className="shrink-0 px-1.5 py-0 rounded-full text-[10px] leading-4"
+                    style={{
+                      backgroundColor: "hsl(var(--info) / 0.15)",
+                      color: "hsl(var(--info))",
+                    }}
+                  >
+                    significant
+                  </span>
+                )}
+              </>
             )}
             {isExpandable && (
               <button

@@ -1,13 +1,14 @@
 import { get } from "lodash";
 import { AlertTriangle, CirclePlay } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
+import SignalLensBanner from "@/components/traces/trace-view/signal-lens-banner";
 import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   type TraceViewSpan,
@@ -102,6 +103,14 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setHasBrowserSession: state.setHasBrowserSession,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+  }));
+
+  // Signal lens states
+  const { signalLensActive, setSignalLens, setActiveChipSpanId, selectSpanById } = useTraceViewStore((state) => ({
+    signalLensActive: state.signalLensActive,
+    setSignalLens: state.setSignalLens,
+    setActiveChipSpanId: state.setActiveChipSpanId,
+    selectSpanById: state.selectSpanById,
   }));
 
   // Local storage states
@@ -332,6 +341,61 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     eventHandlers,
   });
 
+  // Signal lens: fetch signal event data when signalEventId is in URL
+  const signalEventIdParam = searchParams.get("signalEventId");
+  const signalLensInitialized = useRef(false);
+
+  useEffect(() => {
+    if (!signalEventIdParam || !projectId || isSpansLoading || signalLensInitialized.current) return;
+    signalLensInitialized.current = true;
+
+    const fetchSignalEvent = async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/signal-events/${signalEventIdParam}`);
+        if (!response.ok) return;
+
+        const event = await response.json();
+        const payload = typeof event.payload === "string" ? JSON.parse(event.payload) : event.payload;
+
+        // Extract significant span IDs from the payload
+        const spanIds: string[] = payload?.significant_spans ?? payload?.significantSpans ?? [];
+        const significantSpanIds = new Set(spanIds);
+
+        setSignalLens({
+          signalEventId: signalEventIdParam,
+          signalName: event.name || "Signal",
+          significantSpanIds,
+        });
+      } catch {
+        // Silently fail — signal lens is optional enhancement
+      }
+    };
+
+    fetchSignalEvent();
+  }, [signalEventIdParam, projectId, isSpansLoading, setSignalLens]);
+
+  // Signal lens chip click handler
+  const handleSignalLensChipClick = useCallback(
+    (spanId: string) => {
+      setActiveChipSpanId(spanId);
+      selectSpanById(spanId);
+
+      // Scroll to span in tree/list and flash it
+      requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-span-id="${spanId}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+          // Trigger flash-pulse animation
+          el.classList.remove("signal-lens-flash");
+          void (el as HTMLElement).offsetWidth; // Force reflow
+          el.classList.add("signal-lens-flash");
+        }
+      });
+    },
+    [setActiveChipSpanId, selectSpanById]
+  );
+
   if (isLoading) {
     return (
       <div className="flex flex-col flex-1">
@@ -379,6 +443,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             spans={spans}
             onSearch={(filters, search) => fetchSpans(search, filters)}
           />
+
+          {signalLensActive && <SignalLensBanner onChipClick={handleSignalLensChipClick} />}
 
           {spansError ? (
             <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">

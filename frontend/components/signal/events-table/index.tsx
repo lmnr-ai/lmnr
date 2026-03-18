@@ -80,11 +80,12 @@ function PureEventsTable() {
   // Listen for open-trace events from the traceId column button
   useEffect(() => {
     const handler = (e: Event) => {
-      const traceId = (e as CustomEvent<string>).detail;
-      setTraceId(traceId);
+      const detail = (e as CustomEvent<{ traceId: string; signalEventId: string }>).detail;
+      setTraceId(detail.traceId);
 
       const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set("traceId", traceId);
+      newParams.set("traceId", detail.traceId);
+      newParams.set("signalEventId", detail.signalEventId);
       router.push(`${pathName}?${newParams.toString()}`);
     };
     window.addEventListener("open-trace", handler);

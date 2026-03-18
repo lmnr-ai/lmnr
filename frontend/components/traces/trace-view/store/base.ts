@@ -106,6 +106,13 @@ export interface BaseTraceViewState {
   condensedTimelineEnabled: boolean;
   condensedTimelineVisibleSpanIds: Set<string>;
   condensedTimelineZoom: number;
+
+  // Signal lens state
+  signalLensActive: boolean;
+  signalEventId: string | null;
+  signalName: string | null;
+  significantSpanIds: Set<string>;
+  activeChipSpanId: string | null;
 }
 
 export interface BaseTraceViewActions {
@@ -144,6 +151,11 @@ export interface BaseTraceViewActions {
   getSpanBranch: <T extends { spanId: string; parentSpanId?: string }>(span: T) => T[];
   getSpanTemplate: (spanPathKey: string) => string | undefined;
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
+
+  // Signal lens actions
+  setSignalLens: (params: { signalEventId: string; signalName: string; significantSpanIds: Set<string> }) => void;
+  dismissSignalLens: () => void;
+  setActiveChipSpanId: (spanId: string | null) => void;
 }
 
 export type BaseTraceViewStore = BaseTraceViewState & BaseTraceViewActions;
@@ -173,6 +185,13 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     condensedTimelineEnabled: true,
     condensedTimelineVisibleSpanIds: new Set(),
     condensedTimelineZoom: 1,
+
+    // Signal lens state
+    signalLensActive: false,
+    signalEventId: null,
+    signalName: null,
+    significantSpanIds: new Set(),
+    activeChipSpanId: null,
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
     setTrace: (trace) => {
@@ -366,6 +385,27 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       const span = get().spans.find((s) => s.spanId === spanId);
       return span?.attributes?.[attributeKey];
     },
+
+    // Signal lens actions
+    setSignalLens: ({ signalEventId, signalName, significantSpanIds }) => {
+      set({
+        signalLensActive: true,
+        signalEventId,
+        signalName,
+        significantSpanIds,
+        activeChipSpanId: null,
+      } as Partial<T>);
+    },
+    dismissSignalLens: () => {
+      set({
+        signalLensActive: false,
+        signalEventId: null,
+        signalName: null,
+        significantSpanIds: new Set(),
+        activeChipSpanId: null,
+      } as Partial<T>);
+    },
+    setActiveChipSpanId: (spanId) => set({ activeChipSpanId: spanId } as Partial<T>),
   };
 }
 
