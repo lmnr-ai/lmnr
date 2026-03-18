@@ -57,10 +57,12 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
   // Use traceId from pathname (if on trace page) or from store context (set by signals pill, etc.)
   const traceId = traceIdFromPath || traceIdContext;
 
-  // Keep traceIdContext in sync when navigating to a trace page
+  // Keep traceIdContext in sync when navigating to/from a trace page
   useEffect(() => {
     if (traceIdFromPath) {
       setTraceIdContext(traceIdFromPath);
+    } else {
+      setTraceIdContext(null);
     }
   }, [traceIdFromPath, setTraceIdContext]);
 
@@ -101,15 +103,15 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
 
   const isOnTracePage = !!traceIdFromPath;
 
+  const canNavigateToSpan = isOnTracePage || !!traceId;
+
   const handleSpanClick = useCallback(
     async (spanUuid: string) => {
       if (isOnTracePage) {
-        // On the trace page: update spanId via nuqs-compatible URL update
+        // On the trace page: use router.replace to update spanId via nuqs-compatible URL update
         const url = new URL(window.location.href);
         url.searchParams.set("spanId", spanUuid);
-        window.history.pushState({}, "", url.toString());
-        // Dispatch a popstate event so nuqs picks up the change
-        window.dispatchEvent(new PopStateEvent("popstate"));
+        router.replace(`${url.pathname}${url.search}`);
       } else if (traceId) {
         // Not on trace page but have traceId context: navigate to trace page with spanId
         router.push(`/project/${projectId}/traces/${traceId}?spanId=${spanUuid}`);
@@ -127,17 +129,30 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
         if (xmlSpanMatch) {
           const [, spanId, spanName] = xmlSpanMatch;
           return (
-            <button
-              className="cursor-pointer hover:bg-primary/90 rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-              onClick={async () => {
-                const spanUuid = await resolveSpanId(spanId);
-                if (spanUuid) {
-                  handleSpanClick(spanUuid);
-                }
-              }}
-            >
-              <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs">{spanName}</span> span
-            </button>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={cn(
+                      "rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                      canNavigateToSpan ? "cursor-pointer hover:bg-primary/90" : "cursor-not-allowed opacity-50"
+                    )}
+                    disabled={!canNavigateToSpan}
+                    onClick={async () => {
+                      const spanUuid = await resolveSpanId(spanId);
+                      if (spanUuid) {
+                        handleSpanClick(spanUuid);
+                      }
+                    }}
+                  >
+                    <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs">{spanName}</span> span
+                  </button>
+                </TooltipTrigger>
+                {!canNavigateToSpan && (
+                  <TooltipContent side="top">Navigate to a trace page to view this span</TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           );
         }
 
@@ -155,26 +170,39 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
               : unescapedReferenceText;
 
           return (
-            <button
-              className="cursor-pointer hover:bg-primary/90 rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-              onClick={async () => {
-                const spanUuid = await resolveSpanId(spanId);
-                if (spanUuid) {
-                  handleSpanClick(spanUuid);
-                }
-              }}
-            >
-              <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs mr-1">{spanName}</span>
-              span
-              <span className="text-xs text-muted-foreground ml-1 font-mono">({textPreview})</span>
-            </button>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={cn(
+                      "rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                      canNavigateToSpan ? "cursor-pointer hover:bg-primary/90" : "cursor-not-allowed opacity-50"
+                    )}
+                    disabled={!canNavigateToSpan}
+                    onClick={async () => {
+                      const spanUuid = await resolveSpanId(spanId);
+                      if (spanUuid) {
+                        handleSpanClick(spanUuid);
+                      }
+                    }}
+                  >
+                    <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs mr-1">{spanName}</span>
+                    span
+                    <span className="text-xs text-muted-foreground ml-1 font-mono">({textPreview})</span>
+                  </button>
+                </TooltipTrigger>
+                {!canNavigateToSpan && (
+                  <TooltipContent side="top">Navigate to a trace page to view this span</TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           );
         }
 
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),
-    [resolveSpanId, handleSpanClick]
+    [resolveSpanId, handleSpanClick, canNavigateToSpan]
   );
 
   const transport = useMemo(

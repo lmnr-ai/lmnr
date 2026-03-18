@@ -139,7 +139,7 @@ function SignalContent() {
       )}
 
       <AnimatePresence>
-        {eventId && !traceId && (
+        {eventId && (
           <motion.div
             key="event-drawer"
             initial={{ x: 400 }}

@@ -228,13 +228,10 @@ export function InfiniteDataTable<TData extends RowData>({
   }, [focusedRowId, rows, rowVirtualizer]);
 
   useEffect(() => {
-    scrollToFocusedRow();
-  }, [scrollToFocusedRow]);
-
-  // Reset scroll tracking when focusedRowId changes
-  useEffect(() => {
+    // Reset scroll tracking and scroll in a single effect to avoid ordering issues
     hasScrolledToFocusedRef.current = false;
-  }, [focusedRowId]);
+    scrollToFocusedRow();
+  }, [focusedRowId, scrollToFocusedRow]);
 
   const handleClearSelection = () => {
     table.toggleAllRowsSelected(false);
