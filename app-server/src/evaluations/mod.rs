@@ -270,7 +270,7 @@ pub async fn update_evaluation_datapoint(
     // project_id, evaluation_id, id BEFORE we execute FINAL
     let existing_row = clickhouse
         .query(
-            "SELECT trace_id FROM evaluation_datapoints PREWHERE id = ? FINAL
+            "SELECT trace_id FROM evaluation_datapoints FINAL PREWHERE id = ?
              WHERE project_id = ? AND evaluation_id = ?",
         )
         .bind(datapoint_id)
