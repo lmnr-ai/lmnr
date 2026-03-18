@@ -175,7 +175,7 @@ pub async fn insert_evaluation_datapoints(
                 toUUID(?) as new_evaluation_id,
                 toUUID(?) as new_project_id,
                 {} as final_trace_id,
-                toInt64(?) as new_updated_at,
+                fromUnixTimestamp64Nano(toInt64(?), 'UTC') as new_updated_at,
                 {} as final_data,
                 {} as final_target,
                 {} as final_metadata,
@@ -186,7 +186,7 @@ pub async fn insert_evaluation_datapoints(
                 {} as final_dataset_datapoint_created_at,
                 ? as new_group_id,
                 {} as final_scores
-            FROM (SELECT 1 as _dummy)
+            FROM (SELECT 1 as _dummy) AS _base
             LEFT JOIN (
                 SELECT *
                 FROM evaluation_datapoints FINAL
@@ -238,15 +238,15 @@ pub async fn insert_evaluation_datapoints(
             },
             // dataset_datapoint_created_at
             if dataset_link_is_falsey {
-                "if(existing.id IS NOT NULL, existing.dataset_datapoint_created_at, toInt64(?))".to_string()
+                "if(existing.id IS NOT NULL, existing.dataset_datapoint_created_at, fromUnixTimestamp64Nano(toInt64(?), 'UTC'))".to_string()
             } else {
-                "toInt64(?)".to_string()
+                "fromUnixTimestamp64Nano(toInt64(?), 'UTC')".to_string()
             },
             // scores
             if scores_is_empty {
                 "if(existing.id IS NOT NULL, existing.scores, ?)".to_string()
             } else {
-                "if(existing.id IS NOT NULL, jsonMergePatch(existing.scores, ?), ?)".to_string()
+                "if(existing.id IS NOT NULL AND existing.scores != '', jsonMergePatch(existing.scores, ?), ?)".to_string()
             },
         );
 
@@ -373,7 +373,7 @@ pub async fn update_evaluation_datapoint(
             existing.evaluation_id,
             existing.project_id,
             {trace_id_expr},
-            toInt64(?) as new_updated_at,
+            fromUnixTimestamp64Nano(toInt64(?), 'UTC') as new_updated_at,
             existing.data,
             existing.target,
             existing.metadata,
@@ -384,10 +384,10 @@ pub async fn update_evaluation_datapoint(
             existing.dataset_datapoint_created_at,
             ? as new_group_id,
             {scores_expr}
-        FROM evaluation_datapoints FINAL AS existing
-        WHERE existing.project_id = ?
-          AND existing.evaluation_id = ?
-          AND existing.id = ?",
+        FROM (
+            SELECT * FROM evaluation_datapoints FINAL
+            WHERE project_id = ? AND evaluation_id = ? AND id = ?
+        ) AS existing",
         trace_id_expr = if trace_id_is_falsey {
             "existing.trace_id".to_string()
         } else {
@@ -401,7 +401,7 @@ pub async fn update_evaluation_datapoint(
         scores_expr = if scores_is_empty {
             "existing.scores".to_string()
         } else {
-            "jsonMergePatch(existing.scores, ?)".to_string()
+            "if(existing.scores != '', jsonMergePatch(existing.scores, ?), ?)".to_string()
         },
     );
 
@@ -420,8 +420,9 @@ pub async fn update_evaluation_datapoint(
     }
     // 4. group_id
     q = q.bind(group_id.as_str());
-    // 5. scores (only if not empty)
+    // 5. scores (only if not empty; 2 binds for jsonMergePatch branch + fallback)
     if !scores_is_empty {
+        q = q.bind(new_scores.as_str());
         q = q.bind(new_scores.as_str());
     }
     // 6-8. WHERE clause
