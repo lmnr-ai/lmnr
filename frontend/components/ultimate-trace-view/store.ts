@@ -17,7 +17,7 @@ export const MIN_ZOOM = 1;
 export const ZOOM_INCREMENT = 0.5;
 
 // Panel types
-export type PanelType = "span-list" | "span-view" | "event-payload";
+export type PanelType = "span-list" | "span-view" | "event-payload" | "trace-picker";
 
 export interface PanelDescriptor {
   type: PanelType;
@@ -103,6 +103,7 @@ export interface UltimateTraceViewActions {
   // Panel actions
   openSpanListPanel: (traceId: string, spanIds: string[], title?: string) => void;
   openSpanViewPanel: (traceId: string, spanId: string) => void;
+  openTracePickerPanel: () => void;
   closePanel: (key: string) => void;
   closePanelsByType: (type: PanelType) => void;
 
@@ -148,6 +149,7 @@ export const createUltimateTraceViewStore = (initialTraceId: string, initialTrac
         return {
           traces: next,
           traceOrder: state.traceOrder.filter((id) => id !== traceId),
+          panels: state.panels.filter((p) => p.traceId !== traceId),
           selectedTraceId: state.selectedTraceId === traceId ? null : state.selectedTraceId,
           selectedSpanId: state.selectedTraceId === traceId ? null : state.selectedSpanId,
         };
@@ -289,6 +291,20 @@ export const createUltimateTraceViewStore = (initialTraceId: string, initialTrac
           data: { spanId },
         };
         return { panels: [...state.panels, panel] };
+      });
+    },
+
+    openTracePickerPanel: () => {
+      set((state) => {
+        // Remove any existing trace-picker panel
+        const filtered = state.panels.filter((p) => p.type !== "trace-picker");
+        const panel: PanelDescriptor = {
+          type: "trace-picker",
+          key: "trace-picker",
+          traceId: "",
+          data: {},
+        };
+        return { panels: [...filtered, panel] };
       });
     },
 

@@ -4,6 +4,7 @@ import { useUltimateTraceViewStore } from "../store";
 import EventPayloadPanel from "./event-payload-panel";
 import SpanListPanel from "./span-list-panel";
 import SpanViewPanel from "./span-view-panel";
+import TracePickerPanel from "./trace-picker-panel";
 
 const panelAnimation = {
   initial: { opacity: 0, x: 40 },
@@ -28,6 +29,8 @@ export default function PanelContainer() {
                 return <SpanViewPanel panel={panel} />;
               case "event-payload":
                 return <EventPayloadPanel panel={panel} />;
+              case "trace-picker":
+                return <TracePickerPanel panel={panel} />;
               default:
                 return null;
             }

@@ -1,13 +1,19 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useEffect, useState } from "react";
+import { type PropsWithChildren, useCallback, useEffect, useRef, useState } from "react";
 
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import Header from "@/components/ui/header";
 
+import AddTraceButton from "./add-trace-button";
 import PanelContainer from "./panels/panel-container";
-import { createUltimateTraceViewStore, UltimateTraceViewContext, useUltimateTraceViewStore } from "./store";
+import {
+  createUltimateTraceViewStore,
+  UltimateTraceViewContext,
+  useUltimateTraceViewStore,
+  useUltimateTraceViewStoreRaw,
+} from "./store";
 import Timeline from "./timeline";
 import TraceHeader from "./trace-header";
 import { useBlockSummaries } from "./use-block-summaries";
@@ -26,21 +32,18 @@ function UltimateTraceViewProvider({
 // Inner content: fetches data and renders trace sections
 function UltimateTraceViewContent({ traceId }: { traceId: string }) {
   const { projectId } = useParams<{ projectId: string }>();
+  const storeApi = useUltimateTraceViewStoreRaw();
 
-  const { setTraceData, setSpans, setIsTraceLoading, setIsSpansLoading, setTraceError, setSpansError, traceOrder } =
-    useUltimateTraceViewStore((state) => ({
-      setTraceData: state.setTraceData,
-      setSpans: state.setSpans,
-      setIsTraceLoading: state.setIsTraceLoading,
-      setIsSpansLoading: state.setIsSpansLoading,
-      setTraceError: state.setTraceError,
-      setSpansError: state.setSpansError,
-      traceOrder: state.traceOrder,
-    }));
+  const traceOrder = useUltimateTraceViewStore((state) => state.traceOrder);
+
+  // Track which traces we've already fetched
+  const fetchedRef = useRef<Set<string>>(new Set());
 
   const fetchTraceAndSpans = useCallback(
     async (tid: string) => {
-      // Fetch trace
+      const { setTraceData, setSpans, setIsTraceLoading, setIsSpansLoading, setTraceError, setSpansError } =
+        storeApi.getState();
+
       try {
         setIsTraceLoading(tid, true);
         setTraceError(tid, undefined);
@@ -52,7 +55,6 @@ function UltimateTraceViewContent({ traceId }: { traceId: string }) {
         const traceData = (await traceRes.json()) as TraceViewTrace;
         setTraceData(tid, traceData);
 
-        // Fetch spans
         setIsSpansLoading(tid, true);
         setSpansError(tid, undefined);
         const params = new URLSearchParams();
@@ -71,24 +73,31 @@ function UltimateTraceViewContent({ traceId }: { traceId: string }) {
         const spans = (await spansRes.json()) as TraceViewSpan[];
         setSpans(tid, spans);
       } catch {
-        setTraceError(tid, "Failed to load trace data");
+        storeApi.getState().setTraceError(tid, "Failed to load trace data");
       } finally {
-        setIsTraceLoading(tid, false);
-        setIsSpansLoading(tid, false);
+        storeApi.getState().setIsTraceLoading(tid, false);
+        storeApi.getState().setIsSpansLoading(tid, false);
       }
     },
-    [projectId, setTraceData, setSpans, setIsTraceLoading, setIsSpansLoading, setTraceError, setSpansError]
+    [projectId, storeApi]
   );
 
+  // Fetch data for any new traces that appear in the order
   useEffect(() => {
-    fetchTraceAndSpans(traceId);
-  }, [traceId, fetchTraceAndSpans]);
+    for (const tid of traceOrder) {
+      if (!fetchedRef.current.has(tid)) {
+        fetchedRef.current.add(tid);
+        fetchTraceAndSpans(tid);
+      }
+    }
+  }, [traceOrder, fetchTraceAndSpans]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0 w-full overflow-y-auto">
       {traceOrder.map((tid) => (
         <TraceSection key={tid} traceId={tid} />
       ))}
+      <AddTraceButton />
       <PanelContainer />
     </div>
   );
@@ -97,7 +106,11 @@ function UltimateTraceViewContent({ traceId }: { traceId: string }) {
 function TraceSection({ traceId }: { traceId: string }) {
   const exists = useUltimateTraceViewStore((state) => state.traces.has(traceId));
   const hasSpanTree = useUltimateTraceViewStore((state) => !!state.traces.get(traceId)?.spanTree);
+  const traceOrder = useUltimateTraceViewStore((state) => state.traceOrder);
+  const removeTrace = useUltimateTraceViewStore((state) => state.removeTrace);
   const { generateBlockSummaries } = useBlockSummaries(traceId);
+
+  const isRemovable = traceOrder.length > 1;
 
   // Trigger block summary generation once span tree is built
   useEffect(() => {
@@ -106,11 +119,15 @@ function TraceSection({ traceId }: { traceId: string }) {
     }
   }, [hasSpanTree, generateBlockSummaries]);
 
+  const handleRemove = useCallback(() => {
+    removeTrace(traceId);
+  }, [removeTrace, traceId]);
+
   if (!exists) return null;
 
   return (
     <div className="flex flex-col w-full flex-1 min-h-0">
-      <TraceHeader traceId={traceId} />
+      <TraceHeader traceId={traceId} onRemove={isRemovable ? handleRemove : undefined} />
       <Timeline traceId={traceId} />
     </div>
   );

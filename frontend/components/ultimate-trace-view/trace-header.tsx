@@ -1,4 +1,4 @@
-import { ChevronDown, Copy, Database, Loader, Share2 } from "lucide-react";
+import { ChevronDown, Copy, Database, Loader, Share2, Trash2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -18,9 +18,10 @@ import DepthSliderBar from "./timeline/depth-slider-bar";
 
 interface TraceHeaderProps {
   traceId: string;
+  onRemove?: () => void;
 }
 
-export default function TraceHeader({ traceId }: TraceHeaderProps) {
+export default function TraceHeader({ traceId, onRemove }: TraceHeaderProps) {
   const hasTrace = useUltimateTraceViewStore((state) => !!state.traces.get(traceId)?.trace);
   const isLoading = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.isTraceLoading ?? false);
   const maxDepth = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.maxDepth ?? 0);
@@ -109,6 +110,16 @@ export default function TraceHeader({ traceId }: TraceHeaderProps) {
           </TooltipTrigger>
           <TooltipContent>{copied ? "Copied!" : "Copy link"}</TooltipContent>
         </Tooltip>
+        {onRemove && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-7 text-destructive" onClick={onRemove}>
+                <Trash2 className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Remove trace</TooltipContent>
+          </Tooltip>
+        )}
       </TooltipProvider>
     </div>
   );
