@@ -259,6 +259,13 @@ export const createUltimateTraceViewStore = (initialTraceId: string, initialTrac
           traceId,
           data: { spanIds, title },
         };
+        // Insert span-list before any span-view panels for the same trace
+        const insertIndex = filtered.findIndex((p) => p.type === "span-view" && p.traceId === traceId);
+        if (insertIndex >= 0) {
+          const next = [...filtered];
+          next.splice(insertIndex, 0, panel);
+          return { panels: next };
+        }
         return { panels: [...filtered, panel] };
       });
     },
