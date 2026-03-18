@@ -2,7 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { shallow } from "zustand/shallow";
 
 import { LaminarIcon } from "@/components/ui/icons";
 
@@ -19,17 +20,31 @@ function SuggestionCycler({
   onSuggestionClick: (prompt: string) => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Cycle through suggestions on interval
+  // Cycle through suggestions on interval, pausing on hover
   useEffect(() => {
     if (suggestions.length <= 1) return;
+    if (isPaused) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
 
-    const interval = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % suggestions.length);
     }, SUGGESTION_CYCLE_INTERVAL);
 
-    return () => clearInterval(interval);
-  }, [suggestions]);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [suggestions, isPaused]);
 
   const currentSuggestion = suggestions[currentIndex];
 
@@ -41,12 +56,14 @@ function SuggestionCycler({
         key={currentIndex}
         initial={{ opacity: 0, x: 10, width: 0 }}
         animate={{ opacity: 1, x: 0, width: "auto" }}
-        exit={{ opacity: 0, x: 10, width: 0 }}
+        exit={{ opacity: 0, x: -10, width: 0 }}
         transition={{ duration: 0.3 }}
         onClick={(e) => {
           e.stopPropagation();
           onSuggestionClick(currentSuggestion.prompt);
         }}
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
         className="bg-primary text-primary-foreground text-sm px-3 py-2 rounded-full shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all whitespace-nowrap overflow-hidden cursor-pointer"
       >
         {currentSuggestion.display}
@@ -56,9 +73,10 @@ function SuggestionCycler({
 }
 
 export default function CollapsedButton() {
-  const viewMode = useLaminarAgentStore((s) => s.viewMode);
-  const setViewMode = useLaminarAgentStore((s) => s.setViewMode);
-  const setPrefillInput = useLaminarAgentStore((s) => s.setPrefillInput);
+  const { viewMode, setViewMode, setPrefillInput } = useLaminarAgentStore(
+    (s) => ({ viewMode: s.viewMode, setViewMode: s.setViewMode, setPrefillInput: s.setPrefillInput }),
+    shallow
+  );
   const pathname = usePathname();
 
   const suggestions = useMemo(() => getSuggestionsForRoute(pathname), [pathname]);
