@@ -129,10 +129,10 @@ pub async fn insert_evaluation_datapoints(
         .await?;
     }
 
-    // Build a single INSERT...SELECT with UNION ALL for all datapoints.
-    // Each datapoint becomes a row in the "new" subquery. A LEFT JOIN against the
-    // existing table (with FINAL) lets ClickHouse decide per-column whether to keep
-    // the existing value or use the new one, using empty() to detect falsey values.
+    // INSERT...SELECT with UNION ALL for datapoints in chunks.
+    // clickhouse-rs bind() performs client-side string interpolation, so all bound
+    // values are embedded in the SQL text. Chunking keeps each query well under
+    // ClickHouse's max_query_size (256 KiB default).
     let now_nanos = chrono_to_nanoseconds(Utc::now());
 
     // Each row in the UNION ALL has 15 columns matching the new values.
@@ -145,93 +145,96 @@ pub async fn insert_evaluation_datapoints(
                    fromUnixTimestamp64Nano(toInt64(?), 'UTC') as dataset_datapoint_created_at, \
                    ? as group_id, ? as scores";
 
-    let union_sql = vec![row_sql; evaluation_datapoints.len()].join(" UNION ALL ");
+    const CHUNK_SIZE: usize = 50;
+    for chunk in evaluation_datapoints.chunks(CHUNK_SIZE) {
+        let union_sql = vec![row_sql; chunk.len()].join(" UNION ALL ");
 
-    let query = format!(
-        "INSERT INTO evaluation_datapoints (
-            id, evaluation_id, project_id, trace_id, updated_at,
-            data, target, metadata, executor_output, `index`,
-            dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
-            group_id, scores
-        )
-        SELECT
-            new.id,
-            new.evaluation_id,
-            new.project_id,
-            if(existing.id IS NOT NULL AND empty(new.trace_id), existing.trace_id, new.trace_id),
-            new.updated_at,
-            if(existing.id IS NOT NULL AND empty(new.data), existing.data, new.data),
-            if(existing.id IS NOT NULL AND empty(new.target), existing.target, new.target),
-            if(existing.id IS NOT NULL AND empty(new.metadata), existing.metadata, new.metadata),
-            if(existing.id IS NOT NULL AND empty(new.executor_output), existing.executor_output, new.executor_output),
-            new.`index`,
-            if(existing.id IS NOT NULL AND empty(new.dataset_id), existing.dataset_id, new.dataset_id),
-            if(existing.id IS NOT NULL AND empty(new.dataset_id), existing.dataset_datapoint_id, new.dataset_datapoint_id),
-            if(existing.id IS NOT NULL AND empty(new.dataset_id), existing.dataset_datapoint_created_at, new.dataset_datapoint_created_at),
-            new.group_id,
-            if(empty(new.scores),
-                if(existing.id IS NOT NULL, existing.scores, new.scores),
-                if(existing.id IS NOT NULL AND notEmpty(existing.scores),
-                    jsonMergePatch(existing.scores, new.scores),
-                    new.scores))
-        FROM ({union_sql}) AS new
-        LEFT JOIN (
-            SELECT * FROM evaluation_datapoints FINAL
-            WHERE project_id = toUUID(?) AND evaluation_id = toUUID(?)
-        ) AS existing ON new.id = existing.id"
-    );
+        let query = format!(
+            "INSERT INTO evaluation_datapoints (
+                id, evaluation_id, project_id, trace_id, updated_at,
+                data, target, metadata, executor_output, `index`,
+                dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
+                group_id, scores
+            )
+            SELECT
+                new.id,
+                new.evaluation_id,
+                new.project_id,
+                if(existing.id IS NOT NULL AND empty(new.trace_id), existing.trace_id, new.trace_id),
+                new.updated_at,
+                if(existing.id IS NOT NULL AND empty(new.data), existing.data, new.data),
+                if(existing.id IS NOT NULL AND empty(new.target), existing.target, new.target),
+                if(existing.id IS NOT NULL AND empty(new.metadata), existing.metadata, new.metadata),
+                if(existing.id IS NOT NULL AND empty(new.executor_output), existing.executor_output, new.executor_output),
+                new.`index`,
+                if(existing.id IS NOT NULL AND empty(new.dataset_id), existing.dataset_id, new.dataset_id),
+                if(existing.id IS NOT NULL AND empty(new.dataset_id), existing.dataset_datapoint_id, new.dataset_datapoint_id),
+                if(existing.id IS NOT NULL AND empty(new.dataset_id), existing.dataset_datapoint_created_at, new.dataset_datapoint_created_at),
+                new.group_id,
+                if(empty(new.scores),
+                    if(existing.id IS NOT NULL, existing.scores, new.scores),
+                    if(existing.id IS NOT NULL AND notEmpty(existing.scores),
+                        jsonMergePatch(existing.scores, new.scores),
+                        new.scores))
+            FROM ({union_sql}) AS new
+            LEFT JOIN (
+                SELECT * FROM evaluation_datapoints FINAL
+                WHERE project_id = toUUID(?) AND evaluation_id = toUUID(?)
+            ) AS existing ON new.id = existing.id"
+        );
 
-    let mut q = clickhouse.query(&query);
+        let mut q = clickhouse.query(&query);
 
-    // Bind 15 params per datapoint (matching the UNION ALL row order)
-    for dp in &evaluation_datapoints {
-        let data = value_to_ch_string(&dp.data);
-        let target = value_to_ch_string(&dp.target);
-        let metadata = metadata_to_ch_string(&dp.metadata);
-        let executor_output = dp
-            .executor_output
-            .as_ref()
-            .map(|v| value_to_ch_string(v))
-            .unwrap_or_default();
-        let scores = scores_to_json_string(&dp.scores);
+        // Bind 15 params per datapoint (matching the UNION ALL row order)
+        for dp in chunk {
+            let data = value_to_ch_string(&dp.data);
+            let target = value_to_ch_string(&dp.target);
+            let metadata = metadata_to_ch_string(&dp.metadata);
+            let executor_output = dp
+                .executor_output
+                .as_ref()
+                .map(|v| value_to_ch_string(v))
+                .unwrap_or_default();
+            let scores = scores_to_json_string(&dp.scores);
 
-        let (dataset_id, dataset_datapoint_id, dataset_datapoint_created_at) =
-            match &dp.dataset_link {
-                Some(link) => (
-                    link.dataset_id,
-                    link.datapoint_id,
-                    chrono_to_nanoseconds(link.created_at),
-                ),
-                None => (Uuid::nil(), Uuid::nil(), 0i64),
-            };
+            let (dataset_id, dataset_datapoint_id, dataset_datapoint_created_at) =
+                match &dp.dataset_link {
+                    Some(link) => (
+                        link.dataset_id,
+                        link.datapoint_id,
+                        chrono_to_nanoseconds(link.created_at),
+                    ),
+                    None => (Uuid::nil(), Uuid::nil(), 0i64),
+                };
 
-        q = q.bind(dp.id);
-        q = q.bind(evaluation_id);
+            q = q.bind(dp.id);
+            q = q.bind(evaluation_id);
+            q = q.bind(project_id);
+            q = q.bind(dp.trace_id);
+            q = q.bind(now_nanos);
+            q = q.bind(data.as_str());
+            q = q.bind(target.as_str());
+            q = q.bind(metadata.as_str());
+            q = q.bind(executor_output.as_str());
+            q = q.bind(dp.index as u64);
+            q = q.bind(dataset_id);
+            q = q.bind(dataset_datapoint_id);
+            q = q.bind(dataset_datapoint_created_at);
+            q = q.bind(group_name.as_str());
+            q = q.bind(scores.as_str());
+        }
+
+        // WHERE clause for the existing rows subquery
         q = q.bind(project_id);
-        q = q.bind(dp.trace_id);
-        q = q.bind(now_nanos);
-        q = q.bind(data.as_str());
-        q = q.bind(target.as_str());
-        q = q.bind(metadata.as_str());
-        q = q.bind(executor_output.as_str());
-        q = q.bind(dp.index as u64);
-        q = q.bind(dataset_id);
-        q = q.bind(dataset_datapoint_id);
-        q = q.bind(dataset_datapoint_created_at);
-        q = q.bind(group_name.as_str());
-        q = q.bind(scores.as_str());
+        q = q.bind(evaluation_id);
+
+        q.execute().await.map_err(|e| {
+            anyhow::anyhow!(
+                "Clickhouse evaluation datapoints INSERT...SELECT failed: {:?}",
+                e
+            )
+        })?;
     }
-
-    // WHERE clause for the existing rows subquery
-    q = q.bind(project_id);
-    q = q.bind(evaluation_id);
-
-    q.execute().await.map_err(|e| {
-        anyhow::anyhow!(
-            "Clickhouse evaluation datapoints INSERT...SELECT failed: {:?}",
-            e
-        )
-    })?;
 
     Ok(())
 }
