@@ -1,10 +1,9 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useCallback, useEffect, useRef } from "react";
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
-import AgentPanel from "./agent-panel";
 import { useLaminarAgentStore } from "./store";
 
 interface SideBySideWrapperProps {
@@ -13,6 +12,20 @@ interface SideBySideWrapperProps {
 
 export default function SideBySideWrapper({ children }: SideBySideWrapperProps) {
   const viewMode = useLaminarAgentStore((s) => s.viewMode);
+  const setSideBySideContainer = useLaminarAgentStore((s) => s.setSideBySideContainer);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Register/unregister the container element in the store
+  const setRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+      setSideBySideContainer(el);
+    },
+    [setSideBySideContainer]
+  );
+
+  // Clear container on unmount
+  useEffect(() => () => setSideBySideContainer(null), [setSideBySideContainer]);
 
   if (viewMode !== "side-by-side") {
     return <>{children}</>;
@@ -25,7 +38,7 @@ export default function SideBySideWrapper({ children }: SideBySideWrapperProps) 
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel defaultSize={35} minSize={20}>
-        <AgentPanel currentMode="side-by-side" />
+        <div ref={setRef} className="h-full" />
       </ResizablePanel>
     </ResizablePanelGroup>
   );

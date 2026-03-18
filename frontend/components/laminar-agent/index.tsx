@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
+import AgentPanel from "./agent-panel";
 import CollapsedButton from "./collapsed-button";
-import FloatingPanel from "./floating-panel";
 import { useLaminarAgentStore } from "./store";
 
 export default function LaminarAgent() {
   const viewMode = useLaminarAgentStore((s) => s.viewMode);
   const setViewMode = useLaminarAgentStore((s) => s.setViewMode);
   const collapse = useLaminarAgentStore((s) => s.collapse);
+  const sideBySideContainer = useLaminarAgentStore((s) => s.sideBySideContainer);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -42,10 +44,26 @@ export default function LaminarAgent() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [viewMode, setViewMode, collapse]);
 
+  // Determine how to render the agent panel based on view mode
+  const isOpen = viewMode === "floating" || viewMode === "side-by-side";
+  const currentMode = viewMode === "side-by-side" ? "side-by-side" : "floating";
+
+  // Agent panel content (single instance, always mounted when open)
+  const agentPanel = isOpen ? <AgentPanel currentMode={currentMode} /> : null;
+
   return (
     <>
       <CollapsedButton />
-      <FloatingPanel />
+
+      {/* Floating mode: render in fixed-position container */}
+      {viewMode === "floating" && (
+        <div className="fixed right-6 bottom-6 z-[60] w-[400px] max-w-[calc(100vw-3rem)] h-[70vh] max-h-[calc(100vh-3rem)] rounded-lg border shadow-xl overflow-hidden bg-background">
+          {agentPanel}
+        </div>
+      )}
+
+      {/* Side-by-side mode: portal into the container provided by SideBySideWrapper */}
+      {viewMode === "side-by-side" && sideBySideContainer && createPortal(agentPanel, sideBySideContainer)}
     </>
   );
 }
