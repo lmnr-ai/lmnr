@@ -35,20 +35,21 @@ type CreateWorkspaceResult = {
 
 const DEFAULT_SIGNAL = {
   name: "Failure Detector",
-  prompt: `Analyze this trace for failures, errors, or things that went wrong.
-Include tool failures, API errors, logical mistakes, and dead ends.`,
+  prompt: `Analyze this trace for concrete issues: tool call failures, API errors, \
+looping or repeated calls, wrong tool selection, logic errors, \
+and abnormally slow spans. Only report problems visible in the trace data.`,
   structuredOutputSchema: {
     type: "object",
     required: ["description", "category"],
     properties: {
       description: {
         type: "string",
-        description: "Description of what failed and why",
+        description: "Description of the issue: what happened, which span(s) are involved, and the impact",
       },
       category: {
         type: "string",
-        enum: ["tool_error", "api_error", "logic_error", "timeout", "other"],
-        description: "Category of the failure",
+        enum: ["tool_error", "api_error", "logic_error", "looping", "wrong_tool", "timeout", "other"],
+        description: "Category of the issue",
       },
     },
   },
