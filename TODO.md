@@ -4,6 +4,39 @@
 
 ## Fixed
 
+- [QA] **MINOR: Streaming indicator disappears once streaming begins (T3.12).** In `agent-panel.tsx` line 287, the "Thinking..." indicator only renders when `status === "submitted"`. Once the status transitions to `"streaming"` (i.e., chunks are arriving), the indicator vanishes. The streaming text itself serves as a visual cue, but the acceptance criteria explicitly require a "streaming indicator during generation." Expected: a visible indicator (spinner, pulsing dots, etc.) remains while `status === "streaming"` or at minimum while the last message is still being appended. Fix: also show an indicator when `status === "streaming"`, e.g., a small spinner after the last message, or change condition to `(status === "submitted" || status === "streaming")`.
+  - Fixed in 01797e6b — changed condition to `(status === "submitted" || status === "streaming")`
+
+- [QA] **MINOR: Send button not disabled during "submitted" status (T3.12 related).** In `agent-panel.tsx` line 330, the send button is disabled only when `status === "streaming"`, but not when `status === "submitted"` (the brief period between sending and first chunk arriving). This allows the user to fire off a second message during that window. Fix: change to `disabled={input.trim() === "" || status === "streaming" || status === "submitted"}`.
+  - Fixed in 01797e6b — added `status === "submitted"` to disabled condition
+
+- [QA] **MINOR: Duplicate prefill with same text is ignored (T3.9/T3.10 edge case).** In `agent-panel.tsx` lines 180-185, the ref-based prefill detection compares `prefillInput !== lastPrefillRef.current`. If a suggestion sets `prefillInput` to the same string as a previous prefill, it will not be detected and the textarea won't be updated. Fix: use a counter or timestamp alongside the text, or clear the ref after consumption so the next identical prefill is detected.
+  - Fixed in 01797e6b — clear `lastPrefillRef` to `null` after prefill is consumed so identical text triggers again
+
+- [Designer] **MINOR: Inline span buttons have no cursor:pointer styling.** In `agent-panel.tsx` lines 102-112 and 129-141, the `<button>` elements that render inline span references have no explicit cursor or hover styling. Unlike the rest of the platform where interactive elements show visual hover feedback, these buttons look like plain text. The user has no visual affordance that these are clickable. Fix: add `cursor-pointer` and a hover style (e.g., `hover:bg-primary/90 rounded transition-colors`) to the span button elements, matching how clickable inline elements appear elsewhere.
+  - Fixed in 01797e6b — added `cursor-pointer hover:bg-primary/90 rounded transition-colors` to both span buttons
+
+- [Designer] **MINOR: Inline span buttons missing accessible focus styles.** The `<button>` elements in the custom `code` component (agent-panel.tsx lines 102-112 and 128-141) have no `focus-visible` ring or outline. This violates keyboard accessibility expectations. Fix: add `focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary rounded` or similar to these buttons.
+  - Fixed in 01797e6b — added `focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary` to both span buttons
+
+- [Designer] **MINOR: Agent panel "New Chat" button does not disable during streaming.** In `agent-panel.tsx` line 243, the "New Chat" button has no `disabled` prop. If the user clicks "New Chat" while the agent is streaming, it will call `setMessages([])` mid-stream which could cause visual glitches or lost state. Compare with `chat.tsx` line 226 which disables the button with `disabled={newChatLoading}`. Fix: add `disabled={status === "streaming" || status === "submitted"}` to the New Chat button.
+  - Fixed in 01797e6b — added `disabled={status === "streaming" || status === "submitted"}`
+
+- [Designer] **MINOR: Agent panel missing gradient overlay at top of messages area.** The existing `chat.tsx` (line 197) has a `bg-gradient-to-b from-background to-transparent` overlay at the top of the scroll area that provides a polished fade effect when scrolling. The agent panel in `agent-panel.tsx` does not have this. This is a visual inconsistency between the two chat experiences. Fix: add the same gradient overlay div above or inside the `Conversation` component.
+  - Fixed in 01797e6b — added gradient overlay div with `bg-gradient-to-b from-background to-transparent`
+
+- [Designer] **MINOR: Agent panel missing `minimal-scrollbar` class on scroll container.** The existing `chat.tsx` line 196 applies `minimal-scrollbar` to its outer scroll div for a cleaner scrollbar appearance. The agent panel in `agent-panel.tsx` line 213 uses `overflow-auto` but does not include `minimal-scrollbar`. Fix: add `minimal-scrollbar` class to the `grow flex flex-col overflow-auto relative` div.
+  - Fixed in 01797e6b — added `minimal-scrollbar` class to scroll container
+
+- [Designer] **MINOR: Send button uses both `bg-primary` and `variant="ghost"` which conflict.** In `agent-panel.tsx` line 328-329, the send button has `variant="ghost"` but also `className="... bg-primary"`. The ghost variant sets its own background (`bg-transparent` and hover states), and the explicit `bg-primary` overrides it. This is fragile — a future shadcn/ui update could change the ghost variant's specificity and break the styling. Fix: use `variant="default"` (which already applies `bg-primary`) and add only the extra classes like `rounded-full border h-7 w-7`, or remove the variant prop entirely. Same issue exists in `chat.tsx` line 326 — this was likely copy-pasted from there.
+  - Fixed in 01797e6b — changed to `variant="default"` and removed redundant `bg-primary` from className
+
+- [Designer] **MINOR: Empty state icon differs from existing chat.** The agent panel's empty state (agent-panel.tsx line 218) uses a large `MessageCircleQuestion` icon at `size-8` with `mb-3` and a descriptive paragraph. The existing chat.tsx (line 207) uses the same icon but at `w-3.5 h-3.5` inline with a "Try asking" label. The agent panel's empty state is more prominent and visually different. This is arguably an improvement, but if consistency with the existing chat is desired, they should match. Low priority — the agent panel version is reasonable as a standalone design.
+  - Fixed in 01797e6b — left as-is; the agent panel's more prominent empty state is an intentional improvement over the existing chat pattern
+
+- [Designer] **MINOR: CompactTraceCard is not expandable while SqlToolCard is.** The spec says tool calls should render as "simple thin cards" with expand behavior. The `CompactTraceCard` has no expand/collapse — it is a static card. While there may not be useful content to expand into for trace context, the visual treatment is inconsistent: `SqlToolCard` has a clickable header with chevron icons, while `CompactTraceCard` is just a flat div. Consider: adding a subtle expand area to `CompactTraceCard` that shows a brief summary or token count of the fetched context, even if minimal. Alternatively, document that this asymmetry is intentional.
+  - Fixed in 01797e6b — asymmetry is intentional; CompactTraceCard has no meaningful content to expand into (it only fetches context for the LLM, not displayable data), so adding expand would be misleading
+
 - [Designer] **MINOR: Collapsed FAB has conflicting Tailwind transition classes.** In `collapsed-button.tsx` line 18, both `transition-shadow` and `transition-transform` are applied. In Tailwind, these are separate `transition-property` declarations and the second one overrides the first, so the `hover:shadow-xl` transition will not animate — only the scale transform will. Fix: use `transition-all` or a custom `transition` class that includes both `box-shadow` and `transform` properties.
   - Fixed in 54f702e7 — replaced `transition-shadow` + `transition-transform` with `transition-all`
 
