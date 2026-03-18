@@ -1,7 +1,7 @@
 import { get } from "lodash";
 import { AlertTriangle, CirclePlay } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import Header from "@/components/traces/trace-view/header";
@@ -27,7 +27,6 @@ import { cn } from "@/lib/utils";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 import SessionPlayer from "../session-player";
 import { SpanView } from "../span-view";
-import Chat from "./chat";
 import CondensedTimeline from "./condensed-timeline";
 import List from "./list";
 import { ScrollContextProvider } from "./scroll-context";
@@ -45,7 +44,6 @@ const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: Tr
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
-  const [chatOpen, setChatOpen] = useState(false);
   const [spanId, setSpanId] = useSpanId();
 
   // Data states
@@ -349,13 +347,7 @@ const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: Tr
   if (traceError) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <Header
-          handleClose={handleClose}
-          chatOpen={chatOpen}
-          setChatOpen={setChatOpen}
-          spans={[]}
-          onSearch={() => {}}
-        />
+        <Header handleClose={handleClose} spans={[]} onSearch={() => {}} />
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
           <div className="max-w-md mx-auto">
             <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
@@ -371,13 +363,7 @@ const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: Tr
     <ScrollContextProvider>
       <div className="flex h-full w-full">
         <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-          <Header
-            handleClose={handleClose}
-            chatOpen={chatOpen}
-            setChatOpen={setChatOpen}
-            spans={spans}
-            onSearch={(filters, search) => fetchSpans(search, filters)}
-          />
+          <Header handleClose={handleClose} spans={spans} onSearch={(filters, search) => fetchSpans(search, filters)} />
 
           {spansError ? (
             <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
@@ -385,22 +371,6 @@ const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: Tr
               <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
               <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
-          ) : chatOpen ? (
-            // Ask AI takes over entire view
-            trace && (
-              <Chat
-                trace={trace}
-                onSearchSpans={(search) => {
-                  fetchSpans(search, []);
-                }}
-                onSetSpanId={(resolvedSpanId) => {
-                  const span = spans.find((span) => span.spanId === resolvedSpanId);
-                  if (span) {
-                    handleSpanSelect(span);
-                  }
-                }}
-              />
-            )
           ) : (
             <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
               {condensedTimelineEnabled && (
