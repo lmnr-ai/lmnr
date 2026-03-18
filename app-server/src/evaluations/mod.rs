@@ -266,14 +266,16 @@ pub async fn update_evaluation_datapoint(
     trace_id: Option<Uuid>,
 ) -> Result<()> {
     // Verify the datapoint exists and get its trace_id for shared evaluation handling.
+    // We use prewhere id here, so that we hit the bloom_filter skip index on the
+    // project_id, evaluation_id, id BEFORE we execute FINAL
     let existing_row = clickhouse
         .query(
-            "SELECT trace_id FROM evaluation_datapoints FINAL
-             WHERE project_id = ? AND evaluation_id = ? AND id = ?",
+            "SELECT trace_id FROM evaluation_datapoints PREWHERE id = ? FINAL
+             WHERE project_id = ? AND evaluation_id = ?",
         )
+        .bind(datapoint_id)
         .bind(project_id)
         .bind(evaluation_id)
-        .bind(datapoint_id)
         .fetch_optional::<TraceIdRow>()
         .await?;
 
