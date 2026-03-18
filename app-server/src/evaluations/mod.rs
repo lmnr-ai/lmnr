@@ -76,8 +76,14 @@ fn value_to_ch_string(v: &Value) -> String {
 }
 
 /// Convert a scores HashMap to a JSON string for ClickHouse.
+/// Filters out null-valued scores so that jsonMergePatch (RFC 7396) does not
+/// interpret them as deletions. Only scores with actual float values are included.
 fn scores_to_json_string(scores: &HashMap<String, Option<f64>>) -> String {
-    json_value_to_string(&serde_json::to_value(scores).unwrap_or_default())
+    let filtered: HashMap<&String, f64> = scores
+        .iter()
+        .filter_map(|(k, v)| v.map(|val| (k, val)))
+        .collect();
+    json_value_to_string(&serde_json::to_value(filtered).unwrap_or_default())
 }
 
 /// Convert a metadata Option<HashMap> to a JSON string for ClickHouse.
@@ -136,7 +142,8 @@ pub async fn insert_evaluation_datapoints(
                 .as_ref()
                 .is_some_and(|v| is_falsey_value(v));
         let trace_id_is_falsey = dp.trace_id.is_nil();
-        let scores_is_empty = dp.scores.is_empty();
+        let scores_is_empty = dp.scores.is_empty()
+            || dp.scores.values().all(|v| v.is_none());
 
         let (dataset_id, dataset_datapoint_id, dataset_datapoint_created_at) =
             match &dp.dataset_link {
@@ -362,7 +369,8 @@ pub async fn update_evaluation_datapoint(
     let executor_output_is_falsey = executor_output.is_none()
         || executor_output.as_ref().is_some_and(|v| is_falsey_value(v));
     let trace_id_is_falsey = trace_id.is_none() || trace_id.is_some_and(|id| id.is_nil());
-    let scores_is_empty = scores.is_empty();
+    let scores_is_empty = scores.is_empty()
+        || scores.values().all(|v| v.is_none());
 
     let now_nanos = chrono_to_nanoseconds(Utc::now());
 
