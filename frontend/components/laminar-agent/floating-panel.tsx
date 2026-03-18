@@ -11,7 +11,7 @@ export default function FloatingPanel() {
   }
 
   return (
-    <div className="fixed right-4 bottom-4 z-50 w-[400px] h-[70vh] rounded-lg border shadow-xl overflow-hidden">
+    <div className="fixed right-6 bottom-6 z-[60] w-[400px] h-[70vh] rounded-lg border shadow-xl overflow-hidden bg-background">
       <AgentPanel currentMode="floating" />
     </div>
   );

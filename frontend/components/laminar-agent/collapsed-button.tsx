@@ -15,7 +15,7 @@ export default function CollapsedButton() {
   return (
     <button
       onClick={() => setViewMode("floating")}
-      className="fixed bottom-6 right-6 z-50 flex items-center justify-center size-12 rounded-full bg-primary shadow-lg hover:shadow-xl transition-shadow hover:scale-105 active:scale-95 transition-transform"
+      className="fixed bottom-6 right-6 z-50 flex items-center justify-center size-12 rounded-full bg-primary shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
       aria-label="Open Laminar Agent"
     >
       <LaminarIcon className="size-6" fill="hsl(var(--primary-foreground))" />

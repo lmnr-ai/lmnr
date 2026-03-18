@@ -23,7 +23,7 @@ export default function SideBySideWrapper({ children }: SideBySideWrapperProps) 
       <ResizablePanel defaultSize={65} minSize={30}>
         <div className="h-full overflow-auto">{children}</div>
       </ResizablePanel>
-      <ResizableHandle />
+      <ResizableHandle withHandle />
       <ResizablePanel defaultSize={35} minSize={20}>
         <AgentPanel currentMode="side-by-side" />
       </ResizablePanel>
