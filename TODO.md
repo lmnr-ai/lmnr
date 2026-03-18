@@ -4,6 +4,15 @@
 
 ## Fixed
 
+- [USER] **MAJOR: Trace detail view extends to (or past) the right edge of the screen.** The trace view panel goes all the way to the right edge when opened. It should be properly contained.
+  - Fixed in 2cec10ba — added `relative` and `overflow-hidden` to left panel content div in `side-by-side-wrapper.tsx` so absolutely-positioned children are contained within the panel bounds
+
+- [USER] **MAJOR: Side-by-side mode does not cause existing content to reflow into the smaller left panel.** When entering side-by-side mode, the original page content (including trace detail panels, drawers, sidebars) should shift and resize to fit within the left panel. Currently the content stays at its original size and the agent panel overlaps or is hidden behind it. The SPEC explicitly states: "any sidebars or drawers that were previously mounted to the right side need to be mounted to the right side of the left panel now."
+  - Fixed in 2cec10ba — same fix as above; the `relative` positioning on the left panel div creates a containing block for absolute children, and `overflow-hidden` clips them to the panel bounds
+
+- [USER] **MAJOR: Floating panel should be anchored to the top of the screen (with some gap), not the bottom.** The floating panel currently appears at the bottom-right. It should appear at the top-right of the viewport (with a small gap from the top edge).
+  - Fixed in 2cec10ba — changed floating panel from `bottom-6` to `top-6` in `index.tsx`
+
 - [QA] **MAJOR: `extractTraceIdFromPath` does not match query-param-based trace URLs, disabling span buttons and losing trace context (TE2E.1 Step 14).** traceId is now also extracted from `useSearchParams()` as a fallback. `isOnTracePage` updated to match `/project/*/traces` pathname with traceId in search params.
   - Fixed in this commit — added `useSearchParams()` to extract `traceIdFromSearch`; traceId resolution now falls through path -> search params -> store context; `isOnTracePage` checks both path-segment and query-param trace URLs
 
