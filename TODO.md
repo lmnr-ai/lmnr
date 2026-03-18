@@ -4,6 +4,21 @@
 
 ## Fixed
 
+- [QA] **MAJOR: "Open in Signals" deep link does not show EventDetailPanel (T5.3).** EventDetailPanel only rendered when `eventId && !traceId`, but the "Open in Signals" URL includes both params. Changed condition to show EventDetailPanel whenever `eventId` is present, regardless of `traceId`.
+  - Fixed in b7f6f245 — removed `!traceId` guard from EventDetailPanel render condition in `signal/index.tsx`
+
+- [Designer] **MAJOR: Auto-scroll to focused row only works once — subsequent focusedRowId changes are silently skipped.** Two separate useEffects had ordering issues: the scroll effect ran before the reset effect, causing subsequent scrolls to be skipped.
+  - Fixed in b7f6f245 — merged both effects into one that resets `hasScrolledToFocusedRef` and scrolls in a single effect body in `infinite-datatable/index.tsx`
+
+- [QA] **MINOR: Inline span buttons in agent panel silently fail when no trace context is available (T5.8).** Buttons looked interactive but did nothing when no trace context was available.
+  - Fixed in b7f6f245 — span buttons are now visually disabled (`opacity-50`, `cursor-not-allowed`) with a tooltip "Navigate to a trace page to view this span" when no trace context is available
+
+- [Designer] **MINOR: Cross-page span navigation uses `window.history.pushState` + synthetic `PopStateEvent` to communicate with nuqs, which is fragile.** Bypassed Next.js router entirely with browser-level events.
+  - Fixed in b7f6f245 — replaced `pushState` + `PopStateEvent` with `router.replace()` for on-page span navigation, which nuqs integrates with natively
+
+- [Designer] **MINOR: `traceIdContext` is never cleared when navigating away from a trace page.** Once set, stale traceIdContext could cause incorrect cross-page navigation.
+  - Fixed in b7f6f245 — added else branch `setTraceIdContext(null)` when not on a trace page
+
 - [QA] **CRITICAL: SignalsPill never renders because `executeQuery` is a server-only function called from a client component (T4.5, T4.6, T4.7, T4.8).** In `signals-pill.tsx` lines 47-49, `executeQuery` from `@/lib/actions/sql` is called inside a `useEffect` in a `"use client"` component. `executeQuery` uses `fetcherJSON` which calls `process.env.BACKEND_URL` -- a server-only environment variable that is `undefined` on the client. The fetch fails silently (caught by the `catch` block at line 54-56), setting `events` to `[]`, so the pill never appears. Expected: the signals pill should show "{N} signals" for traces that have associated signal events. Actual: the pill never renders on any trace, even those confirmed to have signal events (e.g., trace `01f8685f-581f-5428-a66a-cbffe0d1ec3d` has Failure Detector events). Fix: use a client-side API route (e.g., `/api/projects/${projectId}/query`) or convert to a server action, or use the existing SWR/fetch pattern that goes through Next.js API routes.
   - Fixed in fc59004d — replaced server-only `executeQuery` with client-side `fetch` to `/api/projects/${projectId}/sql` route
 
