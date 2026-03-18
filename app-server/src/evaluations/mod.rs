@@ -318,45 +318,30 @@ pub async fn update_evaluation_datapoint(
     scores: HashMap<String, Option<f64>>,
     trace_id: Option<Uuid>,
 ) -> Result<()> {
-    // For shared evaluation trace management, we still need to check existing trace_id
+    // Verify the datapoint exists and get its trace_id for shared evaluation handling.
+    let existing_row = clickhouse
+        .query(
+            "SELECT trace_id FROM evaluation_datapoints FINAL
+             WHERE project_id = ? AND evaluation_id = ? AND id = ?",
+        )
+        .bind(project_id)
+        .bind(evaluation_id)
+        .bind(datapoint_id)
+        .fetch_optional::<TraceIdRow>()
+        .await?;
+
+    let existing_row = existing_row
+        .ok_or_else(|| anyhow::anyhow!("Evaluation datapoint not found"))?;
+
     if is_shared_evaluation(pool, project_id, evaluation_id).await? {
         if let Some(new_trace_id) = trace_id {
-            // We need to check the existing trace_id to handle shared trace cleanup
-            let existing_row = clickhouse
-                .query(
-                    "SELECT trace_id FROM evaluation_datapoints FINAL
-                     WHERE project_id = ? AND evaluation_id = ? AND id = ?",
-                )
-                .bind(project_id)
-                .bind(evaluation_id)
-                .bind(datapoint_id)
-                .fetch_optional::<TraceIdRow>()
-                .await?;
-
-            if let Some(existing_row) = existing_row {
-                if new_trace_id != existing_row.trace_id {
-                    delete_shared_traces(pool, project_id, &[existing_row.trace_id]).await?;
-                    insert_shared_traces(pool, project_id, &[new_trace_id]).await?;
-                }
-            } else {
+            if new_trace_id != existing_row.trace_id {
+                delete_shared_traces(pool, project_id, &[existing_row.trace_id]).await?;
                 insert_shared_traces(pool, project_id, &[new_trace_id]).await?;
             }
         } else {
             // Re-mark existing trace as shared in case it wasn't during creation
-            let existing_row = clickhouse
-                .query(
-                    "SELECT trace_id FROM evaluation_datapoints FINAL
-                     WHERE project_id = ? AND evaluation_id = ? AND id = ?",
-                )
-                .bind(project_id)
-                .bind(evaluation_id)
-                .bind(datapoint_id)
-                .fetch_optional::<TraceIdRow>()
-                .await?;
-
-            if let Some(existing_row) = existing_row {
-                insert_shared_traces(pool, project_id, &[existing_row.trace_id]).await?;
-            }
+            insert_shared_traces(pool, project_id, &[existing_row.trace_id]).await?;
         }
     }
 
