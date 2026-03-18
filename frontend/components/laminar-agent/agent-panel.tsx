@@ -4,7 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import { ArrowUp, Columns2, Loader2, MessageCircleQuestion, PanelRight, RotateCcw, X } from "lucide-react";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -64,18 +64,21 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
   const projectId = useParams().projectId as string;
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const traceIdFromPath = extractTraceIdFromPath(pathname);
-  // Use traceId from pathname (if on trace page) or from store context (set by signals pill, etc.)
-  const traceId = traceIdFromPath || traceIdContext;
+  const traceIdFromSearch = searchParams.get("traceId");
+  // Use traceId from path segment, search params, or store context (set by signals pill, etc.)
+  const traceId = traceIdFromPath || traceIdFromSearch || traceIdContext;
 
   // Keep traceIdContext in sync when navigating to/from a trace page
+  const effectiveTraceId = traceIdFromPath || traceIdFromSearch;
   useEffect(() => {
-    if (traceIdFromPath) {
-      setTraceIdContext(traceIdFromPath);
+    if (effectiveTraceId) {
+      setTraceIdContext(effectiveTraceId);
     } else {
       setTraceIdContext(null);
     }
-  }, [traceIdFromPath, setTraceIdContext]);
+  }, [effectiveTraceId, setTraceIdContext]);
 
   // Handle prefill: initialize input from store prefill if present
   const initialInput = useMemo(() => {
@@ -112,7 +115,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
     [projectId, traceId]
   );
 
-  const isOnTracePage = !!traceIdFromPath;
+  const isOnTracePage = !!(traceIdFromPath || (pathname.match(/\/project\/[^/]+\/traces\/?$/) && traceIdFromSearch));
 
   const canNavigateToSpan = isOnTracePage || !!traceId;
 
@@ -227,17 +230,27 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
     [projectId, traceId]
   );
 
+  // Read stored messages once on mount for initializing useChat
+  const initialMessagesRef = useRef(storedMessages.length > 0 ? storedMessages : undefined);
+
   const { messages, sendMessage, setMessages, status } = useChat({
     transport,
-    messages: storedMessages.length > 0 ? storedMessages : undefined,
+    messages: initialMessagesRef.current,
   });
 
-  // Sync messages back to the store so they survive remounts (mode switches)
+  // Sync messages back to the store on every update so they survive remounts (mode switches).
+  // The cleanup-only approach fails because React can unmount AFTER the new instance mounts.
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  useEffect(() => {
+    if (messages.length > 0) {
+      setChatMessages(messages);
+    }
+  }, [messages, setChatMessages]);
+
+  // Also sync on unmount to capture the final state
   useEffect(
     () => () => {
-      // On unmount, persist current messages to the store
       setChatMessages(messagesRef.current);
     },
     [setChatMessages]

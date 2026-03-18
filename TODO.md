@@ -4,6 +4,15 @@
 
 ## Fixed
 
+- [QA] **MAJOR: `extractTraceIdFromPath` does not match query-param-based trace URLs, disabling span buttons and losing trace context (TE2E.1 Step 14).** traceId is now also extracted from `useSearchParams()` as a fallback. `isOnTracePage` updated to match `/project/*/traces` pathname with traceId in search params.
+  - Fixed in this commit — added `useSearchParams()` to extract `traceIdFromSearch`; traceId resolution now falls through path -> search params -> store context; `isOnTracePage` checks both path-segment and query-param trace URLs
+
+- [Designer] **MAJOR: Floating panel (z-40) is hidden behind trace detail panel (z-50) on trace pages.** Floating panel and FAB raised to `z-[55]`, dialogs raised to `z-[60]`.
+  - Fixed in this commit — floating panel `z-40` -> `z-[55]`, collapsed FAB `z-50` -> `z-[55]`, dialog overlay and content `z-50` -> `z-[60]`
+
+- [QA] **MINOR: Conversation history lost during floating-to-side-by-side mode switch (TE2E.1 Step 7).** Messages now sync to the store on every update (not just unmount), and initial messages are read from a ref snapshot on mount.
+  - Fixed in this commit — added continuous `useEffect` sync of messages to store; initial messages captured in ref to avoid stale reads during React batching
+
 - [Designer] **MAJOR: Side-by-side panel does not expand to intended width.** In `side-by-side-wrapper.tsx` lines 34-43, the `useEffect` calls `panel.resize(35)` to expand the agent panel to 35% width when `viewMode` changes to `"side-by-side"`. However, the panel remains at 0px width (confirmed via DOM measurement). The `defaultSize={0}` combined with `collapsible` and `collapsedSize={0}` may be causing the `resize(35)` call to fail silently — possibly a timing issue where the ref is not yet attached, or the panel group layout algorithm is rejecting the resize from a collapsed state. The result is that side-by-side mode shows the agent panel as a barely-visible sliver (~35px) on the right edge, with text like "Lan... Age..." truncated. The resize handle grip icon is visible but the panel is essentially unusable. Fix: investigate whether `panelRef.current` is null at effect time, or whether `collapsible` panels need to call `panel.expand()` before `panel.resize()`. Alternatively, use `defaultSize={35}` and control visibility via CSS/className instead of programmatic resize.
   - Fixed in a382967d — root cause: in react-resizable-panels v4, bare numbers in `resize(35)` are interpreted as pixels not percentages. Fix: use `resize("35%")` with percentage strings and percentage strings for defaultSize/minSize props. Also removed unnecessary collapsible/collapsedSize props.
 

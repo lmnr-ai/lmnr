@@ -67,7 +67,7 @@ export default function LaminarAgent() {
       {/* Floating mode: render in fixed-position container */}
       {viewMode === "floating" && (
         <div
-          className="fixed right-6 bottom-6 z-40 w-[400px] max-w-[calc(100vw-3rem)] h-[70vh] min-h-[300px] max-h-[calc(100vh-3rem)] rounded-lg border shadow-xl overflow-hidden bg-background pointer-events-auto"
+          className="fixed right-6 bottom-6 z-[55] w-[400px] max-w-[calc(100vw-3rem)] h-[70vh] min-h-[300px] max-h-[calc(100vh-3rem)] rounded-lg border shadow-xl overflow-hidden bg-background pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >

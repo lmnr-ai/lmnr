@@ -98,7 +98,7 @@ export default function CollapsedButton() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2">
+    <div className="fixed bottom-6 right-6 z-[55] flex items-center gap-2">
       {suggestions.length > 0 && (
         <SuggestionCycler key={pathname} suggestions={suggestions} onSuggestionClick={handleSuggestionClick} />
       )}
