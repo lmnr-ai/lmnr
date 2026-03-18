@@ -32,18 +32,18 @@ function PayloadValue({
   const spanMap = useMemo(() => new Map(spans.map((s) => [s.spanId, s])), [spans]);
 
   const parts = useMemo(() => {
-    const result: { type: "text"; content: string }[] | { type: "chip"; spanId: string; spanName: string }[] = [];
+    const result: ({ type: "text"; content: string } | { type: "chip"; spanId: string; spanName: string })[] = [];
     let lastIndex = 0;
     // Reset regex lastIndex for fresh exec
     const regex = new RegExp(SPAN_URL_PATTERN.source, "gi");
     let match;
     while ((match = regex.exec(value)) !== null) {
       if (match.index > lastIndex) {
-        (result as any[]).push({ type: "text", content: value.slice(lastIndex, match.index) });
+        result.push({ type: "text", content: value.slice(lastIndex, match.index) });
       }
       const spanId = match[2];
       const span = spanMap.get(spanId);
-      (result as any[]).push({
+      result.push({
         type: "chip",
         spanId,
         spanName: span?.name ?? spanId.slice(0, 8),
@@ -51,9 +51,9 @@ function PayloadValue({
       lastIndex = match.index + match[0].length;
     }
     if (lastIndex < value.length) {
-      (result as any[]).push({ type: "text", content: value.slice(lastIndex) });
+      result.push({ type: "text", content: value.slice(lastIndex) });
     }
-    return result as ({ type: "text"; content: string } | { type: "chip"; spanId: string; spanName: string })[];
+    return result;
   }, [value, spanMap]);
 
   // If no URLs found, render the whole string as markdown
