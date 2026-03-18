@@ -12,7 +12,8 @@ interface TraceHeaderProps {
 }
 
 export default function TraceHeader({ traceId }: TraceHeaderProps) {
-  const traceState = useUltimateTraceViewStore((state) => state.getTraceState(traceId));
+  const hasTrace = useUltimateTraceViewStore((state) => !!state.traces.get(traceId)?.trace);
+  const isLoading = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.isTraceLoading ?? false);
   const { projectId } = useParams<{ projectId: string }>();
   const [copied, setCopied] = useState(false);
 
@@ -23,9 +24,9 @@ export default function TraceHeader({ traceId }: TraceHeaderProps) {
     setTimeout(() => setCopied(false), 2000);
   }, [projectId, traceId]);
 
-  const traceLabel = traceState?.trace
+  const traceLabel = hasTrace
     ? `Trace ${traceId.slice(0, 8)}...`
-    : traceState?.isTraceLoading
+    : isLoading
       ? "Loading..."
       : "Trace";
 

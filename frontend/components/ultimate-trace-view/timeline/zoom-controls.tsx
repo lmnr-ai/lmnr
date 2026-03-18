@@ -9,10 +9,8 @@ interface ZoomControlsProps {
 }
 
 export default function ZoomControls({ traceId }: ZoomControlsProps) {
-  const traceState = useUltimateTraceViewStore((state) => state.getTraceState(traceId));
+  const zoom = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.zoom ?? 1);
   const setZoom = useUltimateTraceViewStore((state) => state.setZoom);
-
-  const zoom = traceState?.zoom ?? 1;
 
   return (
     <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center bg-muted border rounded-md px-0.5 h-[24px]">

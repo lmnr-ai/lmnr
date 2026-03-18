@@ -8,7 +8,6 @@ import {
 } from "@/components/traces/trace-view/condensed-timeline/use-dynamic-time-intervals";
 import { useHoverNeedle } from "@/components/traces/trace-view/condensed-timeline/use-hover-needle";
 import { useWheelZoom } from "@/components/traces/trace-view/condensed-timeline/use-wheel-zoom";
-import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +17,8 @@ import SelectionOverlay from "./selection-overlay";
 import TimelineElement, { ROW_HEIGHT } from "./timeline-element";
 import ZoomControls from "./zoom-controls";
 
+const emptySet = new Set<string>();
+
 interface TimelineProps {
   traceId: string;
 }
@@ -26,7 +27,12 @@ function Timeline({ traceId }: TimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timelineContentRef = useRef<HTMLDivElement>(null);
 
-  const traceState = useUltimateTraceViewStore((state) => state.getTraceState(traceId));
+  const zoom = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.zoom ?? 1);
+  const isSpansLoading = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.isSpansLoading ?? false);
+  const visibleSpanIds = useUltimateTraceViewStore(
+    (state) => state.traces.get(traceId)?.visibleSpanIds ?? emptySet
+  );
+  const spans = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.spans);
   const getCondensedTimelineData = useUltimateTraceViewStore((state) => state.getCondensedTimelineData);
   const selectSpan = useUltimateTraceViewStore((state) => state.selectSpan);
   const selectedSpanId = useUltimateTraceViewStore((state) => state.selectedSpanId);
@@ -35,13 +41,9 @@ function Timeline({ traceId }: TimelineProps) {
   const clearSelectedSpanIds = useUltimateTraceViewStore((state) => state.clearSelectedSpanIds);
   const setZoom = useUltimateTraceViewStore((state) => state.setZoom);
 
-  const zoom = traceState?.zoom ?? 1;
-  const isSpansLoading = traceState?.isSpansLoading ?? false;
-  const visibleSpanIds = traceState?.visibleSpanIds ?? new Set<string>();
-
   const { spans: condensedSpans, totalDurationMs, totalRows } = useMemo(
     () => getCondensedTimelineData(traceId),
-    [getCondensedTimelineData, traceId, traceState?.spans]
+    [getCondensedTimelineData, traceId, spans]
   );
 
   const { markers: timeMarkers, setContainerRef } = useDynamicTimeIntervals({

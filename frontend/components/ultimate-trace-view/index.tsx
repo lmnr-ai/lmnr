@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
+import { type PropsWithChildren, useCallback, useEffect, useState } from "react";
 
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 
@@ -106,9 +106,9 @@ function UltimateTraceViewContent({ traceId }: { traceId: string }) {
 }
 
 function TraceSection({ traceId }: { traceId: string }) {
-  const traceState = useUltimateTraceViewStore((state) => state.getTraceState(traceId));
+  const exists = useUltimateTraceViewStore((state) => state.traces.has(traceId));
 
-  if (!traceState) return null;
+  if (!exists) return null;
 
   return (
     <div className="flex flex-col w-full">
