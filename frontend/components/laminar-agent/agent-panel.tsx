@@ -4,8 +4,8 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import { ArrowUp, Columns2, Loader2, MessageCircleQuestion, PanelRight, RotateCcw, X } from "lucide-react";
-import { useParams, usePathname } from "next/navigation";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
@@ -41,10 +41,22 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
   const collapse = useLaminarAgentStore((s) => s.collapse);
   const prefillInput = useLaminarAgentStore((s) => s.prefillInput);
   const clearPrefill = useLaminarAgentStore((s) => s.clearPrefill);
+  const traceIdContext = useLaminarAgentStore((s) => s.traceIdContext);
+  const setTraceIdContext = useLaminarAgentStore((s) => s.setTraceIdContext);
 
   const projectId = useParams().projectId as string;
   const pathname = usePathname();
-  const traceId = extractTraceIdFromPath(pathname);
+  const router = useRouter();
+  const traceIdFromPath = extractTraceIdFromPath(pathname);
+  // Use traceId from pathname (if on trace page) or from store context (set by signals pill, etc.)
+  const traceId = traceIdFromPath || traceIdContext;
+
+  // Keep traceIdContext in sync when navigating to a trace page
+  useEffect(() => {
+    if (traceIdFromPath) {
+      setTraceIdContext(traceIdFromPath);
+    }
+  }, [traceIdFromPath, setTraceIdContext]);
 
   // Handle prefill: initialize input from store prefill if present
   const initialInput = useMemo(() => {
@@ -81,14 +93,24 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
     [projectId, traceId]
   );
 
-  const handleSpanClick = useCallback(async (spanUuid: string) => {
-    // Use nuqs-compatible URL update for spanId
-    const url = new URL(window.location.href);
-    url.searchParams.set("spanId", spanUuid);
-    window.history.pushState({}, "", url.toString());
-    // Dispatch a popstate event so nuqs picks up the change
-    window.dispatchEvent(new PopStateEvent("popstate"));
-  }, []);
+  const isOnTracePage = !!traceIdFromPath;
+
+  const handleSpanClick = useCallback(
+    async (spanUuid: string) => {
+      if (isOnTracePage) {
+        // On the trace page: update spanId via nuqs-compatible URL update
+        const url = new URL(window.location.href);
+        url.searchParams.set("spanId", spanUuid);
+        window.history.pushState({}, "", url.toString());
+        // Dispatch a popstate event so nuqs picks up the change
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      } else if (traceId) {
+        // Not on trace page but have traceId context: navigate to trace page with spanId
+        router.push(`/project/${projectId}/traces/${traceId}?spanId=${spanUuid}`);
+      }
+    },
+    [isOnTracePage, traceId, router, projectId]
+  );
 
   const components = useMemo(
     () => ({

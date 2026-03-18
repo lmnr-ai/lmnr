@@ -11,6 +11,8 @@ interface LaminarAgentState {
   chatMessages: UIMessage[];
   chatStatus: AgentChatStatus;
   isNewChatLoading: boolean;
+  /** traceId context for cross-page span navigation */
+  traceIdContext: string | null;
 }
 
 interface LaminarAgentActions {
@@ -21,6 +23,7 @@ interface LaminarAgentActions {
   setChatMessages: (msgs: UIMessage[]) => void;
   setChatStatus: (status: AgentChatStatus) => void;
   setIsNewChatLoading: (loading: boolean) => void;
+  setTraceIdContext: (traceId: string | null) => void;
 }
 
 export type LaminarAgentStore = LaminarAgentState & LaminarAgentActions;
@@ -31,6 +34,7 @@ export const useLaminarAgentStore = create<LaminarAgentStore>()((set) => ({
   chatMessages: [],
   chatStatus: "idle",
   isNewChatLoading: false,
+  traceIdContext: null,
 
   setViewMode: (viewMode) => set({ viewMode }),
   collapse: () => set({ viewMode: "collapsed" }),
@@ -39,4 +43,5 @@ export const useLaminarAgentStore = create<LaminarAgentStore>()((set) => ({
   setChatMessages: (chatMessages) => set({ chatMessages }),
   setChatStatus: (chatStatus) => set({ chatStatus }),
   setIsNewChatLoading: (isNewChatLoading) => set({ isNewChatLoading }),
+  setTraceIdContext: (traceIdContext) => set({ traceIdContext }),
 }));

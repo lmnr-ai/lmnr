@@ -22,7 +22,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import React, { type PropsWithChildren, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { type PropsWithChildren, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { DraggingTableHeadOverlay } from "@/components/ui/infinite-datatable/ui/head.tsx";
@@ -215,6 +215,26 @@ export function InfiniteDataTable<TData extends RowData>({
   });
 
   const virtualItems = rowVirtualizer.getVirtualItems();
+
+  // Auto-scroll to focused row when data first loads with a focusedRowId
+  const hasScrolledToFocusedRef = useRef(false);
+  const scrollToFocusedRow = useCallback(() => {
+    if (!focusedRowId || hasScrolledToFocusedRef.current) return;
+    const focusedIndex = rows.findIndex((row) => row.id === focusedRowId);
+    if (focusedIndex >= 0) {
+      hasScrolledToFocusedRef.current = true;
+      rowVirtualizer.scrollToIndex(focusedIndex, { align: "center" });
+    }
+  }, [focusedRowId, rows, rowVirtualizer]);
+
+  useEffect(() => {
+    scrollToFocusedRow();
+  }, [scrollToFocusedRow]);
+
+  // Reset scroll tracking when focusedRowId changes
+  useEffect(() => {
+    hasScrolledToFocusedRef.current = false;
+  }, [focusedRowId]);
 
   const handleClearSelection = () => {
     table.toggleAllRowsSelected(false);
