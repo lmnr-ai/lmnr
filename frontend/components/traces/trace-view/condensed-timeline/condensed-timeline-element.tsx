@@ -37,11 +37,11 @@ const CondensedTimelineElement = ({
   };
 
   const backgroundColor = useMemo(() => {
-    if (isSignificant) {
-      return "hsl(var(--info))";
-    }
     if (span.status === "error") {
       return "rgba(204, 51, 51, 1)";
+    }
+    if (isSignificant) {
+      return "hsl(var(--info))";
     }
     return SPAN_TYPE_TO_COLOR[span.spanType];
   }, [span.status, span.spanType, isSignificant]);

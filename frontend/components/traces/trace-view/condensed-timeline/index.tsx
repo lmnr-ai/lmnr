@@ -113,6 +113,9 @@ function CondensedTimeline() {
 
   const contentHeight = (totalRows + 1) * ROW_HEIGHT;
 
+  const hasMatchingSignificantSpans =
+    signalLensActive && significantSpanIds.size > 0 && storeSpans.some((s) => significantSpanIds.has(s.spanId));
+
   // Render loading and empty states inside the ref'd element to ensure hooks work correctly
   const renderContent = () => {
     if (isSpansLoading) {
@@ -191,7 +194,7 @@ function CondensedTimeline() {
 
               const isSignificant = signalLensActive && significantSpanIds.has(condensedSpan.span.spanId);
               const isDimmedBySignalLens =
-                signalLensActive && significantSpanIds.size > 0 && !significantSpanIds.has(condensedSpan.span.spanId);
+                hasMatchingSignificantSpans && !significantSpanIds.has(condensedSpan.span.spanId);
 
               return (
                 <CondensedTimelineElement

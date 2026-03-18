@@ -69,7 +69,9 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
 
   const isSelected = selectedSpan?.spanId === span.spanId;
   const isSignificant = signalLensActive && significantSpanIds.has(span.spanId);
-  const isDimmed = signalLensActive && significantSpanIds.size > 0 && !significantSpanIds.has(span.spanId);
+  const hasMatchingSignificantSpans =
+    signalLensActive && significantSpanIds.size > 0 && spans.some((s) => significantSpanIds.has(s.spanId));
+  const isDimmed = hasMatchingSignificantSpans && !significantSpanIds.has(span.spanId);
 
   const outerClasses = cn(
     "flex flex-row group/message cursor-pointer transition-all border-l-4",

@@ -85,7 +85,9 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const isLoadingOutput = output === undefined;
 
   const isSignificant = signalLensActive && significantSpanIds.has(span.spanId);
-  const isDimmed = signalLensActive && significantSpanIds.size > 0 && !significantSpanIds.has(span.spanId);
+  const hasMatchingSignificantSpans =
+    signalLensActive && significantSpanIds.size > 0 && spans.some((s) => significantSpanIds.has(s.spanId));
+  const isDimmed = hasMatchingSignificantSpans && !significantSpanIds.has(span.spanId);
 
   const outerClasses = cn(
     "group flex flex-row w-full min-w-full cursor-pointer transition-all border-l-2",
