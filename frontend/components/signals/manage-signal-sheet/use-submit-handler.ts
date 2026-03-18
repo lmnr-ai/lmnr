@@ -53,7 +53,11 @@ async function syncTriggers(
     );
   }
 
-  await Promise.all(ops);
+  const responses = await Promise.all(ops);
+  const failed = responses.filter((r) => !r.ok);
+  if (failed.length > 0) {
+    throw new Error("Failed to sync one or more triggers");
+  }
 }
 
 export default function useSubmitHandler({
