@@ -3,6 +3,7 @@ import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useSpanId } from "@/components/traces/trace-view/hooks/use-span-id";
 import ListItem from "@/components/traces/trace-view/list/list-item.tsx";
 import MustacheTemplateSheet from "@/components/traces/trace-view/list/mustache-template-sheet.tsx";
 import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
@@ -23,15 +24,17 @@ interface ListProps {
 const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
-  const { getListData, spans, isSpansLoading, selectedSpan, trace, condensedTimelineVisibleSpanIds } =
-    useTraceViewBaseStore((state) => ({
+  const [spanId] = useSpanId();
+
+  const { getListData, spans, isSpansLoading, trace, condensedTimelineVisibleSpanIds } = useTraceViewBaseStore(
+    (state) => ({
       getListData: state.getListData,
       spans: state.spans,
       isSpansLoading: state.isSpansLoading,
-      selectedSpan: state.selectedSpan,
       trace: state.trace,
       condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    }));
+    })
+  );
 
   const prevVisibleIdsRef = useRef<string>("");
   const [settingsSpan, setSettingsSpan] = useState<TraceViewListSpan | null>(null);
@@ -46,10 +49,10 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   });
 
   const selectedSpanIndex = useMemo(() => {
-    if (isNil(selectedSpan)) return null;
-    const selectedIndex = listSpans.findIndex((span) => span.spanId === selectedSpan.spanId);
+    if (isNil(spanId)) return null;
+    const selectedIndex = listSpans.findIndex((span) => span.spanId === spanId);
     return selectedIndex;
-  }, [selectedSpan?.spanId, listSpans]);
+  }, [spanId, listSpans]);
 
   // Scroll to selected span when selection changes
   useEffect(() => {
