@@ -18,7 +18,10 @@ export default function SpanViewPanel({ panel }: SpanViewPanelProps) {
   const spanId = panel.data.spanId ?? "";
 
   // Find if there's another span-view panel from a different trace (diff mode)
-  const otherPanel = useMemo(() => panels.find((p) => p.type === "span-view" && p.key !== panel.key && p.traceId !== panel.traceId), [panels, panel.key, panel.traceId]);
+  const otherPanel = useMemo(
+    () => panels.find((p) => p.type === "span-view" && p.key !== panel.key && p.traceId !== panel.traceId),
+    [panels, panel.key, panel.traceId]
+  );
 
   const isDiffMode = !!otherPanel;
 
@@ -39,21 +42,28 @@ export default function SpanViewPanel({ panel }: SpanViewPanelProps) {
     return myIndex < otherIndex;
   }, [isDiffMode, otherPanel, panels, panel.key]);
 
-  if (isDiffMode && isLeftInDiff && otherPanel?.data.spanId) {
+  if (isDiffMode && otherPanel?.data.spanId) {
+    // Both panels render a DiffSpanView. The left panel shows base->compare,
+    // the right panel shows compare->base (swapped perspective).
+    const leftTraceId = isLeftInDiff ? panel.traceId : otherPanel.traceId;
+    const leftSpanId = isLeftInDiff ? spanId : otherPanel.data.spanId;
+    const rightTraceId = isLeftInDiff ? otherPanel.traceId : panel.traceId;
+    const rightSpanId = isLeftInDiff ? otherPanel.data.spanId : spanId;
+
     return (
       <PanelWrapper title={`Diff: ${spanName}`} onClose={handleClose}>
         <DiffSpanView
-          leftTraceId={panel.traceId}
-          leftSpanId={spanId}
-          rightTraceId={otherPanel.traceId}
-          rightSpanId={otherPanel.data.spanId}
+          leftTraceId={leftTraceId}
+          leftSpanId={leftSpanId}
+          rightTraceId={rightTraceId}
+          rightSpanId={rightSpanId}
         />
       </PanelWrapper>
     );
   }
 
   return (
-    <PanelWrapper title={isDiffMode ? spanName : spanName} onClose={handleClose}>
+    <PanelWrapper title={spanName} onClose={handleClose}>
       <SpanView spanId={spanId} traceId={panel.traceId} />
     </PanelWrapper>
   );
