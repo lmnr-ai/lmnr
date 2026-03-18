@@ -153,6 +153,8 @@ pub async fn insert_evaluation_datapoints(
     for chunk in evaluation_datapoints.chunks(chunk_size) {
         let union_sql = vec![row_sql; chunk.len()].join(" UNION ALL ");
 
+        // we use prewhere id here, so that we hit the bloom_filter skip index on the
+        // project_id, evaluation_id, id BEFORE we execute FINAL
         let query = format!(
             "INSERT INTO evaluation_datapoints (
                 id, evaluation_id, project_id, trace_id, updated_at,
@@ -183,8 +185,8 @@ pub async fn insert_evaluation_datapoints(
             FROM ({union_sql}) AS new
             LEFT JOIN (
                 SELECT * FROM evaluation_datapoints FINAL
+                PREWHERE id IN ({id_in_list})
                 WHERE project_id = toUUID(?) AND evaluation_id = toUUID(?)
-                  AND id IN ({id_in_list})
             ) AS existing ON new.id = existing.id",
             id_in_list = vec!["toUUID(?)"; chunk.len()].join(", "),
         );
@@ -231,12 +233,12 @@ pub async fn insert_evaluation_datapoints(
         }
 
         // WHERE clause for the existing rows subquery
-        q = q.bind(project_id);
-        q = q.bind(evaluation_id);
         // id IN (...) list – same order as the chunk
         for dp in chunk {
             q = q.bind(dp.id);
         }
+        q = q.bind(project_id);
+        q = q.bind(evaluation_id);
 
         q.execute().await.map_err(|e| {
             anyhow::anyhow!(
@@ -304,6 +306,8 @@ pub async fn update_evaluation_datapoint(
     // The existing row MUST exist (verified above). We SELECT from it and override
     // only the columns being updated. ClickHouse empty() detects falsey new values
     // (empty string, nil UUID) so the existing value is preserved.
+    // We use prewhere id here, so that we hit the bloom_filter skip index on the
+    // project_id, evaluation_id, id BEFORE we execute FINAL
     let query = "INSERT INTO evaluation_datapoints (
             id, evaluation_id, project_id, trace_id, updated_at,
             data, target, metadata, executor_output, `index`,
@@ -347,7 +351,8 @@ pub async fn update_evaluation_datapoint(
                 dataset_datapoint_created_at,
                 group_id
             FROM evaluation_datapoints FINAL
-            WHERE project_id = ? AND evaluation_id = ? AND id = ?
+            PREWHERE id = ?
+            WHERE project_id = ? AND evaluation_id = ?
         ) AS existing";
 
     clickhouse
@@ -361,9 +366,9 @@ pub async fn update_evaluation_datapoint(
         .bind(new_scores.as_str())
         .bind(new_scores.as_str())
         .bind(new_scores.as_str())
+        .bind(datapoint_id)
         .bind(project_id)
         .bind(evaluation_id)
-        .bind(datapoint_id)
         .execute()
         .await
         .map_err(|e| anyhow::anyhow!("Clickhouse evaluation datapoint update failed: {:?}", e))?;
