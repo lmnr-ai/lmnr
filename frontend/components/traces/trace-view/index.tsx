@@ -33,6 +33,34 @@ import List from "./list";
 import { ScrollContextProvider } from "./scroll-context";
 import Tree from "./tree";
 
+// Regex to extract spanId values from Laminar trace URLs embedded in payload text.
+// Matches ?spanId=<uuid> or &spanId=<uuid> patterns.
+const SPAN_ID_URL_PATTERN = /[?&]spanId=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi;
+
+/**
+ * Extract significant span IDs from a signal event payload.
+ * Supports:
+ * 1. Explicit arrays: payload.significant_spans or payload.significantSpans
+ * 2. URL links: spanId query params in Laminar trace URLs found in string values
+ */
+function extractSignificantSpanIds(payload: Record<string, unknown>): Set<string> {
+  // Check for explicit arrays first
+  const explicitIds = (payload?.significant_spans ?? payload?.significantSpans) as string[] | undefined;
+  if (Array.isArray(explicitIds) && explicitIds.length > 0) {
+    return new Set(explicitIds);
+  }
+
+  // Scan all string values in the payload for trace URLs containing spanId
+  const ids = new Set<string>();
+  const payloadStr = JSON.stringify(payload);
+  let match;
+  while ((match = SPAN_ID_URL_PATTERN.exec(payloadStr)) !== null) {
+    ids.add(match[1]);
+  }
+
+  return ids;
+}
+
 interface TraceViewProps {
   traceId: string;
   spanId?: string;
@@ -269,6 +297,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const handleClose = useCallback(() => {
     const params = new URLSearchParams(searchParams);
     params.delete("spanId");
+    params.delete("signalEventId");
     router.push(`${pathName}?${params.toString()}`);
     onClose();
   }, [onClose, pathName, router, searchParams]);
@@ -345,8 +374,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const signalEventIdParam = searchParams.get("signalEventId");
   const signalLensInitialized = useRef(false);
 
+  // Wait until spans have actually loaded (spans.length > 0 and not loading)
+  // before initializing signal lens, so the banner can match span IDs correctly.
+  const spansReady = spans.length > 0 && !isSpansLoading;
+
   useEffect(() => {
-    if (!signalEventIdParam || !projectId || isSpansLoading || signalLensInitialized.current) return;
+    if (!signalEventIdParam || !projectId || !spansReady || signalLensInitialized.current) return;
     signalLensInitialized.current = true;
 
     const fetchSignalEvent = async () => {
@@ -357,9 +390,9 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         const event = await response.json();
         const payload = typeof event.payload === "string" ? JSON.parse(event.payload) : event.payload;
 
-        // Extract significant span IDs from the payload
-        const spanIds: string[] = payload?.significant_spans ?? payload?.significantSpans ?? [];
-        const significantSpanIds = new Set(spanIds);
+        // Extract significant span IDs from the payload.
+        // Span IDs can be in explicit arrays or embedded as URL links in string values.
+        const significantSpanIds = extractSignificantSpanIds(payload);
 
         setSignalLens({
           signalEventId: signalEventIdParam,
@@ -372,7 +405,14 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     };
 
     fetchSignalEvent();
-  }, [signalEventIdParam, projectId, isSpansLoading, setSignalLens]);
+  }, [signalEventIdParam, projectId, spansReady, setSignalLens]);
+
+  // Signal lens dismiss handler — uses router.replace to keep searchParams in sync
+  const handleSignalLensDismiss = useCallback(() => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("signalEventId");
+    router.replace(`${pathName}?${params.toString()}`);
+  }, [searchParams, router, pathName]);
 
   // Signal lens chip click handler
   const handleSignalLensChipClick = useCallback(
@@ -444,7 +484,9 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             onSearch={(filters, search) => fetchSpans(search, filters)}
           />
 
-          {signalLensActive && <SignalLensBanner onChipClick={handleSignalLensChipClick} />}
+          {signalLensActive && (
+            <SignalLensBanner onChipClick={handleSignalLensChipClick} onDismiss={handleSignalLensDismiss} />
+          )}
 
           {spansError ? (
             <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">

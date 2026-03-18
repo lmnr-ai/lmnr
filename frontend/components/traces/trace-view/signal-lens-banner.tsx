@@ -6,9 +6,10 @@ import { cn } from "@/lib/utils";
 
 interface SignalLensBannerProps {
   onChipClick: (spanId: string) => void;
+  onDismiss: () => void;
 }
 
-export default function SignalLensBanner({ onChipClick }: SignalLensBannerProps) {
+export default function SignalLensBanner({ onChipClick, onDismiss }: SignalLensBannerProps) {
   const [isDismissing, setIsDismissing] = useState(false);
 
   const { signalLensActive, signalName, significantSpanIds, activeChipSpanId, spans, dismissSignalLens } =
@@ -33,12 +34,9 @@ export default function SignalLensBanner({ onChipClick }: SignalLensBannerProps)
     // Wait for animation to complete before clearing state
     setTimeout(() => {
       dismissSignalLens();
-      // Clean up signalEventId from URL
-      const url = new URL(window.location.href);
-      url.searchParams.delete("signalEventId");
-      window.history.replaceState({}, "", url.toString());
+      onDismiss();
     }, 250);
-  }, [dismissSignalLens]);
+  }, [dismissSignalLens, onDismiss]);
 
   if (!signalLensActive) return null;
 
