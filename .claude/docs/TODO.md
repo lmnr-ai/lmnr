@@ -2,6 +2,14 @@
 
 ## Fixed
 
+- [x] [QA] Phase 4: Cross-trace diff only renders on the "left" span-view panel — fixed in commit f9fe10f1
+
+- [x] [Designer] Phase 4: No visual separator between trace sections in multi-trace layout — fixed in commit dfe2d3bb
+
+- [x] [Designer] Phase 4: Trash (remove) icon appears on the primary trace — fixed in commit dfe2d3bb
+
+- [x] [Designer] Phase 4: Third trace header missing Overview/Detail labels and depth slider — fixed in commit 094baf3d
+
 - [x] [QA] Phase 3: Panel ordering is wrong when span-view already exists before span-list is opened — fixed in commit 9611a780
 
 - [x] [QA] Phase 3: Condensed block overlays do not show reduced opacity when a selection/filter is active — fixed in commit 24af1a34
