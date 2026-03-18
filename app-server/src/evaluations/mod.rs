@@ -86,7 +86,7 @@ fn metadata_to_json_string(metadata: &Option<HashMap<String, Value>>) -> String 
         Some(m) => json_value_to_string(
             &serde_json::to_value(m).unwrap_or_default(),
         ),
-        None => String::new(),
+        None => "{}".to_string(),
     }
 }
 
