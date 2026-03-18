@@ -166,20 +166,20 @@ pub async fn insert_evaluation_datapoints(
                 new.id,
                 new.evaluation_id,
                 new.project_id,
-                if(existing.id IS NOT NULL AND empty(new.trace_id), existing.trace_id, new.trace_id),
+                if(notEmpty(existing.id) AND empty(new.trace_id), existing.trace_id, new.trace_id),
                 new.updated_at,
-                if(existing.id IS NOT NULL AND empty(new.data), existing.data, new.data),
-                if(existing.id IS NOT NULL AND empty(new.target), existing.target, new.target),
-                if(existing.id IS NOT NULL AND empty(new.metadata), existing.metadata, new.metadata),
-                if(existing.id IS NOT NULL AND empty(new.executor_output), existing.executor_output, new.executor_output),
+                if(notEmpty(existing.id) AND empty(new.data), existing.data, new.data),
+                if(notEmpty(existing.id) AND empty(new.target), existing.target, new.target),
+                if(notEmpty(existing.id) AND empty(new.metadata), existing.metadata, new.metadata),
+                if(notEmpty(existing.id) AND empty(new.executor_output), existing.executor_output, new.executor_output),
                 new.`index`,
-                if(existing.id IS NOT NULL AND empty(new.dataset_id), existing.dataset_id, new.dataset_id),
-                if(existing.id IS NOT NULL AND empty(new.dataset_id), existing.dataset_datapoint_id, new.dataset_datapoint_id),
-                if(existing.id IS NOT NULL AND empty(new.dataset_id), existing.dataset_datapoint_created_at, new.dataset_datapoint_created_at),
+                if(notEmpty(existing.id) AND empty(new.dataset_id), existing.dataset_id, new.dataset_id),
+                if(notEmpty(existing.id) AND empty(new.dataset_id), existing.dataset_datapoint_id, new.dataset_datapoint_id),
+                if(notEmpty(existing.id) AND empty(new.dataset_id), existing.dataset_datapoint_created_at, new.dataset_datapoint_created_at),
                 new.group_id,
                 if(empty(new.scores),
-                    if(existing.id IS NOT NULL, existing.scores, new.scores),
-                    if(existing.id IS NOT NULL AND notEmpty(existing.scores),
+                    if(notEmpty(existing.id), existing.scores, new.scores),
+                    if(notEmpty(existing.id) AND notEmpty(existing.scores),
                         jsonMergePatch(existing.scores, new.scores),
                         new.scores))
             FROM ({union_sql}) AS new
@@ -279,8 +279,7 @@ pub async fn update_evaluation_datapoint(
         .fetch_optional::<TraceIdRow>()
         .await?;
 
-    let existing_row =
-        existing_row.ok_or_else(|| anyhow::anyhow!("Evaluation datapoint not found"))?;
+    let existing_row = existing_row.ok_or(anyhow::anyhow!("Evaluation datapoint not found"))?;
 
     if is_shared_evaluation(pool, project_id, evaluation_id).await? {
         match trace_id {
