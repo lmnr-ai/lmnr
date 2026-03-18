@@ -5,6 +5,9 @@ import { type CondensedTimelineSpan } from "@/components/traces/trace-view/store
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
+import type { TraceSignalInfo } from "../store";
+import SignalDot from "./signal-dot";
+
 const ROW_HEIGHT = 8;
 
 interface TimelineElementProps {
@@ -12,9 +15,19 @@ interface TimelineElementProps {
   isSelected: boolean;
   isIncludedInGroupSelection: boolean | null;
   onClick: (span: TraceViewSpan) => void;
+  /** Signals associated with this span */
+  spanSignals?: TraceSignalInfo[];
+  onSignalDotClick?: (signalId: string) => void;
 }
 
-function TimelineElement({ condensedSpan, isSelected, isIncludedInGroupSelection, onClick }: TimelineElementProps) {
+function TimelineElement({
+  condensedSpan,
+  isSelected,
+  isIncludedInGroupSelection,
+  onClick,
+  spanSignals,
+  onSignalDotClick,
+}: TimelineElementProps) {
   const { span, left, width, row } = condensedSpan;
   const opacity = isIncludedInGroupSelection === false ? "opacity-30" : "";
 
@@ -41,7 +54,20 @@ function TimelineElement({ condensedSpan, isSelected, isIncludedInGroupSelection
         backgroundColor,
       }}
       onClick={handleClick}
-    />
+    >
+      {spanSignals &&
+        onSignalDotClick &&
+        spanSignals.map((signal, i) => (
+          <SignalDot
+            key={signal.signalId}
+            color={signal.color}
+            signalName={signal.signalName}
+            signalId={signal.signalId}
+            onClick={onSignalDotClick}
+            index={i}
+          />
+        ))}
+    </div>
   );
 }
 

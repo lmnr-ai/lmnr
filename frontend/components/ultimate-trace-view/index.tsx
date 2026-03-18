@@ -11,6 +11,8 @@ import AddTraceButton from "./add-trace-button";
 import PanelContainer from "./panels/panel-container";
 import {
   createUltimateTraceViewStore,
+  type TraceSignalEvent,
+  type TraceSignalInfo,
   UltimateTraceViewContext,
   useUltimateTraceViewStore,
   useUltimateTraceViewStoreRaw,
@@ -18,6 +20,7 @@ import {
 import Timeline from "./timeline";
 import TraceHeader from "./trace-header";
 import { useBlockSummaries } from "./use-block-summaries";
+import { signalIdToColor } from "./utils";
 
 // Store provider
 function UltimateTraceViewProvider({
@@ -42,7 +45,7 @@ function UltimateTraceViewContent({ traceId }: { traceId: string }) {
 
   const fetchTraceAndSpans = useCallback(
     async (tid: string) => {
-      const { setTraceData, setSpans, setIsTraceLoading, setIsSpansLoading, setTraceError, setSpansError } =
+      const { setTraceData, setSpans, setIsTraceLoading, setIsSpansLoading, setTraceError, setSpansError, setSignals } =
         storeApi.getState();
 
       try {
@@ -73,11 +76,54 @@ function UltimateTraceViewContent({ traceId }: { traceId: string }) {
         }
         const spans = (await spansRes.json()) as TraceViewSpan[];
         setSpans(tid, spans);
+
+        // Fetch signals for this trace (non-blocking, best effort)
+        fetchSignalsForTrace(tid, spans);
       } catch {
         storeApi.getState().setTraceError(tid, "Failed to load trace data");
       } finally {
         storeApi.getState().setIsTraceLoading(tid, false);
         storeApi.getState().setIsSpansLoading(tid, false);
+      }
+    },
+    [projectId, storeApi]
+  );
+
+  const fetchSignalsForTrace = useCallback(
+    async (tid: string, spans: TraceViewSpan[]) => {
+      const { setSignals } = storeApi.getState();
+      try {
+        const signalsRes = await fetch(`/api/projects/${projectId}/traces/${tid}/signals`);
+        if (!signalsRes.ok) return;
+        const events = (await signalsRes.json()) as TraceSignalEvent[];
+        if (events.length === 0) return;
+
+        // Group events by signal_id
+        const bySignal = new Map<string, TraceSignalEvent[]>();
+        for (const event of events) {
+          const existing = bySignal.get(event.signal_id) ?? [];
+          existing.push(event);
+          bySignal.set(event.signal_id, existing);
+        }
+
+        // Build TraceSignalInfo for each signal with fake span associations
+        const spanIds = spans.map((s) => s.spanId);
+        const signalInfos: TraceSignalInfo[] = [];
+        for (const [signalId, signalEvents] of bySignal) {
+          // Pick up to 3 random spans as fake associations
+          const shuffled = [...spanIds].sort(() => Math.random() - 0.5);
+          const associatedSpanIds = shuffled.slice(0, Math.min(3, shuffled.length));
+          signalInfos.push({
+            signalId,
+            signalName: signalEvents[0].signal_name,
+            color: signalIdToColor(signalId),
+            associatedSpanIds,
+            events: signalEvents,
+          });
+        }
+        setSignals(tid, signalInfos);
+      } catch {
+        // Signals are non-critical, silently fail
       }
     },
     [projectId, storeApi]

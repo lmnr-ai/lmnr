@@ -11,7 +11,7 @@ import { type TraceViewSpan } from "@/components/traces/trace-view/store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-import { useUltimateTraceViewStore } from "../store";
+import { type TraceSignalInfo, useUltimateTraceViewStore } from "../store";
 import SelectionIndicator from "./selection-indicator";
 import SelectionOverlay from "./selection-overlay";
 import SpanNodeRenderer from "./span-node-renderer";
@@ -21,6 +21,7 @@ import ZoomControls from "./zoom-controls";
 
 const emptySet = new Set<string>();
 const emptyMap = new Map<string, number>();
+const emptySpanSignalMap = new Map<string, string[]>();
 const emptyBlockSummaries: Record<string, never> = {};
 
 interface TimelineProps {
@@ -52,6 +53,11 @@ function Timeline({ traceId }: TimelineProps) {
   const setZoom = useUltimateTraceViewStore((state) => state.setZoom);
   const openSpanViewPanel = useUltimateTraceViewStore((state) => state.openSpanViewPanel);
   const openSpanListPanel = useUltimateTraceViewStore((state) => state.openSpanListPanel);
+  const signals = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.signals ?? []);
+  const spanSignalMap = useUltimateTraceViewStore(
+    (state) => state.traces.get(traceId)?.spanSignalMap ?? emptySpanSignalMap
+  );
+  const openEventPayloadPanel = useUltimateTraceViewStore((state) => state.openEventPayloadPanel);
 
   // At max depth, use original condensed timeline rendering
   const isAtMaxDepth = granularityDepth >= maxDepth;
@@ -148,6 +154,34 @@ function Timeline({ traceId }: TimelineProps) {
     [selectSpan, traceId, spans, setSelectedSpanIds, openSpanListPanel, openSpanViewPanel]
   );
 
+  // Build a lookup from signalId to TraceSignalInfo
+  const signalById = useMemo(() => {
+    const map = new Map<string, TraceSignalInfo>();
+    for (const s of signals) {
+      map.set(s.signalId, s);
+    }
+    return map;
+  }, [signals]);
+
+  // Get signals for a given spanId
+  const getSpanSignals = useCallback(
+    (spanId: string): TraceSignalInfo[] => {
+      const signalIds = spanSignalMap.get(spanId);
+      if (!signalIds) return [];
+      return signalIds.map((id) => signalById.get(id)).filter(Boolean) as TraceSignalInfo[];
+    },
+    [spanSignalMap, signalById]
+  );
+
+  const handleSignalDotClick = useCallback(
+    (signalId: string) => {
+      const signal = signalById.get(signalId);
+      if (!signal || signal.events.length === 0) return;
+      openEventPayloadPanel(traceId, signalId, signal.events[0]);
+    },
+    [signalById, traceId, openEventPayloadPanel]
+  );
+
   const activeSelectedSpanId = selectedTraceId === traceId ? selectedSpanId : null;
 
   const contentHeight = (totalRows + 1) * ROW_HEIGHT;
@@ -212,6 +246,7 @@ function Timeline({ traceId }: TimelineProps) {
                   : null;
                 const isSelected = selectedTraceId === traceId && selectedSpanId === condensedSpan.span.spanId;
 
+                const spanSigs = getSpanSignals(condensedSpan.span.spanId);
                 return (
                   <TimelineElement
                     key={condensedSpan.span.spanId}
@@ -219,6 +254,8 @@ function Timeline({ traceId }: TimelineProps) {
                     isSelected={isSelected}
                     isIncludedInGroupSelection={isIncludedInGroupSelection}
                     onClick={handleSpanClick}
+                    spanSignals={spanSigs.length > 0 ? spanSigs : undefined}
+                    onSignalDotClick={handleSignalDotClick}
                   />
                 );
               })
@@ -236,6 +273,8 @@ function Timeline({ traceId }: TimelineProps) {
                   selectedSpanId={activeSelectedSpanId}
                   visibleSpanIds={visibleSpanIds}
                   onSpanClick={handleNodeSpanClick}
+                  getSpanSignals={getSpanSignals}
+                  onSignalDotClick={handleSignalDotClick}
                 />
               ))}
 

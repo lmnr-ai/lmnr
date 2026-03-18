@@ -5,6 +5,8 @@ import { memo } from "react";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
+import type { TraceSignalInfo } from "../store";
+import SignalDot from "./signal-dot";
 import { ROW_HEIGHT } from "./timeline-element";
 import { ICON_MAP } from "./timeline-icons";
 import { type BlockSummary, type SpanTreeNode } from "./timeline-types";
@@ -18,6 +20,19 @@ function hasVisibleDescendant(node: SpanTreeNode, visibleIds: Set<string>): bool
   return false;
 }
 
+/** Check if any descendant span has a signal */
+function hasSignalDescendant(
+  node: SpanTreeNode,
+  getSpanSignals: (spanId: string) => TraceSignalInfo[]
+): TraceSignalInfo[] {
+  const all = new Map<string, TraceSignalInfo>();
+  for (const child of node.children) {
+    for (const s of getSpanSignals(child.span.spanId)) all.set(s.signalId, s);
+    for (const s of hasSignalDescendant(child, getSpanSignals)) all.set(s.signalId, s);
+  }
+  return Array.from(all.values());
+}
+
 interface SpanNodeRendererProps {
   node: SpanTreeNode;
   timelineDepth: number;
@@ -29,6 +44,8 @@ interface SpanNodeRendererProps {
   selectedSpanId: string | null;
   visibleSpanIds: Set<string>;
   onSpanClick: (spanId: string, isCondensed: boolean) => void;
+  getSpanSignals: (spanId: string) => TraceSignalInfo[];
+  onSignalDotClick: (signalId: string) => void;
 }
 
 const SpanNodeRenderer = memo(
@@ -43,6 +60,8 @@ const SpanNodeRenderer = memo(
     selectedSpanId,
     visibleSpanIds,
     onSpanClick,
+    getSpanSignals,
+    onSignalDotClick,
   }: SpanNodeRendererProps) => {
     const row = expandedRowMap.get(node.span.spanId) ?? 0;
     const hasChildren = node.children.length > 0;
@@ -60,6 +79,9 @@ const SpanNodeRenderer = memo(
     const isIncludedInGroup = hasGroupSelection ? visibleSpanIds.has(node.span.spanId) : null;
     const opacity = isIncludedInGroup === false ? "opacity-30" : "";
 
+    // Signal dots for this span
+    const spanSignals = getSpanSignals(node.span.spanId);
+
     // Overlay data
     const range = subtreeRowRanges.get(node.span.spanId);
     const summary = blockSummaries[node.span.spanId];
@@ -71,6 +93,9 @@ const SpanNodeRenderer = memo(
       totalDurationMs > 0 ? ((node.subtreeEndTime - node.subtreeStartTime) / totalDurationMs) * 100 : 0;
     const overlayHeightRows = range ? range.maxRow - range.minRow + 1 : 1;
     const overlayHeightPx = overlayHeightRows * ROW_HEIGHT - 2;
+
+    // For condensed blocks: collect signals from descendants
+    const blockSignals = isCondensed ? hasSignalDescendant(node, getSpanSignals) : [];
 
     return (
       <>
@@ -87,7 +112,18 @@ const SpanNodeRenderer = memo(
             backgroundColor,
           }}
           onClick={() => onSpanClick(node.span.spanId, false)}
-        />
+        >
+          {spanSignals.map((signal, i) => (
+            <SignalDot
+              key={signal.signalId}
+              color={signal.color}
+              signalName={signal.signalName}
+              signalId={signal.signalId}
+              onClick={onSignalDotClick}
+              index={i}
+            />
+          ))}
+        </div>
 
         {/* Children -- always rendered for seamless depth transitions */}
         {hasChildren &&
@@ -104,6 +140,8 @@ const SpanNodeRenderer = memo(
               selectedSpanId={selectedSpanId}
               visibleSpanIds={visibleSpanIds}
               onSpanClick={onSpanClick}
+              getSpanSignals={getSpanSignals}
+              onSignalDotClick={onSignalDotClick}
             />
           ))}
 
@@ -137,6 +175,16 @@ const SpanNodeRenderer = memo(
                 <span className="flex-none text-secondary-foreground/70 ml-auto">{node.subtreeSpanCount}</span>
               </div>
             )}
+            {blockSignals.map((signal, i) => (
+              <SignalDot
+                key={signal.signalId}
+                color={signal.color}
+                signalName={signal.signalName}
+                signalId={signal.signalId}
+                onClick={onSignalDotClick}
+                index={i}
+              />
+            ))}
           </div>
         )}
       </>

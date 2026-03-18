@@ -2,7 +2,7 @@ import { clamp } from "lodash";
 import { createContext, useContext } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 
-import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
+import type { TraceViewSpan, TraceViewTrace } from "@/components/traces/trace-view/store";
 import {
   computeVisibleSpanIds,
   type CondensedTimelineData,
@@ -11,6 +11,27 @@ import {
 
 import { type BlockSummary, type SpanTreeNode } from "./timeline/timeline-types";
 import { buildSpanTree, computeExpandedLayout, computeMaxDepth } from "./timeline/timeline-utils";
+
+// Signal event from the signal_events ClickHouse table
+export interface TraceSignalEvent {
+  id: string;
+  signal_id: string;
+  signal_name: string;
+  trace_id: string;
+  payload: string;
+  timestamp: string;
+}
+
+// Per-signal info for a trace, including fake span associations
+export interface TraceSignalInfo {
+  signalId: string;
+  signalName: string;
+  color: string;
+  // Fake associations: random span IDs from the trace
+  associatedSpanIds: string[];
+  // Real event data
+  events: TraceSignalEvent[];
+}
 
 export const MAX_ZOOM = 18;
 export const MIN_ZOOM = 1;
@@ -23,11 +44,13 @@ export interface PanelDescriptor {
   type: PanelType;
   key: string;
   traceId: string;
-  // span-list: spanIds to show; span-view: spanId; event-payload: eventId
+  // span-list: spanIds to show; span-view: spanId; event-payload: signalId + event
   data: {
     spanIds?: string[];
     spanId?: string;
     title?: string;
+    signalId?: string;
+    event?: TraceSignalEvent;
   };
 }
 
@@ -50,6 +73,10 @@ export interface UltimateTraceState {
   totalRows: number;
   blockSummaries: Record<string, BlockSummary>;
   isSummarizationLoading: boolean;
+  // Signal data
+  signals: TraceSignalInfo[];
+  // Map from spanId to signal IDs associated with it
+  spanSignalMap: Map<string, string[]>;
 }
 
 const createDefaultTraceState = (trace?: TraceViewTrace): UltimateTraceState => ({
@@ -67,6 +94,8 @@ const createDefaultTraceState = (trace?: TraceViewTrace): UltimateTraceState => 
   totalRows: 0,
   blockSummaries: {},
   isSummarizationLoading: false,
+  signals: [],
+  spanSignalMap: new Map(),
 });
 
 export interface UltimateTraceViewState {
@@ -100,8 +129,12 @@ export interface UltimateTraceViewActions {
   addBlockSummaries: (traceId: string, summaries: Record<string, BlockSummary>) => void;
   setIsSummarizationLoading: (traceId: string, loading: boolean) => void;
 
+  // Signal actions
+  setSignals: (traceId: string, signals: TraceSignalInfo[]) => void;
+
   // Panel actions
   openSpanListPanel: (traceId: string, spanIds: string[], title?: string) => void;
+  openEventPayloadPanel: (traceId: string, signalId: string, event: TraceSignalEvent) => void;
   openSpanViewPanel: (traceId: string, spanId: string) => void;
   openTracePickerPanel: () => void;
   closePanel: (key: string) => void;
@@ -249,6 +282,35 @@ export const createUltimateTraceViewStore = (initialTraceId: string, initialTrac
       set((state) => ({
         traces: updateTraceState(state.traces, traceId, { isSummarizationLoading: loading }),
       }));
+    },
+
+    setSignals: (traceId, signals) => {
+      // Build spanSignalMap from signals
+      const spanSignalMap = new Map<string, string[]>();
+      for (const signal of signals) {
+        for (const spanId of signal.associatedSpanIds) {
+          const existing = spanSignalMap.get(spanId) ?? [];
+          existing.push(signal.signalId);
+          spanSignalMap.set(spanId, existing);
+        }
+      }
+      set((state) => ({
+        traces: updateTraceState(state.traces, traceId, { signals, spanSignalMap }),
+      }));
+    },
+
+    openEventPayloadPanel: (traceId, signalId, event) => {
+      set((state) => {
+        // Replace any existing event-payload panel
+        const filtered = state.panels.filter((p) => p.type !== "event-payload");
+        const panel: PanelDescriptor = {
+          type: "event-payload",
+          key: `event-payload-${signalId}`,
+          traceId,
+          data: { signalId, event, title: event.signal_name },
+        };
+        return { panels: [...filtered, panel] };
+      });
     },
 
     openSpanListPanel: (traceId, spanIds, title) => {

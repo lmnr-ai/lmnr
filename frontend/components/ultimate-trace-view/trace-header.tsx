@@ -15,6 +15,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 
 import { useUltimateTraceViewStore } from "./store";
 import DepthSliderBar from "./timeline/depth-slider-bar";
+import SignalIndicators from "./trace-header-signals";
 
 interface TraceHeaderProps {
   traceId: string;
@@ -104,8 +105,9 @@ export default function TraceHeader({ traceId, onRemove }: TraceHeaderProps) {
         isLoading={isLoading || isSpansLoading}
       />
 
-      {/* Placeholder for signal indicators (Phase 5) */}
-      <div className="flex items-center gap-1 flex-1" />
+      {/* Signal indicators */}
+      <SignalIndicators traceId={traceId} />
+      <div className="flex-1" />
 
       <TooltipProvider delayDuration={0}>
         <Tooltip>
