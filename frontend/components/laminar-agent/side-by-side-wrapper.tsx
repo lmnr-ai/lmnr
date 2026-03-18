@@ -45,7 +45,7 @@ export default function SideBySideWrapper({ children }: SideBySideWrapperProps) 
   return (
     <ResizablePanelGroup orientation="horizontal" className="h-full">
       <ResizablePanel defaultSize="100%" minSize="30%">
-        <div className="h-full overflow-auto">{children}</div>
+        <div className="h-full overflow-hidden relative">{children}</div>
       </ResizablePanel>
       <ResizableHandle withHandle className={isSideBySide ? "" : "hidden"} />
       <ResizablePanel panelRef={agentPanelRef} defaultSize="0%" minSize="0%" className={isSideBySide ? "" : "hidden"}>
