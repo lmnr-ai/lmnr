@@ -99,10 +99,10 @@ export default function SignalsPill({ traceId }: SignalsPillProps) {
 
   const handleOpenInSignals = useCallback(
     (event: SignalEvent) => {
-      const url = `/project/${projectId}/signals/${event.signal_id}?eventId=${event.id}&traceId=${traceId}`;
+      const url = `/project/${projectId}/signals/${event.signal_id}?eventId=${event.id}`;
       window.open(url, "_blank");
     },
-    [projectId, traceId]
+    [projectId]
   );
 
   if (isLoading) {
