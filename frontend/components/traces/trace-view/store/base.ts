@@ -111,6 +111,7 @@ export interface BaseTraceViewState {
   signalLensActive: boolean;
   signalEventId: string | null;
   signalName: string | null;
+  signalPayload: Record<string, unknown> | null;
   significantSpanIds: Set<string>;
   activeChipSpanId: string | null;
 }
@@ -153,7 +154,12 @@ export interface BaseTraceViewActions {
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
 
   // Signal lens actions
-  setSignalLens: (params: { signalEventId: string; signalName: string; significantSpanIds: Set<string> }) => void;
+  setSignalLens: (params: {
+    signalEventId: string;
+    signalName: string;
+    signalPayload: Record<string, unknown>;
+    significantSpanIds: Set<string>;
+  }) => void;
   dismissSignalLens: () => void;
   setActiveChipSpanId: (spanId: string | null) => void;
 }
@@ -190,6 +196,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     signalLensActive: false,
     signalEventId: null,
     signalName: null,
+    signalPayload: null,
     significantSpanIds: new Set(),
     activeChipSpanId: null,
 
@@ -387,11 +394,12 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     },
 
     // Signal lens actions
-    setSignalLens: ({ signalEventId, signalName, significantSpanIds }) => {
+    setSignalLens: ({ signalEventId, signalName, signalPayload, significantSpanIds }) => {
       set({
         signalLensActive: true,
         signalEventId,
         signalName,
+        signalPayload,
         significantSpanIds,
         activeChipSpanId: null,
       } as Partial<T>);
@@ -401,6 +409,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         signalLensActive: false,
         signalEventId: null,
         signalName: null,
+        signalPayload: null,
         significantSpanIds: new Set(),
         activeChipSpanId: null,
       } as Partial<T>);

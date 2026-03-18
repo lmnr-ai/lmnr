@@ -398,6 +398,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         setSignalLens({
           signalEventId: signalEventIdParam,
           signalName: event.name || "Signal",
+          signalPayload: payload,
           significantSpanIds,
         });
       } catch {
@@ -476,147 +477,148 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   return (
     <ScrollContextProvider>
-      <div className="flex h-full w-full">
-        <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-          <Header
-            handleClose={handleClose}
-            chatOpen={chatOpen}
-            setChatOpen={setChatOpen}
-            spans={spans}
-            onSearch={(filters, search) => fetchSpans(search, filters)}
-          />
+      <div className="flex flex-col h-full w-full">
+        {signalLensActive && (
+          <SignalLensBanner onChipClick={handleSignalLensChipClick} onDismiss={handleSignalLensDismiss} />
+        )}
+        <div className="flex flex-1 min-h-0 w-full">
+          <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
+            <Header
+              handleClose={handleClose}
+              chatOpen={chatOpen}
+              setChatOpen={setChatOpen}
+              spans={spans}
+              onSearch={(filters, search) => fetchSpans(search, filters)}
+            />
 
-          {signalLensActive && (
-            <SignalLensBanner onChipClick={handleSignalLensChipClick} onDismiss={handleSignalLensDismiss} />
-          )}
-
-          {spansError ? (
-            <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
-              <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
-              <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
-              <p className="text-xs text-muted-foreground">{spansError}</p>
-            </div>
-          ) : chatOpen ? (
-            // Ask AI takes over entire view
-            trace && (
-              <Chat
-                trace={trace}
-                onSearchSpans={(search) => {
-                  fetchSpans(search, []);
-                }}
-                onSetSpanId={(spanId) => {
-                  const span = spans.find((span) => span.spanId === spanId);
-                  if (span) {
-                    handleSpanSelect(span);
-                  }
-                }}
-              />
-            )
-          ) : (
-            <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
-              {condensedTimelineEnabled && (
-                <>
-                  <ResizablePanel defaultSize={120} minSize={80}>
-                    <div className="border-t h-full">
-                      <CondensedTimeline />
+            {spansError ? (
+              <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
+                <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
+                <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
+                <p className="text-xs text-muted-foreground">{spansError}</p>
+              </div>
+            ) : chatOpen ? (
+              // Ask AI takes over entire view
+              trace && (
+                <Chat
+                  trace={trace}
+                  onSearchSpans={(search) => {
+                    fetchSpans(search, []);
+                  }}
+                  onSetSpanId={(spanId) => {
+                    const span = spans.find((span) => span.spanId === spanId);
+                    if (span) {
+                      handleSpanSelect(span);
+                    }
+                  }}
+                />
+              )
+            ) : (
+              <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
+                {condensedTimelineEnabled && (
+                  <>
+                    <ResizablePanel defaultSize={120} minSize={80}>
+                      <div className="border-t h-full">
+                        <CondensedTimeline />
+                      </div>
+                    </ResizablePanel>
+                    <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                  </>
+                )}
+                <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
+                      condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        <ViewDropdown />
+                        {trace && (
+                          <TraceStatsShields
+                            className="min-w-0 overflow-hidden"
+                            trace={trace}
+                            spans={filteredSpansForStats}
+                          />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          disabled={!trace}
+                          className={cn("h-6 px-1.5 text-xs", {
+                            "border-primary text-primary": browserSession,
+                          })}
+                          variant="outline"
+                          onClick={() => setBrowserSession(!browserSession)}
+                        >
+                          <CirclePlay size={14} className="mr-1" />
+                          Media
+                        </Button>
+                        {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
+                      </div>
                     </div>
-                  </ResizablePanel>
-                  <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
-                </>
-              )}
-              <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-                <div
-                  className={cn(
-                    "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
-                    condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
+                  </div>
+                  {tab === "reader" && (
+                    <div className="flex flex-1 h-full overflow-hidden relative">
+                      <List onSpanSelect={handleSpanSelect} />
+                    </div>
                   )}
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-2">
-                      <ViewDropdown />
-                      {trace && (
-                        <TraceStatsShields
-                          className="min-w-0 overflow-hidden"
-                          trace={trace}
-                          spans={filteredSpansForStats}
+                  {tab === "tree" && (
+                    <div className="flex flex-1 h-full overflow-hidden relative">
+                      <Tree onSpanSelect={handleSpanSelect} />
+                    </div>
+                  )}
+                </ResizablePanel>
+                {browserSession && (
+                  <>
+                    <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                    <ResizablePanel>
+                      {!isLoading && (
+                        <SessionPlayer
+                          onClose={() => setBrowserSession(false)}
+                          hasBrowserSession={hasBrowserSession}
+                          traceId={traceId}
+                          llmSpanIds={llmSpanIds}
                         />
                       )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        disabled={!trace}
-                        className={cn("h-6 px-1.5 text-xs", {
-                          "border-primary text-primary": browserSession,
-                        })}
-                        variant="outline"
-                        onClick={() => setBrowserSession(!browserSession)}
-                      >
-                        <CirclePlay size={14} className="mr-1" />
-                        Media
-                      </Button>
-                      {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
-                    </div>
-                  </div>
-                </div>
-                {tab === "reader" && (
-                  <div className="flex flex-1 h-full overflow-hidden relative">
-                    <List onSpanSelect={handleSpanSelect} />
-                  </div>
+                    </ResizablePanel>
+                  </>
                 )}
-                {tab === "tree" && (
-                  <div className="flex flex-1 h-full overflow-hidden relative">
-                    <Tree onSpanSelect={handleSpanSelect} />
-                  </div>
-                )}
-              </ResizablePanel>
-              {browserSession && (
-                <>
-                  <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
-                  <ResizablePanel>
-                    {!isLoading && (
-                      <SessionPlayer
-                        onClose={() => setBrowserSession(false)}
-                        hasBrowserSession={hasBrowserSession}
-                        traceId={traceId}
-                        llmSpanIds={llmSpanIds}
-                      />
-                    )}
-                  </ResizablePanel>
-                </>
-              )}
-              {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
-            </ResizablePanelGroup>
-          )}
-          <div
-            className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
-            onMouseDown={handleResizeTreeView}
-          >
-            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
+                {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
+              </ResizablePanelGroup>
+            )}
+            <div
+              className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
+              onMouseDown={handleResizeTreeView}
+            >
+              <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
+            </div>
           </div>
-        </div>
-        <div className="grow overflow-hidden flex-wrap h-full w-full">
-          {isSpansLoading ? (
-            <div className="flex flex-col space-y-2 p-4">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </div>
-          ) : selectedSpan ? (
-            selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-              <HumanEvaluatorSpanView
-                traceId={selectedSpan.traceId}
-                spanId={selectedSpan.spanId}
-                key={selectedSpan.spanId}
-              />
+          <div className="grow overflow-hidden flex-wrap h-full w-full">
+            {isSpansLoading ? (
+              <div className="flex flex-col space-y-2 p-4">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </div>
+            ) : selectedSpan ? (
+              selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
+                <HumanEvaluatorSpanView
+                  traceId={selectedSpan.traceId}
+                  spanId={selectedSpan.spanId}
+                  key={selectedSpan.spanId}
+                />
+              ) : (
+                <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
+              )
             ) : (
-              <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
-            )
-          ) : (
-            <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
-              <span className="text-xl font-medium mb-2">No span selected</span>
-              <span className="text-base">Select a span from the trace tree to view its details</span>
-            </div>
-          )}
+              <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
+                <span className="text-xl font-medium mb-2">No span selected</span>
+                <span className="text-base">Select a span from the trace tree to view its details</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </ScrollContextProvider>
