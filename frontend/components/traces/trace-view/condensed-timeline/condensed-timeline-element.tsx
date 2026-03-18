@@ -52,7 +52,7 @@ const CondensedTimelineElement = ({
         "border border-white/70 z-20": isSelected,
         "opacity-35 hover:opacity-60": isDimmedBySignalLens,
       })}
-      data-span-id={span.spanId}
+      data-timeline-span-id={span.spanId}
       style={{
         left: `${left}%`,
         width: `max(${width}%, 4px)`,
