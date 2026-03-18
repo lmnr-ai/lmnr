@@ -4,6 +4,9 @@
 
 ## Fixed
 
+- [QA] **MINOR: "Open in Signals" deep link shows TraceView on top of EventDetailPanel (T5.3 follow-up).** When the "Open in Signals" URL includes both `eventId` and `traceId` params (see `signals-pill.tsx` line 102), both EventDetailPanel (z-40) and TraceView (z-50) render simultaneously in `signal/index.tsx`. TraceView completely covers EventDetailPanel since both are `absolute top-0 right-0 bottom-0`. The spec says the event id payload should be "in view", but the user must close the TraceView first to see it. Fix: removed `traceId` from the "Open in Signals" URL so only `eventId` is included. Users can still open the trace via the "View trace" button inside EventDetailPanel.
+  - Fixed in 42b65988 — removed `traceId` param from deep link URL in `signals-pill.tsx`
+
 - [QA] **MAJOR: "Open in Signals" deep link does not show EventDetailPanel (T5.3).** EventDetailPanel only rendered when `eventId && !traceId`, but the "Open in Signals" URL includes both params. Changed condition to show EventDetailPanel whenever `eventId` is present, regardless of `traceId`.
   - Fixed in b7f6f245 — removed `!traceId` guard from EventDetailPanel render condition in `signal/index.tsx`
 
