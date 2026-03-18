@@ -2,6 +2,7 @@ import { PlayIcon } from "@radix-ui/react-icons";
 import { isEmpty } from "lodash";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 
+import { useSpanId } from "@/components/traces/trace-view/hooks/use-span-id";
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { computeVisibleSpanIds } from "@/components/traces/trace-view/store/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,12 +20,11 @@ import ZoomControls from "./zoom-controls";
 function CondensedTimeline() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timelineContentRef = useRef<HTMLDivElement>(null);
+  const [currentSpanId, setCurrentSpanId] = useSpanId();
 
   const {
     getCondensedTimelineData,
     spans: storeSpans,
-    selectedSpan,
-    setSelectedSpan,
     isSpansLoading,
     condensedTimelineVisibleSpanIds,
     setCondensedTimelineVisibleSpanIds,
@@ -37,8 +37,6 @@ function CondensedTimeline() {
   } = useTraceViewBaseStore((state) => ({
     getCondensedTimelineData: state.getCondensedTimelineData,
     spans: state.spans,
-    selectedSpan: state.selectedSpan,
-    setSelectedSpan: state.setSelectedSpan,
     isSpansLoading: state.isSpansLoading,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
     setCondensedTimelineVisibleSpanIds: state.setCondensedTimelineVisibleSpanIds,
@@ -49,6 +47,8 @@ function CondensedTimeline() {
     sessionStartTime: state.sessionStartTime,
     browserSession: state.browserSession,
   }));
+
+  const selectedSpan = useMemo(() => storeSpans.find((s) => s.spanId === currentSpanId), [storeSpans, currentSpanId]);
 
   const {
     spans: condensedSpans,
@@ -101,10 +101,10 @@ function CondensedTimeline() {
   const handleSpanClick = useCallback(
     (span: (typeof storeSpans)[0]) => {
       if (!span.pending) {
-        setSelectedSpan(span);
+        setCurrentSpanId(span.spanId);
       }
     },
-    [setSelectedSpan]
+    [setCurrentSpanId]
   );
 
   const contentHeight = (totalRows + 1) * ROW_HEIGHT;
