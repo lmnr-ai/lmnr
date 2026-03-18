@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import EventsTable from "@/components/signal/events-table";
 import EventDetailPanel from "@/components/signal/events-table/event-detail-panel";
+import { useEventId } from "@/components/signal/hooks/use-event-id";
 import SignalJobsTable from "@/components/signal/jobs-table";
 import SignalRunsTable from "@/components/signal/runs-table";
 import SignalOverviewTooltip from "@/components/signal/signal-overview-tooltip";
@@ -36,6 +37,7 @@ function SignalContent() {
   const searchParams = useSearchParams();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const { workspace } = useProjectContext();
+  const [eventId, setEventId] = useEventId();
 
   const activeTab = searchParams.get("tab") || "events";
 
@@ -44,17 +46,13 @@ function SignalContent() {
     initialTraceViewWidth: state.initialTraceViewWidth,
   }));
 
-  const { setSignal, traceId, spanId, setTraceId, setSpanId, selectedEvent, setSelectedEvent } = useSignalStoreContext(
-    (state) => ({
-      setSignal: state.setSignal,
-      traceId: state.traceId,
-      spanId: state.spanId,
-      setTraceId: state.setTraceId,
-      setSpanId: state.setSpanId,
-      selectedEvent: state.selectedEvent,
-      setSelectedEvent: state.setSelectedEvent,
-    })
-  );
+  const { setSignal, traceId, spanId, setTraceId, setSpanId } = useSignalStoreContext((state) => ({
+    setSignal: state.setSignal,
+    traceId: state.traceId,
+    spanId: state.spanId,
+    setTraceId: state.setTraceId,
+    setSpanId: state.setSpanId,
+  }));
 
   const { width, handleResizeStop } = useResizableTraceViewWidth({
     initialWidth: initialTraceViewWidth,
@@ -141,7 +139,7 @@ function SignalContent() {
       )}
 
       <AnimatePresence>
-        {selectedEvent && !traceId && (
+        {eventId && !traceId && (
           <motion.div
             key="event-drawer"
             initial={{ x: 400 }}
@@ -151,21 +149,20 @@ function SignalContent() {
             className="absolute top-0 right-0 bottom-0 bg-background border-l z-40 w-[400px]"
           >
             <EventDetailPanel
-              event={selectedEvent}
+              eventId={eventId}
+              signalId={signal.id}
+              projectId={params.projectId}
               schemaFields={signal.schemaFields}
               onClose={() => {
-                setSelectedEvent(null);
-                const params = new URLSearchParams(searchParams);
-                params.delete("eventId");
-                push(`${pathName}?${params.toString()}`);
+                setEventId(null);
               }}
               onOpenTrace={(traceId) => {
-                setSelectedEvent(null);
+                setEventId(null);
                 setTraceId(traceId);
-                const params = new URLSearchParams(searchParams);
-                params.delete("eventId");
-                params.set("traceId", traceId);
-                push(`${pathName}?${params.toString()}`);
+                const urlParams = new URLSearchParams(searchParams);
+                urlParams.delete("eventId");
+                urlParams.set("traceId", traceId);
+                push(`${pathName}?${urlParams.toString()}`);
               }}
             />
           </motion.div>
@@ -186,10 +183,10 @@ function SignalContent() {
               spanId={spanId || undefined}
               key={traceId}
               onClose={() => {
-                const params = new URLSearchParams(searchParams);
-                params.delete("traceId");
-                params.delete("spanId");
-                push(`${pathName}?${params.toString()}`);
+                const urlParams = new URLSearchParams(searchParams);
+                urlParams.delete("traceId");
+                urlParams.delete("spanId");
+                push(`${pathName}?${urlParams.toString()}`);
                 setTraceId(null);
                 setSpanId(null);
               }}
