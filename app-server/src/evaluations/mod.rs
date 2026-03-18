@@ -7,21 +7,25 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use clickhouse::Row;
+
 use crate::{
-    ch::evaluation_datapoints::CHEvaluationDatapoint,
+    ch::utils::chrono_to_nanoseconds,
     db::{
         evaluations::is_shared_evaluation,
         trace::{delete_shared_traces, insert_shared_traces},
     },
+    utils::json_value_to_string,
 };
 
-pub const DEFAULT_GROUP_NAME: &str = "default";
-
-/// Parse a stringified JSON value that was serialized with json_value_to_string.
-/// If parsing fails (e.g., because it's a plain string), wrap it as Value::String.
-fn parse_json_value_from_string(s: &str) -> Value {
-    serde_json::from_str(s).unwrap_or_else(|_| Value::String(s.to_string()))
+/// Helper struct for fetching a single trace_id from ClickHouse.
+#[derive(Row, serde::Serialize, serde::Deserialize)]
+struct TraceIdRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    trace_id: Uuid,
 }
+
+pub const DEFAULT_GROUP_NAME: &str = "default";
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -53,6 +57,39 @@ pub struct EvaluationDatapointResult {
     pub dataset_link: Option<EvaluationDatapointDatasetLink>,
 }
 
+/// Check if a serde_json::Value is "falsey" for the purposes of not overwriting.
+/// Falsey means: null, empty string, empty object, or empty array.
+fn is_falsey_value(v: &Value) -> bool {
+    match v {
+        Value::Null => true,
+        Value::String(s) => s.is_empty(),
+        Value::Object(o) => o.is_empty(),
+        Value::Array(a) => a.is_empty(),
+        _ => false,
+    }
+}
+
+/// Convert a serde_json Value to a ClickHouse-safe string for binding.
+/// Uses `json_value_to_string` which unwraps top-level strings (no extra quotes).
+fn value_to_ch_string(v: &Value) -> String {
+    json_value_to_string(v)
+}
+
+/// Convert a scores HashMap to a JSON string for ClickHouse.
+fn scores_to_json_string(scores: &HashMap<String, Option<f64>>) -> String {
+    json_value_to_string(&serde_json::to_value(scores).unwrap_or_default())
+}
+
+/// Convert a metadata Option<HashMap> to a JSON string for ClickHouse.
+fn metadata_to_json_string(metadata: &Option<HashMap<String, Value>>) -> String {
+    match metadata {
+        Some(m) => json_value_to_string(
+            &serde_json::to_value(m).unwrap_or_default(),
+        ),
+        None => String::new(),
+    }
+}
+
 pub async fn insert_evaluation_datapoints(
     pool: &PgPool,
     clickhouse: clickhouse::Client,
@@ -78,113 +115,191 @@ pub async fn insert_evaluation_datapoints(
         .await?;
     }
 
-    // Collect all datapoint IDs for bulk query
-    let datapoint_ids: Vec<Uuid> = evaluation_datapoints.iter().map(|dp| dp.id).collect();
+    for dp in &evaluation_datapoints {
+        let new_data = value_to_ch_string(&dp.data);
+        let new_target = value_to_ch_string(&dp.target);
+        let new_metadata = metadata_to_json_string(&dp.metadata);
+        let new_executor_output = dp
+            .executor_output
+            .as_ref()
+            .map(|v| value_to_ch_string(v))
+            .unwrap_or_default();
+        let new_scores = scores_to_json_string(&dp.scores);
 
-    // Query existing datapoints in bulk using FINAL
-    let existing_datapoints = get_existing_datapoints(
-        clickhouse.clone(),
-        evaluation_id,
-        project_id,
-        &datapoint_ids,
-    )
-    .await?;
+        let data_is_falsey = is_falsey_value(&dp.data);
+        let target_is_falsey = is_falsey_value(&dp.target);
+        let metadata_is_falsey = dp.metadata.is_none()
+            || dp.metadata.as_ref().is_some_and(|m| m.is_empty());
+        let executor_output_is_falsey = dp.executor_output.is_none()
+            || dp
+                .executor_output
+                .as_ref()
+                .is_some_and(|v| is_falsey_value(v));
+        let trace_id_is_falsey = dp.trace_id.is_nil();
+        let scores_is_empty = dp.scores.is_empty();
 
-    let merged_datapoints: Vec<_> = evaluation_datapoints
-        .into_iter()
-        .map(|mut update| {
-            if let Some(existing) = existing_datapoints.get(&update.id) {
-                // Merge scores
-                let mut merged_scores: HashMap<String, Option<f64>> =
-                    serde_json::from_str(&existing.scores).unwrap_or_default();
+        let (dataset_id, dataset_datapoint_id, dataset_datapoint_created_at) =
+            match &dp.dataset_link {
+                Some(link) => (
+                    link.dataset_id,
+                    link.datapoint_id,
+                    chrono_to_nanoseconds(link.created_at),
+                ),
+                None => (Uuid::nil(), Uuid::nil(), 0i64),
+            };
+        let dataset_link_is_falsey = dp.dataset_link.is_none();
 
-                for (name, value) in update.scores {
-                    merged_scores.insert(name, value);
-                }
+        let now_nanos = chrono_to_nanoseconds(Utc::now());
 
-                update.scores = merged_scores;
+        // Build the INSERT ... SELECT query.
+        // The subselect uses FINAL to get the latest version of the existing row.
+        // If the row doesn't exist, the LEFT JOIN produces NULLs and we use the new values.
+        // For each column: if the new value is "falsey", keep the existing value; otherwise use the new value.
+        // For scores: use jsonMergePatch to merge existing and new scores (only when new scores are non-empty).
+        let query = format!(
+            "INSERT INTO evaluation_datapoints (
+                id, evaluation_id, project_id, trace_id, updated_at,
+                data, target, metadata, executor_output, `index`,
+                dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
+                group_id, scores
+            )
+            SELECT
+                toUUID(?) as new_id,
+                toUUID(?) as new_evaluation_id,
+                toUUID(?) as new_project_id,
+                {} as final_trace_id,
+                toInt64(?) as new_updated_at,
+                {} as final_data,
+                {} as final_target,
+                {} as final_metadata,
+                {} as final_executor_output,
+                toUInt64(?) as new_index,
+                {} as final_dataset_id,
+                {} as final_dataset_datapoint_id,
+                {} as final_dataset_datapoint_created_at,
+                ? as new_group_id,
+                {} as final_scores
+            FROM (SELECT 1 as _dummy)
+            LEFT JOIN (
+                SELECT *
+                FROM evaluation_datapoints FINAL
+                WHERE project_id = toUUID(?)
+                  AND evaluation_id = toUUID(?)
+                  AND id = toUUID(?)
+            ) AS existing ON 1 = 1",
+            // trace_id
+            if trace_id_is_falsey {
+                "if(existing.id IS NOT NULL, existing.trace_id, toUUID(?))".to_string()
+            } else {
+                "toUUID(?)".to_string()
+            },
+            // data
+            if data_is_falsey {
+                "if(existing.id IS NOT NULL, existing.data, ?)".to_string()
+            } else {
+                "?".to_string()
+            },
+            // target
+            if target_is_falsey {
+                "if(existing.id IS NOT NULL, existing.target, ?)".to_string()
+            } else {
+                "?".to_string()
+            },
+            // metadata
+            if metadata_is_falsey {
+                "if(existing.id IS NOT NULL, existing.metadata, ?)".to_string()
+            } else {
+                "?".to_string()
+            },
+            // executor_output
+            if executor_output_is_falsey {
+                "if(existing.id IS NOT NULL, existing.executor_output, ?)".to_string()
+            } else {
+                "?".to_string()
+            },
+            // dataset_id
+            if dataset_link_is_falsey {
+                "if(existing.id IS NOT NULL, existing.dataset_id, toUUID(?))".to_string()
+            } else {
+                "toUUID(?)".to_string()
+            },
+            // dataset_datapoint_id
+            if dataset_link_is_falsey {
+                "if(existing.id IS NOT NULL, existing.dataset_datapoint_id, toUUID(?))".to_string()
+            } else {
+                "toUUID(?)".to_string()
+            },
+            // dataset_datapoint_created_at
+            if dataset_link_is_falsey {
+                "if(existing.id IS NOT NULL, existing.dataset_datapoint_created_at, toInt64(?))".to_string()
+            } else {
+                "toInt64(?)".to_string()
+            },
+            // scores
+            if scores_is_empty {
+                "if(existing.id IS NOT NULL, existing.scores, ?)".to_string()
+            } else {
+                "if(existing.id IS NOT NULL, jsonMergePatch(existing.scores, ?), ?)".to_string()
+            },
+        );
 
-                if update.data == Value::Null
-                    || update.data == Value::Object(serde_json::Map::new())
-                {
-                    update.data = parse_json_value_from_string(&existing.data);
-                }
+        let mut q = clickhouse.query(&query);
 
-                if update.target == Value::Null {
-                    update.target = parse_json_value_from_string(&existing.target);
-                }
-
-                if update.metadata.is_none() {
-                    update.metadata = serde_json::from_str(&existing.metadata).ok();
-                }
-
-                if update.executor_output.is_none() {
-                    update.executor_output =
-                        Some(parse_json_value_from_string(&existing.executor_output));
-                }
-
-                if update.trace_id.is_nil() {
-                    update.trace_id = existing.trace_id;
-                }
-            }
-            update
-        })
-        .collect();
-
-    let ch_insert = clickhouse
-        .insert::<CHEvaluationDatapoint>("evaluation_datapoints")
-        .await;
-    match ch_insert {
-        Ok(mut ch_insert) => {
-            for result in merged_datapoints {
-                let datapoint = CHEvaluationDatapoint::from_evaluation_datapoint_result(
-                    result,
-                    evaluation_id,
-                    project_id,
-                    group_name,
-                );
-                ch_insert.write(&datapoint).await?;
-            }
-            let ch_insert_end_res = ch_insert.end().await;
-            match ch_insert_end_res {
-                Ok(_) => Ok(()),
-                Err(e) => Err(anyhow::anyhow!(
-                    "Clickhouse evaluation datapoints insertion failed: {:?}",
-                    e
-                )),
-            }
+        // Bind parameters in order they appear in the query:
+        // 1. new_id
+        q = q.bind(dp.id);
+        // 2. new_evaluation_id
+        q = q.bind(evaluation_id);
+        // 3. new_project_id
+        q = q.bind(project_id);
+        // 4. trace_id (always one bind)
+        q = q.bind(dp.trace_id);
+        // 5. new_updated_at
+        q = q.bind(now_nanos);
+        // 6. data (always one bind)
+        q = q.bind(new_data.as_str());
+        // 7. target (always one bind)
+        q = q.bind(new_target.as_str());
+        // 8. metadata (always one bind)
+        q = q.bind(new_metadata.as_str());
+        // 9. executor_output (always one bind)
+        q = q.bind(new_executor_output.as_str());
+        // 10. index
+        q = q.bind(dp.index as u64);
+        // 11. dataset_id (always one bind)
+        q = q.bind(dataset_id);
+        // 12. dataset_datapoint_id (always one bind)
+        q = q.bind(dataset_datapoint_id);
+        // 13. dataset_datapoint_created_at (always one bind)
+        q = q.bind(dataset_datapoint_created_at);
+        // 14. group_id
+        q = q.bind(group_name.as_str());
+        // 15. scores: if empty -> 1 bind, if non-empty -> 2 binds (existing merge + new)
+        if scores_is_empty {
+            q = q.bind(new_scores.as_str());
+        } else {
+            q = q.bind(new_scores.as_str());
+            q = q.bind(new_scores.as_str());
         }
-        Err(e) => {
-            return Err(anyhow::anyhow!(
-                "Failed to insert evaluation datapoints into Clickhouse: {:?}",
+        // 16-18. WHERE clause for existing subselect
+        q = q.bind(project_id);
+        q = q.bind(evaluation_id);
+        q = q.bind(dp.id);
+
+        q.execute().await.map_err(|e| {
+            anyhow::anyhow!(
+                "Clickhouse evaluation datapoint INSERT...SELECT failed: {:?}",
                 e
-            ));
-        }
-    }
-}
-
-pub async fn get_existing_datapoints(
-    clickhouse: clickhouse::Client,
-    evaluation_id: Uuid,
-    project_id: Uuid,
-    datapoint_ids: &[Uuid],
-) -> Result<HashMap<Uuid, CHEvaluationDatapoint>> {
-    if datapoint_ids.is_empty() {
-        return Ok(HashMap::new());
+            )
+        })?;
     }
 
-    let results = clickhouse
-        .query("SELECT * FROM evaluation_datapoints FINAL WHERE evaluation_id = ? AND project_id = ? AND id IN ?")
-        .bind(evaluation_id)
-        .bind(project_id)
-        .bind(datapoint_ids)
-        .fetch_all::<CHEvaluationDatapoint>()
-        .await?;
-
-    Ok(results.into_iter().map(|dp| (dp.id, dp)).collect())
+    Ok(())
 }
 
-/// Update a single evaluation datapoint by merging with existing data
+/// Update a single evaluation datapoint using INSERT...SELECT pattern.
+/// Only updates trace_id, executor_output, and scores columns.
+/// All other columns are preserved from the existing row.
 pub async fn update_evaluation_datapoint(
     pool: &PgPool,
     clickhouse: clickhouse::Client,
@@ -196,77 +311,137 @@ pub async fn update_evaluation_datapoint(
     scores: HashMap<String, Option<f64>>,
     trace_id: Option<Uuid>,
 ) -> Result<()> {
-    // Get the existing datapoint
-    let existing_map = get_existing_datapoints(
-        clickhouse.clone(),
-        evaluation_id,
-        project_id,
-        &[datapoint_id],
-    )
-    .await?;
-
-    let existing = existing_map
-        .get(&datapoint_id)
-        .ok_or(anyhow::anyhow!("Evaluation datapoint not found"))?;
-
+    // For shared evaluation trace management, we still need to check existing trace_id
     if is_shared_evaluation(pool, project_id, evaluation_id).await? {
         if let Some(new_trace_id) = trace_id {
-            if new_trace_id != existing.trace_id {
-                delete_shared_traces(pool, project_id, &[existing.trace_id]).await?;
+            // We need to check the existing trace_id to handle shared trace cleanup
+            let existing_row = clickhouse
+                .query(
+                    "SELECT trace_id FROM evaluation_datapoints FINAL
+                     WHERE project_id = ? AND evaluation_id = ? AND id = ?",
+                )
+                .bind(project_id)
+                .bind(evaluation_id)
+                .bind(datapoint_id)
+                .fetch_optional::<TraceIdRow>()
+                .await?;
+
+            if let Some(existing_row) = existing_row {
+                if new_trace_id != existing_row.trace_id {
+                    delete_shared_traces(pool, project_id, &[existing_row.trace_id]).await?;
+                    insert_shared_traces(pool, project_id, &[new_trace_id]).await?;
+                }
+            } else {
                 insert_shared_traces(pool, project_id, &[new_trace_id]).await?;
             }
         } else {
-            // Safety: re-mark existing trace as shared in case it wasn't during creation
-            insert_shared_traces(pool, project_id, &[existing.trace_id]).await?;
+            // Re-mark existing trace as shared in case it wasn't during creation
+            let existing_row = clickhouse
+                .query(
+                    "SELECT trace_id FROM evaluation_datapoints FINAL
+                     WHERE project_id = ? AND evaluation_id = ? AND id = ?",
+                )
+                .bind(project_id)
+                .bind(evaluation_id)
+                .bind(datapoint_id)
+                .fetch_optional::<TraceIdRow>()
+                .await?;
+
+            if let Some(existing_row) = existing_row {
+                insert_shared_traces(pool, project_id, &[existing_row.trace_id]).await?;
+            }
         }
     }
 
-    let mut merged_scores: HashMap<String, Option<f64>> =
-        serde_json::from_str(&existing.scores).unwrap_or_default();
-    for (name, value) in scores {
-        merged_scores.insert(name, value);
-    }
+    let new_executor_output = executor_output
+        .as_ref()
+        .map(|v| value_to_ch_string(v))
+        .unwrap_or_default();
+    let new_scores = scores_to_json_string(&scores);
 
-    let data = parse_json_value_from_string(&existing.data);
-    let target = parse_json_value_from_string(&existing.target);
-    let metadata: Option<HashMap<String, Value>> = serde_json::from_str(&existing.metadata).ok();
+    let executor_output_is_falsey = executor_output.is_none()
+        || executor_output.as_ref().is_some_and(|v| is_falsey_value(v));
+    let trace_id_is_falsey = trace_id.is_none() || trace_id.is_some_and(|id| id.is_nil());
+    let scores_is_empty = scores.is_empty();
 
-    let dataset_link = if !existing.dataset_id.is_nil() {
-        Some(EvaluationDatapointDatasetLink {
-            dataset_id: existing.dataset_id,
-            datapoint_id: existing.dataset_datapoint_id,
-            created_at: DateTime::from_timestamp_nanos(existing.dataset_datapoint_created_at),
-        })
-    } else {
-        None
-    };
+    let now_nanos = chrono_to_nanoseconds(Utc::now());
 
-    let merged = EvaluationDatapointResult {
-        id: existing.id,
-        data,
-        target,
-        metadata,
-        executor_output: executor_output
-            .or_else(|| Some(parse_json_value_from_string(&existing.executor_output))),
-        trace_id: trace_id.unwrap_or(existing.trace_id),
-        index: existing.index as i32,
-        scores: merged_scores,
-        dataset_link,
-    };
-
-    let ch_datapoint = CHEvaluationDatapoint::from_evaluation_datapoint_result(
-        merged,
-        evaluation_id,
-        project_id,
-        group_id,
+    // For update_evaluation_datapoint, the existing row MUST exist.
+    // We preserve all columns from the existing row except the ones being updated.
+    let query = format!(
+        "INSERT INTO evaluation_datapoints (
+            id, evaluation_id, project_id, trace_id, updated_at,
+            data, target, metadata, executor_output, `index`,
+            dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
+            group_id, scores
+        )
+        SELECT
+            existing.id,
+            existing.evaluation_id,
+            existing.project_id,
+            {trace_id_expr},
+            toInt64(?) as new_updated_at,
+            existing.data,
+            existing.target,
+            existing.metadata,
+            {executor_output_expr},
+            existing.`index`,
+            existing.dataset_id,
+            existing.dataset_datapoint_id,
+            existing.dataset_datapoint_created_at,
+            ? as new_group_id,
+            {scores_expr}
+        FROM evaluation_datapoints FINAL AS existing
+        WHERE existing.project_id = ?
+          AND existing.evaluation_id = ?
+          AND existing.id = ?",
+        trace_id_expr = if trace_id_is_falsey {
+            "existing.trace_id".to_string()
+        } else {
+            "toUUID(?)".to_string()
+        },
+        executor_output_expr = if executor_output_is_falsey {
+            "existing.executor_output".to_string()
+        } else {
+            "?".to_string()
+        },
+        scores_expr = if scores_is_empty {
+            "existing.scores".to_string()
+        } else {
+            "jsonMergePatch(existing.scores, ?)".to_string()
+        },
     );
 
-    let mut ch_insert = clickhouse
-        .insert::<CHEvaluationDatapoint>("evaluation_datapoints")
-        .await?;
+    let mut q = clickhouse.query(&query);
 
-    ch_insert.write(&ch_datapoint).await?;
-    ch_insert.end().await?;
+    // Bind in order of appearance:
+    // 1. trace_id (only if not falsey)
+    if !trace_id_is_falsey {
+        q = q.bind(trace_id.unwrap());
+    }
+    // 2. updated_at
+    q = q.bind(now_nanos);
+    // 3. executor_output (only if not falsey)
+    if !executor_output_is_falsey {
+        q = q.bind(new_executor_output.as_str());
+    }
+    // 4. group_id
+    q = q.bind(group_id.as_str());
+    // 5. scores (only if not empty)
+    if !scores_is_empty {
+        q = q.bind(new_scores.as_str());
+    }
+    // 6-8. WHERE clause
+    q = q.bind(project_id);
+    q = q.bind(evaluation_id);
+    q = q.bind(datapoint_id);
+
+    q.execute().await.map_err(|e| {
+        anyhow::anyhow!(
+            "Clickhouse evaluation datapoint update INSERT...SELECT failed: {:?}",
+            e
+        )
+    })?;
 
     Ok(())
 }
