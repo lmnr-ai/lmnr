@@ -9,6 +9,15 @@ import { ROW_HEIGHT } from "./timeline-element";
 import { ICON_MAP } from "./timeline-icons";
 import { type BlockSummary, type SpanTreeNode } from "./timeline-types";
 
+/** Check if any descendant span in a subtree is in the given set */
+function hasVisibleDescendant(node: SpanTreeNode, visibleIds: Set<string>): boolean {
+  for (const child of node.children) {
+    if (visibleIds.has(child.span.spanId)) return true;
+    if (hasVisibleDescendant(child, visibleIds)) return true;
+  }
+  return false;
+}
+
 interface SpanNodeRendererProps {
   node: SpanTreeNode;
   timelineDepth: number;
@@ -103,7 +112,11 @@ const SpanNodeRenderer = memo(
           <div
             className={cn(
               "absolute rounded-xs cursor-pointer hover:brightness-110 overflow-hidden z-10 bg-landing-surface-400/80 border border-secondary-foreground/50",
-              { "border-white/70 !z-20": isSelected }
+              { "border-white/70 !z-20": isSelected },
+              hasGroupSelection &&
+                !visibleSpanIds.has(node.span.spanId) &&
+                !hasVisibleDescendant(node, visibleSpanIds) &&
+                "opacity-30"
             )}
             style={{
               left: `${overlayLeft}%`,
