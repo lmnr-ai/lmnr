@@ -74,11 +74,19 @@ function SpanListItem({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       className={cn(
-        "flex items-center gap-2 px-3 py-2 cursor-pointer border-l-2 hover:bg-secondary transition-colors",
+        "flex items-center gap-2 px-3 py-2 cursor-pointer border-l-2 hover:bg-secondary/80 active:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         isSelected ? "bg-primary/5 border-l-primary" : "border-l-transparent"
       )}
       onClick={() => onClick(span)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick(span);
+        }
+      }}
     >
       <SpanTypeIcon spanType={span.spanType} className={cn({ "text-muted-foreground bg-muted": span.pending })} />
       <div className="flex flex-col min-w-0 flex-1">
