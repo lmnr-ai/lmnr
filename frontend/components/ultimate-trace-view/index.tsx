@@ -9,6 +9,7 @@ import Header from "@/components/ui/header";
 import { createUltimateTraceViewStore, UltimateTraceViewContext, useUltimateTraceViewStore } from "./store";
 import Timeline from "./timeline";
 import TraceHeader from "./trace-header";
+import { useBlockSummaries } from "./use-block-summaries";
 
 // Store provider
 function UltimateTraceViewProvider({
@@ -93,6 +94,15 @@ function UltimateTraceViewContent({ traceId }: { traceId: string }) {
 
 function TraceSection({ traceId }: { traceId: string }) {
   const exists = useUltimateTraceViewStore((state) => state.traces.has(traceId));
+  const hasSpanTree = useUltimateTraceViewStore((state) => !!state.traces.get(traceId)?.spanTree);
+  const { generateBlockSummaries } = useBlockSummaries(traceId);
+
+  // Trigger block summary generation once span tree is built
+  useEffect(() => {
+    if (hasSpanTree) {
+      generateBlockSummaries();
+    }
+  }, [hasSpanTree, generateBlockSummaries]);
 
   if (!exists) return null;
 

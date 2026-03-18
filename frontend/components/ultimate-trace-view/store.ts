@@ -9,6 +9,9 @@ import {
   transformSpansToCondensedTimeline,
 } from "@/components/traces/trace-view/store/utils";
 
+import { type BlockSummary, type SpanTreeNode } from "./timeline/timeline-types";
+import { buildSpanTree, computeExpandedLayout, computeMaxDepth } from "./timeline/timeline-utils";
+
 export const MAX_ZOOM = 18;
 export const MIN_ZOOM = 1;
 export const ZOOM_INCREMENT = 0.5;
@@ -24,6 +27,14 @@ export interface UltimateTraceState {
   zoom: number;
   selectedSpanIds: Set<string>;
   visibleSpanIds: Set<string>;
+  // Span tree and granularity
+  spanTree: SpanTreeNode[] | null;
+  maxDepth: number;
+  granularityDepth: number;
+  expandedRowMap: Map<string, number>;
+  totalRows: number;
+  blockSummaries: Record<string, BlockSummary>;
+  isSummarizationLoading: boolean;
 }
 
 const createDefaultTraceState = (trace?: TraceViewTrace): UltimateTraceState => ({
@@ -34,6 +45,13 @@ const createDefaultTraceState = (trace?: TraceViewTrace): UltimateTraceState => 
   zoom: 1,
   selectedSpanIds: new Set(),
   visibleSpanIds: new Set(),
+  spanTree: null,
+  maxDepth: 0,
+  granularityDepth: 0,
+  expandedRowMap: new Map(),
+  totalRows: 0,
+  blockSummaries: {},
+  isSummarizationLoading: false,
 });
 
 export interface UltimateTraceViewState {
@@ -60,6 +78,11 @@ export interface UltimateTraceViewActions {
 
   setSelectedSpanIds: (traceId: string, ids: Set<string>) => void;
   clearSelectedSpanIds: (traceId: string) => void;
+
+  // Granularity / block summary actions
+  setGranularityDepth: (traceId: string, depth: number) => void;
+  addBlockSummaries: (traceId: string, summaries: Record<string, BlockSummary>) => void;
+  setIsSummarizationLoading: (traceId: string, loading: boolean) => void;
 
   getCondensedTimelineData: (traceId: string) => CondensedTimelineData;
   getTraceState: (traceId: string) => UltimateTraceState | undefined;
@@ -113,7 +136,21 @@ export const createUltimateTraceViewStore = (initialTraceId: string, initialTrac
     },
 
     setSpans: (traceId, spans) => {
-      set((state) => ({ traces: updateTraceState(state.traces, traceId, { spans }) }));
+      // When spans arrive, build the span tree and compute layout
+      const spanTree = buildSpanTree(spans);
+      const maxDepth = computeMaxDepth(spanTree);
+      const { rowMap, totalRows } = computeExpandedLayout(spans);
+
+      set((state) => ({
+        traces: updateTraceState(state.traces, traceId, {
+          spans,
+          spanTree,
+          maxDepth,
+          granularityDepth: maxDepth, // Default to max depth (no summaries)
+          expandedRowMap: rowMap,
+          totalRows,
+        }),
+      }));
     },
 
     setIsTraceLoading: (traceId, loading) => {
@@ -167,10 +204,39 @@ export const createUltimateTraceViewStore = (initialTraceId: string, initialTrac
       }));
     },
 
+    setGranularityDepth: (traceId, depth) => {
+      set((state) => ({
+        traces: updateTraceState(state.traces, traceId, { granularityDepth: depth }),
+      }));
+    },
+
+    addBlockSummaries: (traceId, summaries) => {
+      const traceState = get().traces.get(traceId);
+      if (!traceState) return;
+      set((state) => ({
+        traces: updateTraceState(state.traces, traceId, {
+          blockSummaries: { ...traceState.blockSummaries, ...summaries },
+        }),
+      }));
+    },
+
+    setIsSummarizationLoading: (traceId, loading) => {
+      set((state) => ({
+        traces: updateTraceState(state.traces, traceId, { isSummarizationLoading: loading }),
+      }));
+    },
+
     getCondensedTimelineData: (traceId) => {
       const traceState = get().traces.get(traceId);
       if (!traceState) {
-        return { spans: [], startTime: 0, endTime: 0, totalRows: 0, timelineWidthInMilliseconds: 0, totalDurationMs: 0 };
+        return {
+          spans: [],
+          startTime: 0,
+          endTime: 0,
+          totalRows: 0,
+          timelineWidthInMilliseconds: 0,
+          totalDurationMs: 0,
+        };
       }
       return transformSpansToCondensedTimeline(traceState.spans);
     },
@@ -181,7 +247,7 @@ export const createUltimateTraceViewStore = (initialTraceId: string, initialTrac
 // Context and hooks
 export const UltimateTraceViewContext = createContext<StoreApi<UltimateTraceViewStore> | undefined>(undefined);
 
-export const useUltimateTraceViewStore = <T,>(selector: (store: UltimateTraceViewStore) => T): T => {
+export const useUltimateTraceViewStore = <T>(selector: (store: UltimateTraceViewStore) => T): T => {
   const store = useContext(UltimateTraceViewContext);
   if (!store) {
     throw new Error("useUltimateTraceViewStore must be used within a UltimateTraceViewContext provider");

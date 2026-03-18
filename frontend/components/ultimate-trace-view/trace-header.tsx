@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { useUltimateTraceViewStore } from "./store";
+import DepthSliderBar from "./timeline/depth-slider-bar";
 
 interface TraceHeaderProps {
   traceId: string;
@@ -22,6 +23,9 @@ interface TraceHeaderProps {
 export default function TraceHeader({ traceId }: TraceHeaderProps) {
   const hasTrace = useUltimateTraceViewStore((state) => !!state.traces.get(traceId)?.trace);
   const isLoading = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.isTraceLoading ?? false);
+  const maxDepth = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.maxDepth ?? 0);
+  const granularityDepth = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.granularityDepth ?? 0);
+  const setGranularityDepth = useUltimateTraceViewStore((state) => state.setGranularityDepth);
   const { projectId } = useParams<{ projectId: string }>();
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -42,6 +46,13 @@ export default function TraceHeader({ traceId }: TraceHeaderProps) {
     await navigator.clipboard.writeText(traceId);
     toast({ title: "Copied trace ID", duration: 1000 });
   }, [traceId, toast]);
+
+  const handleDepthChange = useCallback(
+    (depth: number) => {
+      setGranularityDepth(traceId, depth);
+    },
+    [traceId, setGranularityDepth]
+  );
 
   const traceLabel = hasTrace ? traceId : isLoading ? "Loading..." : "Trace";
 
@@ -68,6 +79,9 @@ export default function TraceHeader({ traceId }: TraceHeaderProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Depth slider bar */}
+      <DepthSliderBar granularityDepth={granularityDepth} maxDepth={maxDepth} onDepthChange={handleDepthChange} />
 
       {/* Placeholder for signal indicators (Phase 5) */}
       <div className="flex items-center gap-1 flex-1" />

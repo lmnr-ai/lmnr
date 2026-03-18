@@ -14,10 +14,14 @@ import { cn } from "@/lib/utils";
 import { useUltimateTraceViewStore } from "../store";
 import SelectionIndicator from "./selection-indicator";
 import SelectionOverlay from "./selection-overlay";
+import SpanNodeRenderer from "./span-node-renderer";
 import TimelineElement, { ROW_HEIGHT } from "./timeline-element";
+import { computeSubtreeRowRanges } from "./timeline-utils";
 import ZoomControls from "./zoom-controls";
 
 const emptySet = new Set<string>();
+const emptyMap = new Map<string, number>();
+const emptyBlockSummaries: Record<string, never> = {};
 
 interface TimelineProps {
   traceId: string;
@@ -31,6 +35,14 @@ function Timeline({ traceId }: TimelineProps) {
   const isSpansLoading = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.isSpansLoading ?? false);
   const visibleSpanIds = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.visibleSpanIds ?? emptySet);
   const spans = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.spans);
+  const spanTree = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.spanTree ?? null);
+  const maxDepth = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.maxDepth ?? 0);
+  const granularityDepth = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.granularityDepth ?? 0);
+  const expandedRowMap = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.expandedRowMap ?? emptyMap);
+  const totalRows = useUltimateTraceViewStore((state) => state.traces.get(traceId)?.totalRows ?? 0);
+  const blockSummaries = useUltimateTraceViewStore(
+    (state) => state.traces.get(traceId)?.blockSummaries ?? emptyBlockSummaries
+  );
   const getCondensedTimelineData = useUltimateTraceViewStore((state) => state.getCondensedTimelineData);
   const selectSpan = useUltimateTraceViewStore((state) => state.selectSpan);
   const selectedSpanId = useUltimateTraceViewStore((state) => state.selectedSpanId);
@@ -39,11 +51,26 @@ function Timeline({ traceId }: TimelineProps) {
   const clearSelectedSpanIds = useUltimateTraceViewStore((state) => state.clearSelectedSpanIds);
   const setZoom = useUltimateTraceViewStore((state) => state.setZoom);
 
-  const {
-    spans: condensedSpans,
-    totalDurationMs,
-    totalRows,
-  } = useMemo(() => getCondensedTimelineData(traceId), [getCondensedTimelineData, traceId, spans]);
+  // At max depth, use original condensed timeline rendering
+  const isAtMaxDepth = granularityDepth >= maxDepth;
+
+  const { spans: condensedSpans, totalDurationMs } = useMemo(
+    () => getCondensedTimelineData(traceId),
+    [getCondensedTimelineData, traceId, spans]
+  );
+
+  // Compute trace start time for span-node-renderer
+  const traceState = useUltimateTraceViewStore((state) => state.traces.get(traceId));
+  const traceStartMs = useMemo(() => {
+    if (!traceState?.trace) return 0;
+    return new Date(traceState.trace.startTime).getTime();
+  }, [traceState?.trace]);
+
+  // Pre-compute subtree row ranges for overlay positioning
+  const subtreeRowRanges = useMemo(
+    () => (spanTree ? computeSubtreeRowRanges(spanTree, expandedRowMap) : new Map()),
+    [spanTree, expandedRowMap]
+  );
 
   const { markers: timeMarkers, setContainerRef } = useDynamicTimeIntervals({
     totalDurationMs,
@@ -87,6 +114,16 @@ function Timeline({ traceId }: TimelineProps) {
     },
     [selectSpan, traceId]
   );
+
+  // For span-node-renderer: click by spanId
+  const handleNodeSpanClick = useCallback(
+    (spanId: string, _isCondensed: boolean) => {
+      selectSpan(traceId, spanId);
+    },
+    [selectSpan, traceId]
+  );
+
+  const activeSelectedSpanId = selectedTraceId === traceId ? selectedSpanId : null;
 
   const contentHeight = (totalRows + 1) * ROW_HEIGHT;
 
@@ -141,21 +178,41 @@ function Timeline({ traceId }: TimelineProps) {
 
         {/* Timeline content */}
         <div ref={timelineContentRef} className="relative h-full" style={{ minHeight: contentHeight }}>
-          {condensedSpans.map((condensedSpan) => {
-            const hasGroupSelection = visibleSpanIds.size > 0;
-            const isIncludedInGroupSelection = hasGroupSelection ? visibleSpanIds.has(condensedSpan.span.spanId) : null;
-            const isSelected = selectedTraceId === traceId && selectedSpanId === condensedSpan.span.spanId;
+          {isAtMaxDepth
+            ? // At max depth: render individual span bars (original behavior)
+              condensedSpans.map((condensedSpan) => {
+                const hasGroupSelection = visibleSpanIds.size > 0;
+                const isIncludedInGroupSelection = hasGroupSelection
+                  ? visibleSpanIds.has(condensedSpan.span.spanId)
+                  : null;
+                const isSelected = selectedTraceId === traceId && selectedSpanId === condensedSpan.span.spanId;
 
-            return (
-              <TimelineElement
-                key={condensedSpan.span.spanId}
-                condensedSpan={condensedSpan}
-                isSelected={isSelected}
-                isIncludedInGroupSelection={isIncludedInGroupSelection}
-                onClick={handleSpanClick}
-              />
-            );
-          })}
+                return (
+                  <TimelineElement
+                    key={condensedSpan.span.spanId}
+                    condensedSpan={condensedSpan}
+                    isSelected={isSelected}
+                    isIncludedInGroupSelection={isIncludedInGroupSelection}
+                    onClick={handleSpanClick}
+                  />
+                );
+              })
+            : // At shallower depth: render span tree with condensed overlays
+              spanTree?.map((rootNode) => (
+                <SpanNodeRenderer
+                  key={rootNode.span.spanId}
+                  node={rootNode}
+                  timelineDepth={granularityDepth}
+                  expandedRowMap={expandedRowMap}
+                  subtreeRowRanges={subtreeRowRanges}
+                  totalDurationMs={totalDurationMs}
+                  traceStartMs={traceStartMs}
+                  blockSummaries={blockSummaries}
+                  selectedSpanId={activeSelectedSpanId}
+                  visibleSpanIds={visibleSpanIds}
+                  onSpanClick={handleNodeSpanClick}
+                />
+              ))}
 
           <SelectionOverlay
             spans={condensedSpans}
