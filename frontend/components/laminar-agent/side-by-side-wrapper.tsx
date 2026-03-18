@@ -36,30 +36,19 @@ export default function SideBySideWrapper({ children }: SideBySideWrapperProps) 
     const panel = agentPanelRef.current;
     if (!panel) return;
     if (isSideBySide) {
-      // Must expand a collapsed panel before resizing — resize() alone
-      // fails silently on a panel with defaultSize={0} + collapsible.
-      panel.expand();
-      panel.resize(35);
+      panel.resize("35%");
     } else {
-      panel.collapse();
+      panel.resize("0%");
     }
   }, [isSideBySide]);
 
   return (
     <ResizablePanelGroup orientation="horizontal" className="h-full">
-      <ResizablePanel defaultSize={100} minSize={30}>
+      <ResizablePanel defaultSize="100%" minSize="30%">
         <div className="h-full overflow-auto">{children}</div>
       </ResizablePanel>
-      {/* Always render handle + panel; hide handle when agent panel is collapsed */}
       <ResizableHandle withHandle className={isSideBySide ? "" : "hidden"} />
-      <ResizablePanel
-        panelRef={agentPanelRef}
-        defaultSize={0}
-        minSize={0}
-        collapsible
-        collapsedSize={0}
-        className={isSideBySide ? "" : "hidden"}
-      >
+      <ResizablePanel panelRef={agentPanelRef} defaultSize="0%" minSize="0%" className={isSideBySide ? "" : "hidden"}>
         <div ref={setRef} className="h-full" />
       </ResizablePanel>
     </ResizablePanelGroup>
