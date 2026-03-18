@@ -50,6 +50,8 @@ function Timeline({ traceId }: TimelineProps) {
   const setSelectedSpanIds = useUltimateTraceViewStore((state) => state.setSelectedSpanIds);
   const clearSelectedSpanIds = useUltimateTraceViewStore((state) => state.clearSelectedSpanIds);
   const setZoom = useUltimateTraceViewStore((state) => state.setZoom);
+  const openSpanViewPanel = useUltimateTraceViewStore((state) => state.openSpanViewPanel);
+  const openSpanListPanel = useUltimateTraceViewStore((state) => state.openSpanListPanel);
 
   // At max depth, use original condensed timeline rendering
   const isAtMaxDepth = granularityDepth >= maxDepth;
@@ -100,27 +102,50 @@ function Timeline({ traceId }: TimelineProps) {
   const handleSelectionComplete = useCallback(
     (selectedIds: Set<string>) => {
       setSelectedSpanIds(traceId, selectedIds);
+      // Open span list panel with selected spans
+      openSpanListPanel(traceId, Array.from(selectedIds), "Selection");
     },
-    [traceId, setSelectedSpanIds]
+    [traceId, setSelectedSpanIds, openSpanListPanel]
   );
 
   const handleClearSelection = useCallback(() => {
     clearSelectedSpanIds(traceId);
   }, [traceId, clearSelectedSpanIds]);
 
+  // At max granularity, clicking a span bar opens span view directly
   const handleSpanClick = useCallback(
     (span: TraceViewSpan) => {
-      if (!span.pending) selectSpan(traceId, span.spanId);
+      if (span.pending) return;
+      selectSpan(traceId, span.spanId);
+      openSpanViewPanel(traceId, span.spanId);
     },
-    [selectSpan, traceId]
+    [selectSpan, traceId, openSpanViewPanel]
   );
 
   // For span-node-renderer: click by spanId
+  // isCondensed = true means a block was clicked, open span list
+  // isCondensed = false means a single span was clicked, open span view
   const handleNodeSpanClick = useCallback(
-    (spanId: string, _isCondensed: boolean) => {
+    (spanId: string, isCondensed: boolean) => {
       selectSpan(traceId, spanId);
+      if (isCondensed) {
+        // Block clicked: collect all descendant span IDs and open span list
+        const collectDescendantIds = (nodeSpanId: string): string[] => {
+          const ids: string[] = [nodeSpanId];
+          const children = (spans ?? []).filter((s) => s.parentSpanId === nodeSpanId);
+          for (const child of children) {
+            ids.push(...collectDescendantIds(child.spanId));
+          }
+          return ids;
+        };
+        const blockSpanIds = collectDescendantIds(spanId);
+        setSelectedSpanIds(traceId, new Set(blockSpanIds));
+        openSpanListPanel(traceId, blockSpanIds, "Block Spans");
+      } else {
+        openSpanViewPanel(traceId, spanId);
+      }
     },
-    [selectSpan, traceId]
+    [selectSpan, traceId, spans, setSelectedSpanIds, openSpanListPanel, openSpanViewPanel]
   );
 
   const activeSelectedSpanId = selectedTraceId === traceId ? selectedSpanId : null;

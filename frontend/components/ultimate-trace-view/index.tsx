@@ -6,6 +6,7 @@ import { type PropsWithChildren, useCallback, useEffect, useState } from "react"
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
 import Header from "@/components/ui/header";
 
+import PanelContainer from "./panels/panel-container";
 import { createUltimateTraceViewStore, UltimateTraceViewContext, useUltimateTraceViewStore } from "./store";
 import Timeline from "./timeline";
 import TraceHeader from "./trace-header";
@@ -88,6 +89,7 @@ function UltimateTraceViewContent({ traceId }: { traceId: string }) {
       {traceOrder.map((tid) => (
         <TraceSection key={tid} traceId={tid} />
       ))}
+      <PanelContainer />
     </div>
   );
 }

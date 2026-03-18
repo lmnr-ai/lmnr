@@ -16,6 +16,21 @@ export const MAX_ZOOM = 18;
 export const MIN_ZOOM = 1;
 export const ZOOM_INCREMENT = 0.5;
 
+// Panel types
+export type PanelType = "span-list" | "span-view" | "event-payload";
+
+export interface PanelDescriptor {
+  type: PanelType;
+  key: string;
+  traceId: string;
+  // span-list: spanIds to show; span-view: spanId; event-payload: eventId
+  data: {
+    spanIds?: string[];
+    spanId?: string;
+    title?: string;
+  };
+}
+
 // Per-trace state
 export interface UltimateTraceState {
   trace?: TraceViewTrace;
@@ -59,6 +74,7 @@ export interface UltimateTraceViewState {
   traceOrder: string[];
   selectedSpanId: string | null;
   selectedTraceId: string | null;
+  panels: PanelDescriptor[];
 }
 
 export interface UltimateTraceViewActions {
@@ -84,6 +100,12 @@ export interface UltimateTraceViewActions {
   addBlockSummaries: (traceId: string, summaries: Record<string, BlockSummary>) => void;
   setIsSummarizationLoading: (traceId: string, loading: boolean) => void;
 
+  // Panel actions
+  openSpanListPanel: (traceId: string, spanIds: string[], title?: string) => void;
+  openSpanViewPanel: (traceId: string, spanId: string) => void;
+  closePanel: (key: string) => void;
+  closePanelsByType: (type: PanelType) => void;
+
   getCondensedTimelineData: (traceId: string) => CondensedTimelineData;
   getTraceState: (traceId: string) => UltimateTraceState | undefined;
 }
@@ -108,6 +130,7 @@ export const createUltimateTraceViewStore = (initialTraceId: string, initialTrac
     traceOrder: [initialTraceId],
     selectedSpanId: null,
     selectedTraceId: null,
+    panels: [],
 
     addTrace: (traceId, trace) => {
       set((state) => {
@@ -223,6 +246,54 @@ export const createUltimateTraceViewStore = (initialTraceId: string, initialTrac
     setIsSummarizationLoading: (traceId, loading) => {
       set((state) => ({
         traces: updateTraceState(state.traces, traceId, { isSummarizationLoading: loading }),
+      }));
+    },
+
+    openSpanListPanel: (traceId, spanIds, title) => {
+      set((state) => {
+        // Replace any existing span-list panel for this trace
+        const filtered = state.panels.filter((p) => !(p.type === "span-list" && p.traceId === traceId));
+        const panel: PanelDescriptor = {
+          type: "span-list",
+          key: `span-list-${traceId}`,
+          traceId,
+          data: { spanIds, title },
+        };
+        return { panels: [...filtered, panel] };
+      });
+    },
+
+    openSpanViewPanel: (traceId, spanId) => {
+      set((state) => {
+        // Same trace as existing span-view → replace it
+        const existingSameTrace = state.panels.find((p) => p.type === "span-view" && p.traceId === traceId);
+        if (existingSameTrace) {
+          return {
+            panels: state.panels.map((p) =>
+              p.key === existingSameTrace.key ? { ...p, data: { ...p.data, spanId } } : p
+            ),
+          };
+        }
+        // Different trace or no existing span-view → add new
+        const panel: PanelDescriptor = {
+          type: "span-view",
+          key: `span-view-${traceId}`,
+          traceId,
+          data: { spanId },
+        };
+        return { panels: [...state.panels, panel] };
+      });
+    },
+
+    closePanel: (key) => {
+      set((state) => ({
+        panels: state.panels.filter((p) => p.key !== key),
+      }));
+    },
+
+    closePanelsByType: (type) => {
+      set((state) => ({
+        panels: state.panels.filter((p) => p.type !== type),
       }));
     },
 
