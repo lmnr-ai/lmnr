@@ -87,6 +87,7 @@ export default function useSubmitHandler({
   onSuccess,
   setIsLoading,
   previousTriggerIds,
+  setFormId,
 }: {
   projectId: string;
   toast: ReturnType<typeof useToast>["toast"];
@@ -95,6 +96,7 @@ export default function useSubmitHandler({
   onSuccess?: (signal: ManageSignalForm) => Promise<void>;
   setIsLoading: (loading: boolean) => void;
   previousTriggerIds: string[];
+  setFormId: (id: string) => void;
 }) {
   return useCallback(
     async (data: ManageSignalForm) => {
@@ -131,6 +133,11 @@ export default function useSubmitHandler({
         // Get the signal ID (from response for new signals, from form for updates)
         const signalId = isUpdate ? data.id! : ((await res.clone().json()) as { id: string }).id;
 
+        // Write the ID back to form state so retries after trigger sync failure become updates, not creates
+        if (!isUpdate) {
+          setFormId(signalId);
+        }
+
         // Sync triggers and get back the list with server-assigned IDs
         const triggersToSync = data.triggers.filter((t) => t.filters.length > 0);
         let syncedTriggers = triggersToSync;
@@ -153,6 +160,6 @@ export default function useSubmitHandler({
         setIsLoading(false);
       }
     },
-    [projectId, toast, setOpen, reset, onSuccess, setIsLoading, previousTriggerIds]
+    [projectId, toast, setOpen, reset, onSuccess, setIsLoading, previousTriggerIds, setFormId]
   );
 }

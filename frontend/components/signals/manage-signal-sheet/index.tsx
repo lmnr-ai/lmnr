@@ -62,9 +62,12 @@ function DrawerContent({
     reset,
     watch,
     getValues,
+    setValue,
     formState: { isValid },
   } = useFormContext<ManageSignalForm>();
   const id = watch("id");
+
+  const setFormId = useCallback((newId: string) => setValue("id", newId), [setValue]);
 
   const submit = useSubmitHandler({
     projectId: String(projectId),
@@ -74,6 +77,7 @@ function DrawerContent({
     onSuccess,
     setIsLoading,
     previousTriggerIds,
+    setFormId,
   });
 
   const handleTestComplete = useCallback(() => {
