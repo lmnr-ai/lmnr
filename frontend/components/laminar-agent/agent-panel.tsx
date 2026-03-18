@@ -100,6 +100,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
           const [, spanId, spanName] = xmlSpanMatch;
           return (
             <button
+              className="cursor-pointer hover:bg-primary/90 rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               onClick={async () => {
                 const spanUuid = await resolveSpanId(spanId);
                 if (spanUuid) {
@@ -127,6 +128,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
 
           return (
             <button
+              className="cursor-pointer hover:bg-primary/90 rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               onClick={async () => {
                 const spanUuid = await resolveSpanId(spanId);
                 if (spanUuid) {
@@ -182,6 +184,9 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
     lastPrefillRef.current = prefillInput;
     setInput(prefillInput);
     clearPrefill();
+  } else if (!prefillInput && lastPrefillRef.current) {
+    // Clear ref after consumption so the same text can be prefilled again
+    lastPrefillRef.current = null;
   }
 
   return (
@@ -210,7 +215,8 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
         </div>
       </div>
 
-      <div className="grow flex flex-col overflow-auto relative">
+      <div className="grow flex flex-col overflow-auto relative minimal-scrollbar">
+        <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-background to-transparent z-10 pointer-events-none" />
         <Conversation>
           <ConversationContent className="space-y-4 py-4 px-0 pb-12">
             {messages.length === 0 && status !== "submitted" && status !== "streaming" ? (
@@ -240,7 +246,13 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
               <>
                 {messages.length > 0 && (
                   <div className="px-4 flex justify-end pt-1">
-                    <Button onClick={handleNewChat} variant="outline" size="sm" className="h-7 text-xs">
+                    <Button
+                      onClick={handleNewChat}
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={status === "streaming" || status === "submitted"}
+                    >
                       <RotateCcw className="w-3 h-3 mr-1" />
                       New Chat
                     </Button>
@@ -284,7 +296,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
                   </div>
                 ))}
 
-                {status === "submitted" && (
+                {(status === "submitted" || status === "streaming") && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground px-5">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Thinking...</span>
@@ -325,9 +337,9 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
               <Button
                 type="submit"
                 size="icon"
-                className="absolute right-1 bottom-2 h-7 w-7 rounded-full border bg-primary"
-                variant="ghost"
-                disabled={input.trim() === "" || status === "streaming"}
+                className="absolute right-1 bottom-2 h-7 w-7 rounded-full border"
+                variant="default"
+                disabled={input.trim() === "" || status === "streaming" || status === "submitted"}
               >
                 <ArrowUp className="w-4 h-4" />
               </Button>
