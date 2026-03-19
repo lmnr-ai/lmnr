@@ -88,7 +88,7 @@ pub async fn process_span_messages(
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
 
     // Upsert trace statistics in PostgreSQL
-    match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+    let updated_traces = match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
         Ok(updated_traces) => {
             let ch_traces: Vec<CHTrace> = updated_traces
                 .iter()
@@ -105,26 +105,13 @@ pub async fn process_span_messages(
 
             send_trace_updates(&updated_traces, &pubsub).await;
 
-            if is_feature_enabled(Feature::Signals) {
-                let traces_by_project = group_traces_by_project(&updated_traces);
-                for (project_id, project_traces) in &traces_by_project {
-                    check_and_push_signals(
-                        *project_id,
-                        project_traces,
-                        &spans,
-                        db.clone(),
-                        cache.clone(),
-                        clickhouse.clone(),
-                        queue.clone(),
-                    )
-                    .await;
-                }
-            }
+            Some(updated_traces)
         }
         Err(e) => {
             log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+            None
         }
-    }
+    };
 
     // Build CHSpans with embedded events and insert to ClickHouse
     let ch_spans: Vec<CHSpan> = spans
@@ -145,6 +132,26 @@ pub async fn process_span_messages(
             "Failed to insert spans to Clickhouse: {:?}",
             e
         )));
+    }
+
+    // Check signal triggers AFTER spans are inserted into ClickHouse
+    // so the signal agent can see the trace data when processing.
+    if let Some(updated_traces) = &updated_traces {
+        if is_feature_enabled(Feature::Signals) {
+            let traces_by_project = group_traces_by_project(updated_traces);
+            for (project_id, project_traces) in &traces_by_project {
+                check_and_push_signals(
+                    *project_id,
+                    project_traces,
+                    &spans,
+                    db.clone(),
+                    cache.clone(),
+                    clickhouse.clone(),
+                    queue.clone(),
+                )
+                .await;
+            }
+        }
     }
 
     // Send realtime span updates
