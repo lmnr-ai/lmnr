@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 import SignalFormFields from "./signal-form-fields";
 import TestPanel from "./test-panel";
-import { getDefaultValues, type ManageSignalForm } from "./types";
+import { getDefaultValues, type ManageSignalForm, type TriggerFormItem } from "./types";
 import useSubmitHandler from "./use-submit-handler";
 import useTestExecution from "./use-test-execution";
 
@@ -68,6 +68,7 @@ function DrawerContent({
   const id = watch("id");
 
   const setFormId = useCallback((newId: string) => setValue("id", newId), [setValue]);
+  const setFormTriggers = useCallback((triggers: TriggerFormItem[]) => setValue("triggers", triggers), [setValue]);
 
   const submit = useSubmitHandler({
     projectId: String(projectId),
@@ -78,6 +79,7 @@ function DrawerContent({
     setIsLoading,
     previousTriggerIds,
     setFormId,
+    setFormTriggers,
   });
 
   const handleTestComplete = useCallback(() => {
