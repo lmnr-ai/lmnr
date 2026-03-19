@@ -93,7 +93,7 @@ export default function SignalsPill({ traceId }: SignalsPillProps) {
 
   const handleExplainSignal = useCallback(
     (event: SignalEvent) => {
-      const prompt = `Explain how this signal event ${event.id} matches this trace ${traceId} and detail which spans are relevant and why`;
+      const prompt = `Show me the payload of this signal event ${event.id}, explain why it was detected on this trace ${traceId}, and detail which spans are relevant and why`;
       setPrefillInput(prompt);
       if (viewMode === "collapsed") {
         setViewMode("floating");

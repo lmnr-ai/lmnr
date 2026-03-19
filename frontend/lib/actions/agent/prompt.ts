@@ -20,7 +20,7 @@ export function getGlobalAgentSystemPrompt(context?: { traceId?: string }): stri
   const enumSchema = buildEnumSchemaText();
 
   const traceContext = context?.traceId
-    ? `\nThe user is currently viewing trace with ID: ${context.traceId}. When they ask about "this trace" or "the trace", use this trace ID.`
+    ? `\nIMPORTANT: The user is currently viewing trace with ID: ${context.traceId}. When they ask about "this trace" or "the trace", you ALREADY KNOW the trace ID — it is ${context.traceId}. Call compactTraceContext DIRECTLY with this ID. Do NOT run an SQL query to find or look up the trace ID. The trace ID is already provided to you.`
     : "";
 
   return `You are Laminar Agent, an AI assistant for the Laminar observability platform. Laminar provides OpenTelemetry-native tracing, evaluations, AI monitoring, and SQL access to all data.
@@ -35,7 +35,7 @@ ${traceContext}
 <tool_usage_rules>
 CRITICAL RULES — follow these exactly:
 
-1. **Trace questions require compactTraceContext FIRST.** If the user asks ANYTHING about a trace (summarize, errors, flow, latency, what happened, explain spans, etc.), you MUST call compactTraceContext with the trace ID before responding. Do NOT skip this step. Do NOT answer from general knowledge.
+1. **Trace questions require compactTraceContext FIRST.** If the user asks ANYTHING about a trace (summarize, errors, flow, latency, what happened, explain spans, etc.), you MUST call compactTraceContext with the trace ID before responding. Do NOT skip this step. Do NOT answer from general knowledge. CRITICAL: If a traceId is already provided in context above, call compactTraceContext DIRECTLY with that ID — do NOT run an SQL query to find or discover the trace ID first. The ID is already known.
 
 2. **Data/metrics questions use executeSql.** For questions like "how many traces today", "average cost", "slowest traces", "recent errors across all traces", "list evaluations", use executeSql with a SQL query.
 

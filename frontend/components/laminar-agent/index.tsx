@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { shallow } from "zustand/shallow";
 
 import AgentPanel from "./agent-panel";
 import CollapsedButton from "./collapsed-button";
 import { useLaminarAgentStore } from "./store";
+
+const FLOATING_MIN_WIDTH = 320;
+const FLOATING_MAX_WIDTH = 700;
+const FLOATING_DEFAULT_WIDTH = 400;
 
 export default function LaminarAgent() {
   const { viewMode, setViewMode, collapse, sideBySideContainer } = useLaminarAgentStore(
@@ -18,6 +22,29 @@ export default function LaminarAgent() {
     }),
     shallow
   );
+
+  const [floatingWidth, setFloatingWidth] = useState(FLOATING_DEFAULT_WIDTH);
+  const isResizing = useRef(false);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = window.innerWidth - moveEvent.clientX - 24; // 24px = right-6 gap
+      setFloatingWidth(Math.min(FLOATING_MAX_WIDTH, Math.max(FLOATING_MIN_WIDTH, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -64,13 +91,19 @@ export default function LaminarAgent() {
     <>
       <CollapsedButton />
 
-      {/* Floating mode: render in fixed-position container */}
+      {/* Floating mode: render in fixed-position container, full height with gap */}
       {viewMode === "floating" && (
         <div
-          className="fixed right-6 top-6 z-[55] w-[400px] max-w-[calc(100vw-3rem)] h-[70vh] min-h-[300px] max-h-[calc(100vh-3rem)] rounded-lg border shadow-xl overflow-hidden bg-background pointer-events-auto"
+          className="fixed right-6 top-3 bottom-3 z-[55] max-w-[calc(100vw-3rem)] rounded-lg border shadow-xl overflow-hidden bg-background pointer-events-auto"
+          style={{ width: floatingWidth }}
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
         >
+          {/* Left edge resize handle */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 hover:bg-primary/20 transition-colors"
+            onMouseDown={handleResizeStart}
+          />
           {agentPanel}
         </div>
       )}

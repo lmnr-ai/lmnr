@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
-import { ArrowUp, Columns2, Loader2, MessageCircleQuestion, PanelRight, RotateCcw, X } from "lucide-react";
+import { ArrowUp, Columns2, Layers, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
@@ -16,13 +16,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 
 import { type AgentViewMode, useLaminarAgentStore } from "./store";
+import { getSuggestionsForRoute } from "./suggestions";
 import { CompactTraceCard, SqlToolCard } from "./tool-call-cards";
-
-const EXAMPLE_QUESTIONS = [
-  "Summarize the trace I'm looking at.",
-  "Are there any errors in recent traces?",
-  "What is the average cost per trace today?",
-];
 
 interface AgentPanelProps {
   currentMode: "floating" | "side-by-side";
@@ -94,7 +89,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
 
   const alternateMode: AgentViewMode = currentMode === "floating" ? "side-by-side" : "floating";
   const alternateModeLabel = currentMode === "floating" ? "Switch to side-by-side" : "Switch to floating";
-  const AlternateModeIcon = currentMode === "floating" ? PanelRight : Columns2;
+  const AlternateModeIcon = currentMode === "floating" ? Columns2 : Layers;
 
   const resolveSpanId = useCallback(
     async (sequentialId: string): Promise<string | null> => {
@@ -116,6 +111,12 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
   );
 
   const isOnTracePage = !!(traceIdFromPath || (pathname.match(/\/project\/[^/]+\/traces\/?$/) && traceIdFromSearch));
+
+  // Get URL-dependent suggestions for the empty chat state (pick first 3)
+  const openChatSuggestions = useMemo(
+    () => getSuggestionsForRoute(pathname, searchParams.toString()).slice(0, 3),
+    [pathname, searchParams]
+  );
 
   const canNavigateToSpan = isOnTracePage || !!traceId;
 
@@ -148,8 +149,10 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
                 <TooltipTrigger asChild>
                   <button
                     className={cn(
-                      "rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
-                      canNavigateToSpan ? "cursor-pointer hover:bg-primary/90" : "cursor-not-allowed opacity-50"
+                      "inline rounded transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                      canNavigateToSpan
+                        ? "cursor-pointer hover:ring-2 hover:ring-primary/30"
+                        : "cursor-not-allowed opacity-50"
                     )}
                     disabled={!canNavigateToSpan}
                     onClick={async () => {
@@ -189,8 +192,10 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
                 <TooltipTrigger asChild>
                   <button
                     className={cn(
-                      "rounded transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
-                      canNavigateToSpan ? "cursor-pointer hover:bg-primary/90" : "cursor-not-allowed opacity-50"
+                      "inline rounded transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                      canNavigateToSpan
+                        ? "cursor-pointer hover:ring-2 hover:ring-primary/30"
+                        : "cursor-not-allowed opacity-50"
                     )}
                     disabled={!canNavigateToSpan}
                     onClick={async () => {
@@ -324,18 +329,18 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
                   Ask questions about your traces, signals, or anything on the platform.
                 </p>
                 <div className="w-full max-w-md space-y-2">
-                  {EXAMPLE_QUESTIONS.map((question, index) => (
+                  {openChatSuggestions.map((suggestion, index) => (
                     <button
                       key={index}
                       onClick={() => {
                         sendMessage({
                           role: "user",
-                          parts: [{ type: "text", text: question }],
+                          parts: [{ type: "text", text: suggestion.prompt }],
                         });
                       }}
                       className="w-full text-left px-3 py-2 text-sm rounded-md border border-border/50 bg-muted/30 hover:bg-muted/60 hover:border-border transition-colors text-foreground/80 hover:text-foreground"
                     >
-                      {question}
+                      {suggestion.display}
                     </button>
                   ))}
                 </div>

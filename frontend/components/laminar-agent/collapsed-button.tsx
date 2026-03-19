@@ -1,11 +1,10 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { Sparkles } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
-
-import { LaminarIcon } from "@/components/ui/icons";
 
 import { useLaminarAgentStore } from "./store";
 import { getSuggestionsForRoute } from "./suggestions";
@@ -107,7 +106,7 @@ export default function CollapsedButton() {
         className="flex items-center justify-center size-12 rounded-full bg-primary shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all flex-shrink-0"
         aria-label="Open Laminar Agent"
       >
-        <LaminarIcon className="size-6" fill="hsl(var(--primary-foreground))" />
+        <Sparkles className="size-5 text-primary-foreground" />
       </button>
     </div>
   );
