@@ -37,7 +37,7 @@ export const EvalColumnsMenuItem = ({
     <div
       style={style}
       className={cn(
-        "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground w-full",
+        "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-xs ransition-colors hover:bg-accent hover:text-accent-foreground w-full",
         isLocked && "hidden"
       )}
     >

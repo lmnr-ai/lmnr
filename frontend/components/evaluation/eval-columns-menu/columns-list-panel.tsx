@@ -67,8 +67,8 @@ export const ColumnsListPanel = ({
       exit={{ x: -20, opacity: 0 }}
       transition={{ duration: 0.15 }}
     >
-      <ScrollArea>
-        <div className="max-h-80 pt-1 px-1">
+      <ScrollArea type="always">
+        <div className="max-h-[500px] pt-1 px-1">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -98,7 +98,7 @@ export const ColumnsListPanel = ({
       <div className="h-px bg-border my-1" />
       <div className="px-1 pb-1">
         <div
-          className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+          className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
           onClick={onReset}
         >
           <ListRestart className="w-3.5 h-3.5 text-secondary-foreground mr-2" />
@@ -106,11 +106,11 @@ export const ColumnsListPanel = ({
         </div>
         {!isShared && (
           <div
-            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
             onClick={onCustomColumnClick}
           >
             <Plus className="w-3.5 h-3.5 text-secondary-foreground mr-2" />
-            Custom column...
+            Create column with SQL
           </div>
         )}
       </div>
