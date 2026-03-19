@@ -41,6 +41,8 @@ export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
     accessorFn: (row) => (row.status === "error" ? "error" : row.analysis_status),
     header: () => <div />,
     id: "status",
+    enableSorting: true,
+    meta: { sql: "status" },
     size: 40,
   },
   {
@@ -96,6 +98,8 @@ export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
     accessorKey: "rootSpanInput",
     header: "Root input",
     id: "root_span_input",
+    enableSorting: true,
+    meta: { sql: "root_span_input" },
     size: 150,
   },
   {
@@ -103,6 +107,8 @@ export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
     accessorKey: "rootSpanOutput",
     header: "Root output",
     id: "root_span_output",
+    enableSorting: true,
+    meta: { sql: "root_span_output" },
     size: 150,
   },
   {
@@ -221,11 +227,15 @@ export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
     header: "Tags",
     accessorKey: "tags",
     id: "tags",
+    enableSorting: true,
+    meta: { sql: "tags" },
   },
   {
     accessorFn: (row) => row.metadata,
     header: "Metadata",
     id: "metadata",
+    enableSorting: true,
+    meta: { sql: "metadata" },
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     size: 100,
   },
