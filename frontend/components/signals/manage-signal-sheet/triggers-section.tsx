@@ -162,39 +162,40 @@ export default function TriggersSection() {
 
   return (
     <div className="grid gap-1.5">
-      <TooltipProvider delayDuration={200}>
-        <div className="flex items-center gap-1.5">
-          <Label className="text-sm font-medium">Triggers</Label>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
-            </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-60">
-              <p>Triggers automatically run this signal when trace conditions are met.</p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      </TooltipProvider>
+      <div className="flex items-center justify-between">
+        <TooltipProvider delayDuration={200}>
+          <div className="flex items-center gap-1.5">
+            <Label className="text-sm font-medium">Triggers</Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-60">
+                <p>Signal will run when the following conditions on trace are met.</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-fit"
+          onClick={() => append({ filters: [getDefaultFilter()] })}
+        >
+          <Plus className="w-3.5 h-3.5 mr-1" />
+          Add trigger
+        </Button>
+      </div>
       <div className="space-y-2">
         {fields.length === 0 && (
           <div className="text-sm text-muted-foreground text-center py-3 border border-dashed rounded-md">
-            No triggers configured. The signal will only run manually or via jobs.
+            No triggers configured. The signal will only run via jobs. Click "Add trigger" to add one.
           </div>
         )}
         {fields.map((field, index) => (
           <TriggerCard key={field.id} triggerIndex={index} onRemove={() => remove(index)} />
         ))}
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="w-fit"
-        onClick={() => append({ filters: [getDefaultFilter()] })}
-      >
-        <Plus className="w-3.5 h-3.5 mr-1" />
-        Add trigger
-      </Button>
     </div>
   );
 }
