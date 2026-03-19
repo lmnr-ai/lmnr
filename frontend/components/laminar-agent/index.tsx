@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { shallow } from "zustand/shallow";
 
@@ -13,11 +14,9 @@ const FLOATING_MAX_WIDTH = 700;
 const FLOATING_DEFAULT_WIDTH = 400;
 
 export default function LaminarAgent() {
-  const { viewMode, setViewMode, collapse, sideBySideContainer } = useLaminarAgentStore(
+  const { viewMode, sideBySideContainer } = useLaminarAgentStore(
     (s) => ({
       viewMode: s.viewMode,
-      setViewMode: s.setViewMode,
-      collapse: s.collapse,
       sideBySideContainer: s.sideBySideContainer,
     }),
     shallow
@@ -46,41 +45,6 @@ export default function LaminarAgent() {
     document.addEventListener("mouseup", handleMouseUp);
   }, []);
 
-  // TODO: no need for keyboard shortcut for now
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+Shift+L (Mac) or Ctrl+Shift+L (Windows/Linux) to toggle agent
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "l") {
-        e.preventDefault();
-        if (viewMode === "collapsed") {
-          setViewMode("floating");
-        } else {
-          collapse();
-        }
-        return;
-      }
-
-      // Escape to collapse from floating mode
-      if (e.key === "Escape" && viewMode === "floating") {
-        // Don't collapse if focus is inside a modal/dialog/dropdown
-        const activeEl = document.activeElement;
-        const isInsideOverlay = activeEl?.closest(
-          "[role='dialog'], [role='menu'], [data-radix-popper-content-wrapper]"
-        );
-        // Don't collapse if user is typing in an input/textarea
-        const isTyping =
-          activeEl?.tagName === "TEXTAREA" || activeEl?.tagName === "INPUT" || activeEl?.closest("[contenteditable]");
-        if (!isInsideOverlay && !isTyping) {
-          e.preventDefault();
-          collapse();
-        }
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [viewMode, setViewMode, collapse]);
-
   // Determine how to render the agent panel based on view mode
   const isOpen = viewMode === "floating" || viewMode === "side-by-side";
   const currentMode = viewMode === "side-by-side" ? "side-by-side" : "floating";
@@ -93,21 +57,27 @@ export default function LaminarAgent() {
       <CollapsedButton />
 
       {/* Floating mode: render in fixed-position container, full height with gap */}
-      {viewMode === "floating" && (
-        <div
-          className="fixed right-6 top-4 bottom-4 z-[55] max-w-[calc(100vw-3rem)] rounded-lg border shadow-xl overflow-hidden bg-background pointer-events-auto"
-          style={{ width: floatingWidth }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          {/* Left edge resize handle */}
-          <div
-            className="absolute left-0 top-0 bottom-0 w-0.5 cursor-col-resize z-50 transition-colors"
-            onMouseDown={handleResizeStart}
-          />
-          {agentPanel}
-        </div>
-      )}
+      <AnimatePresence>
+        {viewMode === "floating" && (
+          <motion.div
+            initial={{ x: "100%", opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "100%", opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="fixed right-2 top-1.5 bottom-2 z-[55] max-w-[calc(100vw-3rem)] rounded-lg border shadow-xl overflow-hidden bg-background pointer-events-auto"
+            style={{ width: floatingWidth }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {/* Left edge resize handle */}
+            <div
+              className="absolute left-0 top-0 bottom-0 w-0.5 cursor-col-resize z-50 transition-colors"
+              onMouseDown={handleResizeStart}
+            />
+            {agentPanel}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Side-by-side mode: portal into the container provided by SideBySideWrapper */}
       {viewMode === "side-by-side" && sideBySideContainer && createPortal(agentPanel, sideBySideContainer)}

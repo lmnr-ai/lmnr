@@ -435,7 +435,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
                     handleSend();
                   }
                 }}
-                placeholder="Ask about traces, signals, costs, or anything else..."
+                placeholder="Ask about traces, signals, or anything else"
                 className="bg-transparent border-none focus-visible:ring-0 resize-none w-full"
               />
               <Button
