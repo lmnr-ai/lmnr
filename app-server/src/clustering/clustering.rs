@@ -19,12 +19,13 @@ struct ClusterResponse {
     success: bool,
 }
 
-/// Handler for clustering batch messages that rebatches by project_id.
+/// Handler for clustering batch messages that rebatches by (project_id, signal_id).
 ///
 /// Messages arriving on the batch queue are already grouped by (project_id, signal_id).
-/// This handler accumulates them further by project_id so that a single lock acquisition
-/// can cover multiple signal_ids for the same project, dramatically reducing lock contention
-/// and avoiding the 30-minute RabbitMQ ack timeout.
+/// This handler accumulates them further so that a single lock acquisition can cover
+/// multiple deliveries for the same (project_id, signal_id), and different signal_ids
+/// can be processed independently (the downstream is single-threaded per signal within
+/// a project, not per project).
 pub struct ClusteringHandler {
     cache: Arc<Cache>,
     client: reqwest::Client,
@@ -40,41 +41,45 @@ impl ClusteringHandler {
         }
     }
 
-    /// Flush all deliveries for a single project_id: acquire lock once, call the
-    /// downstream endpoint for each signal_id, release lock.
-    async fn flush_project(
+    /// Flush all deliveries for a single (project_id, signal_id): acquire lock, call
+    /// the downstream endpoint with all accumulated events, release lock.
+    async fn flush_group(
         &self,
         project_id: Uuid,
+        signal_id: Uuid,
         deliveries: Vec<MessageDelivery<ClusteringBatchMessage>>,
     ) -> Result<
         Vec<MessageDelivery<ClusteringBatchMessage>>,
         (Vec<MessageDelivery<ClusteringBatchMessage>>, HandlerError),
     > {
-        let result = self
-            .process_project(project_id, &deliveries)
-            .await;
-
-        match result {
+        match self.process_group(project_id, signal_id, &deliveries).await {
             Ok(()) => Ok(deliveries),
             Err(e) => Err((deliveries, e)),
         }
     }
 
-    /// Process all deliveries for a project under a single lock hold.
-    async fn process_project(
+    /// Process all deliveries for a (project_id, signal_id) under a single lock hold.
+    async fn process_group(
         &self,
         project_id: Uuid,
+        signal_id: Uuid,
         deliveries: &[MessageDelivery<ClusteringBatchMessage>],
     ) -> Result<(), HandlerError> {
-        let lock_key = format!("{}-{}", keys::CLUSTERING_LOCK_CACHE_KEY, project_id);
+        let lock_key = format!(
+            "{}-{}-{}",
+            keys::CLUSTERING_LOCK_CACHE_KEY,
+            project_id,
+            signal_id
+        );
         let start_time = tokio::time::Instant::now();
 
         // Try to acquire lock, wait if already locked (with timeout)
         loop {
             if start_time.elapsed() >= CLUSTERING_LOCK_WAIT {
                 log::warn!(
-                    "Timeout waiting for clustering lock for project_id={}, requeuing",
-                    project_id
+                    "Timeout waiting for clustering lock for project_id={}, signal_id={}, requeuing",
+                    project_id,
+                    signal_id
                 );
                 return Err(HandlerError::transient(anyhow::anyhow!("Lock timeout")));
             }
@@ -85,7 +90,11 @@ impl ClusteringHandler {
                 .await
             {
                 Ok(true) => {
-                    log::debug!("Acquired clustering lock for project_id={}", project_id);
+                    log::debug!(
+                        "Acquired clustering lock for project_id={}, signal_id={}",
+                        project_id,
+                        signal_id
+                    );
                     break;
                 }
                 Ok(false) => {
@@ -99,71 +108,54 @@ impl ClusteringHandler {
             }
         }
 
-        // Group all events across deliveries by signal_id
-        let mut by_signal: HashMap<Uuid, Vec<&ClusteringMessage>> = HashMap::new();
-        for delivery in deliveries {
-            for event in &delivery.message.events {
-                by_signal
-                    .entry(event.signal_id)
-                    .or_default()
-                    .push(event);
-            }
-        }
+        // Collect all events from all deliveries in this group
+        let events: Vec<&ClusteringMessage> = deliveries
+            .iter()
+            .flat_map(|d| d.message.events.iter())
+            .collect();
 
-        // Call the downstream endpoint once per signal_id (under the same lock)
-        let mut had_error = false;
-        for (signal_id, events) in &by_signal {
-            match call_clustering_endpoint(&self.client, project_id, *signal_id, events).await {
-                Ok(success) => {
-                    if success {
-                        log::info!(
-                            "Successfully clustered {} events for project_id={}, signal_id={}",
-                            events.len(),
-                            project_id,
-                            signal_id
-                        );
-                    } else {
-                        log::warn!(
-                            "Clustering endpoint returned success=false for project_id={}, signal_id={}",
-                            project_id,
-                            signal_id
-                        );
-                    }
-                }
-                Err(e) => {
-                    log::error!(
-                        "Failed to call clustering endpoint for project_id={}, signal_id={}: {:?}",
-                        project_id,
-                        signal_id,
-                        e
-                    );
-                    had_error = true;
-                    // Continue processing other signal_ids rather than failing the whole batch.
-                    // The events for this signal_id will be lost (not requeued), but we avoid
-                    // blocking all other signals for the same project.
-                }
-            }
-        }
+        // Call the downstream endpoint once with all events
+        let result = call_clustering_endpoint(&self.client, project_id, signal_id, &events).await;
 
         // Always release lock
         if let Err(e) = self.cache.release_lock(&lock_key).await {
             log::error!("Failed to release clustering lock: {:?}", e);
         } else {
-            log::debug!("Released clustering lock for project_id={}", project_id);
-        }
-
-        if had_error {
-            // We still ack the deliveries — partial failures within one lock hold should not
-            // cause the entire batch to be requeued. The downstream is not idempotent, and
-            // replaying already-succeeded signal_ids would be incorrect.
-            // Individual signal_id failures are logged above.
-            log::warn!(
-                "Some signal_ids failed for project_id={}, but acking deliveries to avoid replay of succeeded signal_ids",
+            log::debug!(
+                "Released clustering lock for project_id={}, signal_id={}",
                 project_id,
+                signal_id
             );
         }
 
-        Ok(())
+        match result {
+            Ok(success) => {
+                if success {
+                    log::info!(
+                        "Successfully clustered {} events for project_id={}, signal_id={}",
+                        events.len(),
+                        project_id,
+                        signal_id
+                    );
+                } else {
+                    log::warn!(
+                        "Clustering endpoint returned success=false for project_id={}, signal_id={}",
+                        project_id,
+                        signal_id
+                    );
+                }
+                Ok(())
+            }
+            Err(e) => {
+                log::error!(
+                    "Failed to call clustering endpoint for project_id={}, signal_id={}: {:?}",
+                    project_id,
+                    signal_id,
+                    e
+                );
+                Err(e.into())
+            }
+        }
     }
 }
 
@@ -179,8 +171,9 @@ const CLUSTERING_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// Total retry budget for the clustering HTTP call (across all attempts).
 const CLUSTERING_RETRY_BUDGET: Duration = Duration::from_secs(60);
 
-/// State: deliveries accumulated per project_id, waiting to be flushed.
-pub type ClusteringState = HashMap<Uuid, Vec<MessageDelivery<ClusteringBatchMessage>>>;
+/// State: deliveries accumulated per (project_id, signal_id), waiting to be flushed.
+pub type ClusteringState =
+    HashMap<(Uuid, Uuid), Vec<MessageDelivery<ClusteringBatchMessage>>>;
 
 #[async_trait]
 impl BatchMessageHandler for ClusteringHandler {
@@ -200,23 +193,20 @@ impl BatchMessageHandler for ClusteringHandler {
         delivery: MessageDelivery<Self::Message>,
         state: &mut Self::State,
     ) -> HandlerResult<Self::Message> {
-        // Extract project_id from the first event in the batch
-        let project_id = match delivery.message.events.first() {
-            Some(event) => event.project_id,
+        // Extract (project_id, signal_id) from the first event in the batch
+        let key = match delivery.message.events.first() {
+            Some(event) => (event.project_id, event.signal_id),
             None => {
                 // Empty batch — just ack immediately
                 return HandlerResult::ack(vec![delivery]);
             }
         };
 
-        state
-            .entry(project_id)
-            .or_default()
-            .push(delivery);
+        state.entry(key).or_default().push(delivery);
 
         let batch_len: usize = state.values().map(|v| v.len()).sum();
         log::debug!(
-            "Clustering rebatch state: {} projects, {} total deliveries",
+            "Clustering rebatch state: {} groups, {} total deliveries",
             state.len(),
             batch_len
         );
@@ -235,7 +225,7 @@ impl BatchMessageHandler for ClusteringHandler {
         }
 
         log::debug!(
-            "Clustering interval flush: {} projects, {} total deliveries",
+            "Clustering interval flush: {} groups, {} total deliveries",
             state.len(),
             state.values().map(|v| v.len()).sum::<usize>()
         );
@@ -245,7 +235,7 @@ impl BatchMessageHandler for ClusteringHandler {
 }
 
 impl ClusteringHandler {
-    /// Flush all projects in state, returning combined results.
+    /// Flush all groups in state, returning combined results.
     async fn flush_all(
         &self,
         state: &mut ClusteringState,
@@ -255,11 +245,11 @@ impl ClusteringHandler {
         let mut to_requeue = Vec::new();
 
         // Drain state
-        let projects: HashMap<Uuid, Vec<MessageDelivery<ClusteringBatchMessage>>> =
+        let groups: HashMap<(Uuid, Uuid), Vec<MessageDelivery<ClusteringBatchMessage>>> =
             std::mem::take(state);
 
-        for (project_id, deliveries) in projects {
-            match self.flush_project(project_id, deliveries).await {
+        for ((project_id, signal_id), deliveries) in groups {
+            match self.flush_group(project_id, signal_id, deliveries).await {
                 Ok(acked) => to_ack.extend(acked),
                 Err((failed, error)) => {
                     if error.should_requeue() {
