@@ -17,7 +17,7 @@ export default function TracesColumnsMenu({ lockedColumns = [], columnLabels = [
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
       schema: { tables: ["traces"] },
-      generationMode: "eval-expression",
+      generationMode: "trace-expression",
       buildTestQuery: (sql) => `SELECT ${sql} as \`test\` FROM traces LIMIT 1`,
       getColumnDefs: () => useTracesTableStore.getState().columnDefs,
       namePlaceholder: "e.g. LLM span count",
