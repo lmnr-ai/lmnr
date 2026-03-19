@@ -43,21 +43,41 @@ impl MockProviderClient {
     }
 }
 
+fn mock_submit_identification() -> ProviderFunctionCall {
+    ProviderFunctionCall {
+        id: None,
+        name: "submit_identification".to_string(),
+        args: Some(serde_json::json!({
+            "identified": true,
+            "data": { "foo": "bar" },
+            "summary": "This is a test summary"
+        })),
+    }
+}
+
+fn mock_get_full_spans() -> ProviderFunctionCall {
+    ProviderFunctionCall {
+        id: None,
+        name: "get_full_spans".to_string(),
+        args: Some(serde_json::json!({
+            "span_ids": ["a1b2c3"]
+        })),
+    }
+}
+
 fn mock_response() -> ProviderResponse {
+    let function_call = if rand::random::<bool>() {
+        mock_get_full_spans()
+    } else {
+        mock_submit_identification()
+    };
+
     ProviderResponse {
         candidates: Some(vec![ProviderCandidate {
             content: Some(ProviderContent {
                 role: Some("model".to_string()),
                 parts: Some(vec![ProviderPart {
-                    function_call: Some(ProviderFunctionCall {
-                        id: None,
-                        name: "submit_identification".to_string(),
-                        args: Some(serde_json::json!({
-                            "identified": true,
-                            "data": { "foo": "bar" },
-                            "summary": "This is a test summary"
-                        })),
-                    }),
+                    function_call: Some(function_call),
                     ..Default::default()
                 }]),
             }),
@@ -78,7 +98,7 @@ impl LanguageModelClient for MockProviderClient {
         _model: &str,
         _request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
-        log::debug!("[Mock LLM client] Generate single. Returning mock response");
+        log::info!("[Mock LLM client] generate_content called");
         Ok(mock_response())
     }
 
@@ -93,7 +113,7 @@ impl LanguageModelClient for MockProviderClient {
             .as_deref()
         {
             Some("resource_exhausted") => {
-                log::debug!("[Mock LLM client] Batch. Returning 429 resource exhausted");
+                log::info!("[Mock LLM client] create_batch called. Returning 429 resource exhausted");
                 return Err(ProviderError::ApiError {
                     status_code: 429,
                     message: "Mock: resource exhausted".to_string(),
@@ -102,7 +122,7 @@ impl LanguageModelClient for MockProviderClient {
                 });
             }
             Some("not_supported") => {
-                log::debug!("[Mock LLM client] Batch. Returning batch not supported");
+                log::info!("[Mock LLM client] create_batch called. Returning batch not supported");
                 return Err(ProviderError::NotSupported(
                     "Mock: batch not supported".to_string(),
                 ));
@@ -111,6 +131,7 @@ impl LanguageModelClient for MockProviderClient {
         }
 
         let batch_id = Uuid::new_v4().to_string();
+        let request_count = requests.len();
         self.batches.insert(
             batch_id.clone(),
             BatchEntry {
@@ -118,7 +139,11 @@ impl LanguageModelClient for MockProviderClient {
                 poll_count: 0,
             },
         );
-        log::debug!("[Mock LLM client] Batch. Returning pending");
+        log::info!(
+            "[Mock LLM client] create_batch called with {} requests. batch_id={}. Returning pending",
+            request_count,
+            batch_id
+        );
         Ok(ProviderBatchOperation {
             name: batch_id,
             done: false,
@@ -140,7 +165,12 @@ impl LanguageModelClient for MockProviderClient {
         entry.poll_count += 1;
 
         if entry.poll_count <= pending_tries {
-            log::debug!("[Mock LLM client] Get batch. Returning pending");
+            log::info!(
+                "[Mock LLM client] get_batch called. batch_name={}. poll_count={}/{}. Returning pending",
+                batch_name,
+                entry.poll_count,
+                pending_tries
+            );
             return Ok(ProviderBatchOperation {
                 name: batch_name.to_string(),
                 done: false,
@@ -159,9 +189,10 @@ impl LanguageModelClient for MockProviderClient {
             })
             .collect::<Vec<_>>();
 
-        log::debug!(
-            "[Mock LLM client] Get batch. Returning batch of {} responses",
-            &responses.len()
+        log::info!(
+            "[Mock LLM client] get_batch called. batch_name={}. Returning done with {} responses",
+            batch_name,
+            responses.len()
         );
 
         Ok(ProviderBatchOperation {
