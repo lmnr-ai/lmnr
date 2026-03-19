@@ -2,12 +2,10 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
-import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { shallow } from "zustand/shallow";
 
 import { useLaminarAgentStore } from "./store";
-import { getSuggestionsForRoute } from "./suggestions";
+import { contextSuggestions, defaultSuggestions } from "./suggestions";
 
 const SUGGESTION_CYCLE_INTERVAL = 5000;
 
@@ -72,16 +70,16 @@ function SuggestionCycler({
 }
 
 export default function CollapsedButton() {
-  const { viewMode, setViewMode, setPrefillInput } = useLaminarAgentStore(
-    (s) => ({ viewMode: s.viewMode, setViewMode: s.setViewMode, setPrefillInput: s.setPrefillInput }),
-    shallow
-  );
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { viewMode, activeContext, setViewMode, setPrefillInput } = useLaminarAgentStore((s) => ({
+    viewMode: s.viewMode,
+    activeContext: s.activeContext,
+    setViewMode: s.setViewMode,
+    setPrefillInput: s.setPrefillInput,
+  }));
 
   const suggestions = useMemo(
-    () => getSuggestionsForRoute(pathname, searchParams.toString()),
-    [pathname, searchParams]
+    () => (activeContext ? contextSuggestions[activeContext] : undefined) ?? defaultSuggestions,
+    [activeContext]
   );
 
   const handleSuggestionClick = useCallback(
@@ -99,7 +97,7 @@ export default function CollapsedButton() {
   return (
     <div className="fixed bottom-6 right-6 z-[55] flex items-center gap-2">
       {suggestions.length > 0 && (
-        <SuggestionCycler key={pathname} suggestions={suggestions} onSuggestionClick={handleSuggestionClick} />
+        <SuggestionCycler suggestions={suggestions} onSuggestionClick={handleSuggestionClick} />
       )}
       <button
         onClick={() => setViewMode("floating")}

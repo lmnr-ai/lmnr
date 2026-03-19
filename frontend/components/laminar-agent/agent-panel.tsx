@@ -4,9 +4,8 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import { ArrowUp, Columns2, Layers, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { shallow } from "zustand/shallow";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
@@ -16,64 +15,31 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 
 import { type AgentViewMode, useLaminarAgentStore } from "./store";
-import { getSuggestionsForRoute } from "./suggestions";
+import { contextSuggestions, defaultSuggestions } from "./suggestions";
 import { CompactTraceCard, SqlToolCard } from "./tool-call-cards";
 
 interface AgentPanelProps {
   currentMode: "floating" | "side-by-side";
 }
 
-/**
- * Extracts traceId from the current pathname if the user is on a trace page.
- * Expected pattern: /project/{projectId}/traces/{traceId}
- */
-function extractTraceIdFromPath(pathname: string): string | undefined {
-  const match = pathname.match(/\/project\/[^/]+\/traces\/([^/]+)/);
-  return match?.[1];
-}
-
 export default function AgentPanel({ currentMode }: AgentPanelProps) {
-  const {
-    setViewMode,
-    collapse,
-    prefillInput,
-    clearPrefill,
-    traceIdContext,
-    setTraceIdContext,
-    storedMessages,
-    setChatMessages,
-  } = useLaminarAgentStore(
-    (s) => ({
+  const { setViewMode, collapse, prefillInput, clearPrefill, activeContext, refs, storedMessages, setChatMessages } =
+    useLaminarAgentStore((s) => ({
       setViewMode: s.setViewMode,
       collapse: s.collapse,
       prefillInput: s.prefillInput,
       clearPrefill: s.clearPrefill,
-      traceIdContext: s.traceIdContext,
-      setTraceIdContext: s.setTraceIdContext,
+      activeContext: s.activeContext,
+      refs: s.refs,
       storedMessages: s.chatMessages,
       setChatMessages: s.setChatMessages,
-    }),
-    shallow
-  );
+    }));
 
   const projectId = useParams().projectId as string;
-  const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const traceIdFromPath = extractTraceIdFromPath(pathname);
-  const traceIdFromSearch = searchParams.get("traceId");
-  // Use traceId from path segment, search params, or store context (set by signals pill, etc.)
-  const traceId = traceIdFromPath || traceIdFromSearch || traceIdContext;
 
-  // Keep traceIdContext in sync when navigating to/from a trace page
-  const effectiveTraceId = traceIdFromPath || traceIdFromSearch;
-  useEffect(() => {
-    if (effectiveTraceId) {
-      setTraceIdContext(effectiveTraceId);
-    } else {
-      setTraceIdContext(null);
-    }
-  }, [effectiveTraceId, setTraceIdContext]);
+  const traceId = refs.traceView?.getState().trace?.id;
 
   // Handle prefill: initialize input from store prefill if present
   const initialInput = useMemo(() => {
@@ -110,12 +76,11 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
     [projectId, traceId]
   );
 
-  const isOnTracePage = !!(traceIdFromPath || (pathname.match(/\/project\/[^/]+\/traces\/?$/) && traceIdFromSearch));
+  const isOnTracePage = activeContext === "traceView" || !!searchParams.get("traceId");
 
-  // Get URL-dependent suggestions for the empty chat state (pick first 3)
   const openChatSuggestions = useMemo(
-    () => getSuggestionsForRoute(pathname, searchParams.toString()).slice(0, 3),
-    [pathname, searchParams]
+    () => ((activeContext ? contextSuggestions[activeContext] : undefined) ?? defaultSuggestions).slice(0, 3),
+    [activeContext]
   );
 
   const canNavigateToSpan = isOnTracePage || !!traceId;

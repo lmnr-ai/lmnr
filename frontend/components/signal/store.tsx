@@ -4,6 +4,7 @@ import { createContext, type Dispatch, type PropsWithChildren, type SetStateActi
 import { createStore, useStore } from "zustand";
 
 import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/charts/time-series-chart/utils";
+import { useRegisterLaminarAgentContext } from "@/components/laminar-agent/store";
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
@@ -326,6 +327,8 @@ export const useSignalStoreContext = <T,>(selector: (state: Store) => T, equalit
 
 export const SignalStoreProvider = ({ children, ...props }: PropsWithChildren<EventsProps>) => {
   const [storeState] = useState(() => createSignalStore(props));
+
+  useRegisterLaminarAgentContext("signal", storeState);
 
   return <SignalContext.Provider value={storeState}>{children}</SignalContext.Provider>;
 };

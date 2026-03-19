@@ -7,7 +7,6 @@ import PostHogClient from "@/app/posthog";
 import PostHogIdentifier from "@/app/posthog-identifier";
 import SessionSyncProvider from "@/components/auth/session-sync-provider";
 import LaminarAgent from "@/components/laminar-agent";
-import AiEnabledInitializer from "@/components/laminar-agent/ai-enabled-initializer";
 import SideBySideWrapper from "@/components/laminar-agent/side-by-side-wrapper";
 import ProjectSidebar from "@/components/project/sidebar";
 import ProjectUsageBanner from "@/components/project/usage-banner";
@@ -17,7 +16,6 @@ import { UserContextProvider } from "@/contexts/user-context";
 import { getProjectDetails } from "@/lib/actions/project";
 import { getProjectsByWorkspace } from "@/lib/actions/projects";
 import { getWorkspaceInfo } from "@/lib/actions/workspace";
-import { isAiProviderConfigured } from "@/lib/ai/model";
 import { requireProjectAccess } from "@/lib/authorization";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
@@ -47,7 +45,7 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
     posthog.identify({ distinctId: user.email ?? "" });
   }
 
-  const aiEnabled = isAiProviderConfigured();
+  const aiEnabled = isFeatureEnabled(Feature.LAMINAR_AGENT);
 
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get(projectSidebarCookieName)
@@ -74,7 +72,6 @@ export default async function ProjectIdLayout(props: { children: ReactNode; para
                     {children}
                   </>
                 )}
-                <AiEnabledInitializer aiEnabled={aiEnabled} />
                 {aiEnabled && <LaminarAgent />}
               </SidebarInset>
             </SidebarProvider>

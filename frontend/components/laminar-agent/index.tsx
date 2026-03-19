@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { shallow } from "zustand/shallow";
 
 import AgentPanel from "./agent-panel";
 import CollapsedButton from "./collapsed-button";
@@ -13,15 +12,12 @@ const FLOATING_MAX_WIDTH = 700;
 const FLOATING_DEFAULT_WIDTH = 400;
 
 export default function LaminarAgent() {
-  const { viewMode, setViewMode, collapse, sideBySideContainer } = useLaminarAgentStore(
-    (s) => ({
-      viewMode: s.viewMode,
-      setViewMode: s.setViewMode,
-      collapse: s.collapse,
-      sideBySideContainer: s.sideBySideContainer,
-    }),
-    shallow
-  );
+  const { viewMode, setViewMode, collapse, sideBySideContainer } = useLaminarAgentStore((s) => ({
+    viewMode: s.viewMode,
+    setViewMode: s.setViewMode,
+    collapse: s.collapse,
+    sideBySideContainer: s.sideBySideContainer,
+  }));
 
   const [floatingWidth, setFloatingWidth] = useState(FLOATING_DEFAULT_WIDTH);
   const isResizing = useRef(false);
