@@ -1258,7 +1258,19 @@ fn main() -> anyhow::Result<()> {
                         );
                     }
 
-                    // Spawn clustering workers
+                    // Spawn clustering workers (rebatching by project_id)
+                    let clustering_rebatch_size: usize =
+                        env::var("CLUSTERING_REBATCH_SIZE")
+                            .unwrap_or_else(|_| "20".to_string())
+                            .parse()
+                            .unwrap_or(20);
+                    let clustering_rebatch_flush_interval_sec: u64 =
+                        env::var("CLUSTERING_REBATCH_FLUSH_INTERVAL_SEC")
+                            .unwrap_or_else(|_| "10".to_string())
+                            .parse()
+                            .unwrap_or(10);
+                    let clustering_rebatch_flush_interval =
+                        Duration::from_secs(clustering_rebatch_flush_interval_sec);
                     {
                         let cache = cache_for_consumer.clone();
                         let client = reqwest::Client::builder()
@@ -1266,10 +1278,19 @@ fn main() -> anyhow::Result<()> {
                             .connect_timeout(Duration::from_secs(10))
                             .build()
                             .expect("Failed to build clustering HTTP client");
-                        worker_pool_clone.spawn(
-                            WorkerType::Clustering,
+                        batch_worker_pool_clone.spawn(
+                            BatchWorkerType::Clustering,
                             num_clustering_workers as usize,
-                            move || ClusteringHandler::new(cache.clone(), client.clone()),
+                            move || {
+                                ClusteringHandler::new(
+                                    cache.clone(),
+                                    client.clone(),
+                                    BatchingConfig {
+                                        size: clustering_rebatch_size,
+                                        flush_interval: clustering_rebatch_flush_interval,
+                                    },
+                                )
+                            },
                             QueueConfig::new(
                                 EVENT_CLUSTERING_BATCH_QUEUE,
                                 EVENT_CLUSTERING_BATCH_EXCHANGE,
