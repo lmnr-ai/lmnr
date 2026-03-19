@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
-import { ArrowUp, Columns2, Layers2, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
+import { ArrowUp, Columns2, Layers2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
@@ -17,7 +17,8 @@ import { cn } from "@/lib/utils";
 
 import { type AgentViewMode, useLaminarAgentStore } from "./store";
 import { getSuggestionsForRoute } from "./suggestions";
-import { CompactTraceCard, SqlToolCard } from "./tool-call-cards";
+import { CompactTraceCard } from "./tool-call-cards/compact-trace-card";
+import { SqlToolCard } from "./tool-call-cards/sql-tool-card";
 
 interface AgentPanelProps {
   currentMode: "floating" | "side-by-side";
@@ -293,6 +294,23 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
         <span className="text-sm font-medium">Laminar Agent</span>
         <div className="flex items-center gap-1">
           <TooltipProvider delayDuration={0}>
+            {messages.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    aria-label="New chat"
+                    onClick={handleNewChat}
+                    disabled={status === "streaming" || status === "submitted"}
+                  >
+                    <RotateCcw className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">New chat</TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -348,21 +366,6 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
               </div>
             ) : (
               <>
-                {messages.length > 0 && (
-                  <div className="px-4 flex justify-end pt-1">
-                    <Button
-                      onClick={handleNewChat}
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      disabled={status === "streaming" || status === "submitted"}
-                    >
-                      <RotateCcw className="w-3 h-3 mr-1" />
-                      New Chat
-                    </Button>
-                  </div>
-                )}
-
                 {messages.map((message) => (
                   <div key={message.id} className={cn("flex", message.role === "user" ? "px-3" : "px-5")}>
                     <div
@@ -402,8 +405,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
 
                 {(status === "submitted" || status === "streaming") && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground px-5">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Thinking...</span>
+                    <span className="shimmer">Thinking...</span>
                   </div>
                 )}
               </>
@@ -425,7 +427,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
               handleSend();
             }}
           >
-            <div className="relative p-0 flex w-full py-1">
+            <div className="relative flex w-full p-1 pr-4">
               <DefaultTextarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -441,7 +443,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
               <Button
                 type="submit"
                 size="icon"
-                className="absolute right-1 bottom-2 h-7 w-7 rounded-full border"
+                className="absolute right-2 bottom-2 h-7 w-7 rounded-full border"
                 variant="default"
                 disabled={input.trim() === "" || status === "streaming" || status === "submitted"}
               >
