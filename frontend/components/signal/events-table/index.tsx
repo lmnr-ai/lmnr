@@ -75,22 +75,6 @@ function PureEventsTable() {
 
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
-  const setTraceId = useSignalStoreContext((state) => state.setTraceId);
-
-  // Listen for open-trace events from the traceId column button
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const traceId = (e as CustomEvent<string>).detail;
-      setTraceId(traceId);
-
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set("traceId", traceId);
-      router.push(`${pathName}?${newParams.toString()}`);
-    };
-    window.addEventListener("open-trace", handler);
-    return () => window.removeEventListener("open-trace", handler);
-  }, [setTraceId, searchParams, pathName, router]);
-
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
       try {

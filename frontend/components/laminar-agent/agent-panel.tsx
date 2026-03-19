@@ -4,7 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import { ArrowUp, Columns2, Layers2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
@@ -38,7 +38,6 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
 
   const projectId = useParams().projectId as string;
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const traceId = refs.traceView?.getState().trace?.id;
 
@@ -77,28 +76,25 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
     [projectId, traceId]
   );
 
-  const isOnTracePage = activeContext === "traceView" || !!searchParams.get("traceId");
-
   const openChatSuggestions = useMemo(
     () => ((activeContext ? contextSuggestions[activeContext] : undefined) ?? defaultSuggestions).slice(0, 3),
     [activeContext]
   );
 
-  const canNavigateToSpan = isOnTracePage || !!traceId;
+  const canNavigateToSpan = !!refs.traceView || !!traceId;
 
   const handleSpanClick = useCallback(
     async (spanUuid: string) => {
-      if (isOnTracePage) {
-        // On the trace page: use router.replace to update spanId via nuqs-compatible URL update
-        const url = new URL(window.location.href);
-        url.searchParams.set("spanId", spanUuid);
-        router.replace(`${url.pathname}${url.search}`);
+      const traceViewStore = refs.traceView;
+      if (traceViewStore) {
+        // Use the store to select the span — works in both full trace view and embedded (signals page) trace view
+        traceViewStore.getState().selectSpanById(spanUuid);
       } else if (traceId) {
-        // Not on trace page but have traceId context: navigate to trace page with spanId
+        // Fallback: navigate to trace page if no trace view store is registered
         router.push(`/project/${projectId}/traces/${traceId}?spanId=${spanUuid}`);
       }
     },
-    [isOnTracePage, traceId, router, projectId]
+    [refs.traceView, traceId, router, projectId]
   );
 
   const components = useMemo(
