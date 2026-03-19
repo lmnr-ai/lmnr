@@ -46,6 +46,7 @@ export default function LaminarAgent() {
     document.addEventListener("mouseup", handleMouseUp);
   }, []);
 
+  // TODO: no need for keyboard shortcut for now
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd+Shift+L (Mac) or Ctrl+Shift+L (Windows/Linux) to toggle agent
@@ -101,7 +102,7 @@ export default function LaminarAgent() {
         >
           {/* Left edge resize handle */}
           <div
-            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 hover:bg-primary/20 transition-colors"
+            className="absolute left-0 top-0 bottom-0 w-0.5 cursor-col-resize z-50 transition-colors"
             onMouseDown={handleResizeStart}
           />
           {agentPanel}

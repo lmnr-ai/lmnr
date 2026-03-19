@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
-import { ArrowUp, Columns2, Layers, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
+import { ArrowUp, Columns2, Layers2, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
@@ -89,7 +89,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
 
   const alternateMode: AgentViewMode = currentMode === "floating" ? "side-by-side" : "floating";
   const alternateModeLabel = currentMode === "floating" ? "Switch to side-by-side" : "Switch to floating";
-  const AlternateModeIcon = currentMode === "floating" ? Columns2 : Layers;
+  const AlternateModeIcon = currentMode === "floating" ? Columns2 : Layers2;
 
   const resolveSpanId = useCallback(
     async (sequentialId: string): Promise<string | null> => {
@@ -137,6 +137,7 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
 
   const components = useMemo(
     () => ({
+      // TODO: move this out to a component
       code: ({ children }: any) => {
         const text = String(children);
 
