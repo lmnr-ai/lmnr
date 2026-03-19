@@ -235,8 +235,6 @@ export const onRealtimeUpdateSpans =
         });
       }
 
-      newSpans.sort((a, b) => compareTimestamps(a.startTime, b.startTime));
-
       return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
     });
   };
