@@ -16,7 +16,6 @@ const signalRunsSelectColumns = [
   "formatDateTime(updated_at, '%Y-%m-%dT%H:%i:%S.%fZ') as updatedAt",
   "status",
   "event_id eventId",
-  "error_message errorMessage",
   "mode",
 ];
 
@@ -28,7 +27,6 @@ export const signalRunsColumnFilterConfig: ColumnFilterConfig = {
     ["trigger_id", createStringFilter],
     ["event_id", createStringFilter],
     ["status", createStringFilter],
-    ["error_message", createStringFilter],
   ]),
 };
 
