@@ -110,7 +110,7 @@ export const getSignalRunsColumns = ({
       const mode = row.original.mode;
       return (
         <Badge className="rounded-3xl mr-1" variant="outline">
-          {mode === 1 ? "Realtime" : "Batch"}
+          {mode === "REALTIME" ? "Realtime" : "Batch"}
         </Badge>
       );
     },

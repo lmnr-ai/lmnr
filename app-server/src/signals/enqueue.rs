@@ -8,6 +8,7 @@ use crate::db::DB;
 use crate::db::signals::Signal;
 use crate::mq::MessageQueue;
 use crate::routes::signals::SubmitSignalJobResponse;
+use crate::signals::provider::always_use_realtime;
 use crate::signals::queue::SignalMessage;
 use crate::signals::utils::{InternalSpan, emit_internal_span};
 use crate::signals::{llm_model, llm_provider, push_to_signals_queue};
@@ -22,8 +23,7 @@ async fn create_signal_run_and_message(
     job_id: Option<Uuid>,
     trigger_id: Option<Uuid>,
     queue: Arc<MessageQueue>,
-    process_in_realtime: bool,
-    user_mode: u8,
+    mode: u8,
 ) -> (super::SignalRun, SignalMessage) {
     // get internal project id for tracing
     let internal_project_id: Option<Uuid> = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
@@ -87,7 +87,7 @@ async fn create_signal_run_and_message(
         updated_at: Utc::now(),
         event_id: None,
         error_message: None,
-        mode: super::SignalMode::from_u8(user_mode),
+        mode: super::SignalMode::from_u8(mode),
     };
 
     let message = SignalMessage {
@@ -102,8 +102,7 @@ async fn create_signal_run_and_message(
         step: 0,
         retry_count: 0,
         request_start_time: Utc::now(),
-        use_realtime_api: process_in_realtime,
-        user_mode,
+        mode,
     };
 
     (signal_run, message)
@@ -118,18 +117,22 @@ pub async fn enqueue_signal_job(
     trace_ids: Vec<Uuid>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    process_in_realtime: bool,
-    user_mode: u8,
+    mode: u8,
 ) -> anyhow::Result<SubmitSignalJobResponse> {
     let total_traces: i32 = trace_ids.len() as i32;
 
-    let job =
-        crate::db::signal_jobs::create_signal_job(&db.pool, signal.id, project_id, total_traces, user_mode as i16)
-            .await
-            .map_err(|e| {
-                log::error!("Failed to create signal job: {:?}", e);
-                anyhow::anyhow!("Failed to create signal job")
-            })?;
+    let job = crate::db::signal_jobs::create_signal_job(
+        &db.pool,
+        signal.id,
+        project_id,
+        total_traces,
+        mode as i16,
+    )
+    .await
+    .map_err(|e| {
+        log::error!("Failed to create signal job: {:?}", e);
+        anyhow::anyhow!("Failed to create signal job")
+    })?;
 
     // Step 1: Create all runs and messages (without pushing to queue yet)
     let mut signal_runs: Vec<super::SignalRun> = Vec::with_capacity(trace_ids.len());
@@ -143,8 +146,7 @@ pub async fn enqueue_signal_job(
             Some(job.id),
             None,
             queue.clone(),
-            process_in_realtime,
-            user_mode,
+            mode,
         )
         .await;
 
@@ -170,7 +172,7 @@ pub async fn enqueue_signal_job(
     let mut failed_count = 0i32;
 
     for (idx, message) in messages.into_iter().enumerate() {
-        let push_result = if message.use_realtime_api {
+        let push_result = if mode == 1 || always_use_realtime() {
             crate::signals::queue::push_to_realtime_queue(message, queue.clone()).await
         } else {
             push_to_signals_queue(message, queue.clone()).await
@@ -233,8 +235,7 @@ pub async fn enqueue_signal_trigger_run(
     signal: Signal,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    process_in_realtime: bool,
-    user_mode: u8,
+    mode: u8,
 ) -> anyhow::Result<()> {
     // Step 1: Create run and message (without pushing to queue yet)
     let (signal_run, message) = create_signal_run_and_message(
@@ -244,8 +245,7 @@ pub async fn enqueue_signal_trigger_run(
         None,
         Some(trigger_id),
         queue.clone(),
-        process_in_realtime,
-        user_mode,
+        mode,
     )
     .await;
 
@@ -265,7 +265,7 @@ pub async fn enqueue_signal_trigger_run(
         })?;
 
     // Step 3: Now that ClickHouse insert succeeded, push to queue
-    let push_result = if message.use_realtime_api {
+    let push_result = if mode == 1 || always_use_realtime() {
         crate::signals::queue::push_to_realtime_queue(message, queue.clone()).await
     } else {
         push_to_signals_queue(message, queue.clone()).await

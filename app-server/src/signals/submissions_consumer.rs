@@ -246,8 +246,7 @@ async fn submit_batch_to_llm(
                 log::info!(
                     "[SIGNAL JOB] Batch API not supported by provider, falling back to realtime API"
                 );
-                for mut message in messages {
-                    message.use_realtime_api = true;
+                for message in messages {
                     if let Err(push_err) = push_to_realtime_queue(message, queue.clone()).await {
                         log::error!(
                             "Failed to push to realtime queue after batch not supported: {:?}",
@@ -266,8 +265,6 @@ async fn submit_batch_to_llm(
                     message.retry_count += if e.is_resource_exhausted() { 1 } else { 0 };
 
                     if message.retry_count >= max_retry_count {
-                        // Max retries reached - switch to realtime queue to process immediately
-                        message.use_realtime_api = true;
                         if let Err(push_err) = push_to_realtime_queue(message, queue.clone()).await
                         {
                             log::error!(

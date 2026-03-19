@@ -31,7 +31,6 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
-    signals::provider::always_use_realtime,
     traces::{
         provider::convert_span_to_provider_format,
         realtime::{send_span_updates, send_trace_updates},
@@ -337,7 +336,6 @@ async fn check_and_push_signals(
                 trigger.signal.clone(),
                 clickhouse.clone(),
                 queue.clone(),
-                always_use_realtime() || trigger.mode.is_realtime(),
                 trigger.mode.as_u8(),
             )
             .await

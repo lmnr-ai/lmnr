@@ -69,12 +69,9 @@ pub struct SignalMessage {
     pub retry_count: usize,
     #[serde(default = "chrono::Utc::now")]
     pub request_start_time: chrono::DateTime<chrono::Utc>,
-    #[serde(default)]
-    pub use_realtime_api: bool,
-    /// The user's chosen mode (0 = batch, 1 = realtime), used for billing.
-    /// Separate from use_realtime_api which may be forced by the provider.
-    #[serde(default)]
-    pub user_mode: u8,
+    /// 0 = batch, 1 = realtime. Determines billing and routing.
+    #[serde(default, alias = "user_mode")]
+    pub mode: u8,
 }
 
 pub async fn push_to_submissions_queue(

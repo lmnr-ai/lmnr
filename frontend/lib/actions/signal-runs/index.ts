@@ -22,7 +22,7 @@ export type SignalRun = {
   status: "PENDING" | "COMPLETED" | "FAILED" | "UNKNOWN";
   eventId: string;
   updatedAt: string;
-  mode: number;
+  mode: "BATCH" | "REALTIME" | "UNKNOWN";
 };
 
 export type SignalRunRow = Pick<

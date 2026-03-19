@@ -177,7 +177,7 @@ impl SignalRun {
             updated_at: chrono::Utc::now(),
             event_id: None,
             error_message: None,
-            mode: SignalMode::from_u8(message.user_mode),
+            mode: SignalMode::from_u8(message.mode),
         }
     }
 
