@@ -82,9 +82,28 @@ Conditional value: if(total_cost > 0.01, 'expensive', 'cheap')
 </examples>`,
 };
 
+const traceExpressionMode: ModeConfig = {
+  tables: ["traces"],
+  prompt: `<task>
+Generate a ClickHouse SQL expression (NOT a full query).
+This expression will be used as a custom column: SELECT expression FROM traces
+
+Output only the expression - no SELECT, FROM, or WHERE clauses.
+</task>
+
+<examples>
+Cost per token: round(total_cost / nullIf(total_tokens, 0), 6)
+Extract metadata value: simpleJSONExtractString(metadata, 'key')
+Duration in seconds: round(duration / 1000, 2)
+Conditional label: if(total_cost > 0.01, 'expensive', 'cheap')
+Has error status: if(status = 'error', 1, 0)
+</examples>`,
+};
+
 const MODE_CONFIGS: Record<GenerationMode, ModeConfig> = {
   query: queryMode,
   "eval-expression": evalExpressionMode,
+  "trace-expression": traceExpressionMode,
 };
 
 export function getGenerationPrompts(mode: GenerationMode = "query", currentQuery?: string) {

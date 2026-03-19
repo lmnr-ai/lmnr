@@ -3,13 +3,12 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { type ScoreRanges } from "@/components/evaluation/utils";
+import { type CustomColumn } from "@/components/ui/columns-menu";
 import { type EvalQueryColumn } from "@/lib/actions/evaluation/query-builder";
 import { type EvalRow } from "@/lib/evaluation/types";
 
 import { DataCell } from "./columns/data-cell";
 import { createScoreColumnDef, STATIC_COLUMNS } from "./columns/index";
-
-export type CustomColumn = { name: string; sql: string; dataType: "string" | "number" };
 
 interface RawUrlParams {
   search: string | null;
