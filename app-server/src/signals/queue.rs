@@ -70,7 +70,7 @@ pub struct SignalMessage {
     #[serde(default = "chrono::Utc::now")]
     pub request_start_time: chrono::DateTime<chrono::Utc>,
     /// 0 = batch, 1 = realtime. Determines billing and routing.
-    #[serde(default, alias = "user_mode")]
+    #[serde(default)]
     pub mode: u8,
 }
 
