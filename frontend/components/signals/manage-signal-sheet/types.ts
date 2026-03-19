@@ -1,5 +1,6 @@
 import { getDefaultSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { type Filter } from "@/lib/actions/common/filters";
+import { Operator } from "@/lib/actions/common/operators";
 import { type Signal } from "@/lib/actions/signals";
 
 export type TriggerFormItem = {
@@ -15,11 +16,20 @@ export type ManageSignalForm = Omit<Signal, "isSemantic" | "createdAt" | "id" | 
   triggers: TriggerFormItem[];
 };
 
+export const getDefaultTriggers = (): TriggerFormItem[] => [
+  {
+    filters: [
+      { column: "root_span_finished", operator: Operator.Eq, value: "true" },
+      { column: "total_token_count", operator: Operator.Gt, value: 1000 },
+    ],
+  },
+];
+
 export const getDefaultValues = (projectId: string): ManageSignalForm => ({
   name: "",
   prompt: "",
   schemaFields: getDefaultSchemaFields(),
   projectId,
   testTraceId: "",
-  triggers: [],
+  triggers: getDefaultTriggers(),
 });
