@@ -173,7 +173,7 @@ function StatsShields({ stats, className, variant = "filled", avgCost }: StatsSh
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
             <CircleDollarSign className="min-w-3 shrink-0" size={12} />
-            <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
+            <Label className={cn("text-xs truncate", { "text-foreground": variant === "outline" })}>
               {stats.totalCost?.toFixed(2)}
             </Label>
             {costDev && (
