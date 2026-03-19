@@ -2,14 +2,13 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { shallow } from "zustand/shallow";
 
 import { cn } from "@/lib/utils";
 
 import { useLaminarAgentStore } from "./store";
-import { getSuggestionsForRoute } from "./suggestions";
+import { contextSuggestions, defaultSuggestions } from "./suggestions";
 
 const INITIAL_DELAY = 4000;
 const SUGGESTION_CYCLE_INTERVAL = 5000;
@@ -99,18 +98,19 @@ function SuggestionSpan({
 }
 
 export default function CollapsedButton() {
-  const { viewMode, setViewMode, setPrefillInput } = useLaminarAgentStore(
-    (s) => ({ viewMode: s.viewMode, setViewMode: s.setViewMode, setPrefillInput: s.setPrefillInput }),
-    shallow
-  );
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { viewMode, activeContext, setViewMode, setPrefillInput } = useLaminarAgentStore((s) => ({
+    viewMode: s.viewMode,
+    activeContext: s.activeContext,
+    setViewMode: s.setViewMode,
+    setPrefillInput: s.setPrefillInput,
+  }));
 
   const suggestions = useMemo(
-    () => getSuggestionsForRoute(pathname, searchParams.toString()),
-    [pathname, searchParams]
+    () => (activeContext ? contextSuggestions[activeContext] : undefined) ?? defaultSuggestions,
+    [activeContext]
   );
 
+  const pathname = usePathname();
   const [hasSuggestion, setHasSuggestion] = useState(false);
 
   const handleSuggestionClick = useCallback(

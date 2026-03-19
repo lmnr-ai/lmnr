@@ -3,7 +3,6 @@
 import { ExternalLink, Loader, Radio, Sparkles } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { useShallow } from "zustand/react/shallow";
 
 import { useLaminarAgentStore } from "@/components/laminar-agent/store";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -36,14 +37,14 @@ export default function SignalsPill({ traceId }: SignalsPillProps) {
   const [events, setEvents] = useState<SignalEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { setViewMode, setPrefillInput, viewMode, aiEnabled } = useLaminarAgentStore(
-    useShallow((s) => ({
-      setViewMode: s.setViewMode,
-      setPrefillInput: s.setPrefillInput,
-      viewMode: s.viewMode,
-      aiEnabled: s.aiEnabled,
-    }))
-  );
+  const featureFlags = useFeatureFlags();
+  const aiEnabled = featureFlags[Feature.LAMINAR_AGENT];
+
+  const { setViewMode, setPrefillInput, viewMode } = useLaminarAgentStore((s) => ({
+    setViewMode: s.setViewMode,
+    setPrefillInput: s.setPrefillInput,
+    viewMode: s.viewMode,
+  }));
 
   useEffect(() => {
     let cancelled = false;

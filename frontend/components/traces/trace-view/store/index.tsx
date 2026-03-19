@@ -2,6 +2,8 @@ import { createContext, type PropsWithChildren, useContext, useState } from "rea
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { useRegisterLaminarAgentContext } from "@/components/laminar-agent/store";
+
 import { type BaseTraceViewStore, createBaseTraceViewSlice, TraceViewContext, type TraceViewTrace } from "./base";
 
 export {
@@ -72,6 +74,8 @@ const TraceViewStoreProvider = ({
   storeKey,
 }: PropsWithChildren<{ initialTrace?: TraceViewTrace; storeKey?: string }>) => {
   const [storeState] = useState(() => createTraceViewStore(initialTrace, storeKey));
+
+  useRegisterLaminarAgentContext("traceView", storeState);
 
   return (
     <TraceViewContext.Provider value={storeState}>

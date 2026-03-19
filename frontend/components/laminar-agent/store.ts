@@ -1,5 +1,18 @@
 import { type UIMessage } from "ai";
-import { create } from "zustand";
+import { useEffect } from "react";
+import { create, type StoreApi } from "zustand";
+import { useShallow } from "zustand/react/shallow";
+
+import { type Store as SignalStore } from "@/components/signal/store";
+import { type BaseTraceViewStore } from "@/components/traces/trace-view/store/base";
+
+export interface LaminarAgentRegistry {
+  traceView: BaseTraceViewStore;
+  signal: SignalStore;
+}
+
+export type LaminarAgentContextKey = keyof LaminarAgentRegistry;
+export type LaminarAgentContextRefs = { [K in LaminarAgentContextKey]?: StoreApi<LaminarAgentRegistry[K]> };
 
 export type AgentViewMode = "collapsed" | "floating" | "side-by-side";
 
@@ -12,11 +25,11 @@ interface LaminarAgentState {
   chatStatus: AgentChatStatus;
   isNewChatLoading: boolean;
   /** traceId context for cross-page span navigation */
-  traceIdContext: string | null;
   /** DOM element provided by SideBySideWrapper for portal rendering */
   sideBySideContainer: HTMLElement | null;
   /** Whether an AI provider is configured (set from server layout) */
-  aiEnabled: boolean;
+  activeContext?: LaminarAgentContextKey;
+  refs: LaminarAgentContextRefs;
 }
 
 interface LaminarAgentActions {
@@ -27,22 +40,21 @@ interface LaminarAgentActions {
   setChatMessages: (msgs: UIMessage[]) => void;
   setChatStatus: (status: AgentChatStatus) => void;
   setIsNewChatLoading: (loading: boolean) => void;
-  setTraceIdContext: (traceId: string | null) => void;
   setSideBySideContainer: (el: HTMLElement | null) => void;
-  setAiEnabled: (enabled: boolean) => void;
+  register: <K extends LaminarAgentContextKey>(key: K, store: StoreApi<LaminarAgentRegistry[K]>) => () => void;
 }
 
 export type LaminarAgentStore = LaminarAgentState & LaminarAgentActions;
 
-export const useLaminarAgentStore = create<LaminarAgentStore>()((set) => ({
+export const laminarAgentStore = create<LaminarAgentStore>()((set, get) => ({
   viewMode: "collapsed",
   prefillInput: null,
   chatMessages: [],
   chatStatus: "idle",
   isNewChatLoading: false,
-  traceIdContext: null,
   sideBySideContainer: null,
-  aiEnabled: false,
+  activeContext: undefined,
+  refs: {},
 
   setViewMode: (viewMode) => set({ viewMode }),
   collapse: () => set({ viewMode: "collapsed" }),
@@ -51,7 +63,28 @@ export const useLaminarAgentStore = create<LaminarAgentStore>()((set) => ({
   setChatMessages: (chatMessages) => set({ chatMessages }),
   setChatStatus: (chatStatus) => set({ chatStatus }),
   setIsNewChatLoading: (isNewChatLoading) => set({ isNewChatLoading }),
-  setTraceIdContext: (traceIdContext) => set({ traceIdContext }),
   setSideBySideContainer: (sideBySideContainer) => set({ sideBySideContainer }),
-  setAiEnabled: (aiEnabled) => set({ aiEnabled }),
+
+  register: (key, store) => {
+    set({
+      refs: { ...get().refs, [key]: store },
+      activeContext: key,
+    });
+    return () => {
+      const { [key]: _, ...refs } = get().refs;
+      const remaining = Object.keys(refs) as LaminarAgentContextKey[];
+      const nextActive = remaining.length > 0 ? remaining[remaining.length - 1] : undefined;
+      set({ refs, activeContext: nextActive });
+    };
+  },
 }));
+
+export const useLaminarAgentStore = <T>(selector: (state: LaminarAgentStore) => T): T =>
+  laminarAgentStore(useShallow(selector));
+
+export const useRegisterLaminarAgentContext = <K extends LaminarAgentContextKey>(
+  key: K,
+  store: StoreApi<LaminarAgentRegistry[K]>
+) => {
+  useEffect(() => laminarAgentStore.getState().register(key, store), [key, store]);
+};
