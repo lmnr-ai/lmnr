@@ -10,10 +10,9 @@ import { motion } from "framer-motion";
 import { ListRestart, Plus } from "lucide-react";
 import React from "react";
 
-import { useEvalStore } from "@/components/evaluation/store";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 
-import { EvalColumnsMenuItem } from "./eval-columns-menu-item";
+import { ColumnsMenuItem } from "./columns-menu-item";
 
 interface ColumnsListPanelProps {
   columnOrder: string[];
@@ -25,6 +24,8 @@ interface ColumnsListPanelProps {
   onReset: () => void;
   onCustomColumnClick: () => void;
   onEditColumn?: (columnId: string) => void;
+  /** Whether to show the "Create column with SQL" button. Defaults to true. */
+  showCreateButton?: boolean;
 }
 
 export const ColumnsListPanel = ({
@@ -37,8 +38,8 @@ export const ColumnsListPanel = ({
   onReset,
   onCustomColumnClick,
   onEditColumn,
+  showCreateButton = true,
 }: ColumnsListPanelProps) => {
-  const isShared = useEvalStore((s) => s.isShared);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -79,7 +80,7 @@ export const ColumnsListPanel = ({
               {columnOrder.map((columnId) => {
                 const labelEntry = columnLabels?.find((col) => col.id === columnId);
                 return (
-                  <EvalColumnsMenuItem
+                  <ColumnsMenuItem
                     key={columnId}
                     id={columnId}
                     label={labelEntry?.label || columnId}
@@ -104,7 +105,7 @@ export const ColumnsListPanel = ({
           <ListRestart className="w-3.5 h-3.5 text-secondary-foreground mr-2" />
           Reset columns
         </div>
-        {!isShared && (
+        {showCreateButton && (
           <div
             className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
             onClick={onCustomColumnClick}

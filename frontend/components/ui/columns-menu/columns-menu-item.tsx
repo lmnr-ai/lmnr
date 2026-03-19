@@ -6,7 +6,7 @@ import React from "react";
 import { Switch } from "@/components/ui/switch.tsx";
 import { cn } from "@/lib/utils.ts";
 
-interface EvalColumnsMenuItemProps {
+interface ColumnsMenuItemProps {
   id: string;
   label: string;
   isVisible: boolean;
@@ -16,7 +16,7 @@ interface EvalColumnsMenuItemProps {
   onEdit?: () => void;
 }
 
-export const EvalColumnsMenuItem = ({
+export const ColumnsMenuItem = ({
   id,
   label,
   isVisible,
@@ -24,7 +24,7 @@ export const EvalColumnsMenuItem = ({
   onToggleVisibility,
   onDelete,
   onEdit,
-}: EvalColumnsMenuItemProps) => {
+}: ColumnsMenuItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id,
     disabled: isLocked,

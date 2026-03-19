@@ -2,11 +2,10 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { type CustomColumn } from "@/components/ui/columns-menu";
 import { type TraceRow } from "@/lib/traces/types";
 
 import { STATIC_COLUMNS } from "./columns";
-
-export type CustomColumn = { name: string; sql: string; dataType: "string" | "number" };
 
 export interface TracesQueryColumn {
   id: string;
