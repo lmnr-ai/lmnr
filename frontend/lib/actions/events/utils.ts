@@ -61,7 +61,7 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
   },
 };
 
-const eventsSelectColumns = [
+export const eventsSelectColumns = [
   "id",
   "signal_id signalId",
   "trace_id traceId",

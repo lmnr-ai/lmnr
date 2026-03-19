@@ -2,6 +2,7 @@
 
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -59,12 +60,16 @@ function PureEventsTable() {
 
   const [clusterId] = useClusterId();
   const signal = useSignalStoreContext((state) => state.signal);
-  const selectedEvent = useSignalStoreContext((state) => state.selectedEvent);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
   const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
+
+  const [selectedEventId, setSelectedEventId] = useQueryState(
+    "eventId",
+    parseAsString.withOptions({ history: "push" })
+  );
 
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
@@ -75,7 +80,6 @@ function PureEventsTable() {
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   const setTraceId = useSignalStoreContext((state) => state.setTraceId);
-  const setSelectedEvent = useSignalStoreContext((state) => state.setSelectedEvent);
 
   // Listen for open-trace events from the traceId column button
   useEffect(() => {
@@ -154,9 +158,9 @@ function PureEventsTable() {
 
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
-      setSelectedEvent(row.original);
+      setSelectedEventId(row.original.id);
     },
-    [setSelectedEvent]
+    [setSelectedEventId]
   );
 
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
@@ -172,11 +176,6 @@ function PureEventsTable() {
     enabled: !!(pastHours || (startDate && endDate)),
     deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter],
   });
-
-  const focusedRowId = useMemo(() => {
-    if (!selectedEvent) return undefined;
-    return selectedEvent.id;
-  }, [selectedEvent]);
 
   useEffect(() => {
     if (events) {
@@ -204,7 +203,7 @@ function PureEventsTable() {
         data={events}
         onRowClick={handleRowClick}
         getRowId={(row: EventRow) => row.id}
-        focusedRowId={focusedRowId}
+        focusedRowId={selectedEventId ?? undefined}
         hasMore={hasMore}
         isFetching={isFetching}
         isLoading={isLoading}

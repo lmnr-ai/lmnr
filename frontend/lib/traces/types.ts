@@ -115,6 +115,12 @@ export type Trace = {
   userId: string | null;
 };
 
+export type TraceSignal = {
+  signalId: string;
+  signalName: string;
+  eventId: string;
+};
+
 export type TraceRow = {
   id: string;
   startTime: string;
@@ -145,6 +151,7 @@ export type TraceRow = {
   analysis?: string;
   rootSpanInput?: string;
   rootSpanOutput?: string;
+  signals?: TraceSignal[];
 };
 
 export type RealtimeTracePayload = {
