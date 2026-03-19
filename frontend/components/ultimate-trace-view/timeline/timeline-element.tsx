@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { TraceSignalInfo } from "../store";
 import SignalDot from "./signal-dot";
 
-const ROW_HEIGHT = 8;
+const ROW_HEIGHT = 12;
 
 interface TimelineElementProps {
   condensedSpan: CondensedTimelineSpan;
