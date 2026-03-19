@@ -1,10 +1,11 @@
 import { get } from "lodash";
 import { AlertTriangle, CirclePlay } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import Header from "@/components/traces/trace-view/header";
+import { useSpanId } from "@/components/traces/trace-view/hooks/use-span-id";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
@@ -26,7 +27,6 @@ import { cn } from "@/lib/utils";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 import SessionPlayer from "../session-player";
 import { SpanView } from "../span-view";
-import Chat from "./chat";
 import CondensedTimeline from "./condensed-timeline";
 import List from "./list";
 import { ScrollContextProvider } from "./scroll-context";
@@ -39,17 +39,15 @@ interface TraceViewProps {
   onClose: () => void;
 }
 
-const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps) => {
+const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
-  const [chatOpen, setChatOpen] = useState(false);
+  const [spanId, setSpanId] = useSpanId();
 
   // Data states
   const {
-    selectedSpan,
-    setSelectedSpan,
     spans,
     setSpans,
     trace,
@@ -62,9 +60,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setTraceError,
     spansError,
     setSpansError,
+    selectSpanById,
   } = useTraceViewStore((state) => ({
-    selectedSpan: state.selectedSpan,
-    setSelectedSpan: state.setSelectedSpan,
     spans: state.spans,
     setSpans: state.setSpans,
     trace: state.trace,
@@ -77,6 +74,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setTraceError: state.setTraceError,
     spansError: state.spansError,
     setSpansError: state.setSpansError,
+    selectSpanById: state.selectSpanById,
   }));
 
   // UI states
@@ -111,6 +109,9 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     spanPath: state.spanPath,
     setSpanPath: state.setSpanPath,
   }));
+
+  // Derive selectedSpan from spans + spanId query param
+  const selectedSpan = useMemo(() => spans.find((s) => s.spanId === spanId), [spans, spanId]);
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const filteredSpansForStats = useMemo(() => {
@@ -168,21 +169,18 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     (span?: TraceViewSpan) => {
       if (!span) return;
 
-      setSelectedSpan(span);
+      // Update spanId in URL via nuqs
+      setSpanId(span.spanId);
 
-      const spanPath = span.attributes?.["lmnr.span.path"];
-      if (spanPath && Array.isArray(spanPath)) {
-        setSpanPath(spanPath);
-      }
+      // Uncollapse ancestors and set span path in store
+      selectSpanById(span.spanId);
 
-      const currentSpanId = searchParams.get("spanId");
-      if (currentSpanId !== span.spanId) {
-        const params = new URLSearchParams(searchParams);
-        params.set("spanId", span.spanId);
-        router.replace(`${pathName}?${params.toString()}`);
+      const spanPathAttr = span.attributes?.["lmnr.span.path"];
+      if (spanPathAttr && Array.isArray(spanPathAttr)) {
+        setSpanPath(spanPathAttr);
       }
     },
-    [setSelectedSpan, searchParams, setSpanPath, router, pathName]
+    [setSpanId, selectSpanById, setSpanPath]
   );
 
   const fetchSpans = useCallback(
@@ -219,20 +217,24 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         }
 
         const results = (await response.json()) as TraceViewSpan[];
-        const spans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
+        const fetchedSpans = search || filters?.length > 0 ? results : enrichSpansWithPending(results);
 
-        setSpans(spans);
+        setSpans(fetchedSpans);
 
-        if (spans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) && !hasBrowserSession) {
+        if (
+          fetchedSpans.some((s) => Boolean(get(s.attributes, "lmnr.internal.has_browser_session"))) &&
+          !hasBrowserSession
+        ) {
           setHasBrowserSession(true);
           setBrowserSession(true);
         }
 
-        if (spans.length > 0) {
-          const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
-          setSelectedSpan(selectedSpan);
-        } else {
-          setSelectedSpan(undefined);
+        // Set initial span selection via URL if no spanId currently set
+        if (fetchedSpans.length > 0 && !spanId) {
+          const initialSpan = findSpanToSelect(fetchedSpans, propsSpanId, searchParams, spanPath);
+          if (initialSpan) {
+            setSpanId(initialSpan.spanId);
+          }
         }
       } catch (e) {
         const errorMessage = e instanceof Error ? e.message : "Failed to load spans";
@@ -253,7 +255,11 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       hasBrowserSession,
       setHasBrowserSession,
       setBrowserSession,
-      setSelectedSpan,
+      spanId,
+      propsSpanId,
+      searchParams,
+      spanPath,
+      setSpanId,
     ]
   );
 
@@ -303,15 +309,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   );
 
   useEffect(() => {
-    if (!isSpansLoading) {
-      const span = spans?.find((s) => s.spanId === spanId);
-      if (spanId && span) {
-        setSelectedSpan(span);
-      }
-    }
-  }, [isSpansLoading, setSelectedSpan, spanId, spans]);
-
-  useEffect(() => {
     handleFetchTrace();
   }, [handleFetchTrace]);
 
@@ -350,13 +347,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   if (traceError) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <Header
-          handleClose={handleClose}
-          chatOpen={chatOpen}
-          setChatOpen={setChatOpen}
-          spans={[]}
-          onSearch={() => {}}
-        />
+        <Header handleClose={handleClose} spans={[]} onSearch={() => {}} />
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
           <div className="max-w-md mx-auto">
             <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
@@ -372,13 +363,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     <ScrollContextProvider>
       <div className="flex h-full w-full">
         <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-          <Header
-            handleClose={handleClose}
-            chatOpen={chatOpen}
-            setChatOpen={setChatOpen}
-            spans={spans}
-            onSearch={(filters, search) => fetchSpans(search, filters)}
-          />
+          <Header handleClose={handleClose} spans={spans} onSearch={(filters, search) => fetchSpans(search, filters)} />
 
           {spansError ? (
             <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
@@ -386,22 +371,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
               <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
-          ) : chatOpen ? (
-            // Ask AI takes over entire view
-            trace && (
-              <Chat
-                trace={trace}
-                onSearchSpans={(search) => {
-                  fetchSpans(search, []);
-                }}
-                onSetSpanId={(spanId) => {
-                  const span = spans.find((span) => span.spanId === spanId);
-                  if (span) {
-                    handleSpanSelect(span);
-                  }
-                }}
-              />
-            )
           ) : (
             <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
               {condensedTimelineEnabled && (

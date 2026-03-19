@@ -4,6 +4,7 @@ import { useMemo, useRef } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
+import { useSpanId } from "@/components/traces/trace-view/hooks/use-span-id";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { type PathInfo } from "@/components/traces/trace-view/store/utils";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
@@ -47,8 +48,9 @@ const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo
 export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathInfo, onOpenSettings }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewBaseStore((state) => ({
-    selectedSpan: state.selectedSpan,
+  const [spanId] = useSpanId();
+
+  const { spans, toggleCollapse, showTreeContent } = useTraceViewBaseStore((state) => ({
     spans: state.spans,
     toggleCollapse: state.toggleCollapse,
     showTreeContent: state.showTreeContent,
@@ -74,7 +76,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const isExpandable =
     hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true));
 
-  const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
+  const isSelected = useMemo(() => spanId === span.spanId, [spanId, span.spanId]);
 
   const showContent =
     (showTreeContent ?? true) && !span.collapsed && (span.spanType === "LLM" || span.spanType === "CACHED");

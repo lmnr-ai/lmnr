@@ -1,14 +1,17 @@
 "use client";
 
 import { Check, List, X } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { type SchemaField } from "@/components/signals/utils";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { type EventRow } from "@/lib/events/types";
 
 interface EventDetailPanelProps {
-  event: EventRow;
+  eventId: string;
+  signalId: string;
+  projectId: string;
   schemaFields: SchemaField[];
   onClose: () => void;
   onOpenTrace: (traceId: string) => void;
@@ -24,7 +27,7 @@ function parsePayload(payload: string): Record<string, unknown> {
 
 function PayloadValue({ value, field }: { value: unknown; field: SchemaField }) {
   if (value === null || value === undefined) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className="text-muted-foreground">&mdash;</span>;
   }
 
   switch (field.type) {
@@ -48,9 +51,95 @@ function PayloadValue({ value, field }: { value: unknown; field: SchemaField }) 
   }
 }
 
-export default function EventDetailPanel({ event, schemaFields, onClose, onOpenTrace }: EventDetailPanelProps) {
-  const parsed = useMemo(() => parsePayload(event.payload), [event.payload]);
+export default function EventDetailPanel({
+  eventId,
+  signalId,
+  projectId,
+  schemaFields,
+  onClose,
+  onOpenTrace,
+}: EventDetailPanelProps) {
+  const [event, setEvent] = useState<EventRow | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchEvent() {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/projects/${projectId}/signals/${signalId}/events/${eventId}`);
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({ error: "Failed to fetch event" }));
+          throw new Error(data.error || "Failed to fetch event");
+        }
+
+        const data = (await response.json()) as EventRow;
+        if (!cancelled) {
+          setEvent(data);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to fetch event");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchEvent();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, signalId, projectId]);
+
+  const parsed = useMemo(() => (event ? parsePayload(event.payload) : {}), [event?.payload]);
   const validFields = schemaFields.filter((f) => f.name.trim());
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex flex-col pl-4 pr-3 py-3 border-b">
+          <div className="flex items-center justify-between px-0.5">
+            <span className="text-base font-medium">Event</span>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="size-4" />
+            </Button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !event) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex flex-col pl-4 pr-3 py-3 border-b">
+          <div className="flex items-center justify-between px-0.5">
+            <span className="text-base font-medium">Event</span>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="size-4" />
+            </Button>
+          </div>
+        </div>
+        <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">
+          {error || "Event not found"}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
