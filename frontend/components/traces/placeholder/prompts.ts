@@ -77,7 +77,7 @@ export async function register() {
 import { Laminar } from '@lmnr-ai/lmnr';
 import OpenAI from 'openai';
 Laminar.patch({ OpenAI: OpenAI });
-export const openai = new OpenAI();
+export const openai = new OpenAI.OpenAI();
 \`\`\`
 
 **Vercel AI SDK** — pass the Laminar tracer to every \`generateText\`/\`streamText\` call.
