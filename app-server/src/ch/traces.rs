@@ -12,7 +12,7 @@ use crate::db::trace::Trace;
 use crate::traces::spans::SpanUsage;
 
 /// Maximum number of characters to store for root span input/output preview.
-const ROOT_SPAN_PREVIEW_MAX_CHARS: usize = 200;
+const ROOT_SPAN_PREVIEW_MAX_CHARS: usize = 2048;
 
 fn truncate_json_preview(value: &serde_json::Value) -> String {
     let s = value.to_string();
@@ -55,6 +55,8 @@ pub struct CHTrace {
     pub span_names: Vec<String>,
     pub root_span_input: String,
     pub root_span_output: String,
+    /// Span-level data: Array(Tuple(name String, duration Float64, type String))
+    pub trace_spans: Vec<(String, f64, String)>,
 }
 
 impl CHTrace {
@@ -95,6 +97,7 @@ impl CHTrace {
             span_names: trace.span_names(),
             root_span_input: trace.root_span_input().unwrap_or_default(),
             root_span_output: trace.root_span_output().unwrap_or_default(),
+            trace_spans: trace.trace_spans(),
         }
     }
 }
@@ -133,6 +136,7 @@ pub struct TraceAggregation {
     pub span_names: HashSet<String>,
     pub root_span_input: Option<String>,
     pub root_span_output: Option<String>,
+    pub trace_spans: Vec<(String, f64, String)>,
 }
 
 impl TraceAggregation {
@@ -171,6 +175,7 @@ impl TraceAggregation {
                         span_names: HashSet::new(),
                         root_span_input: None,
                         root_span_output: None,
+                        trace_spans: Vec::new(),
                     });
 
             // Aggregate min start_time
@@ -251,6 +256,15 @@ impl TraceAggregation {
 
             // Collect unique span names
             entry.span_names.insert(span.name.clone());
+
+            // Collect trace_spans (name, duration_seconds, type_string)
+            let duration_secs =
+                (span.end_time - span.start_time).num_milliseconds() as f64 / 1000.0;
+            entry.trace_spans.push((
+                span.name.clone(),
+                duration_secs,
+                span.span_type.to_string(),
+            ));
 
             if entry.has_browser_session.is_none() {
                 if let Some(has_browser_session) = span.attributes.has_browser_session() {

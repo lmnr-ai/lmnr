@@ -97,6 +97,8 @@ Extract metadata value: simpleJSONExtractString(metadata, 'key')
 Duration in seconds: round(duration / 1000, 2)
 Conditional label: if(total_cost > 0.01, 'expensive', 'cheap')
 Has error status: if(status = 'error', 1, 0)
+Count LLM spans: arrayCount(x -> x.3 = 'LLM', trace_spans)
+Count spans by name: arrayCount(x -> x.1 = 'my_span', trace_spans)
 </examples>`,
 };
 

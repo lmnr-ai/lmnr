@@ -121,6 +121,11 @@ export const tableSchemas: Record<string, TableSchema> = {
       { name: "top_span_type", type: "span_type", description: "Type of the top-level span" },
       { name: "tags", type: "Array(String)", description: "Tags associated with the trace" },
       { name: "has_browser_session", type: "Bool", description: "Whether the trace has a browser session" },
+      {
+        name: "trace_spans",
+        type: "Array(Tuple(name String, duration Float64, type String))",
+        description: "Spans within the trace, each with name, duration in seconds, and type",
+      },
     ],
   },
   dataset_datapoints: {

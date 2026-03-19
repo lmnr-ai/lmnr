@@ -1596,6 +1596,7 @@ export const traces = pgTable(
     spanNames: jsonb("span_names"),
     rootSpanInput: text("root_span_input"),
     rootSpanOutput: text("root_span_output"),
+    traceSpans: jsonb("trace_spans"),
   },
   (table) => [
     index("traces_pkey").using(

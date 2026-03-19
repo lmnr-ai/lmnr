@@ -53,6 +53,7 @@ pub struct Trace {
     span_names: Option<Value>,
     root_span_input: Option<String>,
     root_span_output: Option<String>,
+    trace_spans: Option<Value>,
 }
 
 impl Trace {
@@ -132,6 +133,24 @@ impl Trace {
             .as_ref()
             .and_then(|v| v.as_object())
             .map(|obj| obj.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+    pub fn trace_spans(&self) -> Vec<(String, f64, String)> {
+        self.trace_spans
+            .as_ref()
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| {
+                        let obj = item.as_object()?;
+                        Some((
+                            obj.get("name")?.as_str()?.to_string(),
+                            obj.get("duration")?.as_f64()?,
+                            obj.get("type")?.as_str()?.to_string(),
+                        ))
+                    })
+                    .collect()
+            })
             .unwrap_or_default()
     }
     pub fn matches_filters(&self, spans: &[Span], filters: &[Filter]) -> bool {
@@ -241,6 +260,19 @@ pub async fn upsert_trace_statistics_batch(
             .collect::<serde_json::Map<String, Value>>()
             .into();
 
+        let trace_spans_jsonb: Value = Value::Array(
+            agg.trace_spans
+                .iter()
+                .map(|(name, duration, span_type)| {
+                    serde_json::json!({
+                        "name": name,
+                        "duration": duration,
+                        "type": span_type,
+                    })
+                })
+                .collect(),
+        );
+
         let trace = sqlx::query_as::<_, Trace>(
             r#"
             INSERT INTO traces (
@@ -267,9 +299,10 @@ pub async fn upsert_trace_statistics_batch(
                 has_browser_session,
                 span_names,
                 root_span_input,
-                root_span_output
+                root_span_output,
+                trace_spans
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
             ON CONFLICT (project_id, id) DO UPDATE SET
                 start_time = LEAST(traces.start_time, EXCLUDED.start_time),
                 end_time = GREATEST(traces.end_time, EXCLUDED.end_time),
@@ -294,7 +327,9 @@ pub async fn upsert_trace_statistics_batch(
                 -- `||` operator merges span_names objects to keep unique names
                 span_names = COALESCE(traces.span_names || EXCLUDED.span_names, EXCLUDED.span_names, traces.span_names),
                 root_span_input = COALESCE(EXCLUDED.root_span_input, traces.root_span_input),
-                root_span_output = COALESCE(EXCLUDED.root_span_output, traces.root_span_output)
+                root_span_output = COALESCE(EXCLUDED.root_span_output, traces.root_span_output),
+                -- `||` on jsonb arrays concatenates them (appends new spans)
+                trace_spans = COALESCE(traces.trace_spans, '[]'::jsonb) || EXCLUDED.trace_spans
             RETURNING
                 id,
                 project_id,
@@ -319,7 +354,8 @@ pub async fn upsert_trace_statistics_batch(
                 has_browser_session,
                 span_names,
                 root_span_input,
-                root_span_output
+                root_span_output,
+                trace_spans
             "#,
         )
         .bind(agg.trace_id)
@@ -346,6 +382,7 @@ pub async fn upsert_trace_statistics_batch(
         .bind(&span_names_jsonb)
         .bind(&agg.root_span_input)
         .bind(&agg.root_span_output)
+        .bind(&trace_spans_jsonb)
         .fetch_one(pool)
         .await?;
 

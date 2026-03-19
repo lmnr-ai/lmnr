@@ -1,0 +1,1 @@
+ALTER TABLE "traces" ADD COLUMN "trace_spans" jsonb;
