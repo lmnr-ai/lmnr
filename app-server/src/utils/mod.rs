@@ -70,6 +70,10 @@ pub fn sanitize_string(input: &str) -> String {
 
 /// Call an HTTP service with retry logic using exponential backoff
 /// Returns the deserialized response on success
+///
+/// Each individual request attempt is capped at `request_timeout`. The overall
+/// retry loop is bounded by `max_elapsed_time`. This prevents a single hanging
+/// request from blocking the caller (and holding an unacked MQ delivery) indefinitely.
 pub async fn call_service_with_retry<T>(
     client: &reqwest::Client,
     service_url: &str,
@@ -79,18 +83,62 @@ pub async fn call_service_with_retry<T>(
 where
     T: DeserializeOwned,
 {
+    call_service_with_retry_config(
+        client,
+        service_url,
+        auth_token,
+        request_body,
+        Duration::from_secs(60),  // max_elapsed_time: 1 minute total retry budget
+        Duration::from_secs(30),  // request_timeout: 30s per attempt
+    )
+    .await
+}
+
+/// Call an HTTP service with retry logic and configurable timeouts.
+///
+/// - `max_elapsed_time`: Total time budget for all retry attempts combined.
+/// - `request_timeout`: Maximum time for a single HTTP request attempt.
+///   If the downstream doesn't respond within this, the attempt is aborted and
+///   retried (if budget remains).
+pub async fn call_service_with_retry_config<T>(
+    client: &reqwest::Client,
+    service_url: &str,
+    auth_token: &str,
+    request_body: &Value,
+    max_elapsed_time: Duration,
+    request_timeout: Duration,
+) -> anyhow::Result<T>
+where
+    T: DeserializeOwned,
+{
     let call_service = || async {
-        let response = client
+        // Wrap the HTTP call in a per-request timeout so a hanging connection
+        // doesn't consume the entire backoff budget (or block forever if the
+        // client has no timeout set).
+        let send_future = client
             .post(service_url)
             .header("Authorization", format!("Bearer {}", auth_token))
             .header("Content-Type", "application/json")
             .json(request_body)
-            .send()
-            .await
-            .map_err(|e| {
+            .send();
+
+        let response = match tokio::time::timeout(request_timeout, send_future).await {
+            Ok(result) => result.map_err(|e| {
                 log::warn!("Failed to call service ({}): {:?}", service_url, e);
                 backoff::Error::transient(anyhow::Error::from(e))
-            })?;
+            })?,
+            Err(_elapsed) => {
+                log::warn!(
+                    "Request to {} timed out after {:?}",
+                    service_url,
+                    request_timeout
+                );
+                return Err(backoff::Error::transient(anyhow::anyhow!(
+                    "Request timed out after {:?}",
+                    request_timeout
+                )));
+            }
+        };
 
         let status = response.status();
 
@@ -137,7 +185,7 @@ where
     let backoff = ExponentialBackoffBuilder::new()
         .with_initial_interval(Duration::from_millis(1000))
         .with_max_interval(Duration::from_secs(30))
-        .with_max_elapsed_time(Some(Duration::from_secs(60))) // 1 minute max
+        .with_max_elapsed_time(Some(max_elapsed_time))
         .build();
 
     backoff::future::retry(backoff, call_service)

@@ -1261,7 +1261,11 @@ fn main() -> anyhow::Result<()> {
                     // Spawn clustering workers
                     {
                         let cache = cache_for_consumer.clone();
-                        let client = reqwest::Client::new();
+                        let client = reqwest::Client::builder()
+                            .timeout(Duration::from_secs(60))
+                            .connect_timeout(Duration::from_secs(10))
+                            .build()
+                            .expect("Failed to build clustering HTTP client");
                         worker_pool_clone.spawn(
                             WorkerType::Clustering,
                             num_clustering_workers as usize,

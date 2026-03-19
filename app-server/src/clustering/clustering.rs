@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait, keys};
-use crate::utils::call_service_with_retry;
+use crate::utils::call_service_with_retry_config;
 use crate::worker::{HandlerError, MessageHandler};
 
 use crate::clustering::ClusteringBatchMessage;
@@ -38,7 +38,64 @@ impl MessageHandler for ClusteringHandler {
     }
 }
 
+/// Maximum time the entire handler (lock acquisition + HTTP call) may run.
+///
+/// RabbitMQ's default consumer delivery ack timeout is 30 minutes. Each worker
+/// processes messages sequentially with prefetch up to 128, so the total unacked
+/// time for the oldest prefetched message is roughly:
+///   (prefetch_count - 1) * handler_duration
+///
+/// With 128 prefetch and 10-minute handler budget: 127 * 10 min = ~21 hours — way
+/// too long. We therefore keep the per-message budget short (3 minutes) so that
+/// even with many prefetched messages the 30-minute ack deadline is not exceeded.
+///
+/// Budget breakdown:
+///  - Lock wait: up to 2 minutes
+///  - HTTP call (with retries): up to 1 minute
+///  - Total: ~3 minutes worst case
+const CLUSTERING_HANDLER_TIMEOUT: Duration = Duration::from_secs(180);
+
+/// Maximum time to wait for the distributed lock before requeuing.
+const CLUSTERING_LOCK_WAIT: Duration = Duration::from_secs(120);
+
+/// TTL for the distributed lock itself (so it auto-expires if the holder crashes).
+const CLUSTERING_LOCK_TTL_SECS: u64 = 300;
+
+/// Per-request timeout for the clustering HTTP call.
+/// The downstream service has a 15-minute internal timeout, but we don't want
+/// to wait that long — a request that hasn't responded in 30 seconds is likely
+/// stuck and should be retried.
+const CLUSTERING_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Total retry budget for the clustering HTTP call (across all attempts).
+const CLUSTERING_RETRY_BUDGET: Duration = Duration::from_secs(60);
+
 async fn process_clustering_logic(
+    message: ClusteringBatchMessage,
+    cache: Arc<Cache>,
+    client: reqwest::Client,
+) -> Result<(), HandlerError> {
+    match tokio::time::timeout(
+        CLUSTERING_HANDLER_TIMEOUT,
+        process_clustering_logic_inner(message, cache, client),
+    )
+    .await
+    {
+        Ok(result) => result,
+        Err(_elapsed) => {
+            log::error!(
+                "Clustering handler timed out after {:?}, requeuing",
+                CLUSTERING_HANDLER_TIMEOUT
+            );
+            Err(HandlerError::transient(anyhow::anyhow!(
+                "Handler timed out after {:?}",
+                CLUSTERING_HANDLER_TIMEOUT
+            )))
+        }
+    }
+}
+
+async fn process_clustering_logic_inner(
     message: ClusteringBatchMessage,
     cache: Arc<Cache>,
     client: reqwest::Client,
@@ -52,14 +109,12 @@ async fn process_clustering_logic(
     let signal_id = first.signal_id;
 
     let lock_key = format!("{}-{}", keys::CLUSTERING_LOCK_CACHE_KEY, project_id);
-    let lock_ttl = 300; // 5 minutes
-    let max_wait_duration = Duration::from_secs(300); // 5 minutes max wait
     let start_time = tokio::time::Instant::now();
 
     // Try to acquire lock, wait if already locked (with timeout)
     loop {
         // Check if we've exceeded the max wait time
-        if start_time.elapsed() >= max_wait_duration {
+        if start_time.elapsed() >= CLUSTERING_LOCK_WAIT {
             log::warn!(
                 "Timeout waiting for clustering lock for project_id={}, requeuing",
                 project_id
@@ -67,7 +122,10 @@ async fn process_clustering_logic(
             return Err(HandlerError::transient(anyhow::anyhow!("Lock timeout")));
         }
 
-        match cache.try_acquire_lock(&lock_key, lock_ttl).await {
+        match cache
+            .try_acquire_lock(&lock_key, CLUSTERING_LOCK_TTL_SECS)
+            .await
+        {
             Ok(true) => {
                 // Lock acquired, proceed with clustering
                 log::debug!("Acquired clustering lock for project_id={}", project_id);
@@ -149,11 +207,13 @@ async fn call_clustering_endpoint(
         "signal_events": events,
     });
 
-    let cluster_response: ClusterResponse = call_service_with_retry(
+    let cluster_response: ClusterResponse = call_service_with_retry_config(
         client,
         &cluster_endpoint,
         &cluster_endpoint_key,
         &request_body,
+        CLUSTERING_RETRY_BUDGET,
+        CLUSTERING_REQUEST_TIMEOUT,
     )
     .await?;
 
