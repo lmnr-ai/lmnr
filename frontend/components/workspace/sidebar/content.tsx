@@ -1,6 +1,16 @@
 "use client";
 
-import { Activity, Cloud, CreditCard, FileBarChart, FolderClosed, type LucideIcon, Settings, Unplug, Users } from "lucide-react";
+import {
+  Activity,
+  Cloud,
+  CreditCard,
+  FileBarChart,
+  FolderClosed,
+  type LucideIcon,
+  Settings,
+  Unplug,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useMemo } from "react";

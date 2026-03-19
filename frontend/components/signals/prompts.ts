@@ -81,7 +81,8 @@ Consider whether the output matches the user's intent and is correct.`,
           },
           description: {
             type: "string",
-            description: "Description of task completion status. If the task was not completed, describe what went wrong.",
+            description:
+              "Description of task completion status. If the task was not completed, describe what went wrong.",
           },
         },
       },
@@ -158,6 +159,11 @@ state something incorrect? Compare claims against available context.`,
           description: {
             type: "string",
             description: "Description of the hallucination",
+          },
+          type: {
+            type: "string",
+            enum: ["factual", "contextual", "fabrication"],
+            description: "Type of hallucination detected",
           },
         },
       },
