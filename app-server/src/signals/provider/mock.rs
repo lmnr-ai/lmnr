@@ -7,6 +7,9 @@
 //!   - `"not_supported"` — NotSupported error (triggers immediate realtime fallback)
 //! - `MOCK_LLM_CLIENT_BATCH_PENDING_TRIES` — number of times `get_batch` returns `done: false`
 //!   before succeeding. Defaults to 0 (immediately done).
+//! - `MOCK_LLM_CLIENT_STEPS_COUNT` — total number of steps to before returning the final result.
+//!   All but last step return `get_full_spans`, last step returns `submit_identification`.
+//!   Defaults to 2.
 use std::sync::Arc;
 
 use dashmap::DashMap;
@@ -65,11 +68,43 @@ fn mock_get_full_spans() -> ProviderFunctionCall {
     }
 }
 
-fn mock_response() -> ProviderResponse {
-    let function_call = if rand::random::<bool>() {
-        mock_get_full_spans()
-    } else {
+fn mock_steps_count() -> usize {
+    std::env::var("MOCK_LLM_CLIENT_STEPS_COUNT")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(2)
+}
+
+fn current_step(request: &ProviderRequest) -> usize {
+    request
+        .contents
+        .iter()
+        .filter(|c| c.role.as_deref() == Some("model"))
+        .count()
+        + 1
+}
+
+fn mock_response(request: &ProviderRequest) -> ProviderResponse {
+    let step = current_step(request);
+    println!("step: {}", step);
+    let total = mock_steps_count();
+    let is_last = step >= total;
+
+    log::info!(
+        "[Mock LLM client] step={}/{}. Returning {}",
+        step,
+        total,
+        if is_last {
+            "submit_identification"
+        } else {
+            "get_full_spans"
+        }
+    );
+
+    let function_call = if is_last {
         mock_submit_identification()
+    } else {
+        mock_get_full_spans()
     };
 
     ProviderResponse {
@@ -96,10 +131,10 @@ impl LanguageModelClient for MockProviderClient {
     async fn generate_content(
         &self,
         _model: &str,
-        _request: &ProviderRequest,
+        request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
         log::info!("[Mock LLM client] generate_content called");
-        Ok(mock_response())
+        Ok(mock_response(request))
     }
 
     async fn create_batch(
@@ -113,7 +148,9 @@ impl LanguageModelClient for MockProviderClient {
             .as_deref()
         {
             Some("resource_exhausted") => {
-                log::info!("[Mock LLM client] create_batch called. Returning 429 resource exhausted");
+                log::info!(
+                    "[Mock LLM client] create_batch called. Returning 429 resource exhausted"
+                );
                 return Err(ProviderError::ApiError {
                     status_code: 429,
                     message: "Mock: resource exhausted".to_string(),
@@ -183,7 +220,7 @@ impl LanguageModelClient for MockProviderClient {
             .requests
             .iter()
             .map(|item| ProviderInlineResponse {
-                response: Some(mock_response()),
+                response: Some(mock_response(&item.request)),
                 error: None,
                 metadata: item.metadata.clone(),
             })
