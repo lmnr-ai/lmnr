@@ -107,7 +107,7 @@ function SignalContent() {
             </TabsList>
           </SignalOverviewTooltip>
           {!isFreeTier && (
-            <Button icon="edit" variant="secondary" onClick={() => setIsSheetOpen(true)}>
+            <Button icon="edit" onClick={() => setIsSheetOpen(true)}>
               Edit Signal
             </Button>
           )}

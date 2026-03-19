@@ -152,7 +152,7 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
         <Plus className="w-3.5 h-3.5 mr-1" />
         Add condition
       </Button>
-      <div className="pt-1 border-t">
+      <div className="pt-2 border-t">
         <Controller
           name={`triggers.${triggerIndex}.mode`}
           control={control}
@@ -168,7 +168,11 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
                   <SelectItem value="1">Realtime</SelectItem>
                 </SelectContent>
               </Select>
-              {mode === 1 && <span className="text-xs text-muted-foreground">Each run billed as 2 signal runs</span>}
+              <span className="text-xs text-muted-foreground">
+                {mode === 1
+                  ? "* Results in minutes, but each run is billed as 2 signal runs."
+                  : "* Processing may take 1–36 hours. Recommended for cost optimization."}
+              </span>
             </div>
           )}
         />
