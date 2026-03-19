@@ -13,10 +13,8 @@ import { type SignalRunRow } from "@/lib/actions/signal-runs";
 
 export const getSignalRunsColumns = ({
   onJobNav,
-  onTriggerNav,
 }: {
   onJobNav: (row: Row<SignalRunRow>) => void;
-  onTriggerNav: (row: Row<SignalRunRow>) => void;
 }): ColumnDef<SignalRunRow>[] => [
   {
     accessorKey: "runId",
@@ -56,11 +54,7 @@ export const getSignalRunsColumns = ({
       }
 
       return (
-        <Badge
-          onClick={() => onTriggerNav(row.row)}
-          className="rounded-3xl mr-1 hover:underline cursor-pointer"
-          variant="outline"
-        >
+        <Badge className="rounded-3xl mr-1" variant="outline">
           Trigger
         </Badge>
       );

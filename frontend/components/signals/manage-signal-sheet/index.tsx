@@ -2,7 +2,7 @@
 
 import { Loader2, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useState } from "react";
+import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
 import { FormProvider, useForm, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 import SignalFormFields from "./signal-form-fields";
 import TestPanel from "./test-panel";
-import { getDefaultValues, type ManageSignalForm } from "./types";
+import { getDefaultValues, type ManageSignalForm, type TriggerFormItem } from "./types";
 import useSubmitHandler from "./use-submit-handler";
 import useTestExecution from "./use-test-execution";
 
@@ -43,11 +43,13 @@ function DrawerContent({
   onSuccess,
   showTest,
   setShowTest,
+  previousTriggerIds,
 }: {
   setOpen: (open: boolean) => void;
   onSuccess?: (signal: ManageSignalForm) => Promise<void>;
   showTest: boolean;
   setShowTest: (show: boolean) => void;
+  previousTriggerIds: string[];
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTrace, setSelectedTrace] = useState<TraceRow | null>(null);
@@ -60,9 +62,13 @@ function DrawerContent({
     reset,
     watch,
     getValues,
+    setValue,
     formState: { isValid },
   } = useFormContext<ManageSignalForm>();
   const id = watch("id");
+
+  const setFormId = useCallback((newId: string) => setValue("id", newId), [setValue]);
+  const setFormTriggers = useCallback((triggers: TriggerFormItem[]) => setValue("triggers", triggers), [setValue]);
 
   const submit = useSubmitHandler({
     projectId: String(projectId),
@@ -71,6 +77,9 @@ function DrawerContent({
     reset,
     onSuccess,
     setIsLoading,
+    previousTriggerIds,
+    setFormId,
+    setFormTriggers,
   });
 
   const handleTestComplete = useCallback(() => {
@@ -146,6 +155,11 @@ export default function ManageSignalSheet({
   const { projectId } = useParams();
   const [showTest, setShowTest] = useState(false);
 
+  const previousTriggerIds = useMemo(
+    () => (initialValues?.triggers ?? []).filter((t) => t.id).map((t) => t.id!),
+    [initialValues]
+  );
+
   const convertToFormValues = useCallback(
     (values: ManageSignalForm | undefined): ManageSignalForm => {
       if (!values) return getDefaultValues(String(projectId));
@@ -159,17 +173,22 @@ export default function ManageSignalSheet({
     mode: "onChange",
   });
 
+  // Reset form with latest data whenever the sheet opens
+  useEffect(() => {
+    if (open) {
+      form.reset(convertToFormValues(initialValues));
+    }
+  }, [open, form, initialValues, convertToFormValues]);
+
   const onOpenChange = useCallback(
     (nextOpen: boolean) => {
       setOpen(nextOpen);
-      if (nextOpen) {
-        form.reset(convertToFormValues(initialValues));
-      } else {
+      if (!nextOpen) {
         form.reset(getDefaultValues(String(projectId)));
         setShowTest(false);
       }
     },
-    [form, initialValues, projectId, setOpen, convertToFormValues]
+    [form, projectId, setOpen]
   );
 
   return (
@@ -183,7 +202,13 @@ export default function ManageSignalSheet({
             showTest ? "w-[72vw]" : "w-[45vw]"
           )}
         >
-          <DrawerContent setOpen={setOpen} onSuccess={onSuccess} showTest={showTest} setShowTest={setShowTest} />
+          <DrawerContent
+            setOpen={setOpen}
+            onSuccess={onSuccess}
+            showTest={showTest}
+            setShowTest={setShowTest}
+            previousTriggerIds={previousTriggerIds}
+          />
         </SheetContent>
       </Sheet>
     </FormProvider>
