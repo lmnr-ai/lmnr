@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useMemo } from "react";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import Header from "@/components/traces/trace-view/header";
-import { useSpanId } from "@/components/traces/trace-view/hooks/use-span-id";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
@@ -39,15 +38,16 @@ interface TraceViewProps {
   onClose: () => void;
 }
 
-const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: TraceViewProps) => {
+const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
-  const [spanId, setSpanId] = useSpanId();
 
   // Data states
   const {
+    selectedSpan,
+    setSelectedSpan,
     spans,
     setSpans,
     trace,
@@ -60,8 +60,9 @@ const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: Tr
     setTraceError,
     spansError,
     setSpansError,
-    selectSpanById,
   } = useTraceViewStore((state) => ({
+    selectedSpan: state.selectedSpan,
+    setSelectedSpan: state.setSelectedSpan,
     spans: state.spans,
     setSpans: state.setSpans,
     trace: state.trace,
@@ -74,7 +75,6 @@ const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: Tr
     setTraceError: state.setTraceError,
     spansError: state.spansError,
     setSpansError: state.setSpansError,
-    selectSpanById: state.selectSpanById,
   }));
 
   // UI states
@@ -109,9 +109,6 @@ const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: Tr
     spanPath: state.spanPath,
     setSpanPath: state.setSpanPath,
   }));
-
-  // Derive selectedSpan from spans + spanId query param
-  const selectedSpan = useMemo(() => spans.find((s) => s.spanId === spanId), [spans, spanId]);
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const filteredSpansForStats = useMemo(() => {
@@ -169,18 +166,22 @@ const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: Tr
     (span?: TraceViewSpan) => {
       if (!span) return;
 
-      // Update spanId in URL via nuqs
-      setSpanId(span.spanId);
-
-      // Uncollapse ancestors and set span path in store
-      selectSpanById(span.spanId);
+      setSelectedSpan(span);
 
       const spanPathAttr = span.attributes?.["lmnr.span.path"];
       if (spanPathAttr && Array.isArray(spanPathAttr)) {
         setSpanPath(spanPathAttr);
       }
+
+      // Update URL for bookmarkability
+      const currentSpanId = searchParams.get("spanId");
+      if (currentSpanId !== span.spanId) {
+        const params = new URLSearchParams(searchParams);
+        params.set("spanId", span.spanId);
+        router.replace(`${pathName}?${params.toString()}`);
+      }
     },
-    [setSpanId, selectSpanById, setSpanPath]
+    [setSelectedSpan, searchParams, setSpanPath, router, pathName]
   );
 
   const fetchSpans = useCallback(
@@ -229,12 +230,11 @@ const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: Tr
           setBrowserSession(true);
         }
 
-        // Set initial span selection via URL if no spanId currently set
-        if (fetchedSpans.length > 0 && !spanId) {
-          const initialSpan = findSpanToSelect(fetchedSpans, propsSpanId, searchParams, spanPath);
-          if (initialSpan) {
-            setSpanId(initialSpan.spanId);
-          }
+        if (fetchedSpans.length > 0) {
+          const selectedSpan = findSpanToSelect(fetchedSpans, spanId, searchParams, spanPath);
+          setSelectedSpan(selectedSpan);
+        } else {
+          setSelectedSpan(undefined);
         }
       } catch (e) {
         const errorMessage = e instanceof Error ? e.message : "Failed to load spans";
@@ -255,11 +255,7 @@ const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: Tr
       hasBrowserSession,
       setHasBrowserSession,
       setBrowserSession,
-      spanId,
-      propsSpanId,
-      searchParams,
-      spanPath,
-      setSpanId,
+      setSelectedSpan,
     ]
   );
 
@@ -307,6 +303,15 @@ const PureTraceView = ({ traceId, spanId: propsSpanId, onClose, propsTrace }: Tr
     }),
     [setBrowserSession, setSpans, setTrace]
   );
+
+  useEffect(() => {
+    if (!isSpansLoading) {
+      const span = spans?.find((s) => s.spanId === spanId);
+      if (spanId && span) {
+        setSelectedSpan(span);
+      }
+    }
+  }, [isSpansLoading, setSelectedSpan, spanId, spans]);
 
   useEffect(() => {
     handleFetchTrace();

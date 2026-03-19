@@ -1,6 +1,6 @@
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 
-import { useSpanId } from "@/components/traces/trace-view/hooks/use-span-id";
 import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { cn } from "@/lib/utils.ts";
 
@@ -11,7 +11,9 @@ interface MiniTreeProps {
 }
 
 export function MiniTree({ span }: MiniTreeProps) {
-  const [, setSpanId] = useSpanId();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathName = usePathname();
 
   const { getSpanBranch, getSpanNameInfo, selectSpanById } = useTraceViewBaseStore((state) => ({
     getSpanBranch: state.getSpanBranch,
@@ -31,10 +33,13 @@ export function MiniTree({ span }: MiniTreeProps) {
   const ROW_HEIGHT = 22;
   const DEPTH_INDENT = 24;
 
-  const handleSpanClick = (clickedSpanId: string) => (e: React.MouseEvent) => {
+  const handleSpanClick = (spanId: string) => (e: React.MouseEvent) => {
     e.stopPropagation();
-    selectSpanById(clickedSpanId);
-    setSpanId(clickedSpanId);
+    selectSpanById(spanId);
+
+    const params = new URLSearchParams(searchParams);
+    params.set("spanId", spanId);
+    router.push(`${pathName}?${params.toString()}`);
   };
 
   return (

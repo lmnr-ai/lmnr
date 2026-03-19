@@ -94,7 +94,6 @@ export interface BaseTraceViewState {
   spanPath: string[] | null;
   isSpansLoading: boolean;
   spansError?: string;
-  /** @deprecated Use useSpanId() nuqs hook instead. Kept for debugger session backward compat. */
   selectedSpan?: TraceViewSpan;
   browserSession: boolean;
   langGraph: boolean;
@@ -116,7 +115,6 @@ export interface BaseTraceViewActions {
   setSpansError: (error?: string) => void;
   setIsTraceLoading: (isTraceLoading: boolean) => void;
   setIsSpansLoading: (isSpansLoading: boolean) => void;
-  /** @deprecated Use useSpanId() nuqs hook instead. Kept for debugger session backward compat. */
   setSelectedSpan: (span?: TraceViewSpan) => void;
   selectSpanById: (spanId: string) => void;
   getSpanById: (spanId: string) => TraceViewSpan | undefined;
@@ -265,6 +263,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
           );
         }
 
+        set({ selectedSpan: span } as Partial<T>);
         const spanPath = span.attributes?.["lmnr.span.path"];
         if (spanPath && Array.isArray(spanPath)) {
           set({ spanPath } as Partial<T>);

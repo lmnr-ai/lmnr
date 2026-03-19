@@ -3,7 +3,6 @@ import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-import { useSpanId } from "@/components/traces/trace-view/hooks/use-span-id";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -21,17 +20,15 @@ interface TreeProps {
 const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState } = useScrollContext();
-  const [spanId] = useSpanId();
-
-  const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds } = useTraceViewBaseStore(
-    (state) => ({
+  const { getTreeSpans, spans, trace, isSpansLoading, condensedTimelineVisibleSpanIds, selectedSpan } =
+    useTraceViewBaseStore((state) => ({
       getTreeSpans: state.getTreeSpans,
       spans: state.spans,
       trace: state.trace,
       isSpansLoading: state.isSpansLoading,
       condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    })
-  );
+      selectedSpan: state.selectedSpan,
+    }));
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
 
@@ -45,10 +42,10 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
   });
 
   const selectedSpanIndex = useMemo(() => {
-    if (isNil(spanId)) return null;
-    const selectedIndex = treeSpans.findIndex((item) => item.span.spanId === spanId);
+    if (isNil(selectedSpan)) return null;
+    const selectedIndex = treeSpans.findIndex((item) => item.span.spanId === selectedSpan.spanId);
     return selectedIndex;
-  }, [spanId, treeSpans]);
+  }, [selectedSpan?.spanId, treeSpans]);
 
   // Scroll to selected span when selection changes
   useEffect(() => {

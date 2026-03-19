@@ -12,7 +12,6 @@ import SessionPlayer from "@/components/shared/traces/session-player";
 import { SpanView } from "@/components/shared/traces/span-view";
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import CondensedTimeline from "@/components/traces/trace-view/condensed-timeline";
-import { useSpanId } from "@/components/traces/trace-view/hooks/use-span-id";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import List from "@/components/traces/trace-view/list";
@@ -41,12 +40,13 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathName = usePathname();
-  const [spanId, setSpanId] = useSpanId();
 
   const {
     tab,
     setSpans,
     setTrace,
+    selectedSpan,
+    setSelectedSpan,
     browserSession,
     setBrowserSession,
     setLangGraph,
@@ -56,11 +56,12 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     setHasBrowserSession,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
-    selectSpanById,
   } = useTraceViewStore((state) => ({
     tab: state.tab,
     setSpans: state.setSpans,
     setTrace: state.setTrace,
+    selectedSpan: state.selectedSpan,
+    setSelectedSpan: state.setSelectedSpan,
     browserSession: state.browserSession,
     setBrowserSession: state.setBrowserSession,
     setLangGraph: state.setLangGraph,
@@ -70,18 +71,12 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     setHasBrowserSession: state.setHasBrowserSession,
     condensedTimelineEnabled: state.condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    selectSpanById: state.selectSpanById,
   }));
-
-  const storeSpans = useTraceViewStore((state) => state.spans);
 
   const { treeWidth, setTreeWidth } = useTraceViewStore((state) => ({
     treeWidth: state.treeWidth,
     setTreeWidth: state.setTreeWidth,
   }));
-
-  // Derive selectedSpan from store spans + spanId query param
-  const selectedSpan = useMemo(() => storeSpans.find((s) => s.spanId === spanId), [storeSpans, spanId]);
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const filteredSpansForStats = useMemo(() => {
@@ -96,11 +91,13 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
   const handleSpanSelect = useCallback(
     (span?: TraceViewSpan) => {
       if (span) {
-        setSpanId(span.spanId);
-        selectSpanById(span.spanId);
+        const params = new URLSearchParams(searchParams);
+        params.set("spanId", span.spanId);
+        router.push(`${pathName}?${params.toString()}`);
       }
+      setSelectedSpan(span);
     },
-    [setSpanId, selectSpanById]
+    [pathName, router, searchParams, setSelectedSpan]
   );
 
   const handleResizeTreeView = useCallback(
@@ -137,11 +134,11 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     setSpans(enrichedSpans);
     setTrace(trace);
 
-    const urlSpanId = searchParams.get("spanId");
-    const span = spans?.find((s) => s.spanId === urlSpanId) || spans?.[0];
+    const spanId = searchParams.get("spanId");
+    const span = spans?.find((s) => s.spanId === spanId) || spans?.[0];
 
     if (span) {
-      setSpanId(span.spanId);
+      setSelectedSpan({ ...span, collapsed: false });
     }
   }, []);
 

@@ -7,7 +7,6 @@ import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugge
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
-import { useSpanId } from "@/components/traces/trace-view/hooks/use-span-id";
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import { MiniTree } from "@/components/traces/trace-view/list/mini-tree";
 import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils";
@@ -29,9 +28,8 @@ interface ListItemProps {
 }
 
 const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
-  const [spanIdParam] = useSpanId();
-
-  const { spans } = useTraceViewBaseStore((state) => ({
+  const { selectedSpan, spans } = useTraceViewBaseStore((state) => ({
+    selectedSpan: state.selectedSpan,
     spans: state.spans,
   }));
 
@@ -67,7 +65,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
     [span.spanType, span.model, span.name]
   );
 
-  const isSelected = spanIdParam === span.spanId;
+  const isSelected = selectedSpan?.spanId === span.spanId;
 
   const outerClasses = cn(
     "flex flex-row group/message cursor-pointer transition-all border-l-4",
