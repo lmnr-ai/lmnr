@@ -88,6 +88,7 @@ function TriggerFilterRow({
       <Controller
         name={`triggers.${triggerIndex}.filters.${filterIndex}.value`}
         control={control}
+        rules={{ required: "Value is required" }}
         render={({ field }) =>
           dataType === "enum" && column && "options" in column ? (
             <Select value={field.value as string} onValueChange={field.onChange}>
