@@ -13,10 +13,10 @@ import {
   uniqueIndex,
   boolean,
   integer,
+  smallint,
   real,
   vector,
   primaryKey,
-  smallint,
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -181,14 +181,16 @@ export const tracesAgentMessages = pgTable(
 
 export const userSubscriptionTiers = pgTable("user_subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-    name: "user_subscription_tiers_id_seq",
-    startWith: 1,
-    increment: 1,
-    minValue: 1,
-    maxValue: 9223372036854775807,
-    cache: 1,
-  }),
+  id: bigint({ mode: "number" })
+    .primaryKey()
+    .generatedByDefaultAsIdentity({
+      name: "user_subscription_tiers_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   stripeProductId: text("stripe_product_id").default("").notNull(),
@@ -1163,14 +1165,16 @@ export const workspaceAddons = pgTable(
 
 export const subscriptionTiers = pgTable("subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-    name: "subscription_tiers_id_seq",
-    startWith: 1,
-    increment: 1,
-    minValue: 1,
-    maxValue: 9223372036854775807,
-    cache: 1,
-  }),
+  id: bigint({ mode: "number" })
+    .primaryKey()
+    .generatedByDefaultAsIdentity({
+      name: "subscription_tiers_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -1187,35 +1191,6 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   signalRuns: bigint("signal_runs", { mode: "number" }).notNull(),
   extraSignalRunPrice: doublePrecision("extra_signal_run_price").default(0).notNull(),
 });
-
-export const playgrounds = pgTable(
-  "playgrounds",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    name: text().notNull(),
-    projectId: uuid("project_id").notNull(),
-    promptMessages: jsonb("prompt_messages")
-      .default([{ role: "user", content: "" }])
-      .notNull(),
-    modelId: text("model_id").default("").notNull(),
-    outputSchema: text("output_schema"),
-    maxTokens: integer("max_tokens").default(1024),
-    temperature: real().default(sql`'1'`),
-    providerOptions: jsonb("provider_options").default({}),
-    toolChoice: jsonb("tool_choice").default("none"),
-    tools: jsonb().default({}),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "playgrounds_project_id_fkey",
-    })
-      .onUpdate("cascade")
-      .onDelete("cascade"),
-  ]
-);
 
 export const signalJobs = pgTable(
   "signal_jobs",
@@ -1243,6 +1218,35 @@ export const signalJobs = pgTable(
       foreignColumns: [signals.id],
       name: "signal_jobs_signal_id_fkey",
     }).onDelete("cascade"),
+  ]
+);
+
+export const playgrounds = pgTable(
+  "playgrounds",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    name: text().notNull(),
+    projectId: uuid("project_id").notNull(),
+    promptMessages: jsonb("prompt_messages")
+      .default([{ role: "user", content: "" }])
+      .notNull(),
+    modelId: text("model_id").default("").notNull(),
+    outputSchema: text("output_schema"),
+    maxTokens: integer("max_tokens").default(1024),
+    temperature: real().default(sql`'1'`),
+    providerOptions: jsonb("provider_options").default({}),
+    toolChoice: jsonb("tool_choice").default("none"),
+    tools: jsonb().default({}),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "playgrounds_project_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
   ]
 );
 

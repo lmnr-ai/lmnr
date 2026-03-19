@@ -44,8 +44,8 @@ import {
   sqlTemplates,
   eventClusterConfigs,
   workspaceAddons,
-  playgrounds,
   signalJobs,
+  playgrounds,
   eventDefinitions,
   dashboardCharts,
   sharedPayloads,
@@ -110,8 +110,8 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   alertTargets: many(alertTargets),
   sqlTemplates: many(sqlTemplates),
   eventClusterConfigs: many(eventClusterConfigs),
-  playgrounds: many(playgrounds),
   signalJobs: many(signalJobs),
+  playgrounds: many(playgrounds),
   eventDefinitions: many(eventDefinitions),
   dashboardCharts: many(dashboardCharts),
   sharedPayloads: many(sharedPayloads),
@@ -448,13 +448,6 @@ export const workspaceAddonsRelations = relations(workspaceAddons, ({ one }) => 
   }),
 }));
 
-export const playgroundsRelations = relations(playgrounds, ({ one }) => ({
-  project: one(projects, {
-    fields: [playgrounds.projectId],
-    references: [projects.id],
-  }),
-}));
-
 export const signalJobsRelations = relations(signalJobs, ({ one }) => ({
   project: one(projects, {
     fields: [signalJobs.projectId],
@@ -463,6 +456,13 @@ export const signalJobsRelations = relations(signalJobs, ({ one }) => ({
   signal: one(signals, {
     fields: [signalJobs.signalId],
     references: [signals.id],
+  }),
+}));
+
+export const playgroundsRelations = relations(playgrounds, ({ one }) => ({
+  project: one(projects, {
+    fields: [playgrounds.projectId],
+    references: [projects.id],
   }),
 }));
 
