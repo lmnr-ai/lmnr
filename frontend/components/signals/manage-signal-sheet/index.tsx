@@ -2,7 +2,7 @@
 
 import { Loader2, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type PropsWithChildren, useCallback, useMemo, useState } from "react";
+import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
 import { FormProvider, useForm, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -173,17 +173,22 @@ export default function ManageSignalSheet({
     mode: "onChange",
   });
 
+  // Reset form with latest data whenever the sheet opens
+  useEffect(() => {
+    if (open) {
+      form.reset(convertToFormValues(initialValues));
+    }
+  }, [open, form, initialValues, convertToFormValues]);
+
   const onOpenChange = useCallback(
     (nextOpen: boolean) => {
       setOpen(nextOpen);
-      if (nextOpen) {
-        form.reset(convertToFormValues(initialValues));
-      } else {
+      if (!nextOpen) {
         form.reset(getDefaultValues(String(projectId)));
         setShowTest(false);
       }
     },
-    [form, initialValues, projectId, setOpen, convertToFormValues]
+    [form, projectId, setOpen]
   );
 
   return (
