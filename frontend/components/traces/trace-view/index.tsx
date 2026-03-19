@@ -14,12 +14,12 @@ import TraceViewStoreProvider, {
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
-import { useTraceAverages } from "@/components/traces/trace-view/use-trace-averages";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
+import { useAverageCost } from "@/lib/hooks/use-average-cost";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
@@ -46,7 +46,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const pathName = usePathname();
   const { projectId } = useParams();
   const [chatOpen, setChatOpen] = useState(false);
-  const averages = useTraceAverages(projectId as string);
+  const averages = useAverageCost(projectId as string, "traces");
 
   // Data states
   const {

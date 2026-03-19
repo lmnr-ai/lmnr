@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
-import { type SpanAverageStats } from "@/lib/actions/trace/averages";
+import { type AverageCostStats } from "@/lib/actions/trace/averages";
 
-export function useSpanAverages(projectId: string | undefined) {
-  const [averages, setAverages] = useState<SpanAverageStats | null>(null);
+export function useAverageCost(projectId: string | undefined, endpoint: "traces" | "spans") {
+  const [averages, setAverages] = useState<AverageCostStats | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -13,14 +13,14 @@ export function useSpanAverages(projectId: string | undefined) {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    fetch(`/api/projects/${projectId}/spans/averages`, {
+    fetch(`/api/projects/${projectId}/${endpoint}/averages`, {
       signal: controller.signal,
     })
       .then((response) => {
         if (response.ok) return response.json();
         return null;
       })
-      .then((data: SpanAverageStats | null) => {
+      .then((data: AverageCostStats | null) => {
         if (data && !controller.signal.aborted) {
           setAverages(data);
         }
@@ -32,7 +32,7 @@ export function useSpanAverages(projectId: string | undefined) {
     return () => {
       controller.abort();
     };
-  }, [projectId]);
+  }, [projectId, endpoint]);
 
   return averages;
 }

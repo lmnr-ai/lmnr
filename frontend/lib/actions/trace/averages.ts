@@ -2,16 +2,16 @@ import { z } from "zod/v4";
 
 import { executeQuery } from "@/lib/actions/sql";
 
-export const GetTraceAveragesSchema = z.object({
+export const GetAverageCostSchema = z.object({
   projectId: z.string(),
 });
 
-export type TraceAverageStats = {
+export type AverageCostStats = {
   avgCost: number;
 };
 
-export async function getTraceAverages(input: z.infer<typeof GetTraceAveragesSchema>): Promise<TraceAverageStats> {
-  const { projectId } = GetTraceAveragesSchema.parse(input);
+export async function getTraceAverages(input: z.infer<typeof GetAverageCostSchema>): Promise<AverageCostStats> {
+  const { projectId } = GetAverageCostSchema.parse(input);
 
   const results = await executeQuery<{ avgCost: number }>({
     query: `
@@ -28,16 +28,8 @@ export async function getTraceAverages(input: z.infer<typeof GetTraceAveragesSch
   };
 }
 
-export const GetSpanAveragesSchema = z.object({
-  projectId: z.string(),
-});
-
-export type SpanAverageStats = {
-  avgCost: number;
-};
-
-export async function getSpanAverages(input: z.infer<typeof GetSpanAveragesSchema>): Promise<SpanAverageStats> {
-  const { projectId } = GetSpanAveragesSchema.parse(input);
+export async function getSpanAverages(input: z.infer<typeof GetAverageCostSchema>): Promise<AverageCostStats> {
+  const { projectId } = GetAverageCostSchema.parse(input);
 
   const results = await executeQuery<{ avgCost: number }>({
     query: `

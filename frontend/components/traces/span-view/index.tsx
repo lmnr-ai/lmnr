@@ -10,10 +10,10 @@ import SpanViewSearchBar from "@/components/traces/span-view/search-bar.tsx";
 import SpanContent from "@/components/traces/span-view/span-content";
 import { SpanSearchProvider, useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
-import { useSpanAverages } from "@/components/traces/span-view/use-span-averages";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAverageCost } from "@/lib/hooks/use-average-cost";
 import { type Span, SpanType } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
@@ -108,7 +108,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     isLoading,
     error,
   } = useSWR<Span>(`/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`, swrFetcher);
-  const averages = useSpanAverages(projectId as string);
+  const averages = useAverageCost(projectId as string, "spans");
 
   const searchRef = useRef<HTMLInputElement>(null);
 
