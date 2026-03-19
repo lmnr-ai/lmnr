@@ -6,14 +6,12 @@ import { z } from "zod/v4";
 
 import { stripe } from "@/lib/actions/checkout/stripe";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
-import { getWorkspaceUsage } from "@/lib/actions/workspace";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { db } from "@/lib/db/drizzle";
 import { subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
 import {
   type CancellationReason,
-  METER_EVENT_NAMES,
   type PaidTier,
   type SubscriptionDetails,
   TIER_CONFIG,
@@ -212,14 +210,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   const newTierConfig = TIER_CONFIG[newTier];
   const s = stripe();
 
-  const usage = await getWorkspaceUsage(workspaceId);
-
-  const newBytesOverage = Math.max(0, usage.totalBytesIngested - newTierConfig.includedBytes);
-  const newSignalRunsOverage = Math.max(0, usage.totalSignalRuns - newTierConfig.includedSignalRuns);
-
   const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId);
-
-  const stripeCustomerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 
   const newPrices = await s.prices.list({
     lookup_keys: [
@@ -266,27 +257,6 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
     ],
     proration_behavior: "always_invoice",
   });
-
-  const timestamp = Math.floor(Date.now() / 1000);
-
-  await Promise.all([
-    s.billing.meterEvents.create({
-      event_name: METER_EVENT_NAMES.overageBytes.eventName,
-      timestamp,
-      payload: {
-        stripe_customer_id: stripeCustomerId,
-        [METER_EVENT_NAMES.overageBytes.payloadKey]: String(newBytesOverage),
-      },
-    }),
-    s.billing.meterEvents.create({
-      event_name: METER_EVENT_NAMES.overageSignalRuns.eventName,
-      timestamp,
-      payload: {
-        stripe_customer_id: stripeCustomerId,
-        [METER_EVENT_NAMES.overageSignalRuns.payloadKey]: String(newSignalRunsOverage),
-      },
-    }),
-  ]);
 
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
 };

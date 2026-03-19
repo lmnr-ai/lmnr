@@ -29,7 +29,7 @@ export async function getUserSubscriptionInfo(
   return existingStripeCustomers.length > 0 ? existingStripeCustomers[0].user_subscription_info : undefined;
 }
 
-export const manageWorkspaceSubscriptionEvent = async ({
+const manageWorkspaceSubscriptionEvent = async ({
   stripeCustomerId,
   productId,
   subscriptionId,
@@ -96,6 +96,59 @@ type SubscriptionEvent =
   | Stripe.CustomerSubscriptionDeletedEvent
   | Stripe.CustomerSubscriptionCreatedEvent;
 
+const adjustMeterAllowances = async (
+  items: Stripe.SubscriptionItem[],
+  customer: string | Stripe.Customer | Stripe.DeletedCustomer | null,
+  workspaceId: string | undefined,
+  multiplier: 1 | -1
+) => {
+  if (!customer || !workspaceId) return;
+  const customerId = typeof customer === "string" ? customer : customer.id;
+
+  const s = stripe();
+
+  for (const item of items) {
+    const lookupKey = item.price?.lookup_key;
+    if (!lookupKey) continue;
+    const meterEventName = USAGE_BASED_LOOKUP_KEY_TO_AGG_METER_NAME[lookupKey];
+    if (!meterEventName) continue;
+
+    let includedAmount = 0;
+    let cacheKey = null;
+    let payloadKey = "megabytes";
+
+    for (const tier of Object.values(TIER_CONFIG)) {
+      if (tier.overageMegabytesLookupKey === lookupKey) {
+        includedAmount = tier.includedBytes / 1024 / 1024;
+        cacheKey = `${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`;
+        payloadKey = "megabytes";
+        break;
+      }
+      if (tier.overageSignalRunsLookupKey === lookupKey) {
+        includedAmount = tier.includedSignalRuns;
+        cacheKey = `${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`;
+        payloadKey = "signal_runs";
+        break;
+      }
+    }
+
+    if (includedAmount > 0) {
+      await s.v2.billing.meterEvents.create({
+        event_name: meterEventName,
+        payload: {
+          stripe_customer_id: customerId,
+          [payloadKey]: String(includedAmount * multiplier),
+        },
+        identifier: `allowance-adj-${payloadKey}-${workspaceId}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      });
+
+      if (cacheKey) {
+        await cache.remove(cacheKey);
+      }
+    }
+  }
+};
+
 export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel: boolean = false) => {
   const subscription = event.data.object;
   const status = subscription.status;
@@ -106,6 +159,21 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
     console.log(`Subscription ${subscription.id} status changed to`, status);
     return;
   }
+
+  if (event.type === "customer.subscription.created") {
+    await adjustMeterAllowances(subscription.items.data, subscription.customer, subscription.metadata?.workspaceId, -1);
+  } else if (event.type === "customer.subscription.updated") {
+    const previousAttributes = event.data.previous_attributes;
+    if (previousAttributes?.items?.data) {
+      const oldItems = previousAttributes.items.data;
+      const newItems = subscription.items.data;
+      await adjustMeterAllowances(oldItems, subscription.customer, subscription.metadata?.workspaceId, 1);
+      await adjustMeterAllowances(newItems, subscription.customer, subscription.metadata?.workspaceId, -1);
+    }
+  } else if (event.type === "customer.subscription.deleted" || cancel) {
+    await adjustMeterAllowances(subscription.items.data, subscription.customer, subscription.metadata?.workspaceId, 1);
+  }
+
   // A tier switch is performed in two separate Stripe update calls, so this handler may fire
   // in an intermediate state (e.g. old flat price + new metered items). Only use non-metered
   // items for tier resolution: metered overage prices are on different products that have no
@@ -240,19 +308,16 @@ export const handleInvoiceFinalized = async (invoice: Stripe.Invoice) => {
     const meterEventName = USAGE_BASED_LOOKUP_KEY_TO_AGG_METER_NAME[lookupKey];
     if (!meterEventName) continue;
 
-    let includedAmount = 0;
     let cacheKey = null;
     let payloadKey = "megabytes";
 
     for (const tier of Object.values(TIER_CONFIG)) {
       if (tier.overageMegabytesLookupKey === lookupKey) {
-        includedAmount = tier.includedBytes / 1024 / 1024;
         cacheKey = `${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`;
         payloadKey = "megabytes";
         break;
       }
       if (tier.overageSignalRunsLookupKey === lookupKey) {
-        includedAmount = tier.includedSignalRuns;
         cacheKey = `${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`;
         payloadKey = "signal_runs";
         break;
@@ -260,7 +325,7 @@ export const handleInvoiceFinalized = async (invoice: Stripe.Invoice) => {
     }
 
     const quantity = line.quantity ?? 0;
-    const negativeUsage = -(quantity + includedAmount);
+    const negativeUsage = -quantity;
 
     await s.v2.billing.meterEvents.create({
       event_name: meterEventName,
