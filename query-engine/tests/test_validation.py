@@ -623,6 +623,16 @@ class TestUnqualifiedColumnValidation:
         result = query_validator.validate_and_secure_query(query, sample_project_id)
         assert "cnt" in result
 
+    def test_accept_unqualified_subquery_columns(self, query_validator: QueryValidator, sample_project_id: str):
+        """Unqualified columns from subquery results should pass (opaque schema)."""
+        query = """
+        SELECT cnt FROM (
+            SELECT COUNT(*) AS cnt FROM spans
+        ) sub
+        """
+        result = query_validator.validate_and_secure_query(query, sample_project_id)
+        assert "cnt" in result
+
     def test_accept_select_star(self, query_validator: QueryValidator, sample_project_id: str):
         """SELECT * should continue to work."""
         result = query_validator.validate_and_secure_query(

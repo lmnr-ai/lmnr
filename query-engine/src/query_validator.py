@@ -531,23 +531,39 @@ class QueryValidator:
         Uses ``table.name`` (not ``alias_or_name``) so that aliased tables like
         ``FROM spans s`` resolve to ``spans`` for registry lookups, consistent
         with how the rest of the validator resolves table names.
+
+        Only collects **direct** table sources — does not recurse into
+        subqueries.  Subquery sources are represented by a sentinel empty
+        string so that the caller's "unknown table" guard triggers correctly.
         """
         tables = []
         from_clause = select.args.get("from")
         if from_clause:
-            for table in from_clause.find_all(sqlglot.exp.Table):
-                name = table.name
-                if name:
-                    tables.append(name.lower())
+            self._collect_direct_tables(from_clause, tables)
 
         # Also check JOINs
         for join in select.args.get("joins", []):
-            for table in join.find_all(sqlglot.exp.Table):
-                name = table.name
-                if name:
-                    tables.append(name.lower())
+            self._collect_direct_tables(join, tables)
 
         return tables
+
+    @staticmethod
+    def _collect_direct_tables(
+        node: sqlglot.exp.Expression, out: list[str]
+    ) -> None:
+        """Walk *node* for Table references without descending into Subquery/Select nodes."""
+        for child in node.iter_expressions():
+            if isinstance(child, (sqlglot.exp.Subquery, sqlglot.exp.Select)):
+                # Subquery source — use an empty sentinel so the caller
+                # recognises an opaque source and skips validation.
+                out.append("")
+            elif isinstance(child, sqlglot.exp.Table):
+                name = child.name
+                if name:
+                    out.append(name.lower())
+            else:
+                # Recurse into non-subquery, non-table children (e.g. Paren)
+                QueryValidator._collect_direct_tables(child, out)
 
     def _is_cte_reference(
         self, query: sqlglot.exp.Expression, table: sqlglot.exp.Table
