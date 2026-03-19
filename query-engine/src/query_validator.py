@@ -314,15 +314,24 @@ class QueryValidator:
         "file",
         # Network / remote table access
         "url",
+        "urlcluster",
         "remote",
         "remotesecure",
         # S3 / cloud storage
         "s3",
         "s3cluster",
+        "s3queue",
         "gcs",
         "oss",
         "cosn",
         "hdfs",
+        # External data lake access
+        "deltalake",
+        "iceberg",
+        "hudi",
+        "hive",
+        # Table function that reads data
+        "format",
         # Other table functions that can read external data
         "jdbc",
         "odbc",
@@ -351,6 +360,12 @@ class QueryValidator:
         "addresstolinewithinlines",
         "addresstosymbol",
         "demangle",
+        # Server metadata / config disclosure
+        "currentdatabase",
+        "hostname",
+        "version",
+        "uptime",
+        "getmacro",
     }
 
     @staticmethod
@@ -424,6 +439,110 @@ class QueryValidator:
             schema = self.table_registry.get_table_schema(table_name)
             if schema and not schema.is_column_allowed(column_name):
                 raise QueryValidationError(f"Column '{column_name}' does not exist")
+        else:
+            # Unqualified column: resolve against FROM tables in the containing query
+            self._validate_unqualified_column(query, column, column_name)
+
+    def _validate_unqualified_column(
+        self,
+        query: sqlglot.exp.Expression,
+        column: sqlglot.exp.Column,
+        column_name: str,
+    ):
+        """Validate an unqualified column against the tables in the query's FROM clause.
+
+        Skips validation for:
+        - Columns inside aggregate/function expressions (may reference aliases)
+        - Columns that match a SELECT alias in the containing query
+        - Columns in queries that reference CTEs or subqueries (opaque schemas)
+        """
+        # Skip if the column is inside a function call (could be an alias reference)
+        parent = column.parent
+        while parent is not None:
+            if isinstance(parent, (sqlglot.exp.Func, sqlglot.exp.Anonymous)):
+                return
+            if isinstance(parent, sqlglot.exp.Select):
+                break
+            parent = parent.parent
+
+        # Find the innermost SELECT that contains this column
+        containing_select = self._find_containing_select(column)
+        if containing_select is None:
+            return
+
+        # Skip if the column name matches a SELECT alias (e.g. ORDER BY value,
+        # WHERE on an aliased column, GROUP BY alias, etc.)
+        if self._is_select_alias(containing_select, column_name):
+            return
+
+        # Collect tables referenced in the FROM clause of the containing SELECT
+        from_tables = self._get_from_tables(containing_select)
+        if not from_tables:
+            return
+
+        # If any FROM source is a CTE, subquery, or table not in our registry,
+        # skip validation since we can't know what columns it exposes
+        real_tables = []
+        for table_name in from_tables:
+            if self._is_cte_reference(query, sqlglot.exp.Table(this=sqlglot.exp.to_identifier(table_name))):
+                return
+            schema = self.table_registry.get_table_schema(table_name)
+            if schema:
+                real_tables.append(schema)
+            else:
+                # Unknown table source (could be a subquery alias); skip validation
+                return
+
+        if not real_tables:
+            return
+
+        # Check if the column exists in any of the referenced tables
+        for schema in real_tables:
+            if schema.is_column_allowed(column_name):
+                return
+
+        raise QueryValidationError(
+            f"Column '{column_name}' does not exist in any referenced table"
+        )
+
+    @staticmethod
+    def _is_select_alias(select: sqlglot.exp.Select, name: str) -> bool:
+        """Check if ``name`` matches any alias defined in the SELECT clause."""
+        for expr in select.args.get("expressions", []):
+            if isinstance(expr, sqlglot.exp.Alias):
+                if expr.alias and expr.alias.lower() == name.lower():
+                    return True
+        return False
+
+    def _find_containing_select(
+        self, node: sqlglot.exp.Expression
+    ) -> sqlglot.exp.Select | None:
+        """Walk up the AST to find the innermost SELECT containing this node."""
+        current = node.parent
+        while current is not None:
+            if isinstance(current, sqlglot.exp.Select):
+                return current
+            current = current.parent
+        return None
+
+    def _get_from_tables(self, select: sqlglot.exp.Select) -> list[str]:
+        """Extract table names from the FROM clause (including JOINs) of a SELECT."""
+        tables = []
+        from_clause = select.args.get("from")
+        if from_clause:
+            for table in from_clause.find_all(sqlglot.exp.Table):
+                name = table.alias_or_name
+                if name:
+                    tables.append(name.lower())
+
+        # Also check JOINs
+        for join in select.args.get("joins", []):
+            for table in join.find_all(sqlglot.exp.Table):
+                name = table.alias_or_name
+                if name:
+                    tables.append(name.lower())
+
+        return tables
 
     def _is_cte_reference(
         self, query: sqlglot.exp.Expression, table: sqlglot.exp.Table

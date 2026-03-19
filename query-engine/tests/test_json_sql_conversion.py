@@ -367,6 +367,214 @@ class TestRoundTripConversion:
         assert len(result_json["metrics"]) > 0
 
 
+class TestFormatValueEscaping:
+    """Test that _format_value properly escapes single quotes (Fix 1)"""
+
+    def test_format_value_escapes_single_quotes(self):
+        """_format_value("O'Brien") should produce "'O''Brien'"."""
+        from src.json_to_sql import JsonToSqlConverter
+        converter = JsonToSqlConverter()
+        result = converter._format_value("O'Brien")
+        assert result == "'O''Brien'"
+
+    def test_format_value_escapes_multiple_quotes(self):
+        """Multiple single quotes should all be escaped."""
+        from src.json_to_sql import JsonToSqlConverter
+        converter = JsonToSqlConverter()
+        result = converter._format_value("it's a 'test'")
+        assert result == "'it''s a ''test'''"
+
+    def test_format_value_no_quotes_unchanged(self):
+        """Strings without quotes should be unchanged."""
+        from src.json_to_sql import JsonToSqlConverter
+        converter = JsonToSqlConverter()
+        result = converter._format_value("hello")
+        assert result == "'hello'"
+
+    def test_format_value_numbers_unchanged(self):
+        """Numbers should not be quoted."""
+        from src.json_to_sql import JsonToSqlConverter
+        converter = JsonToSqlConverter()
+        assert converter._format_value(42) == "42"
+        assert converter._format_value(3.14) == "3.14"
+
+    def test_filter_with_single_quote_in_value(self):
+        """Integration: filter with string containing quote should produce valid SQL."""
+        from src.query_validator import QueryValidator, QueryValidationError
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": "name", "op": "eq", "string_value": "it's"},
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+        sql = convert_json_to_sql(query_json)
+        assert "it''s" in sql
+
+        # Verify it passes through validate_and_secure_query without errors
+        validator = QueryValidator()
+        result = validator.validate_and_secure_query(sql, "test-project-123")
+        assert "it''s" in result or "it\\'s" in result
+
+
+class TestFilterFieldSanitization:
+    """Test that filter field names are sanitized through _safe_column_expr (Fix 2)"""
+
+    def test_filter_with_injection_attempt_sanitized(self):
+        """A malicious field name with multiple expressions should be sanitized via AST round-trip.
+        The _safe_column_expr parses and regenerates the expression, neutralizing raw injection."""
+        from src.json_to_sql import JsonToSqlConverter
+        converter = JsonToSqlConverter()
+        # SQL comment injection: the -- eats the FROM during parsing,
+        # but _safe_column_expr regenerates only the expression part
+        result = converter._safe_column_expr("1=1 OR true --")
+        # The regenerated expression should NOT contain the raw comment
+        assert "--" not in result
+
+    def test_filter_with_truly_malformed_field_raises(self):
+        """Completely malformed SQL as field name should raise QueryBuilderError."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": ")))INVALID(((", "op": "eq", "string_value": "test"},
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+        with pytest.raises(JsonToSqlError):
+            convert_json_to_sql(query_json)
+
+    def test_filter_with_valid_field(self):
+        """A valid field name should work normally."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": "name", "op": "eq", "string_value": "test"},
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+        sql = convert_json_to_sql(query_json)
+        assert "name = 'test'" in sql
+
+    def test_filter_with_dotted_field(self):
+        """A dotted field like spans.name should work correctly."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": "spans.name", "op": "eq", "string_value": "test"},
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+        sql = convert_json_to_sql(query_json)
+        assert "spans.name" in sql
+        assert "= 'test'" in sql
+
+    def test_filter_includes_with_sanitized_field(self):
+        """The includes operator should also sanitize field names."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": "tags", "op": "includes", "string_value": "important"},
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+        sql = convert_json_to_sql(query_json)
+        assert "has(tags, 'important')" in sql
+
+    def test_filter_includes_injection_attempt_raises(self):
+        """Injection via includes field name should be rejected."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "filters": [
+                {"field": "1); DROP TABLE spans --", "op": "includes", "string_value": "test"},
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"}
+            ],
+        }
+        with pytest.raises(JsonToSqlError):
+            convert_json_to_sql(query_json)
+
+
+class TestLimitTypeChecking:
+    """Test that limit is properly type-checked (Fix 5)"""
+
+    def test_limit_sql_injection_attempt_raises(self):
+        """limit = '10; DROP TABLE' should raise QueryBuilderError."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "dimensions": ["name"],
+            "limit": "10; DROP TABLE"
+        }
+        with pytest.raises(JsonToSqlError, match="LIMIT must be a positive integer"):
+            convert_json_to_sql(query_json)
+
+    def test_limit_negative_raises(self):
+        """limit = -1 should raise QueryBuilderError."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "dimensions": ["name"],
+            "limit": -1
+        }
+        with pytest.raises(JsonToSqlError, match="LIMIT must be a positive integer"):
+            convert_json_to_sql(query_json)
+
+    def test_limit_zero_raises(self):
+        """limit = 0 should raise QueryBuilderError."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "dimensions": ["name"],
+            "limit": 0
+        }
+        with pytest.raises(JsonToSqlError, match="LIMIT must be a positive integer"):
+            convert_json_to_sql(query_json)
+
+    def test_limit_valid_integer(self):
+        """limit = 10 should produce LIMIT 10."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "dimensions": ["name"],
+            "limit": 10
+        }
+        sql = convert_json_to_sql(query_json)
+        assert "LIMIT 10" in sql
+
+    def test_limit_valid_string_number(self):
+        """limit = '10' (string of valid number) should produce LIMIT 10."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "dimensions": ["name"],
+            "limit": "10"
+        }
+        sql = convert_json_to_sql(query_json)
+        assert "LIMIT 10" in sql
+
+    def test_limit_none_omitted(self):
+        """limit = None should not produce a LIMIT clause."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "COUNT", "column": "*", "alias": "total"}],
+            "dimensions": ["name"],
+            "limit": None
+        }
+        sql = convert_json_to_sql(query_json)
+        assert "LIMIT" not in sql
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
