@@ -662,6 +662,14 @@ class TestUnqualifiedColumnValidation:
         )
         assert "name" in result
 
+    def test_reject_nonexistent_with_subquery_in_join_on(self, query_validator: QueryValidator, sample_project_id: str):
+        """Subquery in JOIN ON condition should not disable column validation."""
+        with pytest.raises(QueryValidationError, match="does not exist"):
+            query_validator.validate_and_secure_query(
+                "SELECT nonexistent_col FROM spans s JOIN events e ON s.span_id IN (SELECT span_id FROM events)",
+                sample_project_id
+            )
+
 
 class TestExpandedBlockedFunctions:
     """Test that newly blocked functions are properly rejected (Fix 4)"""

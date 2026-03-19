@@ -541,9 +541,22 @@ class QueryValidator:
         if from_clause:
             self._collect_direct_tables(from_clause, tables)
 
-        # Also check JOINs
+        # Also check JOINs — only inspect the table source (join.this),
+        # not the full join node which includes the ON condition. A subquery
+        # in the ON clause (e.g. ON s.id IN (SELECT ...)) would otherwise
+        # emit a sentinel and incorrectly disable column validation.
         for join in select.args.get("joins", []):
-            self._collect_direct_tables(join, tables)
+            source = join.this
+            if source is None:
+                continue
+            if isinstance(source, sqlglot.exp.Table):
+                name = source.name
+                if name:
+                    tables.append(name.lower())
+            elif isinstance(source, (sqlglot.exp.Subquery, sqlglot.exp.Select)):
+                tables.append("")
+            else:
+                self._collect_direct_tables(source, tables)
 
         return tables
 
