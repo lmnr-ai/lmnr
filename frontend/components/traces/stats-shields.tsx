@@ -118,7 +118,7 @@ function StatsShields({ stats, className, variant = "filled", avgCost }: StatsSh
     <div className="flex space-x-1 items-center">
       <Clock3 size={12} className="min-w-3 min-h-3" />
       <Label
-        className={cn("text-xs truncate", { "text-white": variant === "outline" })}
+        className={cn("text-xs truncate", { "text-foreground": variant === "outline" })}
         title={getDurationString(stats.startTime, stats.endTime)}
       >
         {getDurationString(stats.startTime, stats.endTime)}
@@ -132,7 +132,7 @@ function StatsShields({ stats, className, variant = "filled", avgCost }: StatsSh
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
             <Coins className="min-w-3" size={12} />
-            <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
+            <Label className={cn("text-xs truncate", { "text-foreground": variant === "outline" })}>
               {compactNumberFormat.format(stats.totalTokens)}
             </Label>
           </div>
@@ -179,7 +179,7 @@ function StatsShields({ stats, className, variant = "filled", avgCost }: StatsSh
             {costDev && (
               <span
                 className={cn(
-                  "inline-flex items-center gap-0.5 text-[11px] font-medium whitespace-nowrap",
+                  "inline-flex items-center gap-0.5 text-xs font-medium whitespace-nowrap",
                   costDev.isLess ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400"
                 )}
               >
@@ -226,7 +226,7 @@ function StatsShields({ stats, className, variant = "filled", avgCost }: StatsSh
                         avg <span className="underline tabular-nums">${avgCost!.toFixed(5)}</span>
                       </span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground">Last 3 days</span>
+                    <span className="text-[10px] text-muted-foreground">for the last 3 days</span>
                   </div>
                 </>
               )}
@@ -285,9 +285,10 @@ interface SpanStatsShieldsProps {
   span: Span;
   className?: string;
   variant?: "filled" | "outline";
+  avgCost?: number;
 }
 
-const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) => (
+const SpanStatsShields = ({ span, className, variant, avgCost }: SpanStatsShieldsProps) => (
   <StatsShields
     stats={pick(span, [
       "startTime",
@@ -302,6 +303,7 @@ const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) =
     ])}
     className={className}
     variant={variant}
+    avgCost={avgCost}
   />
 );
 

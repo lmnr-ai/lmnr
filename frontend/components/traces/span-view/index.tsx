@@ -10,10 +10,11 @@ import SpanViewSearchBar from "@/components/traces/span-view/search-bar.tsx";
 import SpanContent from "@/components/traces/span-view/span-content";
 import { SpanSearchProvider, useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
+import { useSpanAverages } from "@/components/traces/span-view/use-span-averages";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type Span } from "@/lib/traces/types";
+import { type Span, SpanType } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 
@@ -107,6 +108,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     isLoading,
     error,
   } = useSWR<Span>(`/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`, swrFetcher);
+  const averages = useSpanAverages(projectId as string);
 
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -165,13 +167,8 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     return (
       <SpanViewStateProvider>
         <SpanSearchProvider>
-          <SpanControls span={span}>
-            <SpanViewTabs
-              span={span}
-              searchRef={searchRef}
-              searchOpen={searchOpen}
-              setSearchOpen={setSearchOpen}
-            />
+          <SpanControls span={span} avgCost={span.spanType === SpanType.LLM ? averages?.avgCost : undefined}>
+            <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
           </SpanControls>
         </SpanSearchProvider>
       </SpanViewStateProvider>
