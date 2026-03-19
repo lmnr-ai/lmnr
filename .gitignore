@@ -6,8 +6,3 @@
 target/
 .claude/
 .agent-browser/
-.agents/
-PLAN.md
-SPEC.md
-TESTING_PLAN.md
-TODO.md
