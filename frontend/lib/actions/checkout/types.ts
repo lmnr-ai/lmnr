@@ -44,17 +44,6 @@ export const ADDON_CONFIG: Record<
   },
 };
 
-export const METER_EVENT_NAMES = {
-  overageBytes: {
-    eventName: "2026_03_overage_megabytes",
-    payloadKey: "megabytes",
-  },
-  overageSignalRuns: {
-    eventName: "2026_03_overage_signal_runs",
-    payloadKey: "signal_runs",
-  },
-} as const;
-
 export const LOOKUP_KEY_TO_TIER_NAME: Record<string, string> = {
   hobby_monthly_2026_02: "Laminar Hobby tier",
   hobby_monthly_2026_02_legacy: "Laminar Hobby tier",

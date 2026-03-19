@@ -333,7 +333,7 @@ export const handleInvoiceFinalized = async (invoice: Stripe.Invoice) => {
         stripe_customer_id: customerId,
         [payloadKey]: String(negativeUsage),
       },
-      identifier: `monthly-reset-${payloadKey}-${workspaceId}-${new Date().toISOString().split("T")[0]}`,
+      identifier: `monthly-reset-${payloadKey}-${invoice.id}-${workspaceId}-${new Date().toISOString().split("T")[0]}`,
     });
 
     if (cacheKey) {
