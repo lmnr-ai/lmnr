@@ -12,6 +12,8 @@ pub struct SignalTrigger {
     pub id: Uuid,
     pub filters: Vec<Filter>,
     pub signal: Signal,
+    /// 0 = batch, 1 = realtime
+    pub mode: u8,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -22,6 +24,7 @@ struct DBSignalTrigger {
     signal_name: String,
     prompt: String,
     structured_output_schema: Value,
+    mode: i16,
 }
 
 /// Returns all signal triggers for the project with pre-parsed filters
@@ -31,19 +34,20 @@ pub async fn get_signal_triggers(
 ) -> Result<Vec<SignalTrigger>, sqlx::Error> {
     let results = sqlx::query_as::<_, DBSignalTrigger>(
         r#"
-        SELECT 
+        SELECT
             st.id,
             st.value,
+            st.mode,
             s.id as signal_id,
             s.name as signal_name,
             s.prompt as prompt,
             s.structured_output_schema as structured_output_schema
-        FROM 
+        FROM
             signal_triggers st
-        INNER JOIN 
+        INNER JOIN
             signals s
             ON st.signal_id = s.id
-        WHERE 
+        WHERE
             st.project_id = $1
         "#,
     )
@@ -75,6 +79,7 @@ pub async fn get_signal_triggers(
                     prompt: db_trigger.prompt,
                     structured_output_schema: db_trigger.structured_output_schema,
                 },
+                mode: db_trigger.mode as u8,
             })
         })
         .collect())

@@ -224,7 +224,9 @@ pub async fn finalize_runs(
     if is_feature_enabled(Feature::UsageLimit) {
         let mut runs_by_project_id: HashMap<Uuid, usize> = HashMap::new();
         for run in succeeded_runs {
-            *runs_by_project_id.entry(run.project_id).or_insert(0) += 1;
+            // Realtime signals (mode=1) are billed as 2 signal runs
+            let cost = if run.mode == 1 { 2 } else { 1 };
+            *runs_by_project_id.entry(run.project_id).or_insert(0) += cost;
         }
         let update_futures = runs_by_project_id.into_iter().map(|(project_id, runs)| {
             let db = db.clone();

@@ -86,6 +86,7 @@ async fn create_signal_run_and_message(
         updated_at: Utc::now(),
         event_id: None,
         error_message: None,
+        mode: if process_in_realtime { 1 } else { 0 },
     };
 
     let message = SignalMessage {
@@ -119,8 +120,9 @@ pub async fn enqueue_signal_job(
 ) -> anyhow::Result<SubmitSignalJobResponse> {
     let total_traces: i32 = trace_ids.len() as i32;
 
+    let mode: i16 = if process_in_realtime { 1 } else { 0 };
     let job =
-        crate::db::signal_jobs::create_signal_job(&db.pool, signal.id, project_id, total_traces)
+        crate::db::signal_jobs::create_signal_job(&db.pool, signal.id, project_id, total_traces, mode)
             .await
             .map_err(|e| {
                 log::error!("Failed to create signal job: {:?}", e);

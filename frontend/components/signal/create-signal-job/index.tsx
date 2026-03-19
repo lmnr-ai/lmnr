@@ -43,6 +43,7 @@ const CreateSignalJobContent = () => {
 
   const [isCreating, setIsCreating] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [jobMode, setJobMode] = useState(0);
   const [filters, setFilters] = useState<{ filters: Filter[]; search: string }>({ filters: [], search: "" });
   const [dateRange, setDateRange] = useState<{
     pastHours?: string;
@@ -214,6 +215,7 @@ const CreateSignalJobContent = () => {
           endDate: dateRange.endDate,
           traceIds: selectedTraceIds,
           tracesCount: selectedCount,
+          mode: jobMode,
         }),
       });
 
@@ -249,6 +251,7 @@ const CreateSignalJobContent = () => {
     dateRange.pastHours,
     dateRange.startDate,
     dateRange.endDate,
+    jobMode,
     router,
     toast,
   ]);
@@ -265,6 +268,8 @@ const CreateSignalJobContent = () => {
         isCreating={isCreating}
         onConfirm={handleCreateSignalJob}
         traceCount={selectionMode === "all" ? traceCount : selectedCount}
+        mode={jobMode}
+        onModeChange={setJobMode}
       />
       <Header
         path={[

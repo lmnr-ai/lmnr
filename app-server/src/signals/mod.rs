@@ -111,6 +111,8 @@ pub struct SignalRun {
     pub updated_at: DateTime<Utc>,
     pub event_id: Option<Uuid>,
     pub error_message: Option<String>,
+    /// 0 = batch, 1 = realtime
+    pub mode: u8,
 }
 
 impl SignalRun {
@@ -151,6 +153,7 @@ impl SignalRun {
             updated_at: chrono::Utc::now(),
             event_id: None,
             error_message: None,
+            mode: if message.use_realtime_api { 1 } else { 0 },
         }
     }
 
@@ -169,6 +172,7 @@ impl SignalRun {
             updated_at: chrono::Utc::now(),
             event_id: None,
             error_message: None,
+            mode: 0,
         }
     }
 }

@@ -13,6 +13,8 @@ export type Trigger = {
   id: string;
   filters: Filter[];
   createdAt?: string;
+  /** 0 = batch, 1 = realtime */
+  mode: number;
 };
 
 export const GetSignalTriggersSchema = z.object({
@@ -25,6 +27,7 @@ export const CreateSignalTriggerSchema = z.object({
   projectId: z.string(),
   signalId: z.string(),
   filters: z.array(FilterSchema),
+  mode: z.number().int().min(0).max(1).default(0),
 });
 
 export const UpdateSignalTriggerSchema = z.object({
@@ -32,6 +35,7 @@ export const UpdateSignalTriggerSchema = z.object({
   signalId: z.string(),
   triggerId: z.string(),
   filters: z.array(FilterSchema),
+  mode: z.number().int().min(0).max(1).optional(),
 });
 
 export const DeleteSignalTriggersSchema = z.object({
@@ -62,26 +66,29 @@ export async function getSignalTriggers(input: z.infer<typeof GetSignalTriggersS
       id: signalTriggers.id,
       value: signalTriggers.value,
       createdAt: signalTriggers.createdAt,
+      mode: signalTriggers.mode,
     })
     .from(signalTriggers)
     .where(and(...whereConditions))
     .orderBy(desc(signalTriggers.createdAt))) as {
-      id: string;
-      value: Filter[];
-      createdAt: string;
-    }[];
+    id: string;
+    value: Filter[];
+    createdAt: string;
+    mode: number;
+  }[];
 
   return {
     items: rows.map((row) => ({
       id: row.id,
       filters: row.value,
       createdAt: row.createdAt,
+      mode: row.mode,
     })),
   };
 }
 
 export async function createSignalTrigger(input: z.infer<typeof CreateSignalTriggerSchema>) {
-  const { projectId, signalId, filters } = CreateSignalTriggerSchema.parse(input);
+  const { projectId, signalId, filters, mode } = CreateSignalTriggerSchema.parse(input);
 
   const [result] = await db
     .insert(signalTriggers)
@@ -89,6 +96,7 @@ export async function createSignalTrigger(input: z.infer<typeof CreateSignalTrig
       projectId,
       signalId,
       value: filters,
+      mode,
     })
     .returning();
 
@@ -98,15 +106,21 @@ export async function createSignalTrigger(input: z.infer<typeof CreateSignalTrig
     id: result.id,
     filters: result.value as Filter[],
     createdAt: result.createdAt,
+    mode: result.mode,
   };
 }
 
 export async function updateSignalTrigger(input: z.infer<typeof UpdateSignalTriggerSchema>) {
-  const { projectId, signalId, triggerId, filters } = UpdateSignalTriggerSchema.parse(input);
+  const { projectId, signalId, triggerId, filters, mode } = UpdateSignalTriggerSchema.parse(input);
+
+  const setValues: Record<string, unknown> = { value: filters };
+  if (mode !== undefined) {
+    setValues.mode = mode;
+  }
 
   const [result] = await db
     .update(signalTriggers)
-    .set({ value: filters })
+    .set(setValues)
     .where(
       and(
         eq(signalTriggers.projectId, projectId),
@@ -126,6 +140,7 @@ export async function updateSignalTrigger(input: z.infer<typeof UpdateSignalTrig
     id: result.id,
     filters: result.value as Filter[],
     createdAt: result.createdAt,
+    mode: result.mode,
   };
 }
 

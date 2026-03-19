@@ -1228,6 +1228,7 @@ export const signalJobs = pgTable(
     failedTraces: integer("failed_traces").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    mode: smallint().default(0).notNull(),
   },
   (table) => [
     index("signal_jobs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
@@ -1377,6 +1378,7 @@ export const signalTriggers = pgTable(
     value: jsonb().notNull(),
     signalId: uuid("signal_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    mode: smallint().default(0).notNull(),
   },
   (table) => [
     foreignKey({

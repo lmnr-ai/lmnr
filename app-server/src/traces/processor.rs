@@ -329,8 +329,7 @@ async fn check_and_push_signals(
                 continue;
             }
 
-            // TODO: fetch a trigger config whether to process in realtime from Trigger definition
-            let should_use_realtime = false;
+            let should_use_realtime = trigger.mode == 1;
 
             // Lock acquired - enqueue signal trigger run
             if let Err(e) = crate::signals::enqueue::enqueue_signal_trigger_run(
