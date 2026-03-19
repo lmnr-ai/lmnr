@@ -89,6 +89,8 @@ class JsonToSqlConverter:
                 parts.append(f'LIMIT {limit_int}')
 
             return '\n'.join(parts)
+        except QueryBuilderError:
+            raise
         except Exception as e:
             raise QueryBuilderError(f"Failed to convert to SQL: {e}")
 
