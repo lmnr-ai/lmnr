@@ -172,11 +172,12 @@ pub async fn enqueue_signal_job(
     let mut failed_count = 0i32;
 
     for (idx, message) in messages.into_iter().enumerate() {
-        let push_result = if mode == 1 || always_use_realtime() {
-            crate::signals::queue::push_to_realtime_queue(message, queue.clone()).await
-        } else {
-            push_to_signals_queue(message, queue.clone()).await
-        };
+        let push_result =
+            if super::SignalMode::from_u8(mode).is_realtime() || always_use_realtime() {
+                crate::signals::queue::push_to_realtime_queue(message, queue.clone()).await
+            } else {
+                push_to_signals_queue(message, queue.clone()).await
+            };
 
         if push_result.is_err() {
             // Mark the corresponding run as failed
@@ -265,7 +266,7 @@ pub async fn enqueue_signal_trigger_run(
         })?;
 
     // Step 3: Now that ClickHouse insert succeeded, push to queue
-    let push_result = if mode == 1 || always_use_realtime() {
+    let push_result = if super::SignalMode::from_u8(mode).is_realtime() || always_use_realtime() {
         crate::signals::queue::push_to_realtime_queue(message, queue.clone()).await
     } else {
         push_to_signals_queue(message, queue.clone()).await
