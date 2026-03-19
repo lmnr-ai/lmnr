@@ -336,6 +336,38 @@ export const inferImageType = (base64: string): `image/${string}` | null => {
   }
   return null;
 };
+/**
+ * Compare two ISO 8601 timestamp strings with sub-millisecond precision.
+ *
+ * JavaScript's Date only has millisecond precision, so timestamps like
+ * "2025-01-01T00:00:00.123456Z" and "2025-01-01T00:00:00.123789Z" would
+ * compare as equal when using `new Date().getTime()`. This function
+ * preserves microsecond (and nanosecond) ordering by comparing the
+ * fractional-second digits as strings when the millisecond values match.
+ *
+ * Returns a negative number if a < b, positive if a > b, 0 if equal.
+ */
+export const compareTimestamps = (a: string, b: string): number => {
+  const msA = new Date(a).getTime();
+  const msB = new Date(b).getTime();
+  if (msA !== msB) return msA - msB;
+
+  // Milliseconds are equal — compare sub-millisecond fractional digits.
+  // Timestamps look like "...T12:30:45.123456Z" or "...T12:30:45.123456789Z".
+  // Extract everything after the '.' and before the 'Z' (or timezone).
+  const fracA = a.match(/\.(\d+)/)?.[1] ?? "";
+  const fracB = b.match(/\.(\d+)/)?.[1] ?? "";
+
+  // Pad to equal length so "1234" and "12345" compare correctly.
+  const maxLen = Math.max(fracA.length, fracB.length);
+  const paddedA = fracA.padEnd(maxLen, "0");
+  const paddedB = fracB.padEnd(maxLen, "0");
+
+  if (paddedA < paddedB) return -1;
+  if (paddedA > paddedB) return 1;
+  return 0;
+};
+
 export const getDurationString = (startTime: string, endTime: string) => {
   const start = new Date(startTime);
   const end = new Date(endTime);

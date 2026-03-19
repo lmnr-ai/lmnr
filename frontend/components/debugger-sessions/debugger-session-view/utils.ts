@@ -4,6 +4,7 @@ import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/tra
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils.ts";
 import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
 import { type RealtimeSpan } from "@/lib/traces/types.ts";
+import { compareTimestamps } from "@/lib/utils";
 
 export const onRealtimeStartSpan =
   (
@@ -98,7 +99,7 @@ export const onRealtimeStartSpan =
         };
         newSpans.push(pendingSpan);
 
-        newSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        newSpans.sort((a, b) => compareTimestamps(a.startTime, b.startTime));
 
         return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
       }
@@ -236,7 +237,7 @@ export const onRealtimeUpdateSpans =
         newSpans.push(updatedSpan);
       }
 
-      newSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      newSpans.sort((a, b) => compareTimestamps(a.startTime, b.startTime));
 
       return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
     });

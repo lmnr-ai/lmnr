@@ -14,7 +14,7 @@ import {
 import { enrichSpansWithPending } from "@/components/traces/trace-view/utils.ts";
 import { type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
 import { SpanType, type TraceRow } from "@/lib/traces/types.ts";
-import { tryParseJson } from "@/lib/utils.ts";
+import { compareTimestamps, tryParseJson } from "@/lib/utils.ts";
 
 import { type SystemMessage } from "../system-messages-utils.ts";
 
@@ -191,7 +191,7 @@ const createDebuggerSessionStore = ({
               const sPath = s.attributes?.["lmnr.span.path"];
               return sPath && Array.isArray(sPath) && sPath.join(".") === spanPathKey;
             })
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+            .sort((a, b) => compareTimestamps(a.startTime, b.startTime));
 
           const spanIndex = spansWithSamePath.findIndex((s) => s.spanId === span.spanId);
 
@@ -202,12 +202,11 @@ const createDebuggerSessionStore = ({
 
         setCheckpoint: (span: TraceViewSpan) => {
           const spans = get().spans;
-          const clickedSpanTime = new Date(span.startTime).getTime();
 
           const spansBefore = spans
             .filter((s) => s.spanType === SpanType.LLM || s.spanType === SpanType.CACHED)
-            .filter((s) => new Date(s.startTime).getTime() < clickedSpanTime)
-            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+            .filter((s) => compareTimestamps(s.startTime, span.startTime) < 0)
+            .sort((a, b) => compareTimestamps(a.startTime, b.startTime));
 
           const newCachedCounts: Record<string, number> = {};
 

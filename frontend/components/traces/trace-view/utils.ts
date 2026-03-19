@@ -5,6 +5,7 @@ import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/tra
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { aggregateSpanMetrics } from "@/lib/actions/spans/utils.ts";
 import { type RealtimeSpan, SpanType } from "@/lib/traces/types";
+import { compareTimestamps } from "@/lib/utils";
 
 export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceViewSpan[] => {
   const existingSpanIds = new Set(existingSpans.map((span) => span.spanId));
@@ -86,7 +87,9 @@ export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceVie
   // Filter out existing spans that are pending (to avoid duplicates)
   const nonPendingExistingSpans = existingSpans.filter((span) => !span.pending);
 
-  return [...nonPendingExistingSpans, ...pendingSpans.values()];
+  const result = [...nonPendingExistingSpans, ...pendingSpans.values()];
+  result.sort((a, b) => compareTimestamps(a.startTime, b.startTime));
+  return result;
 };
 
 export const filterColumns: ColumnFilter[] = [
@@ -232,7 +235,7 @@ export const onRealtimeUpdateSpans =
         });
       }
 
-      newSpans.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+      newSpans.sort((a, b) => compareTimestamps(a.startTime, b.startTime));
 
       return aggregateSpanMetrics(enrichSpansWithPending(newSpans));
     });
