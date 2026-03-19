@@ -14,14 +14,14 @@ import { getSuggestionsForRoute } from "./suggestions";
 const INITIAL_DELAY = 4000;
 const SUGGESTION_CYCLE_INTERVAL = 5000;
 
-function SuggestionCyclerInner({
+function SuggestionSpan({
   suggestions,
   onSuggestionClick,
-  onOpenAgent,
+  onVisibilityChange,
 }: {
   suggestions: { display: string; prompt: string }[];
   onSuggestionClick: (prompt: string) => void;
-  onOpenAgent: () => void;
+  onVisibilityChange: (visible: boolean) => void;
 }) {
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -65,57 +65,36 @@ function SuggestionCyclerInner({
 
   const currentSuggestion = showSuggestion ? suggestions[currentIndex] : null;
 
+  useEffect(() => {
+    onVisibilityChange(currentSuggestion !== null);
+  }, [currentSuggestion, onVisibilityChange]);
+
+  if (!currentSuggestion) return null;
+
   return (
-    <motion.div
-      initial={false}
-      animate={{
-        width: currentSuggestion ? "auto" : 40,
-        paddingLeft: currentSuggestion ? 16 : 2,
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onSuggestionClick(currentSuggestion.prompt);
       }}
-      transition={{ duration: 0.3 }}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      className="flex items-center gap-3 border border-primary rounded-full py-[2px] pr-[2px] shadow-lg hover:shadow-xl hover:scale-[1.04] active:scale-[0.98] transition-all cursor-pointer bg-muted duration-200"
+      className="text-xs leading-4 text-primary-foreground whitespace-nowrap shrink-0 max-w-[200px] overflow-hidden cursor-pointer"
+      aria-label={currentSuggestion.display}
     >
-      {currentSuggestion && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onSuggestionClick(currentSuggestion.prompt);
-          }}
-          className="text-xs leading-4 text-primary-foreground whitespace-nowrap shrink-0 max-w-[200px] overflow-hidden cursor-pointer"
-          aria-label={currentSuggestion.display}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={currentIndex}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.2 }}
+          className="block truncate"
         >
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={currentIndex}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-              className="block truncate"
-            >
-              {currentSuggestion.display}
-            </motion.span>
-          </AnimatePresence>
-        </button>
-      )}
-      <div className="size-[36px] flex justify-center items-center">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenAgent();
-          }}
-          className={cn(
-            "bg-primary rounded-[500px] flex justify-center items-center hover:size-[48px] hover:shadow-xl hover:border hover:border-primary-foreground/50 transition-all duration-200 cursor-pointer shrink-0",
-            currentSuggestion ? "size-full" : "size-[48px]"
-          )}
-          aria-label="Open Laminar Agent"
-        >
-          <Sparkles className={cn("transition-all duration-200", currentSuggestion ? "size-[16px]" : "size-[24px]")} />
-        </button>
-      </div>
-    </motion.div>
+          {currentSuggestion.display}
+        </motion.span>
+      </AnimatePresence>
+    </button>
   );
 }
 
@@ -132,6 +111,8 @@ export default function CollapsedButton() {
     [pathname, searchParams]
   );
 
+  const [hasSuggestion, setHasSuggestion] = useState(false);
+
   const handleSuggestionClick = useCallback(
     (prompt: string) => {
       setPrefillInput(prompt);
@@ -144,18 +125,46 @@ export default function CollapsedButton() {
     setViewMode("floating");
   }, [setViewMode]);
 
+  const handleVisibilityChange = useCallback((visible: boolean) => {
+    setHasSuggestion(visible);
+  }, []);
+
   if (viewMode !== "collapsed") {
     return null;
   }
 
   return (
     <div className="fixed bottom-6 right-6 z-[55] flex items-center">
-      <SuggestionCyclerInner
-        key={pathname}
-        suggestions={suggestions}
-        onSuggestionClick={handleSuggestionClick}
-        onOpenAgent={handleOpenAgent}
-      />
+      <motion.div
+        initial={false}
+        animate={{
+          paddingLeft: hasSuggestion ? 16 : 2,
+        }}
+        transition={{ duration: 0.3 }}
+        className="flex items-center gap-3 border border-primary rounded-full py-[2px] pr-[2px] shadow-lg hover:shadow-xl hover:scale-[1.04] active:scale-[0.98] transition-all cursor-pointer bg-muted duration-200"
+      >
+        <SuggestionSpan
+          key={pathname}
+          suggestions={suggestions}
+          onSuggestionClick={handleSuggestionClick}
+          onVisibilityChange={handleVisibilityChange}
+        />
+        <div className="size-[36px] shrink-0 flex justify-center items-center">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenAgent();
+            }}
+            className={cn(
+              "bg-primary rounded-[500px] flex justify-center items-center hover:size-[48px] hover:shadow-xl hover:border hover:border-primary-foreground/50 transition-all duration-200 cursor-pointer shrink-0",
+              hasSuggestion ? "size-full" : "size-[48px]"
+            )}
+            aria-label="Open Laminar Agent"
+          >
+            <Sparkles className={cn("transition-all duration-200", hasSuggestion ? "size-[16px]" : "size-[24px]")} />
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 }
