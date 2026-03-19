@@ -104,6 +104,20 @@ export const getSignalRunsColumns = ({
     id: "errorMessage",
   },
   {
+    accessorKey: "mode",
+    header: "Mode",
+    cell: ({ row }) => {
+      const mode = row.original.mode;
+      return (
+        <Badge className="rounded-3xl mr-1" variant="outline">
+          {mode === 1 ? "Realtime" : "Batch"}
+        </Badge>
+      );
+    },
+    size: 100,
+    id: "mode",
+  },
+  {
     accessorKey: "updatedAt",
     header: "Updated At",
     cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
@@ -112,7 +126,16 @@ export const getSignalRunsColumns = ({
   },
 ];
 
-export const defaultRunsColumnOrder = ["runId", "traceId", "eventId", "source", "status", "errorMessage", "updatedAt"];
+export const defaultRunsColumnOrder = [
+  "runId",
+  "traceId",
+  "eventId",
+  "source",
+  "mode",
+  "status",
+  "errorMessage",
+  "updatedAt",
+];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {

@@ -130,7 +130,7 @@ export async function createSignalJob(
       query: sqlQuery,
       parameters,
       signalId,
-      processInRealtime: mode === 1,
+      mode,
     }),
   });
 

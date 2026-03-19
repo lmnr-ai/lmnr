@@ -24,8 +24,9 @@ pub struct SubmitSignalJobRequest {
     pub signal_id: Uuid,
     #[serde(default)]
     pub parameters: HashMap<String, serde_json::Value>,
+    /// 0 = batch, 1 = realtime
     #[serde(default)]
-    pub process_in_realtime: bool,
+    pub mode: u8,
 }
 
 #[derive(Serialize)]
@@ -71,8 +72,9 @@ pub async fn submit_signal_job(
         query,
         parameters,
         signal_id,
-        process_in_realtime,
+        mode,
     } = request.into_inner();
+    let process_in_realtime = mode == 1;
 
     let clickhouse_client = match clickhouse_ro.as_ref() {
         Some(client) => client.clone(),
@@ -140,7 +142,6 @@ pub async fn submit_signal_job(
         })));
     }
 
-    let user_mode: u8 = if process_in_realtime { 1 } else { 0 };
     let response = enqueue_signal_job(
         project_id,
         signal,
@@ -149,7 +150,7 @@ pub async fn submit_signal_job(
         clickhouse.as_ref().clone(),
         queue.as_ref().clone(),
         process_in_realtime || always_use_realtime(),
-        user_mode,
+        mode,
     )
     .await
     .map_err(|e| {

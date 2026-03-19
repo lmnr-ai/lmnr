@@ -7,6 +7,8 @@ export type TriggerFormItem = {
   /** Undefined for new triggers that haven't been saved yet */
   id?: string;
   filters: Filter[];
+  /** 0 = batch, 1 = realtime */
+  mode: number;
 };
 
 export type ManageSignalForm = Omit<Signal, "isSemantic" | "createdAt" | "id" | "structuredOutput"> & {
@@ -22,6 +24,7 @@ export const getDefaultTriggers = (): TriggerFormItem[] => [
       { column: "root_span_finished", operator: Operator.Eq, value: "true" },
       { column: "total_token_count", operator: Operator.Gt, value: 1000 },
     ],
+    mode: 0,
   },
 ];
 

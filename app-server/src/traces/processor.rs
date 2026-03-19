@@ -329,8 +329,6 @@ async fn check_and_push_signals(
                 continue;
             }
 
-            let should_use_realtime = trigger.mode == 1;
-
             // Lock acquired - enqueue signal trigger run
             if let Err(e) = crate::signals::enqueue::enqueue_signal_trigger_run(
                 trace.id(),
@@ -339,8 +337,8 @@ async fn check_and_push_signals(
                 trigger.signal.clone(),
                 clickhouse.clone(),
                 queue.clone(),
-                always_use_realtime() || should_use_realtime,
-                trigger.mode,
+                always_use_realtime() || trigger.mode.is_realtime(),
+                trigger.mode.as_u8(),
             )
             .await
             {

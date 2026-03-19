@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use super::signals::Signal;
 use super::utils::Filter;
+use crate::signals::SignalMode;
 
 /// Signal trigger with pre-parsed filters
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,8 +13,7 @@ pub struct SignalTrigger {
     pub id: Uuid,
     pub filters: Vec<Filter>,
     pub signal: Signal,
-    /// 0 = batch, 1 = realtime
-    pub mode: u8,
+    pub mode: SignalMode,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -79,7 +79,7 @@ pub async fn get_signal_triggers(
                     prompt: db_trigger.prompt,
                     structured_output_schema: db_trigger.structured_output_schema,
                 },
-                mode: db_trigger.mode as u8,
+                mode: SignalMode::from_u8(db_trigger.mode as u8),
             })
         })
         .collect())

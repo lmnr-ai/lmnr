@@ -122,11 +122,13 @@ function TriggerFilterRow({
 }
 
 function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemove: () => void }) {
-  const { control } = useFormContext<ManageSignalForm>();
+  const { control, watch } = useFormContext<ManageSignalForm>();
   const { fields, append, remove } = useFieldArray({
     control,
     name: `triggers.${triggerIndex}.filters`,
   });
+
+  const mode = watch(`triggers.${triggerIndex}.mode`);
 
   return (
     <div className="rounded-md border p-3 space-y-2">
@@ -150,6 +152,27 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
         <Plus className="w-3.5 h-3.5 mr-1" />
         Add condition
       </Button>
+      <div className="pt-1 border-t">
+        <Controller
+          name={`triggers.${triggerIndex}.mode`}
+          control={control}
+          render={({ field }) => (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">Processing mode:</span>
+              <Select value={String(field.value ?? 0)} onValueChange={(v) => field.onChange(Number(v))}>
+                <SelectTrigger className="w-32 h-7 text-xs">
+                  <span>{mode === 1 ? "Realtime" : "Batch"}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Batch</SelectItem>
+                  <SelectItem value="1">Realtime</SelectItem>
+                </SelectContent>
+              </Select>
+              {mode === 1 && <span className="text-xs text-muted-foreground">Each run billed as 2 signal runs</span>}
+            </div>
+          )}
+        />
+      </div>
     </div>
   );
 }
@@ -181,7 +204,7 @@ export default function TriggersSection() {
           type="button"
           variant="outline"
           className="w-fit"
-          onClick={() => append({ filters: [getDefaultFilter()] })}
+          onClick={() => append({ filters: [getDefaultFilter()], mode: 0 })}
         >
           <Plus className="w-3.5 h-3.5 mr-1" />
           Add trigger
@@ -190,7 +213,7 @@ export default function TriggersSection() {
       <div className="space-y-2">
         {fields.length === 0 && (
           <div className="text-sm text-muted-foreground text-center py-3 border border-dashed rounded-md">
-            No triggers configured. The signal will only run via jobs. Click "Add trigger" to add one.
+            No triggers configured. The signal will only run via jobs. Click &quot;Add trigger&quot; to add one.
           </div>
         )}
         {fields.map((field, index) => (

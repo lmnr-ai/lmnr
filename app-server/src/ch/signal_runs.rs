@@ -45,7 +45,7 @@ impl From<&SignalRun> for CHSignalRun {
             event_id: run.event_id.unwrap_or(Uuid::nil()),
             error_message: run.error_message.clone().unwrap_or_default(),
             updated_at: chrono_to_nanoseconds(run.updated_at),
-            mode: run.mode,
+            mode: run.mode.as_u8(),
         }
     }
 }

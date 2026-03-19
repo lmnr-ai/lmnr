@@ -22,11 +22,12 @@ export type SignalRun = {
   status: "PENDING" | "COMPLETED" | "FAILED" | "UNKNOWN";
   eventId: string;
   updatedAt: string;
+  mode: number;
 };
 
 export type SignalRunRow = Pick<
   SignalRun,
-  "jobId" | "runId" | "traceId" | "triggerId" | "status" | "eventId" | "updatedAt"
+  "jobId" | "runId" | "traceId" | "triggerId" | "status" | "eventId" | "updatedAt" | "mode"
 >;
 
 export const getSignalRuns = async (input: z.infer<typeof GetSignalRunsSchema>) => {

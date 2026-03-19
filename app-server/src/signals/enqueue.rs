@@ -87,7 +87,7 @@ async fn create_signal_run_and_message(
         updated_at: Utc::now(),
         event_id: None,
         error_message: None,
-        mode: user_mode,
+        mode: super::SignalMode::from_u8(user_mode),
     };
 
     let message = SignalMessage {

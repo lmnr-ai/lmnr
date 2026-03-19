@@ -43,7 +43,7 @@ async function syncTriggers(
       fetch(baseUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filters: trigger.filters }),
+        body: JSON.stringify({ filters: trigger.filters, mode: trigger.mode ?? 0 }),
       }).then(
         (r) => ({ ok: r.ok, response: r }),
         () => ({ ok: false, response: null })
@@ -56,7 +56,7 @@ async function syncTriggers(
       fetch(baseUrl, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ triggerId: trigger.id, filters: trigger.filters }),
+        body: JSON.stringify({ triggerId: trigger.id, filters: trigger.filters, mode: trigger.mode ?? 0 }),
       }).then(
         (r) => ({ ok: r.ok, response: r }),
         () => ({ ok: false, response: null })
@@ -72,8 +72,12 @@ async function syncTriggers(
   const createdTriggers: (TriggerFormItem | null)[] = await Promise.all(
     createResults.map(async (result) => {
       if (result.ok && result.response) {
-        const body = (await result.response.json()) as { id: string; filters: TriggerFormItem["filters"] };
-        return { id: body.id, filters: body.filters };
+        const body = (await result.response.json()) as {
+          id: string;
+          filters: TriggerFormItem["filters"];
+          mode: number;
+        };
+        return { id: body.id, filters: body.filters, mode: body.mode ?? 0 };
       }
       return null;
     })

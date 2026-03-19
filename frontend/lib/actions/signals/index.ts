@@ -194,12 +194,14 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
       id: signalTriggers.id,
       value: signalTriggers.value,
       createdAt: signalTriggers.createdAt,
+      mode: signalTriggers.mode,
     })
     .from(signalTriggers)
     .where(and(eq(signalTriggers.projectId, projectId), eq(signalTriggers.signalId, result.id)))) as {
     id: string;
     value: Filter[];
     createdAt: string;
+    mode: number;
   }[];
 
   return {
@@ -209,6 +211,7 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
       id: row.id,
       filters: row.value,
       createdAt: row.createdAt,
+      mode: row.mode,
     })),
   };
 }

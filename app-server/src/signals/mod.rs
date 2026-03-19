@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{env, fmt, sync::OnceLock};
 use uuid::Uuid;
 
@@ -94,6 +94,31 @@ impl SignalWorkerConfig {
     }
 }
 
+/// Signal processing mode: batch (cheaper, slower) or realtime (2x cost, faster).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[repr(u8)]
+pub enum SignalMode {
+    Batch = 0,
+    Realtime = 1,
+}
+
+impl SignalMode {
+    pub fn as_u8(self) -> u8 {
+        self as u8
+    }
+
+    pub fn from_u8(value: u8) -> Self {
+        match value {
+            1 => Self::Realtime,
+            _ => Self::Batch,
+        }
+    }
+
+    pub fn is_realtime(self) -> bool {
+        self == Self::Realtime
+    }
+}
+
 /// Represents a signal run with its current state and metadata.
 /// Used to track individual runs.
 #[derive(Debug, Clone, Serialize)]
@@ -111,8 +136,7 @@ pub struct SignalRun {
     pub updated_at: DateTime<Utc>,
     pub event_id: Option<Uuid>,
     pub error_message: Option<String>,
-    /// 0 = batch, 1 = realtime
-    pub mode: u8,
+    pub mode: SignalMode,
 }
 
 impl SignalRun {
@@ -153,7 +177,7 @@ impl SignalRun {
             updated_at: chrono::Utc::now(),
             event_id: None,
             error_message: None,
-            mode: message.user_mode,
+            mode: SignalMode::from_u8(message.user_mode),
         }
     }
 
@@ -172,7 +196,7 @@ impl SignalRun {
             updated_at: chrono::Utc::now(),
             event_id: None,
             error_message: None,
-            mode: 0,
+            mode: SignalMode::Batch,
         }
     }
 }
