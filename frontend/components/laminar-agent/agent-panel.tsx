@@ -5,7 +5,7 @@ import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import { ArrowUp, Columns2, Layers2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
@@ -40,7 +40,12 @@ export default function AgentPanel({ currentMode }: AgentPanelProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const traceId = refs.traceView?.getState().trace?.id;
+  const traceViewStore = refs.traceView;
+  const traceId = useSyncExternalStore(
+    useCallback((onStoreChange) => traceViewStore?.subscribe(onStoreChange) ?? (() => {}), [traceViewStore]),
+    useCallback(() => traceViewStore?.getState().trace?.id, [traceViewStore]),
+    () => undefined
+  );
 
   // Handle prefill: initialize input from store prefill if present
   const initialInput = useMemo(() => {

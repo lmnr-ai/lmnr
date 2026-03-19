@@ -16,6 +16,13 @@ export enum Feature {
   LAMINAR_AGENT = "LAMINAR_AGENT",
 }
 
+const isAiProviderConfigured = () =>
+  !!process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+  (process.env.BEDROCK_ENABLED === "true" &&
+    !!process.env.AWS_ACCESS_KEY_ID &&
+    !!process.env.AWS_SECRET_ACCESS_KEY &&
+    !!process.env.AWS_REGION);
+
 // right now all managed-version features are disabled in local environment
 export const isFeatureEnabled = (feature: Feature) => {
   if (feature === Feature.LANDING) {
@@ -60,13 +67,7 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.SIGNALS) {
-    return (
-      !!process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-      (process.env.BEDROCK_ENABLED === "true" &&
-        !!process.env.AWS_ACCESS_KEY_ID &&
-        !!process.env.AWS_SECRET_ACCESS_KEY &&
-        !!process.env.AWS_REGION)
-    );
+    return isAiProviderConfigured();
   }
 
   if (feature === Feature.SEND_EMAIL) {
@@ -88,13 +89,7 @@ export const isFeatureEnabled = (feature: Feature) => {
   }
 
   if (feature === Feature.LAMINAR_AGENT) {
-    return (
-      !!process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-      (process.env.BEDROCK_ENABLED === "true" &&
-        !!process.env.AWS_ACCESS_KEY_ID &&
-        !!process.env.AWS_SECRET_ACCESS_KEY &&
-        !!process.env.AWS_REGION)
-    );
+    return isAiProviderConfigured();
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";
