@@ -13,8 +13,7 @@ export async function GET(
     const query = `
       SELECT id, signal_id as signalId, trace_id as traceId, payload, timestamp
       FROM signal_events
-      WHERE project_id = '${projectId}'
-        AND signal_id = '${signalId}'
+      WHERE signal_id = '${signalId}'
         AND id = '${eventId}'
       LIMIT 1
     `;
