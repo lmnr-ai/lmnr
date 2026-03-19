@@ -46,7 +46,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const pathName = usePathname();
   const { projectId } = useParams();
   const [chatOpen, setChatOpen] = useState(false);
-  const averages = useAverageCost(projectId as string, "traces");
+  const traceAverages = useAverageCost(projectId as string, "traces");
+  const spanAverages = useAverageCost(projectId as string, "spans");
 
   // Data states
   const {
@@ -431,7 +432,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                           className="min-w-0 overflow-hidden"
                           trace={trace}
                           spans={filteredSpansForStats}
-                          avgCost={averages?.avgCost}
+                          avgCost={traceAverages?.avgCost}
                         />
                       )}
                     </div>
@@ -502,7 +503,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 key={selectedSpan.spanId}
               />
             ) : (
-              <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
+              <SpanView
+                key={selectedSpan.spanId}
+                spanId={selectedSpan.spanId}
+                traceId={traceId}
+                avgCost={spanAverages?.avgCost}
+              />
             )
           ) : (
             <div className="flex flex-col items-center justify-center size-full text-muted-foreground">

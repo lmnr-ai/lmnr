@@ -13,7 +13,6 @@ import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-s
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAverageCost } from "@/lib/hooks/use-average-cost";
 import { type Span, SpanType } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
@@ -21,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 interface SpanViewProps {
   spanId: string;
   traceId: string;
+  avgCost?: number;
 }
 
 const swrFetcher = async (url: string) => {
@@ -100,7 +100,7 @@ const SpanViewTabs = ({
   );
 };
 
-export function SpanView({ spanId, traceId }: SpanViewProps) {
+export function SpanView({ spanId, traceId, avgCost }: SpanViewProps) {
   const { projectId } = useParams();
   const [searchOpen, setSearchOpen] = useState(false);
   const {
@@ -108,7 +108,6 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     isLoading,
     error,
   } = useSWR<Span>(`/api/projects/${projectId}/traces/${traceId}/spans/${spanId}`, swrFetcher);
-  const averages = useAverageCost(projectId as string, "spans");
 
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -167,7 +166,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     return (
       <SpanViewStateProvider>
         <SpanSearchProvider>
-          <SpanControls span={span} avgCost={span.spanType === SpanType.LLM ? averages?.avgCost : undefined}>
+          <SpanControls span={span} avgCost={span.spanType === SpanType.LLM ? avgCost : undefined}>
             <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
           </SpanControls>
         </SpanSearchProvider>
