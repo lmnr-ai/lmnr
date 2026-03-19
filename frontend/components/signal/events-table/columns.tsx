@@ -167,7 +167,7 @@ const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
                 signalStore.getState().setTraceId(traceId);
               }
               // Open Laminar Agent in side-by-side view with prefilled prompt
-              agentState.setViewMode("side-by-side");
+              agentState.setViewMode("floating");
               agentState.setPrefillInput(
                 `Show me the payload of this signal event ${event.id} formatted in a table, explain why it was detected on this trace ${traceId}, and detail which spans are relevant and why`
               );
