@@ -45,7 +45,7 @@ interface TracesTableStoreState {
 export const useTracesTableStore = create<TracesTableStoreState>()(
   persist(
     (set, get) => ({
-      columnDefs: [],
+      columnDefs: [...STATIC_COLUMNS],
       customColumns: [],
 
       rebuildColumns: () => {
