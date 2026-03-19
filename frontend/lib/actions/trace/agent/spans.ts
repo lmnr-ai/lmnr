@@ -244,6 +244,8 @@ interface DetailedSpanView {
   type: string;
   start: string;
   duration: number;
+  totalCost: number;
+  totalTokens: number;
   parent: number | null;
   status?: string;
   input?: unknown;
@@ -293,6 +295,8 @@ export const getTraceStructureAsString = async (projectId: string, traceId: stri
       type: info.type.toLowerCase(),
       start: formatUtcTimestamp(info.start),
       duration: calculateDuration(info.start, info.end),
+      totalCost: info.totalCost,
+      totalTokens: info.totalTokens,
       parent: parentSeqId,
     };
 
