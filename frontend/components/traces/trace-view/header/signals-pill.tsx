@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Loader, Sparkles, Zap } from "lucide-react";
+import { ExternalLink, Loader, Radio, Sparkles } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -93,7 +93,7 @@ export default function SignalsPill({ traceId }: SignalsPillProps) {
 
   const handleExplainSignal = useCallback(
     (event: SignalEvent) => {
-      const prompt = `Show me the payload of this signal event ${event.id}, explain why it was detected on this trace ${traceId}, and detail which spans are relevant and why`;
+      const prompt = `Show me the payload of this signal event ${event.id} formatted in a table, explain why it was detected on this trace ${traceId}, and detail which spans are relevant and why`;
       setPrefillInput(prompt);
       if (viewMode === "collapsed") {
         setViewMode("floating");
@@ -126,8 +126,8 @@ export default function SignalsPill({ traceId }: SignalsPillProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="h-6 text-xs px-1.5 border-primary text-primary hover:bg-primary/10">
-          <Zap size={14} />
+        <Button variant="outline" className="h-6 text-xs px-1.5 border-primary text-primary hover:bg-primary/10 gap-1">
+          <Radio size={14} />
           {events.length} {events.length === 1 ? "signal" : "signals"}
         </Button>
       </DropdownMenuTrigger>

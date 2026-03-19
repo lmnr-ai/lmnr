@@ -350,7 +350,11 @@ const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
   };
 };
 
+/** Escape a ClickHouse identifier with backticks (doubles embedded backticks). */
+const backtickEscape = (id: string): string => `\`${id.replace(/`/g, "``")}\``;
+
 export {
+  backtickEscape,
   buildColumnFilters,
   buildSelectQuery,
   buildTimeRangeWithFill,
