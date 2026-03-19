@@ -526,19 +526,24 @@ class QueryValidator:
         return None
 
     def _get_from_tables(self, select: sqlglot.exp.Select) -> list[str]:
-        """Extract table names from the FROM clause (including JOINs) of a SELECT."""
+        """Extract actual table names from the FROM clause (including JOINs) of a SELECT.
+
+        Uses ``table.name`` (not ``alias_or_name``) so that aliased tables like
+        ``FROM spans s`` resolve to ``spans`` for registry lookups, consistent
+        with how the rest of the validator resolves table names.
+        """
         tables = []
         from_clause = select.args.get("from")
         if from_clause:
             for table in from_clause.find_all(sqlglot.exp.Table):
-                name = table.alias_or_name
+                name = table.name
                 if name:
                     tables.append(name.lower())
 
         # Also check JOINs
         for join in select.args.get("joins", []):
             for table in join.find_all(sqlglot.exp.Table):
-                name = table.alias_or_name
+                name = table.name
                 if name:
                     tables.append(name.lower())
 

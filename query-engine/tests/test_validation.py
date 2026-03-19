@@ -638,6 +638,20 @@ class TestUnqualifiedColumnValidation:
                 sample_project_id
             )
 
+    def test_reject_nonexistent_with_aliased_table(self, query_validator: QueryValidator, sample_project_id: str):
+        """Unqualified invalid column should be rejected even when the table is aliased."""
+        with pytest.raises(QueryValidationError, match="does not exist"):
+            query_validator.validate_and_secure_query(
+                "SELECT nonexistent_col FROM spans s", sample_project_id
+            )
+
+    def test_accept_valid_column_with_aliased_table(self, query_validator: QueryValidator, sample_project_id: str):
+        """Valid unqualified column should pass when the table is aliased."""
+        result = query_validator.validate_and_secure_query(
+            "SELECT name FROM spans s", sample_project_id
+        )
+        assert "name" in result
+
 
 class TestExpandedBlockedFunctions:
     """Test that newly blocked functions are properly rejected (Fix 4)"""
