@@ -340,6 +340,7 @@ async fn check_and_push_signals(
                 clickhouse.clone(),
                 queue.clone(),
                 always_use_realtime() || should_use_realtime,
+                trigger.mode,
             )
             .await
             {

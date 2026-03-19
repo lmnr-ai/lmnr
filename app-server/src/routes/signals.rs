@@ -140,6 +140,7 @@ pub async fn submit_signal_job(
         })));
     }
 
+    let user_mode: u8 = if process_in_realtime { 1 } else { 0 };
     let response = enqueue_signal_job(
         project_id,
         signal,
@@ -148,6 +149,7 @@ pub async fn submit_signal_job(
         clickhouse.as_ref().clone(),
         queue.as_ref().clone(),
         process_in_realtime || always_use_realtime(),
+        user_mode,
     )
     .await
     .map_err(|e| {

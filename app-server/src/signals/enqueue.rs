@@ -23,6 +23,7 @@ async fn create_signal_run_and_message(
     trigger_id: Option<Uuid>,
     queue: Arc<MessageQueue>,
     process_in_realtime: bool,
+    user_mode: u8,
 ) -> (super::SignalRun, SignalMessage) {
     // get internal project id for tracing
     let internal_project_id: Option<Uuid> = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
@@ -86,7 +87,7 @@ async fn create_signal_run_and_message(
         updated_at: Utc::now(),
         event_id: None,
         error_message: None,
-        mode: if process_in_realtime { 1 } else { 0 },
+        mode: user_mode,
     };
 
     let message = SignalMessage {
@@ -102,6 +103,7 @@ async fn create_signal_run_and_message(
         retry_count: 0,
         request_start_time: Utc::now(),
         use_realtime_api: process_in_realtime,
+        user_mode,
     };
 
     (signal_run, message)
@@ -117,12 +119,12 @@ pub async fn enqueue_signal_job(
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     process_in_realtime: bool,
+    user_mode: u8,
 ) -> anyhow::Result<SubmitSignalJobResponse> {
     let total_traces: i32 = trace_ids.len() as i32;
 
-    let mode: i16 = if process_in_realtime { 1 } else { 0 };
     let job =
-        crate::db::signal_jobs::create_signal_job(&db.pool, signal.id, project_id, total_traces, mode)
+        crate::db::signal_jobs::create_signal_job(&db.pool, signal.id, project_id, total_traces, user_mode as i16)
             .await
             .map_err(|e| {
                 log::error!("Failed to create signal job: {:?}", e);
@@ -142,6 +144,7 @@ pub async fn enqueue_signal_job(
             None,
             queue.clone(),
             process_in_realtime,
+            user_mode,
         )
         .await;
 
@@ -231,6 +234,7 @@ pub async fn enqueue_signal_trigger_run(
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     process_in_realtime: bool,
+    user_mode: u8,
 ) -> anyhow::Result<()> {
     // Step 1: Create run and message (without pushing to queue yet)
     let (signal_run, message) = create_signal_run_and_message(
@@ -241,6 +245,7 @@ pub async fn enqueue_signal_trigger_run(
         Some(trigger_id),
         queue.clone(),
         process_in_realtime,
+        user_mode,
     )
     .await;
 

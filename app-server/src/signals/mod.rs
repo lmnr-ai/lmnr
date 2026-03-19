@@ -153,7 +153,7 @@ impl SignalRun {
             updated_at: chrono::Utc::now(),
             event_id: None,
             error_message: None,
-            mode: if message.use_realtime_api { 1 } else { 0 },
+            mode: message.user_mode,
         }
     }
 
