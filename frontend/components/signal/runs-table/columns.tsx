@@ -94,16 +94,7 @@ export const getSignalRunsColumns = ({
   },
 ];
 
-export const defaultRunsColumnOrder = [
-  "runId",
-  "traceId",
-  "eventId",
-  "source",
-  "mode",
-  "status",
-  "errorMessage",
-  "updatedAt",
-];
+export const defaultRunsColumnOrder = ["runId", "traceId", "eventId", "source", "mode", "status", "updatedAt"];
 
 export const signalRunsFilters: ColumnFilter[] = [
   {
