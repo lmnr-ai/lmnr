@@ -89,7 +89,7 @@ fn mock_response(request: &ProviderRequest) -> ProviderResponse {
     let total = mock_steps_count();
     let is_last = step >= total;
 
-    log::info!(
+    log::debug!(
         "[Mock LLM client] step={}/{}. Returning {}",
         step,
         total,
@@ -132,7 +132,7 @@ impl LanguageModelClient for MockProviderClient {
         _model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
-        log::info!("[Mock LLM client] generate_content called");
+        log::debug!("[Mock LLM client] generate_content called");
         Ok(mock_response(request))
     }
 
@@ -147,7 +147,7 @@ impl LanguageModelClient for MockProviderClient {
             .as_deref()
         {
             Some("resource_exhausted") => {
-                log::info!(
+                log::debug!(
                     "[Mock LLM client] create_batch called. Returning 429 resource exhausted"
                 );
                 return Err(ProviderError::ApiError {
@@ -158,7 +158,7 @@ impl LanguageModelClient for MockProviderClient {
                 });
             }
             Some("not_supported") => {
-                log::info!("[Mock LLM client] create_batch called. Returning batch not supported");
+                log::debug!("[Mock LLM client] create_batch called. Returning batch not supported");
                 return Err(ProviderError::NotSupported(
                     "Mock: batch not supported".to_string(),
                 ));
@@ -175,7 +175,7 @@ impl LanguageModelClient for MockProviderClient {
                 poll_count: 0,
             },
         );
-        log::info!(
+        log::debug!(
             "[Mock LLM client] create_batch called with {} requests. batch_id={}. Returning pending",
             request_count,
             batch_id
@@ -201,7 +201,7 @@ impl LanguageModelClient for MockProviderClient {
         entry.poll_count += 1;
 
         if entry.poll_count <= pending_tries {
-            log::info!(
+            log::debug!(
                 "[Mock LLM client] get_batch called. batch_name={}. poll_count={}/{}. Returning pending",
                 batch_name,
                 entry.poll_count,
@@ -225,7 +225,7 @@ impl LanguageModelClient for MockProviderClient {
             })
             .collect::<Vec<_>>();
 
-        log::info!(
+        log::debug!(
             "[Mock LLM client] get_batch called. batch_name={}. Returning done with {} responses",
             batch_name,
             responses.len()

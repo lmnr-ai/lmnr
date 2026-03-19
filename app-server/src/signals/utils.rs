@@ -2,7 +2,10 @@ use anyhow::Result;
 use chrono::Utc;
 use regex::Regex;
 use serde_json::Value;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -170,6 +173,10 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
             Value::String(provider_batch_id.to_string()),
         );
         attrs.insert("gen_ai.request.batch".to_string(), Value::Bool(true));
+        attrs.insert(
+            "lmnr.association.properties.tags".to_string(),
+            Value::String(("batch".to_string())),
+        );
     }
 
     attrs.insert(
