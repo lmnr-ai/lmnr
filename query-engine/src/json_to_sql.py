@@ -186,9 +186,9 @@ class JsonToSqlConverter:
         return order_clause
 
     def _time_bucket_sql(self, time_range: dict[str, Any]) -> str:
-        col = time_range['column']
+        safe_col = self._safe_column_expr(time_range['column'])
         interval_expr = self._get_interval_expr(time_range)
-        return f"toStartOfInterval({col}, {interval_expr}) AS time"
+        return f"toStartOfInterval({safe_col}, {interval_expr}) AS time"
 
     @staticmethod
     def _escape_alias(alias: str) -> str:
