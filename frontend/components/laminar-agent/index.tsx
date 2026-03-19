@@ -94,7 +94,7 @@ export default function LaminarAgent() {
       {/* Floating mode: render in fixed-position container, full height with gap */}
       {viewMode === "floating" && (
         <div
-          className="fixed right-6 top-3 bottom-3 z-[55] max-w-[calc(100vw-3rem)] rounded-lg border shadow-xl overflow-hidden bg-background pointer-events-auto"
+          className="fixed right-6 top-4 bottom-4 z-[55] max-w-[calc(100vw-3rem)] rounded-lg border shadow-xl overflow-hidden bg-background pointer-events-auto"
           style={{ width: floatingWidth }}
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}

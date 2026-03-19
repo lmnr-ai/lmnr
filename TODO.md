@@ -4,6 +4,15 @@
 
 ## Fixed
 
+- [QA] **MAJOR: Trace table extends below viewport and is not internally scrollable (ER1.15, ER1.16).** On the traces list page, the trace table container has scrollHeight=clientHeight=1098px but extends to y=1515px, well past the 720px viewport bottom. The table is NOT internally scrollable -- rows below the fold are inaccessible without scrolling the entire page. The spec states: "Before trace table would fill height (but not extend beyond the bottom of the screen) and the trace table itself was scrollable." This affects both collapsed and side-by-side modes. The table container needs a constrained height (e.g., flex-1 with min-h-0 and overflow-auto) so it fills available space without overflowing the viewport.
+  - Fixed in this commit — added `flex flex-col` to the left panel content wrapper div in `side-by-side-wrapper.tsx` so flex children (like the traces Tabs with `flex-1`) properly fill available height instead of overflowing
+
+- [Designer] **MAJOR: Evaluations page content does not fill available vertical height.** On the evaluations page (both with and without Laminar Agent open), the groups list and evaluation detail area stop at roughly the vertical midpoint of the viewport, leaving ~250px of empty dark space at the bottom on a 720px viewport. The flex containers have `flex-1` but the content area height is only ~410px instead of filling the available ~660px. The spec explicitly calls this out: "the evals page correctly fills width but it fails to fill height and the height is completely condensed compared to what it appeared like before." This persists after the layout fixes. The evaluations page layout needs its own height fix -- likely the parent containers need `h-full` or `min-h-0` to allow `flex-1` children to stretch.
+  - Fixed in this commit — same root cause as trace table overflow; adding `flex flex-col` to the wrapper div allows evaluations page flex children to stretch to full height
+
+- [Designer] **MINOR: Floating panel top/bottom gap is inconsistent with FAB position.** The floating panel uses `top-3 bottom-3` (12px gap) while the collapsed FAB uses `bottom-6 right-6` (24px gap). The floating panel appears at `right-6` which matches the FAB's horizontal position, but vertically the floating panel is 12px from edges while the FAB is 24px from the bottom. This means the transition from collapsed to floating shifts the visual anchor point upward. Consider using `top-4 bottom-4` or `top-6 bottom-6` for more consistency with the FAB's 24px offset.
+  - Fixed in this commit — changed floating panel from `top-3 bottom-3` to `top-4 bottom-4` (16px gap) for better consistency with FAB positioning
+
 - [USER] **MAJOR: Trace detail view extends to (or past) the right edge of the screen.** The trace view panel goes all the way to the right edge when opened. It should be properly contained.
   - Fixed in 2cec10ba — added `relative` and `overflow-hidden` to left panel content div in `side-by-side-wrapper.tsx` so absolutely-positioned children are contained within the panel bounds
 
