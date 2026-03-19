@@ -1,10 +1,12 @@
 "use client";
 
+import { isEmpty } from "lodash";
 import { Circle } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import {
   getChartClusters,
@@ -36,6 +38,7 @@ export default function ClustersSection() {
   const clusterStatsData = useSignalStoreContext((state) => state.clusterStatsData);
   const isClusterStatsLoading = useSignalStoreContext((state) => state.isClusterStatsLoading);
   const rawClusters = useSignalStoreContext((state) => state.rawClusters);
+  const signal = useSignalStoreContext((state) => state.signal);
   const fetchClusters = useSignalStoreContext((state) => state.fetchClusters);
   const fetchClusterStats = useSignalStoreContext((state) => state.fetchClusterStats);
 
@@ -66,37 +69,42 @@ export default function ClustersSection() {
     fetchClusters();
   }, [fetchClusters]);
 
-  // Local UI state for resize observer
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [localChartWidth, setLocalChartWidth] = useState<number | null>(null);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
-    const observer = new ResizeObserver((entries) => {
+
+    const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setLocalChartWidth(entry.contentRect.width);
       }
     });
-    observer.observe(chartContainerRef.current);
-    return () => observer.disconnect();
-  }, []);
 
-  // Fetch stats when time range or chart width change
+    resizeObserver.observe(chartContainerRef.current);
+    return () => resizeObserver.disconnect();
+  }, [isClustersLoading]);
+
+  const statsUrl = useTimeSeriesStatsUrl({
+    baseUrl: `/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters/stats`,
+    chartContainerWidth: localChartWidth,
+    pastHours,
+    startDate,
+    endDate,
+  });
+
   useEffect(() => {
     const controller = new AbortController();
 
     fetchClusterStats({
-      pastHours,
-      startDate,
-      endDate,
-      chartWidth: localChartWidth,
+      statsUrl,
       abortSignal: controller.signal,
     });
 
     return () => {
       controller.abort();
     };
-  }, [pastHours, startDate, endDate, localChartWidth, fetchClusterStats, rawClusters]);
+  }, [statsUrl, fetchClusterStats, rawClusters]);
 
   // Navigation callbacks
   const navigateToCluster = useCallback(
@@ -151,9 +159,9 @@ export default function ClustersSection() {
 
         <ResizableHandle />
 
-        <ResizablePanel defaultSize={"70%"} minSize={"200px"}>
-          <div className="h-full p-2 bg-secondary" ref={chartContainerRef}>
-            {isClusterStatsLoading ? (
+        <ResizablePanel defaultSize={"70%"} minSize={"400px"}>
+          <div className="h-full py-2 pr-2 bg-secondary" ref={chartContainerRef}>
+            {isClusterStatsLoading && (isEmpty(chartClusters) || isEmpty(clusterStatsData)) ? (
               <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
                 Loading chart...
               </div>
