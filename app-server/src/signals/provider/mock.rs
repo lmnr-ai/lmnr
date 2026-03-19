@@ -86,7 +86,6 @@ fn current_step(request: &ProviderRequest) -> usize {
 
 fn mock_response(request: &ProviderRequest) -> ProviderResponse {
     let step = current_step(request);
-    println!("step: {}", step);
     let total = mock_steps_count();
     let is_last = step >= total;
 
