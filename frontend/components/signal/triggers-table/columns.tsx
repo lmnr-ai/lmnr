@@ -44,7 +44,7 @@ export const getTriggersTableColumns = (): ColumnDef<TriggerRow>[] => [
     cell: ({ row }) => {
       const mode = row.original.mode;
       return (
-        <Badge variant={mode === 1 ? "default" : "secondary"} className="text-xs">
+        <Badge variant="outline" className="text-xs">
           {mode === 1 ? "Realtime" : "Batch"}
         </Badge>
       );
