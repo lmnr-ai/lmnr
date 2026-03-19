@@ -78,42 +78,6 @@ impl ClickhouseReadonlyClient {
         Self(client)
     }
 
-    /// Verify that the connected ClickHouse user has read-only permissions.
-    ///
-    /// Checks the `readonly` setting for the current user. Returns an error if
-    /// the user is not configured with `readonly = 1` (or `readonly = 2`).
-    pub async fn verify_readonly(&self) -> Result<(), String> {
-        let result: Result<String, _> = self
-            .0
-            .query("SELECT value FROM system.settings WHERE name = 'readonly'")
-            .fetch_one::<String>()
-            .await;
-
-        match result {
-            Ok(value) => {
-                let readonly_val: i32 = value.parse().unwrap_or(0);
-                if readonly_val >= 1 {
-                    Ok(())
-                } else {
-                    Err(format!(
-                        "ClickHouse read-only client user is NOT read-only (readonly={}). \
-                         Configure the user with readonly=1 for defense-in-depth.",
-                        readonly_val
-                    ))
-                }
-            }
-            Err(e) => {
-                // If we can't query settings, log a warning but don't fail startup.
-                // Some ClickHouse configurations may restrict access to system.settings.
-                Err(format!(
-                    "Could not verify ClickHouse read-only status: {}. \
-                     Ensure the user is configured with readonly=1.",
-                    e
-                ))
-            }
-        }
-    }
-
     pub fn query(&self, sql: &str) -> clickhouse::query::Query {
         self.0.query(sql)
     }

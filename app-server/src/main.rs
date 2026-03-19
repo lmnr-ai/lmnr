@@ -842,19 +842,11 @@ fn main() -> anyhow::Result<()> {
         let clickhouse_ro_password =
             env::var("CLICKHOUSE_RO_PASSWORD").expect("CLICKHOUSE_RO_PASSWORD must be set");
 
-        let client = Arc::new(crate::sql::ClickhouseReadonlyClient::new(
+        Some(Arc::new(crate::sql::ClickhouseReadonlyClient::new(
             clickhouse_url,
             clickhouse_ro_user,
             clickhouse_ro_password,
-        ));
-
-        // Verify the ClickHouse user has read-only permissions (defense-in-depth)
-        match runtime_handle.block_on(client.verify_readonly()) {
-            Ok(()) => log::info!("ClickHouse read-only client: verified readonly permissions"),
-            Err(e) => log::warn!("{}", e),
-        }
-
-        Some(client)
+        )))
     } else {
         log::info!("ClickHouse read-only client disabled");
         None
