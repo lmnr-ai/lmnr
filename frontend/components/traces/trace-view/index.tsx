@@ -2,6 +2,7 @@ import { get } from "lodash";
 import { AlertTriangle, CirclePlay } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import Chat from "@/components/traces/trace-view/chat";
@@ -49,13 +50,16 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   // Panel visibility states
   const { tracesAgentOpen, setTracesAgentOpen, signalsPanelOpen, setSignalsPanelOpen, selectSpanById } =
-    useTraceViewStore((state) => ({
-      tracesAgentOpen: state.tracesAgentOpen,
-      setTracesAgentOpen: state.setTracesAgentOpen,
-      signalsPanelOpen: state.signalsPanelOpen,
-      setSignalsPanelOpen: state.setSignalsPanelOpen,
-      selectSpanById: state.selectSpanById,
-    }));
+    useTraceViewStore(
+      (state) => ({
+        tracesAgentOpen: state.tracesAgentOpen,
+        setTracesAgentOpen: state.setTracesAgentOpen,
+        signalsPanelOpen: state.signalsPanelOpen,
+        setSignalsPanelOpen: state.setSignalsPanelOpen,
+        selectSpanById: state.selectSpanById,
+      }),
+      shallow
+    );
 
   // Data states
   const {
@@ -73,22 +77,25 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setTraceError,
     spansError,
     setSpansError,
-  } = useTraceViewStore((state) => ({
-    selectedSpan: state.selectedSpan,
-    setSelectedSpan: state.setSelectedSpan,
-    spans: state.spans,
-    setSpans: state.setSpans,
-    trace: state.trace,
-    setTrace: state.setTrace,
-    isTraceLoading: state.isTraceLoading,
-    isSpansLoading: state.isSpansLoading,
-    setIsSpansLoading: state.setIsSpansLoading,
-    setIsTraceLoading: state.setIsTraceLoading,
-    traceError: state.traceError,
-    setTraceError: state.setTraceError,
-    spansError: state.spansError,
-    setSpansError: state.setSpansError,
-  }));
+  } = useTraceViewStore(
+    (state) => ({
+      selectedSpan: state.selectedSpan,
+      setSelectedSpan: state.setSelectedSpan,
+      spans: state.spans,
+      setSpans: state.setSpans,
+      trace: state.trace,
+      setTrace: state.setTrace,
+      isTraceLoading: state.isTraceLoading,
+      isSpansLoading: state.isSpansLoading,
+      setIsSpansLoading: state.setIsSpansLoading,
+      setIsTraceLoading: state.setIsTraceLoading,
+      traceError: state.traceError,
+      setTraceError: state.setTraceError,
+      spansError: state.spansError,
+      setSpansError: state.setSpansError,
+    }),
+    shallow
+  );
 
   // UI states
   const {
@@ -102,26 +109,32 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     setHasBrowserSession,
     condensedTimelineEnabled,
     condensedTimelineVisibleSpanIds,
-  } = useTraceViewStore((state) => ({
-    tab: state.tab,
-    browserSession: state.browserSession,
-    setBrowserSession: state.setBrowserSession,
-    langGraph: state.langGraph,
-    setLangGraph: state.setLangGraph,
-    getHasLangGraph: state.getHasLangGraph,
-    hasBrowserSession: state.hasBrowserSession,
-    setHasBrowserSession: state.setHasBrowserSession,
-    condensedTimelineEnabled: state.condensedTimelineEnabled,
-    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-  }));
+  } = useTraceViewStore(
+    (state) => ({
+      tab: state.tab,
+      browserSession: state.browserSession,
+      setBrowserSession: state.setBrowserSession,
+      langGraph: state.langGraph,
+      setLangGraph: state.setLangGraph,
+      getHasLangGraph: state.getHasLangGraph,
+      hasBrowserSession: state.hasBrowserSession,
+      setHasBrowserSession: state.setHasBrowserSession,
+      condensedTimelineEnabled: state.condensedTimelineEnabled,
+      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+    }),
+    shallow
+  );
 
   // Local storage states
-  const { treeWidth, spanPath, setSpanPath, setTreeWidth } = useTraceViewStore((state) => ({
-    treeWidth: state.treeWidth,
-    setTreeWidth: state.setTreeWidth,
-    spanPath: state.spanPath,
-    setSpanPath: state.setSpanPath,
-  }));
+  const { treeWidth, spanPath, setSpanPath, setTreeWidth } = useTraceViewStore(
+    (state) => ({
+      treeWidth: state.treeWidth,
+      setTreeWidth: state.setTreeWidth,
+      spanPath: state.spanPath,
+      setSpanPath: state.setSpanPath,
+    }),
+    shallow
+  );
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const filteredSpansForStats = useMemo(() => {

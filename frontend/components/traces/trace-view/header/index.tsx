@@ -2,6 +2,7 @@ import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Radio, Sp
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
@@ -41,16 +42,19 @@ const Header = ({ handleClose, spans, onSearch }: HeaderProps) => {
     signalsPanelOpen,
     setSignalsPanelOpen,
     traceSignals,
-  } = useTraceViewStore((state) => ({
-    trace: state.trace,
-    condensedTimelineEnabled: state.condensedTimelineEnabled,
-    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
-    tracesAgentOpen: state.tracesAgentOpen,
-    setTracesAgentOpen: state.setTracesAgentOpen,
-    signalsPanelOpen: state.signalsPanelOpen,
-    setSignalsPanelOpen: state.setSignalsPanelOpen,
-    traceSignals: state.traceSignals,
-  }));
+  } = useTraceViewStore(
+    (state) => ({
+      trace: state.trace,
+      condensedTimelineEnabled: state.condensedTimelineEnabled,
+      setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
+      tracesAgentOpen: state.tracesAgentOpen,
+      setTracesAgentOpen: state.setTracesAgentOpen,
+      signalsPanelOpen: state.signalsPanelOpen,
+      setSignalsPanelOpen: state.setSignalsPanelOpen,
+      traceSignals: state.traceSignals,
+    }),
+    shallow
+  );
 
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({

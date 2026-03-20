@@ -60,7 +60,8 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
   const validFields = useMemo(() => schemaFields.filter((f) => f.name.trim()), [schemaFields]);
 
   // Show the most recent event
-  const latestEvent = events[0];
+  const safeEvents = events ?? [];
+  const latestEvent = safeEvents[0];
   const parsed = useMemo(() => (latestEvent ? parsePayload(latestEvent.payload) : {}), [latestEvent]);
 
   const handleOpenInChat = () => {
@@ -92,7 +93,7 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
         ) : (
           <>
             <div className="text-xs text-muted-foreground mb-2">
-              {events.length} event{events.length !== 1 ? "s" : ""} &middot; Latest:{" "}
+              {safeEvents.length} event{safeEvents.length !== 1 ? "s" : ""} &middot; Latest:{" "}
               {new Date(latestEvent.timestamp).toLocaleString()}
             </div>
             {validFields.map((field) => (

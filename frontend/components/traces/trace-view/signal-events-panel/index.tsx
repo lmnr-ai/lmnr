@@ -24,21 +24,12 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
   const { projectId } = useParams();
   const hasFetchedRef = useRef(false);
 
-  const {
-    traceSignals,
-    isTraceSignalsLoading,
-    activeSignalTabId,
-    setTraceSignals,
-    setIsTraceSignalsLoading,
-    setActiveSignalTabId,
-  } = useTraceViewStore((state) => ({
-    traceSignals: state.traceSignals,
-    isTraceSignalsLoading: state.isTraceSignalsLoading,
-    activeSignalTabId: state.activeSignalTabId,
-    setTraceSignals: state.setTraceSignals,
-    setIsTraceSignalsLoading: state.setIsTraceSignalsLoading,
-    setActiveSignalTabId: state.setActiveSignalTabId,
-  }));
+  const traceSignals = useTraceViewStore((state) => state.traceSignals);
+  const isTraceSignalsLoading = useTraceViewStore((state) => state.isTraceSignalsLoading);
+  const activeSignalTabId = useTraceViewStore((state) => state.activeSignalTabId);
+  const setTraceSignals = useTraceViewStore((state) => state.setTraceSignals);
+  const setIsTraceSignalsLoading = useTraceViewStore((state) => state.setIsTraceSignalsLoading);
+  const setActiveSignalTabId = useTraceViewStore((state) => state.setActiveSignalTabId);
 
   const fetchSignals = useCallback(async () => {
     if (hasFetchedRef.current || traceSignals.length > 0) return;
@@ -55,16 +46,21 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
 
       const data = (await response.json()) as ApiSignalResponse[];
 
+      if (!Array.isArray(data)) {
+        console.error("Unexpected response format for trace signals");
+        return;
+      }
+
       const mapped: TraceSignal[] = data.map((s) => ({
         signalId: s.signalId,
         signalName: s.signalName,
-        prompt: s.prompt,
+        prompt: s.prompt ?? "",
         schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
           name: f.name,
           type: f.type,
           description: f.description,
         })),
-        events: s.events,
+        events: Array.isArray(s.events) ? s.events : [],
       }));
 
       setTraceSignals(mapped);
@@ -132,7 +128,7 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
               properties: Record<string, { type: string; description: string }>;
             }
           )}
-          events={activeSignal.events as EventRow[]}
+          events={(activeSignal.events as EventRow[]) ?? []}
         />
       )}
     </div>

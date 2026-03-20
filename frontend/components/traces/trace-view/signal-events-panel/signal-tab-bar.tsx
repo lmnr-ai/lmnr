@@ -85,6 +85,7 @@ function TabButton({ tab, isActive, onClick }: { tab: SignalTab; isActive: boole
 
       {isTruncated &&
         typeof document !== "undefined" &&
+        document.body &&
         createPortal(
           <AnimatePresence>
             {hovered && rect && (

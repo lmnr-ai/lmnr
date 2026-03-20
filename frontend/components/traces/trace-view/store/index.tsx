@@ -81,13 +81,16 @@ const TraceViewStoreProvider = ({
   );
 };
 
-export const useTraceViewStore = <T,>(selector: (store: TraceViewStore) => T): T => {
+export const useTraceViewStore = <T,>(
+  selector: (store: TraceViewStore) => T,
+  equalityFn?: (a: T, b: T) => boolean
+): T => {
   const store = useContext(TraceViewStoreContext);
   if (!store) {
     throw new Error("useTraceViewStoreContext must be used within a TraceViewStoreContext");
   }
 
-  return useStore(store, selector);
+  return useStore(store, selector, equalityFn);
 };
 
 export default TraceViewStoreProvider;
