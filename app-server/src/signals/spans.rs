@@ -24,6 +24,8 @@ pub struct CompressedSpan {
     pub span_type: String,
     pub start: String,
     pub duration: f64,
+    pub total_cost: f64,
+    pub total_tokens: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -249,6 +251,8 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
                 span_type: get_span_type(ch_span.span_type).to_string(),
                 start: format_ns_timestamp(ch_span.start_time),
                 duration: duration_secs,
+                total_cost: ch_span.total_cost,
+                total_tokens: ch_span.total_tokens,
                 input,
                 output,
                 status: if ch_span.status == "<null>" || ch_span.status.is_empty() {
@@ -265,12 +269,20 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
 
 /// Create skeleton string representation of spans
 pub fn spans_to_skeleton_string(spans: &[CompressedSpan]) -> String {
-    let mut skeleton = String::from("legend: span_name (id, parent_id, type)\n");
+    let mut skeleton = String::from(
+        "legend: span_name (id, parent_id, type, duration_sec, cost_usd, total_tokens)\n",
+    );
     for span in spans {
         let parent_str = span.parent.as_deref().unwrap_or("None");
         skeleton.push_str(&format!(
-            "- {} ({}, {}, {})\n",
-            span.name, span.id, parent_str, span.span_type
+            "- {} ({}, {}, {}, {:.3}, {:.6}, {})\n",
+            span.name,
+            span.id,
+            parent_str,
+            span.span_type,
+            span.duration,
+            span.total_cost,
+            span.total_tokens
         ));
     }
     skeleton
