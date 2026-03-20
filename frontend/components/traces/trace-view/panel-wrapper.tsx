@@ -68,6 +68,13 @@ export default function PanelWrapper({
         </div>
       )}
 
+      {/* Floating close button when there's no title header but onClose is provided */}
+      {!title && onClose && (
+        <Button variant="ghost" className="absolute top-1.5 right-1.5 px-0.5 h-6 w-6 z-10" onClick={onClose}>
+          <X className="w-4 h-4" />
+        </Button>
+      )}
+
       {/* Panel content */}
       <div className="flex-1 overflow-hidden">{children}</div>
     </div>

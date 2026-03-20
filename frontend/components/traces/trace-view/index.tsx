@@ -487,7 +487,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
         {/* Span Panel (visible when a span is selected) */}
         {selectedSpan && (
-          <PanelWrapper>
+          <PanelWrapper onClose={() => setSelectedSpan(undefined)}>
             {isSpansLoading ? (
               <div className="flex flex-col space-y-2 p-4">
                 <Skeleton className="h-8 w-full" />
