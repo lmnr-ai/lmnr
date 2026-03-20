@@ -1,6 +1,7 @@
 import React, { memo, useMemo } from "react";
 
 import { type TraceViewSpan } from "@/components/traces/trace-view/store";
+import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { type CondensedTimelineSpan } from "@/components/traces/trace-view/store/utils";
 import { SPAN_TYPE_TO_COLOR } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,11 @@ const CondensedTimelineElement = ({
 }: CondensedTimelineElementProps) => {
   const { span, left, width, row } = condensedSpan;
 
+  const { isCostHeatmapVisible, selectMaxSpanCost } = useTraceViewBaseStore((state) => ({
+    isCostHeatmapVisible: state.isCostHeatmapVisible,
+    selectMaxSpanCost: state.selectMaxSpanCost,
+  }));
+
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [span.spanId, selectedSpan?.spanId]);
   const opacity = isIncludedInGroupSelection === false ? "opacity-30" : "";
 
@@ -32,17 +38,26 @@ const CondensedTimelineElement = ({
     }
   };
 
+  const heatmapOpacity = useMemo(() => {
+    if (!isCostHeatmapVisible) return 0;
+    const maxCost = selectMaxSpanCost();
+    if (maxCost === 0) return 0;
+    return span.totalCost / maxCost;
+  }, [isCostHeatmapVisible, selectMaxSpanCost, span.totalCost]);
+
   const backgroundColor = useMemo(() => {
+    if (isCostHeatmapVisible) return undefined;
     if (span.status === "error") {
       return "rgba(204, 51, 51, 1)";
     }
     return SPAN_TYPE_TO_COLOR[span.spanType];
-  }, [span.status, span.spanType]);
+  }, [span.status, span.spanType, isCostHeatmapVisible]);
 
   return (
     <div
       className={cn("absolute rounded-xs cursor-pointer", "hover:brightness-110", opacity, {
         "border border-white/70 z-20": isSelected,
+        "bg-muted": isCostHeatmapVisible,
       })}
       style={{
         left: `${left}%`,
@@ -52,7 +67,16 @@ const CondensedTimelineElement = ({
         backgroundColor,
       }}
       onClick={handleClick}
-    />
+    >
+      {isCostHeatmapVisible && (
+        <div
+          className="absolute inset-0 rounded-xs"
+          style={{
+            backgroundColor: `rgba(248, 113, 113, ${heatmapOpacity})`,
+          }}
+        />
+      )}
+    </div>
   );
 };
 
