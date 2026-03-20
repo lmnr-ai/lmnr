@@ -133,7 +133,7 @@ pub fn resolve_provider_name() -> String {
 /// Return the default model ID for a given provider name.
 pub fn default_model_for_provider(provider: &str) -> String {
     match provider {
-        "mock" => "mock-llm".to_string(),
+        "mock" => "".to_string(), // keep empty so that span name is shown instead of model name
         "bedrock" => "global.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
         _ => "gemini-3-flash-preview".to_string(),
     }
