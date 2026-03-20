@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { type Message } from "@/lib/playground/types";
 import { isStorageUrl, urlToBase64 } from "@/lib/s3";
+import { tryParseJson } from "@/lib/utils";
 
 /** Content Block Schemas **/
 
@@ -103,7 +104,17 @@ export const AnthropicContentBlockSchema = z.union([
 export const AnthropicMessageSchema = z
   .object({
     role: z.enum(["user", "assistant", "system"]),
-    content: z.union([z.string(), z.array(AnthropicContentBlockSchema)]),
+    content: z.union([
+      z.array(AnthropicContentBlockSchema),
+      z.string().transform((str) => {
+        const parsed = tryParseJson(str);
+        if (Array.isArray(parsed)) {
+          const result = z.array(AnthropicContentBlockSchema).safeParse(parsed);
+          if (result.success) return result.data;
+        }
+        return str;
+      }),
+    ]),
   })
   .passthrough();
 

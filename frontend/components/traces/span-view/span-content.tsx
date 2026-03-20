@@ -2,6 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast.ts";
@@ -114,6 +115,8 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
         modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
         presetKey={presetKey}
         searchTerm={searchContext?.searchTerm || ""}
+        messageMaxHeight={type === "input" ? 320 : 560}
+        customTheme={spanViewTheme}
       />
     );
   }
@@ -128,6 +131,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
       presetKey={presetKey}
       defaultMode={span.spanType === SpanType.LLM ? "messages" : "json"}
       searchTerm={searchContext?.searchTerm || ""}
+      customTheme={spanViewTheme}
     />
   );
 };

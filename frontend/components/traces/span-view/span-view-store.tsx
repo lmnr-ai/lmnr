@@ -6,18 +6,15 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 interface SpanViewState {
   collapsed: Set<string>;
-  heights: Map<string, number>;
 }
 
 interface SpanViewActions {
   isCollapsed: (key: string) => boolean;
   toggleCollapse: (key: string) => void;
-  setHeight: (key: string) => (height: number) => void;
 }
 
 interface SerializableState {
   collapsed: string[];
-  heights: [string, number][];
 }
 
 export type SpanViewStore = SpanViewState & SpanViewActions;
@@ -27,7 +24,6 @@ const createSpanViewStore = () =>
     persist(
       (set, get) => ({
         collapsed: new Set<string>(),
-        heights: new Map<string, number>(),
         isCollapsed: (key: string) => get().collapsed.has(key),
         toggleCollapse: (key: string) => {
           set((state) => ({
@@ -37,13 +33,6 @@ const createSpanViewStore = () =>
                 ? Array.from(state.collapsed).filter((k) => k !== key)
                 : [...Array.from(state.collapsed), key]
             ),
-          }));
-        },
-
-        setHeight: (key: string) => (height: number) => {
-          set((state) => ({
-            ...state,
-            heights: new Map([...state.heights.entries(), [key, height]]),
           }));
         },
       }),
@@ -56,7 +45,6 @@ const createSpanViewStore = () =>
         })),
         partialize: (state): SerializableState => ({
           collapsed: Array.from(state.collapsed),
-          heights: Array.from(state.heights.entries()),
         }),
         merge: (persistedState, currentState) => {
           const persisted = persistedState as SerializableState;
@@ -64,7 +52,6 @@ const createSpanViewStore = () =>
           return {
             ...currentState,
             collapsed: new Set<string>(persisted.collapsed || []),
-            heights: new Map<string, number>(persisted.heights || []),
           };
         },
       }

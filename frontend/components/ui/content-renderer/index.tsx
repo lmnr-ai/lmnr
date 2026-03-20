@@ -15,7 +15,7 @@ import {
   languageExtensions,
   modes as defaultModes,
   renderText,
-  theme,
+  theme as defaultTheme,
 } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -41,6 +41,9 @@ interface ContentRendererProps {
   searchTerm?: string;
   messageIndex?: number;
   contentPartIndex?: number;
+  hideScrollToBottom?: boolean;
+  messageMaxHeight?: number;
+  customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
 }
 
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
@@ -72,6 +75,9 @@ const PureContentRenderer = ({
   searchTerm = "",
   messageIndex = 0,
   contentPartIndex = 0,
+  hideScrollToBottom,
+  messageMaxHeight,
+  customTheme,
 }: ContentRendererProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -330,7 +336,12 @@ const PureContentRenderer = ({
         </div>
       ) : mode === "messages" ? (
         <div className="flex-1 flex w-full min-h-0">
-          <Messages messages={tryParseJson(value) ?? []} presetKey={presetKey ?? ""} />
+          <Messages
+            messages={tryParseJson(value) ?? []}
+            presetKey={presetKey ?? ""}
+            hideScrollToBottom={hideScrollToBottom}
+            maxHeight={messageMaxHeight}
+          />
         </div>
       ) : (
         <div className={cn("flex-1 flex w-full overflow-hidden", !showLineNumbers && "pl-1", codeEditorClassName)}>
@@ -339,7 +350,7 @@ const PureContentRenderer = ({
             className="w-full"
             placeholder={placeholder}
             onChange={handleChange}
-            theme={theme}
+            theme={customTheme ?? defaultTheme}
             basicSetup={{
               lineNumbers: showLineNumbers,
               foldGutter: showLineNumbers,
