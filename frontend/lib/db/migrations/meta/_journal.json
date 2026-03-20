@@ -533,6 +533,13 @@
       "when": 1773964399622,
       "tag": "0075_safe_lockjaw",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1774177763075,
+      "tag": "0076_aspiring_green_goblin",
+      "breakpoints": true
     }
   ]
 }
