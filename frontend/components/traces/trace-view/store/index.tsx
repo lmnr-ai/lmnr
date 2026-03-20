@@ -7,6 +7,7 @@ import { type BaseTraceViewStore, createBaseTraceViewSlice, TraceViewContext, ty
 export {
   MAX_ZOOM,
   MIN_ZOOM,
+  type TraceSignal,
   type TraceViewListSpan,
   type TraceViewSpan,
   type TraceViewTrace,

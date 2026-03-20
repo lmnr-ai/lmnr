@@ -1,7 +1,7 @@
 import { get } from "lodash";
 import { AlertTriangle, CirclePlay } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import Header from "@/components/traces/trace-view/header";
@@ -44,7 +44,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
-  const [chatOpen, setChatOpen] = useState(false);
+  const { tracesAgentOpen, setTracesAgentOpen } = useTraceViewStore((state) => ({
+    tracesAgentOpen: state.tracesAgentOpen,
+    setTracesAgentOpen: state.setTracesAgentOpen,
+  }));
 
   // Data states
   const {
@@ -228,7 +231,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
           setBrowserSession(true);
         }
 
-        if (spans.length > 0) {
+        // Only auto-select a span if there's a spanId in the URL or props.
+        // Otherwise, default to no span selected (span panel stays closed).
+        const urlSpanId = spanId || searchParams.get("spanId");
+        if (urlSpanId && spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
           setSelectedSpan(selectedSpan);
         } else {
@@ -350,13 +356,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   if (traceError) {
     return (
       <div className="flex flex-col h-full w-full overflow-hidden">
-        <Header
-          handleClose={handleClose}
-          chatOpen={chatOpen}
-          setChatOpen={setChatOpen}
-          spans={[]}
-          onSearch={() => {}}
-        />
+        <Header handleClose={handleClose} spans={[]} onSearch={() => {}} />
         <div className="flex flex-col items-center justify-center flex-1 p-8 text-center">
           <div className="max-w-md mx-auto">
             <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
@@ -372,13 +372,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     <ScrollContextProvider>
       <div className="flex h-full w-full">
         <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-          <Header
-            handleClose={handleClose}
-            chatOpen={chatOpen}
-            setChatOpen={setChatOpen}
-            spans={spans}
-            onSearch={(filters, search) => fetchSpans(search, filters)}
-          />
+          <Header handleClose={handleClose} spans={spans} onSearch={(filters, search) => fetchSpans(search, filters)} />
 
           {spansError ? (
             <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
@@ -386,7 +380,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
               <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
-          ) : chatOpen ? (
+          ) : tracesAgentOpen ? (
             // Ask AI takes over entire view
             trace && (
               <Chat

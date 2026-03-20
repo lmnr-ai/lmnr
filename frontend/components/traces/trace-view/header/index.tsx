@@ -22,22 +22,23 @@ import CondensedTimelineControls from "./timeline-toggle";
 
 interface HeaderProps {
   handleClose: () => void;
-  chatOpen: boolean;
-  setChatOpen: (open: boolean) => void;
   spans: TraceViewSpan[];
   onSearch: (filters: Filter[], search: string) => void;
 }
 
-const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderProps) => {
+const Header = ({ handleClose, spans, onSearch }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
 
-  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled } = useTraceViewStore((state) => ({
-    trace: state.trace,
-    condensedTimelineEnabled: state.condensedTimelineEnabled,
-    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
-  }));
+  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled, tracesAgentOpen, setTracesAgentOpen } =
+    useTraceViewStore((state) => ({
+      trace: state.trace,
+      condensedTimelineEnabled: state.condensedTimelineEnabled,
+      setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
+      tracesAgentOpen: state.tracesAgentOpen,
+      setTracesAgentOpen: state.setTracesAgentOpen,
+    }));
 
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
@@ -101,16 +102,16 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
             </div>
           )}
           <Button
-            onClick={() => setChatOpen(!chatOpen)}
+            onClick={() => setTracesAgentOpen(!tracesAgentOpen)}
             variant="outline"
             className="h-6 text-xs px-1.5 border-primary text-primary hover:bg-primary/10"
           >
             <div
               className="overflow-hidden transition-all duration-400"
               style={{
-                width: chatOpen ? 0 : 14,
-                opacity: chatOpen ? 0 : 1,
-                marginRight: chatOpen ? 0 : 4,
+                width: tracesAgentOpen ? 0 : 14,
+                opacity: tracesAgentOpen ? 0 : 1,
+                marginRight: tracesAgentOpen ? 0 : 4,
               }}
             >
               <Sparkles size={14} />
@@ -119,9 +120,9 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
             <div
               className="overflow-hidden transition-all duration-400"
               style={{
-                width: chatOpen ? 14 : 0,
-                opacity: chatOpen ? 1 : 0,
-                marginLeft: chatOpen ? 4 : 0,
+                width: tracesAgentOpen ? 14 : 0,
+                opacity: tracesAgentOpen ? 1 : 0,
+                marginLeft: tracesAgentOpen ? 4 : 0,
               }}
             >
               <X size={14} />
@@ -134,9 +135,9 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {!chatOpen && <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />}
+        {!tracesAgentOpen && <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />}
       </div>
-      {!chatOpen && (
+      {!tracesAgentOpen && (
         <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
       )}
     </div>

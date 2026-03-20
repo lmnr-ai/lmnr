@@ -86,6 +86,14 @@ export type TraceViewTrace = {
   hasBrowserSession: boolean;
 };
 
+export type TraceSignal = {
+  signalId: string;
+  signalName: string;
+  prompt: string;
+  schemaFields: Array<{ name: string; type: string; description?: string }>;
+  events: Array<Record<string, any>>;
+};
+
 export interface BaseTraceViewState {
   trace?: TraceViewTrace;
   isTraceLoading: boolean;
@@ -106,6 +114,19 @@ export interface BaseTraceViewState {
   condensedTimelineEnabled: boolean;
   condensedTimelineVisibleSpanIds: Set<string>;
   condensedTimelineZoom: number;
+
+  // Panel visibility
+  tracesAgentOpen: boolean;
+  signalsPanelOpen: boolean;
+
+  // Signal data for the signal events panel
+  traceSignals: TraceSignal[];
+  isTraceSignalsLoading: boolean;
+  activeSignalTabId: string | null;
+
+  // Traces Agent injection
+  agentInitialMessages: any[] | null;
+  agentPrefillInput: string | null;
 }
 
 export interface BaseTraceViewActions {
@@ -135,6 +156,19 @@ export interface BaseTraceViewActions {
   setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => void;
   clearCondensedTimelineSelection: () => void;
   setCondensedTimelineZoom: (zoom: number) => void;
+
+  // Panel visibility actions
+  setTracesAgentOpen: (open: boolean) => void;
+  setSignalsPanelOpen: (open: boolean) => void;
+
+  // Signal data actions
+  setTraceSignals: (signals: TraceSignal[]) => void;
+  setIsTraceSignalsLoading: (loading: boolean) => void;
+  setActiveSignalTabId: (id: string | null) => void;
+
+  // Traces Agent injection actions
+  openSignalInChat: (signalDefinition: string, eventPayload: string) => void;
+  clearAgentInjection: () => void;
 
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
@@ -173,6 +207,19 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     condensedTimelineEnabled: true,
     condensedTimelineVisibleSpanIds: new Set(),
     condensedTimelineZoom: 1,
+
+    // Panel visibility defaults
+    tracesAgentOpen: false,
+    signalsPanelOpen: false,
+
+    // Signal data defaults
+    traceSignals: [],
+    isTraceSignalsLoading: false,
+    activeSignalTabId: null,
+
+    // Traces Agent injection defaults
+    agentInitialMessages: null,
+    agentPrefillInput: null,
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
     setTrace: (trace) => {
@@ -366,6 +413,39 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       const span = get().spans.find((s) => s.spanId === spanId);
       return span?.attributes?.[attributeKey];
     },
+
+    // Panel visibility actions
+    setTracesAgentOpen: (open: boolean) => set({ tracesAgentOpen: open } as Partial<T>),
+    setSignalsPanelOpen: (open: boolean) => set({ signalsPanelOpen: open } as Partial<T>),
+
+    // Signal data actions
+    setTraceSignals: (signals: TraceSignal[]) => set({ traceSignals: signals } as Partial<T>),
+    setIsTraceSignalsLoading: (loading: boolean) => set({ isTraceSignalsLoading: loading } as Partial<T>),
+    setActiveSignalTabId: (id: string | null) => set({ activeSignalTabId: id } as Partial<T>),
+
+    // Traces Agent injection actions
+    openSignalInChat: (signalDefinition: string, eventPayload: string) =>
+      set({
+        tracesAgentOpen: true,
+        agentInitialMessages: [
+          {
+            id: "injected-user-" + Date.now(),
+            role: "user",
+            parts: [{ type: "text", text: signalDefinition }],
+          },
+          {
+            id: "injected-assistant-" + Date.now(),
+            role: "assistant",
+            parts: [{ type: "text", text: eventPayload }],
+          },
+        ],
+        agentPrefillInput: "Explain how this signal event relates to my trace and include specific span references",
+      } as Partial<T>),
+    clearAgentInjection: () =>
+      set({
+        agentInitialMessages: null,
+        agentPrefillInput: null,
+      } as Partial<T>),
   };
 }
 
