@@ -12,7 +12,7 @@ use crate::db::trace::Trace;
 use crate::traces::spans::SpanUsage;
 
 /// Maximum number of characters to store for root span input/output preview.
-const ROOT_SPAN_PREVIEW_MAX_CHARS: usize = 200;
+const ROOT_SPAN_PREVIEW_MAX_CHARS: usize = 2048;
 
 fn truncate_json_preview(value: &serde_json::Value) -> String {
     let s = value.to_string();
