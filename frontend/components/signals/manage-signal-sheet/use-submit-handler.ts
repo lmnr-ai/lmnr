@@ -124,6 +124,7 @@ export default function useSubmitHandler({
   previousTriggerIds,
   setFormId,
   setFormTriggers,
+  defaultMode,
 }: {
   projectId: string;
   toast: ReturnType<typeof useToast>["toast"];
@@ -134,6 +135,7 @@ export default function useSubmitHandler({
   previousTriggerIds: string[];
   setFormId: (id: string) => void;
   setFormTriggers: (triggers: TriggerFormItem[]) => void;
+  defaultMode: number;
 }) {
   return useCallback(
     async (data: ManageSignalForm) => {
@@ -185,7 +187,7 @@ export default function useSubmitHandler({
         if (onSuccess) await onSuccess({ ...data, id: signalId, triggers: syncedTriggers });
         toast({ title: `Successfully ${isUpdate ? "updated" : "created"} signal` });
         setOpen(false);
-        reset(getDefaultValues(projectId));
+        reset(getDefaultValues(projectId, defaultMode));
       } catch (e) {
         // On partial trigger sync failure, write successfully created trigger IDs back to form
         // so retries don't re-create triggers that already exist
@@ -202,6 +204,17 @@ export default function useSubmitHandler({
         setIsLoading(false);
       }
     },
-    [projectId, toast, setOpen, reset, onSuccess, setIsLoading, previousTriggerIds, setFormId, setFormTriggers]
+    [
+      projectId,
+      toast,
+      setOpen,
+      reset,
+      onSuccess,
+      setIsLoading,
+      previousTriggerIds,
+      setFormId,
+      setFormTriggers,
+      defaultMode,
+    ]
   );
 }

@@ -18,21 +18,21 @@ export type ManageSignalForm = Omit<Signal, "isSemantic" | "createdAt" | "id" | 
   triggers: TriggerFormItem[];
 };
 
-export const getDefaultTriggers = (): TriggerFormItem[] => [
+export const getDefaultTriggers = (defaultMode: number): TriggerFormItem[] => [
   {
     filters: [
       { column: "root_span_finished", operator: Operator.Eq, value: "true" },
       { column: "total_token_count", operator: Operator.Gt, value: 1000 },
     ],
-    mode: 0,
+    mode: defaultMode,
   },
 ];
 
-export const getDefaultValues = (projectId: string): ManageSignalForm => ({
+export const getDefaultValues = (projectId: string, defaultMode: number): ManageSignalForm => ({
   name: "",
   prompt: "",
   schemaFields: getDefaultSchemaFields(),
   projectId,
   testTraceId: "",
-  triggers: getDefaultTriggers(),
+  triggers: getDefaultTriggers(defaultMode),
 });
