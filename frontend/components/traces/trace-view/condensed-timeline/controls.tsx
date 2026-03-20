@@ -16,24 +16,25 @@ export default function Controls() {
     }));
 
   return (
-    <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center bg-muted border rounded-md px-0.5 h-[24px]">
-      <TooltipProvider delayDuration={0}>
+    <div className="absolute bottom-1.5 right-1.5 z-40 flex items-center gap-1 h-[24px]">
+      <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              className={cn("size-5 min-w-5", isCostHeatmapVisible && "bg-secondary")}
-              variant="ghost"
-              size="icon"
+            <button
+              className={cn(
+                "flex items-center gap-0.5 h-[24px] px-1.5 rounded-md bg-muted text-xs text-muted-foreground hover:bg-secondary transition-colors border",
+                isCostHeatmapVisible && "border-primary/50 text-primary bg-muted"
+              )}
               onClick={() => setIsCostHeatmapVisible(!isCostHeatmapVisible)}
             >
               <DollarSign className="size-3" />
-            </Button>
+              <span>Cost heatmap</span>
+            </button>
           </TooltipTrigger>
-          <TooltipContent>Toggle cost heatmap</TooltipContent>
+          <TooltipContent className="border">Toggle cost heatmap</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <div className="w-px h-3 bg-border mx-0.5" />
-      <div className="flex">
+      <div className="flex items-center border rounded-md bg-muted px-0.5 h-[24px]">
         <Button
           disabled={condensedTimelineZoom >= MAX_ZOOM}
           className="size-5 min-w-5"

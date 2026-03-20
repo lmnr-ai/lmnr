@@ -70,7 +70,7 @@ const CondensedTimelineElement = ({
         <div
           className="absolute inset-0 rounded-xs"
           style={{
-            backgroundColor: `rgba(248, 113, 113, ${heatmapOpacity})`,
+            backgroundColor: `rgba(239, 68, 68, ${heatmapOpacity})`,
           }}
         />
       )}
