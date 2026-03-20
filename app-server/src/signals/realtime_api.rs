@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use backoff::ExponentialBackoffBuilder;
+use backoff::{ExponentialBackoff, ExponentialBackoffBuilder};
 use std::{sync::Arc, time::Duration};
 
 use crate::{
@@ -18,9 +18,17 @@ use crate::{
         queue::{SignalMessage, push_to_realtime_queue},
         response_processor::{finalize_runs, process_provider_responses},
     },
-    utils::get_unsigned_env_with_default,
     worker::{HandlerError, MessageHandler},
 };
+
+fn default_realtime_backoff() -> ExponentialBackoff {
+    ExponentialBackoffBuilder::new()
+        .with_initial_interval(Duration::from_secs(1))
+        .with_multiplier(1.5)
+        .with_max_interval(Duration::from_secs(10))
+        .with_max_elapsed_time(Some(Duration::from_secs(60)))
+        .build()
+}
 
 pub struct SignalJobRealtimeHandler {
     pub db: Arc<DB>,
@@ -98,8 +106,12 @@ impl MessageHandler for SignalJobRealtimeHandler {
                         })?;
                 }
 
-                self.process_realtime_request(request.request, updated_message)
-                    .await;
+                self.process_realtime_request(
+                    request.request,
+                    updated_message,
+                    default_realtime_backoff(),
+                )
+                .await;
             }
             Err(e) => {
                 log::error!(
@@ -123,6 +135,7 @@ impl SignalJobRealtimeHandler {
         &self,
         request: crate::signals::provider::models::ProviderRequest,
         message: SignalMessage,
+        backoff: ExponentialBackoff,
     ) {
         let model_str = llm_model();
         let llm_client = self.llm_client.clone();
@@ -140,13 +153,6 @@ impl SignalJobRealtimeHandler {
                     }
                 })
         };
-
-        let backoff = ExponentialBackoffBuilder::new()
-            .with_initial_interval(Duration::from_secs(1))
-            .with_multiplier(1.5)
-            .with_max_interval(Duration::from_secs(10))
-            .with_max_elapsed_time(Some(Duration::from_secs(60)))
-            .build();
 
         match backoff::future::retry(backoff, generate_fn).await {
             Ok(response) => {
@@ -290,5 +296,240 @@ impl SignalJobRealtimeHandler {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cache::in_memory::InMemoryCache;
+    use crate::db::signals::Signal;
+    use crate::mq::tokio_mpsc::TokioMpscQueue;
+    use crate::mq::{
+        MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait,
+    };
+    use crate::signals::provider::mock::{GenerateFailureMode, MockProviderClient};
+    use crate::signals::provider::models::ProviderRequest;
+    use crate::signals::queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_ROUTING_KEY};
+    use std::time::Duration;
+    use uuid::Uuid;
+
+    fn empty_request() -> ProviderRequest {
+        ProviderRequest {
+            contents: vec![],
+            system_instruction: None,
+            tools: None,
+            generation_config: None,
+        }
+    }
+
+    /// Create a backoff that expires almost immediately for fast tests.
+    fn test_backoff() -> ExponentialBackoff {
+        ExponentialBackoffBuilder::new()
+            .with_initial_interval(Duration::from_millis(1))
+            .with_multiplier(1.1)
+            .with_max_interval(Duration::from_millis(5))
+            .with_max_elapsed_time(Some(Duration::from_millis(50)))
+            .build()
+    }
+
+    fn create_test_queue() -> Arc<MessageQueue> {
+        let queue = TokioMpscQueue::new();
+        queue.register_queue(SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_ROUTING_KEY);
+        Arc::new(MessageQueue::TokioMpsc(queue))
+    }
+
+    fn create_test_message(retry_count: usize) -> SignalMessage {
+        SignalMessage {
+            trace_id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            trigger_id: None,
+            signal: Signal {
+                id: Uuid::new_v4(),
+                name: "test_signal".to_string(),
+                prompt: "test prompt".to_string(),
+                structured_output_schema: serde_json::json!({}),
+            },
+            run_id: Uuid::new_v4(),
+            internal_trace_id: Uuid::new_v4(),
+            internal_span_id: Uuid::new_v4(),
+            job_id: None,
+            step: 0,
+            retry_count,
+            request_start_time: chrono::Utc::now(),
+            use_realtime_api: true,
+        }
+    }
+
+    fn create_test_handler(
+        queue: Arc<MessageQueue>,
+        llm_client: MockProviderClient,
+    ) -> SignalJobRealtimeHandler {
+        let db = Arc::new(DB {
+            pool: sqlx::postgres::PgPoolOptions::new()
+                .connect_lazy("postgres://test:test@localhost:5432/test")
+                .unwrap(),
+        });
+        let cache = Arc::new(Cache::InMemory(InMemoryCache::new(None)));
+        let clickhouse = clickhouse::Client::default();
+        let config = Arc::new(SignalWorkerConfig {
+            max_allowed_steps: 5,
+            internal_project_id: None,
+            waiting_queue_ttl_ms: 300_000,
+        });
+        let provider_client = Arc::new(ProviderClient::Mock(llm_client));
+
+        SignalJobRealtimeHandler::new(db, cache, queue, clickhouse, provider_client, config)
+    }
+
+    /// When generate_content always returns a retryable 429 error, after backoff is exhausted
+    /// the message should be re-enqueued to the realtime queue.
+    #[tokio::test]
+    async fn test_retryable_error_requeues_message() {
+        let queue = create_test_queue();
+        let mut receiver = queue
+            .get_receiver(
+                "test",
+                SIGNALS_REALTIME_EXCHANGE,
+                SIGNALS_REALTIME_ROUTING_KEY,
+                128,
+            )
+            .await
+            .unwrap();
+
+        let mock_client =
+            MockProviderClient::with_generate_failure(usize::MAX, GenerateFailureMode::Retryable429);
+
+        let handler = create_test_handler(queue.clone(), mock_client);
+        let message = create_test_message(0);
+        let original_run_id = message.run_id;
+        let original_retry_count = message.retry_count;
+
+        handler
+            .process_realtime_request(empty_request(), message, test_backoff())
+            .await;
+
+        // The message should have been re-enqueued
+        let delivery = tokio::time::timeout(Duration::from_secs(2), receiver.receive())
+            .await
+            .expect("Expected a message on the queue within timeout")
+            .expect("Queue channel should not be closed")
+            .expect("Delivery should be Ok");
+
+        let requeued_msg: SignalMessage =
+            serde_json::from_slice(&delivery.data()).expect("Should deserialize as SignalMessage");
+
+        assert_eq!(requeued_msg.run_id, original_run_id);
+        // The PR change: retry_count should NOT be incremented
+        assert_eq!(requeued_msg.retry_count, original_retry_count);
+    }
+
+    /// When generate_content always returns a retryable 429 error with a nonzero retry_count,
+    /// the message should still be re-enqueued (no max retry cap).
+    #[tokio::test]
+    async fn test_retryable_error_requeues_regardless_of_retry_count() {
+        let queue = create_test_queue();
+        let mut receiver = queue
+            .get_receiver(
+                "test",
+                SIGNALS_REALTIME_EXCHANGE,
+                SIGNALS_REALTIME_ROUTING_KEY,
+                128,
+            )
+            .await
+            .unwrap();
+
+        let mock_client =
+            MockProviderClient::with_generate_failure(usize::MAX, GenerateFailureMode::Retryable429);
+
+        let handler = create_test_handler(queue.clone(), mock_client);
+        // Use a high retry_count to prove there's no cap
+        let message = create_test_message(100);
+        let original_run_id = message.run_id;
+
+        handler
+            .process_realtime_request(empty_request(), message, test_backoff())
+            .await;
+
+        // The message should still be re-enqueued despite retry_count=100
+        let delivery = tokio::time::timeout(Duration::from_secs(2), receiver.receive())
+            .await
+            .expect("Expected a message on the queue within timeout")
+            .expect("Queue channel should not be closed")
+            .expect("Delivery should be Ok");
+
+        let requeued_msg: SignalMessage =
+            serde_json::from_slice(&delivery.data()).expect("Should deserialize as SignalMessage");
+
+        assert_eq!(requeued_msg.run_id, original_run_id);
+        // retry_count should remain unchanged
+        assert_eq!(requeued_msg.retry_count, 100);
+    }
+
+    /// When generate_content returns a non-retryable error, the message should NOT be re-enqueued.
+    #[tokio::test]
+    async fn test_non_retryable_error_does_not_requeue() {
+        let queue = create_test_queue();
+        let mut receiver = queue
+            .get_receiver(
+                "test",
+                SIGNALS_REALTIME_EXCHANGE,
+                SIGNALS_REALTIME_ROUTING_KEY,
+                128,
+            )
+            .await
+            .unwrap();
+
+        let mock_client =
+            MockProviderClient::with_generate_failure(usize::MAX, GenerateFailureMode::NonRetryable);
+
+        let handler = create_test_handler(queue.clone(), mock_client);
+        let message = create_test_message(0);
+
+        handler
+            .process_realtime_request(empty_request(), message, test_backoff())
+            .await;
+
+        // No message should be on the queue
+        let result =
+            tokio::time::timeout(Duration::from_millis(200), receiver.receive()).await;
+
+        assert!(
+            result.is_err(),
+            "Expected no message on queue for non-retryable error, but got one"
+        );
+    }
+
+    /// When generate_content returns retryable errors, verify the mock is actually called
+    /// multiple times (confirming in-process backoff retries are happening).
+    #[tokio::test]
+    async fn test_retryable_error_triggers_multiple_backoff_retries() {
+        let queue = create_test_queue();
+        let _receiver = queue
+            .get_receiver(
+                "test",
+                SIGNALS_REALTIME_EXCHANGE,
+                SIGNALS_REALTIME_ROUTING_KEY,
+                128,
+            )
+            .await
+            .unwrap();
+
+        let mock_client =
+            MockProviderClient::with_generate_failure(usize::MAX, GenerateFailureMode::Retryable429);
+
+        let handler = create_test_handler(queue.clone(), mock_client.clone());
+        let message = create_test_message(0);
+
+        handler
+            .process_realtime_request(empty_request(), message, test_backoff())
+            .await;
+
+        // The mock should have been called multiple times via backoff
+        assert!(
+            mock_client.generate_call_count() > 1,
+            "Expected multiple retries via backoff, but generate_content was called {} times",
+            mock_client.generate_call_count()
+        );
     }
 }
