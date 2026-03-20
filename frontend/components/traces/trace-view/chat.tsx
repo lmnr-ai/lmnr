@@ -3,11 +3,11 @@ import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
-import { type TraceViewTrace } from "@/components/traces/trace-view/store";
+import { type TraceViewTrace, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,14 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
   const [input, setInput] = useState("");
   const [newChatLoading, setNewChatLoading] = useState(false);
   const projectId = useParams().projectId;
+  const hasInjectedRef = useRef(false);
+
+  // Read injection state from store
+  const { agentInitialMessages, agentPrefillInput, clearAgentInjection } = useTraceViewBaseStore((state) => ({
+    agentInitialMessages: state.agentInitialMessages,
+    agentPrefillInput: state.agentPrefillInput,
+    clearAgentInjection: state.clearAgentInjection,
+  }));
 
   // Resolve sequential span ID to UUID on-demand
   const resolveSpanId = useCallback(
@@ -124,7 +132,7 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
       },
     }),
     onFinish: async ({ message }) => {
-      // save assitant message in the UI format
+      // save assistant message in the UI format
       try {
         const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/messages`, {
           method: "POST",
@@ -173,7 +181,7 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
     }
   };
 
-  // Load existing messages when component mounts
+  // Load existing messages when component mounts, then apply injection if present
   useEffect(() => {
     const loadExistingMessages = async () => {
       try {
@@ -187,10 +195,20 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
       } catch (error) {
         console.error("Error loading existing messages:", error);
       }
+
+      // One-time injection of messages from "Open in AI Chat" (ref guard prevents re-injection)
+      if (!hasInjectedRef.current && agentInitialMessages && agentInitialMessages.length > 0) {
+        hasInjectedRef.current = true;
+        setMessages(agentInitialMessages);
+        if (agentPrefillInput) {
+          setInput(agentPrefillInput);
+        }
+        clearAgentInjection();
+      }
     };
 
     loadExistingMessages();
-  }, [trace.id, projectId, setMessages]);
+  }, [trace.id, projectId, setMessages, agentInitialMessages, agentPrefillInput, clearAgentInjection]);
 
   return (
     <div className="grow flex flex-col overflow-auto relative minimal-scrollbar">

@@ -4,6 +4,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import React, { useCallback, useEffect, useMemo } from "react";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
+import Chat from "@/components/traces/trace-view/chat";
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
@@ -47,12 +48,14 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const { projectId } = useParams();
 
   // Panel visibility states
-  const { tracesAgentOpen, setTracesAgentOpen, signalsPanelOpen, setSignalsPanelOpen } = useTraceViewStore((state) => ({
-    tracesAgentOpen: state.tracesAgentOpen,
-    setTracesAgentOpen: state.setTracesAgentOpen,
-    signalsPanelOpen: state.signalsPanelOpen,
-    setSignalsPanelOpen: state.setSignalsPanelOpen,
-  }));
+  const { tracesAgentOpen, setTracesAgentOpen, signalsPanelOpen, setSignalsPanelOpen, selectSpanById } =
+    useTraceViewStore((state) => ({
+      tracesAgentOpen: state.tracesAgentOpen,
+      setTracesAgentOpen: state.setTracesAgentOpen,
+      signalsPanelOpen: state.signalsPanelOpen,
+      setSignalsPanelOpen: state.setSignalsPanelOpen,
+      selectSpanById: state.selectSpanById,
+    }));
 
   // Data states
   const {
@@ -498,11 +501,9 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         )}
 
         {/* Traces Agent Panel (visible when traces agent toggle is active) */}
-        {tracesAgentOpen && (
+        {tracesAgentOpen && trace && (
           <PanelWrapper title="Traces Agent" onClose={() => setTracesAgentOpen(false)}>
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-              <span className="text-sm">Coming soon</span>
-            </div>
+            <Chat trace={trace} onSetSpanId={selectSpanById} onSearchSpans={(search) => fetchSpans(search, [])} />
           </PanelWrapper>
         )}
       </div>
