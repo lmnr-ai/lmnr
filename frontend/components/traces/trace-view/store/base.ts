@@ -117,6 +117,7 @@ export interface BaseTraceViewActions {
   setIsSpansLoading: (isSpansLoading: boolean) => void;
   setSelectedSpan: (span?: TraceViewSpan) => void;
   selectSpanById: (spanId: string) => void;
+  getSpanById: (spanId: string) => TraceViewSpan | undefined;
   setSpanPath: (spanPath: string[]) => void;
   setBrowserSession: (browserSession: boolean) => void;
   setLangGraph: (langGraph: boolean) => void;
@@ -269,6 +270,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         }
       }
     },
+    getSpanById: (spanId: string) => get().spans.find((s) => s.spanId === spanId),
     setSessionTime: (sessionTime) => set({ sessionTime } as Partial<T>),
     setSessionStartTime: (sessionStartTime) => set({ sessionStartTime } as Partial<T>),
     setIsTraceLoading: (isTraceLoading) => set({ isTraceLoading } as Partial<T>),

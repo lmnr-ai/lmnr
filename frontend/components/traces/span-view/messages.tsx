@@ -144,7 +144,7 @@ function PureMessages({ children, messages, presetKey }: PropsWithChildren<Messa
       <Button
         aria-label="Scroll to bottom"
         size="icon"
-        className="absolute bottom-3 right-3 rounded-full"
+        className="absolute bottom-3 left-3 rounded-full"
         onClick={scrollToFn}
       >
         <ChevronDown className="w-4 h-4" />

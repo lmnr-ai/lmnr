@@ -77,6 +77,7 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     treeWidth: state.treeWidth,
     setTreeWidth: state.setTreeWidth,
   }));
+
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const filteredSpansForStats = useMemo(() => {
     if (condensedTimelineVisibleSpanIds.size === 0) return undefined;

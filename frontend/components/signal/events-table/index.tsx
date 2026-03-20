@@ -8,6 +8,7 @@ import { shallow } from "zustand/shallow";
 import ClustersSection from "@/components/signal/clusters-section";
 import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
 import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
+import { useEventId } from "@/components/signal/hooks/use-event-id";
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
@@ -58,8 +59,8 @@ function PureEventsTable() {
   const params = useParams<{ projectId: string }>();
 
   const [clusterId] = useClusterId();
+  const [eventId, setEventId] = useEventId();
   const signal = useSignalStoreContext((state) => state.signal);
-  const selectedEvent = useSignalStoreContext((state) => state.selectedEvent);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
   const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
   const searchParams = useSearchParams();
@@ -73,23 +74,6 @@ function PureEventsTable() {
   const filter = useMemo(() => filterRaw, [JSON.stringify(filterRaw)]);
 
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
-
-  const setTraceId = useSignalStoreContext((state) => state.setTraceId);
-  const setSelectedEvent = useSignalStoreContext((state) => state.setSelectedEvent);
-
-  // Listen for open-trace events from the traceId column button
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const traceId = (e as CustomEvent<string>).detail;
-      setTraceId(traceId);
-
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set("traceId", traceId);
-      router.push(`${pathName}?${newParams.toString()}`);
-    };
-    window.addEventListener("open-trace", handler);
-    return () => window.removeEventListener("open-trace", handler);
-  }, [setTraceId, searchParams, pathName, router]);
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -154,9 +138,9 @@ function PureEventsTable() {
 
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
-      setSelectedEvent(row.original);
+      setEventId(row.original.id);
     },
-    [setSelectedEvent]
+    [setEventId]
   );
 
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
@@ -173,10 +157,7 @@ function PureEventsTable() {
     deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter],
   });
 
-  const focusedRowId = useMemo(() => {
-    if (!selectedEvent) return undefined;
-    return selectedEvent.id;
-  }, [selectedEvent]);
+  const focusedRowId = useMemo(() => eventId ?? undefined, [eventId]);
 
   useEffect(() => {
     if (events) {

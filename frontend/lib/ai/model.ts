@@ -3,7 +3,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { LanguageModel } from "ai";
 
 /**
- * Model tiers used across AI features (chat with trace, SQL generation, name generation).
+ * Model tiers used across AI features (Laminar Agent, SQL generation, name generation).
  * Each tier maps to a specific model per provider.
  */
 type ModelTier = "default" | "fast" | "lite";
@@ -48,6 +48,11 @@ function getActiveProvider(): AIProvider {
     "No AI provider configured. Set GOOGLE_GENERATIVE_AI_API_KEY for Gemini, " +
       "or BEDROCK_ENABLED=true with AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION for Anthropic Bedrock."
   );
+}
+
+/** Check if any AI provider is configured. Safe to call from server components. */
+export function isAiProviderConfigured(): boolean {
+  return isGeminiConfigured() || isBedrockConfigured();
 }
 
 export function getLanguageModel(tier: ModelTier = "default"): LanguageModel {

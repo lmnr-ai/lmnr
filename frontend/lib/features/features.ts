@@ -13,6 +13,7 @@ export enum Feature {
   SIGNALS = "SIGNALS",
   SLACK = "SLACK",
   LANDING = "LANDING",
+  LAMINAR_AGENT = "LAMINAR_AGENT",
 }
 
 // right now all managed-version features are disabled in local environment
@@ -84,6 +85,16 @@ export const isFeatureEnabled = (feature: Feature) => {
 
   if (feature === Feature.POSTHOG) {
     return process.env.POSTHOG_TELEMETRY === "true";
+  }
+
+  if (feature === Feature.LAMINAR_AGENT) {
+    return (
+      !!process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      (process.env.BEDROCK_ENABLED === "true" &&
+        !!process.env.AWS_ACCESS_KEY_ID &&
+        !!process.env.AWS_SECRET_ACCESS_KEY &&
+        !!process.env.AWS_REGION)
+    );
   }
 
   return process.env.ENVIRONMENT === "PRODUCTION";

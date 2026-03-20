@@ -1,8 +1,9 @@
 import { type ColumnDef } from "@tanstack/react-table";
-import { ArrowUpRight, Check, X } from "lucide-react";
+import { Check, Copy, X } from "lucide-react";
 import { type MouseEvent } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
+import { laminarAgentStore } from "@/components/laminar-agent/store";
 import { type SchemaField, type SchemaFieldType } from "@/components/signals/utils";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
@@ -152,24 +153,31 @@ const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
     header: "Trace ID",
     cell: (row) => {
       const traceId = String(row.getValue());
+      const event = row.row.original;
       return (
         <div className="flex items-center gap-1 min-w-0">
-          <CopyTooltip value={traceId} className="min-w-0 truncate">
-            <span className="font-mono text-xs truncate" dir="rtl">
-              {traceId}
-            </span>
-          </CopyTooltip>
           <button
-            className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+            className="font-mono text-xs min-w-0 truncate"
             onClick={(e: MouseEvent) => {
               e.stopPropagation();
-              const event = new CustomEvent("open-trace", { detail: traceId });
-              window.dispatchEvent(event);
+              // Open trace panel via signal store
+              const agentState = laminarAgentStore.getState();
+              const signalStore = agentState.refs.signal;
+              if (signalStore) {
+                signalStore.getState().setTraceId(traceId);
+              }
+              // Open Laminar Agent in side-by-side view with prefilled prompt
+              agentState.setViewMode("floating");
+              agentState.setPrefillInput(
+                `Show me the payload of this signal event ${event.id} formatted in a table, explain why it was detected on this trace ${traceId}, and detail which spans are relevant and why`
+              );
             }}
-            title="View trace"
           >
-            <ArrowUpRight className="size-3" />
+            {traceId}
           </button>
+          <CopyTooltip value={traceId} className="">
+            <Copy className="size-3" />
+          </CopyTooltip>
         </div>
       );
     },
