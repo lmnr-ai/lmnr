@@ -15,7 +15,7 @@ const templates: EventTemplate[] = [
     description: "Spot errors, looping, wrong tool usage, and slow actions",
     prompt: `Analyze this trace for concrete issues: tool call failures, API errors, \
 looping or repeated calls, wrong tool selection, logic errors, \
-and abnormally slow spans. Only report problems visible in the trace data.`,
+and abnormally slow or expensive spans. Only report problems visible in the trace data.`,
     structuredOutputSchema: JSON.stringify(
       {
         type: "object",

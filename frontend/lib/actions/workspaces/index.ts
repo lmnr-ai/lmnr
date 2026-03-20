@@ -37,7 +37,7 @@ const DEFAULT_SIGNAL = {
   name: "Failure Detector",
   prompt: `Analyze this trace for concrete issues: tool call failures, API errors, \
 looping or repeated calls, wrong tool selection, logic errors, \
-and abnormally slow spans. Only report problems visible in the trace data.`,
+and abnormally slow or expensive spans. Only report problems visible in the trace data.`,
   structuredOutputSchema: {
     type: "object",
     required: ["description", "category"],
