@@ -8,13 +8,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 import CondensedTimelineElement, { ROW_HEIGHT } from "./condensed-timeline-element";
+import Controls from "./controls";
 import SelectionIndicator from "./selection-indicator";
 import SelectionOverlay from "./selection-overlay";
 import { formatTimeMarkerLabel, useDynamicTimeIntervals } from "./use-dynamic-time-intervals";
 import { useHoverNeedle } from "./use-hover-needle";
 import { useScrollToSpan } from "./use-scroll-to-span";
 import { useWheelZoom } from "./use-wheel-zoom";
-import ZoomControls from "./zoom-controls";
 
 function CondensedTimeline() {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -239,7 +239,7 @@ function CondensedTimeline() {
       <SelectionIndicator selectedCount={selectedCount} onClear={clearCondensedTimelineSelection} />
 
       {/* Zoom controls */}
-      <ZoomControls />
+      <Controls />
     </div>
   );
 }
