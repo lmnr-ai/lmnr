@@ -12,9 +12,9 @@ const templates: EventTemplate[] = [
     name: "Failure Detector",
     shortName: "Failure",
     icon: "alert-circle",
-    description: "Spot errors, looping, wrong tool usage, and slow actions",
+    description: "Spot errors, loops, wrong tool usage, and slow actions",
     prompt: `Analyze this trace for concrete issues: tool call failures, API errors, \
-looping or repeated calls, wrong tool selection, logic errors, \
+loops or repeated calls, wrong tool selection, logic errors, \
 and abnormally slow or expensive spans. Only report problems visible in the trace data.`,
     structuredOutputSchema: JSON.stringify(
       {
