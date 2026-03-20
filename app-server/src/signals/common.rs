@@ -241,6 +241,7 @@ pub async fn process_run(
             job_id,
             error: None,
             provider_batch_id: None,
+            metadata: None,
         },
     )
     .await;

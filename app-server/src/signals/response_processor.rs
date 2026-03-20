@@ -402,6 +402,7 @@ async fn process_single_response(
             job_id: run.job_id,
             error: span_error,
             provider_batch_id,
+            metadata: None,
         },
     )
     .await;
@@ -459,6 +460,7 @@ async fn process_single_response(
                 job_id: run.job_id,
                 error: tool_error,
                 provider_batch_id: None,
+                metadata: None,
             },
         )
         .await;
@@ -759,6 +761,7 @@ pub async fn handle_create_event(
             job_id: run.job_id,
             error: None,
             provider_batch_id: None,
+            metadata: None,
         },
     )
     .await;

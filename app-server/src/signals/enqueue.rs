@@ -1,6 +1,7 @@
 use std::{collections::HashMap, env, sync::Arc};
 
 use chrono::Utc;
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::ch::signal_runs::insert_signal_runs;
@@ -33,19 +34,19 @@ async fn create_signal_run_and_message(
     let run_id = Uuid::new_v4();
     let internal_trace_id = Uuid::new_v4();
 
-    // Build input map based on run type
-    let mut input_map: HashMap<String, Uuid> = HashMap::from([
-        ("run_id".to_string(), run_id),
-        ("trace_id".to_string(), trace_id),
-        ("signal_id".to_string(), signal.id),
+    // Build input map based on run type, used for both span input and metadata
+    let mut input_map: HashMap<String, Value> = HashMap::from([
+        ("run_id".to_string(), Value::String(run_id.to_string())),
+        ("trace_id".to_string(), Value::String(trace_id.to_string())),
+        ("signal_id".to_string(), Value::String(signal.id.to_string())),
     ]);
     if let Some(job_id) = job_id {
-        input_map.insert("job_id".to_string(), job_id);
+        input_map.insert("job_id".to_string(), Value::String(job_id.to_string()));
     }
     if let Some(trigger_id) = trigger_id {
-        input_map.insert("trigger_id".to_string(), trigger_id);
+        input_map.insert("trigger_id".to_string(), Value::String(trigger_id.to_string()));
     }
-    let input = serde_json::to_value(input_map).unwrap();
+    let input = serde_json::to_value(&input_map).unwrap();
 
     // Emit root span for internal tracing of a run
     let internal_span_id = emit_internal_span(
@@ -69,6 +70,7 @@ async fn create_signal_run_and_message(
             job_id,
             error: None,
             provider_batch_id: None,
+            metadata: Some(input_map),
         },
     )
     .await;
@@ -172,12 +174,12 @@ pub async fn enqueue_signal_job(
     let mut failed_count = 0i32;
 
     for (idx, message) in messages.into_iter().enumerate() {
-        let push_result =
-            if super::SignalMode::from_u8(mode).is_realtime() || always_use_realtime() {
-                crate::signals::queue::push_to_realtime_queue(message, queue.clone()).await
-            } else {
-                push_to_signals_queue(message, queue.clone()).await
-            };
+        let push_result = if super::SignalMode::from_u8(mode).is_realtime() || always_use_realtime()
+        {
+            crate::signals::queue::push_to_realtime_queue(message, queue.clone()).await
+        } else {
+            push_to_signals_queue(message, queue.clone()).await
+        };
 
         if push_result.is_err() {
             // Mark the corresponding run as failed

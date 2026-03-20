@@ -2,10 +2,7 @@ use anyhow::Result;
 use chrono::Utc;
 use regex::Regex;
 use serde_json::Value;
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::{
@@ -40,6 +37,7 @@ pub struct InternalSpan {
     pub job_id: Option<Uuid>,
     pub error: Option<String>,
     pub provider_batch_id: Option<String>,
+    pub metadata: Option<HashMap<String, Value>>,
 }
 
 /// Try to parse JSON string, return the parsed value or the original string
@@ -175,8 +173,17 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         attrs.insert("gen_ai.request.batch".to_string(), Value::Bool(true));
         attrs.insert(
             "lmnr.association.properties.tags".to_string(),
-            Value::String(("batch".to_string())),
+            Value::String("batch".to_string()),
         );
+    }
+
+    if let Some(metadata) = span.metadata {
+        for (key, value) in metadata {
+            attrs.insert(
+                format!("lmnr.association.properties.metadata.{}", key),
+                value,
+            );
+        }
     }
 
     attrs.insert(
