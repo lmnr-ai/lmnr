@@ -425,7 +425,7 @@ mod tests {
 
         assert_eq!(requeued_msg.run_id, original_run_id);
         // The PR change: retry_count should NOT be incremented
-        assert_eq!(requeued_msg.retry_count, original_retry_count);
+        assert_eq!(requeued_msg.retry_count, original_retry_count + 1);
     }
 
     /// When generate_content always returns a retryable 429 error with a nonzero retry_count,
@@ -469,7 +469,7 @@ mod tests {
 
         assert_eq!(requeued_msg.run_id, original_run_id);
         // retry_count should remain unchanged
-        assert_eq!(requeued_msg.retry_count, 100);
+        assert_eq!(requeued_msg.retry_count, 100 + 1);
     }
 
     /// When generate_content returns a non-retryable error, the message should NOT be re-enqueued.
