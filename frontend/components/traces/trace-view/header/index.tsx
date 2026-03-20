@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Radio, Sparkles } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useMemo } from "react";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useToast } from "@/lib/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
 import CondensedTimelineControls from "./timeline-toggle";
@@ -31,14 +32,25 @@ const Header = ({ handleClose, spans, onSearch }: HeaderProps) => {
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
 
-  const { trace, condensedTimelineEnabled, setCondensedTimelineEnabled, tracesAgentOpen, setTracesAgentOpen } =
-    useTraceViewStore((state) => ({
-      trace: state.trace,
-      condensedTimelineEnabled: state.condensedTimelineEnabled,
-      setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
-      tracesAgentOpen: state.tracesAgentOpen,
-      setTracesAgentOpen: state.setTracesAgentOpen,
-    }));
+  const {
+    trace,
+    condensedTimelineEnabled,
+    setCondensedTimelineEnabled,
+    tracesAgentOpen,
+    setTracesAgentOpen,
+    signalsPanelOpen,
+    setSignalsPanelOpen,
+    traceSignals,
+  } = useTraceViewStore((state) => ({
+    trace: state.trace,
+    condensedTimelineEnabled: state.condensedTimelineEnabled,
+    setCondensedTimelineEnabled: state.setCondensedTimelineEnabled,
+    tracesAgentOpen: state.tracesAgentOpen,
+    setTracesAgentOpen: state.setTracesAgentOpen,
+    signalsPanelOpen: state.signalsPanelOpen,
+    setSignalsPanelOpen: state.setSignalsPanelOpen,
+    traceSignals: state.traceSignals,
+  }));
 
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
@@ -60,6 +72,8 @@ const Header = ({ handleClose, spans, onSearch }: HeaderProps) => {
     }
     return ps;
   }, [params.evaluationId, searchParams]);
+
+  const signalCount = traceSignals.length;
 
   return (
     <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-2">
@@ -102,31 +116,26 @@ const Header = ({ handleClose, spans, onSearch }: HeaderProps) => {
             </div>
           )}
           <Button
+            onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
+            variant="outline"
+            className={cn(
+              "h-6 text-xs px-1.5",
+              signalsPanelOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+            )}
+          >
+            <Radio size={14} className="mr-1" />
+            Signals ({signalCount})
+          </Button>
+          <Button
             onClick={() => setTracesAgentOpen(!tracesAgentOpen)}
             variant="outline"
-            className="h-6 text-xs px-1.5 border-primary text-primary hover:bg-primary/10"
+            className={cn(
+              "h-6 text-xs px-1.5",
+              tracesAgentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+            )}
           >
-            <div
-              className="overflow-hidden transition-all duration-400"
-              style={{
-                width: tracesAgentOpen ? 0 : 14,
-                opacity: tracesAgentOpen ? 0 : 1,
-                marginRight: tracesAgentOpen ? 0 : 4,
-              }}
-            >
-              <Sparkles size={14} />
-            </div>
-            Chat with trace
-            <div
-              className="overflow-hidden transition-all duration-400"
-              style={{
-                width: tracesAgentOpen ? 14 : 0,
-                opacity: tracesAgentOpen ? 1 : 0,
-                marginLeft: tracesAgentOpen ? 4 : 0,
-              }}
-            >
-              <X size={14} />
-            </div>
+            <Sparkles size={14} className="mr-1" />
+            Traces Agent
           </Button>
         </div>
         <div className="flex items-center gap-x-0.5 flex-shrink-0">
@@ -135,11 +144,9 @@ const Header = ({ handleClose, spans, onSearch }: HeaderProps) => {
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {!tracesAgentOpen && <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />}
+        <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />
       </div>
-      {!tracesAgentOpen && (
-        <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
-      )}
+      <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
     </div>
   );
 };

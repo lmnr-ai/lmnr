@@ -8,6 +8,7 @@ import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
+import PanelWrapper from "@/components/traces/trace-view/panel-wrapper";
 import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   type TraceViewSpan,
@@ -26,7 +27,6 @@ import { cn } from "@/lib/utils";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "../../ui/resizable";
 import SessionPlayer from "../session-player";
 import { SpanView } from "../span-view";
-import Chat from "./chat";
 import CondensedTimeline from "./condensed-timeline";
 import List from "./list";
 import { ScrollContextProvider } from "./scroll-context";
@@ -44,9 +44,13 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
-  const { tracesAgentOpen, setTracesAgentOpen } = useTraceViewStore((state) => ({
+
+  // Panel visibility states
+  const { tracesAgentOpen, setTracesAgentOpen, signalsPanelOpen, setSignalsPanelOpen } = useTraceViewStore((state) => ({
     tracesAgentOpen: state.tracesAgentOpen,
     setTracesAgentOpen: state.setTracesAgentOpen,
+    signalsPanelOpen: state.signalsPanelOpen,
+    setSignalsPanelOpen: state.setSignalsPanelOpen,
   }));
 
   // Data states
@@ -371,6 +375,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   return (
     <ScrollContextProvider>
       <div className="flex h-full w-full">
+        {/* Trace Panel (always visible) */}
         <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
           <Header handleClose={handleClose} spans={spans} onSearch={(filters, search) => fetchSpans(search, filters)} />
 
@@ -380,22 +385,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
               <p className="text-xs text-muted-foreground">{spansError}</p>
             </div>
-          ) : tracesAgentOpen ? (
-            // Ask AI takes over entire view
-            trace && (
-              <Chat
-                trace={trace}
-                onSearchSpans={(search) => {
-                  fetchSpans(search, []);
-                }}
-                onSetSpanId={(spanId) => {
-                  const span = spans.find((span) => span.spanId === spanId);
-                  if (span) {
-                    handleSpanSelect(span);
-                  }
-                }}
-              />
-            )
           ) : (
             <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
               {condensedTimelineEnabled && (
@@ -478,15 +467,17 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
             <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
           </div>
         </div>
-        <div className="grow overflow-hidden flex-wrap h-full w-full">
-          {isSpansLoading ? (
-            <div className="flex flex-col space-y-2 p-4">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </div>
-          ) : selectedSpan ? (
-            selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
+
+        {/* Span Panel (visible when a span is selected) */}
+        {selectedSpan && (
+          <PanelWrapper>
+            {isSpansLoading ? (
+              <div className="flex flex-col space-y-2 p-4">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </div>
+            ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
               <HumanEvaluatorSpanView
                 traceId={selectedSpan.traceId}
                 spanId={selectedSpan.spanId}
@@ -494,14 +485,27 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
               />
             ) : (
               <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
-            )
-          ) : (
-            <div className="flex flex-col items-center justify-center size-full text-muted-foreground">
-              <span className="text-xl font-medium mb-2">No span selected</span>
-              <span className="text-base">Select a span from the trace tree to view its details</span>
+            )}
+          </PanelWrapper>
+        )}
+
+        {/* Signal Events Panel (visible when signals toggle is active) */}
+        {signalsPanelOpen && (
+          <PanelWrapper title="Signal Events" onClose={() => setSignalsPanelOpen(false)}>
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <span className="text-sm">Coming soon</span>
             </div>
-          )}
-        </div>
+          </PanelWrapper>
+        )}
+
+        {/* Traces Agent Panel (visible when traces agent toggle is active) */}
+        {tracesAgentOpen && (
+          <PanelWrapper title="Traces Agent" onClose={() => setTracesAgentOpen(false)}>
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <span className="text-sm">Coming soon</span>
+            </div>
+          </PanelWrapper>
+        )}
       </div>
     </ScrollContextProvider>
   );
