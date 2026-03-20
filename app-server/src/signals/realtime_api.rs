@@ -270,14 +270,16 @@ impl SignalJobRealtimeHandler {
                     .failed(&format!("Realtime API failed: {}", e));
 
                 if e.is_retryable() {
+                    let mut retry_msg = message;
+                    retry_msg.retry_count += 1;
                     log::info!(
                         "[SIGNAL JOB] Retrying realtime run {} via queue (retry {})",
-                        message.run_id,
-                        message.retry_count,
+                        retry_msg.run_id,
+                        retry_msg.retry_count,
                     );
 
                     if let Err(enqueue_err) =
-                        push_to_realtime_queue(message, self.queue.clone()).await
+                        push_to_realtime_queue(retry_msg, self.queue.clone()).await
                     {
                         log::error!(
                             "Failed to enqueue retry for realtime request: {:?}",
@@ -397,8 +399,10 @@ mod tests {
             .await
             .unwrap();
 
-        let mock_client =
-            MockProviderClient::with_generate_failure(usize::MAX, GenerateFailureMode::Retryable429);
+        let mock_client = MockProviderClient::with_generate_failure(
+            usize::MAX,
+            GenerateFailureMode::Retryable429,
+        );
 
         let handler = create_test_handler(queue.clone(), mock_client);
         let message = create_test_message(0);
@@ -439,8 +443,10 @@ mod tests {
             .await
             .unwrap();
 
-        let mock_client =
-            MockProviderClient::with_generate_failure(usize::MAX, GenerateFailureMode::Retryable429);
+        let mock_client = MockProviderClient::with_generate_failure(
+            usize::MAX,
+            GenerateFailureMode::Retryable429,
+        );
 
         let handler = create_test_handler(queue.clone(), mock_client);
         // Use a high retry_count to prove there's no cap
@@ -480,8 +486,10 @@ mod tests {
             .await
             .unwrap();
 
-        let mock_client =
-            MockProviderClient::with_generate_failure(usize::MAX, GenerateFailureMode::NonRetryable);
+        let mock_client = MockProviderClient::with_generate_failure(
+            usize::MAX,
+            GenerateFailureMode::NonRetryable,
+        );
 
         let handler = create_test_handler(queue.clone(), mock_client);
         let message = create_test_message(0);
@@ -491,8 +499,7 @@ mod tests {
             .await;
 
         // No message should be on the queue
-        let result =
-            tokio::time::timeout(Duration::from_millis(200), receiver.receive()).await;
+        let result = tokio::time::timeout(Duration::from_millis(200), receiver.receive()).await;
 
         assert!(
             result.is_err(),
@@ -515,8 +522,10 @@ mod tests {
             .await
             .unwrap();
 
-        let mock_client =
-            MockProviderClient::with_generate_failure(usize::MAX, GenerateFailureMode::Retryable429);
+        let mock_client = MockProviderClient::with_generate_failure(
+            usize::MAX,
+            GenerateFailureMode::Retryable429,
+        );
 
         let handler = create_test_handler(queue.clone(), mock_client.clone());
         let message = create_test_message(0);
