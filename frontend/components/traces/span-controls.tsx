@@ -30,9 +30,10 @@ import { extractToolsFromAttributes, ToolList } from "./tool-list";
 
 interface SpanControlsProps {
   span: Span;
+  avgCost?: number;
 }
 
-export function SpanControls({ children, span }: PropsWithChildren<SpanControlsProps>) {
+export function SpanControls({ children, span, avgCost }: PropsWithChildren<SpanControlsProps>) {
   const { projectId } = useParams();
 
   const errorEventAttributes = useMemo(
@@ -95,7 +96,7 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">
           <div className="flex items-center gap-2 flex-wrap">
-            <SpanStatsShields span={span} variant="outline" />
+            <SpanStatsShields span={span} variant="outline" avgCost={avgCost} />
             <div className="text-xs font-mono rounded-md py-0.5 truncate px-2 border border-muted">
               {new Date(span.startTime).toLocaleString()}
             </div>

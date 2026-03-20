@@ -13,13 +13,14 @@ import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-s
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type Span } from "@/lib/traces/types";
+import { type Span, SpanType } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 
 interface SpanViewProps {
   spanId: string;
   traceId: string;
+  avgCost?: number;
 }
 
 const swrFetcher = async (url: string) => {
@@ -99,7 +100,7 @@ const SpanViewTabs = ({
   );
 };
 
-export function SpanView({ spanId, traceId }: SpanViewProps) {
+export function SpanView({ spanId, traceId, avgCost }: SpanViewProps) {
   const { projectId } = useParams();
   const [searchOpen, setSearchOpen] = useState(false);
   const {
@@ -165,13 +166,8 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
     return (
       <SpanViewStateProvider>
         <SpanSearchProvider>
-          <SpanControls span={span}>
-            <SpanViewTabs
-              span={span}
-              searchRef={searchRef}
-              searchOpen={searchOpen}
-              setSearchOpen={setSearchOpen}
-            />
+          <SpanControls span={span} avgCost={span.spanType === SpanType.LLM ? avgCost : undefined}>
+            <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
           </SpanControls>
         </SpanSearchProvider>
       </SpanViewStateProvider>

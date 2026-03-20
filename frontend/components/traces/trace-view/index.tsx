@@ -19,6 +19,7 @@ import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
+import { useAverageCost } from "@/lib/hooks/use-average-cost";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const pathName = usePathname();
   const { projectId } = useParams();
   const [chatOpen, setChatOpen] = useState(false);
+  const traceAverages = useAverageCost(projectId as string, "traces");
+  const spanAverages = useAverageCost(projectId as string, "spans");
 
   // Data states
   const {
@@ -429,6 +432,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                           className="min-w-0 overflow-hidden"
                           trace={trace}
                           spans={filteredSpansForStats}
+                          avgCost={traceAverages?.avgCost}
                         />
                       )}
                     </div>
@@ -499,7 +503,12 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 key={selectedSpan.spanId}
               />
             ) : (
-              <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
+              <SpanView
+                key={selectedSpan.spanId}
+                spanId={selectedSpan.spanId}
+                traceId={traceId}
+                avgCost={spanAverages?.avgCost}
+              />
             )
           ) : (
             <div className="flex flex-col items-center justify-center size-full text-muted-foreground">

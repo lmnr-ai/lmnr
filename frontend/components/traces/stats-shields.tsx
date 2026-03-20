@@ -1,6 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { pick } from "lodash";
-import { CircleDollarSign, Clock3, Coins } from "lucide-react";
+import { CircleDollarSign, Clock3, Coins, TrendingDown, TrendingUp } from "lucide-react";
 import { memo, useMemo } from "react";
 
 import { type TraceViewSpan, type TraceViewTrace } from "@/components/traces/trace-view/store";
@@ -17,6 +17,13 @@ const numberFormat = new Intl.NumberFormat("en-US", {
 const compactNumberFormat = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
+
+function computeDeviation(actual: number, avg: number): { percent: number; isLess: boolean } | null {
+  if (avg === 0) return null;
+  const diff = ((actual - avg) / avg) * 100;
+  if (isNaN(diff) || Math.abs(diff) < 1) return null;
+  return { percent: Math.abs(Math.round(diff)), isLess: diff < 0 };
+}
 
 // Compute aggregate stats from a list of spans
 function computeSpanStats(
@@ -100,17 +107,18 @@ interface StatsShieldsProps {
   >;
   className?: string;
   variant?: "filled" | "outline";
-  labelPrefix?: string;
+  avgCost?: number;
 }
 
-function StatsShields({ stats, className, variant = "filled", labelPrefix }: StatsShieldsProps) {
-  const label = (text: string) =>
-    labelPrefix ? `${labelPrefix} ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
+function StatsShields({ stats, className, variant = "filled", avgCost }: StatsShieldsProps) {
+  const costDev =
+    avgCost != null && avgCost > 0 && stats.totalCost != null ? computeDeviation(stats.totalCost, avgCost) : null;
+
   const durationContent = (
     <div className="flex space-x-1 items-center">
       <Clock3 size={12} className="min-w-3 min-h-3" />
       <Label
-        className={cn("text-xs truncate", { "text-white": variant === "outline" })}
+        className={cn("text-xs truncate", { "text-foreground": variant === "outline" })}
         title={getDurationString(stats.startTime, stats.endTime)}
       >
         {getDurationString(stats.startTime, stats.endTime)}
@@ -124,27 +132,34 @@ function StatsShields({ stats, className, variant = "filled", labelPrefix }: Sta
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
             <Coins className="min-w-3" size={12} />
-            <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
+            <Label className={cn("text-xs truncate", { "text-foreground": variant === "outline" })}>
               {compactNumberFormat.format(stats.totalTokens)}
             </Label>
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="p-2 border">
-            <div className="flex-col space-y-1">
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("input tokens")}</span>{" "}
-                {numberFormat.format(stats.inputTokens)}
-              </Label>
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("output tokens")}</span>{" "}
-                {numberFormat.format(stats.outputTokens)}
-              </Label>
+          <TooltipContent side="bottom" className="p-0 border min-w-48">
+            <div className="px-3 py-2 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-secondary-foreground">Input tokens</span>
+                <span className="text-xs tabular-nums">{numberFormat.format(stats.inputTokens)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-secondary-foreground">Output tokens</span>
+                <span className="text-xs tabular-nums">{numberFormat.format(stats.outputTokens)}</span>
+              </div>
               {!!stats.cacheReadInputTokens && (
-                <Label className="flex text-xs gap-1 text-success-bright">
-                  <span>{label("cache input tokens")}</span> {numberFormat.format(stats.cacheReadInputTokens)}
-                </Label>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs text-secondary-foreground">Cached tokens</span>
+                  <span className="text-xs tabular-nums text-success-bright">
+                    {numberFormat.format(stats.cacheReadInputTokens)}
+                  </span>
+                </div>
               )}
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-secondary-foreground">Total tokens</span>
+                <span className="text-xs font-medium tabular-nums">{numberFormat.format(stats.totalTokens)}</span>
+              </div>
             </div>
           </TooltipContent>
         </TooltipPortal>
@@ -157,27 +172,64 @@ function StatsShields({ stats, className, variant = "filled", labelPrefix }: Sta
       <Tooltip>
         <TooltipTrigger className="min-w-8">
           <div className="flex space-x-1 items-center">
-            <CircleDollarSign className="min-w-3" size={12} />
-            <Label className={cn("text-xs truncate", { "text-white": variant === "outline" })}>
+            <CircleDollarSign className="min-w-3 shrink-0" size={12} />
+            <Label className={cn("text-xs truncate", { "text-foreground": variant === "outline" })}>
               {stats.totalCost?.toFixed(2)}
             </Label>
+            {costDev && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-0.5 text-xs font-medium whitespace-nowrap",
+                  costDev.isLess ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400"
+                )}
+              >
+                {costDev.isLess ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
+                {costDev.percent}%
+              </span>
+            )}
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="p-2 border">
-            <div className="flex-col space-y-1">
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("total cost")}</span>{" "}
-                {"$" + stats.totalCost?.toFixed(5)}
-              </Label>
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("input cost")}</span>{" "}
-                {"$" + stats.inputCost?.toFixed(5)}
-              </Label>
-              <Label className="flex text-xs gap-1">
-                <span className="text-secondary-foreground">{label("output cost")}</span>{" "}
-                {"$" + stats.outputCost?.toFixed(5)}
-              </Label>
+          <TooltipContent side="bottom" className="p-0 border min-w-48">
+            <div className="flex flex-col">
+              <div className="px-3 py-2 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs text-secondary-foreground">Input cost</span>
+                  <span className="text-xs tabular-nums">${stats.inputCost?.toFixed(5)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs text-secondary-foreground">Output cost</span>
+                  <span className="text-xs tabular-nums">${stats.outputCost?.toFixed(5)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs text-secondary-foreground">Total cost</span>
+                  <span className="text-xs font-medium tabular-nums">${stats.totalCost?.toFixed(5)}</span>
+                </div>
+              </div>
+              {costDev && (
+                <>
+                  <div className="border-t" />
+                  <div className="px-3 py-2 flex flex-col gap-1">
+                    <div className="text-xs flex items-center gap-1">
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-0.5 font-medium",
+                          costDev.isLess
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-orange-600 dark:text-orange-400"
+                        )}
+                      >
+                        {costDev.isLess ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
+                        {costDev.percent}% {costDev.isLess ? "below" : "above"}
+                      </span>
+                      <span className="text-secondary-foreground">
+                        avg <span className="underline tabular-nums">${avgCost!.toFixed(5)}</span>
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">for the last 3 days</span>
+                  </div>
+                </>
+              )}
             </div>
           </TooltipContent>
         </TooltipPortal>
@@ -204,9 +256,10 @@ interface TraceStatsShieldsProps {
   trace: TraceViewTrace;
   spans?: TraceViewSpan[];
   className?: string;
+  avgCost?: number;
 }
 
-const PureTraceStatsShields = ({ trace, spans, className }: TraceStatsShieldsProps) => {
+const PureTraceStatsShields = ({ trace, spans, className, avgCost }: TraceStatsShieldsProps) => {
   const stats = useMemo(() => {
     if (spans && spans.length > 0) {
       return computeSpanStats(spans);
@@ -225,16 +278,17 @@ const PureTraceStatsShields = ({ trace, spans, className }: TraceStatsShieldsPro
     ]);
   }, [trace, spans]);
 
-  return <StatsShields stats={stats} className={className} labelPrefix="Trace" />;
+  return <StatsShields stats={stats} className={className} avgCost={avgCost} />;
 };
 
 interface SpanStatsShieldsProps {
   span: Span;
   className?: string;
   variant?: "filled" | "outline";
+  avgCost?: number;
 }
 
-const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) => (
+const SpanStatsShields = ({ span, className, variant, avgCost }: SpanStatsShieldsProps) => (
   <StatsShields
     stats={pick(span, [
       "startTime",
@@ -249,6 +303,7 @@ const SpanStatsShields = ({ span, className, variant }: SpanStatsShieldsProps) =
     ])}
     className={className}
     variant={variant}
+    avgCost={avgCost}
   />
 );
 
