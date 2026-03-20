@@ -157,25 +157,20 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
         <Plus className="w-3.5 h-3.5 mr-1" />
         Add condition
       </Button>
-      <div className="pt-2 border-t">
-        <Controller
-          name={`triggers.${triggerIndex}.mode`}
-          control={control}
-          render={({ field }) => {
-            // If batch is disabled but this trigger was saved with batch mode, coerce to realtime
-            const effectiveValue = !batchEnabled && field.value === 0 ? 1 : (field.value ?? 1);
-            if (effectiveValue !== field.value) {
-              field.onChange(effectiveValue);
-            }
-            return (
+      {batchEnabled && (
+        <div className="pt-2 border-t">
+          <Controller
+            name={`triggers.${triggerIndex}.mode`}
+            control={control}
+            render={({ field }) => (
               <div className="flex items-center gap-3">
                 <div>
-                  <Select value={String(effectiveValue)} onValueChange={(v) => field.onChange(Number(v))}>
+                  <Select value={String(field.value ?? 0)} onValueChange={(v) => field.onChange(Number(v))}>
                     <SelectTrigger className="h-7 text-xs">
                       <SelectValue placeholder="Select processing mode" />
                     </SelectTrigger>
                     <SelectContent>
-                      {batchEnabled && <SelectItem value="0">Batch processing</SelectItem>}
+                      <SelectItem value="0">Batch processing</SelectItem>
                       <SelectItem value="1">Realtime processing</SelectItem>
                     </SelectContent>
                   </Select>
@@ -186,10 +181,10 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
                     : "Results available within several hours."}
                 </span>
               </div>
-            );
-          }}
-        />
-      </div>
+            )}
+          />
+        </div>
+      )}
     </div>
   );
 }
