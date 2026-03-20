@@ -55,7 +55,7 @@ export default function ConfirmSignalJobDialog({
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium">Batch</span>
                 <span className="text-xs text-muted-foreground">
-                  Processing may take 1-36 hours. Recommended for cost optimization.
+                  Processing may take 1-48 hours. Recommended for cost optimization.
                 </span>
               </div>
             </label>
