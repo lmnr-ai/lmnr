@@ -161,26 +161,33 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
         <Controller
           name={`triggers.${triggerIndex}.mode`}
           control={control}
-          render={({ field }) => (
-            <div className="flex items-center gap-3">
-              <div>
-                <Select value={String(field.value ?? 1)} onValueChange={(v) => field.onChange(Number(v))}>
-                  <SelectTrigger className="h-7 text-xs">
-                    <SelectValue placeholder="Select processing mode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {batchEnabled && <SelectItem value="0">Batch processing</SelectItem>}
-                    <SelectItem value="1">Realtime processing</SelectItem>
-                  </SelectContent>
-                </Select>
+          render={({ field }) => {
+            // If batch is disabled but this trigger was saved with batch mode, coerce to realtime
+            const effectiveValue = !batchEnabled && field.value === 0 ? 1 : (field.value ?? 1);
+            if (effectiveValue !== field.value) {
+              field.onChange(effectiveValue);
+            }
+            return (
+              <div className="flex items-center gap-3">
+                <div>
+                  <Select value={String(effectiveValue)} onValueChange={(v) => field.onChange(Number(v))}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Select processing mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {batchEnabled && <SelectItem value="0">Batch processing</SelectItem>}
+                      <SelectItem value="1">Realtime processing</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {mode === 1
+                    ? "Results in minutes, but each run is billed as 2 signal runs."
+                    : "Results available within several hours."}
+                </span>
               </div>
-              <span className="text-xs text-muted-foreground">
-                {mode === 1
-                  ? "Results in minutes, but each run is billed as 2 signal runs."
-                  : "Results available within several hours."}
-              </span>
-            </div>
-          )}
+            );
+          }}
         />
       </div>
     </div>
