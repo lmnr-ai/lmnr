@@ -49,7 +49,7 @@ export const getTriggersTableColumns = (): ColumnDef<TriggerRow>[] => [
         </Badge>
       );
     },
-    size: 100,
+    size: 120,
     id: "mode",
   },
   {

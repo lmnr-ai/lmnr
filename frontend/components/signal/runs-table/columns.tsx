@@ -82,7 +82,7 @@ export const getSignalRunsColumns = ({
         </Badge>
       );
     },
-    size: 100,
+    size: 120,
     id: "mode",
   },
   {

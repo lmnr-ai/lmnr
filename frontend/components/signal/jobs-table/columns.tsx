@@ -39,7 +39,7 @@ export const signalJobsColumns: ColumnDef<SignalJobRow, any>[] = [
         </Badge>
       );
     },
-    size: 100,
+    size: 120,
   },
   {
     accessorFn: (row) => row.processedTraces / row.totalTraces,
