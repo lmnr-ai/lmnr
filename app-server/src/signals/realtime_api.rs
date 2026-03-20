@@ -124,7 +124,6 @@ impl SignalJobRealtimeHandler {
         request: crate::signals::provider::models::ProviderRequest,
         message: SignalMessage,
     ) {
-        let max_retry_count = get_unsigned_env_with_default("SIGNALS_MAX_RETRY_COUNT", 4);
         let model_str = llm_model();
         let llm_client = self.llm_client.clone();
         let req_clone = request.clone();
@@ -264,19 +263,15 @@ impl SignalJobRealtimeHandler {
                 let failed_run = SignalRun::from_message(&message, message.signal.id)
                     .failed(&format!("Realtime API failed: {}", e));
 
-                if e.is_retryable() && message.retry_count < max_retry_count {
-                    let mut retry_msg = message.clone();
-                    retry_msg.retry_count += 1;
-
+                if e.is_retryable() {
                     log::info!(
-                        "[SIGNAL JOB] Retrying realtime run {} via queue (retry {}/{})",
-                        retry_msg.run_id,
-                        retry_msg.retry_count,
-                        max_retry_count
+                        "[SIGNAL JOB] Retrying realtime run {} via queue (retry {})",
+                        message.run_id,
+                        message.retry_count,
                     );
 
                     if let Err(enqueue_err) =
-                        push_to_realtime_queue(retry_msg, self.queue.clone()).await
+                        push_to_realtime_queue(message, self.queue.clone()).await
                     {
                         log::error!(
                             "Failed to enqueue retry for realtime request: {:?}",
