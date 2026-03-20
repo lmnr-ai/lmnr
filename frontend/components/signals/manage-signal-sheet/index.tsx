@@ -8,6 +8,8 @@ import { FormProvider, useForm, useFormContext } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
@@ -44,12 +46,14 @@ function DrawerContent({
   showTest,
   setShowTest,
   previousTriggerIds,
+  defaultMode,
 }: {
   setOpen: (open: boolean) => void;
   onSuccess?: (signal: ManageSignalForm) => Promise<void>;
   showTest: boolean;
   setShowTest: (show: boolean) => void;
   previousTriggerIds: string[];
+  defaultMode: number;
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTrace, setSelectedTrace] = useState<TraceRow | null>(null);
@@ -80,6 +84,7 @@ function DrawerContent({
     previousTriggerIds,
     setFormId,
     setFormTriggers,
+    defaultMode,
   });
 
   const handleTestComplete = useCallback(() => {
@@ -154,6 +159,8 @@ export default function ManageSignalSheet({
 }>) {
   const { projectId } = useParams();
   const [showTest, setShowTest] = useState(false);
+  const featureFlags = useFeatureFlags();
+  const defaultMode = featureFlags[Feature.BATCH_SIGNALS] ? 0 : 1;
 
   const previousTriggerIds = useMemo(
     () => (initialValues?.triggers ?? []).filter((t) => t.id).map((t) => t.id!),
@@ -162,10 +169,10 @@ export default function ManageSignalSheet({
 
   const convertToFormValues = useCallback(
     (values: ManageSignalForm | undefined): ManageSignalForm => {
-      if (!values) return getDefaultValues(String(projectId));
+      if (!values) return getDefaultValues(String(projectId), defaultMode);
       return values;
     },
-    [projectId]
+    [projectId, defaultMode]
   );
 
   const form = useForm<ManageSignalForm>({
@@ -184,11 +191,11 @@ export default function ManageSignalSheet({
     (nextOpen: boolean) => {
       setOpen(nextOpen);
       if (!nextOpen) {
-        form.reset(getDefaultValues(String(projectId)));
+        form.reset(getDefaultValues(String(projectId), defaultMode));
         setShowTest(false);
       }
     },
-    [form, projectId, setOpen]
+    [form, projectId, defaultMode, setOpen]
   );
 
   return (
@@ -208,6 +215,7 @@ export default function ManageSignalSheet({
             showTest={showTest}
             setShowTest={setShowTest}
             previousTriggerIds={previousTriggerIds}
+            defaultMode={defaultMode}
           />
         </SheetContent>
       </Sheet>

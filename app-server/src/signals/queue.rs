@@ -69,8 +69,9 @@ pub struct SignalMessage {
     pub retry_count: usize,
     #[serde(default = "chrono::Utc::now")]
     pub request_start_time: chrono::DateTime<chrono::Utc>,
+    /// 0 = batch, 1 = realtime. Determines billing and routing.
     #[serde(default)]
-    pub use_realtime_api: bool,
+    pub mode: u8,
 }
 
 pub async fn push_to_submissions_queue(

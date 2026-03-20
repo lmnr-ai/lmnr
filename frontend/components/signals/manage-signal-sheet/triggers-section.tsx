@@ -1,5 +1,6 @@
 "use client";
 
+import { SelectValue } from "@radix-ui/react-select";
 import { Info, Plus, Trash2, X } from "lucide-react";
 import { Controller, useFieldArray, useFormContext } from "react-hook-form";
 
@@ -10,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 
 import { type ManageSignalForm } from "./types";
 
@@ -122,11 +125,15 @@ function TriggerFilterRow({
 }
 
 function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemove: () => void }) {
-  const { control } = useFormContext<ManageSignalForm>();
+  const { control, watch } = useFormContext<ManageSignalForm>();
   const { fields, append, remove } = useFieldArray({
     control,
     name: `triggers.${triggerIndex}.filters`,
   });
+  const featureFlags = useFeatureFlags();
+  const batchEnabled = featureFlags[Feature.BATCH_SIGNALS];
+
+  const mode = watch(`triggers.${triggerIndex}.mode`);
 
   return (
     <div className="rounded-md border p-3 space-y-2">
@@ -150,6 +157,34 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
         <Plus className="w-3.5 h-3.5 mr-1" />
         Add condition
       </Button>
+      {batchEnabled && (
+        <div className="pt-2 border-t">
+          <Controller
+            name={`triggers.${triggerIndex}.mode`}
+            control={control}
+            render={({ field }) => (
+              <div className="flex items-center gap-3">
+                <div>
+                  <Select value={String(field.value ?? 0)} onValueChange={(v) => field.onChange(Number(v))}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Select processing mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Batch processing</SelectItem>
+                      <SelectItem value="1">Realtime processing</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {mode === 1
+                    ? "Results in minutes, but each run is billed as 2 signal runs."
+                    : "Results available within several hours."}
+                </span>
+              </div>
+            )}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -160,6 +195,8 @@ export default function TriggersSection() {
     control,
     name: "triggers",
   });
+  const featureFlags = useFeatureFlags();
+  const batchEnabled = featureFlags[Feature.BATCH_SIGNALS];
 
   return (
     <div className="grid gap-1.5">
@@ -181,7 +218,7 @@ export default function TriggersSection() {
           type="button"
           variant="outline"
           className="w-fit"
-          onClick={() => append({ filters: [getDefaultFilter()] })}
+          onClick={() => append({ filters: [getDefaultFilter()], mode: batchEnabled ? 0 : 1 })}
         >
           <Plus className="w-3.5 h-3.5 mr-1" />
           Add trigger
@@ -190,7 +227,7 @@ export default function TriggersSection() {
       <div className="space-y-2">
         {fields.length === 0 && (
           <div className="text-sm text-muted-foreground text-center py-3 border border-dashed rounded-md">
-            No triggers configured. The signal will only run via jobs. Click "Add trigger" to add one.
+            No triggers configured. The signal will only run via jobs. Click &quot;Add trigger&quot; to add one.
           </div>
         )}
         {fields.map((field, index) => (

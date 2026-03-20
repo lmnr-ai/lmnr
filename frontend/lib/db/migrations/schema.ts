@@ -13,10 +13,10 @@ import {
   uniqueIndex,
   boolean,
   integer,
+  smallint,
   real,
   vector,
   primaryKey,
-  smallint,
   pgEnum,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -181,14 +181,16 @@ export const tracesAgentMessages = pgTable(
 
 export const userSubscriptionTiers = pgTable("user_subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-    name: "user_subscription_tiers_id_seq",
-    startWith: 1,
-    increment: 1,
-    minValue: 1,
-    maxValue: 9223372036854775807,
-    cache: 1,
-  }),
+  id: bigint({ mode: "number" })
+    .primaryKey()
+    .generatedByDefaultAsIdentity({
+      name: "user_subscription_tiers_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   stripeProductId: text("stripe_product_id").default("").notNull(),
@@ -1163,14 +1165,16 @@ export const workspaceAddons = pgTable(
 
 export const subscriptionTiers = pgTable("subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-    name: "subscription_tiers_id_seq",
-    startWith: 1,
-    increment: 1,
-    minValue: 1,
-    maxValue: 9223372036854775807,
-    cache: 1,
-  }),
+  id: bigint({ mode: "number" })
+    .primaryKey()
+    .generatedByDefaultAsIdentity({
+      name: "subscription_tiers_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -1187,6 +1191,35 @@ export const subscriptionTiers = pgTable("subscription_tiers", {
   signalRuns: bigint("signal_runs", { mode: "number" }).notNull(),
   extraSignalRunPrice: doublePrecision("extra_signal_run_price").default(0).notNull(),
 });
+
+export const signalJobs = pgTable(
+  "signal_jobs",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    signalId: uuid("signal_id").notNull(),
+    projectId: uuid("project_id").notNull(),
+    totalTraces: integer("total_traces").default(0).notNull(),
+    processedTraces: integer("processed_traces").default(0).notNull(),
+    failedTraces: integer("failed_traces").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    mode: smallint().default(0).notNull(),
+  },
+  (table) => [
+    index("signal_jobs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
+    index("signal_jobs_signal_id_idx").using("btree", table.signalId.asc().nullsLast().op("uuid_ops")),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "signal_jobs_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.signalId],
+      foreignColumns: [signals.id],
+      name: "signal_jobs_signal_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
 
 export const playgrounds = pgTable(
   "playgrounds",
@@ -1214,34 +1247,6 @@ export const playgrounds = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
-  ]
-);
-
-export const signalJobs = pgTable(
-  "signal_jobs",
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    signalId: uuid("signal_id").notNull(),
-    projectId: uuid("project_id").notNull(),
-    totalTraces: integer("total_traces").default(0).notNull(),
-    processedTraces: integer("processed_traces").default(0).notNull(),
-    failedTraces: integer("failed_traces").default(0).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  },
-  (table) => [
-    index("signal_jobs_project_id_idx").using("btree", table.projectId.asc().nullsLast().op("uuid_ops")),
-    index("signal_jobs_signal_id_idx").using("btree", table.signalId.asc().nullsLast().op("uuid_ops")),
-    foreignKey({
-      columns: [table.projectId],
-      foreignColumns: [projects.id],
-      name: "signal_jobs_project_id_fkey",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.signalId],
-      foreignColumns: [signals.id],
-      name: "signal_jobs_signal_id_fkey",
-    }).onDelete("cascade"),
   ]
 );
 
@@ -1377,6 +1382,7 @@ export const signalTriggers = pgTable(
     value: jsonb().notNull(),
     signalId: uuid("signal_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    mode: smallint().default(0).notNull(),
   },
   (table) => [
     foreignKey({

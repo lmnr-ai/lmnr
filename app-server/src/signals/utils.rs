@@ -37,6 +37,7 @@ pub struct InternalSpan {
     pub job_id: Option<Uuid>,
     pub error: Option<String>,
     pub provider_batch_id: Option<String>,
+    pub metadata: Option<HashMap<String, Value>>,
 }
 
 /// Try to parse JSON string, return the parsed value or the original string
@@ -126,6 +127,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
     };
 
     let span_id = Uuid::new_v4();
+    let mut span_name = span.name.clone();
 
     let mut attrs = HashMap::from([
         (
@@ -165,11 +167,25 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         );
     }
     if let Some(provider_batch_id) = span.provider_batch_id {
+        span_name += ".batch";
         attrs.insert(
             "signal.batch_id".to_string(),
             Value::String(provider_batch_id.to_string()),
         );
         attrs.insert("gen_ai.request.batch".to_string(), Value::Bool(true));
+        attrs.insert(
+            "lmnr.association.properties.tags".to_string(),
+            Value::String("batch".to_string()),
+        );
+    }
+
+    if let Some(metadata) = span.metadata {
+        for (key, value) in metadata {
+            attrs.insert(
+                format!("lmnr.association.properties.metadata.{}", key),
+                value,
+            );
+        }
     }
 
     attrs.insert(
@@ -185,7 +201,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         );
         attrs.insert(
             "lmnr.span.path".to_string(),
-            serde_json::json!(["signal.run".to_string(), span.name.to_string()]),
+            serde_json::json!(["signal.run".to_string(), span_name.to_string()]),
             // TODO: Pass parent span name in the message
         );
     } else {
@@ -195,7 +211,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         );
         attrs.insert(
             "lmnr.span.path".to_string(),
-            serde_json::json!([span.name.to_string()]),
+            serde_json::json!([span_name.to_string()]),
         );
     }
 
@@ -204,7 +220,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         project_id,
         trace_id: span.trace_id,
         parent_span_id: span.parent_span_id,
-        name: span.name.to_string(),
+        name: span_name.to_string(),
         attributes: SpanAttributes::new(attrs),
         input: span.input,
         output: span.output,

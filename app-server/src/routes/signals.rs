@@ -10,7 +10,7 @@ use crate::{
     features::is_feature_enabled,
     mq::MessageQueue,
     query_engine::QueryEngine,
-    signals::{enqueue::enqueue_signal_job, provider::always_use_realtime},
+    signals::enqueue::enqueue_signal_job,
     sql::{self, ClickhouseReadonlyClient},
     utils::limits::get_workspace_signal_runs_limit_exceeded,
 };
@@ -24,8 +24,9 @@ pub struct SubmitSignalJobRequest {
     pub signal_id: Uuid,
     #[serde(default)]
     pub parameters: HashMap<String, serde_json::Value>,
+    /// 0 = batch, 1 = realtime
     #[serde(default)]
-    pub process_in_realtime: bool,
+    pub mode: u8,
 }
 
 #[derive(Serialize)]
@@ -71,7 +72,7 @@ pub async fn submit_signal_job(
         query,
         parameters,
         signal_id,
-        process_in_realtime,
+        mode,
     } = request.into_inner();
 
     let clickhouse_client = match clickhouse_ro.as_ref() {
@@ -147,7 +148,7 @@ pub async fn submit_signal_job(
         trace_ids,
         clickhouse.as_ref().clone(),
         queue.as_ref().clone(),
-        process_in_realtime || always_use_realtime(),
+        mode,
     )
     .await
     .map_err(|e| {

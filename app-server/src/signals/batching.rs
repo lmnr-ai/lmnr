@@ -102,15 +102,13 @@ impl BatchMessageHandler for SignalBatchingHandler {
         delivery: MessageDelivery<Self::Message>,
         state: &mut Self::State,
     ) -> HandlerResult<Self::Message> {
-        let use_realtime_api = delivery.message.use_realtime_api;
-
         // Add message to the single batch
         state.messages.push(delivery);
 
         let batch_len = state.messages.len();
 
-        // Flush if batch size reached or realtime processing requested
-        if batch_len >= self.config.size || use_realtime_api {
+        // Flush if batch size reached
+        if batch_len >= self.config.size {
             // Take the batch and replace with new one
             let batch = std::mem::replace(state, SignalBatch::new());
             return self.flush_and_handle(batch).await;

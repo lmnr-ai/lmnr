@@ -39,6 +39,20 @@ export const getTriggersTableColumns = (): ColumnDef<TriggerRow>[] => [
     id: "filters",
   },
   {
+    accessorKey: "mode",
+    header: "Mode",
+    cell: ({ row }) => {
+      const mode = row.original.mode;
+      return (
+        <Badge variant="outline" className="text-xs">
+          {mode === 1 ? "Realtime" : "Batch"}
+        </Badge>
+      );
+    },
+    size: 120,
+    id: "mode",
+  },
+  {
     accessorKey: "createdAt",
     header: "Created",
     cell: (row) => (row.getValue() ? <ClientTimestampFormatter absolute timestamp={String(row.getValue())} /> : "-"),
@@ -47,7 +61,7 @@ export const getTriggersTableColumns = (): ColumnDef<TriggerRow>[] => [
   },
 ];
 
-export const defaultTriggersColumnOrder = ["filters", "createdAt"];
+export const defaultTriggersColumnOrder = ["filters", "mode", "createdAt"];
 
 export const triggersFilters: ColumnFilter[] = [
   {
