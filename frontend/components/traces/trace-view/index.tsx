@@ -9,6 +9,7 @@ import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-eva
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import PanelWrapper from "@/components/traces/trace-view/panel-wrapper";
+import SignalEventsPanel from "@/components/traces/trace-view/signal-events-panel";
 import TraceViewStoreProvider, {
   MIN_TREE_VIEW_WIDTH,
   type TraceViewSpan,
@@ -492,9 +493,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
         {/* Signal Events Panel (visible when signals toggle is active) */}
         {signalsPanelOpen && (
           <PanelWrapper title="Signal Events" onClose={() => setSignalsPanelOpen(false)}>
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-              <span className="text-sm">Coming soon</span>
-            </div>
+            <SignalEventsPanel traceId={traceId} />
           </PanelWrapper>
         )}
 
