@@ -123,9 +123,7 @@ function ManageTriggerDialogContent({ setOpen, isNew, signalId, onSuccess }: Man
                   <RadioGroupItem value="0" className="mt-0.5" />
                   <div className="flex flex-col gap-0.5">
                     <span className="text-sm font-medium">Batch</span>
-                    <span className="text-xs text-muted-foreground">
-                      Processing may take 1-48 hours. Recommended for cost optimization.
-                    </span>
+                    <span className="text-xs text-muted-foreground">Results available within several hours.</span>
                   </div>
                 </label>
                 <label className="flex items-start gap-3 cursor-pointer">
@@ -133,7 +131,7 @@ function ManageTriggerDialogContent({ setOpen, isNew, signalId, onSuccess }: Man
                   <div className="flex flex-col gap-0.5">
                     <span className="text-sm font-medium">Realtime</span>
                     <span className="text-xs text-muted-foreground">
-                      Results in minutes, but each realtime signal run is billed as 2 signal runs.
+                      Results in minutes, but each run is billed as 2 signal runs.
                     </span>
                   </div>
                 </label>

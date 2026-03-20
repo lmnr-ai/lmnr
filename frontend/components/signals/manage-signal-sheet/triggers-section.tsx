@@ -1,5 +1,6 @@
 "use client";
 
+import { SelectValue } from "@radix-ui/react-select";
 import { Info, Plus, Trash2, X } from "lucide-react";
 import { Controller, useFieldArray, useFormContext } from "react-hook-form";
 
@@ -158,20 +159,21 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
           control={control}
           render={({ field }) => (
             <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">Processing mode:</span>
-              <Select value={String(field.value ?? 0)} onValueChange={(v) => field.onChange(Number(v))}>
-                <SelectTrigger className="w-32 h-7 text-xs">
-                  <span>{mode === 1 ? "Realtime" : "Batch"}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">Batch</SelectItem>
-                  <SelectItem value="1">Realtime</SelectItem>
-                </SelectContent>
-              </Select>
+              <div>
+                <Select value={String(field.value ?? 0)} onValueChange={(v) => field.onChange(Number(v))}>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue placeholder="Select processing mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Batch processing</SelectItem>
+                    <SelectItem value="1">Realtime processing</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <span className="text-xs text-muted-foreground">
                 {mode === 1
-                  ? "* Results in minutes, but each run is billed as 2 signal runs."
-                  : "* Processing may take 1–36 hours. Recommended for cost optimization."}
+                  ? "Results in minutes, but each run is billed as 2 signal runs."
+                  : "Results available within several hours."}
               </span>
             </div>
           )}
