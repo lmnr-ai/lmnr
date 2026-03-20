@@ -23,8 +23,10 @@ import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datata
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import type { Filter } from "@/lib/actions/common/filters.ts";
 import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
+import { Feature } from "@/lib/features/features";
 import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import type { TraceRow } from "@/lib/traces/types.ts";
@@ -40,10 +42,11 @@ const CreateSignalJobContent = () => {
 
   const signal = useSignalStoreContext((state) => state.signal);
   const { rowSelection, onRowSelectionChange } = useSelection();
+  const featureFlags = useFeatureFlags();
 
   const [isCreating, setIsCreating] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-  const [jobMode, setJobMode] = useState(0);
+  const [jobMode, setJobMode] = useState(featureFlags[Feature.BATCH_SIGNALS] ? 0 : 1);
   const [filters, setFilters] = useState<{ filters: Filter[]; search: string }>({ filters: [], search: "" });
   const [dateRange, setDateRange] = useState<{
     pastHours?: string;

@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 
 import { type ManageSignalForm } from "./types";
 
@@ -128,6 +130,8 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
     control,
     name: `triggers.${triggerIndex}.filters`,
   });
+  const featureFlags = useFeatureFlags();
+  const batchEnabled = featureFlags[Feature.BATCH_SIGNALS];
 
   const mode = watch(`triggers.${triggerIndex}.mode`);
 
@@ -160,12 +164,12 @@ function TriggerCard({ triggerIndex, onRemove }: { triggerIndex: number; onRemov
           render={({ field }) => (
             <div className="flex items-center gap-3">
               <div>
-                <Select value={String(field.value ?? 0)} onValueChange={(v) => field.onChange(Number(v))}>
+                <Select value={String(field.value ?? 1)} onValueChange={(v) => field.onChange(Number(v))}>
                   <SelectTrigger className="h-7 text-xs">
                     <SelectValue placeholder="Select processing mode" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="0">Batch processing</SelectItem>
+                    {batchEnabled && <SelectItem value="0">Batch processing</SelectItem>}
                     <SelectItem value="1">Realtime processing</SelectItem>
                   </SelectContent>
                 </Select>
@@ -189,6 +193,8 @@ export default function TriggersSection() {
     control,
     name: "triggers",
   });
+  const featureFlags = useFeatureFlags();
+  const batchEnabled = featureFlags[Feature.BATCH_SIGNALS];
 
   return (
     <div className="grid gap-1.5">
@@ -210,7 +216,7 @@ export default function TriggersSection() {
           type="button"
           variant="outline"
           className="w-fit"
-          onClick={() => append({ filters: [getDefaultFilter()], mode: 0 })}
+          onClick={() => append({ filters: [getDefaultFilter()], mode: batchEnabled ? 0 : 1 })}
         >
           <Plus className="w-3.5 h-3.5 mr-1" />
           Add trigger

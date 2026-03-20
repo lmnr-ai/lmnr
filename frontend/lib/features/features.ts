@@ -11,6 +11,7 @@ export enum Feature {
   SUBSCRIPTION = "SUBSCRIPTION",
   DEPLOYMENT = "DEPLOYMENT",
   SIGNALS = "SIGNALS",
+  BATCH_SIGNALS = "BATCH_SIGNALS",
   SLACK = "SLACK",
   LANDING = "LANDING",
 }
@@ -66,6 +67,10 @@ export const isFeatureEnabled = (feature: Feature) => {
         !!process.env.AWS_SECRET_ACCESS_KEY &&
         !!process.env.AWS_REGION)
     );
+  }
+
+  if (feature === Feature.BATCH_SIGNALS) {
+    return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   }
 
   if (feature === Feature.SEND_EMAIL) {
