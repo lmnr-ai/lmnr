@@ -12,6 +12,7 @@ interface CondensedTimelineElementProps {
   condensedSpan: CondensedTimelineSpan;
   selectedSpan?: TraceViewSpan;
   isIncludedInGroupSelection: boolean | null;
+  maxSpanCost: number;
   onClick: (span: TraceViewSpan) => void;
 }
 
@@ -19,14 +20,12 @@ const CondensedTimelineElement = ({
   condensedSpan,
   selectedSpan,
   isIncludedInGroupSelection,
+  maxSpanCost,
   onClick,
 }: CondensedTimelineElementProps) => {
   const { span, left, width, row } = condensedSpan;
 
-  const { isCostHeatmapVisible, selectMaxSpanCost } = useTraceViewBaseStore((state) => ({
-    isCostHeatmapVisible: state.isCostHeatmapVisible,
-    selectMaxSpanCost: state.selectMaxSpanCost,
-  }));
+  const isCostHeatmapVisible = useTraceViewBaseStore((state) => state.isCostHeatmapVisible);
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [span.spanId, selectedSpan?.spanId]);
   const opacity = isIncludedInGroupSelection === false ? "opacity-30" : "";
@@ -40,10 +39,9 @@ const CondensedTimelineElement = ({
 
   const heatmapOpacity = useMemo(() => {
     if (!isCostHeatmapVisible) return 0;
-    const maxCost = selectMaxSpanCost();
-    if (maxCost === 0) return 0;
-    return span.totalCost / maxCost;
-  }, [isCostHeatmapVisible, selectMaxSpanCost, span.totalCost]);
+    if (maxSpanCost === 0) return 0;
+    return span.totalCost / maxSpanCost;
+  }, [isCostHeatmapVisible, maxSpanCost, span.totalCost]);
 
   const backgroundColor = useMemo(() => {
     if (isCostHeatmapVisible) return undefined;

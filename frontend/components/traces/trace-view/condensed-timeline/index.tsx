@@ -31,6 +31,7 @@ function CondensedTimeline() {
     clearCondensedTimelineSelection,
     condensedTimelineZoom,
     setCondensedTimelineZoom,
+    selectMaxSpanCost,
     sessionTime,
     sessionStartTime,
     browserSession,
@@ -45,6 +46,7 @@ function CondensedTimeline() {
     clearCondensedTimelineSelection: state.clearCondensedTimelineSelection,
     condensedTimelineZoom: state.condensedTimelineZoom,
     setCondensedTimelineZoom: state.setCondensedTimelineZoom,
+    selectMaxSpanCost: state.selectMaxSpanCost,
     sessionTime: state.sessionTime,
     sessionStartTime: state.sessionStartTime,
     browserSession: state.browserSession,
@@ -56,6 +58,8 @@ function CondensedTimeline() {
     totalDurationMs,
     totalRows,
   } = useMemo(() => getCondensedTimelineData(), [getCondensedTimelineData, storeSpans]);
+
+  const maxSpanCost = useMemo(() => selectMaxSpanCost(), [selectMaxSpanCost, storeSpans]);
 
   // Compute dynamic time markers based on container width and zoom
   const { markers: timeMarkers, setContainerRef } = useDynamicTimeIntervals({
@@ -191,6 +195,7 @@ function CondensedTimeline() {
                   condensedSpan={condensedSpan}
                   selectedSpan={selectedSpan}
                   isIncludedInGroupSelection={isIncludedInGroupSelection}
+                  maxSpanCost={maxSpanCost}
                   onClick={handleSpanClick}
                 />
               );
