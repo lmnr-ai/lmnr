@@ -140,51 +140,61 @@ const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
   },
 ];
 
-const staticColumnsAfterPayload: ColumnDef<EventRow>[] = [
-  {
-    accessorKey: "id",
-    cell: (row) => <Mono>{String(row.getValue())}</Mono>,
-    header: "ID",
-    size: 100,
-    id: "id",
-  },
-  {
-    accessorKey: "traceId",
-    header: "Trace ID",
-    cell: (row) => {
-      const traceId = String(row.getValue());
-      const event = row.row.original;
-      return (
-        <div className="flex items-center gap-1 min-w-0">
-          <button
-            className="font-mono text-xs min-w-0 truncate"
-            onClick={(e: MouseEvent) => {
-              e.stopPropagation();
-              // Open trace panel via signal store
-              const agentState = laminarAgentStore.getState();
-              const signalStore = agentState.refs.signal;
-              if (signalStore) {
-                signalStore.getState().setTraceId(traceId);
-              }
-              // Open Laminar Agent in side-by-side view with prefilled prompt
-              agentState.setViewMode("floating");
-              agentState.setPrefillInput(
-                `Show me the payload of this signal event ${event.id} formatted in a table, explain why it was detected on this trace ${traceId}, and detail which spans are relevant and why`
-              );
-            }}
-          >
-            {traceId}
-          </button>
-          <CopyTooltip value={traceId} className="">
-            <Copy className="size-3" />
-          </CopyTooltip>
-        </div>
-      );
+type BuildEventsColumnsOptions = {
+  onTraceIdClick?: (traceId: string) => void;
+  aiEnabled?: boolean;
+};
+
+function getStaticColumnsAfterPayload({
+  onTraceIdClick,
+  aiEnabled = false,
+}: BuildEventsColumnsOptions): ColumnDef<EventRow>[] {
+  return [
+    {
+      accessorKey: "id",
+      cell: (row) => <Mono>{String(row.getValue())}</Mono>,
+      header: "ID",
+      size: 100,
+      id: "id",
     },
-    size: 180,
-    id: "traceId",
-  },
-];
+    {
+      accessorKey: "traceId",
+      header: "Trace ID",
+      cell: (row) => {
+        const traceId = String(row.getValue());
+        const event = row.row.original;
+        return (
+          <div className="flex items-center gap-1 min-w-0">
+            <button
+              className="font-mono text-xs min-w-0 truncate"
+              onClick={(e: MouseEvent) => {
+                e.stopPropagation();
+                onTraceIdClick?.(traceId);
+
+                if (!aiEnabled) {
+                  return;
+                }
+
+                const agentState = laminarAgentStore.getState();
+                agentState.setViewMode("floating");
+                agentState.setPrefillInput(
+                  `Show me the payload of this signal event ${event.id} formatted in a table, explain why it was detected on this trace ${traceId}, and detail which spans are relevant and why`
+                );
+              }}
+            >
+              {traceId}
+            </button>
+            <CopyTooltip value={traceId} className="">
+              <Copy className="size-3" />
+            </CopyTooltip>
+          </div>
+        );
+      },
+      size: 180,
+      id: "traceId",
+    },
+  ];
+}
 
 const staticFilters: ColumnFilter[] = [
   {
@@ -204,7 +214,10 @@ const staticFilters: ColumnFilter[] = [
   },
 ];
 
-export function buildEventsColumns(schemaFields: SchemaField[]): {
+export function buildEventsColumns(
+  schemaFields: SchemaField[],
+  options: BuildEventsColumnsOptions = {}
+): {
   columns: ColumnDef<EventRow>[];
   columnOrder: string[];
   filters: ColumnFilter[];
@@ -213,7 +226,7 @@ export function buildEventsColumns(schemaFields: SchemaField[]): {
   const payloadColumns = validFields.map(createPayloadColumnDef);
   const payloadFilters = validFields.map(createPayloadFilter);
 
-  const columns = [...staticColumnsBeforePayload, ...payloadColumns, ...staticColumnsAfterPayload];
+  const columns = [...staticColumnsBeforePayload, ...payloadColumns, ...getStaticColumnsAfterPayload(options)];
 
   const columnOrder = ["timestamp", "traceId", ...validFields.map((f) => `payload:${f.name}`), "id"];
 

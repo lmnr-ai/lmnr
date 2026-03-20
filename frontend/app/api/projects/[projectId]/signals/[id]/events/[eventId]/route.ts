@@ -1,13 +1,24 @@
 import { type NextRequest } from "next/server";
+import { z } from "zod/v4";
 
 import { executeQuery } from "@/lib/actions/sql";
 import { type EventRow } from "@/lib/events/types";
+
+const RouteParamsSchema = z.object({
+  signalId: z.string().uuid(),
+  eventId: z.string().uuid(),
+});
 
 export async function GET(
   _req: NextRequest,
   props: { params: Promise<{ projectId: string; id: string; eventId: string }> }
 ): Promise<Response> {
   const { projectId, id: signalId, eventId } = await props.params;
+  const parsedParams = RouteParamsSchema.safeParse({ signalId, eventId });
+
+  if (!parsedParams.success) {
+    return Response.json({ error: "Invalid signal or event identifier." }, { status: 400 });
+  }
 
   try {
     const query = `

@@ -20,8 +20,10 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type EventRow } from "@/lib/events/types";
+import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import { buildEventsColumns } from "./columns";
@@ -61,8 +63,11 @@ function PureEventsTable() {
   const [clusterId] = useClusterId();
   const [eventId, setEventId] = useEventId();
   const signal = useSignalStoreContext((state) => state.signal);
+  const setTraceId = useSignalStoreContext((state) => state.setTraceId);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
   const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
+  const featureFlags = useFeatureFlags();
+  const aiEnabled = featureFlags[Feature.LAMINAR_AGENT];
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
@@ -73,7 +78,20 @@ function PureEventsTable() {
   const filterRaw = searchParams.getAll("filter");
   const filter = useMemo(() => filterRaw, [JSON.stringify(filterRaw)]);
 
-  const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
+  const handleTraceIdClick = useCallback(
+    (traceId: string) => {
+      setTraceId(traceId);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("traceId", traceId);
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams, setTraceId]
+  );
+
+  const { columns, filters } = useMemo(
+    () => buildEventsColumns(signal.schemaFields, { onTraceIdClick: handleTraceIdClick, aiEnabled }),
+    [signal.schemaFields, handleTraceIdClick, aiEnabled]
+  );
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
