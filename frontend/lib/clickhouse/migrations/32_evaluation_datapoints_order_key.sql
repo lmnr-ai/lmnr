@@ -1,4 +1,4 @@
-CREATE TABLE new_evaluation_datapoints
+CREATE TABLE IF NOT EXISTS new_evaluation_datapoints
 (
     `id` UUID,
     `evaluation_id` UUID,
@@ -23,3 +23,5 @@ INSERT INTO new_evaluation_datapoints SELECT * FROM evaluation_datapoints;
 
 RENAME TABLE evaluation_datapoints TO old_evaluation_datapoints;
 RENAME TABLE new_evaluation_datapoints TO evaluation_datapoints;
+
+DROP TABLE IF EXISTS old_evaluation_datapoints;
