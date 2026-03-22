@@ -213,7 +213,7 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
     count: processedResult.messages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 360,
-    overscan: searchTerm ? 100 : 48,
+    overscan: searchTerm ? 100 : 24,
   });
 
   const items = virtualizer.getVirtualItems();
