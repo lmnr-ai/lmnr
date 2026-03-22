@@ -149,11 +149,13 @@ export const authOptions: NextAuthOptions = {
             }
           }
 
-          // Process any pending workspace invitations for this user.
-          // This handles the self-hosted flow where invitations are created
-          // before the user signs up, so they are automatically added to
-          // the invited workspaces on first sign-in.
-          await processPendingInvitations(token.userId as string, token.email);
+          // In self-hosted mode (no email sending), process any pending
+          // workspace invitations for this user. When SEND_EMAIL is enabled
+          // (cloud), invitations go through the explicit email accept/decline
+          // flow instead, so we must not auto-accept them here.
+          if (!isFeatureEnabled(Feature.SEND_EMAIL)) {
+            await processPendingInvitations(token.userId as string, token.email);
+          }
         } catch (e) {
           throw new Error("Failed to authenticate user.");
         }
