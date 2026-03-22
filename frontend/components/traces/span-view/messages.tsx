@@ -19,21 +19,25 @@ import { type GeminiContentsSchema, parseGeminiInput, parseGeminiOutput } from "
 import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { type OpenAIMessagesSchema, parseOpenAIInput, parseOpenAIOutput } from "@/lib/spans/types/openai";
 
-const ANTHROPIC_CONTENT_TYPES = [
-  '"type":"tool_use"',
-  '"type":"tool_result"',
-  '"type":"thinking"',
-  '"type":"redacted_thinking"',
-];
+const ANTHROPIC_SIGNAL_TYPES = new Set(["tool_use", "tool_result", "thinking", "redacted_thinking"]);
+
+function contentHasAnthropicTypes(blocks: unknown): boolean {
+  if (!Array.isArray(blocks)) return false;
+  return blocks.some((b: any) => ANTHROPIC_SIGNAL_TYPES.has(b?.type));
+}
 
 function hasAnthropicSignals(messages: unknown): boolean {
   if (!Array.isArray(messages)) return false;
   return messages.some((m: any) => {
     if (Array.isArray(m?.content)) {
-      return m.content.some((b: any) => b?.type === "tool_use" || b?.type === "tool_result" || b?.type === "thinking");
+      return contentHasAnthropicTypes(m.content);
     }
     if (typeof m?.content === "string") {
-      return ANTHROPIC_CONTENT_TYPES.some((t) => m.content.includes(t));
+      try {
+        return contentHasAnthropicTypes(JSON.parse(m.content));
+      } catch {
+        return false;
+      }
     }
     return false;
   });

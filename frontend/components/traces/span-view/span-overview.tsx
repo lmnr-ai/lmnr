@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MessageWrapper } from "@/components/traces/span-view/common";
 import {
@@ -7,6 +8,7 @@ import {
   processMessages,
   renderMessageContent,
 } from "@/components/traces/span-view/messages";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -53,12 +55,26 @@ function OverviewMessages({ result, presetKey }: { result: ProcessedMessages; pr
   ));
 }
 
+const SCROLL_THRESHOLD = 100;
+
 const PureSpanOverview = ({ span }: { span: Span }) => {
   const { toast } = useToast();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   const [inputData, setInputData] = useState<unknown>(span.input);
   const [outputData, setOutputData] = useState<unknown>(span.output);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setIsAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, []);
 
   const loadData = useCallback(async () => {
     const hasInputUrl = extractPayloadUrl(span.input);
@@ -108,22 +124,40 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
   }
 
   return (
-    <div className="flex flex-col w-full h-full overflow-y-auto styled-scrollbar divide-y">
-      {inputResult && (
-        <div className="flex flex-col gap-2 px-2 pt-2 pb-4">
-          <span className="text-base font-medium text-secondary-foreground px-1">Input</span>
-          <div className="flex flex-col gap-4">
-            <OverviewMessages result={inputResult} presetKey={`${presetKey}-input`} />
+    <div className="relative w-full h-full">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex flex-col w-full h-full overflow-y-auto styled-scrollbar divide-y"
+      >
+        {inputResult && (
+          <div className="flex flex-col gap-2 px-2 pt-2 pb-4">
+            <span className="text-base font-medium text-secondary-foreground px-1">
+              Input <span className="text-sm text-muted-foreground">(last 2 messages)</span>
+            </span>
+            <div className="flex flex-col gap-4">
+              <OverviewMessages result={inputResult} presetKey={`${presetKey}-input`} />
+            </div>
           </div>
-        </div>
-      )}
-      {outputResult && (
-        <div className="flex flex-col gap-2 px-2 pt-2 pb-4">
-          <span className="text-base font-medium text-secondary-foreground px-1">Output</span>
-          <div className="flex flex-col gap-4">
-            <OverviewMessages result={outputResult} presetKey={`${presetKey}-output`} />
+        )}
+        {outputResult && (
+          <div className="flex flex-col gap-2 px-2 pt-2 pb-4">
+            <span className="text-base font-medium text-secondary-foreground px-1">Output</span>
+            <div className="flex flex-col gap-4">
+              <OverviewMessages result={outputResult} presetKey={`${presetKey}-output`} />
+            </div>
           </div>
-        </div>
+        )}
+      </div>
+      {!isAtBottom && (
+        <Button
+          aria-label="Scroll to bottom"
+          size="icon"
+          className="absolute bottom-3 right-3 rounded-full"
+          onClick={scrollToBottom}
+        >
+          <ChevronDown className="w-4 h-4" />
+        </Button>
       )}
     </div>
   );

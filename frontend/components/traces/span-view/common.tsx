@@ -185,7 +185,7 @@ export const RoleHeader = ({ role, className }: RoleHeaderProps) => {
   if (role) {
     const colors = getRoleColors(role);
     return (
-      <div className={cn("flex items-center px-2 py-1 gap-2 border-b", className)}>
+      <div className={cn("flex items-center px-2 py-1 gap-2 border-b bg-background", className)}>
         <span className="text-sm font-medium" style={{ color: colors.badgeText }}>
           {capitalize(role)}
         </span>
@@ -291,7 +291,7 @@ export const MessageWrapper = ({
     <div className="relative">
       <div
         ref={containerRef}
-        className={cn("border rounded overflow-hidden")}
+        className={cn("border rounded overflow-hidden bg-card", isExpanded && isOverflowing && "pb-4")}
         style={!isExpanded ? { maxHeight } : undefined}
       >
         <RoleHeader role={role} />
@@ -299,7 +299,7 @@ export const MessageWrapper = ({
         {isCapped && (
           <button
             onClick={() => setIsExpanded(true)}
-            className="absolute bottom-[1px] left-1 right-1 h-16 bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center pb-1"
+            className="absolute bottom-px left-px right-px h-16 bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center"
           >
             <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
           </button>
@@ -308,7 +308,7 @@ export const MessageWrapper = ({
       {isExpanded && isOverflowing && (
         <button
           onClick={() => setIsExpanded(false)}
-          className="absolute bottom-[1px] left-1 right-1 h-8 bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center pb-1"
+          className="absolute bottom-px left-px right-px h-8 bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center"
         >
           <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
         </button>

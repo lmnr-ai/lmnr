@@ -116,7 +116,7 @@ export const AnthropicMessageSchema = z
       }),
     ]),
   })
-  .passthrough();
+  .loose();
 
 export const AnthropicMessagesSchema = z.array(AnthropicMessageSchema);
 

@@ -217,7 +217,7 @@ export function SpanSearchProvider({ children }: PropsWithChildren) {
         }
       });
 
-      navigateToMatch(editor.view, searchTermRef.current, localIndex);
+      navigateToMatch(editor.view, processSearchTerm(searchTermRef.current), localIndex);
     },
     [getEditorForGlobalIndex]
   );
