@@ -16,16 +16,10 @@ export enum Feature {
   LANDING = "LANDING",
 }
 
-const hasOtherAuthProvider = () =>
-  (!!process.env.AUTH_GITHUB_ID && !!process.env.AUTH_GITHUB_SECRET) ||
-  (!!process.env.AUTH_GOOGLE_ID && !!process.env.AUTH_GOOGLE_SECRET) ||
-  (!!process.env.AUTH_AZURE_AD_CLIENT_ID &&
-    !!process.env.AUTH_AZURE_AD_CLIENT_SECRET &&
-    !!process.env.AUTH_AZURE_AD_TENANT_ID) ||
-  (!!process.env.AUTH_OKTA_CLIENT_ID && !!process.env.AUTH_OKTA_CLIENT_SECRET && !!process.env.AUTH_OKTA_ISSUER);
+const AUTH_PROVIDER_FEATURES = [Feature.GITHUB_AUTH, Feature.GOOGLE_AUTH, Feature.AZURE_AUTH, Feature.OKTA_AUTH];
 
 // right now all managed-version features are disabled in local environment
-export const isFeatureEnabled = (feature: Feature) => {
+export const isFeatureEnabled = (feature: Feature): boolean => {
   if (feature === Feature.LANDING) {
     return process.env.ENVIRONMENT === "PRODUCTION" ? true : false;
   }
@@ -38,7 +32,7 @@ export const isFeatureEnabled = (feature: Feature) => {
       return false;
     }
     // In self-hosted mode, hide the dummy email input when a real auth provider is configured
-    return !hasOtherAuthProvider();
+    return !AUTH_PROVIDER_FEATURES.some((f) => isFeatureEnabled(f));
   }
 
   if (feature === Feature.LOCAL_DB) {
