@@ -6,7 +6,7 @@ CREATE TABLE "workspace_usage" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     "bytes" bigint NOT NULL DEFAULT 0,
     "signal_runs" bigint NOT NULL DEFAULT 0,
-    "last_reported_date" timestamp with time zone not null DEFAULT date_trunc('day'::text, now()
+    "last_reported_date" timestamp with time zone not null DEFAULT date_trunc('day'::text, now())
 );-->statement-breakpoint
 
 ALTER TABLE "workspace_usage" ADD CONSTRAINT workspace_usage_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint

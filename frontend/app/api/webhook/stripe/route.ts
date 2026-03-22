@@ -167,8 +167,6 @@ export async function POST(req: NextRequest): Promise<Response> {
         break;
       }
 
-      console.log("resetTime", resetTime);
-
       await handleInvoiceFinalized(workspaceId, hasBytesOverage, hasSignalRunsOverage, resetTime);
       break;
     }
