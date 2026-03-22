@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import type { NextAuthOptions, User } from "next-auth";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -6,10 +7,45 @@ import GoogleProvider from "next-auth/providers/google";
 import OktaProvider from "next-auth/providers/okta";
 
 import { createUser, getUserByEmail, updateUserAvatar } from "@/lib/db/auth";
+import { db } from "@/lib/db/drizzle";
+import { membersOfWorkspaces, workspaceInvitations } from "@/lib/db/migrations/schema";
 import { getEmailsConfig } from "@/lib/server-utils";
 
 import { sendWelcomeEmail } from "./emails/utils";
 import { Feature, isFeatureEnabled } from "./features/features";
+
+/**
+ * Process any pending workspace invitations for the given user.
+ * Adds the user to all workspaces they've been invited to, then deletes the invitations.
+ */
+const processPendingInvitations = async (userId: string, email: string): Promise<void> => {
+  const pendingInvitations = await db
+    .select({
+      id: workspaceInvitations.id,
+      workspaceId: workspaceInvitations.workspaceId,
+    })
+    .from(workspaceInvitations)
+    .where(eq(workspaceInvitations.email, email));
+
+  if (pendingInvitations.length === 0) {
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    for (const invitation of pendingInvitations) {
+      await tx
+        .insert(membersOfWorkspaces)
+        .values({
+          userId,
+          workspaceId: invitation.workspaceId,
+          memberRole: "member",
+        })
+        .onConflictDoNothing();
+
+      await tx.delete(workspaceInvitations).where(eq(workspaceInvitations.id, invitation.id));
+    }
+  });
+};
 
 const getProviders = () => {
   const providerConfigs = [
@@ -112,6 +148,12 @@ export const authOptions: NextAuthOptions = {
               await sendWelcomeEmail(profile?.email);
             }
           }
+
+          // Process any pending workspace invitations for this user.
+          // This handles the self-hosted flow where invitations are created
+          // before the user signs up, so they are automatically added to
+          // the invited workspaces on first sign-in.
+          await processPendingInvitations(token.userId as string, token.email);
         } catch (e) {
           throw new Error("Failed to authenticate user.");
         }

@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type Workspace } from "@/lib/workspaces/types";
 
@@ -27,6 +29,8 @@ const AddUserDialog = ({ open, onOpenChange, workspace }: AddUserDialogProps) =>
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState("");
   const { toast } = useToast();
+  const featureFlags = useFeatureFlags();
+  const isSendEmailEnabled = featureFlags[Feature.SEND_EMAIL];
   const showError = useCallback(
     (message: string) => {
       toast({
@@ -79,7 +83,11 @@ const AddUserDialog = ({ open, onOpenChange, workspace }: AddUserDialogProps) =>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Invite a member to workspace</DialogTitle>
-          <DialogDescription>This invitation will expire in 2 days.</DialogDescription>
+          <DialogDescription>
+            {isSendEmailEnabled
+              ? "This invitation will expire in 2 days."
+              : "If the user doesn't have an account yet, they will be automatically added when they sign up."}
+          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col space-y-2">
           <Label>Email</Label>
