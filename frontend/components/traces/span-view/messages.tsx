@@ -109,14 +109,79 @@ export function processMessages(data: unknown): ProcessedMessages {
   };
 }
 
-export function renderMessageContent(result: ProcessedMessages, index: number, presetKey: string) {
+export function buildToolNameMap(result: ProcessedMessages): Map<string, string> {
+  const map = new Map<string, string>();
   switch (result.type) {
     case "openai":
-      return <OpenAIContentParts parentIndex={index} presetKey={presetKey} message={result.messages[index]} />;
+      for (const msg of result.messages) {
+        if (msg.role === "assistant" && msg.tool_calls) {
+          for (const tc of msg.tool_calls) {
+            map.set(tc.id, tc.function.name);
+          }
+        }
+      }
+      break;
     case "anthropic":
-      return <AnthropicContentParts parentIndex={index} presetKey={presetKey} message={result.messages[index]} />;
+      for (const msg of result.messages) {
+        if (typeof msg.content !== "string") {
+          for (const block of msg.content) {
+            if ((block.type === "tool_use" || block.type === "server_tool_use") && "id" in block && "name" in block) {
+              map.set(block.id, block.name);
+            }
+          }
+        }
+      }
+      break;
     case "langchain":
-      return <LangChainContentParts parentIndex={index} presetKey={presetKey} message={result.messages[index]} />;
+      for (const msg of result.messages) {
+        if ((msg.role === "assistant" || msg.role === "ai") && "tool_calls" in msg) {
+          for (const tc of msg.tool_calls || []) {
+            if (tc.id) {
+              map.set(tc.id, tc.name);
+            }
+          }
+        }
+      }
+      break;
+  }
+  return map;
+}
+
+export function renderMessageContent(
+  result: ProcessedMessages,
+  index: number,
+  presetKey: string,
+  toolNameMap?: Map<string, string>
+) {
+  const map = toolNameMap ?? buildToolNameMap(result);
+  switch (result.type) {
+    case "openai":
+      return (
+        <OpenAIContentParts
+          parentIndex={index}
+          presetKey={presetKey}
+          message={result.messages[index]}
+          toolNameMap={map}
+        />
+      );
+    case "anthropic":
+      return (
+        <AnthropicContentParts
+          parentIndex={index}
+          presetKey={presetKey}
+          message={result.messages[index]}
+          toolNameMap={map}
+        />
+      );
+    case "langchain":
+      return (
+        <LangChainContentParts
+          parentIndex={index}
+          presetKey={presetKey}
+          message={result.messages[index]}
+          toolNameMap={map}
+        />
+      );
     case "gemini":
       return <GeminiContentParts parentIndex={index} presetKey={presetKey} message={result.messages[index]} />;
     case "generic":
@@ -135,6 +200,7 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
   const parentRef = useRef<HTMLDivElement>(null);
 
   const processedResult = useMemo(() => processMessages(messages), [messages]);
+  const toolNameMap = useMemo(() => buildToolNameMap(processedResult), [processedResult]);
 
   const searchState = useSpanSearchState();
   const searchTerm = searchState?.searchTerm || "";
@@ -186,6 +252,7 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
               virtualItems={items}
               presetKey={presetKey}
               maxHeight={maxHeight}
+              toolNameMap={toolNameMap}
             />
           </div>
         </div>
@@ -211,11 +278,13 @@ const MessagesRenderer = ({
   ref,
   virtualItems,
   maxHeight,
+  toolNameMap,
 }: ProcessedMessages & {
   presetKey: string;
   virtualItems: VirtualItem[];
   ref: Ref<HTMLDivElement>;
   maxHeight?: number;
+  toolNameMap: Map<string, string>;
 }) => {
   switch (type) {
     case "openai":
@@ -224,7 +293,12 @@ const MessagesRenderer = ({
         return (
           <div key={row.key} data-index={row.index} ref={ref} className="pb-4">
             <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`} maxHeight={maxHeight}>
-              <OpenAIContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
+              <OpenAIContentParts
+                parentIndex={row.index}
+                presetKey={presetKey}
+                message={message}
+                toolNameMap={toolNameMap}
+              />
             </MessageWrapper>
           </div>
         );
@@ -236,7 +310,12 @@ const MessagesRenderer = ({
         return (
           <div key={row.key} data-index={row.index} ref={ref} className="pb-4">
             <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`} maxHeight={maxHeight}>
-              <LangChainContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
+              <LangChainContentParts
+                parentIndex={row.index}
+                presetKey={presetKey}
+                message={message}
+                toolNameMap={toolNameMap}
+              />
             </MessageWrapper>
           </div>
         );
@@ -248,7 +327,12 @@ const MessagesRenderer = ({
         return (
           <div key={row.key} data-index={row.index} ref={ref} className="pb-4">
             <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`} maxHeight={maxHeight}>
-              <AnthropicContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
+              <AnthropicContentParts
+                parentIndex={row.index}
+                presetKey={presetKey}
+                message={message}
+                toolNameMap={toolNameMap}
+              />
             </MessageWrapper>
           </div>
         );

@@ -1,7 +1,12 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { MessageWrapper } from "@/components/traces/span-view/common";
-import { type ProcessedMessages, processMessages, renderMessageContent } from "@/components/traces/span-view/messages";
+import {
+  buildToolNameMap,
+  type ProcessedMessages,
+  processMessages,
+  renderMessageContent,
+} from "@/components/traces/span-view/messages";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -35,6 +40,7 @@ const fetchPayload = async (raw: unknown): Promise<unknown> => {
 };
 
 function OverviewMessages({ result, presetKey }: { result: ProcessedMessages; presetKey: string }) {
+  const toolNameMap = useMemo(() => buildToolNameMap(result), [result]);
   return result.messages.map((message: any, i: number) => (
     <MessageWrapper
       key={`overview-${presetKey}-${i}`}
@@ -42,7 +48,7 @@ function OverviewMessages({ result, presetKey }: { result: ProcessedMessages; pr
       presetKey={`collapse-${i}-${presetKey}`}
       maxHeight={560}
     >
-      {renderMessageContent(result, i, presetKey)}
+      {renderMessageContent(result, i, presetKey, toolNameMap)}
     </MessageWrapper>
   ));
 }

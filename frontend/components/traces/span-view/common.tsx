@@ -59,6 +59,7 @@ export function getRoleColors(role?: string): RoleColorConfig {
 
 interface ToolCallContentPartProps {
   toolName: string;
+  toolCallId?: string;
   content: unknown;
   presetKey: string;
   messageIndex?: number;
@@ -67,15 +68,20 @@ interface ToolCallContentPartProps {
 
 const PureToolCallContentPart = ({
   toolName,
+  toolCallId,
   content,
   presetKey,
   messageIndex = 0,
   contentPartIndex = 0,
 }: ToolCallContentPartProps) => (
   <div className="flex flex-col gap-2 p-2 bg-background">
-    <span className="flex gap-1 text-xs font-medium" style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}>
+    <span
+      className="flex items-center gap-1.5 text-xs font-medium"
+      style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
+    >
       <Bolt size={14} className="min-w-3.5" />
       {toolName}
+      {toolCallId && toolCallId !== toolName && <span className="opacity-50 font-normal">{toolCallId}</span>}
     </span>
     <ContentRenderer
       readOnly
@@ -93,16 +99,27 @@ const PureToolCallContentPart = ({
 
 interface ToolResultContentPartProps {
   toolCallId: string;
+  toolName?: string;
   content: string | any;
   presetKey: string;
   children?: ReactNode;
 }
 
-const PureToolResultContentPart = ({ toolCallId, content, presetKey, children }: ToolResultContentPartProps) => (
+const PureToolResultContentPart = ({
+  toolCallId,
+  toolName,
+  content,
+  presetKey,
+  children,
+}: ToolResultContentPartProps) => (
   <div className="flex flex-col gap-2 p-2 bg-background">
-    <span className="flex gap-1 text-xs font-medium" style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}>
+    <span
+      className="flex items-center gap-1.5 text-xs font-medium"
+      style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
+    >
       <Bolt size={14} className="min-w-3.5" />
-      {toolCallId}
+      {toolName ?? toolCallId}
+      {toolName && toolCallId !== toolName && <span className="opacity-50 font-normal">{toolCallId}</span>}
     </span>
     {children || (
       <TextContentPart
