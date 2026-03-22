@@ -352,9 +352,11 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
           )}
         </div>
 
-        <div className={`h-full ${activeTab === "images" ? "block" : "hidden"}`}>
-          <SpanImagesVideoPlayer traceId={traceId} spanIds={llmSpanIds} isShared />
-        </div>
+        {activeTab === "images" && (
+          <div className="h-full">
+            <SpanImagesVideoPlayer traceId={traceId} spanIds={llmSpanIds} isShared />
+          </div>
+        )}
       </div>
     </div>
   );
