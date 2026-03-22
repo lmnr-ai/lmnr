@@ -61,6 +61,7 @@ interface MarkdownProps {
   output: any;
   defaultValue?: string;
   className?: string;
+  contentClassName?: string;
 }
 
 const preprocessDataForMustache = (data: any): any => {
@@ -102,7 +103,7 @@ const preprocessDataForMustache = (data: any): any => {
   return data;
 };
 
-const Markdown = ({ output, defaultValue, className }: MarkdownProps) => {
+const Markdown = ({ output, defaultValue, className, contentClassName }: MarkdownProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
@@ -177,7 +178,7 @@ const Markdown = ({ output, defaultValue, className }: MarkdownProps) => {
       className={cn("h-full overflow-auto text-white/60 [&_*]:text-inherit", className)}
       style={{ maskImage, WebkitMaskImage: maskImage }}
     >
-      <div className="pb-2">
+      <div className={cn("pb-2", contentClassName)}>
         <Streamdown
           mode="static"
           parseIncompleteMarkdown={false}

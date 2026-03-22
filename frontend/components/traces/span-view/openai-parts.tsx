@@ -63,6 +63,7 @@ const PureOpenAIToolCallContentPart = ({
 }) => (
   <ToolCallContentPart
     toolName={part.function.name}
+    toolCallId={part.id}
     content={part}
     presetKey={presetKey}
     messageIndex={messageIndex}
@@ -79,10 +80,12 @@ const PureOpenAIContentParts = ({
   message,
   parentIndex,
   presetKey,
+  toolNameMap,
 }: {
   message: z.infer<typeof OpenAIMessageSchema>;
   parentIndex: number;
   presetKey: string;
+  toolNameMap?: Map<string, string>;
 }) => {
   switch (message.role) {
     case "system":
@@ -171,6 +174,7 @@ const PureOpenAIContentParts = ({
         return (
           <ToolResultContentPart
             toolCallId={message.tool_call_id || "-"}
+            toolName={toolNameMap?.get(message.tool_call_id || "")}
             content={message.content}
             presetKey={`${parentIndex}-tool-0-${presetKey}`}
           />
@@ -181,6 +185,7 @@ const PureOpenAIContentParts = ({
         <ToolResultContentPart
           key={`${parentIndex}-tool-${index}-${presetKey}`}
           toolCallId={message.tool_call_id || "-"}
+          toolName={toolNameMap?.get(message.tool_call_id || "")}
           content={part.text}
           presetKey={`${parentIndex}-tool-${index}-${presetKey}`}
         >

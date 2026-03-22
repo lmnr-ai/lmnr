@@ -85,6 +85,30 @@ export const theme = createTheme({
   styles: githubDarkStyle,
 });
 
+export const spanViewStyle: CreateThemeOptions["styles"] = [
+  { tag: [t.standard(t.tagName), t.tagName], color: "#7ee787" },
+  { tag: [t.comment, t.bracket], color: "#8b949e" },
+  { tag: [t.className], color: "#d2a8ff" },
+  { tag: [t.propertyName], color: "hsl(var(--primary))" },
+  { tag: [t.variableName, t.attributeName, t.number, t.operator], color: "#c9c9cd" },
+  { tag: [t.keyword, t.typeName, t.typeOperator, t.typeName], color: "#ff7b72" },
+  { tag: [t.string, t.meta, t.regexp], color: "#c9c9cd" },
+  { tag: [t.name, t.quote], color: "#c9c9cd" },
+  { tag: [t.heading, t.strong], color: "#d2a8ff", fontWeight: "bold" },
+  { tag: [t.emphasis], color: "#d2a8ff", fontStyle: "italic" },
+  { tag: [t.deleted], color: "#ffdcd7", backgroundColor: "#ffeef0" },
+  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "#c9c9cd" },
+  { tag: t.link, textDecoration: "underline" },
+  { tag: t.strikethrough, textDecoration: "line-through" },
+  { tag: t.invalid, color: "#f97583" },
+];
+
+export const spanViewTheme = createTheme({
+  theme: "dark",
+  settings: { ...defaultThemeSettings, foreground: "#c9c9cd" },
+  styles: spanViewStyle,
+});
+
 export const baseExtensions = [
   EditorView.theme({
     "&.cm-focused": {

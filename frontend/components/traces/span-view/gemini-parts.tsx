@@ -64,6 +64,7 @@ const GeminiPartRenderer = ({
     return (
       <ToolResultContentPart
         toolCallId={part.functionResponse.name}
+        toolName={part.functionResponse.name}
         content={part.functionResponse.response}
         presetKey={`${messageIndex}-tool-result-${contentPartIndex}-${presetKey}`}
       />
