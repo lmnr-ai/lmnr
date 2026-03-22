@@ -89,6 +89,10 @@ export const manageWorkspaceSubscriptionEvent = async ({
         },
       });
   }
+
+  if (cancel) {
+    await db.delete(workspaceUsage).where(eq(workspaceUsage.workspaceId, workspaceId));
+  }
   await updateUsageCacheForWorkspace(workspaceId, true, true);
 };
 
