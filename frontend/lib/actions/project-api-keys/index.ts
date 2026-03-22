@@ -1,10 +1,10 @@
-import { and, eq } from 'drizzle-orm';
-import { z } from 'zod/v4';
+import { and, eq } from "drizzle-orm";
+import { z } from "zod/v4";
 
-import { createProjectApiKey } from '@/lib/api-keys';
-import { cache, PROJECT_API_KEY_CACHE_KEY } from '@/lib/cache';
-import { db } from '@/lib/db/drizzle';
-import { projectApiKeys } from '@/lib/db/migrations/schema';
+import { createProjectApiKey } from "@/lib/api-keys";
+import { cache, PROJECT_API_KEY_CACHE_KEY } from "@/lib/cache";
+import { db } from "@/lib/db/drizzle";
+import { projectApiKeys } from "@/lib/db/migrations/schema";
 
 const CreateProjectApiKeySchema = z.object({
   projectId: z.string(),
@@ -29,9 +29,7 @@ export interface ProjectApiKeyResponse {
   isIngestOnly: boolean;
 }
 
-export async function createApiKey(
-  input: z.infer<typeof CreateProjectApiKeySchema>
-): Promise<ProjectApiKeyResponse> {
+export async function createApiKey(input: z.infer<typeof CreateProjectApiKeySchema>): Promise<ProjectApiKeyResponse> {
   const { projectId, name, isIngestOnly } = CreateProjectApiKeySchema.parse(input);
 
   const { value, hash, shorthand } = createProjectApiKey();
@@ -83,7 +81,7 @@ export async function getApiKeys(
     .where(eq(projectApiKeys.projectId, projectId));
 
   // Convert null to undefined to match the expected type
-  return apiKeys.map(key => ({
+  return apiKeys.map((key) => ({
     ...key,
     name: key.name ?? undefined,
     shorthand: key.shorthand ?? "",

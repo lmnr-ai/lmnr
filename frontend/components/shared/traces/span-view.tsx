@@ -55,7 +55,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
             </div>
             <div className="flex flex-col gap-1.5 py-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <SpanStatsShields span={span} variant="outline"/>
+                <SpanStatsShields span={span} variant="outline" />
                 <div className="text-xs font-mono rounded-md py-0.5 px-2 border border-muted">
                   {new Date(span.startTime).toLocaleString()}
                 </div>

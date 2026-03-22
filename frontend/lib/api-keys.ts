@@ -1,9 +1,9 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes } from "crypto";
 
 export function generateRandomKey(): string {
   // Generate a 64-character alphanumeric string
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
   const bytes = randomBytes(64);
 
   for (let i = 0; i < 64; i++) {
@@ -15,9 +15,9 @@ export function generateRandomKey(): string {
 
 export function hashApiKey(apiKey: string): string {
   // SHA3-256 hash, return hex string
-  const hash = createHash('sha3-256');
+  const hash = createHash("sha3-256");
   hash.update(apiKey);
-  return hash.digest('hex');
+  return hash.digest("hex");
 }
 
 export interface ProjectApiKeyVals {
@@ -37,4 +37,3 @@ export function createProjectApiKey(): ProjectApiKeyVals {
     shorthand,
   };
 }
-

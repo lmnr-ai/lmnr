@@ -40,9 +40,7 @@ async function createIndex(indexConfig: any): Promise<void> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(
-      `Failed to create index ${indexConfig.index_id}: ${response.status} ${errorText}`
-    );
+    throw new Error(`Failed to create index ${indexConfig.index_id}: ${response.status} ${errorText}`);
   }
 }
 
@@ -90,9 +88,7 @@ export async function initializeQuickwitIndexes(): Promise<void> {
     }
 
     // Filter for config files
-    const configFiles = files.filter(
-      (f) => f.endsWith(".yaml") || f.endsWith(".yml") || f.endsWith(".json")
-    );
+    const configFiles = files.filter((f) => f.endsWith(".yaml") || f.endsWith(".yml") || f.endsWith(".json"));
 
     if (configFiles.length === 0) {
       console.log("No Quickwit index configurations found");

@@ -17,7 +17,9 @@ export interface SharedSpanImage {
   timestamp: number; // Unix timestamp in milliseconds for video timeline
 }
 
-export async function getSharedSpanImages(input: z.infer<typeof GetSharedSpanImagesSchema>): Promise<SharedSpanImage[]> {
+export async function getSharedSpanImages(
+  input: z.infer<typeof GetSharedSpanImagesSchema>
+): Promise<SharedSpanImage[]> {
   const { traceId, spanIds } = GetSharedSpanImagesSchema.parse(input);
 
   if (spanIds.length === 0) {
@@ -46,7 +48,9 @@ export async function getSharedSpanImages(input: z.infer<typeof GetSharedSpanIma
   }>;
 
   return chData.flatMap((spanData) => {
-    const inputImages = extractImagesFromMessages(transformMessages(spanData.input, spanData.project_id, "public").messages);
+    const inputImages = extractImagesFromMessages(
+      transformMessages(spanData.input, spanData.project_id, "public").messages
+    );
 
     return inputImages.map(
       (imageUrl): SharedSpanImage => ({
@@ -77,4 +81,3 @@ function extractImagesFromMessages(messages: any): string[] {
     .reverse()
     .slice(0, 1);
 }
-

@@ -166,12 +166,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
       <SpanViewStateProvider>
         <SpanSearchProvider>
           <SpanControls span={span}>
-            <SpanViewTabs
-              span={span}
-              searchRef={searchRef}
-              searchOpen={searchOpen}
-              setSearchOpen={setSearchOpen}
-            />
+            <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
           </SpanControls>
         </SpanSearchProvider>
       </SpanViewStateProvider>

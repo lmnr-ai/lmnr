@@ -1,10 +1,10 @@
 import { config } from "dotenv";
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { env } from "process";
 
-import * as relations from './migrations/relations';
-import * as schema from './migrations/schema';
+import * as relations from "./migrations/relations";
+import * as schema from "./migrations/schema";
 
 config({ path: ".env" }); // or .env.local
 
@@ -22,20 +22,20 @@ const parseDatabaseUrl = (url: string): DatabaseConfig => {
   const match = url.match(regex);
 
   if (!match) {
-    throw new Error('Invalid database URL');
+    throw new Error("Invalid database URL");
   }
 
-  const username = match[1] || 'postgres';
+  const username = match[1] || "postgres";
   const password = match[2];
   const host = match[3];
   const port = match[4] ? parseInt(match[4]) : 5432;
   const database = match[5] || username;
 
   if (!password) {
-    throw new Error('Invalid database URL. Cannot find password');
+    throw new Error("Invalid database URL. Cannot find password");
   }
   if (!host) {
-    throw new Error('Invalid database URL. Cannot find host');
+    throw new Error("Invalid database URL. Cannot find host");
   }
 
   return {
@@ -43,13 +43,13 @@ const parseDatabaseUrl = (url: string): DatabaseConfig => {
     password,
     host,
     port,
-    database
+    database,
   };
 };
 
 // Get connection parameters from individual environment variables
 const getDatabaseConfigFromEnv = (): DatabaseConfig => {
-  const username = env.DATABASE_USERNAME || 'postgres';
+  const username = env.DATABASE_USERNAME || "postgres";
   const password = env.DATABASE_PASSWORD;
   const host = env.DATABASE_HOST;
   const port = env.DATABASE_PORT ? parseInt(env.DATABASE_PORT) : 5432;
@@ -57,10 +57,10 @@ const getDatabaseConfigFromEnv = (): DatabaseConfig => {
 
   return {
     username,
-    password: password || '',
-    host: host || '',
+    password: password || "",
+    host: host || "",
     port,
-    database
+    database,
   };
 };
 
@@ -109,6 +109,6 @@ const createDatabaseConnection = () => {
   return drizzle(client, { schema: { ...schema, ...relations } });
 };
 
-const db = singleton('db', createDatabaseConnection);
+const db = singleton("db", createDatabaseConnection);
 
 export { db };

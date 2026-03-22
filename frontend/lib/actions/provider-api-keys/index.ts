@@ -1,9 +1,9 @@
-import { and, eq } from 'drizzle-orm';
-import { z } from 'zod/v4';
+import { and, eq } from "drizzle-orm";
+import { z } from "zod/v4";
 
-import { encodeApiKey } from '@/lib/crypto';
-import { db } from '@/lib/db/drizzle';
-import { providerApiKeys } from '@/lib/db/migrations/schema';
+import { encodeApiKey } from "@/lib/crypto";
+import { db } from "@/lib/db/drizzle";
+import { providerApiKeys } from "@/lib/db/migrations/schema";
 
 const CreateProviderApiKeySchema = z.object({
   projectId: z.string(),
@@ -20,9 +20,7 @@ const DeleteProviderApiKeySchema = z.object({
   name: z.string(),
 });
 
-export async function createProviderApiKey(
-  input: z.infer<typeof CreateProviderApiKeySchema>
-): Promise<void> {
+export async function createProviderApiKey(input: z.infer<typeof CreateProviderApiKeySchema>): Promise<void> {
   const { projectId, name, value } = CreateProviderApiKeySchema.parse(input);
 
   const { value: encryptedValue, nonce } = await encodeApiKey(name, value);
@@ -51,9 +49,7 @@ export async function getProviderApiKeys(
   return res;
 }
 
-export async function deleteProviderApiKey(
-  input: z.infer<typeof DeleteProviderApiKeySchema>
-): Promise<void> {
+export async function deleteProviderApiKey(input: z.infer<typeof DeleteProviderApiKeySchema>): Promise<void> {
   const { projectId, name } = DeleteProviderApiKeySchema.parse(input);
 
   const res = await db

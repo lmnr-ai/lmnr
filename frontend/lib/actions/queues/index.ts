@@ -27,12 +27,15 @@ export const DeleteQueuesSchema = z.object({
 export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
   const { projectId, pageNumber, pageSize, search, filter } = input;
 
-  const [countFilters, pgFilters] = partition(filter, f => f.column === 'count');
+  const [countFilters, pgFilters] = partition(filter, (f) => f.column === "count");
 
-  const filters = [eq(labelingQueues.projectId, projectId), ...parseFilters(pgFilters, {
-    name: { type: "string", column: labelingQueues.name },
-    id: { type: "string", column: labelingQueues.id },
-  } as const)];
+  const filters = [
+    eq(labelingQueues.projectId, projectId),
+    ...parseFilters(pgFilters, {
+      name: { type: "string", column: labelingQueues.name },
+      id: { type: "string", column: labelingQueues.id },
+    } as const),
+  ];
 
   if (search) {
     filters.push(ilike(labelingQueues.name, `%${search}%`));
@@ -70,7 +73,12 @@ export async function getQueues(input: z.infer<typeof GetQueuesSchema>) {
       };
     }
 
-    filters.push(inArray(labelingQueues.id, qualifyingQueues.map(q => q.id)));
+    filters.push(
+      inArray(
+        labelingQueues.id,
+        qualifyingQueues.map((q) => q.id)
+      )
+    );
 
     const queuesData = await paginatedGet({
       table: labelingQueues,
