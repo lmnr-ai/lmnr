@@ -225,7 +225,7 @@ export const handleInvoiceFinalized = async (
   hasSignalRuns: boolean,
   newStartTime: Date | null
 ) => {
-  const resetDate = sql`${newStartTime}` || sql`now()`;
+  const resetDate = newStartTime ? sql`${newStartTime}` : sql`now()`;
   await db
     .insert(workspaceUsage)
     .values({
@@ -242,6 +242,9 @@ export const handleInvoiceFinalized = async (
         lastReportedDate: sql`date_trunc('day', now())`,
       },
     });
-  await db.update(workspaces).set({ resetTime: sql`date_trunc('day', ${resetDate})` });
-  updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
+  await db
+    .update(workspaces)
+    .set({ resetTime: sql`date_trunc('day', ${resetDate})` })
+    .where(eq(workspaces.id, workspaceId));
+  await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
 };
