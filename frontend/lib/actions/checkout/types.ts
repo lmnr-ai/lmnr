@@ -47,7 +47,7 @@ export const ADDON_CONFIG: Record<
 export const METER_EVENT_NAMES = {
   overageBytes: {
     eventName: "2026_03_overage_megabytes",
-    payloadKey: "bytes",
+    payloadKey: "megabytes",
   },
   overageSignalRuns: {
     eventName: "2026_02_overage_signal_runs",
