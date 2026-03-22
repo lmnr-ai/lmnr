@@ -229,7 +229,8 @@ export const handleInvoiceFinalized = async (
   hasSignalRuns: boolean,
   newStartTime: Date | null
 ) => {
-  const resetDate = newStartTime ? sql`${newStartTime}` : sql`now()`;
+  const resetDateRaw = newStartTime ? newStartTime.toISOString() : sql`now()`;
+  const resetDate = sql`${resetDateRaw}::timestamptz`;
   await db
     .insert(workspaceUsage)
     .values({
