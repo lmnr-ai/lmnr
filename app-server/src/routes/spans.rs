@@ -23,7 +23,7 @@ const QUICKWIT_RESERVED_CHARACTERS: &[char] = &['?', '`', '~', '!', '\\'];
 // with a note that you can escape them with a backslash. However, some of them break
 // the query parsing when escaped, so we need to remove them.
 const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
-    '"', ':', '^', '{', '}', '[', ']', '(', ')',
+    ':', '^', '{', '}', '[', ']', '(', ')',
     // The below characters won't break parsing but change the meaning of the query
     // even when escaped, so safest to remove them.
     '+', '\u{002D}', // - hyphen-minus
