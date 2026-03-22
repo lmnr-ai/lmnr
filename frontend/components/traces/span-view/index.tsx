@@ -10,7 +10,6 @@ import SpanViewSearchBar from "@/components/traces/span-view/search-bar.tsx";
 import SpanContent from "@/components/traces/span-view/span-content";
 import SpanOverview from "@/components/traces/span-view/span-overview";
 import { SpanSearchProvider } from "@/components/traces/span-view/span-search-context";
-import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
@@ -179,13 +178,11 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
 
   if (span) {
     return (
-      <SpanViewStateProvider>
-        <SpanSearchProvider>
-          <SpanControls span={span}>
-            <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
-          </SpanControls>
-        </SpanSearchProvider>
-      </SpanViewStateProvider>
+      <SpanSearchProvider>
+        <SpanControls span={span}>
+          <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
+        </SpanControls>
+      </SpanSearchProvider>
     );
   }
 }
