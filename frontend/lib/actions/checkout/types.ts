@@ -3,14 +3,14 @@ import type Stripe from "stripe";
 export const TIER_CONFIG = {
   hobby: {
     lookupKey: "hobby_monthly_2026_02",
-    overageBytesLookupKey: "hobby_monthly_2026_02_overage_bytes",
+    overageBytesLookupKey: "hobby_monthly_2026_03_overage_megabytes",
     overageSignalRunsLookupKey: "hobby_monthly_2026_02_overage_signal_runs",
     includedBytes: 3 * 1024 ** 3,
     includedSignalRuns: 1_000,
   },
   pro: {
     lookupKey: "pro_monthly_2026_02",
-    overageBytesLookupKey: "pro_monthly_2026_02_overage_bytes",
+    overageBytesLookupKey: "pro_monthly_2026_03_overage_megabytes",
     overageSignalRunsLookupKey: "pro_monthly_2026_02_overage_signal_runs",
     includedBytes: 10 * 1024 ** 3,
     includedSignalRuns: 10_000,
@@ -46,8 +46,8 @@ export const ADDON_CONFIG: Record<
 
 export const METER_EVENT_NAMES = {
   overageBytes: {
-    eventName: "2026_02_overage_bytes",
-    payloadKey: "bytes",
+    eventName: "2026_03_overage_megabytes",
+    payloadKey: "megabytes",
   },
   overageSignalRuns: {
     eventName: "2026_02_overage_signal_runs",
@@ -57,9 +57,9 @@ export const METER_EVENT_NAMES = {
 
 export const LOOKUP_KEY_TO_TIER_NAME: Record<string, string> = {
   hobby_monthly_2026_02: "Laminar Hobby tier",
-  hobby_monthly_2026_02_legacy: "Laminar Hobby tier",
   pro_monthly_2026_02: "Laminar Pro tier",
   // Legacy lookup keys
+  hobby_monthly_2026_02_legacy: "Laminar Hobby tier",
   hobby_monthly_2025_04: "Laminar Hobby tier",
   pro_monthly_2025_04: "Laminar Pro tier",
 };
@@ -72,6 +72,8 @@ export const LOOKUP_KEY_DISPLAY_NAMES: Record<string, string> = {
   hobby_monthly_2026_02_legacy: "Hobby plan",
   pro_monthly_2025_04: "Pro plan",
   // Overage - bytes
+  hobby_monthly_2026_03_overage_megabytes: "Data overage",
+  pro_monthly_2026_03_overage_megabytes: "Data overage",
   hobby_monthly_2026_02_overage_bytes: "Data overage",
   pro_monthly_2026_02_overage_bytes: "Data overage",
   hobby_monthly_2025_04_overage_bytes: "Data overage",

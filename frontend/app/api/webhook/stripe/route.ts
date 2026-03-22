@@ -136,17 +136,30 @@ export async function POST(req: NextRequest): Promise<Response> {
 
       if (invoice.parent?.type !== "subscription_details") break;
 
-      // Filter: must contain a line for a known tier or overage price.
+      // Filter: must contain a line for a known overage price.
       // This excludes addon-only invoices and other unrelated invoices.
       const knownLookupKeys = new Set<string>(
-        Object.values(TIER_CONFIG).flatMap((c) => [c.lookupKey, c.overageBytesLookupKey, c.overageSignalRunsLookupKey])
+        Object.values(TIER_CONFIG).flatMap((c) => [c.overageBytesLookupKey, c.overageSignalRunsLookupKey])
       );
-      const hasRelevantLine = invoice.lines.data.some((line) => {
+      let hasBytesOverage = false;
+      let hasSignalRunsOverage = false;
+      let resetTime: Date | null = null;
+      const relevantLines = invoice.lines.data.filter((line) => {
         const priceObj = (line as any).price ?? line.pricing?.price_details?.price;
         const lookupKey = typeof priceObj === "object" && priceObj ? priceObj.lookup_key : null;
+        if (lookupKey) {
+          if (String(lookupKey).toLowerCase().includes("signal_runs")) {
+            hasSignalRunsOverage = true;
+            resetTime = new Date(line.period.end * 1000);
+          } else if (String(lookupKey).toLowerCase().includes("bytes")) {
+            hasBytesOverage = true;
+            // it's fine to override here, most of the times they are same
+            resetTime = new Date(line.period.end * 1000);
+          }
+        }
         return lookupKey && knownLookupKeys.has(lookupKey);
       });
-      if (!hasRelevantLine) break;
+      if (relevantLines.length === 0) break;
 
       const workspaceId = invoice.metadata?.workspaceId ?? invoice.parent.subscription_details?.metadata?.workspaceId;
       if (!workspaceId) {
@@ -154,15 +167,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         break;
       }
 
-      // Use the period.start of the first subscription item line as the new resetTime
-      const subscriptionLine = invoice.lines.data.find((l) => l.parent?.type === "subscription_item_details");
-      const newResetTime = subscriptionLine?.period?.start;
-      if (!newResetTime) {
-        console.log("invoice.finalized: no subscription line period start found");
-        break;
-      }
-
-      await handleInvoiceFinalized(workspaceId, newResetTime);
+      await handleInvoiceFinalized(workspaceId, hasBytesOverage, hasSignalRunsOverage, resetTime);
       break;
     }
     case "customer.subscription.deleted":
