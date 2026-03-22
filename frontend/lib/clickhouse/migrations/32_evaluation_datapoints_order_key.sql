@@ -14,8 +14,7 @@ CREATE TABLE new_evaluation_datapoints
     `dataset_datapoint_id` UUID,
     `dataset_datapoint_created_at` DateTime64(9, 'UTC'),
     `group_id` String,
-    `scores` String,
-    INDEX idx_project_eval_id_datapoint_id (project_id, evaluation_id, id) TYPE bloom_filter GRANULARITY 1
+    `scores` String
 )
 ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY (project_id, evaluation_id, id);
