@@ -359,7 +359,7 @@ mod tests {
             step: 0,
             retry_count,
             request_start_time: chrono::Utc::now(),
-            use_realtime_api: true,
+            mode: 1,
         }
     }
 
