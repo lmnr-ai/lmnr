@@ -1,6 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -91,8 +90,6 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
     );
   }, [normalizedData]);
 
-  const searchContext = useSpanSearchContext();
-
   if (isLoading) {
     return (
       <div className="flex flex-col gap-2 p-2 justify-center items-center">
@@ -114,7 +111,6 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
         defaultMode="messages"
         modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
         presetKey={presetKey}
-        searchTerm={searchContext?.searchTerm || ""}
         messageMaxHeight={type === "input" ? 320 : 560}
         customTheme={spanViewTheme}
       />
@@ -130,7 +126,6 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
       value={JSON.stringify(normalizedData)}
       presetKey={presetKey}
       defaultMode={span.spanType === SpanType.LLM ? "messages" : "json"}
-      searchTerm={searchContext?.searchTerm || ""}
       customTheme={spanViewTheme}
     />
   );

@@ -17,43 +17,70 @@ interface EditorInstance {
   messageIndex: number;
   contentPartIndex: number;
   matchCount: number;
-  containerElement: HTMLElement;
 }
 
-interface SpanSearchContextValue {
+interface SpanSearchStateContextValue {
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   totalMatches: number;
   currentIndex: number;
   goToNext: () => void;
   goToPrev: () => void;
-  registerEditor: (
-    id: string,
-    view: EditorView,
-    messageIndex: number,
-    contentPartIndex: number,
-    containerElement: HTMLElement
-  ) => void;
+}
+
+interface SpanSearchRegistrationContextValue {
+  registerEditor: (id: string, view: EditorView, messageIndex: number, contentPartIndex: number) => void;
   unregisterEditor: (id: string) => void;
 }
 
-const SpanSearchContext = createContext<SpanSearchContextValue | null>(null);
+const SpanSearchStateContext = createContext<SpanSearchStateContextValue | null>(null);
+const SpanSearchRegistrationContext = createContext<SpanSearchRegistrationContextValue | null>(null);
 
-export const useSpanSearchContext = () => useContext(SpanSearchContext);
+export const useSpanSearchState = () => useContext(SpanSearchStateContext);
+export const useSpanSearchRegistration = () => useContext(SpanSearchRegistrationContext);
 
-function countMatches(text: string, search: string): number {
-  if (!search.trim()) return 0;
+function processSearchTerm(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  const hasEscapeSequences = /\\[nrt]/.test(trimmed);
+  return hasEscapeSequences ? trimmed.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r") : trimmed;
+}
 
-  const lowerText = text.toLowerCase();
-  const lowerSearch = search.toLowerCase();
+// Single-pass: applies the CodeMirror search query AND counts matches,
+// using one toString() and one toLowerCase() per editor.
+function applySearchAndCount(view: EditorView, searchTerm: string): number {
+  const processed = processSearchTerm(searchTerm);
+  if (!processed) {
+    closeSearchPanel(view);
+    view.dispatch({
+      effects: setSearchQuery.of(new SearchQuery({ search: "" })),
+    });
+    return 0;
+  }
+
+  const docText = view.state.doc.toString();
+
+  openSearchPanel(view);
+  view.dispatch({
+    effects: setSearchQuery.of(
+      new SearchQuery({
+        search: processed,
+        caseSensitive: false,
+        literal: true,
+        wholeWord: false,
+        regexp: false,
+      })
+    ),
+  });
+
+  const lowerDoc = docText.toLowerCase();
+  const lowerSearch = processed.toLowerCase();
   let count = 0;
   let pos = 0;
-
-  while ((pos = lowerText.indexOf(lowerSearch, pos)) !== -1) {
+  while ((pos = lowerDoc.indexOf(lowerSearch, pos)) !== -1) {
     count++;
     pos += lowerSearch.length;
   }
-
   return count;
 }
 
@@ -87,61 +114,59 @@ function navigateToMatch(view: EditorView, searchTerm: string, localIndex: numbe
 
 export function SpanSearchProvider({ children }: PropsWithChildren) {
   const editors = useRef<Map<string, EditorInstance>>(new Map());
-  const updateTimerRef = useRef<number | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const searchTermRef = useRef("");
+  const [searchTerm, setSearchTermState] = useState("");
   const [totalMatches, setTotalMatches] = useState(0);
   const [currentGlobalIndex, setCurrentGlobalIndex] = useState(0);
 
-  const updateTotalMatches = useCallback(() => {
+  const setSearchTerm = useCallback((term: string) => {
+    searchTermRef.current = term;
+    setCurrentGlobalIndex(0);
+    setSearchTermState(term);
+  }, []);
+
+  const syncTotals = useCallback(() => {
     let total = 0;
     editors.current.forEach((editor) => {
-      const doc = editor.view.state.doc.toString();
-      const count = countMatches(doc, searchTerm);
-      editor.matchCount = count;
-      total += count;
+      total += editor.matchCount;
     });
-
     setTotalMatches(total);
     setCurrentGlobalIndex((prev) => {
       if (total === 0) return 0;
-      if (prev === 0) return 1;
       return Math.min(prev, total);
     });
-  }, [searchTerm]);
+  }, []);
 
-  const scheduleUpdate = useCallback(() => {
-    if (updateTimerRef.current !== null) {
-      cancelAnimationFrame(updateTimerRef.current);
-    }
-    updateTimerRef.current = requestAnimationFrame(() => {
-      updateTotalMatches();
-      updateTimerRef.current = null;
+  // Apply search + count in a single pass per editor when searchTerm changes
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      editors.current.forEach((editor) => {
+        editor.matchCount = applySearchAndCount(editor.view, searchTerm);
+      });
+      syncTotals();
     });
-  }, [updateTotalMatches]);
+
+    return () => cancelAnimationFrame(frame);
+  }, [searchTerm, syncTotals]);
 
   const registerEditor = useCallback(
-    (id: string, view: EditorView, messageIndex: number, contentPartIndex: number, containerElement: HTMLElement) => {
-      editors.current.set(id, {
-        id,
-        view,
-        messageIndex,
-        contentPartIndex,
-        matchCount: 0,
-        containerElement,
-      });
-      if (searchTerm) {
-        scheduleUpdate();
+    (id: string, view: EditorView, messageIndex: number, contentPartIndex: number) => {
+      const term = searchTermRef.current;
+      const matchCount = term ? applySearchAndCount(view, term) : 0;
+      editors.current.set(id, { id, view, messageIndex, contentPartIndex, matchCount });
+      if (term) {
+        requestAnimationFrame(() => syncTotals());
       }
     },
-    [searchTerm, scheduleUpdate]
+    [syncTotals]
   );
 
   const unregisterEditor = useCallback(
     (id: string) => {
       editors.current.delete(id);
-      scheduleUpdate();
+      requestAnimationFrame(() => syncTotals());
     },
-    [scheduleUpdate]
+    [syncTotals]
   );
 
   const getSortedEditors = useCallback(
@@ -192,19 +217,9 @@ export function SpanSearchProvider({ children }: PropsWithChildren) {
         }
       });
 
-      editor.containerElement.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-        inline: "nearest",
-      });
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          navigateToMatch(editor.view, searchTerm, localIndex);
-        });
-      });
+      navigateToMatch(editor.view, searchTermRef.current, localIndex);
     },
-    [getEditorForGlobalIndex, searchTerm]
+    [getEditorForGlobalIndex]
   );
 
   const goToNext = useCallback(() => {
@@ -219,24 +234,7 @@ export function SpanSearchProvider({ children }: PropsWithChildren) {
     goToGlobalMatch(prevIndex);
   }, [totalMatches, currentGlobalIndex, goToGlobalMatch]);
 
-  useEffect(() => {
-    if (updateTimerRef.current !== null) {
-      cancelAnimationFrame(updateTimerRef.current);
-    }
-    updateTimerRef.current = requestAnimationFrame(() => {
-      updateTotalMatches();
-      updateTimerRef.current = null;
-    });
-
-    return () => {
-      if (updateTimerRef.current !== null) {
-        cancelAnimationFrame(updateTimerRef.current);
-        updateTimerRef.current = null;
-      }
-    };
-  }, [searchTerm, updateTotalMatches]);
-
-  const value = useMemo(
+  const stateValue = useMemo(
     () => ({
       searchTerm,
       setSearchTerm,
@@ -244,21 +242,30 @@ export function SpanSearchProvider({ children }: PropsWithChildren) {
       currentIndex: currentGlobalIndex,
       goToNext,
       goToPrev,
+    }),
+    [searchTerm, setSearchTerm, totalMatches, currentGlobalIndex, goToNext, goToPrev]
+  );
+
+  const registrationValue = useMemo(
+    () => ({
       registerEditor,
       unregisterEditor,
     }),
-    [searchTerm, totalMatches, currentGlobalIndex, goToNext, goToPrev, registerEditor, unregisterEditor]
+    [registerEditor, unregisterEditor]
   );
 
   useEffect(
     () => () => {
-      if (updateTimerRef.current !== null) {
-        cancelAnimationFrame(updateTimerRef.current);
-      }
       editors.current.clear();
     },
     []
   );
 
-  return <SpanSearchContext.Provider value={value}>{children}</SpanSearchContext.Provider>;
+  return (
+    <SpanSearchStateContext.Provider value={stateValue}>
+      <SpanSearchRegistrationContext.Provider value={registrationValue}>
+        {children}
+      </SpanSearchRegistrationContext.Provider>
+    </SpanSearchStateContext.Provider>
+  );
 }

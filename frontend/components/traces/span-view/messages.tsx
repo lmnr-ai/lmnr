@@ -11,7 +11,7 @@ import GeminiContentParts from "@/components/traces/span-view/gemini-parts";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
 import OpenAIContentParts from "@/components/traces/span-view/openai-parts";
-import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
+import { useSpanSearchState } from "@/components/traces/span-view/span-search-context";
 import { Button } from "@/components/ui/button";
 import { convertToMessages } from "@/lib/spans/types";
 import { type AnthropicMessagesSchema, parseAnthropicInput, parseAnthropicOutput } from "@/lib/spans/types/anthropic";
@@ -136,14 +136,14 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
 
   const processedResult = useMemo(() => processMessages(messages), [messages]);
 
-  const searchContext = useSpanSearchContext();
-  const searchTerm = searchContext?.searchTerm || "";
+  const searchState = useSpanSearchState();
+  const searchTerm = searchState?.searchTerm || "";
 
   const virtualizer = useVirtualizer({
     count: processedResult.messages.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 360,
-    overscan: searchTerm ? 128 : 48,
+    overscan: searchTerm ? 100 : 48,
   });
 
   const items = virtualizer.getVirtualItems();

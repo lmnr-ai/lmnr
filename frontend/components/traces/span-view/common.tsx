@@ -3,7 +3,6 @@ import { Bolt, Brain, ChevronDown, ChevronUp } from "lucide-react";
 import React, { memo, type PropsWithChildren, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
-import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import DownloadButton from "@/components/ui/download-button";
@@ -72,30 +71,25 @@ const PureToolCallContentPart = ({
   presetKey,
   messageIndex = 0,
   contentPartIndex = 0,
-}: ToolCallContentPartProps) => {
-  const searchContext = useSpanSearchContext();
-
-  return (
-    <div className="flex flex-col gap-2 p-2 bg-background">
-      <span className="flex gap-1 text-xs font-medium" style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}>
-        <Bolt size={14} className="min-w-3.5" />
-        {toolName}
-      </span>
-      <ContentRenderer
-        readOnly
-        defaultMode="json"
-        codeEditorClassName="rounded"
-        value={JSON.stringify(content, null, 2)}
-        presetKey={`editor-${presetKey}`}
-        className="border-0 bg-card"
-        searchTerm={searchContext?.searchTerm || ""}
-        messageIndex={messageIndex}
-        contentPartIndex={contentPartIndex}
-        customTheme={spanViewTheme}
-      />
-    </div>
-  );
-};
+}: ToolCallContentPartProps) => (
+  <div className="flex flex-col gap-2 p-2 bg-background">
+    <span className="flex gap-1 text-xs font-medium" style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}>
+      <Bolt size={14} className="min-w-3.5" />
+      {toolName}
+    </span>
+    <ContentRenderer
+      readOnly
+      defaultMode="json"
+      codeEditorClassName="rounded"
+      value={JSON.stringify(content, null, 2)}
+      presetKey={`editor-${presetKey}`}
+      className="border-0 bg-card"
+      messageIndex={messageIndex}
+      contentPartIndex={contentPartIndex}
+      customTheme={spanViewTheme}
+    />
+  </div>
+);
 
 interface ToolResultContentPartProps {
   toolCallId: string;
@@ -149,26 +143,21 @@ const PureTextContentPart = ({
   codeEditorClassName,
   messageIndex = 0,
   contentPartIndex = 0,
-}: TextContentPartProps) => {
-  const searchContext = useSpanSearchContext();
-
-  return (
-    <div>
-      <ContentRenderer
-        defaultMode="json"
-        readOnly
-        value={content}
-        presetKey={`editor-${presetKey}`}
-        className={cn("border-0 bg-card", className)}
-        codeEditorClassName={codeEditorClassName}
-        searchTerm={searchContext?.searchTerm || ""}
-        messageIndex={messageIndex}
-        contentPartIndex={contentPartIndex}
-        customTheme={spanViewTheme}
-      />
-    </div>
-  );
-};
+}: TextContentPartProps) => (
+  <div>
+    <ContentRenderer
+      defaultMode="json"
+      readOnly
+      value={content}
+      presetKey={`editor-${presetKey}`}
+      className={cn("border-0 bg-card", className)}
+      codeEditorClassName={codeEditorClassName}
+      messageIndex={messageIndex}
+      contentPartIndex={contentPartIndex}
+      customTheme={spanViewTheme}
+    />
+  </div>
+);
 
 interface RoleHeaderProps {
   role?: string;
@@ -219,30 +208,25 @@ const PureThinkingContentPart = ({
   presetKey,
   messageIndex = 0,
   contentPartIndex = 0,
-}: ThinkingContentPartProps) => {
-  const searchContext = useSpanSearchContext();
-
-  return (
-    <div className="flex flex-col gap-2 p-2 bg-background">
-      <span className="flex items-center text-xs">
-        <Brain size={12} className="min-w-3 mr-2" />
-        {label}
-      </span>
-      <ContentRenderer
-        readOnly
-        defaultMode="json"
-        codeEditorClassName="rounded"
-        value={content}
-        presetKey={`editor-${presetKey}`}
-        className="border-0 bg-card"
-        searchTerm={searchContext?.searchTerm || ""}
-        messageIndex={messageIndex}
-        contentPartIndex={contentPartIndex}
-        customTheme={spanViewTheme}
-      />
-    </div>
-  );
-};
+}: ThinkingContentPartProps) => (
+  <div className="flex flex-col gap-2 p-2 bg-background">
+    <span className="flex items-center text-xs">
+      <Brain size={12} className="min-w-3 mr-2" />
+      {label}
+    </span>
+    <ContentRenderer
+      readOnly
+      defaultMode="json"
+      codeEditorClassName="rounded"
+      value={content}
+      presetKey={`editor-${presetKey}`}
+      className="border-0 bg-card"
+      messageIndex={messageIndex}
+      contentPartIndex={contentPartIndex}
+      customTheme={spanViewTheme}
+    />
+  </div>
+);
 
 export const ImageContentPart = memo(PureImageContentPart);
 export const TextContentPart = memo(PureTextContentPart);

@@ -9,7 +9,7 @@ import { SpanControls } from "@/components/traces/span-controls";
 import SpanViewSearchBar from "@/components/traces/span-view/search-bar.tsx";
 import SpanContent from "@/components/traces/span-view/span-content";
 import SpanOverview from "@/components/traces/span-view/span-overview";
-import { SpanSearchProvider, useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
+import { SpanSearchProvider } from "@/components/traces/span-view/span-search-context";
 import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
@@ -48,7 +48,6 @@ const SpanViewTabs = ({
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
 }) => {
-  const searchContext = useSpanSearchContext();
   const isLLM = span.spanType === SpanType.LLM;
 
   return (
@@ -98,7 +97,6 @@ const SpanViewTabs = ({
             readOnly
             value={JSON.stringify(span.attributes)}
             defaultMode="yaml"
-            searchTerm={searchContext?.searchTerm || ""}
             customTheme={spanViewTheme}
           />
         </TabsContent>
@@ -109,7 +107,6 @@ const SpanViewTabs = ({
             readOnly
             value={JSON.stringify(span.events)}
             defaultMode="yaml"
-            searchTerm={searchContext?.searchTerm || ""}
             customTheme={spanViewTheme}
           />
         </TabsContent>
