@@ -237,9 +237,9 @@ export const handleInvoiceFinalized = async (
     .onConflictDoUpdate({
       target: workspaceUsage.workspaceId,
       set: {
-        bytes: 0,
-        signalRuns: 0,
-        lastReportedDate: sql`date_trunc('day', now())`,
+        lastReportedDate: sql`date_trunc('day', ${resetDate})`,
+        ...(hasBytes ? { bytes: 0 } : {}),
+        ...(hasSignalRuns ? { signalRuns: 0 } : {}),
       },
     });
   await db

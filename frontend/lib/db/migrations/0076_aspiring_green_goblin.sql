@@ -3,7 +3,7 @@ ALTER TABLE "shared_evals" ADD CONSTRAINT "shared_evals_project_id_fkey" FOREIGN
 ALTER TABLE "traces" ADD CONSTRAINT "traces_project_id_id_unique" UNIQUE("id","project_id");--> statement-breakpoint
 DROP TABLE "workspace_usage";-->statement-breakpoint
 CREATE TABLE "workspace_usage" (
-    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    "workspace_id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     "bytes" bigint NOT NULL DEFAULT 0,
     "signal_runs" bigint NOT NULL DEFAULT 0,
     "last_reported_date" timestamp with time zone not null DEFAULT date_trunc('day'::text, now())
