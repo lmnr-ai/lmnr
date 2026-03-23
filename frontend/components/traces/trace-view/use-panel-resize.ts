@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { type ResizablePanel } from "@/components/traces/trace-view/store";
 
@@ -9,7 +9,9 @@ import { type ResizablePanel } from "@/components/traces/trace-view/store";
  */
 export function usePanelResize(panel: ResizablePanel, resizePanel: (panel: ResizablePanel, delta: number) => void) {
   const resizePanelRef = useRef(resizePanel);
-  resizePanelRef.current = resizePanel;
+  useEffect(() => {
+    resizePanelRef.current = resizePanel;
+  }, [resizePanel]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
