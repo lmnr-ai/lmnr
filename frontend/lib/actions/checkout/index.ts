@@ -214,7 +214,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
 
   const usage = await getWorkspaceUsage(workspaceId);
 
-  const newBytesOverage = Math.max(0, usage.totalBytesIngested - newTierConfig.includedBytes);
+  const newMegabytesOverage = Math.max(0, usage.totalBytesIngested - newTierConfig.includedBytes) / 1024 / 1024;
   const newSignalRunsOverage = Math.max(0, usage.totalSignalRuns - newTierConfig.includedSignalRuns);
 
   const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId);
@@ -224,18 +224,18 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   const newPrices = await s.prices.list({
     lookup_keys: [
       newTierConfig.lookupKey,
-      newTierConfig.overageBytesLookupKey,
+      newTierConfig.overageMegabytesLookupKey,
       newTierConfig.overageSignalRunsLookupKey,
     ],
   });
 
   const newFlatPrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.lookupKey);
-  const newBytesOveragePrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.overageBytesLookupKey);
+  const newMegabytesOveragePrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.overageMegabytesLookupKey);
   const newSignalRunsOveragePrice = newPrices.data.find(
     (p) => p.lookup_key === newTierConfig.overageSignalRunsLookupKey
   );
 
-  if (!newFlatPrice || !newBytesOveragePrice || !newSignalRunsOveragePrice) {
+  if (!newFlatPrice || !newMegabytesOveragePrice || !newSignalRunsOveragePrice) {
     throw new Error("Could not resolve new tier prices in Stripe");
   }
 
@@ -249,7 +249,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   await s.subscriptions.update(workspace[0].subscriptionId, {
     items: [
       ...oldUsageItems.map((item) => ({ id: item.id, deleted: true as const })),
-      { price: newBytesOveragePrice.id },
+      { price: newMegabytesOveragePrice.id },
       { price: newSignalRunsOveragePrice.id },
     ],
     proration_behavior: "none",
@@ -275,7 +275,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
       timestamp,
       payload: {
         stripe_customer_id: stripeCustomerId,
-        [METER_EVENT_NAMES.overageBytes.payloadKey]: String(newBytesOverage),
+        [METER_EVENT_NAMES.overageBytes.payloadKey]: String(newMegabytesOverage),
       },
     }),
     s.billing.meterEvents.create({
