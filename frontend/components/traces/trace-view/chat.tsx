@@ -155,6 +155,21 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
     if (!pending) return;
 
     justInjectedRef.current = true;
+
+    // Format the JSON payload as markdown: keys become ### headers,
+    // values become body text. One layer deep only.
+    let formattedPayload = pending.eventPayload;
+    try {
+      const parsed = JSON.parse(pending.eventPayload);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        formattedPayload = Object.entries(parsed)
+          .map(([key, value]) => `### ${key}\n${String(value)}`)
+          .join("\n\n");
+      }
+    } catch {
+      // Not valid JSON — use as-is
+    }
+
     setMessages((prev) => [
       ...prev,
       {
@@ -165,7 +180,7 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
       {
         id: "injected-assistant-" + Date.now(),
         role: "assistant" as const,
-        parts: [{ type: "text" as const, text: pending.eventPayload }],
+        parts: [{ type: "text" as const, text: formattedPayload }],
       },
     ]);
     setInput("Explain how this signal event relates to my trace and include specific span references");
