@@ -163,8 +163,8 @@ const PureTextContentPart = ({
 }: TextContentPartProps) => (
   <div>
     <ContentRenderer
-      readOnly
       defaultMode="json"
+      readOnly
       value={content}
       presetKey={`editor-${presetKey}`}
       className={cn("border-0 bg-card", className)}
