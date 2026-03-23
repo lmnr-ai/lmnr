@@ -16,6 +16,7 @@ import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
+import { useSyncEvalContext } from "@/lib/ai-chat/use-sync-eval-context";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
@@ -94,6 +95,16 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   }>(targetStatsUrl, swrFetcher);
 
   const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
+
+  // Sync evaluation context to global AI chat store
+  useSyncEvalContext({
+    evaluationId,
+    evaluationName: statsData?.evaluation?.name || evaluationName,
+    selectedTraceId: traceId,
+    selectedDatapointId: datapointId,
+    targetId,
+    scores,
+  });
 
   // Sync comparison state from URL
   useEffect(() => {

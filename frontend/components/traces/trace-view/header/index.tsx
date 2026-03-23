@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useMemo } from "react";
@@ -22,13 +22,11 @@ import CondensedTimelineControls from "./timeline-toggle";
 
 interface HeaderProps {
   handleClose: () => void;
-  chatOpen: boolean;
-  setChatOpen: (open: boolean) => void;
   spans: TraceViewSpan[];
   onSearch: (filters: Filter[], search: string) => void;
 }
 
-const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderProps) => {
+const Header = ({ handleClose, spans, onSearch }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
@@ -100,33 +98,6 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
               </DropdownMenu>
             </div>
           )}
-          <Button
-            onClick={() => setChatOpen(!chatOpen)}
-            variant="outline"
-            className="h-6 text-xs px-1.5 border-primary text-primary hover:bg-primary/10"
-          >
-            <div
-              className="overflow-hidden transition-all duration-400"
-              style={{
-                width: chatOpen ? 0 : 14,
-                opacity: chatOpen ? 0 : 1,
-                marginRight: chatOpen ? 0 : 4,
-              }}
-            >
-              <Sparkles size={14} />
-            </div>
-            Chat with trace
-            <div
-              className="overflow-hidden transition-all duration-400"
-              style={{
-                width: chatOpen ? 14 : 0,
-                opacity: chatOpen ? 1 : 0,
-                marginLeft: chatOpen ? 4 : 0,
-              }}
-            >
-              <X size={14} />
-            </div>
-          </Button>
         </div>
         <div className="flex items-center gap-x-0.5 flex-shrink-0">
           <Metadata metadata={trace?.metadata} />
@@ -134,11 +105,9 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {!chatOpen && <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />}
+        <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />
       </div>
-      {!chatOpen && (
-        <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
-      )}
+      <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
     </div>
   );
 };
