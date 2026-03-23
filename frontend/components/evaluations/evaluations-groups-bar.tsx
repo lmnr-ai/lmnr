@@ -29,7 +29,7 @@ const columns: ColumnDef<EvaluationGroup>[] = [
 
 export default function EvaluationsGroupsBar() {
   return (
-    <DataTableStateProvider storageKey="evaluations-groups-bar" columns={columns}>
+    <DataTableStateProvider storageKey="evaluations-groups-bar" columnDefs={columns}>
       <EvaluationsGroupsBarContent />
     </DataTableStateProvider>
   );
@@ -59,7 +59,6 @@ function EvaluationsGroupsBarContent() {
       <div className="flex overflow-hidden">
         <InfiniteDataTable<EvaluationGroup>
           className="w-full"
-          columns={columns}
           data={groups || []}
           getRowId={(row) => row.groupId}
           focusedRowId={groupId}

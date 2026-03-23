@@ -209,7 +209,6 @@ const QueuesContent = () => {
           enableRowSelection={true}
           getRowHref={(row) => `/project/${projectId}/labeling-queues/${row.original.id}`}
           getRowId={(row: LabelingQueue) => row.id}
-          columns={columns}
           data={queues ?? []}
           hasMore={hasMore}
           isFetching={isFetching}
@@ -266,7 +265,7 @@ export default function Queues() {
   return (
     <DataTableStateProvider
       storageKey="queues-table"
-      columns={columns}
+      columnDefs={columns}
       enableRowSelection
       lockedColumns={["__row_selection"]}
     >

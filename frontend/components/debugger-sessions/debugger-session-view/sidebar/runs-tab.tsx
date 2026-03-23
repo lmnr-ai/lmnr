@@ -73,7 +73,6 @@ const RunsContent = () => {
   return (
     <InfiniteDataTable<TraceRow>
       className="w-full px-4 py-2"
-      columns={tracePickerColumns}
       data={historyRuns}
       getRowId={(t) => t.id}
       onRowClick={handleRowClick}
@@ -93,7 +92,7 @@ const RunsContent = () => {
 
 export default function RunsTab() {
   return (
-    <DataTableStateProvider columns={tracePickerColumns} pageSize={FETCH_SIZE} lockedColumns={["status"]}>
+    <DataTableStateProvider columnDefs={tracePickerColumns} pageSize={FETCH_SIZE} lockedColumns={["status"]}>
       <RunsContent />
     </DataTableStateProvider>
   );

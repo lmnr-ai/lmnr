@@ -12,7 +12,7 @@ import fullLogo from "@/assets/logo/logo.svg";
 import Chart from "@/components/evaluation/chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import ScoreCard from "@/components/evaluation/score-card";
-import { useEvalStore } from "@/components/evaluation/store";
+import { buildEvalColumnDefs, useEvalStore } from "@/components/evaluation/store";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -50,15 +50,11 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const pageSize = 50;
 
-  // Store actions
-  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
-  const columnDefs = useEvalStore((s) => s.columnDefs);
   const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
   const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
   const setIsComparison = useEvalStore((s) => s.setIsComparison);
   const setIsShared = useEvalStore((s) => s.setIsShared);
 
-  // Shared evals never have comparison mode — reset in case it persists from a previous page.
   useEffect(() => {
     setIsComparison(false);
     setIsShared(true);
@@ -66,11 +62,10 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const statsUrl = useMemo(() => {
     const base = `/api/shared/evals/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection }, []);
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-    // columnDefs used internally in buildStatParams via store
-  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: Evaluation;
@@ -81,13 +76,8 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
 
-  // Rebuild column defs when scores change.
-  useEffect(() => {
-    rebuildColumns(scores);
-  }, [scores, rebuildColumns]);
-
-  // SQL strings from column defs — only changes when columns structurally change.
-  const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
+  const allColumnDefs = useMemo(() => buildEvalColumnDefs(scores), [scores]);
+  const columnSqls = useMemo(() => allColumnDefs.map((c) => c.meta?.sql).filter(Boolean), [allColumnDefs]);
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
@@ -101,15 +91,18 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
-      const urlParams = buildFetchParams({
-        search,
-        searchIn,
-        filter,
-        sortBy,
-        sortDirection,
-        pageNumber,
-        pageSize,
-      });
+      const urlParams = buildFetchParams(
+        {
+          search,
+          searchIn,
+          filter,
+          sortBy,
+          sortDirection,
+          pageNumber,
+          pageSize,
+        },
+        allColumnDefs
+      );
 
       const url = `/api/shared/evals/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
@@ -120,7 +113,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection, buildFetchParams]
+    [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection, buildFetchParams, allColumnDefs]
   );
 
   const {

@@ -1,8 +1,7 @@
 "use client";
 
-import { type Row } from "@tanstack/react-table";
 import { isEqual } from "lodash";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
 import { useSignalStoreContext } from "@/components/signal/store";
@@ -15,7 +14,6 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -55,13 +53,11 @@ const getEmptyRow = ({
 
 function RunsTableContent() {
   const { toast } = useToast();
-  const router = useRouter();
   const params = useParams<{ projectId: string; id: string }>();
-  const { signal, runsFilters, setRunsFilters, setJobsFilters } = useSignalStoreContext((state) => ({
+  const { signal, runsFilters, setRunsFilters } = useSignalStoreContext((state) => ({
     signal: state.signal,
     runsFilters: state.runsFilters,
     setRunsFilters: state.setRunsFilters,
-    setJobsFilters: state.setJobsFilters,
   }));
 
   const filter = runsFilters;
@@ -89,12 +85,6 @@ function RunsTableContent() {
     [setRunsFilters]
   );
 
-  const onJobNav = (row: Row<SignalRunRow>) => {
-    router.push(`/project/${params.projectId}/signals/${params.id}?tab=jobs`);
-    setJobsFilters([{ column: "job_id", operator: Operator.Eq, value: row.original.jobId }]);
-  };
-
-  const columns = getSignalRunsColumns({ onJobNav });
   const fetchRuns = useCallback(
     async (pageNumber: number) => {
       try {
@@ -153,7 +143,6 @@ function RunsTableContent() {
     <div className="flex flex-col gap-2 flex-1 overflow-hidden">
       <InfiniteDataTable<SignalRunRow>
         className="w-full"
-        columns={columns}
         data={runs}
         getRowId={(row: SignalRunRow) => row.runId}
         hasMore={hasMore}
@@ -178,7 +167,7 @@ export default function SignalRunsTable() {
     <DataTableStateProvider
       storageKey="signal-runs-table"
       uniqueKey="runId"
-      columns={getSignalRunsColumns({ onJobNav: () => {} })}
+      columnDefs={getSignalRunsColumns({ onJobNav: () => {} })}
     >
       <RunsTableContent />
     </DataTableStateProvider>

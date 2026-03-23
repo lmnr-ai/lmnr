@@ -13,7 +13,8 @@ export interface InfiniteDataTableProps<TData extends RowData> extends Omit<
   "data" | "columns"
 > {
   data: TData[];
-  columns: TableOptions<TData>["columns"];
+  /** Optional — when omitted, columns are read from the DataTableStore context. */
+  columns?: TableOptions<TData>["columns"];
 
   hasMore: boolean;
   isFetching: boolean;

@@ -1,7 +1,7 @@
 import { type Row } from "@tanstack/react-table";
-import { useShallow } from "zustand/react/shallow";
+import { useMemo } from "react";
 
-import { selectVisibleColumns, useEvalStore } from "@/components/evaluation/store";
+import { buildEvalColumnDefs, buildEvalCustomColumnDef, useEvalStore } from "@/components/evaluation/store";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -21,15 +21,21 @@ export interface EvaluationDatapointsTableProps {
 }
 
 const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
-  const { isLoading } = props;
-  const visibleColumns = useEvalStore(useShallow(selectVisibleColumns));
+  const { isLoading, scores } = props;
+  const isShared = useEvalStore((s) => s.isShared);
+
+  const columnDefs = useMemo(() => buildEvalColumnDefs(scores), [scores]);
 
   if (isLoading) {
     return <EvalTableSkeleton />;
   }
 
   return (
-    <DataTableStateProvider storageKey="evaluation-datapoints-table" columns={visibleColumns}>
+    <DataTableStateProvider
+      storageKey="evaluation-datapoints-table"
+      columnDefs={columnDefs}
+      buildCustomColumnDef={isShared ? undefined : buildEvalCustomColumnDef}
+    >
       <EvaluationDatapointsTableContent {...props} />
     </DataTableStateProvider>
   );

@@ -72,7 +72,7 @@ function PureEventsTable() {
   const filterRaw = searchParams.getAll("filter");
   const filter = useMemo(() => filterRaw, [JSON.stringify(filterRaw)]);
 
-  const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
+  const { filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   const setTraceId = useSignalStoreContext((state) => state.setTraceId);
   const setSelectedEvent = useSignalStoreContext((state) => state.setSelectedEvent);
@@ -200,7 +200,6 @@ function PureEventsTable() {
     <div className="flex flex-1 overflow-hidden px-4 pb-4">
       <InfiniteDataTable<EventRow>
         className="w-full"
-        columns={columns}
         data={events}
         onRowClick={handleRowClick}
         getRowId={(row: EventRow) => row.id}
@@ -233,7 +232,7 @@ export default function EventsTable() {
   const { columns } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   return (
-    <DataTableStateProvider storageKey={`events-table-${signal.id}`} uniqueKey="id" columns={columns}>
+    <DataTableStateProvider storageKey={`events-table-${signal.id}`} uniqueKey="id" columnDefs={columns}>
       <PureEventsTable />
     </DataTableStateProvider>
   );

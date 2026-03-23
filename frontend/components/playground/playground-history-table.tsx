@@ -136,7 +136,7 @@ const FETCH_SIZE = 50;
 
 export default function PlaygroundHistoryTable(props: PlaygroundHistoryTableProps) {
   return (
-    <DataTableStateProvider storageKey="playground-history-table" uniqueKey="id" columns={columns}>
+    <DataTableStateProvider storageKey="playground-history-table" uniqueKey="id" columnDefs={columns}>
       <PlaygroundHistoryTableContent {...props} />
     </DataTableStateProvider>
   );
@@ -215,7 +215,6 @@ function PlaygroundHistoryTableContent({ playgroundId, onRowClick, onTraceSelect
   return (
     <InfiniteDataTable<Trace>
       className="w-full"
-      columns={columns}
       data={traces}
       getRowId={(trace) => trace.id}
       onRowClick={handleRowClick}

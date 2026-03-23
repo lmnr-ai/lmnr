@@ -66,8 +66,6 @@ function TriggersTableContent() {
 
   const triggers: TriggerRow[] = data?.items || [];
 
-  const columns = getTriggersTableColumns();
-
   const handleAddFilter = useCallback(
     (filter: Filter) => {
       setTriggersFilters((prev) => [...prev, filter]);
@@ -147,7 +145,6 @@ function TriggersTableContent() {
       </ManageTriggerDialog>
       <InfiniteDataTable<TriggerRow>
         className="w-full"
-        columns={columns}
         data={triggers}
         getRowId={(trigger) => trigger.id}
         hasMore={false}
@@ -179,7 +176,11 @@ function TriggersTableContent() {
 
 export default function TriggersTable() {
   return (
-    <DataTableStateProvider columns={getTriggersTableColumns()} enableRowSelection lockedColumns={["__row_selection"]}>
+    <DataTableStateProvider
+      columnDefs={getTriggersTableColumns()}
+      enableRowSelection
+      lockedColumns={["__row_selection"]}
+    >
       <TriggersTableContent />
     </DataTableStateProvider>
   );

@@ -12,8 +12,6 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { type PaginatedResponse } from "@/lib/types";
 import { swrFetcher } from "@/lib/utils";
 
-import { columns } from "./lib/consts";
-
 interface EvaluatorsTableProps {
   projectId: string;
   onRowClick: (row: Row<Evaluator>) => void;
@@ -63,7 +61,6 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
 
   return (
     <InfiniteDataTable
-      columns={columns}
       data={data?.items ?? []}
       hasMore={false}
       isFetching={false}

@@ -10,7 +10,7 @@ import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confir
 import SelectionBanner from "@/components/signal/create-signal-job/selection-banner.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import TraceView from "@/components/traces/trace-view";
-import { columns, filters as tableFilters } from "@/components/traces/traces-table/columns.tsx";
+import { filters as tableFilters, STATIC_COLUMNS as columns } from "@/components/traces/traces-table/columns.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -295,7 +295,6 @@ const CreateSignalJobContent = () => {
       <div className="flex flex-1 overflow-hidden px-4 pb-4">
         <InfiniteDataTable<TraceRow>
           className="w-full"
-          columns={columns}
           data={traces}
           enableRowSelection
           getRowId={(trace) => trace.id}
@@ -383,7 +382,7 @@ export default function CreateSignalJob({ traceId }: { traceId?: string }) {
   }, []);
 
   return (
-    <DataTableStateProvider columns={columns} enableRowSelection lockedColumns={["__row_selection", "status"]}>
+    <DataTableStateProvider columnDefs={columns} enableRowSelection lockedColumns={["__row_selection", "status"]}>
       <CreateSignalJobContent />
     </DataTableStateProvider>
   );

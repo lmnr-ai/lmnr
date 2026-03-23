@@ -11,7 +11,7 @@ import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
-import { useEvalStore } from "@/components/evaluation/store";
+import { buildEvalColumnDefs, useEvalStore } from "@/components/evaluation/store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -49,25 +49,20 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     () => searchParams.get("datapointId") ?? undefined
   );
 
-  // Pagination state
   const pageSize = 50;
 
-  // Store
-  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
   const setIsComparison = useEvalStore((s) => s.setIsComparison);
   const setIsShared = useEvalStore((s) => s.setIsShared);
-  const columnDefs = useEvalStore((s) => s.columnDefs);
   const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
   const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
 
-  // Statistics URL (fetches all stats at once)
   const statsUrl = useMemo(() => {
     const base = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    // Stats params don't need columns for the initial stats call (only for filter columns)
+    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection }, []);
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-    // columnDefs used internally in buildStatParams via store
-  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: EvaluationType;
@@ -76,15 +71,13 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     scores: string[];
   }>(statsUrl, swrFetcher);
 
-  // Target statistics URL (if comparing)
   const targetStatsUrl = useMemo(() => {
     if (!targetId) return null;
     const base = `/api/projects/${params?.projectId}/evaluations/${targetId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection }, []);
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-    // columnDefs used internally in buildStatParams via store
-  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams]);
 
   const { data: targetStatsData } = useSWR<{
     evaluation: EvaluationType;
@@ -95,28 +88,17 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
 
   const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
 
-  // Sync comparison state from URL
+  const allColumnDefs = useMemo(() => buildEvalColumnDefs(scores), [scores]);
+
   useEffect(() => {
     setIsComparison(!!targetId);
   }, [targetId, setIsComparison]);
 
-  // Reset shared state — authenticated evals are not shared.
   useEffect(() => {
     setIsShared(false);
   }, [setIsShared]);
 
-  const customColumns = useEvalStore((s) => s.customColumns);
-
-  // Rebuild column defs when scores or custom columns change.
-  // This must run before useInfiniteScroll's effect (declaration order).
-  useEffect(() => {
-    rebuildColumns(scores);
-  }, [scores, customColumns, rebuildColumns]);
-
-  // SQL strings from column defs — only changes when columns structurally change.
-  // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
-  // produce the same string → no spurious re-fetch.
-  const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
+  const columnSqls = useMemo(() => allColumnDefs.map((c) => c.meta?.sql).filter(Boolean), [allColumnDefs]);
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
@@ -126,19 +108,21 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     push(`${pathName}?${params}`);
   }, [searchParams, pathName, push]);
 
-  // Fetch function for datapoints — single query handles comparison via targetId
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
-      const urlParams = buildFetchParams({
-        search,
-        searchIn,
-        filter,
-        sortBy,
-        sortDirection,
-        targetId,
-        pageNumber,
-        pageSize,
-      });
+      const urlParams = buildFetchParams(
+        {
+          search,
+          searchIn,
+          filter,
+          sortBy,
+          sortDirection,
+          targetId,
+          pageNumber,
+          pageSize,
+        },
+        allColumnDefs
+      );
 
       const url = `/api/projects/${params?.projectId}/evaluations/${evaluationId}?${urlParams.toString()}`;
       const response = await fetch(url);
@@ -160,10 +144,10 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
       sortDirection,
       targetId,
       buildFetchParams,
+      allColumnDefs,
     ]
   );
 
-  // Use infinite scroll hook — data is now EvalRow (Record<string, unknown>)
   const {
     data: allDatapoints,
     hasMore: hasMorePages,

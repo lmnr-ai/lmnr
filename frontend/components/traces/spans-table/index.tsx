@@ -22,7 +22,7 @@ const FETCH_SIZE = 50;
 
 export default function SpansTable() {
   return (
-    <DataTableStateProvider storageKey="spans-table" uniqueKey="spanId" columns={columns} lockedColumns={["status"]}>
+    <DataTableStateProvider storageKey="spans-table" uniqueKey="spanId" columnDefs={columns} lockedColumns={["status"]}>
       <SpansTableContent />
     </DataTableStateProvider>
   );
@@ -146,7 +146,6 @@ function SpansTableContent() {
     <div className="flex flex-1 overflow-hidden px-4 pb-6">
       <InfiniteDataTable<SpanRow>
         className="w-full"
-        columns={columns}
         data={spans}
         getRowId={(span) => span.spanId}
         onRowClick={handleRowClick}

@@ -88,7 +88,7 @@ export default function Evaluations() {
   return (
     <DataTableStateProvider
       storageKey="evaluations-table"
-      columns={columns}
+      columnDefs={columns}
       enableRowSelection
       lockedColumns={["__row_selection"]}
     >
@@ -234,7 +234,6 @@ function EvaluationsContent() {
               <InfiniteDataTable<Evaluation>
                 className="w-full"
                 enableRowSelection
-                columns={columns}
                 data={evaluations}
                 getRowId={(evaluation) => evaluation.id}
                 getRowHref={(row) => `/project/${params?.projectId}/evaluations/${row.original.id}`}

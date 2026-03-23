@@ -15,6 +15,7 @@ import {
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
+  type ColumnDef,
   getCoreRowModel,
   getExpandedRowModel,
   type RowData,
@@ -30,7 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Table } from "@/components/ui/table.tsx";
 import { cn } from "@/lib/utils.ts";
 
-import { useDataTableStore } from "./model/datatable-store.tsx";
+import { selectAllColumnDefs, useDataTableStore, useDataTableStoreSelector } from "./model/datatable-store.tsx";
 import { type InfiniteDataTableProps } from "./model/types.ts";
 import { InfiniteDatatableBody } from "./ui/body.tsx";
 import { InfiniteDatatableHeader } from "./ui/header.tsx";
@@ -65,7 +66,7 @@ export function InfiniteDataTable<TData extends RowData>({
   onSort,
 
   // TableOptions props
-  columns,
+  columns: columnsProp,
   data,
   state,
   enableRowSelection,
@@ -78,6 +79,11 @@ export function InfiniteDataTable<TData extends RowData>({
   ...tableOptions
 }: PropsWithChildren<InfiniteDataTableProps<TData>>) {
   const selectedRowIds = state?.rowSelection ? Object.keys(state.rowSelection) : [];
+
+  const store = useDataTableStore<TData>();
+  const storeColumns = useDataTableStoreSelector(selectAllColumnDefs) as ColumnDef<TData>[];
+  const columns = columnsProp ?? storeColumns;
+
   const finalColumns = useMemo(
     () => (enableRowSelection ? [createCheckboxColumn<TData>(), ...columns] : columns),
     [columns, enableRowSelection]
@@ -88,7 +94,6 @@ export function InfiniteDataTable<TData extends RowData>({
     [sortBy, sortDirection]
   );
 
-  const store = useDataTableStore();
   const {
     columnOrder,
     setColumnOrder,

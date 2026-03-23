@@ -194,7 +194,6 @@ const PlaygroundsContent = () => {
           enableRowSelection={true}
           getRowHref={(row) => `/project/${projectId}/playgrounds/${row.original.id}`}
           getRowId={(row) => row.id}
-          columns={columns}
           data={playgrounds ?? []}
           hasMore={hasMore}
           isFetching={isFetching}
@@ -251,7 +250,7 @@ export default function Playgrounds() {
   return (
     <DataTableStateProvider
       storageKey="playgrounds-table"
-      columns={columns}
+      columnDefs={columns}
       enableRowSelection
       lockedColumns={["__row_selection"]}
     >

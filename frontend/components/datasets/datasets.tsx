@@ -207,7 +207,6 @@ function DatasetsContent() {
             enableRowSelection={true}
             getRowHref={(row) => `/project/${projectId}/datasets/${row.original.id}`}
             getRowId={(row: DatasetInfo) => row.id}
-            columns={columns}
             data={datasets}
             hasMore={hasMore}
             isFetching={isFetching}
@@ -245,7 +244,7 @@ export default function Datasets() {
   return (
     <DataTableStateProvider
       storageKey="datasets-table"
-      columns={columns}
+      columnDefs={columns}
       enableRowSelection
       lockedColumns={["__row_selection"]}
     >

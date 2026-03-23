@@ -23,7 +23,7 @@ const FETCH_SIZE = 50;
 
 export default function SessionsTable() {
   return (
-    <DataTableStateProvider storageKey="sessions-table" uniqueKey="sessionId" columns={columns}>
+    <DataTableStateProvider storageKey="sessions-table" uniqueKey="sessionId" columnDefs={columns}>
       <SessionsTableContent />
     </DataTableStateProvider>
   );
@@ -206,7 +206,6 @@ function SessionsTableContent() {
     <div className="flex overflow-hidden px-4 pb-6">
       <InfiniteDataTable<SessionRow>
         className="w-full"
-        columns={columns}
         data={sessions}
         getRowId={(session) => get(session, ["id"], session.sessionId)}
         onRowClick={handleRowClick}

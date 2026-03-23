@@ -72,7 +72,7 @@ const Evaluators = () => {
         </ManageEvaluatorSheet>
         <DataTableStateProvider
           storageKey="evaluators-table"
-          columns={columns}
+          columnDefs={columns}
           enableRowSelection
           lockedColumns={["__row_selection"]}
         >

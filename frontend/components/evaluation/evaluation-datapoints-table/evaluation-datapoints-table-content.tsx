@@ -1,11 +1,10 @@
 import { Settings as SettingsIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
-import { useShallow } from "zustand/react/shallow";
 
 import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
-import { selectVisibleColumns, useEvalStore } from "@/components/evaluation/store";
+import { useEvalStore } from "@/components/evaluation/store";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +14,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
+import {
+  selectAllColumnDefs,
+  useDataTableStoreSelector,
+} from "@/components/ui/infinite-datatable/model/datatable-store";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { Switch } from "@/components/ui/switch";
 import { type EvalRow } from "@/lib/evaluation/types";
@@ -40,12 +43,20 @@ const EvaluationDatapointsTableContent = ({
   const sortBy = searchParams.get("sortBy") ?? undefined;
   const sortDirection = (searchParams.get("sortDirection")?.toLowerCase() ?? undefined) as "asc" | "desc" | undefined;
 
-  // Store state
-  const columns = useEvalStore((s) => s.columnDefs);
   const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
   const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
   const setScoreRanges = useEvalStore((s) => s.setScoreRanges);
-  // Compute and set score ranges from data
+  const isComparison = useEvalStore((s) => s.isComparison);
+
+  const allColumnDefs = useDataTableStoreSelector(selectAllColumnDefs);
+  const setColumnVisibility = useDataTableStoreSelector((s) => s.setColumnVisibility);
+  const columnVisibility = useDataTableStoreSelector((s) => s.columnVisibility);
+  useEffect(() => {
+    if (isComparison && columnVisibility["output"] !== false) {
+      setColumnVisibility({ ...columnVisibility, output: false });
+    }
+  }, [isComparison, columnVisibility, setColumnVisibility]);
+
   useEffect(() => {
     if (!data) return;
 
@@ -94,13 +105,9 @@ const EvaluationDatapointsTableContent = ({
     [searchParams, router, pathname]
   );
 
-  // Visible columns (hidden + output-in-comparison filtered out)
-  const visibleColumns = useEvalStore(useShallow(selectVisibleColumns));
-
-  // Derive filter definitions from column defs in the store
   const columnFilters = useMemo(
     () =>
-      columns
+      allColumnDefs
         .filter((c) => c.meta?.filterable)
         .map((c) => ({
           key: c.id!,
@@ -112,13 +119,12 @@ const EvaluationDatapointsTableContent = ({
                 ? ("number" as const)
                 : ("string" as const),
         })),
-    [columns]
+    [allColumnDefs]
   );
 
   return (
     <div className="flex overflow-hidden flex-1">
-      <InfiniteDataTable
-        columns={visibleColumns}
+      <InfiniteDataTable<EvalRow>
         data={data ?? []}
         hasMore={!searchParams.get("search") && hasMore}
         isFetching={isFetching}

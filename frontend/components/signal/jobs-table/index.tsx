@@ -97,7 +97,6 @@ const JobsTableContent = () => {
       </Link>
       <InfiniteDataTable<SignalJobRow>
         className="w-full"
-        columns={signalJobsColumns}
         data={jobs}
         getRowId={(job) => job.id}
         hasMore={false}
@@ -120,7 +119,7 @@ const JobsTableContent = () => {
 
 export default function SignalJobsTable() {
   return (
-    <DataTableStateProvider columns={signalJobsColumns} lockedColumns={["id"]}>
+    <DataTableStateProvider columnDefs={signalJobsColumns} lockedColumns={["id"]}>
       <JobsTableContent />
     </DataTableStateProvider>
   );

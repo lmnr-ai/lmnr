@@ -1,10 +1,16 @@
 "use client";
 
 import { type ColumnDef } from "@tanstack/react-table";
-import { isEqual, uniqBy } from "lodash";
-import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
-import { createStore, type StoreApi } from "zustand";
+import { uniqBy } from "lodash";
+import { createContext, type ReactNode, useContext, useState } from "react";
+import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
+
+export interface CustomColumn {
+  name: string;
+  sql: string;
+  dataType: "string" | "number";
+}
 
 export interface InfiniteScrollState<TData> {
   data: TData[];
@@ -29,18 +35,20 @@ export interface InfiniteScrollActions<TData> {
   resetInfiniteScroll: () => void;
 }
 
-export interface SelectionState {
+export interface ColumnState {
   selectedRows: Set<string>;
-  defaultColumnOrder: string[];
   lockedColumns: string[];
   columnLabelMap: Record<string, string>;
   columnVisibility: Record<string, boolean>;
   columnOrder: string[];
   columnSizing: Record<string, number>;
   draggingColumnId: string | null;
+  customColumns: CustomColumn[];
+  staticColumnDefs: ColumnDef<any>[];
+  buildCustomColumnDef: ((cc: CustomColumn) => ColumnDef<any>) | null;
 }
 
-export interface SelectionActions {
+export interface ColumnActions {
   selectRow: (id: string) => void;
   deselectRow: (id: string) => void;
   toggleRow: (id: string) => void;
@@ -50,21 +58,65 @@ export interface SelectionActions {
   setColumnOrder: (order: string[]) => void;
   setColumnSizing: (sizing: Record<string, number>) => void;
   setDraggingColumnId: (columnId: string | null) => void;
-  reconcileColumns: (columnIds: string[]) => void;
   resetColumns: () => void;
   getStorageKey: () => string;
+  addCustomColumn: (column: CustomColumn) => void;
+  updateCustomColumn: (oldName: string, column: CustomColumn) => void;
+  removeCustomColumn: (name: string) => void;
 }
 
-type DataTableStore<TData> = InfiniteScrollState<TData> &
-  InfiniteScrollActions<TData> &
-  SelectionState &
-  SelectionActions;
+type DataTableStore<TData> = InfiniteScrollState<TData> & InfiniteScrollActions<TData> & ColumnState & ColumnActions;
+
+/**
+ * Derive the combined column defs from static + custom.
+ * Exported so consumers can use it as a selector on the store.
+ */
+export function selectAllColumnDefs<TData>(state: DataTableStore<TData>): ColumnDef<TData>[] {
+  const { staticColumnDefs, customColumns, buildCustomColumnDef } = state;
+  if (!buildCustomColumnDef || customColumns.length === 0) {
+    return staticColumnDefs as ColumnDef<TData>[];
+  }
+  const customDefs = customColumns.map(buildCustomColumnDef);
+  return [...staticColumnDefs, ...customDefs] as ColumnDef<TData>[];
+}
+
+function buildColumnLabelMap(defs: ColumnDef<any>[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const c of defs) {
+    const id = (c as ColumnDef<any> & { id?: string }).id;
+    if (!id) continue;
+    map[id] = typeof c.header === "string" ? c.header : id;
+  }
+  return map;
+}
+
+function buildColumnIds(defs: ColumnDef<any>[], enableRowSelection: boolean): string[] {
+  const ids = defs.map((c) => (c as ColumnDef<any> & { id?: string }).id).filter(Boolean) as string[];
+  return enableRowSelection ? ["__row_selection", ...ids] : ids;
+}
+
+/**
+ * Reconcile persisted columnOrder with the current set of column IDs.
+ * Returns the new columnOrder preserving user reordering where possible.
+ */
+function reconcileColumnOrder(currentOrder: string[], columnIds: string[]): string[] {
+  if (currentOrder.length === 0) return columnIds;
+
+  const idSet = new Set(columnIds);
+  const pruned = currentOrder.filter((id) => idSet.has(id));
+  const existingSet = new Set(pruned);
+  const added = columnIds.filter((id) => !existingSet.has(id));
+  return [...pruned, ...added];
+}
 
 function createDataTableStore<TData>(
   uniqueKey: string = "id",
   storageKey?: string,
   pageSize: number = 50,
-  lockedColumns: string[] = []
+  lockedColumns: string[] = [],
+  initialStaticColumnDefs: ColumnDef<any>[] = [],
+  initialBuildCustomColumnDef: ((cc: CustomColumn) => ColumnDef<any>) | null = null,
+  enableRowSelection: boolean = false
 ): StoreApi<DataTableStore<TData>> {
   const storeConfig = (
     set: StoreApi<DataTableStore<TData>>["setState"],
@@ -78,13 +130,15 @@ function createDataTableStore<TData>(
     uniqueKey,
     hasMore: true,
     pageSize,
-    defaultColumnOrder: [],
     lockedColumns,
     columnLabelMap: {},
     columnVisibility: {},
     columnOrder: [],
     columnSizing: {},
     draggingColumnId: null,
+    customColumns: [],
+    staticColumnDefs: initialStaticColumnDefs,
+    buildCustomColumnDef: initialBuildCustomColumnDef,
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
     setCurrentPage: (currentPage) => set({ currentPage }),
     setIsFetching: (isFetching) => set({ isFetching }),
@@ -95,29 +149,68 @@ function createDataTableStore<TData>(
     setColumnOrder: (order) => set({ columnOrder: order }),
     setColumnSizing: (sizing) => set({ columnSizing: sizing }),
     setDraggingColumnId: (columnId) => set({ draggingColumnId: columnId }),
-    reconcileColumns: (columnIds) => {
-      const state = get();
-      if (isEqual(state.defaultColumnOrder, columnIds)) return;
-
-      if (state.columnOrder.length === 0) {
-        set({ defaultColumnOrder: columnIds, columnOrder: columnIds });
-        return;
-      }
-
-      const idSet = new Set(columnIds);
-      const pruned = state.columnOrder.filter((id) => idSet.has(id));
-      const existingSet = new Set(pruned);
-      const added = columnIds.filter((id) => !existingSet.has(id));
-
-      set({ defaultColumnOrder: columnIds, columnOrder: [...pruned, ...added] });
-    },
     resetColumns: () => {
       const state = get();
+      const allDefs = selectAllColumnDefs(state);
       set({
         columnVisibility: {},
-        columnOrder: state.defaultColumnOrder,
+        columnOrder: buildColumnIds(allDefs, enableRowSelection),
         columnSizing: {},
       });
+    },
+    addCustomColumn: (column) => {
+      const { customColumns, columnOrder, buildCustomColumnDef: builder } = get();
+      if (customColumns.some((cc) => cc.name === column.name)) return;
+      const newCustomColumns = [...customColumns, column];
+      const columnId = `custom:${column.name}`;
+      const newState: Partial<DataTableStore<TData>> = {
+        customColumns: newCustomColumns,
+        columnOrder: [...columnOrder, columnId],
+      };
+      // Rebuild label map to include new column
+      if (builder) {
+        const allDefs = [...get().staticColumnDefs, ...newCustomColumns.map(builder)];
+        newState.columnLabelMap = buildColumnLabelMap(allDefs);
+      }
+      set(newState);
+    },
+    updateCustomColumn: (oldName, column) => {
+      const { customColumns, columnOrder, columnVisibility, buildCustomColumnDef: builder } = get();
+      const newCustomColumns = customColumns.map((cc) => (cc.name === oldName ? column : cc));
+      const oldId = `custom:${oldName}`;
+      const newId = `custom:${column.name}`;
+      const newState: Partial<DataTableStore<TData>> = { customColumns: newCustomColumns };
+      if (oldName !== column.name) {
+        newState.columnOrder = columnOrder.map((id) => (id === oldId ? newId : id));
+        const newVisibility = { ...columnVisibility };
+        if (oldId in newVisibility) {
+          newVisibility[newId] = newVisibility[oldId];
+          delete newVisibility[oldId];
+        }
+        newState.columnVisibility = newVisibility;
+      }
+      if (builder) {
+        const allDefs = [...get().staticColumnDefs, ...newCustomColumns.map(builder)];
+        newState.columnLabelMap = buildColumnLabelMap(allDefs);
+      }
+      set(newState);
+    },
+    removeCustomColumn: (name) => {
+      const { customColumns, columnVisibility, columnOrder, buildCustomColumnDef: builder } = get();
+      const columnId = `custom:${name}`;
+      const newVisibility = { ...columnVisibility };
+      delete newVisibility[columnId];
+      const newCustomColumns = customColumns.filter((cc) => cc.name !== name);
+      const newState: Partial<DataTableStore<TData>> = {
+        customColumns: newCustomColumns,
+        columnVisibility: newVisibility,
+        columnOrder: columnOrder.filter((id) => id !== columnId),
+      };
+      if (builder) {
+        const allDefs = [...get().staticColumnDefs, ...newCustomColumns.map(builder)];
+        newState.columnLabelMap = buildColumnLabelMap(allDefs);
+      }
+      set(newState);
     },
     appendData: (items, count) =>
       set((state) => {
@@ -193,17 +286,18 @@ function createDataTableStore<TData>(
           columnVisibility: state.columnVisibility,
           columnOrder: state.columnOrder,
           columnSizing: state.columnSizing,
+          customColumns: state.customColumns,
         }),
-        // Restore persisted state as-is; reconcileColumns (called by the provider) corrects it against the actual columns prop.
         merge: (persistedState, currentState) => {
           const persisted = persistedState as Partial<
-            Pick<SelectionState, "columnVisibility" | "columnOrder" | "columnSizing">
+            Pick<ColumnState, "columnVisibility" | "columnOrder" | "columnSizing" | "customColumns">
           >;
           return {
             ...currentState,
             columnVisibility: persisted?.columnVisibility ?? {},
             columnOrder: persisted?.columnOrder ?? [],
             columnSizing: persisted?.columnSizing ?? {},
+            customColumns: persisted?.customColumns ?? [],
           };
         },
       })
@@ -222,9 +316,10 @@ export interface DataTableStateProviderProps {
   uniqueKey?: string;
   pageSize?: number;
   storageKey?: string;
-  columns?: ColumnDef<any>[];
+  columnDefs?: ColumnDef<any>[];
   enableRowSelection?: boolean;
   lockedColumns?: string[];
+  buildCustomColumnDef?: (cc: CustomColumn) => ColumnDef<any>;
 }
 
 export function DataTableStateProvider<TData>({
@@ -232,41 +327,57 @@ export function DataTableStateProvider<TData>({
   storageKey,
   uniqueKey = "id",
   pageSize = 50,
-  columns = [],
+  columnDefs = [],
   enableRowSelection = false,
   lockedColumns = [],
+  buildCustomColumnDef,
 }: DataTableStateProviderProps) {
-  const [store] = useState(() => createDataTableStore<TData>(uniqueKey, storageKey, pageSize, lockedColumns));
+  const [store] = useState(() => {
+    const s = createDataTableStore<TData>(
+      uniqueKey,
+      storageKey,
+      pageSize,
+      lockedColumns,
+      columnDefs,
+      buildCustomColumnDef ?? null,
+      enableRowSelection
+    );
 
-  const columnIds = useMemo(() => {
-    const ids = columns.map((c) => (c as ColumnDef<any> & { id?: string }).id).filter(Boolean) as string[];
-    return enableRowSelection ? ["__row_selection", ...ids] : ids;
-  }, [columns, enableRowSelection]);
+    // Synchronously reconcile persisted columnOrder with the column IDs
+    // from the initial defs + any persisted custom columns.
+    const state = s.getState();
+    const customDefs =
+      buildCustomColumnDef && state.customColumns.length > 0 ? state.customColumns.map(buildCustomColumnDef) : [];
+    const allDefs = [...columnDefs, ...customDefs];
+    const columnIds = buildColumnIds(allDefs, enableRowSelection);
+    const reconciledOrder = reconcileColumnOrder(state.columnOrder, columnIds);
 
-  const columnLabelMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const c of columns) {
-      const id = (c as ColumnDef<any> & { id?: string }).id;
-      if (!id) continue;
-      map[id] = typeof c.header === "string" ? c.header : id;
-    }
-    return map;
-  }, [columns]);
+    s.setState({
+      columnLabelMap: buildColumnLabelMap(allDefs),
+      columnOrder: reconciledOrder,
+    });
 
-  useEffect(() => {
-    if (columnIds.length > 0) {
-      store.getState().reconcileColumns(columnIds);
-      store.setState({ columnLabelMap });
-    }
-  }, [columnIds, columnLabelMap, store]);
+    return s;
+  });
 
   return <DataTableContext.Provider value={store}>{children}</DataTableContext.Provider>;
 }
 
-export function useDataTableStore<TData>() {
+function useDataTableContext() {
   const store = useContext(DataTableContext);
   if (!store) {
-    throw new Error("useDataTableStore must be used within DataTableStateProvider");
+    throw new Error("useDataTableStore / useDataTableStoreSelector must be used within DataTableStateProvider");
   }
-  return store as DataTableStoreApi<TData>;
+  return store;
+}
+
+export function useDataTableStore<TData>() {
+  return useDataTableContext() as DataTableStoreApi<TData>;
+}
+
+export function useDataTableStoreSelector<U>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  selector: (state: DataTableStore<any>) => U
+): U {
+  return useStore(useDataTableContext(), selector);
 }

@@ -165,7 +165,6 @@ function DebuggerSessionsContent() {
         <div className="flex overflow-hidden flex-1">
           <InfiniteDataTable
             getRowId={(row: DebuggerSession) => row.id}
-            columns={columns}
             data={debuggerSessions ?? []}
             hasMore={hasMore}
             getRowHref={(row) => `debugger-sessions/${row.id}`}
@@ -190,7 +189,7 @@ function DebuggerSessionsContent() {
 
 export default function DebuggerSessions() {
   return (
-    <DataTableStateProvider storageKey="debugger-sessions-table" columns={columns}>
+    <DataTableStateProvider storageKey="debugger-sessions-table" columnDefs={columns}>
       <DebuggerSessionsContent />
     </DataTableStateProvider>
   );

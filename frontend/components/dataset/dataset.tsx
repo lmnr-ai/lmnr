@@ -287,7 +287,6 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         </div>
         <div className="flex overflow-hidden flex-1">
           <InfiniteDataTable
-            columns={columns}
             data={datapoints}
             hasMore={hasMore}
             isFetching={isFetching}
@@ -349,7 +348,7 @@ export default function Dataset(props: DatasetProps) {
   return (
     <DataTableStateProvider
       storageKey="dataset-table"
-      columns={columns}
+      columnDefs={columns}
       enableRowSelection
       lockedColumns={["__row_selection"]}
     >

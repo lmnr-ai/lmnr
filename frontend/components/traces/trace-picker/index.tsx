@@ -8,7 +8,7 @@ import TracePickerContent, { type TracePickerProps } from "./trace-picker-conten
 export type { TracePickerProps };
 
 const TracePicker = (props: TracePickerProps) => (
-  <DataTableStateProvider columns={tracePickerColumns} pageSize={FETCH_SIZE} lockedColumns={["status"]}>
+  <DataTableStateProvider columnDefs={tracePickerColumns} pageSize={FETCH_SIZE} lockedColumns={["status"]}>
     <TracePickerContent {...props} />
   </DataTableStateProvider>
 );
