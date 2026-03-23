@@ -1,6 +1,4 @@
 ALTER TABLE "subscription_tiers" ALTER COLUMN "signal_runs" SET DEFAULT 0;--> statement-breakpoint
-ALTER TABLE "shared_evals" ADD CONSTRAINT "shared_evals_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "traces" ADD CONSTRAINT "traces_project_id_id_unique" UNIQUE("id","project_id");--> statement-breakpoint
 DROP TABLE "workspace_usage";-->statement-breakpoint
 CREATE TABLE "workspace_usage" (
     "workspace_id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
