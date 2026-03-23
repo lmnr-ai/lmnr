@@ -91,9 +91,10 @@ interface HeaderProps {
   spans: TraceViewSpan[];
   onSearch: (filters: Filter[], search: string) => void;
   traceId: string;
+  initialSignalId?: string;
 }
 
-const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
+const Header = ({ handleClose, spans, onSearch, traceId, initialSignalId }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
@@ -109,6 +110,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     traceSignals,
     setTraceSignals,
     setIsTraceSignalsLoading,
+    setActiveSignalTabId,
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
@@ -121,6 +123,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       traceSignals: state.traceSignals,
       setTraceSignals: state.setTraceSignals,
       setIsTraceSignalsLoading: state.setIsTraceSignalsLoading,
+      setActiveSignalTabId: state.setActiveSignalTabId,
     }),
     shallow
   );
@@ -159,6 +162,11 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         }));
 
         setTraceSignals(mapped);
+
+        if (mapped.length > 0) {
+          const match = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
+          setActiveSignalTabId(match ? match.signalId : mapped[0].signalId);
+        }
       } catch (error) {
         console.error("Error fetching trace signals:", error);
       } finally {
@@ -167,7 +175,15 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     };
 
     fetchSignals();
-  }, [traceId, projectId, traceSignals.length, setTraceSignals, setIsTraceSignalsLoading]);
+  }, [
+    traceId,
+    projectId,
+    traceSignals.length,
+    setTraceSignals,
+    setIsTraceSignalsLoading,
+    initialSignalId,
+    setActiveSignalTabId,
+  ]);
 
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({

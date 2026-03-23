@@ -133,6 +133,7 @@ function SignalContent() {
           }}
           traceId={traceId}
           initialSignalsPanelOpen
+          initialSignalId={signal.id}
         />
       )}
     </>

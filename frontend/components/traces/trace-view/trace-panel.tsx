@@ -26,9 +26,17 @@ interface TracePanelProps {
   handleSpanSelect: (span?: TraceViewSpan) => void;
   fetchSpans: (search: string, filters: Filter[]) => void;
   isLoading: boolean;
+  initialSignalId?: string;
 }
 
-export default function TracePanel({ traceId, handleClose, handleSpanSelect, fetchSpans, isLoading }: TracePanelProps) {
+export default function TracePanel({
+  traceId,
+  handleClose,
+  handleSpanSelect,
+  fetchSpans,
+  isLoading,
+  initialSignalId,
+}: TracePanelProps) {
   const {
     trace,
     spans,
@@ -79,6 +87,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
         spans={spans}
         onSearch={(filters, search) => fetchSpans(search, filters)}
         traceId={traceId}
+        initialSignalId={initialSignalId}
       />
 
       {isLoading ? (
