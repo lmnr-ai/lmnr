@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
+import { renderSpanReferences } from "@/components/traces/trace-view/span-reference";
 import { type TraceViewTrace, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
@@ -64,64 +65,25 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans, onClose }: Cha
     });
   };
 
+  const spanRefCallbacks = useMemo(
+    () => ({
+      resolveSpanId,
+      onSelectSpan: onSetSpanId,
+      onSearchSpans,
+    }),
+    [resolveSpanId, onSetSpanId, onSearchSpans]
+  );
+
   const components = useMemo(
     () => ({
       code: ({ children }: any) => {
         const text = String(children);
-
-        const xmlSpanMatch = text.match(/<span\s+id='(\d+)'\s+name='([^']+)'\s*\/>/);
-        if (xmlSpanMatch) {
-          const [, spanId, spanName] = xmlSpanMatch;
-          return (
-            <button
-              onClick={async () => {
-                const spanUuid = await resolveSpanId(spanId);
-                if (spanUuid) {
-                  onSetSpanId(spanUuid);
-                }
-              }}
-            >
-              <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs">{spanName}</span> span
-            </button>
-          );
-        }
-
-        const xmlSpanWithReferenceTextMatch = text.match(
-          /<span\s+id='(\d+)'\s+name='([^']+)'\s+reference_text='(.*?)'\s*\/>/
-        );
-
-        if (xmlSpanWithReferenceTextMatch) {
-          const [, spanId, spanName, referenceText] = xmlSpanWithReferenceTextMatch;
-          // Unescape any escaped quotes in the reference text
-          const unescapedReferenceText = referenceText.replace(/\\"/g, '"');
-
-          const previewLength = 24;
-          const textPreview =
-            unescapedReferenceText.length > previewLength
-              ? unescapedReferenceText.slice(0, previewLength) + "..."
-              : unescapedReferenceText;
-
-          return (
-            <button
-              onClick={async () => {
-                onSearchSpans(unescapedReferenceText);
-                const spanUuid = await resolveSpanId(spanId);
-                if (spanUuid) {
-                  onSetSpanId(spanUuid);
-                }
-              }}
-            >
-              <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs mr-1">{spanName}</span>
-              span
-              <span className="text-xs text-muted-foreground ml-1 font-mono">({textPreview})</span>
-            </button>
-          );
-        }
-
+        const rendered = renderSpanReferences(text, spanRefCallbacks);
+        if (rendered) return rendered;
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),
-    [resolveSpanId, onSetSpanId, onSearchSpans]
+    [spanRefCallbacks]
   );
 
   const { messages, sendMessage, setMessages, status } = useChat({
