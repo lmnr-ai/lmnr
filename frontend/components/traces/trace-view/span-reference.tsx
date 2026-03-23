@@ -166,12 +166,3 @@ export function renderSpanReferences(text: string, callbacks: SpanReferenceCallb
 
   return <>{parts}</>;
 }
-
-/**
- * Check if a string contains span references.
- */
-export function hasSpanReferences(text: string): boolean {
-  SPAN_REF_REGEX.lastIndex = 0;
-  MD_SPAN_LINK_REGEX.lastIndex = 0;
-  return SPAN_REF_REGEX.test(text) || MD_SPAN_LINK_REGEX.test(text);
-}
