@@ -4,9 +4,9 @@ import { type Row, type RowSelectionState } from "@tanstack/react-table";
 import { useCallback, useState } from "react";
 import useSWR from "swr";
 
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { type Evaluator } from "@/lib/evaluators/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type PaginatedResponse } from "@/lib/types";
@@ -72,7 +72,6 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
       getRowId={(row) => row.id}
       onRowClick={onRowClick}
       enableRowSelection
-      lockedColumns={["__row_selection"]}
       state={{
         rowSelection,
       }}
@@ -87,13 +86,7 @@ export default function EvaluatorsTable({ projectId, onRowClick }: EvaluatorsTab
         </div>
       )}
     >
-      <ColumnsMenu
-        lockedColumns={["__row_selection"]}
-        columnLabels={columns.map((column) => ({
-          id: column.id!,
-          label: typeof column.header === "string" ? column.header : column.id!,
-        }))}
-      />
+      <ColumnsMenu />
     </InfiniteDataTable>
   );
 }

@@ -1,17 +1,22 @@
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import { type RowData } from "@tanstack/react-table";
 import { forwardRef } from "react";
+import { useStore } from "zustand";
 
 import { TableHeader, TableRow } from "@/components/ui/table.tsx";
 
+import { useDataTableStore } from "../model/datatable-store.tsx";
 import { type InfiniteDataTableHeaderProps } from "../model/types.ts";
 import { InfiniteTableHead } from "./head.tsx";
 
 export const InfiniteDatatableHeader = forwardRef<HTMLTableSectionElement, InfiniteDataTableHeaderProps<RowData>>(
   function InfiniteDatatableHeader<TData extends RowData>(
-    { table, columnOrder, onHideColumn, lockedColumns }: InfiniteDataTableHeaderProps<TData>,
+    { table, columnOrder, onHideColumn }: InfiniteDataTableHeaderProps<TData>,
     ref: React.Ref<HTMLTableSectionElement>
   ) {
+    const store = useDataTableStore();
+    const lockedColumns = useStore(store, (s) => s.lockedColumns);
+
     return (
       <TableHeader
         ref={ref}

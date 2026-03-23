@@ -210,19 +210,3 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     id: "tags",
   },
 ];
-
-export const defaultSessionsColumnOrder = [
-  "type",
-  "id",
-  "start_time",
-  "duration",
-  "input_cost",
-  "output_cost",
-  "total_cost",
-  "input_tokens",
-  "output_tokens",
-  "total_tokens",
-  "trace_count",
-  "user_id",
-  "tags",
-];

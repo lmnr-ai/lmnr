@@ -5,14 +5,14 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
-import { columns, defaultSpansColumnOrder, filters } from "@/components/traces/spans-table/columns";
+import { columns, filters } from "@/components/traces/spans-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -22,7 +22,7 @@ const FETCH_SIZE = 50;
 
 export default function SpansTable() {
   return (
-    <DataTableStateProvider storageKey="spans-table" uniqueKey="spanId" defaultColumnOrder={defaultSpansColumnOrder}>
+    <DataTableStateProvider storageKey="spans-table" uniqueKey="spanId" columns={columns} lockedColumns={["status"]}>
       <SpansTableContent />
     </DataTableStateProvider>
   );
@@ -156,17 +156,10 @@ function SpansTableContent() {
         isFetching={isFetching}
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
-        lockedColumns={["status"]}
       >
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
-          <ColumnsMenu
-            lockedColumns={["status"]}
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-          />
+          <ColumnsMenu />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
         </div>

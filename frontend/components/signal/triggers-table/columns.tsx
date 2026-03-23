@@ -61,8 +61,6 @@ export const getTriggersTableColumns = (): ColumnDef<TriggerRow>[] => [
   },
 ];
 
-export const defaultTriggersColumnOrder = ["filters", "mode", "createdAt"];
-
 export const triggersFilters: ColumnFilter[] = [
   {
     name: "Trigger ID",

@@ -50,7 +50,6 @@ export function InfiniteDataTable<TData extends RowData>({
   onRowClick,
   focusedRowId,
   selectionPanel,
-  lockedColumns = EMPTY_ARRAY as string[],
 
   // Styling
   className,
@@ -293,7 +292,6 @@ export function InfiniteDataTable<TData extends RowData>({
                 onHideColumn={(columnId) => {
                   setColumnVisibility({ ...columnVisibility, [columnId]: false });
                 }}
-                lockedColumns={lockedColumns}
               />
               <InfiniteDatatableBody
                 table={table}

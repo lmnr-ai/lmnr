@@ -7,10 +7,10 @@ import { useCallback, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Button } from "@/components/ui/button";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
@@ -57,8 +57,6 @@ const columns: ColumnDef<LabelingQueue>[] = [
     cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
   },
 ];
-
-export const defaultQueuesColumnOrder = ["__row_selection", "id", "name", "count", "createdAt"];
 
 const queuesTableFilters: ColumnFilter[] = [
   {
@@ -221,7 +219,6 @@ const QueuesContent = () => {
             rowSelection,
           }}
           onRowSelectionChange={setRowSelection}
-          lockedColumns={["__row_selection"]}
           emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
@@ -255,13 +252,7 @@ const QueuesContent = () => {
         >
           <div className="flex flex-1 w-full space-x-2 pt-1">
             <DataTableFilter columns={queuesTableFilters} />
-            <ColumnsMenu
-              columnLabels={columns.map((column) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-              lockedColumns={["__row_selection"]}
-            />
+            <ColumnsMenu />
             <DataTableSearch className="mr-0.5" placeholder="Search by queue name..." />
           </div>
           <DataTableFilterList />
@@ -273,7 +264,12 @@ const QueuesContent = () => {
 
 export default function Queues() {
   return (
-    <DataTableStateProvider storageKey="queues-table" defaultColumnOrder={defaultQueuesColumnOrder}>
+    <DataTableStateProvider
+      storageKey="queues-table"
+      columns={columns}
+      enableRowSelection
+      lockedColumns={["__row_selection"]}
+    >
       <QueuesContent />
     </DataTableStateProvider>
   );

@@ -10,18 +10,14 @@ import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confir
 import SelectionBanner from "@/components/signal/create-signal-job/selection-banner.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import TraceView from "@/components/traces/trace-view";
-import {
-  columns,
-  defaultTracesColumnOrder,
-  filters as tableFilters,
-} from "@/components/traces/traces-table/columns.tsx";
+import { columns, filters as tableFilters } from "@/components/traces/traces-table/columns.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import Header from "@/components/ui/header.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import type { Filter } from "@/lib/actions/common/filters.ts";
@@ -315,16 +311,9 @@ const CreateSignalJobContent = () => {
           }}
           onRowSelectionChange={onRowSelectionChange}
           getRowHref={getRowHref}
-          lockedColumns={["__row_selection", "status"]}
         >
           <div className="flex flex-1 w-full h-full gap-2">
-            <ColumnsMenu
-              lockedColumns={["__row_selection", "status"]}
-              columnLabels={columns.map((column) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-            />
+            <ColumnsMenu />
             <DateRangeFilter mode="state" value={dateRange} onChange={setDateRange} />
             <RefreshButton onClick={refetch} variant="outline" />
           </div>
@@ -394,7 +383,7 @@ export default function CreateSignalJob({ traceId }: { traceId?: string }) {
   }, []);
 
   return (
-    <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTracesColumnOrder]}>
+    <DataTableStateProvider columns={columns} enableRowSelection lockedColumns={["__row_selection", "status"]}>
       <CreateSignalJobContent />
     </DataTableStateProvider>
   );

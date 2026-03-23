@@ -360,19 +360,3 @@ export const filters: ColumnFilter[] = [
     dataType: "string",
   },
 ];
-
-export const defaultTracesColumnOrder = [
-  "status",
-  "id",
-  "top_span_type",
-  "root_span_input",
-  "root_span_output",
-  "start_time",
-  "duration",
-  "cost",
-  "total_tokens",
-  "tags",
-  "metadata",
-  "session_id",
-  "user_id",
-];

@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 
-import { FETCH_SIZE, tracePickerColumnOrder, tracePickerColumns } from "@/components/traces/trace-picker/columns";
+import { FETCH_SIZE, tracePickerColumns } from "@/components/traces/trace-picker/columns";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button";
@@ -83,7 +83,6 @@ const RunsContent = () => {
       isLoading={isHistoryLoading}
       fetchNextPage={noop}
       estimatedRowHeight={36}
-      lockedColumns={["status"]}
     >
       <div className="flex gap-2 w-full items-center">
         <RefreshButton onClick={fetchHistory} variant="outline" />
@@ -94,7 +93,7 @@ const RunsContent = () => {
 
 export default function RunsTab() {
   return (
-    <DataTableStateProvider defaultColumnOrder={tracePickerColumnOrder} pageSize={FETCH_SIZE}>
+    <DataTableStateProvider columns={tracePickerColumns} pageSize={FETCH_SIZE} lockedColumns={["status"]}>
       <RunsContent />
     </DataTableStateProvider>
   );

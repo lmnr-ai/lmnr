@@ -101,6 +101,4 @@ export const tracePickerColumns: ColumnDef<TraceRow, any>[] = [
   },
 ];
 
-export const tracePickerColumnOrder = ["status", "top_span_type", "start_time", "duration", "total_tokens"];
-
 export const FETCH_SIZE = 30;

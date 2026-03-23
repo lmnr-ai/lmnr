@@ -1,7 +1,6 @@
 import { Settings as SettingsIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
-import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
 import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
@@ -16,7 +15,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
-import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { Switch } from "@/components/ui/switch";
 import { type EvalRow } from "@/lib/evaluation/types";
@@ -47,30 +45,6 @@ const EvaluationDatapointsTableContent = ({
   const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
   const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
   const setScoreRanges = useEvalStore((s) => s.setScoreRanges);
-  const removeCustomColumn = useEvalStore((s) => s.removeCustomColumn);
-
-  // Datatable store for column sync
-  const datatableStore = useDataTableStore();
-  const { columnOrder, setColumnOrder } = useStore(datatableStore, (s) => ({
-    columnOrder: s.columnOrder,
-    setColumnOrder: s.setColumnOrder,
-  }));
-
-  // Sync datatable columnOrder with eval store columnDefs
-  useEffect(() => {
-    const visibleIds = columns.filter((c) => !c.meta?.hidden).map((c) => c.id!);
-    const currentSet = new Set(columnOrder);
-    const defSet = new Set(visibleIds);
-
-    const toAdd = visibleIds.filter((id) => !currentSet.has(id));
-    const toRemove = columnOrder.filter((id) => !defSet.has(id));
-
-    if (toAdd.length > 0 || toRemove.length > 0) {
-      const filtered = columnOrder.filter((id) => defSet.has(id));
-      setColumnOrder([...filtered, ...toAdd]);
-    }
-  }, [columns, columnOrder, setColumnOrder]);
-
   // Compute and set score ranges from data
   useEffect(() => {
     if (!data) return;
@@ -161,15 +135,7 @@ const EvaluationDatapointsTableContent = ({
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />
-          <EvalColumnsMenu
-            columnLabels={visibleColumns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-              ...(column.id!.startsWith("custom:") && {
-                onDelete: () => removeCustomColumn(column.id!.replace("custom:", "")),
-              }),
-            }))}
-          />
+          <EvalColumnsMenu />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="h-7 w-7" variant="outline" size="icon">

@@ -32,6 +32,7 @@ export interface CustomColumnPanelConfig {
 export interface ColumnActions {
   addCustomColumn: (column: CustomColumn) => void;
   updateCustomColumn: (oldName: string, column: CustomColumn) => void;
+  removeCustomColumn: (name: string) => void;
   /** Return the ColumnDef for a given column ID, used for populating the edit form. */
   getColumnDef: (columnId: string) => ColumnDef<any> | undefined;
 }

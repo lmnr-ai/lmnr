@@ -118,7 +118,6 @@ const TracePickerContent = ({
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         estimatedRowHeight={36}
-        lockedColumns={["status"]}
       >
         <div className="flex gap-2 w-full items-center">
           <DateRangeFilter mode="state" value={dateRange} onChange={setDateRange} />

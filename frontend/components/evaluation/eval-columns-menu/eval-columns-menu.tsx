@@ -6,16 +6,12 @@ import { useMemo } from "react";
 import { useEvalStore } from "@/components/evaluation/store";
 import { type ColumnActions, ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
 
-interface EvalColumnsMenuProps {
-  lockedColumns?: string[];
-  columnLabels?: { id: string; label: string; onDelete?: () => void }[];
-}
-
-export default function EvalColumnsMenu({ lockedColumns = [], columnLabels = [] }: EvalColumnsMenuProps) {
+export default function EvalColumnsMenu() {
   const { evaluationId } = useParams();
   const isShared = useEvalStore((s) => s.isShared);
   const addCustomColumn = useEvalStore((s) => s.addCustomColumn);
   const updateCustomColumn = useEvalStore((s) => s.updateCustomColumn);
+  const removeCustomColumn = useEvalStore((s) => s.removeCustomColumn);
 
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
@@ -37,18 +33,11 @@ export default function EvalColumnsMenu({ lockedColumns = [], columnLabels = [] 
     () => ({
       addCustomColumn,
       updateCustomColumn,
+      removeCustomColumn,
       getColumnDef: (columnId) => useEvalStore.getState().columnDefs.find((c) => c.id === columnId),
     }),
-    [addCustomColumn, updateCustomColumn]
+    [addCustomColumn, updateCustomColumn, removeCustomColumn]
   );
 
-  return (
-    <ColumnsMenu
-      lockedColumns={lockedColumns}
-      columnLabels={columnLabels}
-      panelConfig={panelConfig}
-      columnActions={columnActions}
-      showCreateButton={!isShared}
-    />
-  );
+  return <ColumnsMenu panelConfig={panelConfig} columnActions={columnActions} showCreateButton={!isShared} />;
 }

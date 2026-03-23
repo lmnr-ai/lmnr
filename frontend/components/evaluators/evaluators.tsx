@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { type Evaluator } from "@/lib/evaluators/types";
 
-import { defaultEvaluatorsColumnOrder } from "./lib/consts";
+import { columns } from "./lib/consts";
 
 const manageEvaluatorSchema = z.object({
   id: z.string().optional(),
@@ -70,7 +70,12 @@ const Evaluators = () => {
             Evaluator
           </Button>
         </ManageEvaluatorSheet>
-        <DataTableStateProvider storageKey="evaluators-table" defaultColumnOrder={defaultEvaluatorsColumnOrder}>
+        <DataTableStateProvider
+          storageKey="evaluators-table"
+          columns={columns}
+          enableRowSelection
+          lockedColumns={["__row_selection"]}
+        >
           <EvaluatorsTable onRowClick={handleRowClick} projectId={projectId as string} />
         </DataTableStateProvider>
       </div>

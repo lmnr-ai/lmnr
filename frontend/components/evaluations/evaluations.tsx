@@ -6,11 +6,11 @@ import React, { useCallback, useState } from "react";
 
 import SearchInput from "@/components/common/search-input";
 import ProgressionChart from "@/components/evaluations/progression-chart";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip.tsx";
@@ -59,15 +59,6 @@ const columns: ColumnDef<Evaluation>[] = [
   },
 ];
 
-export const defaultEvaluationsColumnOrder = [
-  "__row_selection",
-  "id",
-  "name",
-  "dataPointsCount",
-  "metadata",
-  "createdAt",
-];
-
 const filters: ColumnFilter[] = [
   {
     name: "ID",
@@ -95,7 +86,12 @@ const FETCH_SIZE = 50;
 
 export default function Evaluations() {
   return (
-    <DataTableStateProvider storageKey="evaluations-table" defaultColumnOrder={defaultEvaluationsColumnOrder}>
+    <DataTableStateProvider
+      storageKey="evaluations-table"
+      columns={columns}
+      enableRowSelection
+      lockedColumns={["__row_selection"]}
+    >
       <EvaluationsContent />
     </DataTableStateProvider>
   );
@@ -248,7 +244,6 @@ function EvaluationsContent() {
                 fetchNextPage={fetchNextPage}
                 state={{ rowSelection }}
                 onRowSelectionChange={onRowSelectionChange}
-                lockedColumns={["__row_selection"]}
                 selectionPanel={(selectedRowIds) => (
                   <div className="flex flex-col space-y-2">
                     <DeleteSelectedRows
@@ -261,13 +256,7 @@ function EvaluationsContent() {
               >
                 <div className="flex flex-1 w-full space-x-2">
                   <DataTableFilter columns={filters} />
-                  <ColumnsMenu
-                    lockedColumns={["__row_selection"]}
-                    columnLabels={columns.map((column) => ({
-                      id: column.id!,
-                      label: typeof column.header === "string" ? column.header : column.id!,
-                    }))}
-                  />
+                  <ColumnsMenu />
                   <SearchInput placeholder="Search evaluations by name..." />
                 </div>
                 <DataTableFilterList />

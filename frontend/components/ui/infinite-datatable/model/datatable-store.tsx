@@ -1,7 +1,8 @@
 "use client";
 
-import { intersection, pick, uniqBy } from "lodash";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import { type ColumnDef } from "@tanstack/react-table";
+import { isEqual, uniqBy } from "lodash";
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -30,6 +31,9 @@ export interface InfiniteScrollActions<TData> {
 
 export interface SelectionState {
   selectedRows: Set<string>;
+  defaultColumnOrder: string[];
+  lockedColumns: string[];
+  columnLabelMap: Record<string, string>;
   columnVisibility: Record<string, boolean>;
   columnOrder: string[];
   columnSizing: Record<string, number>;
@@ -46,6 +50,7 @@ export interface SelectionActions {
   setColumnOrder: (order: string[]) => void;
   setColumnSizing: (sizing: Record<string, number>) => void;
   setDraggingColumnId: (columnId: string | null) => void;
+  reconcileColumns: (columnIds: string[]) => void;
   resetColumns: () => void;
   getStorageKey: () => string;
 }
@@ -58,8 +63,8 @@ type DataTableStore<TData> = InfiniteScrollState<TData> &
 function createDataTableStore<TData>(
   uniqueKey: string = "id",
   storageKey?: string,
-  defaultColumnOrder: string[] = [],
-  pageSize: number = 50
+  pageSize: number = 50,
+  lockedColumns: string[] = []
 ): StoreApi<DataTableStore<TData>> {
   const storeConfig = (
     set: StoreApi<DataTableStore<TData>>["setState"],
@@ -73,8 +78,11 @@ function createDataTableStore<TData>(
     uniqueKey,
     hasMore: true,
     pageSize,
+    defaultColumnOrder: [],
+    lockedColumns,
+    columnLabelMap: {},
     columnVisibility: {},
-    columnOrder: defaultColumnOrder,
+    columnOrder: [],
     columnSizing: {},
     draggingColumnId: null,
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
@@ -87,12 +95,30 @@ function createDataTableStore<TData>(
     setColumnOrder: (order) => set({ columnOrder: order }),
     setColumnSizing: (sizing) => set({ columnSizing: sizing }),
     setDraggingColumnId: (columnId) => set({ draggingColumnId: columnId }),
-    resetColumns: () =>
+    reconcileColumns: (columnIds) => {
+      const state = get();
+      if (isEqual(state.defaultColumnOrder, columnIds)) return;
+
+      if (state.columnOrder.length === 0) {
+        set({ defaultColumnOrder: columnIds, columnOrder: columnIds });
+        return;
+      }
+
+      const idSet = new Set(columnIds);
+      const pruned = state.columnOrder.filter((id) => idSet.has(id));
+      const existingSet = new Set(pruned);
+      const added = columnIds.filter((id) => !existingSet.has(id));
+
+      set({ defaultColumnOrder: columnIds, columnOrder: [...pruned, ...added] });
+    },
+    resetColumns: () => {
+      const state = get();
       set({
         columnVisibility: {},
-        columnOrder: defaultColumnOrder,
+        columnOrder: state.defaultColumnOrder,
         columnSizing: {},
-      }),
+      });
+    },
     appendData: (items, count) =>
       set((state) => {
         const combined = [...state.data, ...items];
@@ -168,21 +194,16 @@ function createDataTableStore<TData>(
           columnOrder: state.columnOrder,
           columnSizing: state.columnSizing,
         }),
+        // Restore persisted state as-is; reconcileColumns (called by the provider) corrects it against the actual columns prop.
         merge: (persistedState, currentState) => {
           const persisted = persistedState as Partial<
             Pick<SelectionState, "columnVisibility" | "columnOrder" | "columnSizing">
           >;
-          const validColumns = intersection(persisted?.columnOrder ?? [], defaultColumnOrder);
-          const newColumns = defaultColumnOrder.filter((col) => !validColumns.includes(col));
-          const mergedColumnOrder = [...validColumns, ...newColumns];
-          const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, defaultColumnOrder);
-          const filteredColumnSizing = pick(persisted?.columnSizing ?? {}, defaultColumnOrder);
-
           return {
             ...currentState,
-            columnVisibility: filteredColumnVisibility,
-            columnOrder: mergedColumnOrder,
-            columnSizing: filteredColumnSizing,
+            columnVisibility: persisted?.columnVisibility ?? {},
+            columnOrder: persisted?.columnOrder ?? [],
+            columnSizing: persisted?.columnSizing ?? {},
           };
         },
       })
@@ -201,7 +222,9 @@ export interface DataTableStateProviderProps {
   uniqueKey?: string;
   pageSize?: number;
   storageKey?: string;
-  defaultColumnOrder?: string[];
+  columns?: ColumnDef<any>[];
+  enableRowSelection?: boolean;
+  lockedColumns?: string[];
 }
 
 export function DataTableStateProvider<TData>({
@@ -209,9 +232,33 @@ export function DataTableStateProvider<TData>({
   storageKey,
   uniqueKey = "id",
   pageSize = 50,
-  defaultColumnOrder = [],
+  columns = [],
+  enableRowSelection = false,
+  lockedColumns = [],
 }: DataTableStateProviderProps) {
-  const [store] = useState(() => createDataTableStore<TData>(uniqueKey, storageKey, defaultColumnOrder, pageSize));
+  const [store] = useState(() => createDataTableStore<TData>(uniqueKey, storageKey, pageSize, lockedColumns));
+
+  const columnIds = useMemo(() => {
+    const ids = columns.map((c) => (c as ColumnDef<any> & { id?: string }).id).filter(Boolean) as string[];
+    return enableRowSelection ? ["__row_selection", ...ids] : ids;
+  }, [columns, enableRowSelection]);
+
+  const columnLabelMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of columns) {
+      const id = (c as ColumnDef<any> & { id?: string }).id;
+      if (!id) continue;
+      map[id] = typeof c.header === "string" ? c.header : id;
+    }
+    return map;
+  }, [columns]);
+
+  useEffect(() => {
+    if (columnIds.length > 0) {
+      store.getState().reconcileColumns(columnIds);
+      store.setState({ columnLabelMap });
+    }
+  }, [columnIds, columnLabelMap, store]);
 
   return <DataTableContext.Provider value={store}>{children}</DataTableContext.Provider>;
 }

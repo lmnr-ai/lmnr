@@ -265,7 +265,7 @@ export default function EditorPanel() {
             <div className="flex overflow-hidden h-full">
               {renderContent({
                 success: (
-                  <DataTableStateProvider>
+                  <DataTableStateProvider columns={columns}>
                     <InfiniteDataTable
                       className="w-full"
                       columns={columns}

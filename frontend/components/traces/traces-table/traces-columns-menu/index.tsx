@@ -5,14 +5,10 @@ import { useMemo } from "react";
 import { useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
 import { type ColumnActions, ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
 
-interface TracesColumnsMenuProps {
-  lockedColumns?: string[];
-  columnLabels?: { id: string; label: string; onDelete?: () => void }[];
-}
-
-export default function TracesColumnsMenu({ lockedColumns = [], columnLabels = [] }: TracesColumnsMenuProps) {
+export default function TracesColumnsMenu() {
   const addCustomColumn = useTracesTableStore((s) => s.addCustomColumn);
   const updateCustomColumn = useTracesTableStore((s) => s.updateCustomColumn);
+  const removeCustomColumn = useTracesTableStore((s) => s.removeCustomColumn);
 
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
@@ -32,17 +28,11 @@ export default function TracesColumnsMenu({ lockedColumns = [], columnLabels = [
     () => ({
       addCustomColumn,
       updateCustomColumn,
+      removeCustomColumn,
       getColumnDef: (columnId) => useTracesTableStore.getState().columnDefs.find((c) => c.id === columnId),
     }),
-    [addCustomColumn, updateCustomColumn]
+    [addCustomColumn, updateCustomColumn, removeCustomColumn]
   );
 
-  return (
-    <ColumnsMenu
-      lockedColumns={lockedColumns}
-      columnLabels={columnLabels}
-      panelConfig={panelConfig}
-      columnActions={columnActions}
-    />
-  );
+  return <ColumnsMenu panelConfig={panelConfig} columnActions={columnActions} />;
 }
