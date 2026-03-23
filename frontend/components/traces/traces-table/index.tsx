@@ -159,6 +159,12 @@ function TracesTableContent() {
     textSearchFilter ? null : undefined
   );
 
+  // Synchronous mirror of the searchTraceIds pending state. Set to true
+  // when we know a reset is needed but the state update hasn't applied yet.
+  // Checked by the stats effect to avoid firing with stale IDs in the same
+  // render cycle that triggers a reset.
+  const searchTraceIdsPendingResetRef = useRef(false);
+
   // Monotonically increasing counter that tracks each new traces fetch.
   // Used to discard stale responses when parameters change mid-flight.
   const fetchVersionRef = useRef(0);
@@ -271,11 +277,19 @@ function TracesTableContent() {
   // Reset searchTraceIds when any search-affecting parameter changes so
   // stats wait for the new traces fetch instead of using stale IDs.
   useEffect(() => {
+    searchTraceIdsPendingResetRef.current = true;
     setSearchTraceIds(textSearchFilter ? null : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [textSearchFilter, pastHours, startDate, endDate, JSON.stringify(searchIn)]);
 
   useEffect(() => {
+    // When a reset is pending, the searchTraceIds state update hasn't
+    // applied yet — skip to avoid firing with stale IDs. The state change
+    // will retrigger this effect in the next render.
+    if (searchTraceIdsPendingResetRef.current) {
+      searchTraceIdsPendingResetRef.current = false;
+      return;
+    }
     // When searchTraceIds is null, a search is active but traces haven't
     // returned yet — wait before fetching stats to avoid a race condition.
     if (statsUrl && searchTraceIds !== null) {
