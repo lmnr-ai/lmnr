@@ -118,12 +118,14 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
           <TooltipProvider key={signal.signalId} delayDuration={500}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <TabsTrigger
-                  value={signal.signalId}
-                  className="min-w-[120px] max-w-[120px] truncate text-xs text-left justify-start"
-                >
-                  {signal.signalName}
-                </TabsTrigger>
+                <span>
+                  <TabsTrigger
+                    value={signal.signalId}
+                    className="min-w-[120px] max-w-[120px] truncate text-xs text-left justify-start"
+                  >
+                    {signal.signalName}
+                  </TabsTrigger>
+                </span>
               </TooltipTrigger>
               <TooltipContent side="top">
                 <p>{signal.signalName}</p>
