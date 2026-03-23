@@ -44,7 +44,9 @@ export const GetTracesByIdsSchema = z.object({
   traceIds: z.array(z.string()).min(1),
 });
 
-export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise<{ items: TraceRow[] }> {
+export async function getTraces(
+  input: z.infer<typeof GetTracesSchema>
+): Promise<{ items: TraceRow[]; searchTraceIds?: string[] }> {
   const {
     projectId,
     pastHours,
@@ -137,6 +139,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
 
   return {
     items,
+    ...(search && { searchTraceIds: traceIds }),
   };
 }
 

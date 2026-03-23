@@ -15,7 +15,7 @@ export type TracesState = {
 export type TracesActions = {
   setTraceId: (traceId: string | null) => void;
   setSpanId: (spanId: string | null) => void;
-  fetchStats: (url: string) => Promise<void>;
+  fetchStats: (url: string, searchTraceIds?: string[]) => Promise<void>;
   incrementStat: (timestamp: string, isError: boolean) => void;
   setChartContainerWidth: (width: number) => void;
   isTraceInTimeRange: (timestamp: string) => boolean;
@@ -49,10 +49,17 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
 
     setChartContainerWidth: (width: number) => set({ chartContainerWidth: width }),
 
-    fetchStats: async (url: string) => {
+    fetchStats: async (url: string, searchTraceIds?: string[]) => {
       set({ isLoadingStats: true });
       try {
-        const response = await fetch(url);
+        const fetchOptions: RequestInit = searchTraceIds
+          ? {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ searchTraceIds }),
+            }
+          : {};
+        const response = await fetch(url, fetchOptions);
         if (!response.ok) {
           throw new Error(`Failed to fetch stats: ${response.status} ${response.statusText}`);
         }

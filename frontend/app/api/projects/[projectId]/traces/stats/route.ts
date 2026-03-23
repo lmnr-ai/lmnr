@@ -35,3 +35,41 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
     );
   }
 }
+
+export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
+  const params = await props.params;
+  const projectId = params.projectId;
+
+  const parseResult = parseUrlParams(
+    req.nextUrl.searchParams,
+    GetTraceStatsSchema.omit({ projectId: true, searchTraceIds: true })
+  );
+
+  if (!parseResult.success) {
+    const timeRange = getOptionalTimeRange(
+      req.nextUrl.searchParams.get("pastHours") ?? undefined,
+      req.nextUrl.searchParams.get("startTime") ?? undefined,
+      req.nextUrl.searchParams.get("endTime") ?? undefined
+    ) ?? { pastHours: 24 };
+    const items = generateEmptyTimeBuckets(timeRange);
+    return Response.json({ items });
+  }
+
+  try {
+    const body = (await req.json()) as { searchTraceIds?: string[] };
+    const result = await getTraceStats({
+      ...parseResult.data,
+      projectId,
+      searchTraceIds: body.searchTraceIds,
+    });
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return Response.json({ error: prettifyError(error) }, { status: 400 });
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch trace stats." },
+      { status: 500 }
+    );
+  }
+}

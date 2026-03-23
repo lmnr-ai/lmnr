@@ -16,6 +16,7 @@ export const GetTraceStatsSchema = GetTracesSchema.omit({
 }).extend({
   intervalValue: z.coerce.number().default(1),
   intervalUnit: z.enum(["minute", "hour", "day"]).default("hour"),
+  searchTraceIds: z.array(z.string()).optional(),
 });
 
 export type TracesStatsDataPoint = {
@@ -38,22 +39,32 @@ export async function getTraceStats(
     filter: inputFilters,
     intervalValue,
     intervalUnit,
+    searchTraceIds,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
 
-  const spanHits: { trace_id: string; span_id: string }[] = search
-    ? await searchSpans({
-        projectId,
-        traceId: undefined,
-        searchQuery: search,
-        timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
-      })
-    : [];
-  const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
+  // Use pre-computed searchTraceIds if provided to avoid duplicate search calls.
+  // Otherwise fall back to calling searchSpans directly.
+  const traceIds: string[] = searchTraceIds
+    ? searchTraceIds
+    : search
+      ? [
+          ...new Set(
+            (
+              await searchSpans({
+                projectId,
+                traceId: undefined,
+                searchQuery: search,
+                timeRange: getTimeRange(pastHours, startTime, endTime),
+                searchType: searchIn as SpanSearchType[],
+              })
+            ).map((span) => span.trace_id)
+          ),
+        ]
+      : [];
 
-  if (search && traceIds?.length === 0) {
+  if ((search || searchTraceIds) && traceIds?.length === 0) {
     const timeRange = getTimeRange(pastHours, startTime, endTime);
     const items = generateEmptyTimeBuckets(timeRange);
     return { items };

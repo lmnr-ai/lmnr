@@ -31,14 +31,25 @@ const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
     '\u{2014}', // — em dash
 ];
 
-/// Escape special characters for Quickwit query syntax
+/// Escape special characters for Quickwit query syntax.
+///
+/// If the entire query is wrapped in double quotes (exact phrase search),
+/// the quotes are preserved. Otherwise, all quotes within the query are removed.
 fn escape_quickwit_query(query: &str) -> String {
+    let trimmed = query.trim();
+    let is_exact_phrase = trimmed.starts_with('"')
+        && trimmed.ends_with('"')
+        && trimmed.len() >= 2
+        && !trimmed[1..trimmed.len() - 1].contains('"');
+
     query
         .chars()
         .flat_map(|c| {
             if QUICKWIT_RESERVED_CHARACTERS.contains(&c) {
                 vec!['\\', c]
             } else if QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS.contains(&c) {
+                vec![' ']
+            } else if c == '"' && !is_exact_phrase {
                 vec![' ']
             } else {
                 vec![c]

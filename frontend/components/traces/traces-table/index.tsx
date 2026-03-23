@@ -2,7 +2,7 @@
 import { type Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
@@ -147,12 +147,12 @@ function TracesTableContent() {
     startDate,
     endDate,
     filters: filter,
-    additionalParams: {
-      ...(textSearchFilter && { search: textSearchFilter }),
-      ...(searchIn.length > 0 && { searchIn }),
-    },
     defaultTargetBars: DEFAULT_TARGET_BARS,
   });
+
+  // Stores search trace IDs from the traces fetch response so the stats
+  // endpoint can reuse them instead of making a duplicate search call.
+  const [searchTraceIds, setSearchTraceIds] = useState<string[] | undefined>(undefined);
 
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
@@ -194,7 +194,8 @@ function TracesTableContent() {
           throw new Error(text.error);
         }
 
-        const data = (await res.json()) as { items: TraceRow[] };
+        const data = (await res.json()) as { items: TraceRow[]; searchTraceIds?: string[] };
+        setSearchTraceIds(data.searchTraceIds);
         return { items: data.items, count: 0 };
       } catch (error) {
         toast({
@@ -251,9 +252,9 @@ function TracesTableContent() {
 
   useEffect(() => {
     if (statsUrl) {
-      fetchStats(statsUrl);
+      fetchStats(statsUrl, searchTraceIds);
     }
-  }, [statsUrl, fetchStats]);
+  }, [statsUrl, fetchStats, searchTraceIds]);
 
   const updateRealtimeTrace = useCallback(
     (traceData: TraceRow) => {
@@ -327,9 +328,9 @@ function TracesTableContent() {
   const handleRefresh = useCallback(() => {
     refetch();
     if (statsUrl) {
-      fetchStats(statsUrl);
+      fetchStats(statsUrl, searchTraceIds);
     }
-  }, [refetch, statsUrl, fetchStats]);
+  }, [refetch, statsUrl, fetchStats, searchTraceIds]);
 
   const handleRowClick = useCallback(
     (row: Row<TraceRow>) => {
