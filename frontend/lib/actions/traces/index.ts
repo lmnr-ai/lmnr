@@ -82,7 +82,7 @@ export async function getTraces(
 
   if (search) {
     if (traceIds?.length === 0) {
-      return { items: [] };
+      return { items: [], searchTraceIds: [] };
     } else {
       // no pagination for search results, use default limit
       limit = DEFAULT_SEARCH_MAX_HITS;

@@ -152,7 +152,12 @@ function TracesTableContent() {
 
   // Stores search trace IDs from the traces fetch response so the stats
   // endpoint can reuse them instead of making a duplicate search call.
-  const [searchTraceIds, setSearchTraceIds] = useState<string[] | undefined>(undefined);
+  // - undefined: no search active, stats fetched normally via GET
+  // - null: search active but traces haven't returned yet — skip stats fetch
+  // - string[]: search completed, pass IDs to stats endpoint via POST
+  const [searchTraceIds, setSearchTraceIds] = useState<string[] | null | undefined>(
+    textSearchFilter ? null : undefined
+  );
 
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
@@ -250,8 +255,15 @@ function TracesTableContent() {
     setNavigationRefList(map(traces, "id"));
   }, [setNavigationRefList, traces]);
 
+  // Reset searchTraceIds when text search changes so stats wait for the new traces fetch.
   useEffect(() => {
-    if (statsUrl) {
+    setSearchTraceIds(textSearchFilter ? null : undefined);
+  }, [textSearchFilter]);
+
+  useEffect(() => {
+    // When searchTraceIds is null, a search is active but traces haven't
+    // returned yet — wait before fetching stats to avoid a race condition.
+    if (statsUrl && searchTraceIds !== null) {
       fetchStats(statsUrl, searchTraceIds);
     }
   }, [statsUrl, fetchStats, searchTraceIds]);
@@ -327,7 +339,7 @@ function TracesTableContent() {
 
   const handleRefresh = useCallback(() => {
     refetch();
-    if (statsUrl) {
+    if (statsUrl && searchTraceIds !== null) {
       fetchStats(statsUrl, searchTraceIds);
     }
   }, [refetch, statsUrl, fetchStats, searchTraceIds]);
