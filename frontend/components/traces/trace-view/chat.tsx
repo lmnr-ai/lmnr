@@ -77,6 +77,28 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
         if (rendered) return rendered;
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
+      // Intercept markdown links that contain spanId — render as clickable
+      // span badges instead of plain <a> tags. This handles span references
+      // in injected signal payloads that the markdown renderer converts to
+      // links before the `code` override sees them.
+      a: ({ href, children }: any) => {
+        if (href) {
+          const spanIdMatch = href.match(/[?&]spanId=([0-9a-f-]+)/i);
+          if (spanIdMatch) {
+            const label = String(children);
+            const spanUuid = spanIdMatch[1];
+            return (
+              <button onClick={() => spanRefCallbacks.onSelectSpan(spanUuid)}>
+                <span className="bg-primary/70 text-primary-foreground rounded px-1.5 py-0.5 font-mono text-xs">
+                  {label}
+                </span>{" "}
+                span
+              </button>
+            );
+          }
+        }
+        return <a href={href}>{children}</a>;
+      },
     }),
     [spanRefCallbacks]
   );
