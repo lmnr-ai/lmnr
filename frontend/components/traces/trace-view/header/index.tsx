@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Radio, Sparkles } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
@@ -25,6 +25,60 @@ import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
 import CondensedTimelineControls from "./timeline-toggle";
+
+const DEFAULT_SIGNAL_CARD_HEIGHT = 180;
+const MIN_SIGNAL_CARD_HEIGHT = 80;
+const MAX_SIGNAL_CARD_HEIGHT = 500;
+
+function ResizableSignalCard({ traceId }: { traceId: string }) {
+  const [height, setHeight] = useState(DEFAULT_SIGNAL_CARD_HEIGHT);
+  const isDragging = useRef(false);
+  const startY = useRef(0);
+  const startHeight = useRef(0);
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      isDragging.current = true;
+      startY.current = e.clientY;
+      startHeight.current = height;
+      e.preventDefault();
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        if (!isDragging.current) return;
+        const delta = moveEvent.clientY - startY.current;
+        const newHeight = Math.min(
+          MAX_SIGNAL_CARD_HEIGHT,
+          Math.max(MIN_SIGNAL_CARD_HEIGHT, startHeight.current + delta)
+        );
+        setHeight(newHeight);
+      };
+
+      const handleMouseUp = () => {
+        isDragging.current = false;
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [height]
+  );
+
+  return (
+    <div className="flex flex-col" style={{ height }}>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <SignalEventsPanel traceId={traceId} />
+      </div>
+      <div
+        onMouseDown={handleMouseDown}
+        className="h-1.5 cursor-row-resize flex items-center justify-center hover:bg-muted/60 transition-colors shrink-0"
+      >
+        <div className="w-8 h-0.5 rounded-full bg-border" />
+      </div>
+    </div>
+  );
+}
 
 interface HeaderProps {
   handleClose: () => void;
@@ -200,7 +254,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {trace && <ShareTraceButton projectId={projectId} />}
         </div>
       </div>
-      {signalsPanelOpen && <SignalEventsPanel traceId={traceId} />}
+      {signalsPanelOpen && <ResizableSignalCard traceId={traceId} />}
       <div className="flex items-center gap-2">
         <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />
       </div>
