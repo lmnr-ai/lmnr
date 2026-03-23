@@ -110,10 +110,9 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
     <Tabs
       value={effectiveTabId}
       onValueChange={setActiveSignalTabId}
-      className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-md border bg-card gap-0"
+      className="flex flex-col flex-1 min-h-0 overflow-hidden gap-0"
     >
-      <div className="flex-shrink-0 px-2 pt-1.5 pb-1 text-xs font-medium text-secondary-foreground">Signal events</div>
-      <TabsList className="flex-shrink-0 overflow-x-auto no-scrollbar h-8 w-full justify-start rounded-none border-b px-1">
+      <TabsList className="flex-shrink-0 overflow-x-auto no-scrollbar h-8 w-full justify-start rounded-none px-1">
         {traceSignals.map((signal) => (
           <TooltipProvider key={signal.signalId} delayDuration={500}>
             <Tooltip>
@@ -121,9 +120,9 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
                 <span>
                   <TabsTrigger
                     value={signal.signalId}
-                    className="min-w-[120px] max-w-[120px] truncate text-xs text-left justify-start"
+                    className="min-w-[120px] max-w-[120px] text-xs text-left justify-start overflow-hidden"
                   >
-                    {signal.signalName}
+                    <span className="block truncate">{signal.signalName}</span>
                   </TabsTrigger>
                 </span>
               </TooltipTrigger>
