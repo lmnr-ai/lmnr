@@ -2,95 +2,21 @@
 
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useRef } from "react";
 
-import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
-import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type EventRow } from "@/lib/events/types";
 
 import SignalTab from "./signal-tab";
 
-interface ApiSignalResponse {
-  signalId: string;
-  signalName: string;
-  prompt: string;
-  structuredOutput: Record<string, unknown>;
-  events: EventRow[];
-}
-
 export default function SignalEventsPanel({ traceId }: { traceId: string }) {
   const { projectId } = useParams();
-  const hasFetchedRef = useRef(false);
 
   const traceSignals = useTraceViewStore((state) => state.traceSignals);
   const isTraceSignalsLoading = useTraceViewStore((state) => state.isTraceSignalsLoading);
   const activeSignalTabId = useTraceViewStore((state) => state.activeSignalTabId);
-  const initialSignalId = useTraceViewStore((state) => state.initialSignalId);
-  const setTraceSignals = useTraceViewStore((state) => state.setTraceSignals);
-  const setIsTraceSignalsLoading = useTraceViewStore((state) => state.setIsTraceSignalsLoading);
   const setActiveSignalTabId = useTraceViewStore((state) => state.setActiveSignalTabId);
-
-  const fetchSignals = useCallback(async () => {
-    if (hasFetchedRef.current || traceSignals.length > 0) return;
-    hasFetchedRef.current = true;
-
-    try {
-      setIsTraceSignalsLoading(true);
-      const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/signals`);
-
-      if (!response.ok) {
-        console.error("Failed to fetch trace signals");
-        return;
-      }
-
-      const data = (await response.json()) as ApiSignalResponse[];
-
-      if (!Array.isArray(data)) {
-        console.error("Unexpected response format for trace signals");
-        return;
-      }
-
-      const mapped: TraceSignal[] = data.map((s) => ({
-        signalId: s.signalId,
-        signalName: s.signalName,
-        prompt: s.prompt ?? "",
-        schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
-          name: f.name,
-          type: f.type,
-          description: f.description,
-        })),
-        events: Array.isArray(s.events) ? s.events : [],
-      }));
-
-      setTraceSignals(mapped);
-
-      if (mapped.length > 0 && !activeSignalTabId) {
-        // Prefer the signal the user navigated from (set in store at creation time)
-        const preferred = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
-        setActiveSignalTabId(preferred?.signalId ?? mapped[0].signalId);
-      }
-    } catch (error) {
-      console.error("Error fetching trace signals:", error);
-    } finally {
-      setIsTraceSignalsLoading(false);
-    }
-  }, [
-    projectId,
-    traceId,
-    traceSignals.length,
-    activeSignalTabId,
-    initialSignalId,
-    setTraceSignals,
-    setIsTraceSignalsLoading,
-    setActiveSignalTabId,
-  ]);
-
-  useEffect(() => {
-    fetchSignals();
-  }, [fetchSignals]);
 
   if (isTraceSignalsLoading) {
     return (
