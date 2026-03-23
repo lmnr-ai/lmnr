@@ -129,7 +129,7 @@ async fn process_clustering_logic(
     // Call clustering endpoint
     let result = call_clustering_endpoint(&client, project_id, signal_id, &message).await;
 
-    // Always release signal lock. Project lock was released early.
+    // Always release signal lock.
     if let Err(e) = cache.release_lock(&signal_lock_key).await {
         log::error!("Failed to release signal clustering lock: {:?}", e);
     } else {
