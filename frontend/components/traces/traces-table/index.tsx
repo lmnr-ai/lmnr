@@ -222,6 +222,12 @@ function TracesTableContent() {
         }
         return { items: data.items, count: 0 };
       } catch (error) {
+        // Unblock the stats effect so it isn't permanently stuck at null.
+        // An empty array signals "search completed with no results", which
+        // causes stats to render empty — consistent with the failed table.
+        if (fetchVersionRef.current === version) {
+          setSearchTraceIds(textSearchFilter ? [] : undefined);
+        }
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
