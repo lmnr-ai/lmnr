@@ -1,13 +1,15 @@
 import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Radio, Sparkles } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
+import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import SignalEventsPanel from "@/components/traces/trace-view/signal-events-panel";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
+import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { type Filter } from "@/lib/actions/common/filters";
+import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +47,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     signalsPanelOpen,
     setSignalsPanelOpen,
     traceSignals,
+    setTraceSignals,
+    setIsTraceSignalsLoading,
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
@@ -54,9 +59,55 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       signalsPanelOpen: state.signalsPanelOpen,
       setSignalsPanelOpen: state.setSignalsPanelOpen,
       traceSignals: state.traceSignals,
+      setTraceSignals: state.setTraceSignals,
+      setIsTraceSignalsLoading: state.setIsTraceSignalsLoading,
     }),
     shallow
   );
+
+  // Eagerly fetch signal count when trace loads, so the button shows the correct count
+  const hasFetchedSignalsRef = useRef(false);
+  useEffect(() => {
+    if (!traceId || !projectId || hasFetchedSignalsRef.current || traceSignals.length > 0) return;
+    hasFetchedSignalsRef.current = true;
+
+    const fetchSignals = async () => {
+      try {
+        setIsTraceSignalsLoading(true);
+        const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/signals`);
+        if (!response.ok) return;
+
+        const data = (await response.json()) as Array<{
+          signalId: string;
+          signalName: string;
+          prompt: string;
+          structuredOutput: Record<string, unknown>;
+          events: EventRow[];
+        }>;
+        if (!Array.isArray(data)) return;
+
+        const mapped: TraceSignal[] = data.map((s) => ({
+          signalId: s.signalId,
+          signalName: s.signalName,
+          prompt: s.prompt ?? "",
+          schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
+            name: f.name,
+            type: f.type,
+            description: f.description,
+          })),
+          events: Array.isArray(s.events) ? s.events : [],
+        }));
+
+        setTraceSignals(mapped);
+      } catch (error) {
+        console.error("Error fetching trace signals:", error);
+      } finally {
+        setIsTraceSignalsLoading(false);
+      }
+    };
+
+    fetchSignals();
+  }, [traceId, projectId, traceSignals.length, setTraceSignals, setIsTraceSignalsLoading]);
 
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
