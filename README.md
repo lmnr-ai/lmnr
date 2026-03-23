@@ -62,6 +62,21 @@ To enable [Signals / AI monitoring](https://docs.laminar.sh/signals) in self-hos
 GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
 ```
 
+## Pricing
+
+Visit [laminar.sh/pricing](https://laminar.sh/pricing) for full details. Here is a summary of the available plans:
+
+| | **Free** | **Hobby** | **Pro** | **Enterprise** |
+|---|---|---|---|---|
+| **Price** | $0/month | $30/month | $150/month | Custom |
+| **Data** | 1 GB (no overage) | 3 GB included, then $2/GB | 10 GB included, then $1.50/GB | Custom limits |
+| **Signal runs** | 100 (no overage) | 1,000 included, then $0.02/run | 10,000 included, then $0.015/run | Custom limits |
+| **Retention** | 15 days | 30 days | 90 days | Custom |
+| **Projects** | 1 | Unlimited | Unlimited | Unlimited |
+| **Seats** | 1 | Unlimited | Unlimited | Unlimited |
+| **Support** | Community | Email | Slack | Dedicated |
+| **On-premise** | - | - | - | ✓ |
+
 ## Contributing
 
 For running and building Laminar locally, or to learn more about docker compose files,
