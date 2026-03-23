@@ -127,6 +127,9 @@ export interface BaseTraceViewState {
   // Traces Agent injection
   agentInitialMessages: any[] | null;
   agentPrefillInput: string | null;
+
+  // Layout options
+  isAlwaysSelectSpan: boolean;
 }
 
 export interface BaseTraceViewActions {
@@ -185,7 +188,7 @@ export type BaseTraceViewStore = BaseTraceViewState & BaseTraceViewActions;
 export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
   set: (partial: T | Partial<T> | ((state: T) => T | Partial<T>)) => void,
   get: () => T,
-  options?: { initialTrace?: TraceViewTrace }
+  options?: { initialTrace?: TraceViewTrace; isAlwaysSelectSpan?: boolean }
 ): BaseTraceViewStore {
   return {
     trace: options?.initialTrace,
@@ -220,6 +223,9 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     // Traces Agent injection defaults
     agentInitialMessages: null,
     agentPrefillInput: null,
+
+    // Layout options
+    isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
     setTrace: (trace) => {

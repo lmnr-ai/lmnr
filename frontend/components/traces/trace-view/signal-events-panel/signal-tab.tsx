@@ -16,6 +16,7 @@ interface SignalTabProps {
   prompt: string;
   structuredOutput: Record<string, unknown>;
   events: EventRow[];
+  traceId: string;
 }
 
 function parsePayload(payload: string): Record<string, unknown> {
@@ -52,7 +53,7 @@ function PayloadValue({ value, field }: { value: unknown; field: SchemaField }) 
   }
 }
 
-export default function SignalTab({ signalId, signalName, prompt, structuredOutput, events }: SignalTabProps) {
+export default function SignalTab({ signalId, signalName, prompt, structuredOutput, events, traceId }: SignalTabProps) {
   const { projectId } = useParams();
   const openSignalInChat = useTraceViewStore((state) => state.openSignalInChat);
 
@@ -76,12 +77,12 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
       <div className="flex items-center gap-1.5 px-2 py-1.5 border-b">
         <Button variant="outline" size="sm" className="h-6 text-xs gap-1 px-1.5" onClick={handleOpenInChat}>
           <MessageSquare className="size-3" />
-          AI Chat
+          Open in AI Chat
         </Button>
         <Button variant="outline" size="sm" className="h-6 text-xs gap-1 px-1.5" asChild>
-          <Link href={`/project/${projectId}/signals/${signalId}`}>
+          <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`}>
             <ExternalLink className="size-3" />
-            Signals
+            Open in Signals
           </Link>
         </Button>
       </div>

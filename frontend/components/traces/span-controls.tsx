@@ -36,6 +36,7 @@ interface SpanControlsProps {
 export function SpanControls({ children, span }: PropsWithChildren<SpanControlsProps>) {
   const { projectId } = useParams();
   const setSelectedSpan = useTraceViewBaseStore((state) => state.setSelectedSpan);
+  const isAlwaysSelectSpan = useTraceViewBaseStore((state) => state.isAlwaysSelectSpan);
 
   const errorEventAttributes = useMemo(
     () => span.events?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
@@ -92,13 +93,15 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
               </Button>
             </Link>
           )}
-          <Button
-            variant="ghost"
-            className="ml-auto px-0.5 h-6 w-6 flex-shrink-0"
-            onClick={() => setSelectedSpan(undefined)}
-          >
-            <X className="w-4 h-4" />
-          </Button>
+          {!isAlwaysSelectSpan && (
+            <Button
+              variant="ghost"
+              className="ml-auto px-0.5 h-6 w-6 flex-shrink-0"
+              onClick={() => setSelectedSpan(undefined)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          )}
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">
           <div className="flex items-center gap-2 flex-wrap">

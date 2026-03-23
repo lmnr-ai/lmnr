@@ -139,7 +139,7 @@ const Header = ({ handleClose, spans, onSearch }: HeaderProps) => {
             )}
           >
             <Sparkles size={14} className="mr-1" />
-            Traces Agent
+            Chat with trace
           </Button>
         </div>
         <div className="flex items-center gap-x-0.5 flex-shrink-0">
