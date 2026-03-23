@@ -8,7 +8,7 @@ import AdvancedSearch from "@/components/common/advanced-search";
 import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
 import SelectionBanner from "@/components/signal/create-signal-job/selection-banner.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
-import TraceView, { ResizableTraceSidePanel } from "@/components/traces/trace-view";
+import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import {
   columns,
   defaultTracesColumnOrder,
@@ -344,21 +344,20 @@ const CreateSignalJobContent = () => {
         </InfiniteDataTable>
       </div>
       {traceId && (
-        <ResizableTraceSidePanel className="z-60 pointer-events-auto">
-          <TraceView
-            spanId={spanId || undefined}
-            key={traceId}
-            onClose={() => {
-              const params = new URLSearchParams(searchParams);
-              params.delete("traceId");
-              params.delete("spanId");
-              router.push(`${pathName}?${params.toString()}`);
-              setTraceId(null);
-              setSpanId(null);
-            }}
-            traceId={traceId}
-          />
-        </ResizableTraceSidePanel>
+        <TraceViewSidePanel
+          className="z-60 pointer-events-auto"
+          spanId={spanId || undefined}
+          key={traceId}
+          onClose={() => {
+            const params = new URLSearchParams(searchParams);
+            params.delete("traceId");
+            params.delete("spanId");
+            router.push(`${pathName}?${params.toString()}`);
+            setTraceId(null);
+            setSpanId(null);
+          }}
+          traceId={traceId}
+        />
       )}
     </>
   );

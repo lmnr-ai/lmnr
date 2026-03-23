@@ -8,7 +8,7 @@ import TraceViewNavigationProvider, { getTracesConfig } from "@/components/trace
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
 import SpansTable from "./spans-table";
-import TraceView, { ResizableTraceSidePanel } from "./trace-view";
+import { TraceViewSidePanel } from "./trace-view";
 import { TracesStoreProvider, useTracesStoreContext } from "./traces-store";
 import TracesTable from "./traces-table";
 
@@ -92,20 +92,18 @@ function TracesContent() {
         </TabsContent>
       </Tabs>
       {traceId && (
-        <ResizableTraceSidePanel>
-          <TraceView
-            spanId={spanId || undefined}
-            key={traceId}
-            onClose={() => {
-              const params = new URLSearchParams(searchParams);
-              params.delete("traceId");
-              params.delete("spanId");
-              router.push(`${pathName}?${params.toString()}`);
-              setTraceId(null);
-            }}
-            traceId={traceId}
-          />
-        </ResizableTraceSidePanel>
+        <TraceViewSidePanel
+          spanId={spanId || undefined}
+          key={traceId}
+          onClose={() => {
+            const params = new URLSearchParams(searchParams);
+            params.delete("traceId");
+            params.delete("spanId");
+            router.push(`${pathName}?${params.toString()}`);
+            setTraceId(null);
+          }}
+          traceId={traceId}
+        />
       )}
     </TraceViewNavigationProvider>
   );

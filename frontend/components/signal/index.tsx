@@ -11,7 +11,7 @@ import SignalOverviewTooltip from "@/components/signal/signal-overview-tooltip";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
-import TraceView, { ResizableTraceSidePanel } from "@/components/traces/trace-view";
+import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/ui/header.tsx";
@@ -120,21 +120,19 @@ function SignalContent() {
       )}
 
       {traceId && (
-        <ResizableTraceSidePanel>
-          <TraceView
-            spanId={spanId || undefined}
-            key={traceId}
-            onClose={() => {
-              const params = new URLSearchParams(searchParams);
-              params.delete("traceId");
-              params.delete("spanId");
-              push(`${pathName}?${params.toString()}`);
-              setTraceId(null);
-              setSpanId(null);
-            }}
-            traceId={traceId}
-          />
-        </ResizableTraceSidePanel>
+        <TraceViewSidePanel
+          spanId={spanId || undefined}
+          key={traceId}
+          onClose={() => {
+            const params = new URLSearchParams(searchParams);
+            params.delete("traceId");
+            params.delete("spanId");
+            push(`${pathName}?${params.toString()}`);
+            setTraceId(null);
+            setSpanId(null);
+          }}
+          traceId={traceId}
+        />
       )}
     </>
   );

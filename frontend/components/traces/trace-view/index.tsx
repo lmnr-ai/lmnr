@@ -22,10 +22,18 @@ export default function TraceView(props: TraceViewProps) {
   );
 }
 
-export function ResizableTraceSidePanel({ children, className }: { children: React.ReactNode; className?: string }) {
+export function SidePanel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={cn("absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex max-w-full", className)}>
       {children}
     </div>
+  );
+}
+
+export function TraceViewSidePanel({ className, ...traceViewProps }: TraceViewProps & { className?: string }) {
+  return (
+    <SidePanel className={className}>
+      <TraceView {...traceViewProps} />
+    </SidePanel>
   );
 }
