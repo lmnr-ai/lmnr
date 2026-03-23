@@ -18,8 +18,8 @@ async function syncTriggers(
   triggers: TriggerFormItem[],
   previousTriggerIds: string[]
 ): Promise<TriggerFormItem[]> {
-  const currentIds = triggers.filter((t) => t.id).map((t) => t.id!);
-  const toDelete = previousTriggerIds.filter((id) => !currentIds.includes(id));
+  const keptIds = triggers.filter((t) => t.id && t.filters.length > 0).map((t) => t.id!);
+  const toDelete = previousTriggerIds.filter((id) => !keptIds.includes(id));
   const toCreate = triggers.filter((t) => !t.id && t.filters.length > 0);
   const toUpdate = triggers.filter((t) => t.id && t.filters.length > 0);
 
