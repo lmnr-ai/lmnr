@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ExternalLink, MessageSquare, X } from "lucide-react";
+import { Check, ExternalLink, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type EventRow } from "@/lib/events/types";
 
 interface SignalTabProps {
@@ -73,18 +74,35 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Action buttons */}
-      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b">
-        <Button variant="outline" size="sm" className="h-6 text-xs gap-1 px-1.5" onClick={handleOpenInChat}>
-          <MessageSquare className="size-3" />
-          Open in AI Chat
-        </Button>
-        <Button variant="outline" size="sm" className="h-6 text-xs gap-1 px-1.5" asChild>
-          <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`}>
-            <ExternalLink className="size-3" />
-            Open in Signals
-          </Link>
-        </Button>
+      {/* Event count + action buttons */}
+      <div className="flex items-center justify-between px-2 py-1.5 border-b">
+        <span className="text-xs text-muted-foreground">
+          {safeEvents.length} event{safeEvents.length !== 1 ? "s" : ""}
+        </span>
+        <div className="flex items-center gap-0.5">
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleOpenInChat}>
+                  <Sparkles className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Open in AI Chat</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
+                  <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`}>
+                    <ExternalLink className="size-3.5" />
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Open in Signals</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       </div>
 
       {/* Event payload */}
@@ -93,10 +111,6 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
           <div className="flex items-center justify-center h-full text-xs text-muted-foreground">No events found</div>
         ) : (
           <>
-            <div className="text-xs text-muted-foreground mb-1">
-              {safeEvents.length} event{safeEvents.length !== 1 ? "s" : ""} &middot; Latest:{" "}
-              {new Date(latestEvent.timestamp).toLocaleString()}
-            </div>
             {validFields.map((field) => (
               <div key={field.name} className="rounded-md border bg-secondary/50 px-2 py-1.5">
                 <div className="text-xs text-muted-foreground mb-0.5">{field.name}</div>
