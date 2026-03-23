@@ -114,6 +114,7 @@ export interface BaseTraceViewState {
   condensedTimelineEnabled: boolean;
   condensedTimelineVisibleSpanIds: Set<string>;
   condensedTimelineZoom: number;
+  isCostHeatmapVisible: boolean;
 
   // Panel visibility
   tracesAgentOpen: boolean;
@@ -166,6 +167,8 @@ export interface BaseTraceViewActions {
   setCondensedTimelineVisibleSpanIds: (ids: Set<string>) => void;
   clearCondensedTimelineSelection: () => void;
   setCondensedTimelineZoom: (zoom: number) => void;
+  setIsCostHeatmapVisible: (visible: boolean) => void;
+  selectMaxSpanCost: () => number;
 
   // Panel visibility actions
   setTracesAgentOpen: (open: boolean) => void;
@@ -217,6 +220,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     condensedTimelineEnabled: true,
     condensedTimelineVisibleSpanIds: new Set(),
     condensedTimelineZoom: 1,
+    isCostHeatmapVisible: false,
 
     // Panel visibility defaults
     tracesAgentOpen: false,
@@ -364,6 +368,17 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     clearCondensedTimelineSelection: () => set({ condensedTimelineVisibleSpanIds: new Set() } as Partial<T>),
     setCondensedTimelineZoom: (zoom) => {
       set({ condensedTimelineZoom: clamp(zoom, MIN_ZOOM, MAX_ZOOM) } as Partial<T>);
+    },
+    setIsCostHeatmapVisible: (visible: boolean) => set({ isCostHeatmapVisible: visible } as Partial<T>),
+    selectMaxSpanCost: () => {
+      const spans = get().spans;
+      let max = 0;
+      for (const span of spans) {
+        if (span.totalCost > max) {
+          max = span.totalCost;
+        }
+      }
+      return max;
     },
     getCondensedTimelineData: () => transformSpansToCondensedTimeline(get().spans),
     setBrowserSession: (browserSession: boolean) => set({ browserSession } as Partial<T>),
