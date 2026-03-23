@@ -111,7 +111,7 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
   const parsed = useMemo(() => (latestEvent ? parsePayload(latestEvent.payload) : {}), [latestEvent]);
 
   const handleOpenInChat = () => {
-    const signalDefinition = `Signal: ${signalName}\n\nPrompt: ${prompt}\n\nSchema: ${JSON.stringify(structuredOutput, null, 2)}`;
+    const signalDefinition = `### ${signalName}\n${prompt}`;
     const eventPayload = latestEvent ? latestEvent.payload : "No events found";
     openSignalInChat(signalDefinition, eventPayload);
   };
