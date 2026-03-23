@@ -3,7 +3,7 @@ import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
@@ -139,26 +139,43 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
     }
   };
 
-  // Load existing chat history OR consume a pending signal injection.
-  // When pendingChatInjection is set, we skip the fetch and inject directly
-  // so there's no race between the two. Repeated "Open in AI Chat" clicks
-  // just overwrite pendingChatInjection; this effect picks up whatever's latest.
+  // Tracks whether we just injected, so the fetch effect (which re-runs when
+  // pendingChatInjection is consumed/nulled) knows to skip.
+  const justInjectedRef = useRef(false);
+
+  // Consume pending signal injection. When pendingChatInjection changes to
+  // non-null, inject the messages and prefill the input. Consuming nulls
+  // the store value, which will re-trigger this effect — justInjectedRef
+  // prevents that second run from fetching saved messages.
   useEffect(() => {
+    if (!pendingChatInjection) {
+      return;
+    }
     const pending = consumePendingChatInjection();
-    if (pending) {
-      setMessages([
-        {
-          id: "injected-user-" + Date.now(),
-          role: "user" as const,
-          parts: [{ type: "text" as const, text: pending.signalDefinition }],
-        },
-        {
-          id: "injected-assistant-" + Date.now(),
-          role: "assistant" as const,
-          parts: [{ type: "text" as const, text: pending.eventPayload }],
-        },
-      ]);
-      setInput("Explain how this signal event relates to my trace and include specific span references");
+    if (!pending) return;
+
+    justInjectedRef.current = true;
+    setMessages([
+      {
+        id: "injected-user-" + Date.now(),
+        role: "user" as const,
+        parts: [{ type: "text" as const, text: pending.signalDefinition }],
+      },
+      {
+        id: "injected-assistant-" + Date.now(),
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: pending.eventPayload }],
+      },
+    ]);
+    setInput("Explain how this signal event relates to my trace and include specific span references");
+  }, [pendingChatInjection, consumePendingChatInjection, setMessages]);
+
+  // Load existing chat history when the trace changes.
+  useEffect(() => {
+    // Skip if we just injected — the consume effect nulled pendingChatInjection
+    // which re-renders and re-runs this effect.
+    if (justInjectedRef.current) {
+      justInjectedRef.current = false;
       return;
     }
 
@@ -177,8 +194,7 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
     };
 
     loadExistingMessages();
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- consumePendingChatInjection is stable; pendingChatInjection triggers re-runs
-  }, [trace.id, projectId, pendingChatInjection, setMessages]);
+  }, [trace.id, projectId, setMessages]);
 
   return (
     <div className="flex flex-col overflow-hidden relative h-full">
