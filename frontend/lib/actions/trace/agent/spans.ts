@@ -31,8 +31,24 @@ function truncateValue(value: unknown): unknown {
   return `${start}...(${omitted} chars omitted)...${end}`;
 }
 
+const RAW_BASE64_IMAGE_PREFIXES = [
+  "/9j/", // JPEG
+  "iVBORw0KGgo", // PNG
+  "R0lGODlh", // GIF
+  "UklGR", // WebP
+  "PHN2Zz", // SVG
+];
+
+const RAW_BASE64_MIN_LEN = 64;
+
+function isRawBase64Image(s: string): boolean {
+  return s.length >= RAW_BASE64_MIN_LEN && RAW_BASE64_IMAGE_PREFIXES.some((prefix) => s.startsWith(prefix));
+}
+
 /**
- * Recursively replace data:image base64 URLs with a placeholder.
+ * Recursively replace base64 image data with a placeholder.
+ * Detects both data URLs (`data:image/...;base64,...`) and raw base64 image
+ * strings identified by well-known magic byte prefixes (JPEG, PNG, GIF, WebP, SVG).
  */
 function replaceBase64Images(value: unknown): unknown {
   if (typeof value === "string") {
@@ -42,6 +58,9 @@ function replaceBase64Images(value: unknown): unknown {
       if (prefix.startsWith("data:image")) {
         return BASE64_IMAGE_PLACEHOLDER;
       }
+    }
+    if (isRawBase64Image(value)) {
+      return BASE64_IMAGE_PLACEHOLDER;
     }
     return value;
   }
