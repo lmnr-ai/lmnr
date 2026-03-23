@@ -3,8 +3,7 @@ import { Bolt, Brain, ChevronDown, ChevronUp } from "lucide-react";
 import React, { memo, type PropsWithChildren, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
-import ContentRenderer from "@/components/ui/content-renderer/index";
-import { spanViewTheme } from "@/components/ui/content-renderer/utils";
+import ShikiContentRenderer from "@/components/ui/content-renderer/shiki-renderer";
 import DownloadButton from "@/components/ui/download-button";
 import PdfRenderer from "@/components/ui/pdf-renderer";
 import { isStorageUrl } from "@/lib/s3";
@@ -83,8 +82,7 @@ const PureToolCallContentPart = ({
       {toolName}
       {toolCallId && toolCallId !== toolName && <span className="opacity-50 font-normal">{toolCallId}</span>}
     </span>
-    <ContentRenderer
-      readOnly
+    <ShikiContentRenderer
       defaultMode="json"
       codeEditorClassName="rounded"
       value={JSON.stringify(content, null, 2)}
@@ -92,7 +90,6 @@ const PureToolCallContentPart = ({
       className="border-0 bg-card"
       messageIndex={messageIndex}
       contentPartIndex={contentPartIndex}
-      customTheme={spanViewTheme}
     />
   </div>
 );
@@ -162,16 +159,14 @@ const PureTextContentPart = ({
   contentPartIndex = 0,
 }: TextContentPartProps) => (
   <div>
-    <ContentRenderer
+    <ShikiContentRenderer
       defaultMode="json"
-      readOnly
       value={content}
       presetKey={`editor-${presetKey}`}
       className={cn("border-0 bg-card", className)}
       codeEditorClassName={codeEditorClassName}
       messageIndex={messageIndex}
       contentPartIndex={contentPartIndex}
-      customTheme={spanViewTheme}
     />
   </div>
 );
@@ -231,8 +226,7 @@ const PureThinkingContentPart = ({
       <Brain size={12} className="min-w-3 mr-2" />
       {label}
     </span>
-    <ContentRenderer
-      readOnly
+    <ShikiContentRenderer
       defaultMode="json"
       codeEditorClassName="rounded"
       value={content}
@@ -240,7 +234,6 @@ const PureThinkingContentPart = ({
       className="border-0 bg-card"
       messageIndex={messageIndex}
       contentPartIndex={contentPartIndex}
-      customTheme={spanViewTheme}
     />
   </div>
 );

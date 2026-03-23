@@ -1,7 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-import ContentRenderer from "@/components/ui/content-renderer/index";
-import { spanViewTheme } from "@/components/ui/content-renderer/utils";
+import ShikiContentRenderer from "@/components/ui/content-renderer/shiki-renderer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast.ts";
@@ -80,29 +79,25 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
 
   if (span.spanType === SpanType.LLM) {
     return (
-      <ContentRenderer
+      <ShikiContentRenderer
         className="rounded border-0"
-        readOnly
         codeEditorClassName="rounded-none border-none bg-background"
         value={JSON.stringify(normalizedData)}
         defaultMode="messages"
         modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
         presetKey={presetKey}
         messageMaxHeight={type === "input" ? 320 : 560}
-        customTheme={spanViewTheme}
       />
     );
   }
 
   return (
-    <ContentRenderer
+    <ShikiContentRenderer
       className="rounded-none border-none bg-background"
-      readOnly
       modes={["JSON", "YAML", "TEXT", "CUSTOM", "MESSAGES"]}
       value={JSON.stringify(normalizedData)}
       presetKey={presetKey}
       defaultMode="json"
-      customTheme={spanViewTheme}
     />
   );
 };
