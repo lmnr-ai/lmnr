@@ -200,11 +200,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {trace && <ShareTraceButton projectId={projectId} />}
         </div>
       </div>
-      {signalsPanelOpen && (
-        <div className="rounded-md border bg-card max-h-[200px] flex flex-col overflow-hidden">
-          <SignalEventsPanel traceId={traceId} />
-        </div>
-      )}
+      {signalsPanelOpen && <SignalEventsPanel traceId={traceId} />}
       <div className="flex items-center gap-2">
         <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />
       </div>
