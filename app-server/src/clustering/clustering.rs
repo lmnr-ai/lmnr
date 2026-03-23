@@ -90,7 +90,7 @@ async fn process_clustering_logic(
                 {
                     Ok(true) => {
                         log::debug!(
-                            "Acquired project and signal clustering locks for project_id={}, signal_id={}. Releasing project lock.",
+                            "Acquired project and signal clustering locks for project_id={}, signal_id={}.",
                             project_id,
                             signal_id
                         );
