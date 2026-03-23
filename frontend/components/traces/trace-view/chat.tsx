@@ -201,11 +201,16 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
     <div className="flex flex-col overflow-hidden relative h-full">
       <div className="flex items-center justify-between px-2 pt-2 pb-2 flex-shrink-0 relative">
         <span className="text-base font-medium ml-2">Chat with trace</span>
-        {onClose && (
-          <Button variant="ghost" className="px-0.5 h-6 w-6" onClick={onClose}>
-            <X className="w-4 h-4" />
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" className="px-0.5 h-6 w-6" onClick={handleNewChat} disabled={newChatLoading}>
+            {newChatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
           </Button>
-        )}
+          {onClose && (
+            <Button variant="ghost" className="px-0.5 h-6 w-6" onClick={onClose}>
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
         <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-full left-0 absolute z-20 pointer-none pointer-events-none" />
       </div>
       <Conversation className="relative">
@@ -233,25 +238,6 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
             </div>
           ) : (
             <>
-              {messages.length > 0 && (
-                <div className="px-4 flex justify-end pt-1">
-                  <Button
-                    onClick={handleNewChat}
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={newChatLoading}
-                  >
-                    {newChatLoading ? (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    ) : (
-                      <RotateCcw className="w-3 h-3 mr-1" />
-                    )}
-                    New Chat
-                  </Button>
-                </div>
-              )}
-
               {messages.map((message) => (
                 <div key={message.id} className={cn("flex", message.role === "user" ? "px-3" : "px-5")}>
                   <div
