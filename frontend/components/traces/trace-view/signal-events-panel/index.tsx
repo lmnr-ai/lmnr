@@ -110,7 +110,7 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
     <Tabs
       value={effectiveTabId}
       onValueChange={setActiveSignalTabId}
-      className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-md border bg-card"
+      className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-md border bg-card gap-0"
     >
       <TabsList className="flex-shrink-0 overflow-x-auto no-scrollbar h-8 w-full justify-start rounded-b-none border-b px-1">
         {traceSignals.map((signal) => (
@@ -129,7 +129,11 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
         ))}
       </TabsList>
       {traceSignals.map((signal) => (
-        <TabsContent key={signal.signalId} value={signal.signalId} className="flex-1 min-h-0 overflow-y-auto m-0">
+        <TabsContent
+          key={signal.signalId}
+          value={signal.signalId}
+          className="flex flex-col flex-1 min-h-0 overflow-hidden m-0"
+        >
           <SignalTab
             signalId={signal.signalId}
             signalName={signal.signalName}
