@@ -15,13 +15,15 @@ export {
 } from "./base";
 
 export const MIN_TREE_VIEW_WIDTH = 500;
+export const DEFAULT_PANEL_WIDTH = 400;
+export const MIN_PANEL_WIDTH = 200;
 
 interface TraceViewStoreState {
-  treeWidth: number;
+  containerWidth: number;
 }
 
 interface TraceViewStoreActions {
-  setTreeWidth: (width: number) => void;
+  setContainerWidth: (width: number) => void;
 }
 
 type TraceViewStore = BaseTraceViewStore & TraceViewStoreState & TraceViewStoreActions;
@@ -32,8 +34,8 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
       (set, get) => ({
         ...createBaseTraceViewSlice(set, get, { initialTrace }),
 
-        treeWidth: MIN_TREE_VIEW_WIDTH,
-        setTreeWidth: (treeWidth) => set({ treeWidth }),
+        containerWidth: MIN_TREE_VIEW_WIDTH,
+        setContainerWidth: (containerWidth) => set({ containerWidth }),
       }),
       {
         name: storeKey ?? "trace-view-state",
@@ -42,7 +44,7 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
           const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
 
           return {
-            treeWidth: state.treeWidth,
+            containerWidth: state.containerWidth,
             spanPath: state.spanPath,
             spanTemplates: state.spanTemplates,
             ...(tabToPersist && { tab: tabToPersist }),

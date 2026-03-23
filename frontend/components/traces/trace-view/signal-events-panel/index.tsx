@@ -20,7 +20,7 @@ interface ApiSignalResponse {
   events: EventRow[];
 }
 
-export default function SignalEventsPanel({ traceId }: { traceId: string }) {
+export default function SignalEventsPanel({ traceId, onClose }: { traceId: string; onClose?: () => void }) {
   const { projectId } = useParams();
   const hasFetchedRef = useRef(false);
 
@@ -90,16 +90,16 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
 
   if (isTraceSignalsLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-        <Loader2 className="size-5 animate-spin" />
+      <div className="flex flex-col items-center justify-center h-full text-xs text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
       </div>
     );
   }
 
   if (traceSignals.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-        <span className="text-sm">No signals associated with this trace</span>
+      <div className="flex flex-col items-center justify-center h-full text-xs text-muted-foreground">
+        No signals associated with this trace
       </div>
     );
   }
@@ -109,7 +109,7 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <SignalTabBar tabs={tabs} activeTabId={activeSignalTabId} onTabSelect={setActiveSignalTabId} />
+      <SignalTabBar tabs={tabs} activeTabId={activeSignalTabId} onTabSelect={setActiveSignalTabId} onClose={onClose} />
       {activeSignal && (
         <SignalTab
           key={activeSignal.signalId}

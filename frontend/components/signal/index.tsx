@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useState } from "react";
 
 import EventsTable from "@/components/signal/events-table";
@@ -12,14 +11,12 @@ import SignalOverviewTooltip from "@/components/signal/signal-overview-tooltip";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
-import TraceView from "@/components/traces/trace-view";
+import TraceView, { ResizableTraceSidePanel } from "@/components/traces/trace-view";
 import TraceViewNavigationProvider from "@/components/traces/trace-view/navigation-context";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/ui/header.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectContext } from "@/contexts/project-context";
-import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
-import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 
 const ManageSignalSheet = dynamic(
   () => import("@/components/signals/manage-signal-sheet/index.tsx").then((mod) => mod.default),
@@ -36,9 +33,8 @@ function SignalContent() {
 
   const activeTab = searchParams.get("tab") || "events";
 
-  const { signal, initialTraceViewWidth } = useSignalStoreContext((state) => ({
+  const { signal } = useSignalStoreContext((state) => ({
     signal: state.signal,
-    initialTraceViewWidth: state.initialTraceViewWidth,
   }));
 
   const { setSignal, traceId, spanId, setTraceId, setSpanId } = useSignalStoreContext((state) => ({
@@ -48,11 +44,6 @@ function SignalContent() {
     setTraceId: state.setTraceId,
     setSpanId: state.setSpanId,
   }));
-
-  const { width, handleResizeStop } = useResizableTraceViewWidth({
-    initialWidth: initialTraceViewWidth,
-    onSaveWidth: setEventsTraceViewWidthCookie,
-  });
 
   const isFreeTier = workspace?.tierName.toLowerCase().trim() === "free";
 
@@ -129,31 +120,21 @@ function SignalContent() {
       )}
 
       {traceId && (
-        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
-          <Resizable
-            onResizeStop={handleResizeStop}
-            enable={{
-              left: true,
+        <ResizableTraceSidePanel>
+          <TraceView
+            spanId={spanId || undefined}
+            key={traceId}
+            onClose={() => {
+              const params = new URLSearchParams(searchParams);
+              params.delete("traceId");
+              params.delete("spanId");
+              push(`${pathName}?${params.toString()}`);
+              setTraceId(null);
+              setSpanId(null);
             }}
-            size={{
-              width,
-            }}
-          >
-            <TraceView
-              spanId={spanId || undefined}
-              key={traceId}
-              onClose={() => {
-                const params = new URLSearchParams(searchParams);
-                params.delete("traceId");
-                params.delete("spanId");
-                push(`${pathName}?${params.toString()}`);
-                setTraceId(null);
-                setSpanId(null);
-              }}
-              traceId={traceId}
-            />
-          </Resizable>
-        </div>
+            traceId={traceId}
+          />
+        </ResizableTraceSidePanel>
       )}
     </>
   );

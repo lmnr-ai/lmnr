@@ -1,9 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface HoverRect {
@@ -22,6 +24,7 @@ interface SignalTabBarProps {
   tabs: SignalTab[];
   activeTabId: string | null;
   onTabSelect: (id: string) => void;
+  onClose?: () => void;
 }
 
 function TabButton({ tab, isActive, onClick }: { tab: SignalTab; isActive: boolean; onClick: () => void }) {
@@ -111,12 +114,19 @@ function TabButton({ tab, isActive, onClick }: { tab: SignalTab; isActive: boole
   );
 }
 
-export default function SignalTabBar({ tabs, activeTabId, onTabSelect }: SignalTabBarProps) {
+export default function SignalTabBar({ tabs, activeTabId, onTabSelect, onClose }: SignalTabBarProps) {
   return (
     <div className="flex items-center gap-3 px-3 border-b overflow-x-auto">
       {tabs.map((tab) => (
         <TabButton key={tab.id} tab={tab} isActive={activeTabId === tab.id} onClick={() => onTabSelect(tab.id)} />
       ))}
+      <div className="ml-auto flex-shrink-0">
+        {onClose && (
+          <Button variant="ghost" className="px-0.5 h-6 w-6" onClick={onClose}>
+            <X className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

@@ -10,14 +10,14 @@ import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
-import PanelWrapper from "@/components/traces/trace-view/panel-wrapper";
 import SignalEventsPanel from "@/components/traces/trace-view/signal-events-panel";
 import TraceViewStoreProvider, {
-  MIN_TREE_VIEW_WIDTH,
+  MIN_PANEL_WIDTH,
   type TraceViewSpan,
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
+import { useTracePanelResize } from "@/components/traces/trace-view/use-trace-panel-resize";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
@@ -126,15 +126,23 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   );
 
   // Local storage states
-  const { treeWidth, spanPath, setSpanPath, setTreeWidth } = useTraceViewStore(
+  const { spanPath, setSpanPath } = useTraceViewStore(
     (state) => ({
-      treeWidth: state.treeWidth,
-      setTreeWidth: state.setTreeWidth,
       spanPath: state.spanPath,
       setSpanPath: state.setSpanPath,
     }),
     shallow
   );
+
+  const {
+    containerWidth,
+    spanPanelRef,
+    chatPanelRef,
+    handleResizeLeftEdge,
+    defaultPanelPercent,
+    onSpanPanelResize,
+    onChatPanelResize,
+  } = useTracePanelResize();
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const filteredSpansForStats = useMemo(() => {
@@ -291,28 +299,6 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     onClose();
   }, [onClose, pathName, router, searchParams]);
 
-  const handleResizeTreeView = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startWidth = treeWidth;
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        const newWidth = Math.max(MIN_TREE_VIEW_WIDTH, startWidth + moveEvent.clientX - startX);
-        setTreeWidth(newWidth);
-      };
-
-      const handleMouseUp = () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-      };
-
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    },
-    [setTreeWidth, treeWidth]
-  );
-
   const isLoading = isTraceLoading && !trace;
 
   const eventHandlers = useMemo(
@@ -391,134 +377,170 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   return (
     <ScrollContextProvider>
-      <div className="flex h-full w-full">
-        {/* Trace Panel (always visible) */}
-        <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
-          <Header handleClose={handleClose} spans={spans} onSearch={(filters, search) => fetchSpans(search, filters)} />
-
-          {spansError ? (
-            <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
-              <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
-              <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
-              <p className="text-xs text-muted-foreground">{spansError}</p>
-            </div>
-          ) : (
-            <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
-              {condensedTimelineEnabled && (
-                <>
-                  <ResizablePanel defaultSize={120} minSize={80}>
-                    <div className="border-t h-full">
-                      <CondensedTimeline />
-                    </div>
-                  </ResizablePanel>
-                  <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
-                </>
-              )}
-              <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
-                <div
-                  className={cn(
-                    "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
-                    condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
-                  )}
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-2">
-                      <ViewDropdown />
-                      {trace && (
-                        <TraceStatsShields
-                          className="min-w-0 overflow-hidden"
-                          trace={trace}
-                          spans={filteredSpansForStats}
-                        />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        disabled={!trace}
-                        className={cn("h-6 px-1.5 text-xs", {
-                          "border-primary text-primary": browserSession,
-                        })}
-                        variant="outline"
-                        onClick={() => setBrowserSession(!browserSession)}
-                      >
-                        <CirclePlay size={14} className="mr-1" />
-                        Media
-                      </Button>
-                      {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
-                    </div>
-                  </div>
-                </div>
-                {tab === "reader" && (
-                  <div className="flex flex-1 h-full overflow-hidden relative">
-                    <List onSpanSelect={handleSpanSelect} />
-                  </div>
-                )}
-                {tab === "tree" && (
-                  <div className="flex flex-1 h-full overflow-hidden relative">
-                    <Tree onSpanSelect={handleSpanSelect} />
-                  </div>
-                )}
-              </ResizablePanel>
-              {browserSession && (
-                <>
-                  <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
-                  <ResizablePanel>
-                    {!isLoading && (
-                      <SessionPlayer
-                        onClose={() => setBrowserSession(false)}
-                        hasBrowserSession={hasBrowserSession}
-                        traceId={traceId}
-                        llmSpanIds={llmSpanIds}
-                      />
-                    )}
-                  </ResizablePanel>
-                </>
-              )}
-              {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
-            </ResizablePanelGroup>
-          )}
-          <div
-            className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
-            onMouseDown={handleResizeTreeView}
-          >
-            <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
-          </div>
+      <div className="flex h-full overflow-hidden relative max-w-full" style={{ width: containerWidth }}>
+        {/* Left edge resize handle */}
+        <div
+          className="absolute top-0 left-0 h-full cursor-col-resize z-50 group w-2"
+          onMouseDown={handleResizeLeftEdge}
+        >
+          <div className="absolute top-0 left-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
         </div>
 
-        {/* Span Panel (visible when a span is selected) */}
-        {selectedSpan && (
-          <PanelWrapper onClose={() => setSelectedSpan(undefined)}>
-            {isSpansLoading ? (
-              <div className="flex flex-col space-y-2 p-4">
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
+        <ResizablePanelGroup id="trace-view-horizontal" orientation="horizontal">
+          {/* Trace Panel (always visible) */}
+          <ResizablePanel id="trace" minSize={MIN_PANEL_WIDTH} className="flex flex-col h-full overflow-hidden">
+            <Header
+              handleClose={handleClose}
+              spans={spans}
+              onSearch={(filters, search) => fetchSpans(search, filters)}
+            />
+
+            {spansError ? (
+              <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
+                <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
+                <h4 className="text-sm font-semibold text-destructive mb-2">Error Loading Spans</h4>
+                <p className="text-xs text-muted-foreground">{spansError}</p>
               </div>
-            ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-              <HumanEvaluatorSpanView
-                traceId={selectedSpan.traceId}
-                spanId={selectedSpan.spanId}
-                key={selectedSpan.spanId}
-              />
             ) : (
-              <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
+              <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
+                {signalsPanelOpen && (
+                  <>
+                    <ResizablePanel defaultSize={200} minSize={120}>
+                      <div className="border-t h-full">
+                        <SignalEventsPanel traceId={traceId} onClose={() => setSignalsPanelOpen(false)} />
+                      </div>
+                    </ResizablePanel>
+                    <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                  </>
+                )}
+                {condensedTimelineEnabled && (
+                  <>
+                    <ResizablePanel defaultSize={120} minSize={80}>
+                      <div className="border-t h-full">
+                        <CondensedTimeline />
+                      </div>
+                    </ResizablePanel>
+                    <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                  </>
+                )}
+                <ResizablePanel className="flex flex-col flex-1 h-full overflow-hidden relative">
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 pb-2 border-b box-border transition-[padding] duration-200",
+                      condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        <ViewDropdown />
+                        {trace && (
+                          <TraceStatsShields
+                            className="min-w-0 overflow-hidden"
+                            trace={trace}
+                            spans={filteredSpansForStats}
+                          />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          disabled={!trace}
+                          className={cn("h-6 px-1.5 text-xs", {
+                            "border-primary text-primary": browserSession,
+                          })}
+                          variant="outline"
+                          onClick={() => setBrowserSession(!browserSession)}
+                        >
+                          <CirclePlay size={14} className="mr-1" />
+                          Media
+                        </Button>
+                        {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
+                      </div>
+                    </div>
+                  </div>
+                  {tab === "reader" && (
+                    <div className="flex flex-1 h-full overflow-hidden relative">
+                      <List onSpanSelect={handleSpanSelect} />
+                    </div>
+                  )}
+                  {tab === "tree" && (
+                    <div className="flex flex-1 h-full overflow-hidden relative">
+                      <Tree onSpanSelect={handleSpanSelect} />
+                    </div>
+                  )}
+                </ResizablePanel>
+                {browserSession && (
+                  <>
+                    <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+                    <ResizablePanel>
+                      {!isLoading && (
+                        <SessionPlayer
+                          onClose={() => setBrowserSession(false)}
+                          hasBrowserSession={hasBrowserSession}
+                          traceId={traceId}
+                          llmSpanIds={llmSpanIds}
+                        />
+                      )}
+                    </ResizablePanel>
+                  </>
+                )}
+                {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
+              </ResizablePanelGroup>
             )}
-          </PanelWrapper>
-        )}
+          </ResizablePanel>
 
-        {/* Signal Events Panel (visible when signals toggle is active) */}
-        {signalsPanelOpen && (
-          <PanelWrapper title="Signal Events" onClose={() => setSignalsPanelOpen(false)}>
-            <SignalEventsPanel traceId={traceId} />
-          </PanelWrapper>
-        )}
+          {/* Span Panel (visible when a span is selected) */}
+          {selectedSpan && (
+            <>
+              <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+              <ResizablePanel
+                id="span"
+                panelRef={spanPanelRef}
+                defaultSize={defaultPanelPercent}
+                minSize={MIN_PANEL_WIDTH}
+                className="flex flex-col h-full overflow-hidden"
+                onResize={onSpanPanelResize}
+              >
+                {isSpansLoading ? (
+                  <div className="flex flex-col space-y-2 p-4">
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                  </div>
+                ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
+                  <HumanEvaluatorSpanView
+                    traceId={selectedSpan.traceId}
+                    spanId={selectedSpan.spanId}
+                    key={selectedSpan.spanId}
+                  />
+                ) : (
+                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
+                )}
+              </ResizablePanel>
+            </>
+          )}
 
-        {/* Traces Agent Panel (visible when traces agent toggle is active) */}
-        {tracesAgentOpen && trace && (
-          <PanelWrapper title="Traces Agent" onClose={() => setTracesAgentOpen(false)}>
-            <Chat trace={trace} onSetSpanId={selectSpanById} onSearchSpans={(search) => fetchSpans(search, [])} />
-          </PanelWrapper>
-        )}
+          {/* Traces Agent Panel (visible when traces agent toggle is active) */}
+          {tracesAgentOpen && trace && (
+            <>
+              <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+              <ResizablePanel
+                id="chat"
+                panelRef={chatPanelRef}
+                defaultSize={defaultPanelPercent}
+                minSize={MIN_PANEL_WIDTH}
+                className="flex flex-col h-full overflow-hidden"
+                onResize={onChatPanelResize}
+              >
+                <Chat
+                  trace={trace}
+                  onSetSpanId={selectSpanById}
+                  onSearchSpans={(search) => fetchSpans(search, [])}
+                  onClose={() => setTracesAgentOpen(false)}
+                />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
       </div>
     </ScrollContextProvider>
   );
@@ -529,5 +551,11 @@ export default function TraceView(props: TraceViewProps) {
     <TraceViewStoreProvider initialTrace={props.propsTrace}>
       <PureTraceView {...props} />
     </TraceViewStoreProvider>
+  );
+}
+
+export function ResizableTraceSidePanel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex", className)}>{children}</div>
   );
 }

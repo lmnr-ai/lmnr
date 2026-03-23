@@ -1,7 +1,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
-import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw } from "lucide-react";
+import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -22,9 +22,10 @@ interface ChatProps {
   trace: TraceViewTrace;
   onSetSpanId: (spanId: string) => void;
   onSearchSpans: (search: string) => void;
+  onClose?: () => void;
 }
 
-export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
+export default function Chat({ trace, onSetSpanId, onSearchSpans, onClose }: ChatProps) {
   const [input, setInput] = useState("");
   const [newChatLoading, setNewChatLoading] = useState(false);
   const projectId = useParams().projectId;
@@ -212,8 +213,16 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
 
   return (
     <div className="grow flex flex-col overflow-auto relative minimal-scrollbar">
-      <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-0 left-0 absolute z-10 pointer-none" />
-      <Conversation>
+      <div className="flex items-center justify-between px-2 pt-2 pb-2 flex-shrink-0 relative">
+        <span className="text-base font-medium ml-2">Trace Agent</span>
+        {onClose && (
+          <Button variant="ghost" className="px-0.5 h-6 w-6" onClick={onClose}>
+            <X className="w-4 h-4" />
+          </Button>
+        )}
+        <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-full left-0 absolute z-20 pointer-none pointer-events-none" />
+      </div>
+      <Conversation className="relative">
         <ConversationContent className="space-y-4 py-4 px-0 pb-12">
           {messages.length === 0 && status !== "submitted" && status !== "streaming" ? (
             <div className="flex flex-col items-center justify-center h-full px-4 py-8">
