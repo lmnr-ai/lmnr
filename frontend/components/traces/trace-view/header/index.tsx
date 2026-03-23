@@ -73,7 +73,7 @@ function ResizableSignalCard({ traceId, onClose }: { traceId: string; onClose: (
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden px-2">
         <SignalEventsPanel traceId={traceId} />
       </div>
       <div
