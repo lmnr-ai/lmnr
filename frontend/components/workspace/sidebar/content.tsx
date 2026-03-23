@@ -87,6 +87,7 @@ export const WorkspaceSidebarContent = ({ isOwner, tier }: WorkspaceSidebarConte
         if (m.value === "settings" && !isOwner) return false;
         if (m.value === "billing" && !featureFlags[Feature.SUBSCRIPTION]) return false;
         if (m.value === "deployment" && !featureFlags[Feature.DEPLOYMENT]) return false;
+        if (m.value === "reports" && !featureFlags[Feature.SEND_EMAIL]) return false;
         return true;
       }),
     [isOwner, featureFlags]
