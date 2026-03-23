@@ -124,6 +124,13 @@ export interface BaseTraceViewState {
   isTraceSignalsLoading: boolean;
   activeSignalTabId: string | null;
 
+  // Set once at store creation. When signals are fetched (by either Header or
+  // SignalEventsPanel — whichever wins the race), the fetch callback checks this
+  // value to pick the correct default tab instead of blindly selecting the first
+  // signal. This avoids brittle useEffect chains that try to fix the tab after
+  // the fact.
+  initialSignalId?: string;
+
   // Traces Agent injection
   agentInitialMessages: any[] | null;
   agentPrefillInput: string | null;
@@ -188,7 +195,7 @@ export type BaseTraceViewStore = BaseTraceViewState & BaseTraceViewActions;
 export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
   set: (partial: T | Partial<T> | ((state: T) => T | Partial<T>)) => void,
   get: () => T,
-  options?: { initialTrace?: TraceViewTrace; isAlwaysSelectSpan?: boolean }
+  options?: { initialTrace?: TraceViewTrace; isAlwaysSelectSpan?: boolean; initialSignalId?: string }
 ): BaseTraceViewStore {
   return {
     trace: options?.initialTrace,
@@ -219,6 +226,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     traceSignals: [],
     isTraceSignalsLoading: false,
     activeSignalTabId: null,
+    initialSignalId: options?.initialSignalId,
 
     // Traces Agent injection defaults
     agentInitialMessages: null,

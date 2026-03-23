@@ -28,6 +28,7 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
   const traceSignals = useTraceViewStore((state) => state.traceSignals);
   const isTraceSignalsLoading = useTraceViewStore((state) => state.isTraceSignalsLoading);
   const activeSignalTabId = useTraceViewStore((state) => state.activeSignalTabId);
+  const initialSignalId = useTraceViewStore((state) => state.initialSignalId);
   const setTraceSignals = useTraceViewStore((state) => state.setTraceSignals);
   const setIsTraceSignalsLoading = useTraceViewStore((state) => state.setIsTraceSignalsLoading);
   const setActiveSignalTabId = useTraceViewStore((state) => state.setActiveSignalTabId);
@@ -67,7 +68,9 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
       setTraceSignals(mapped);
 
       if (mapped.length > 0 && !activeSignalTabId) {
-        setActiveSignalTabId(mapped[0].signalId);
+        // Prefer the signal the user navigated from (set in store at creation time)
+        const preferred = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
+        setActiveSignalTabId(preferred?.signalId ?? mapped[0].signalId);
       }
     } catch (error) {
       console.error("Error fetching trace signals:", error);
@@ -79,6 +82,7 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
     traceId,
     traceSignals.length,
     activeSignalTabId,
+    initialSignalId,
     setTraceSignals,
     setIsTraceSignalsLoading,
     setActiveSignalTabId,

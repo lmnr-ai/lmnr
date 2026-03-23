@@ -91,10 +91,9 @@ interface HeaderProps {
   spans: TraceViewSpan[];
   onSearch: (filters: Filter[], search: string) => void;
   traceId: string;
-  initialSignalId?: string;
 }
 
-const Header = ({ handleClose, spans, onSearch, traceId, initialSignalId }: HeaderProps) => {
+const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
@@ -111,6 +110,7 @@ const Header = ({ handleClose, spans, onSearch, traceId, initialSignalId }: Head
     setTraceSignals,
     setIsTraceSignalsLoading,
     setActiveSignalTabId,
+    initialSignalId,
   } = useTraceViewStore(
     (state) => ({
       trace: state.trace,
@@ -124,13 +124,15 @@ const Header = ({ handleClose, spans, onSearch, traceId, initialSignalId }: Head
       setTraceSignals: state.setTraceSignals,
       setIsTraceSignalsLoading: state.setIsTraceSignalsLoading,
       setActiveSignalTabId: state.setActiveSignalTabId,
+      initialSignalId: state.initialSignalId,
     }),
     shallow
   );
 
-  // Eagerly fetch signal count when trace loads, so the button shows the correct count
+  // Eagerly fetch signal count when trace loads, so the button shows the correct count.
+  // Tab selection uses initialSignalId from the store (set at creation time) — see
+  // SignalEventsPanel for the same logic. Whichever fetch completes first picks the tab.
   const hasFetchedSignalsRef = useRef(false);
-  const hasAppliedInitialSignalRef = useRef(false);
   useEffect(() => {
     if (!traceId || !projectId || hasFetchedSignalsRef.current || traceSignals.length > 0) return;
     hasFetchedSignalsRef.current = true;
@@ -165,9 +167,8 @@ const Header = ({ handleClose, spans, onSearch, traceId, initialSignalId }: Head
         setTraceSignals(mapped);
 
         if (mapped.length > 0) {
-          const match = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
-          hasAppliedInitialSignalRef.current = true;
-          setActiveSignalTabId(match ? match.signalId : mapped[0].signalId);
+          const preferred = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
+          setActiveSignalTabId(preferred?.signalId ?? mapped[0].signalId);
         }
       } catch (error) {
         console.error("Error fetching trace signals:", error);
@@ -186,16 +187,6 @@ const Header = ({ handleClose, spans, onSearch, traceId, initialSignalId }: Head
     initialSignalId,
     setActiveSignalTabId,
   ]);
-
-  // Apply initialSignalId even if signals were already fetched by the panel
-  useEffect(() => {
-    if (!initialSignalId || hasAppliedInitialSignalRef.current || traceSignals.length === 0) return;
-    const match = traceSignals.find((s) => s.signalId === initialSignalId);
-    if (match) {
-      hasAppliedInitialSignalRef.current = true;
-      setActiveSignalTabId(match.signalId);
-    }
-  }, [initialSignalId, traceSignals, setActiveSignalTabId]);
 
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({

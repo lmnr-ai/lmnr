@@ -34,7 +34,6 @@ export interface TraceViewContentProps {
   isFillWidth?: boolean;
   isAlwaysSelectSpan?: boolean;
   initialSignalsPanelOpen?: boolean;
-  initialSignalId?: string;
 }
 
 export default function TraceViewContent({
@@ -45,7 +44,6 @@ export default function TraceViewContent({
   isFillWidth,
   isAlwaysSelectSpan,
   initialSignalsPanelOpen,
-  initialSignalId,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -325,7 +323,6 @@ export default function TraceViewContent({
       handleSpanSelect={handleSpanSelect}
       fetchSpans={fetchSpans}
       isLoading={isLoading}
-      initialSignalId={initialSignalId}
     />
   );
 

@@ -18,7 +18,11 @@ interface TraceViewProps {
 
 export default function TraceView(props: TraceViewProps) {
   return (
-    <TraceViewStoreProvider initialTrace={props.propsTrace} isAlwaysSelectSpan={props.isAlwaysSelectSpan}>
+    <TraceViewStoreProvider
+      initialTrace={props.propsTrace}
+      isAlwaysSelectSpan={props.isAlwaysSelectSpan}
+      initialSignalId={props.initialSignalId}
+    >
       <TraceViewContent {...props} />
     </TraceViewStoreProvider>
   );

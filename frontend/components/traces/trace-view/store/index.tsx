@@ -32,11 +32,20 @@ interface TraceViewStoreActions {
 
 type TraceViewStore = BaseTraceViewStore & TraceViewStoreState & TraceViewStoreActions;
 
-const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string, isAlwaysSelectSpan?: boolean) =>
+const createTraceViewStore = (options?: {
+  initialTrace?: TraceViewTrace;
+  storeKey?: string;
+  isAlwaysSelectSpan?: boolean;
+  initialSignalId?: string;
+}) =>
   createStore<TraceViewStore>()(
     persist(
       (set, get) => ({
-        ...createBaseTraceViewSlice(set, get, { initialTrace, isAlwaysSelectSpan }),
+        ...createBaseTraceViewSlice(set, get, {
+          initialTrace: options?.initialTrace,
+          isAlwaysSelectSpan: options?.isAlwaysSelectSpan,
+          initialSignalId: options?.initialSignalId,
+        }),
 
         tracePanelWidth: MIN_TREE_VIEW_WIDTH,
         spanPanelWidth: DEFAULT_PANEL_WIDTH,
@@ -81,7 +90,7 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string, 
         },
       }),
       {
-        name: storeKey ?? "trace-view-state",
+        name: options?.storeKey ?? "trace-view-state",
         partialize: (state) => {
           const persistentTabs = ["tree", "reader"] as const;
           const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
@@ -133,8 +142,16 @@ const TraceViewStoreProvider = ({
   initialTrace,
   storeKey,
   isAlwaysSelectSpan,
-}: PropsWithChildren<{ initialTrace?: TraceViewTrace; storeKey?: string; isAlwaysSelectSpan?: boolean }>) => {
-  const [storeState] = useState(() => createTraceViewStore(initialTrace, storeKey, isAlwaysSelectSpan));
+  initialSignalId,
+}: PropsWithChildren<{
+  initialTrace?: TraceViewTrace;
+  storeKey?: string;
+  isAlwaysSelectSpan?: boolean;
+  initialSignalId?: string;
+}>) => {
+  const [storeState] = useState(() =>
+    createTraceViewStore({ initialTrace, storeKey, isAlwaysSelectSpan, initialSignalId })
+  );
 
   return (
     <TraceViewContext.Provider value={storeState}>
