@@ -2,6 +2,19 @@ import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { type TimeRange } from "@/lib/clickhouse/utils";
 import { fetcherJSON } from "@/lib/utils";
 
+export interface SearchSnippet {
+  position: [number, number];
+  value: string;
+  count?: number;
+}
+
+export interface SpanSearchHit {
+  trace_id: string;
+  span_id: string;
+  input_snippet?: SearchSnippet;
+  output_snippet?: SearchSnippet;
+}
+
 export const searchSpans = async ({
   projectId,
   traceId,
@@ -14,7 +27,7 @@ export const searchSpans = async ({
   searchQuery: string;
   timeRange?: TimeRange;
   searchType?: SpanSearchType[];
-}): Promise<{ trace_id: string; span_id: string }[]> => {
+}): Promise<SpanSearchHit[]> => {
   const trimmedQuery = searchQuery.trim();
   if (!trimmedQuery) {
     return [];
@@ -47,7 +60,7 @@ export const searchSpans = async ({
   };
 
   try {
-    return await fetcherJSON<{ trace_id: string; span_id: string }[]>(`/projects/${projectId}/spans/search`, {
+    return await fetcherJSON<SpanSearchHit[]>(`/projects/${projectId}/spans/search`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -10,7 +10,7 @@ import AdvancedSearch from "@/components/common/advanced-search";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import { defaultTracesColumnOrder, filters } from "@/components/traces/traces-table/columns";
+import { defaultTracesColumnOrder, filters, PREVIEW_COLUMN } from "@/components/traces/traces-table/columns";
 import TracesColumnsMenu from "@/components/traces/traces-table/traces-columns-menu";
 import { useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -98,6 +98,16 @@ function TracesTableContent() {
   // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
   // produce the same string → no spurious re-fetch.
   const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
+
+  const isSearchActive = typeof textSearchFilter === "string" && textSearchFilter.length > 0;
+
+  const effectiveColumns = useMemo(() => {
+    if (!isSearchActive) return columnDefs;
+    const statusIdx = columnDefs.findIndex((c) => c.id === "status");
+    const cols = [...columnDefs];
+    cols.splice(statusIdx + 1, 0, PREVIEW_COLUMN);
+    return cols;
+  }, [columnDefs, isSearchActive]);
 
   // Sync datatable columnOrder with traces store columnDefs
   const datatableStore = useDataTableStore();
@@ -379,7 +389,7 @@ function TracesTableContent() {
     <div className="flex flex-1 overflow-hidden px-4 pb-4">
       <InfiniteDataTable<TraceRow>
         className="w-full"
-        columns={columnDefs.length > 0 ? columnDefs : []}
+        columns={effectiveColumns.length > 0 ? effectiveColumns : []}
         data={traces}
         getRowId={(trace) => trace.id}
         onRowClick={handleRowClick}
@@ -389,7 +399,7 @@ function TracesTableContent() {
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         getRowHref={getRowHref}
-        lockedColumns={["status"]}
+        lockedColumns={isSearchActive ? ["status", "preview"] : ["status"]}
         sortBy={sortBy}
         sortDirection={sortDirection}
         onSort={handleSort}

@@ -27,6 +27,48 @@ const detailedFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 8,
 });
 
+function SnippetCell({
+  snippet,
+  label,
+}: {
+  snippet?: { position: [number, number]; value: string; count?: number };
+  label: string;
+}) {
+  if (!snippet) return null;
+  const { position, value, count } = snippet;
+  const [start, end] = position;
+  const before = value.slice(0, start);
+  const match = value.slice(start, end);
+  const after = value.slice(end);
+
+  return (
+    <div className="line-clamp-2 whitespace-normal break-words italic text-xs text-secondary-foreground">
+      <span className="not-italic text-muted-foreground mr-1">{label}</span>
+      {before}
+      <span className="text-primary not-italic font-medium">{match}</span>
+      {after}
+      {count != null && count > 1 && <span className="not-italic text-muted-foreground ml-1">+{count - 1} more</span>}
+    </div>
+  );
+}
+
+export const PREVIEW_COLUMN: ColumnDef<TraceRow, any> = {
+  id: "preview",
+  header: "Preview",
+  enableSorting: false,
+  size: 300,
+  cell: (row) => {
+    const { inputSnippet, outputSnippet } = row.row.original;
+    if (!inputSnippet && !outputSnippet) return null;
+    return (
+      <div className="flex flex-col gap-0.5 overflow-hidden">
+        {inputSnippet && <SnippetCell snippet={inputSnippet} label="Input:" />}
+        {outputSnippet && <SnippetCell snippet={outputSnippet} label="Output:" />}
+      </div>
+    );
+  },
+};
+
 export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (

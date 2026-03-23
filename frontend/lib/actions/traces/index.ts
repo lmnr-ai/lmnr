@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { searchSpans } from "@/lib/actions/traces/search";
+import { searchSpans, type SpanSearchHit } from "@/lib/actions/traces/search";
 import {
   buildTracesCountQueryWithParams,
   buildTracesQueryWithParams,
@@ -67,7 +67,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
 
-  const spanHits: { trace_id: string; span_id: string }[] = search
+  const spanHits: SpanSearchHit[] = search
     ? await searchSpans({
         projectId,
         traceId: undefined,
@@ -133,6 +133,70 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       const indexB = traceIdIndexMap.get(b.id) ?? Infinity;
       return indexA - indexB;
     });
+
+    const snippetMap = new Map<string, SpanSearchHit>();
+    for (const hit of spanHits) {
+      if (!snippetMap.has(hit.trace_id)) {
+        snippetMap.set(hit.trace_id, hit);
+      }
+    }
+    for (const item of items) {
+      const hit = snippetMap.get(item.id);
+      if (hit) {
+        item.inputSnippet = hit.input_snippet;
+        item.outputSnippet = hit.output_snippet;
+      }
+    }
+
+    // TODO(mock): Remove this block — hardcoded mock snippets for UI testing
+    const mockSnippets = [
+      {
+        input: {
+          position: [22, 34] as [number, number],
+          value: "Please summarize the following document about climate change and its effects on biodiversity",
+          count: 3,
+        },
+        output: {
+          position: [10, 26] as [number, number],
+          value: "Here is a climate change summary highlighting the key impacts on global ecosystems",
+          count: 1,
+        },
+      },
+      {
+        input: {
+          position: [0, 12] as [number, number],
+          value: "How does the authentication flow work in the new microservices architecture?",
+          count: 2,
+        },
+        output: undefined,
+      },
+      {
+        input: undefined,
+        output: {
+          position: [31, 48] as [number, number],
+          value: "The model completed inference successfully with token count of 2048 tokens used",
+          count: 5,
+        },
+      },
+      {
+        input: {
+          position: [5, 18] as [number, number],
+          value: "Can you help me debug this TypeError in the React component rendering lifecycle?",
+          count: 1,
+        },
+        output: {
+          position: [15, 24] as [number, number],
+          value: "The issue is a TypeError caused by accessing a property on an undefined object reference",
+          count: 2,
+        },
+      },
+    ];
+    for (let i = 0; i < items.length; i++) {
+      const mock = mockSnippets[i % mockSnippets.length];
+      items[i].inputSnippet = mock.input;
+      items[i].outputSnippet = mock.output;
+    }
+    // END TODO(mock)
   }
 
   return {
