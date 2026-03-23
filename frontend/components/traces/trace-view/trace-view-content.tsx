@@ -344,12 +344,7 @@ export default function TraceViewContent({
 
   const chatPanel = trace ? (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      <Chat
-        trace={trace}
-        onSetSpanId={selectSpanById}
-        onSearchSpans={(search) => fetchSpans(search, [])}
-        onClose={() => setTracesAgentOpen(false)}
-      />
+      <Chat trace={trace} onSetSpanId={selectSpanById} onClose={() => setTracesAgentOpen(false)} />
     </div>
   ) : null;
 

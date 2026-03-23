@@ -22,11 +22,10 @@ const EXAMPLE_QUESTIONS = [
 interface ChatProps {
   trace: TraceViewTrace;
   onSetSpanId: (spanId: string) => void;
-  onSearchSpans: (search: string) => void;
   onClose?: () => void;
 }
 
-export default function Chat({ trace, onSetSpanId, onSearchSpans, onClose }: ChatProps) {
+export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
   const [input, setInput] = useState("");
   const [newChatLoading, setNewChatLoading] = useState(false);
   const projectId = useParams().projectId;
@@ -69,9 +68,8 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans, onClose }: Cha
     () => ({
       resolveSpanId,
       onSelectSpan: onSetSpanId,
-      onSearchSpans,
     }),
-    [resolveSpanId, onSetSpanId, onSearchSpans]
+    [resolveSpanId, onSetSpanId]
   );
 
   const components = useMemo(

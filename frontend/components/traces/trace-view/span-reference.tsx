@@ -12,7 +12,6 @@ const SPAN_REF_REGEX = /<span\s+id='(\d+)'\s+name='([^']+)'(?:\s+reference_text=
 export interface SpanReferenceCallbacks {
   resolveSpanId: (sequentialId: string) => Promise<string | null>;
   onSelectSpan: (spanUuid: string) => void;
-  onSearchSpans?: (search: string) => void;
 }
 
 interface SpanBadgeProps {
@@ -24,9 +23,6 @@ interface SpanBadgeProps {
 
 function SpanBadge({ spanId, spanName, referenceText, callbacks }: SpanBadgeProps) {
   const handleClick = async () => {
-    if (referenceText && callbacks.onSearchSpans) {
-      callbacks.onSearchSpans(referenceText);
-    }
     const spanUuid = await callbacks.resolveSpanId(spanId);
     if (spanUuid) {
       callbacks.onSelectSpan(spanUuid);
