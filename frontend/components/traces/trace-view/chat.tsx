@@ -212,9 +212,9 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans, onClose }: Cha
   }, [trace.id, projectId, setMessages, agentInitialMessages, agentPrefillInput, clearAgentInjection]);
 
   return (
-    <div className="grow flex flex-col overflow-auto relative minimal-scrollbar">
+    <div className="flex flex-col overflow-auto relative minimal-scrollbar h-full">
       <div className="flex items-center justify-between px-2 pt-2 pb-2 flex-shrink-0 relative">
-        <span className="text-base font-medium ml-2">Trace Agent</span>
+        <span className="text-base font-medium ml-2">Chat with trace</span>
         {onClose && (
           <Button variant="ghost" className="px-0.5 h-6 w-6" onClick={onClose}>
             <X className="w-4 h-4" />
@@ -225,7 +225,7 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans, onClose }: Cha
       <Conversation className="relative">
         <ConversationContent className="space-y-4 py-4 px-0 pb-12">
           {messages.length === 0 && status !== "submitted" && status !== "streaming" ? (
-            <div className="flex flex-col items-center justify-center h-full px-4 py-8">
+            <div className="flex flex-col items-center justify-center px-4 py-8">
               <p className="text-sm text-muted-foreground text-center mb-6 max-w-sm">
                 Ask questions about this trace to understand what happened, find errors, or get insights.
               </p>

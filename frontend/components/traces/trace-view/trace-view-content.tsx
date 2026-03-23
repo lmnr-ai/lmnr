@@ -333,7 +333,7 @@ export default function TraceViewContent({
   );
 
   const chatPanel = trace ? (
-    <div className="flex flex-col h-full w-full overflow-hidden flex-1">
+    <div className="flex flex-col h-full w-full overflow-hidden">
       <Chat
         trace={trace}
         onSetSpanId={selectSpanById}
