@@ -8,16 +8,16 @@ import { TraceStatsShields } from "@/components/traces/stats-shields";
 import Chat from "@/components/traces/trace-view/chat";
 import Header from "@/components/traces/trace-view/header";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
+import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
 import LangGraphView from "@/components/traces/trace-view/lang-graph-view.tsx";
 import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view-trigger";
 import SignalEventsPanel from "@/components/traces/trace-view/signal-events-panel";
 import TraceViewStoreProvider, {
-  MIN_PANEL_WIDTH,
   type TraceViewSpan,
   type TraceViewTrace,
   useTraceViewStore,
 } from "@/components/traces/trace-view/store";
-import { useTracePanelResize } from "@/components/traces/trace-view/use-trace-panel-resize";
+import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import ViewDropdown from "@/components/traces/trace-view/view-dropdown";
 import { Button } from "@/components/ui/button";
@@ -134,15 +134,19 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     shallow
   );
 
-  const {
-    containerWidth,
-    spanPanelRef,
-    chatPanelRef,
-    handleResizeLeftEdge,
-    defaultPanelPercent,
-    onSpanPanelResize,
-    onChatPanelResize,
-  } = useTracePanelResize();
+  const { tracePanelWidth, spanPanelWidth, chatPanelWidth, resizePanel } = useTraceViewStore(
+    (state) => ({
+      tracePanelWidth: state.tracePanelWidth,
+      spanPanelWidth: state.spanPanelWidth,
+      chatPanelWidth: state.chatPanelWidth,
+      resizePanel: state.resizePanel,
+    }),
+    shallow
+  );
+
+  const traceResize = usePanelResize("trace", resizePanel);
+  const spanResize = usePanelResize("span", resizePanel);
+  const chatResize = usePanelResize("chat", resizePanel);
 
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const filteredSpansForStats = useMemo(() => {
@@ -377,18 +381,50 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
 
   return (
     <ScrollContextProvider>
-      <div className="flex h-full overflow-hidden relative max-w-full" style={{ width: containerWidth }}>
-        {/* Left edge resize handle */}
-        <div
-          className="absolute top-0 left-0 h-full cursor-col-resize z-50 group w-2"
-          onMouseDown={handleResizeLeftEdge}
-        >
-          <div className="absolute top-0 left-0 h-full w-px bg-border group-hover:w-0.5 group-hover:bg-blue-400 transition-colors" />
-        </div>
+      <div className="flex flex-row-reverse h-full w-fit max-w-full overflow-x-auto">
+        {/* Chat Panel — visible when traces agent toggle is active */}
+        {tracesAgentOpen && trace && (
+          <div className="relative flex h-full flex-shrink-0" style={{ width: chatPanelWidth }}>
+            <LeftEdgeResizeHandle onMouseDown={chatResize.handleMouseDown} />
+            <div className="flex flex-col h-full overflow-hidden flex-1">
+              <Chat
+                trace={trace}
+                onSetSpanId={selectSpanById}
+                onSearchSpans={(search) => fetchSpans(search, [])}
+                onClose={() => setTracesAgentOpen(false)}
+              />
+            </div>
+          </div>
+        )}
 
-        <ResizablePanelGroup id="trace-view-horizontal" orientation="horizontal">
-          {/* Trace Panel (always visible) */}
-          <ResizablePanel id="trace" minSize={MIN_PANEL_WIDTH} className="flex flex-col h-full overflow-hidden">
+        {/* Span Panel — visible when a span is selected */}
+        {selectedSpan && (
+          <div className="relative flex h-full flex-shrink-0" style={{ width: spanPanelWidth }}>
+            <LeftEdgeResizeHandle onMouseDown={spanResize.handleMouseDown} />
+            <div className="flex flex-col h-full overflow-hidden flex-1">
+              {isSpansLoading ? (
+                <div className="flex flex-col space-y-2 p-4">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
+                <HumanEvaluatorSpanView
+                  traceId={selectedSpan.traceId}
+                  spanId={selectedSpan.spanId}
+                  key={selectedSpan.spanId}
+                />
+              ) : (
+                <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Trace Panel — always visible */}
+        <div className="relative flex h-full flex-shrink-0" style={{ width: tracePanelWidth }}>
+          <LeftEdgeResizeHandle onMouseDown={traceResize.handleMouseDown} />
+          <div className="flex flex-col h-full overflow-hidden flex-1">
             <Header
               handleClose={handleClose}
               spans={spans}
@@ -486,61 +522,8 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
                 {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
               </ResizablePanelGroup>
             )}
-          </ResizablePanel>
-
-          {/* Span Panel (visible when a span is selected) */}
-          {selectedSpan && (
-            <>
-              <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
-              <ResizablePanel
-                id="span"
-                panelRef={spanPanelRef}
-                defaultSize={defaultPanelPercent}
-                minSize={MIN_PANEL_WIDTH}
-                className="flex flex-col h-full overflow-hidden"
-                onResize={onSpanPanelResize}
-              >
-                {isSpansLoading ? (
-                  <div className="flex flex-col space-y-2 p-4">
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-full" />
-                    <Skeleton className="h-8 w-full" />
-                  </div>
-                ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
-                  <HumanEvaluatorSpanView
-                    traceId={selectedSpan.traceId}
-                    spanId={selectedSpan.spanId}
-                    key={selectedSpan.spanId}
-                  />
-                ) : (
-                  <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
-                )}
-              </ResizablePanel>
-            </>
-          )}
-
-          {/* Traces Agent Panel (visible when traces agent toggle is active) */}
-          {tracesAgentOpen && trace && (
-            <>
-              <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
-              <ResizablePanel
-                id="chat"
-                panelRef={chatPanelRef}
-                defaultSize={defaultPanelPercent}
-                minSize={MIN_PANEL_WIDTH}
-                className="flex flex-col h-full overflow-hidden"
-                onResize={onChatPanelResize}
-              >
-                <Chat
-                  trace={trace}
-                  onSetSpanId={selectSpanById}
-                  onSearchSpans={(search) => fetchSpans(search, [])}
-                  onClose={() => setTracesAgentOpen(false)}
-                />
-              </ResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
+          </div>
+        </div>
       </div>
     </ScrollContextProvider>
   );
@@ -556,6 +539,8 @@ export default function TraceView(props: TraceViewProps) {
 
 export function ResizableTraceSidePanel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex", className)}>{children}</div>
+    <div className={cn("absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex max-w-full", className)}>
+      {children}
+    </div>
   );
 }

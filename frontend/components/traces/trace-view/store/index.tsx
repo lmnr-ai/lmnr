@@ -18,12 +18,16 @@ export const MIN_TREE_VIEW_WIDTH = 500;
 export const DEFAULT_PANEL_WIDTH = 400;
 export const MIN_PANEL_WIDTH = 200;
 
+export type ResizablePanel = "trace" | "span" | "chat";
+
 interface TraceViewStoreState {
-  containerWidth: number;
+  tracePanelWidth: number;
+  spanPanelWidth: number;
+  chatPanelWidth: number;
 }
 
 interface TraceViewStoreActions {
-  setContainerWidth: (width: number) => void;
+  resizePanel: (panel: ResizablePanel, delta: number) => void;
 }
 
 type TraceViewStore = BaseTraceViewStore & TraceViewStoreState & TraceViewStoreActions;
@@ -34,8 +38,44 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
       (set, get) => ({
         ...createBaseTraceViewSlice(set, get, { initialTrace }),
 
-        containerWidth: MIN_TREE_VIEW_WIDTH,
-        setContainerWidth: (containerWidth) => set({ containerWidth }),
+        tracePanelWidth: MIN_TREE_VIEW_WIDTH,
+        spanPanelWidth: DEFAULT_PANEL_WIDTH,
+        chatPanelWidth: DEFAULT_PANEL_WIDTH,
+
+        resizePanel: (panel, delta) => {
+          const state = get();
+          // Visual order left-to-right: trace → span → chat
+          // Propagation goes rightward when shrinking past min
+          const panels: { key: keyof Pick<TraceViewStoreState, "tracePanelWidth" | "spanPanelWidth" | "chatPanelWidth">; min: number }[] = [
+            { key: "tracePanelWidth", min: MIN_TREE_VIEW_WIDTH },
+            { key: "spanPanelWidth", min: MIN_PANEL_WIDTH },
+            { key: "chatPanelWidth", min: MIN_PANEL_WIDTH },
+          ];
+
+          const startIndex = panels.findIndex((p) => p.key === `${panel}PanelWidth`);
+          if (startIndex === -1) return;
+
+          const updates: Partial<TraceViewStoreState> = {};
+          let remaining = delta;
+
+          // Walk rightward from the target panel, propagating any overflow
+          for (let i = startIndex; i < panels.length && remaining < 0; i++) {
+            const { key, min } = panels[i];
+            const current = state[key];
+            const newWidth = Math.max(min, current + remaining);
+            updates[key] = newWidth;
+            // Whatever we couldn't absorb propagates to the next panel
+            remaining = remaining - (newWidth - current);
+          }
+
+          // If delta is positive (growing), only apply to the target panel
+          if (delta > 0) {
+            const { key } = panels[startIndex];
+            updates[key] = state[key] + delta;
+          }
+
+          set(updates);
+        },
       }),
       {
         name: storeKey ?? "trace-view-state",
@@ -44,7 +84,9 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
           const tabToPersist = persistentTabs.includes(state.tab as any) ? state.tab : undefined;
 
           return {
-            containerWidth: state.containerWidth,
+            tracePanelWidth: state.tracePanelWidth,
+            spanPanelWidth: state.spanPanelWidth,
+            chatPanelWidth: state.chatPanelWidth,
             spanPath: state.spanPath,
             spanTemplates: state.spanTemplates,
             ...(tabToPersist && { tab: tabToPersist }),
@@ -53,13 +95,27 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
           };
         },
         merge: (persistedState, currentState) => {
-          const persisted = persistedState as Partial<TraceViewStore>;
+          const persisted = (persistedState ?? {}) as Record<string, unknown>;
           const validTabs = ["tree", "reader"] as const;
-          const tab = persisted.tab && validTabs.includes(persisted.tab as any) ? persisted.tab : currentState.tab;
+          const tab =
+            persisted.tab && validTabs.includes(persisted.tab as (typeof validTabs)[number])
+              ? (persisted.tab as TraceViewStore["tab"])
+              : currentState.tab;
 
           return {
             ...currentState,
-            ...persisted,
+            // Only pick keys that partialize actually produces — never overwrite functions
+            ...(typeof persisted.tracePanelWidth === "number" && { tracePanelWidth: persisted.tracePanelWidth }),
+            ...(typeof persisted.spanPanelWidth === "number" && { spanPanelWidth: persisted.spanPanelWidth }),
+            ...(typeof persisted.chatPanelWidth === "number" && { chatPanelWidth: persisted.chatPanelWidth }),
+            ...(Array.isArray(persisted.spanPath) && { spanPath: persisted.spanPath as string[] }),
+            ...(persisted.spanTemplates !== undefined && {
+              spanTemplates: persisted.spanTemplates as TraceViewStore["spanTemplates"],
+            }),
+            ...(typeof persisted.showTreeContent === "boolean" && { showTreeContent: persisted.showTreeContent }),
+            ...(typeof persisted.condensedTimelineEnabled === "boolean" && {
+              condensedTimelineEnabled: persisted.condensedTimelineEnabled,
+            }),
             tab,
           };
         },
