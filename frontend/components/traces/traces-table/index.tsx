@@ -283,11 +283,16 @@ function TracesTableContent() {
   // Reset searchTraceIds when any search-affecting parameter changes so
   // stats wait for the new traces fetch instead of using stale IDs.
   useEffect(() => {
-    // Only set the pending-reset flag when a search is active. Without a
-    // search, searchTraceIds is already undefined so setSearchTraceIds is a
-    // no-op and no re-render would clear the flag, permanently blocking
-    // the stats effect.
-    if (textSearchFilter) {
+    // The pending-reset flag prevents the stats effect from firing with
+    // stale IDs in the same render cycle. Only set it when:
+    // 1. A search is active (otherwise searchTraceIds is undefined and
+    //    the flag would never be cleared since setSearchTraceIds is a no-op).
+    // 2. searchTraceIds is not already null — if it's null, the stats
+    //    effect already skips via the !== null guard, so the flag is
+    //    unnecessary. Setting it anyway would leave it unconsumed (since
+    //    setSearchTraceIds(null) is a no-op that triggers no re-render)
+    //    and it would incorrectly block the next stats fetch.
+    if (textSearchFilter && searchTraceIds !== null) {
       searchTraceIdsPendingResetRef.current = true;
     }
     setSearchTraceIds(textSearchFilter ? null : undefined);
