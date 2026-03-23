@@ -1,5 +1,4 @@
 ALTER TABLE "subscription_tiers" ALTER COLUMN "signal_runs" SET DEFAULT 0;--> statement-breakpoint
-DROP TABLE "workspace_usage";-->statement-breakpoint
 CREATE TABLE "workspace_usage" (
     "workspace_id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     "bytes" bigint NOT NULL DEFAULT 0,
