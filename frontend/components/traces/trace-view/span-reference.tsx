@@ -9,6 +9,13 @@ import React from "react";
  */
 const SPAN_REF_REGEX = /<span\s+id='(\d+)'\s+name='([^']+)'(?:\s+reference_text='(.*?)')?\s*\/>/g;
 
+/**
+ * Matches markdown-style span links in text:
+ *   [Bash](https://www.laminar.sh/project/.../traces/...?spanId=UUID)
+ * The spanId URL param contains the real span UUID.
+ */
+const MD_SPAN_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/[^)]*[?&]spanId=([0-9a-f-]+)[^)]*)\)/gi;
+
 export interface SpanReferenceCallbacks {
   resolveSpanId: (sequentialId: string) => Promise<string | null>;
   onSelectSpan: (spanUuid: string) => void;
@@ -19,6 +26,23 @@ interface SpanBadgeProps {
   spanName: string;
   referenceText?: string;
   callbacks: SpanReferenceCallbacks;
+}
+
+/** Badge for markdown-style span links — spanUuid is already resolved */
+function MarkdownSpanBadge({
+  label,
+  spanUuid,
+  onSelectSpan,
+}: {
+  label: string;
+  spanUuid: string;
+  onSelectSpan: (spanUuid: string) => void;
+}) {
+  return (
+    <button onClick={() => onSelectSpan(spanUuid)}>
+      <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs">{label}</span> span
+    </button>
+  );
 }
 
 function SpanBadge({ spanId, spanName, referenceText, callbacks }: SpanBadgeProps) {
@@ -51,46 +75,89 @@ function SpanBadge({ spanId, spanName, referenceText, callbacks }: SpanBadgeProp
 }
 
 /**
+ * Collect all span reference matches (XML and markdown) and sort by position.
+ */
+interface SpanMatch {
+  index: number;
+  length: number;
+  node: React.ReactNode;
+}
+
+function collectMatches(text: string, callbacks: SpanReferenceCallbacks): SpanMatch[] {
+  const matches: SpanMatch[] = [];
+
+  // XML-style: <span id='123' name='my-span' />
+  SPAN_REF_REGEX.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = SPAN_REF_REGEX.exec(text)) !== null) {
+    const [fullMatch, spanId, spanName, referenceText] = match;
+    matches.push({
+      index: match.index,
+      length: fullMatch.length,
+      node: (
+        <SpanBadge
+          key={`xml-ref-${match.index}`}
+          spanId={spanId}
+          spanName={spanName}
+          referenceText={referenceText}
+          callbacks={callbacks}
+        />
+      ),
+    });
+  }
+
+  // Markdown-style: [Label](https://...?spanId=UUID)
+  MD_SPAN_LINK_REGEX.lastIndex = 0;
+  while ((match = MD_SPAN_LINK_REGEX.exec(text)) !== null) {
+    const [fullMatch, label, , spanUuid] = match;
+    matches.push({
+      index: match.index,
+      length: fullMatch.length,
+      node: (
+        <MarkdownSpanBadge
+          key={`md-ref-${match.index}`}
+          label={label}
+          spanUuid={spanUuid}
+          onSelectSpan={callbacks.onSelectSpan}
+        />
+      ),
+    });
+  }
+
+  // Sort by position so we can iterate left-to-right
+  matches.sort((a, b) => a.index - b.index);
+  return matches;
+}
+
+/**
  * Renders a string with span references replaced by clickable badges.
+ * Handles both XML-style (<span id='...' name='...' />) and
+ * markdown-style ([Label](url?spanId=UUID)) references.
  * Non-matching text is rendered as-is.
  */
 export function renderSpanReferences(text: string, callbacks: SpanReferenceCallbacks): React.ReactNode {
+  const matches = collectMatches(text, callbacks);
+
+  if (matches.length === 0) {
+    return null;
+  }
+
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
-  let match: RegExpExecArray | null;
 
-  // Reset regex state
-  SPAN_REF_REGEX.lastIndex = 0;
+  for (const m of matches) {
+    // Skip overlapping matches
+    if (m.index < lastIndex) continue;
 
-  while ((match = SPAN_REF_REGEX.exec(text)) !== null) {
-    const [fullMatch, spanId, spanName, referenceText] = match;
-
-    // Add preceding text
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+    if (m.index > lastIndex) {
+      parts.push(text.slice(lastIndex, m.index));
     }
-
-    parts.push(
-      <SpanBadge
-        key={`span-ref-${match.index}`}
-        spanId={spanId}
-        spanName={spanName}
-        referenceText={referenceText}
-        callbacks={callbacks}
-      />
-    );
-
-    lastIndex = match.index + fullMatch.length;
+    parts.push(m.node);
+    lastIndex = m.index + m.length;
   }
 
-  // Add remaining text
   if (lastIndex < text.length) {
     parts.push(text.slice(lastIndex));
-  }
-
-  // No span references found — return null to indicate plain text
-  if (parts.length === 0 || (parts.length === 1 && typeof parts[0] === "string")) {
-    return null;
   }
 
   return <>{parts}</>;
@@ -101,5 +168,6 @@ export function renderSpanReferences(text: string, callbacks: SpanReferenceCallb
  */
 export function hasSpanReferences(text: string): boolean {
   SPAN_REF_REGEX.lastIndex = 0;
-  return SPAN_REF_REGEX.test(text);
+  MD_SPAN_LINK_REGEX.lastIndex = 0;
+  return SPAN_REF_REGEX.test(text) || MD_SPAN_LINK_REGEX.test(text);
 }
