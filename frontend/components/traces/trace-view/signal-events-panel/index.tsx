@@ -8,10 +8,11 @@ import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type EventRow } from "@/lib/events/types";
 
 import SignalTab from "./signal-tab";
-import SignalTabBar from "./signal-tab-bar";
 
 interface ApiSignalResponse {
   signalId: string;
@@ -115,7 +116,7 @@ export default function SignalEventsPanel({ traceId, onClose }: { traceId: strin
     return (
       <div className="flex flex-col h-full overflow-hidden">
         {header}
-        <div className="flex flex-col items-center justify-center flex-1 text-xs text-muted-foreground">
+        <div className="flex flex-col items-center justify-center flex-1 text-xs text-muted-foreground py-3">
           No signals associated with this trace
         </div>
       </div>
@@ -130,34 +131,57 @@ export default function SignalEventsPanel({ traceId, onClose }: { traceId: strin
     { id: "dummy-4", name: "Dummy Signal Epsilon" },
     { id: "dummy-5", name: "Dummy Signal Zeta Theta" },
   ];
-  const activeSignal = traceSignals.find((s) => s.signalId === activeSignalTabId) ?? traceSignals[0];
+
+  const effectiveTabId = activeSignalTabId ?? traceSignals[0]?.signalId ?? "";
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {header}
-      <SignalTabBar tabs={tabs} activeTabId={activeSignalTabId} onTabSelect={setActiveSignalTabId} />
-      {activeSignal && (
-        <SignalTab
-          key={activeSignal.signalId}
-          signalId={activeSignal.signalId}
-          signalName={activeSignal.signalName}
-          traceId={traceId}
-          prompt={activeSignal.prompt}
-          structuredOutput={activeSignal.schemaFields.reduce(
-            (acc, f) => {
-              if (f.name.trim()) {
-                acc.properties[f.name] = { type: f.type, description: f.description ?? "" };
-              }
-              return acc;
-            },
-            { type: "object", properties: {} } as {
-              type: string;
-              properties: Record<string, { type: string; description: string }>;
-            }
-          )}
-          events={(activeSignal.events as EventRow[]) ?? []}
-        />
-      )}
+      <Tabs
+        value={effectiveTabId}
+        onValueChange={setActiveSignalTabId}
+        className="flex flex-col flex-1 min-h-0 overflow-hidden"
+      >
+        <TabsList className="flex-shrink-0 overflow-x-auto no-scrollbar h-8 w-full justify-start rounded-none border-b px-1">
+          {tabs.map((tab) => (
+            <TooltipProvider key={tab.id} delayDuration={500}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <TabsTrigger value={tab.id} className="min-w-[120px] max-w-[120px] truncate text-xs">
+                    {tab.name}
+                  </TabsTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{tab.name}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ))}
+        </TabsList>
+        {traceSignals.map((signal) => (
+          <TabsContent key={signal.signalId} value={signal.signalId} className="flex-1 min-h-0 overflow-y-auto m-0">
+            <SignalTab
+              signalId={signal.signalId}
+              signalName={signal.signalName}
+              traceId={traceId}
+              prompt={signal.prompt}
+              structuredOutput={signal.schemaFields.reduce(
+                (acc, f) => {
+                  if (f.name.trim()) {
+                    acc.properties[f.name] = { type: f.type, description: f.description ?? "" };
+                  }
+                  return acc;
+                },
+                { type: "object", properties: {} } as {
+                  type: string;
+                  properties: Record<string, { type: string; description: string }>;
+                }
+              )}
+              events={(signal.events as EventRow[]) ?? []}
+            />
+          </TabsContent>
+        ))}
+      </Tabs>
     </div>
   );
 }
