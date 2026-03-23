@@ -172,7 +172,7 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
   }, [trace.id, projectId, setMessages, agentInitialMessages, agentPrefillInput, clearAgentInjection]);
 
   return (
-    <div className="flex flex-col overflow-auto relative minimal-scrollbar h-full">
+    <div className="flex flex-col overflow-auto relative minimal-scrollbar max-h-full">
       <div className="flex items-center justify-between px-2 pt-2 pb-2 flex-shrink-0 relative">
         <span className="text-base font-medium ml-2">Chat with trace</span>
         {onClose && (
