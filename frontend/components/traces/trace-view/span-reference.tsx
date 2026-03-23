@@ -40,7 +40,8 @@ function MarkdownSpanBadge({
 }) {
   return (
     <button onClick={() => onSelectSpan(spanUuid)}>
-      <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs">{label}</span> span
+      <span className="bg-primary/70 text-primary-foreground rounded px-1.5 py-0.5 font-mono text-xs">{label}</span>{" "}
+      span
     </button>
   );
 }
@@ -60,7 +61,9 @@ function SpanBadge({ spanId, spanName, referenceText, callbacks }: SpanBadgeProp
 
     return (
       <button onClick={handleClick}>
-        <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs mr-1">{spanName}</span>
+        <span className="bg-primary/70 text-primary-foreground rounded px-1.5 py-0.5 font-mono text-xs mr-1">
+          {spanName}
+        </span>
         span
         <span className="text-xs text-muted-foreground ml-1 font-mono">({textPreview})</span>
       </button>
@@ -69,7 +72,8 @@ function SpanBadge({ spanId, spanName, referenceText, callbacks }: SpanBadgeProp
 
   return (
     <button onClick={handleClick}>
-      <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs">{spanName}</span> span
+      <span className="bg-primary/70 text-primary-foreground rounded px-1.5 py-0.5 font-mono text-xs">{spanName}</span>{" "}
+      span
     </button>
   );
 }

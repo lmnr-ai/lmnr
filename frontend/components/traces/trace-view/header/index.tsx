@@ -67,7 +67,7 @@ function ResizableSignalCard({ traceId, onClose }: { traceId: string; onClose: (
 
   return (
     <div className="flex flex-col rounded-md border bg-card overflow-hidden" style={{ height }}>
-      <div className="flex-shrink-0 pr-2 pl-0.5 pt-1.5 flex items-center justify-between">
+      <div className="flex-shrink-0 pr-2 pl-2.5 pt-1.5 flex items-center justify-between">
         <span className="text-xs font-medium text-secondary-foreground">Signal events</span>
         <Button variant="ghost" className="h-6 w-6 p-0" onClick={onClose}>
           <X className="h-3.5 w-3.5" />
@@ -130,6 +130,7 @@ const Header = ({ handleClose, spans, onSearch, traceId, initialSignalId }: Head
 
   // Eagerly fetch signal count when trace loads, so the button shows the correct count
   const hasFetchedSignalsRef = useRef(false);
+  const hasAppliedInitialSignalRef = useRef(false);
   useEffect(() => {
     if (!traceId || !projectId || hasFetchedSignalsRef.current || traceSignals.length > 0) return;
     hasFetchedSignalsRef.current = true;
@@ -165,6 +166,7 @@ const Header = ({ handleClose, spans, onSearch, traceId, initialSignalId }: Head
 
         if (mapped.length > 0) {
           const match = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
+          hasAppliedInitialSignalRef.current = true;
           setActiveSignalTabId(match ? match.signalId : mapped[0].signalId);
         }
       } catch (error) {
@@ -184,6 +186,16 @@ const Header = ({ handleClose, spans, onSearch, traceId, initialSignalId }: Head
     initialSignalId,
     setActiveSignalTabId,
   ]);
+
+  // Apply initialSignalId even if signals were already fetched by the panel
+  useEffect(() => {
+    if (!initialSignalId || hasAppliedInitialSignalRef.current || traceSignals.length === 0) return;
+    const match = traceSignals.find((s) => s.signalId === initialSignalId);
+    if (match) {
+      hasAppliedInitialSignalRef.current = true;
+      setActiveSignalTabId(match.signalId);
+    }
+  }, [initialSignalId, traceSignals, setActiveSignalTabId]);
 
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
