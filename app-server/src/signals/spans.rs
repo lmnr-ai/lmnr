@@ -124,9 +124,29 @@ fn truncate_value_strings(value: &Value) -> Value {
     }
 }
 
+const RAW_BASE64_IMAGE_PREFIXES: &[&str] = &[
+    "/9j/",       // JPEG
+    "iVBORw0KGgo", // PNG
+    "R0lGODlh",   // GIF
+    "UklGR",      // WebP
+    "PHN2Zz",     // SVG
+];
+
+/// Minimum length for a raw base64 string to be considered an image.
+const RAW_BASE64_MIN_LEN: usize = 64;
+
+/// Check whether a string looks like raw base64-encoded image data.
+fn is_raw_base64_image(s: &str) -> bool {
+    s.len() >= RAW_BASE64_MIN_LEN
+        && RAW_BASE64_IMAGE_PREFIXES
+            .iter()
+            .any(|prefix| s.starts_with(prefix))
+}
+
 /// Replace base64 image data within a JSON value with a placeholder.
 ///
-/// Detects data URLs of the form `data:image/...;base64,...` anywhere in the JSON tree.
+/// Detects both data URLs (`data:image/...;base64,...`) and raw base64 image
+/// strings identified by well-known magic byte prefixes (JPEG, PNG, GIF, WebP, SVG).
 pub fn replace_base64_images(value: &Value) -> Value {
     match value {
         Value::String(s) => {
@@ -135,6 +155,9 @@ pub fn replace_base64_images(value: &Value) -> Value {
                 if prefix.starts_with("data:image") {
                     return Value::String(BASE64_IMAGE_PLACEHOLDER.to_string());
                 }
+            }
+            if is_raw_base64_image(s) {
+                return Value::String(BASE64_IMAGE_PLACEHOLDER.to_string());
             }
             value.clone()
         }

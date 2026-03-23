@@ -19,10 +19,12 @@ const PureLangChainContentParts = ({
   message,
   presetKey,
   parentIndex,
+  toolNameMap,
 }: {
   message: z.infer<typeof LangChainMessageSchema>;
   parentIndex: number;
   presetKey: string;
+  toolNameMap?: Map<string, string>;
 }) => {
   switch (message.role) {
     case "system":
@@ -42,6 +44,7 @@ const PureLangChainContentParts = ({
         <>
           <ToolResultContentPart
             toolCallId={message?.tool_call_id || "-"}
+            toolName={toolNameMap?.get(message?.tool_call_id || "")}
             content={message.content}
             presetKey={`${parentIndex}-tool-0-${presetKey}`}
           >
@@ -68,6 +71,7 @@ const PureLangChainContentParts = ({
             <ToolCallContentPart
               key={`${parentIndex}-tool-${index}-${presetKey}`}
               toolName={part.name}
+              toolCallId={part.id}
               content={part}
               presetKey={`${parentIndex}-tool-${index}-${presetKey}`}
               messageIndex={parentIndex}
@@ -80,6 +84,7 @@ const PureLangChainContentParts = ({
               content={part}
               presetKey={`${parentIndex}-tool-${index}-${presetKey}`}
               toolName="Invalid Tool Call"
+              toolCallId={part.id}
               messageIndex={parentIndex}
               contentPartIndex={(message?.tool_calls || []).length + index}
             />

@@ -17,11 +17,13 @@ const AnthropicPartRenderer = ({
   presetKey,
   messageIndex,
   contentPartIndex,
+  toolNameMap,
 }: {
   block: z.infer<typeof AnthropicContentBlockSchema>;
   presetKey: string;
   messageIndex: number;
   contentPartIndex: number;
+  toolNameMap?: Map<string, string>;
 }) => {
   switch (block.type) {
     case "text":
@@ -49,6 +51,7 @@ const AnthropicPartRenderer = ({
       return (
         <ToolCallContentPart
           toolName={block.name}
+          toolCallId={block.id}
           content={block.input ?? {}}
           presetKey={presetKey}
           messageIndex={messageIndex}
@@ -61,6 +64,7 @@ const AnthropicPartRenderer = ({
       return (
         <ToolResultContentPart
           toolCallId={block.tool_use_id}
+          toolName={toolNameMap?.get(block.tool_use_id)}
           content={resultContent}
           presetKey={`${messageIndex}-tool-result-${contentPartIndex}-${presetKey}`}
         />
@@ -72,6 +76,7 @@ const AnthropicPartRenderer = ({
       return (
         <ToolResultContentPart
           toolCallId={block.tool_use_id}
+          toolName={toolNameMap?.get(block.tool_use_id)}
           content={searchResultContent}
           presetKey={`${messageIndex}-tool-result-${contentPartIndex}-${presetKey}`}
         />
@@ -142,10 +147,12 @@ const PureAnthropicContentParts = ({
   message,
   parentIndex,
   presetKey,
+  toolNameMap,
 }: {
   message: z.infer<typeof AnthropicMessageSchema>;
   parentIndex: number;
   presetKey: string;
+  toolNameMap?: Map<string, string>;
 }) => {
   if (typeof message.content === "string") {
     return (
@@ -167,6 +174,7 @@ const PureAnthropicContentParts = ({
           presetKey={`${parentIndex}-part-${index}-${presetKey}`}
           messageIndex={parentIndex}
           contentPartIndex={index}
+          toolNameMap={toolNameMap}
         />
       ))}
     </>

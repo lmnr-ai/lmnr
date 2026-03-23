@@ -23,11 +23,12 @@ interface SpanImagesVideoPlayerProps {
   traceId: string;
   spanIds: string[];
   isShared?: boolean;
+  enabled?: boolean;
 }
 
 const speedOptions = [1, 2, 4, 8, 16];
 const frameInterval = 41.67; // 24fps;
-const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImagesVideoPlayerProps) => {
+const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false, enabled = true }: SpanImagesVideoPlayerProps) => {
   const { projectId } = useParams();
   const [preloadedImages, setPreloadedImages] = useState<Map<string, HTMLImageElement>>(new Map());
   const [isPlaying, setIsPlaying] = useState(false);
@@ -47,7 +48,7 @@ const SpanImagesVideoPlayer = ({ traceId, spanIds, isShared = false }: SpanImage
   const store = useTraceViewBaseStoreRaw();
 
   const swrKey =
-    spanIds.length > 0
+    enabled && spanIds.length > 0
       ? {
           url: isShared
             ? `/api/shared/traces/${traceId}/spans/images`
