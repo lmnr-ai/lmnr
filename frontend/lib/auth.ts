@@ -4,6 +4,7 @@ import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GithubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
+import KeycloakProvider from "next-auth/providers/keycloak";
 import OktaProvider from "next-auth/providers/okta";
 
 import { createUser, getUserByEmail, updateUserAvatar } from "@/lib/db/auth";
@@ -81,6 +82,15 @@ const getProviders = () => {
           clientId: process.env.AUTH_OKTA_CLIENT_ID!,
           clientSecret: process.env.AUTH_OKTA_CLIENT_SECRET!,
           issuer: process.env.AUTH_OKTA_ISSUER!,
+        }),
+    },
+    {
+      feature: Feature.KEYCLOAK_AUTH,
+      provider: () =>
+        KeycloakProvider({
+          clientId: process.env.AUTH_KEYCLOAK_ID!,
+          clientSecret: process.env.AUTH_KEYCLOAK_SECRET!,
+          issuer: process.env.AUTH_KEYCLOAK_ISSUER!,
         }),
     },
     {
