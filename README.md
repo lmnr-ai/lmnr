@@ -6,6 +6,8 @@
 
 # Laminar
 
+Last tested: 2026-03-23
+
 [Laminar](https://laminar.sh) is an open-source observability platform purpose-built for AI agents.
 
 - [x] Tracing. [Docs](https://docs.laminar.sh/tracing/introduction)
