@@ -12,6 +12,7 @@ interface TraceViewProps {
   onClose: () => void;
   isFillWidth?: boolean;
   isAlwaysSelectSpan?: boolean;
+  initialSignalsPanelOpen?: boolean;
 }
 
 export default function TraceView(props: TraceViewProps) {

@@ -33,6 +33,7 @@ export interface TraceViewContentProps {
   onClose: () => void;
   isFillWidth?: boolean;
   isAlwaysSelectSpan?: boolean;
+  initialSignalsPanelOpen?: boolean;
 }
 
 export default function TraceViewContent({
@@ -42,6 +43,7 @@ export default function TraceViewContent({
   propsTrace,
   isFillWidth,
   isAlwaysSelectSpan,
+  initialSignalsPanelOpen,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -49,14 +51,22 @@ export default function TraceViewContent({
   const { projectId } = useParams();
 
   // Panel visibility states
-  const { tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
+  const { tracesAgentOpen, setTracesAgentOpen, selectSpanById, setSignalsPanelOpen } = useTraceViewStore(
     (state) => ({
       tracesAgentOpen: state.tracesAgentOpen,
       setTracesAgentOpen: state.setTracesAgentOpen,
       selectSpanById: state.selectSpanById,
+      setSignalsPanelOpen: state.setSignalsPanelOpen,
     }),
     shallow
   );
+
+  // Auto-open signals panel when navigating from the signals page
+  useEffect(() => {
+    if (initialSignalsPanelOpen) {
+      setSignalsPanelOpen(true);
+    }
+  }, [initialSignalsPanelOpen, setSignalsPanelOpen]);
 
   // Data states
   const {

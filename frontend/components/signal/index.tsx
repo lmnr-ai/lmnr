@@ -132,6 +132,7 @@ function SignalContent() {
             setSpanId(null);
           }}
           traceId={traceId}
+          initialSignalsPanelOpen
         />
       )}
     </>
