@@ -90,16 +90,10 @@ async fn process_clustering_logic(
                 {
                     Ok(true) => {
                         log::debug!(
-                            "Acquired project and signal clustering locks for project_id={}, signal_id={}. Releasing project lock.",
+                            "Acquired project and signal clustering locks for project_id={}, signal_id={}",
                             project_id,
                             signal_id
                         );
-                        if let Err(e) = cache.release_lock(&project_lock_key).await {
-                            log::error!(
-                                "Failed to release LEGACY project clustering lock: {:?}",
-                                e
-                            );
-                        }
                         break;
                     }
                     Ok(false) => {
@@ -135,7 +129,7 @@ async fn process_clustering_logic(
     // Call clustering endpoint
     let result = call_clustering_endpoint(&client, project_id, signal_id, &message).await;
 
-    // Always release signal lock. Project lock was released early.
+    // Release both locks after clustering completes
     if let Err(e) = cache.release_lock(&signal_lock_key).await {
         log::error!("Failed to release signal clustering lock: {:?}", e);
     } else {
@@ -143,6 +137,18 @@ async fn process_clustering_logic(
             "Released signal clustering lock for project_id={}, signal_id={}",
             project_id,
             signal_id
+        );
+    }
+
+    if let Err(e) = cache.release_lock(&project_lock_key).await {
+        log::error!(
+            "Failed to release LEGACY project clustering lock: {:?}",
+            e
+        );
+    } else {
+        log::debug!(
+            "Released LEGACY project clustering lock for project_id={}",
+            project_id
         );
     }
 
