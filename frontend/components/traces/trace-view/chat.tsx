@@ -14,9 +14,9 @@ import DefaultTextarea from "@/components/ui/default-textarea";
 import { cn } from "@/lib/utils";
 
 const EXAMPLE_QUESTIONS = [
-  "What happened in this trace? Give me a summary.",
-  "Are there any errors or failures in this trace?",
-  "What was the LLM's reasoning in this trace?",
+  "Summarize this trace",
+  "Explain any errors in this trace",
+  "How do I make my agent more efficient?",
 ];
 
 interface ChatProps {
@@ -304,7 +304,7 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
                     }
                   }
                 }}
-                placeholder="Ask about logical errors, insights, or anything else..."
+                placeholder="Summarize, find inefficiencies, explain errors..."
                 className="bg-transparent border-none focus-visible:ring-0 resize-none w-full"
               />
               <Button
