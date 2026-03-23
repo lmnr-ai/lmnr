@@ -145,59 +145,63 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       if (hit) {
         item.inputSnippet = hit.input_snippet;
         item.outputSnippet = hit.output_snippet;
+        item.snippetCount = hit.snippet_count;
       }
     }
 
-    // TODO(mock): Remove this block — hardcoded mock snippets for UI testing
-    const mockSnippets = [
-      {
-        input: {
-          position: [22, 34] as [number, number],
-          value: "Please summarize the following document about climate change and its effects on biodiversity",
-          count: 3,
-        },
-        output: {
-          position: [10, 26] as [number, number],
-          value: "Here is a climate change summary highlighting the key impacts on global ecosystems",
-          count: 1,
-        },
-      },
-      {
-        input: {
-          position: [0, 12] as [number, number],
-          value: "How does the authentication flow work in the new microservices architecture?",
-          count: 2,
-        },
-        output: undefined,
-      },
-      {
-        input: undefined,
-        output: {
-          position: [31, 48] as [number, number],
-          value: "The model completed inference successfully with token count of 2048 tokens used",
-          count: 5,
-        },
-      },
-      {
-        input: {
-          position: [5, 18] as [number, number],
-          value: "Can you help me debug this TypeError in the React component rendering lifecycle?",
-          count: 1,
-        },
-        output: {
-          position: [15, 24] as [number, number],
-          value: "The issue is a TypeError caused by accessing a property on an undefined object reference",
-          count: 2,
-        },
-      },
-    ];
-    for (let i = 0; i < items.length; i++) {
-      const mock = mockSnippets[i % mockSnippets.length];
-      items[i].inputSnippet = mock.input;
-      items[i].outputSnippet = mock.output;
-    }
-    // END TODO(mock)
+    // END snippet mapping
   }
+
+  // TODO(mock): Remove this block — hardcoded mock snippets for UI testing (always runs, even without search)
+  const mockSnippets = [
+    {
+      input: {
+        highlight: [21, 250] as [number, number],
+        text: "Please summarize the following document about climate change and its effects on biodiversity, Please summarize the following document about climate change and its effects on biodiversity",
+      },
+      output: {
+        highlight: [10, 26] as [number, number],
+        text: "Here is a climate change summary highlighting the key impacts on global ecosystems",
+      },
+      snippetCount: 3,
+    },
+    {
+      input: {
+        highlight: [0, 12] as [number, number],
+        text: "How does the authentication flow work in the new microservices architecture?",
+      },
+      output: undefined,
+      snippetCount: 2,
+    },
+    { input: undefined, output: undefined, snippetCount: 0 },
+    {
+      input: undefined,
+      output: {
+        highlight: [31, 48] as [number, number],
+        text: "The model completed inference successfully with token count of 2048 tokens used",
+      },
+      snippetCount: 5,
+    },
+    {
+      input: {
+        highlight: [5, 18] as [number, number],
+        text: "Can you help me debug this TypeError in the React component rendering lifecycle?",
+      },
+      output: {
+        highlight: [15, 24] as [number, number],
+        text: "The issue is a TypeError caused by accessing a property on an undefined object reference",
+      },
+      snippetCount: 1,
+    },
+    { input: undefined, output: undefined, snippetCount: 0 },
+  ];
+  for (let i = 0; i < items.length; i++) {
+    const mock = mockSnippets[i % mockSnippets.length];
+    items[i].inputSnippet = mock.input;
+    items[i].outputSnippet = mock.output;
+    items[i].snippetCount = mock.snippetCount;
+  }
+  // END TODO(mock)
 
   return {
     items,

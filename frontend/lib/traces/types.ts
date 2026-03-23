@@ -145,8 +145,9 @@ export type TraceRow = {
   analysis?: string;
   rootSpanInput?: string;
   rootSpanOutput?: string;
-  inputSnippet?: { position: [number, number]; value: string; count?: number };
-  outputSnippet?: { position: [number, number]; value: string; count?: number };
+  inputSnippet?: { text: string; highlight: [number, number] };
+  outputSnippet?: { text: string; highlight: [number, number] };
+  snippetCount?: number;
 };
 
 export type RealtimeTracePayload = {

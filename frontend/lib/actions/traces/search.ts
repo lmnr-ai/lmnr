@@ -2,17 +2,17 @@ import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { type TimeRange } from "@/lib/clickhouse/utils";
 import { fetcherJSON } from "@/lib/utils";
 
-export interface SearchSnippet {
-  position: [number, number];
-  value: string;
-  count?: number;
+export interface SnippetInfo {
+  text: string;
+  highlight: [number, number];
 }
 
 export interface SpanSearchHit {
   trace_id: string;
   span_id: string;
-  input_snippet?: SearchSnippet;
-  output_snippet?: SearchSnippet;
+  input_snippet?: SnippetInfo;
+  output_snippet?: SnippetInfo;
+  snippet_count: number;
 }
 
 export const searchSpans = async ({

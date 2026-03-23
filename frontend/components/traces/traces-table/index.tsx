@@ -102,7 +102,8 @@ function TracesTableContent() {
   const isSearchActive = typeof textSearchFilter === "string" && textSearchFilter.length > 0;
 
   const effectiveColumns = useMemo(() => {
-    if (!isSearchActive) return columnDefs;
+    // TODO(mock): Change condition back to `if (!isSearchActive) return columnDefs;` — currently always showing preview column for testing
+    return columnDefs;
     const statusIdx = columnDefs.findIndex((c) => c.id === "status");
     const cols = [...columnDefs];
     cols.splice(statusIdx + 1, 0, PREVIEW_COLUMN);
@@ -117,21 +118,21 @@ function TracesTableContent() {
   }));
 
   useEffect(() => {
-    // Skip sync before the store has hydrated columnDefs to avoid wiping saved column order.
-    if (columnDefs.length === 0) return;
+    if (effectiveColumns.length === 0) return;
 
-    const visibleIds = columnDefs.map((c) => c.id!);
-    const currentSet = new Set(columnOrder);
-    const defSet = new Set(visibleIds);
+    const pinned = new Set(["status", "preview"]);
+    const visibleIds = new Set(effectiveColumns.map((c) => c.id!));
+    const hasPreview = visibleIds.has("preview");
 
-    const toAdd = visibleIds.filter((id) => !currentSet.has(id));
-    const toRemove = columnOrder.filter((id) => !defSet.has(id));
+    const rest = columnOrder.filter((id) => visibleIds.has(id) && !pinned.has(id));
+    const newIds = [...visibleIds].filter((id) => !new Set(columnOrder).has(id) && !pinned.has(id));
 
-    if (toAdd.length > 0 || toRemove.length > 0) {
-      const filtered = columnOrder.filter((id) => defSet.has(id));
-      setColumnOrder([...filtered, ...toAdd]);
+    const newOrder = ["status", ...(hasPreview ? ["preview"] : []), ...rest, ...newIds];
+
+    if (newOrder.length !== columnOrder.length || newOrder.some((id, i) => columnOrder[i] !== id)) {
+      setColumnOrder(newOrder);
     }
-  }, [columnDefs, columnOrder, setColumnOrder]);
+  }, [effectiveColumns, columnOrder, setColumnOrder]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -389,7 +390,7 @@ function TracesTableContent() {
     <div className="flex flex-1 overflow-hidden px-4 pb-4">
       <InfiniteDataTable<TraceRow>
         className="w-full"
-        columns={effectiveColumns.length > 0 ? effectiveColumns : []}
+        columns={effectiveColumns}
         data={traces}
         getRowId={(trace) => trace.id}
         onRowClick={handleRowClick}
@@ -399,14 +400,14 @@ function TracesTableContent() {
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         getRowHref={getRowHref}
-        lockedColumns={isSearchActive ? ["status", "preview"] : ["status"]}
+        lockedColumns={["status", "preview"]} // TODO(mock): Change back to `isSearchActive ? ["status", "preview"] : ["status"]`
         sortBy={sortBy}
         sortDirection={sortDirection}
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
-          <TracesColumnsMenu lockedColumns={["status"]} columnLabels={columnLabels} />
+          <TracesColumnsMenu lockedColumns={["status", "preview"]} columnLabels={columnLabels} />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">

@@ -27,49 +27,42 @@ const detailedFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 8,
 });
 
-function SnippetCell({
-  snippet,
-  label,
-}: {
-  snippet?: { position: [number, number]; value: string; count?: number };
-  label: string;
-}) {
-  if (!snippet) return null;
-  const { position, value, count } = snippet;
-  const [start, end] = position;
-  const before = value.slice(0, start);
-  const match = value.slice(start, end);
-  const after = value.slice(end);
-
-  return (
-    <div className="line-clamp-2 whitespace-normal break-words italic text-xs text-secondary-foreground">
-      <span className="not-italic text-muted-foreground mr-1">{label}</span>
-      {before}
-      <span className="text-primary not-italic font-medium">{match}</span>
-      {after}
-      {count != null && count > 1 && <span className="not-italic text-muted-foreground ml-1">+{count - 1} more</span>}
-    </div>
-  );
-}
-
 export const PREVIEW_COLUMN: ColumnDef<TraceRow, any> = {
   id: "preview",
   header: "Preview",
-  enableSorting: false,
-  size: 300,
+  enableResizing: true,
+  size: 420,
   cell: (row) => {
-    const { inputSnippet, outputSnippet } = row.row.original;
-    if (!inputSnippet && !outputSnippet) return null;
+    const snippet = row.row.original.inputSnippet ?? row.row.original.outputSnippet;
+    if (!snippet) {
+      return <span className="text-xs text-muted-foreground">No preview</span>;
+    }
+
+    const { text, highlight } = snippet;
+    const [start, end] = highlight;
+    const before = text.slice(0, start);
+    const match = text.slice(start, end);
+    const after = text.slice(end);
+    const snippetCount = row.row.original.snippetCount ?? 0;
+
     return (
-      <div className="flex flex-col gap-0.5 overflow-hidden">
-        {inputSnippet && <SnippetCell snippet={inputSnippet} label="Input:" />}
-        {outputSnippet && <SnippetCell snippet={outputSnippet} label="Output:" />}
-      </div>
+      <span className="flex items-center gap-1.5 min-w-0">
+        <span className="whitespace-normal break-words text-xs text-secondary-foreground line-clamp-2">
+          {before}
+          <mark className="not-italic font-medium text-primary bg-primary/15 rounded px-0.5">{match}</mark>
+          {after}
+        </span>
+        {snippetCount > 1 && (
+          <span className="shrink-0 inline-flex items-center px-1.5 py-px text-[10px] font-medium text-primary bg-primary/10 rounded-full leading-normal whitespace-nowrap">
+            +{snippetCount - 1}
+          </span>
+        )}
+      </span>
     );
   },
 };
 
-export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
+export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
       <div
@@ -298,9 +291,6 @@ export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
     meta: { sql: "user_id" },
   },
 ];
-
-/** @deprecated Use STATIC_COLUMNS and useTracesTableStore().columnDefs instead */
-export const columns = STATIC_COLUMNS;
 
 export const filters: ColumnFilter[] = [
   {
