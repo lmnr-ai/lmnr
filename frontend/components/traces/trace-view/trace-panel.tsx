@@ -102,7 +102,7 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
           <p className="text-xs text-muted-foreground">{spansError}</p>
         </div>
       ) : (
-        <ResizablePanelGroup id="trace-view-panels" orientation="vertical">
+        <ResizablePanelGroup id="trace-view-panels" orientation="vertical" className="flex-1 min-h-0">
           {condensedTimelineEnabled && (
             <>
               <ResizablePanel defaultSize={120} minSize={80}>

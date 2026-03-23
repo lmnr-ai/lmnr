@@ -212,7 +212,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const signalCount = traceSignals.length;
 
   return (
-    <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-2">
+    <div className="relative flex flex-col gap-1.5 px-2 pt-1.5 pb-2 flex-shrink-0">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center min-w-0 gap-2">
           {!params?.traceId && (
