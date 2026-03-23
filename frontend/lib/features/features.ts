@@ -11,18 +11,28 @@ export enum Feature {
   SUBSCRIPTION = "SUBSCRIPTION",
   DEPLOYMENT = "DEPLOYMENT",
   SIGNALS = "SIGNALS",
+  BATCH_SIGNALS = "BATCH_SIGNALS",
   SLACK = "SLACK",
   LANDING = "LANDING",
 }
 
+const AUTH_PROVIDER_FEATURES = [Feature.GITHUB_AUTH, Feature.GOOGLE_AUTH, Feature.AZURE_AUTH, Feature.OKTA_AUTH];
+
 // right now all managed-version features are disabled in local environment
-export const isFeatureEnabled = (feature: Feature) => {
+export const isFeatureEnabled = (feature: Feature): boolean => {
   if (feature === Feature.LANDING) {
     return process.env.ENVIRONMENT === "PRODUCTION" ? true : false;
   }
 
   if (feature === Feature.EMAIL_AUTH) {
-    return process.env.ENVIRONMENT !== "PRODUCTION" || process.env.FORCE_EMAIL_AUTH === "true";
+    if (process.env.FORCE_EMAIL_AUTH === "true") {
+      return true;
+    }
+    if (process.env.ENVIRONMENT === "PRODUCTION") {
+      return false;
+    }
+    // In self-hosted mode, hide the dummy email input when a real auth provider is configured
+    return !AUTH_PROVIDER_FEATURES.some((f) => isFeatureEnabled(f));
   }
 
   if (feature === Feature.LOCAL_DB) {
@@ -31,6 +41,10 @@ export const isFeatureEnabled = (feature: Feature) => {
 
   if (feature === Feature.GITHUB_AUTH) {
     return !!process.env.AUTH_GITHUB_ID && !!process.env.AUTH_GITHUB_SECRET;
+  }
+
+  if (feature === Feature.GOOGLE_AUTH) {
+    return !!process.env.AUTH_GOOGLE_ID && !!process.env.AUTH_GOOGLE_SECRET;
   }
 
   if (feature === Feature.AZURE_AUTH) {
@@ -66,6 +80,10 @@ export const isFeatureEnabled = (feature: Feature) => {
         !!process.env.AWS_SECRET_ACCESS_KEY &&
         !!process.env.AWS_REGION)
     );
+  }
+
+  if (feature === Feature.BATCH_SIGNALS) {
+    return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   }
 
   if (feature === Feature.SEND_EMAIL) {

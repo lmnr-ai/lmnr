@@ -12,9 +12,10 @@ const templates: EventTemplate[] = [
     name: "Failure Detector",
     shortName: "Failure",
     icon: "alert-circle",
-    description: "Detect failures, errors, and things that went wrong",
-    prompt: `Analyze this trace for failures, errors, or things that went wrong.
-Include tool failures, API errors, logical mistakes, and dead ends.`,
+    description: "Spot errors, loops, wrong tool usage, and slow actions",
+    prompt: `Analyze this trace for concrete issues: tool call failures, API errors, \
+loops or repeated calls, wrong tool selection, logic errors, \
+and abnormally slow or expensive spans. Only report problems visible in the trace data.`,
     structuredOutputSchema: JSON.stringify(
       {
         type: "object",
@@ -22,12 +23,12 @@ Include tool failures, API errors, logical mistakes, and dead ends.`,
         properties: {
           description: {
             type: "string",
-            description: "Description of what failed and why",
+            description: "Description of the issue: what happened, which span(s) are involved, and the impact",
           },
           category: {
             type: "string",
-            enum: ["tool_error", "api_error", "logic_error", "timeout", "other"],
-            description: "Category of the failure",
+            enum: ["tool_error", "api_error", "logic_error", "looping", "wrong_tool", "timeout", "other"],
+            description: "Category of the issue",
           },
         },
       },

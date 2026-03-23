@@ -58,6 +58,7 @@ const GenericToolCallContentPart = ({
 }) => (
   <ToolCallContentPart
     toolName={part.toolName}
+    toolCallId={part.toolCallId}
     content={omit(part, "type")}
     presetKey={presetKey}
     messageIndex={messageIndex}
@@ -66,7 +67,12 @@ const GenericToolCallContentPart = ({
 );
 
 const GenericToolResultContentPart = ({ part, presetKey }: { part: ToolResultPart; presetKey: string }) => (
-  <ToolResultContentPart toolCallId={part.toolCallId} content={omit(part, "type")} presetKey={presetKey} />
+  <ToolResultContentPart
+    toolCallId={part.toolCallId}
+    toolName={part.toolName}
+    content={omit(part, "type")}
+    presetKey={presetKey}
+  />
 );
 
 const PureContentParts = ({

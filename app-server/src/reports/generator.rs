@@ -18,6 +18,7 @@ use crate::db::projects::get_projects_for_workspace;
 use crate::db::reports::{get_email_report_targets, get_signals_for_workspace};
 use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
+use crate::mq::utils::mq_max_payload;
 use crate::notifications::{
     EmailPayload, NotificationMessage, NotificationType, push_to_notification_queue,
 };
@@ -258,7 +259,6 @@ async fn process_report_trigger(
 
     // Push one notification per email target so each gets its own notification log entry
     let mut push_failures = 0;
-    let mut has_permanent_failure = false;
     for target in &email_targets {
         let email_payload = EmailPayload {
             from: REPORT_FROM_EMAIL.to_string(),
@@ -284,11 +284,25 @@ async fn process_report_trigger(
             target_type: "EMAIL".to_string(),
         };
 
+        // Check payload size on the handler side — exceeding the limit is a permanent
+        // error because retrying won't shrink the payload.
+        let serialized_size = serde_json::to_vec(&notification_message)
+            .map(|v| v.len())
+            .unwrap_or(0);
+        if serialized_size >= mq_max_payload() {
+            log::warn!(
+                "[Reports Generator] MQ payload limit exceeded. payload size: [{}], target: [{}]",
+                serialized_size,
+                target.email,
+            );
+            return Err(HandlerError::permanent(anyhow::anyhow!(
+                "Notification payload size ({} bytes) exceeds MQ limit",
+                serialized_size,
+            )));
+        }
+
         if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
             push_failures += 1;
-            if matches!(&e, HandlerError::Permanent(_)) {
-                has_permanent_failure = true;
-            }
             log::error!(
                 "[Reports Generator] Failed to push report notification for {}: {:?}",
                 target.email,
@@ -303,12 +317,8 @@ async fn process_report_trigger(
             email_targets.len(),
             workspace_id
         );
-        // If any failure was permanent (e.g. payload too large), retrying won't help
-        return Err(if has_permanent_failure {
-            HandlerError::permanent(anyhow::anyhow!(msg))
-        } else {
-            HandlerError::transient(anyhow::anyhow!(msg))
-        });
+        // Publish failures are transient (MQ connectivity), retrying may help
+        return Err(HandlerError::transient(anyhow::anyhow!(msg)));
     }
 
     log::info!(

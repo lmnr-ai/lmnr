@@ -15,7 +15,7 @@ use crate::{
         SignalWorkerConfig,
         provider::{LanguageModelClient, ProviderClient, models::ProviderBatchOutput},
         push_to_signals_queue,
-        queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_waiting_queue},
+        queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue, push_to_waiting_queue},
         response_processor::{FailureMetadata, finalize_runs, process_provider_responses},
     },
     worker::{HandlerError, MessageHandler},
@@ -333,15 +333,15 @@ pub async fn process_succeeded_batch(
     // process_run to read stale message history (e.g. missing retry guidance).
     insert_signal_run_messages(clickhouse.clone(), &processed.new_messages).await?;
 
-    // Route pending runs to the signals queue (batch pipeline next step)
+    // Route pending runs to the realtime queue to utilize cached tokens
     for run_id in &processed.pending_run_ids {
         let msg = processed.run_to_message.get(run_id).unwrap();
         let mut next_step_msg = msg.clone();
         next_step_msg.step += 1;
 
-        if let Err(e) = push_to_signals_queue(next_step_msg, queue.clone()).await {
+        if let Err(e) = push_to_realtime_queue(next_step_msg, queue.clone()).await {
             log::error!(
-                "[SIGNAL JOB] Failed to push pending run {} to signals queue: {:?}",
+                "[SIGNAL JOB] Failed to push pending run {} to realtime queue: {:?}",
                 run_id,
                 e
             );

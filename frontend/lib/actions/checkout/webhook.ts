@@ -4,7 +4,7 @@ import { type Stripe } from "stripe";
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
 import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
-import { users, userSubscriptionInfo, workspaceAddons, workspaces } from "@/lib/db/migrations/schema";
+import { users, userSubscriptionInfo, workspaceAddons, workspaces, workspaceUsage } from "@/lib/db/migrations/schema";
 
 import { DATAPLANE_ADDON_LOOKUP_KEY } from "./types";
 
@@ -56,7 +56,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
     .set({
       subscriptionId,
       tierId: sql`CASE
-      WHEN ${cancel ?? false} THEN 1 
+      WHEN ${cancel ?? false} THEN 1
       ELSE (
         SELECT id
         FROM subscription_tiers
@@ -71,7 +71,29 @@ export const manageWorkspaceSubscriptionEvent = async ({
     })
     .where(eq(workspaces.id, workspaceId));
 
-  await updateUsageCacheForWorkspace(workspaceId);
+  if (workspace && currentTier === "free") {
+    await db
+      .insert(workspaceUsage)
+      .values({
+        workspaceId: workspace.id,
+        bytes: 0,
+        signalRuns: 0,
+        lastReportedDate: sql`date_trunc('day', now())`,
+      })
+      .onConflictDoUpdate({
+        target: workspaceUsage.workspaceId,
+        set: {
+          bytes: 0,
+          signalRuns: 0,
+          lastReportedDate: sql`date_trunc('day', now())`,
+        },
+      });
+  }
+
+  if (cancel) {
+    await db.delete(workspaceUsage).where(eq(workspaceUsage.workspaceId, workspaceId));
+  }
+  await updateUsageCacheForWorkspace(workspaceId, true, true);
 };
 
 export const getIdFromStripeObject = (stripeObject: string | { id: string } | null): string | undefined => {
@@ -84,10 +106,14 @@ export const getIdFromStripeObject = (stripeObject: string | { id: string } | nu
 // This function updates the cache used on the backend,
 // but since Stripe as a feature assumes production, we assume
 // shared Redis cache as well.
-const updateUsageCacheForWorkspace = async (workspaceId: string) => {
+const updateUsageCacheForWorkspace = async (workspaceId: string, hasBytes: boolean, hasSignalRuns: boolean) => {
+  if (hasBytes) {
+    await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
+  }
+  if (hasSignalRuns) {
+    await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
+  }
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
-  await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
-  await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
 };
 
 type SubscriptionEvent =
@@ -197,11 +223,33 @@ export const handleSubscriptionChange = async (event: SubscriptionEvent, cancel:
   }
 };
 
-export const handleInvoiceFinalized = async (workspaceId: string, periodStart: number) => {
-  await cache.remove(`${WORKSPACE_BYTES_USAGE_CACHE_KEY}:${workspaceId}`);
-  await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${workspaceId}`);
-  await deleteAllProjectsWorkspaceInfoFromCache(workspaceId);
-  console.log(
-    `Billing cycle reset for workspace ${workspaceId}, new period start: ${new Date(periodStart * 1000).toISOString()}`
-  );
+export const handleInvoiceFinalized = async (
+  workspaceId: string,
+  hasBytes: boolean,
+  hasSignalRuns: boolean,
+  newStartTime: Date | null
+) => {
+  const resetDateRaw = newStartTime ? newStartTime.toISOString() : sql`now()`;
+  const resetDate = sql`${resetDateRaw}::timestamptz`;
+  await db
+    .insert(workspaceUsage)
+    .values({
+      workspaceId: workspaceId,
+      bytes: 0,
+      signalRuns: 0,
+      lastReportedDate: sql`date_trunc('day', ${resetDate})`,
+    })
+    .onConflictDoUpdate({
+      target: workspaceUsage.workspaceId,
+      set: {
+        lastReportedDate: sql`date_trunc('day', ${resetDate})`,
+        ...(hasBytes ? { bytes: 0 } : {}),
+        ...(hasSignalRuns ? { signalRuns: 0 } : {}),
+      },
+    });
+  await db
+    .update(workspaces)
+    .set({ resetTime: sql`date_trunc('day', ${resetDate})` })
+    .where(eq(workspaces.id, workspaceId));
+  await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
 };

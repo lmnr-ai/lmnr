@@ -3,24 +3,23 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
-import { type CustomColumn, useEvalStore } from "@/components/evaluation/store";
 import SQLEditor from "@/components/sql/sql-editor.tsx";
-import type { SQLSchemaConfig } from "@/components/sql/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+import type { CustomColumn, CustomColumnPanelConfig } from "./types";
+
 interface CustomColumnPanelProps {
   onBack: () => void;
   onSave: (column: CustomColumn) => void;
   editingColumn?: CustomColumn;
+  config: CustomColumnPanelConfig;
 }
 
-const EVAL_DATAPOINTS_SCHEMA: SQLSchemaConfig = { tables: ["evaluation_datapoints"] };
-
-export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColumnPanelProps) => {
-  const { projectId, evaluationId } = useParams();
+export const CustomColumnPanel = ({ onBack, onSave, editingColumn, config }: CustomColumnPanelProps) => {
+  const { projectId } = useParams();
   const [name, setName] = useState(editingColumn?.name ?? "");
   const [sql, setSql] = useState(editingColumn?.sql ?? "");
   const [dataType, setDataType] = useState<"string" | "number">(editingColumn?.dataType ?? "string");
@@ -38,7 +37,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
     if (!trimmedName || !trimmedSql) return;
 
     // Check for duplicate names (skip the current name when editing)
-    const cols = useEvalStore.getState().columnDefs;
+    const cols = config.getColumnDefs();
     if (
       cols.some((c) => c.meta?.isCustom && (c.header as string) === trimmedName && trimmedName !== editingColumn?.name)
     ) {
@@ -46,18 +45,16 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
       return;
     }
 
-    const normalizedSql = trimmedSql;
-
     // Test the query via the client-side API route
     setIsTesting(true);
     try {
-      const testQuery = `SELECT ${normalizedSql} as \`test\` FROM evaluation_datapoints WHERE evaluation_id = {evaluationId:UUID} LIMIT 1`;
+      const testQuery = config.buildTestQuery(trimmedSql);
       const response = await fetch(`/api/projects/${projectId}/sql`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: testQuery,
-          parameters: { evaluationId: evaluationId as string },
+          ...(config.testQueryParameters && { parameters: config.testQueryParameters }),
         }),
       });
 
@@ -72,7 +69,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
         throw new Error(errorMsg);
       }
 
-      onSave({ name: trimmedName, sql: normalizedSql, dataType });
+      onSave({ name: trimmedName, sql: trimmedSql, dataType });
     } catch (e: any) {
       setError(e?.message || "Invalid SQL expression.");
     } finally {
@@ -100,7 +97,7 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
             <Label className="text-xs">Name</Label>
             <Input
               autoFocus
-              placeholder="e.g. Span Count"
+              placeholder={config.namePlaceholder ?? "e.g. Span Count"}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="h-8 text-sm"
@@ -123,16 +120,14 @@ export const CustomColumnPanel = ({ onBack, onSave, editingColumn }: CustomColum
                 value={sql}
                 onChange={setSql}
                 editable
-                placeholder="e.g. arrayCount(x -> 1, trace_spans)"
-                schema={EVAL_DATAPOINTS_SCHEMA}
-                generationMode="eval-expression"
-                inputPlaceholder="e.g. Count the number of spans in trace_spans"
+                placeholder={config.sqlPlaceholder ?? "e.g. arrayCount(x -> 1, trace_spans)"}
+                schema={config.schema}
+                generationMode={config.generationMode ?? "eval-expression"}
+                inputPlaceholder={config.aiInputPlaceholder ?? "e.g. Count the number of spans in trace_spans"}
                 projectId={projectId as string}
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              {"Expression is added as a column: SELECT <expr> FROM evaluation_datapoints"}
-            </p>
+            {config.sqlHint && <p className="text-xs text-muted-foreground">{config.sqlHint}</p>}
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs">Data type</Label>

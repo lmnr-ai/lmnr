@@ -51,6 +51,10 @@ pub struct ProviderPart {
     pub function_call: Option<ProviderFunctionCall>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub function_response: Option<ProviderFunctionResponse>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thought: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

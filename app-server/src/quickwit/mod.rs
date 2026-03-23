@@ -21,12 +21,10 @@ use utils::extract_text_from_json_value;
 pub const SPANS_INDEXER_QUEUE: &str = "spans_indexer_queue";
 pub const SPANS_INDEXER_EXCHANGE: &str = "spans_indexer_exchange";
 pub const SPANS_INDEXER_ROUTING_KEY: &str = "spans_indexer_routing_key";
-pub const OLD_SPANS_INDEX_ID: &str = "spans";
 pub const EVENTS_INDEX_ID: &str = "events";
 
-pub static SPANS_INDEX_ID: LazyLock<String> = LazyLock::new(|| {
-    std::env::var("QUICKWIT_SPANS_INDEX_ID").unwrap_or("spans_v2".to_string())
-});
+pub static SPANS_INDEX_ID: LazyLock<String> =
+    LazyLock::new(|| std::env::var("QUICKWIT_SPANS_INDEX_ID").unwrap_or("spans_v2".to_string()));
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuickwitIndexedSpan {

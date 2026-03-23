@@ -139,6 +139,8 @@ class TableRegistry:
             "run_id",
             "status",
             "event_id",
+            "error_message",
+            "mode",
             "updated_at",
         }
 

@@ -54,6 +54,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
   const [currentUrl, setCurrentUrl] = useState("");
   const [urlChanges, setUrlChanges] = useState<UrlChange[]>([]);
   const [activeTab, setActiveTab] = useState(hasBrowserSession ? "browser-session" : "images");
+  const [imagesTabOpened, setImagesTabOpened] = useState(!hasBrowserSession);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [speed, setSpeed] = useLocalStorage("session-player-speed", 1);
 
@@ -261,7 +262,10 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
         )}
 
         <button
-          onClick={() => setActiveTab("images")}
+          onClick={() => {
+            setActiveTab("images");
+            setImagesTabOpened(true);
+          }}
           className={`mx-2 inline-flex items-center justify-center whitespace-nowrap border-b-2 py-1.5 text-sm transition-all gap-2 font-medium ${
             activeTab === "images"
               ? "border-secondary-foreground text-foreground"
@@ -356,7 +360,7 @@ const SessionPlayer = ({ hasBrowserSession, traceId, llmSpanIds = [], onClose }:
         </div>
 
         <div className={`h-full ${activeTab === "images" ? "block" : "hidden"}`}>
-          <SpanImagesVideoPlayer traceId={traceId} spanIds={llmSpanIds} />
+          <SpanImagesVideoPlayer traceId={traceId} spanIds={llmSpanIds} enabled={imagesTabOpened} />
         </div>
       </div>
     </div>

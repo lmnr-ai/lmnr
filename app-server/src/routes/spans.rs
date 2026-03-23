@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, sync::LazyLock};
+use std::{collections::HashMap, sync::Arc};
 
 use actix_web::{HttpResponse, post, web};
 use chrono::{DateTime, Utc};
@@ -10,12 +10,13 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     db::spans::{Span, SpanType},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
-    quickwit::{OLD_SPANS_INDEX_ID, SPANS_INDEX_ID, client::QuickwitClient},
+    quickwit::{SPANS_INDEX_ID, client::QuickwitClient},
     routes::{ResponseResult, error::Error},
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
 
 const DEFAULT_SEARCH_MAX_HITS: usize = 500;
+const DEFAULT_SEARCH_TIME_RANGE: chrono::Duration = chrono::Duration::days(7);
 // TODO: maybe remove all punctuation similar to the default tokenizer in the index?
 const QUICKWIT_RESERVED_CHARACTERS: &[char] = &['?', '`', '~', '!', '\\'];
 // Quickwit documentation is very brief on this, it lists all of the reserved characters
@@ -142,13 +143,6 @@ pub struct SearchSpansRequest {
 
 const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
 
-static NEW_INDEX_CUTOVER_TS: LazyLock<DateTime<Utc>> = LazyLock::new(|| {
-    std::env::var("QUICKWIT_NEW_INDEX_CUTOVER_TS")
-        .unwrap_or("2026-03-16T16:00:00Z".to_string())
-        .parse::<DateTime<Utc>>()
-        .expect("QUICKWIT_NEW_INDEX_CUTOVER_TS must be a valid RFC 3339 timestamp")
-});
-
 #[derive(Serialize, Deserialize)]
 struct QuickwitHit {
     trace_id: String,
@@ -240,53 +234,19 @@ pub async fn search_spans(
         search_body["start_offset"] = serde_json::Value::Number(request.offset.into());
     }
 
-    // TEMPORARY: Determine which index to query based on the timestamp
-    // TODO: Remove this logic once we have switched to the new index completely.
-    let cutover = *NEW_INDEX_CUTOVER_TS;
-    let start = request.start_time;
-    let end = request.end_time;
-
-    let old_start = start;
-    let old_end = Some(end.map_or(cutover, |e| e.min(cutover)));
-    let new_start = Some(start.map_or(cutover, |s| s.max(cutover)));
-    let new_end = end;
-
-    let has_old_interval = !matches!((old_start, old_end), (Some(s), Some(e)) if s >= e);
-    let has_new_interval = !matches!((new_start, new_end), (Some(s), Some(e)) if s >= e);
-
-    let max_hits = search_body["max_hits"]
-        .as_u64()
-        .unwrap_or(DEFAULT_SEARCH_MAX_HITS as u64) as usize;
-
-    let mut hits = if has_new_interval {
-        let mut body = search_body.clone();
-        set_body_timestamps(&mut body, new_start, new_end);
-        search_index(quickwit_client, &SPANS_INDEX_ID, body).await?
+    // Handle timestamps, defaults to last week if not provided
+    if let Some(s) = request.start_time {
+        search_body["start_timestamp"] = serde_json::Value::Number(s.timestamp().into());
     } else {
-        vec![]
-    };
-
-    if has_old_interval && hits.len() < max_hits {
-        let mut body = search_body;
-        body["max_hits"] = serde_json::Value::Number((max_hits - hits.len()).into());
-        set_body_timestamps(&mut body, old_start, old_end);
-        hits.extend(search_index(quickwit_client, OLD_SPANS_INDEX_ID, body).await?);
+        search_body["start_timestamp"] =
+            serde_json::Value::Number((Utc::now() - DEFAULT_SEARCH_TIME_RANGE).timestamp().into());
+    }
+    if let Some(e) = request.end_time {
+        search_body["end_timestamp"] = serde_json::Value::Number(e.timestamp().into());
     }
 
+    let hits = search_index(quickwit_client, &SPANS_INDEX_ID, search_body).await?;
     Ok(HttpResponse::Ok().json(hits))
-}
-
-fn set_body_timestamps(
-    body: &mut serde_json::Value,
-    start: Option<DateTime<Utc>>,
-    end: Option<DateTime<Utc>>,
-) {
-    if let Some(s) = start {
-        body["start_timestamp"] = serde_json::Value::Number(s.timestamp().into());
-    }
-    if let Some(e) = end {
-        body["end_timestamp"] = serde_json::Value::Number(e.timestamp().into());
-    }
 }
 
 async fn search_index(

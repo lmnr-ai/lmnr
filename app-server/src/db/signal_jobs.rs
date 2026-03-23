@@ -15,6 +15,8 @@ pub struct SignalJob {
     pub failed_traces: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// 0 = batch, 1 = realtime
+    pub mode: i16,
 }
 
 pub async fn create_signal_job(
@@ -22,15 +24,17 @@ pub async fn create_signal_job(
     signal_id: Uuid,
     project_id: Uuid,
     total_traces: i32,
+    mode: i16,
 ) -> Result<SignalJob> {
     let job = sqlx::query_as::<_, SignalJob>(
-        "INSERT INTO signal_jobs (signal_id, project_id, total_traces)
-        VALUES ($1, $2, $3)
-        RETURNING id, signal_id, project_id, total_traces, processed_traces, failed_traces, created_at, updated_at",
+        "INSERT INTO signal_jobs (signal_id, project_id, total_traces, mode)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, signal_id, project_id, total_traces, processed_traces, failed_traces, created_at, updated_at, mode",
     )
     .bind(signal_id)
     .bind(project_id)
     .bind(total_traces)
+    .bind(mode)
     .fetch_one(pool)
     .await?;
 

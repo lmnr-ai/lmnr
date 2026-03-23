@@ -5,7 +5,6 @@ import useSWR from "swr";
 
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanMessages from "@/components/traces/span-view/span-content";
-import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
 import HumanEvaluationScore from "@/components/traces/trace-view/human-evaluation-score";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -57,60 +56,53 @@ export function HumanEvaluatorSpanView({ spanId, traceId }: HumanEvaluatorSpanVi
   }
 
   return (
-    <SpanViewStateProvider>
-      <SpanControls span={span}>
-        <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span">
-          <div className="px-2 pb-2 mt-2 border-b w-full">
-            <TabsList className="border-none text-xs h-7">
-              <TabsTrigger value="span" className="text-xs">
-                Span Input
-              </TabsTrigger>
-              <TabsTrigger value="attributes" className="text-xs">
-                Attributes
-              </TabsTrigger>
-              <TabsTrigger value="events" className="text-xs">
-                Events
-              </TabsTrigger>
-            </TabsList>
-          </div>
-          <div className="flex-1 flex overflow-hidden">
-            <TabsContent value="span" className="w-full h-full">
-              <div className="flex flex-col h-full">
-                <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}></SpanMessages>
-                {datapointId && evaluationId && (
-                  <div className="flex flex-col p-2 pt-0">
-                    <HumanEvaluationScore
-                      traceId={traceId}
-                      options={humanEvaluatorOptions}
-                      evaluationId={evaluationId as string}
-                      spanId={span.spanId}
-                      resultId={datapointId}
-                      name={span.name}
-                      projectId={projectId as string}
-                    />
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-            <TabsContent value="attributes" className="h-full w-full">
-              <ContentRenderer
-                className="border-none"
-                readOnly
-                value={JSON.stringify(span.attributes)}
-                defaultMode="yaml"
-              />
-            </TabsContent>
-            <TabsContent value="events" className="h-full w-full mt-0">
-              <ContentRenderer
-                className="border-none"
-                readOnly
-                value={JSON.stringify(span.events)}
-                defaultMode="yaml"
-              />
-            </TabsContent>
-          </div>
-        </Tabs>
-      </SpanControls>
-    </SpanViewStateProvider>
+    <SpanControls span={span}>
+      <Tabs className="flex flex-col flex-1 w-full overflow-hidden" defaultValue="span">
+        <div className="px-2 pb-2 mt-2 border-b w-full">
+          <TabsList className="border-none text-xs h-7">
+            <TabsTrigger value="span" className="text-xs">
+              Span Input
+            </TabsTrigger>
+            <TabsTrigger value="attributes" className="text-xs">
+              Attributes
+            </TabsTrigger>
+            <TabsTrigger value="events" className="text-xs">
+              Events
+            </TabsTrigger>
+          </TabsList>
+        </div>
+        <div className="flex-1 flex overflow-hidden">
+          <TabsContent value="span" className="w-full h-full">
+            <div className="flex flex-col h-full">
+              <SpanMessages type="input" key={`${datapointId}-${spanId}`} span={span}></SpanMessages>
+              {datapointId && evaluationId && (
+                <div className="flex flex-col p-2 pt-0">
+                  <HumanEvaluationScore
+                    traceId={traceId}
+                    options={humanEvaluatorOptions}
+                    evaluationId={evaluationId as string}
+                    spanId={span.spanId}
+                    resultId={datapointId}
+                    name={span.name}
+                    projectId={projectId as string}
+                  />
+                </div>
+              )}
+            </div>
+          </TabsContent>
+          <TabsContent value="attributes" className="h-full w-full">
+            <ContentRenderer
+              className="border-none"
+              readOnly
+              value={JSON.stringify(span.attributes)}
+              defaultMode="yaml"
+            />
+          </TabsContent>
+          <TabsContent value="events" className="h-full w-full mt-0">
+            <ContentRenderer className="border-none" readOnly value={JSON.stringify(span.events)} defaultMode="yaml" />
+          </TabsContent>
+        </div>
+      </Tabs>
+    </SpanControls>
   );
 }

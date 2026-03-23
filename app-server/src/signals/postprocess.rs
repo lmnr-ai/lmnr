@@ -12,6 +12,7 @@ use crate::clustering::queue::push_to_event_clustering_queue;
 use crate::db;
 use crate::features::{Feature, is_feature_enabled};
 use crate::mq::MessageQueue;
+use crate::mq::utils::mq_max_payload;
 use crate::notifications::{self, EventIdentificationPayload, NotificationType};
 
 /// Process notifications and clustering for an identified signal event
@@ -50,6 +51,18 @@ pub async fn process_event_notifications_and_clustering(
             target_id: target.id,
             target_type: "SLACK".to_string(),
         };
+
+        let serialized_size = serde_json::to_vec(&notification_message)
+            .map(|v| v.len())
+            .unwrap_or(0);
+        if serialized_size >= mq_max_payload() {
+            log::warn!(
+                "MQ payload limit exceeded for channel {}: payload size [{}]",
+                target.channel_id,
+                serialized_size,
+            );
+            continue;
+        }
 
         if let Err(e) =
             notifications::push_to_notification_queue(notification_message, queue.clone()).await

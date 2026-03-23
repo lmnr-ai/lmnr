@@ -11,6 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
+import { Feature } from "@/lib/features/features";
 
 interface ConfirmSignalJobDialogProps {
   open: boolean;
@@ -18,6 +22,8 @@ interface ConfirmSignalJobDialogProps {
   isCreating: boolean;
   onConfirm: () => void;
   traceCount: number;
+  mode: number;
+  onModeChange: (mode: number) => void;
 }
 
 export default function ConfirmSignalJobDialog({
@@ -26,7 +32,12 @@ export default function ConfirmSignalJobDialog({
   isCreating,
   onConfirm,
   traceCount,
+  mode,
+  onModeChange,
 }: ConfirmSignalJobDialogProps) {
+  const featureFlags = useFeatureFlags();
+  const batchEnabled = featureFlags[Feature.BATCH_SIGNALS];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -40,6 +51,30 @@ export default function ConfirmSignalJobDialog({
             This will create a signal job to analyze {traceCount.toLocaleString()} trace{traceCount !== 1 ? "s" : ""}.
           </p>
         </div>
+
+        {batchEnabled && (
+          <div className="flex flex-col gap-3">
+            <Label className="text-sm font-medium">Processing mode</Label>
+            <RadioGroup value={String(mode)} onValueChange={(v) => onModeChange(Number(v))} className="grid gap-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <RadioGroupItem value="0" className="mt-0.5" />
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium">Batch</span>
+                  <span className="text-xs text-muted-foreground">Results available within several hours.</span>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <RadioGroupItem value="1" className="mt-0.5" />
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium">Realtime</span>
+                  <span className="text-xs text-muted-foreground">
+                    Results in minutes, but each run is billed as 2 signal runs.
+                  </span>
+                </div>
+              </label>
+            </RadioGroup>
+          </div>
+        )}
 
         <DialogFooter className="mt-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

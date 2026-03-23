@@ -12,7 +12,6 @@ import SignalJobsTable from "@/components/signal/jobs-table";
 import SignalRunsTable from "@/components/signal/runs-table";
 import SignalOverviewTooltip from "@/components/signal/signal-overview-tooltip";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
-import TriggersTable from "@/components/signal/triggers-table";
 import { type EventNavigationItem, getEventsConfig } from "@/components/signal/utils";
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
 import TraceView from "@/components/traces/trace-view";
@@ -69,6 +68,7 @@ function SignalContent() {
         ...signal,
         prompt: form.prompt,
         schemaFields: form.schemaFields,
+        triggers: form.triggers,
       });
     },
     [signal, setSignal]
@@ -98,9 +98,6 @@ function SignalContent() {
               <TabsTrigger className="text-xs" value="events">
                 Events
               </TabsTrigger>
-              <TabsTrigger className="text-xs" value="triggers">
-                Triggers
-              </TabsTrigger>
               <TabsTrigger className="text-xs" value="jobs">
                 Jobs
               </TabsTrigger>
@@ -110,7 +107,7 @@ function SignalContent() {
             </TabsList>
           </SignalOverviewTooltip>
           {!isFreeTier && (
-            <Button icon="edit" variant="secondary" onClick={() => setIsSheetOpen(true)}>
+            <Button icon="edit" onClick={() => setIsSheetOpen(true)}>
               Edit Signal
             </Button>
           )}
@@ -118,9 +115,6 @@ function SignalContent() {
 
         <TabsContent value="events" className="flex flex-col overflow-hidden">
           <EventsTable />
-        </TabsContent>
-        <TabsContent value="triggers" className="flex flex-col gap-4 px-4 pb-4 overflow-hidden">
-          <TriggersTable />
         </TabsContent>
         <TabsContent value="jobs" className="flex flex-col gap-4 px-4 pb-4 overflow-hidden">
           <SignalJobsTable />
