@@ -159,14 +159,17 @@ function TracesTableContent() {
     textSearchFilter ? null : undefined
   );
 
-  // Track the current textSearchFilter so stale fetch responses don't
-  // overwrite searchTraceIds after the user changes or clears the search.
-  const textSearchFilterRef = useRef(textSearchFilter);
-  textSearchFilterRef.current = textSearchFilter;
+  // Monotonically increasing counter that tracks each new traces fetch.
+  // Used to discard stale responses when parameters change mid-flight.
+  const fetchVersionRef = useRef(0);
+
+  // Bumped on manual refresh to retrigger the stats effect even when
+  // searchTraceIds doesn't change (e.g. no active search).
+  const [refreshCounter, setRefreshCounter] = useState(0);
 
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
-      const searchAtFetchTime = textSearchFilter;
+      const version = ++fetchVersionRef.current;
       try {
         const urlParams = buildFetchParams({
           pageNumber,
@@ -206,10 +209,9 @@ function TracesTableContent() {
         }
 
         const data = (await res.json()) as { items: TraceRow[]; searchTraceIds?: string[] };
-        // Only update searchTraceIds if the search filter hasn't changed
-        // since this fetch started, preventing stale responses from
-        // overwriting the current state.
-        if (textSearchFilterRef.current === searchAtFetchTime) {
+        // Only update searchTraceIds if no newer fetch has started,
+        // preventing stale responses from overwriting the current state.
+        if (fetchVersionRef.current === version) {
           setSearchTraceIds(data.searchTraceIds);
         }
         return { items: data.items, count: 0 };
@@ -266,10 +268,12 @@ function TracesTableContent() {
     setNavigationRefList(map(traces, "id"));
   }, [setNavigationRefList, traces]);
 
-  // Reset searchTraceIds when text search changes so stats wait for the new traces fetch.
+  // Reset searchTraceIds when any search-affecting parameter changes so
+  // stats wait for the new traces fetch instead of using stale IDs.
   useEffect(() => {
     setSearchTraceIds(textSearchFilter ? null : undefined);
-  }, [textSearchFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textSearchFilter, pastHours, startDate, endDate, JSON.stringify(searchIn)]);
 
   useEffect(() => {
     // When searchTraceIds is null, a search is active but traces haven't
@@ -277,7 +281,7 @@ function TracesTableContent() {
     if (statsUrl && searchTraceIds !== null) {
       fetchStats(statsUrl, searchTraceIds);
     }
-  }, [statsUrl, fetchStats, searchTraceIds]);
+  }, [statsUrl, fetchStats, searchTraceIds, refreshCounter]);
 
   const updateRealtimeTrace = useCallback(
     (traceData: TraceRow) => {
@@ -349,11 +353,17 @@ function TracesTableContent() {
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
   const handleRefresh = useCallback(() => {
-    refetch();
-    if (statsUrl && searchTraceIds !== null) {
-      fetchStats(statsUrl, searchTraceIds);
+    if (textSearchFilter) {
+      // Block the stats effect until the traces refetch provides fresh IDs,
+      // preventing a double fetch from stale IDs followed by new ones.
+      setSearchTraceIds(null);
+    } else {
+      // No search active — bump counter to retrigger the stats effect since
+      // searchTraceIds stays undefined and wouldn't retrigger on its own.
+      setRefreshCounter((c) => c + 1);
     }
-  }, [refetch, statsUrl, fetchStats, searchTraceIds]);
+    refetch();
+  }, [refetch, textSearchFilter]);
 
   const handleRowClick = useCallback(
     (row: Row<TraceRow>) => {
