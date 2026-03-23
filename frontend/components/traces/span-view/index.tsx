@@ -11,7 +11,8 @@ import SpanContent from "@/components/traces/span-view/span-content";
 import SpanOverview from "@/components/traces/span-view/span-overview";
 import { SpanSearchProvider } from "@/components/traces/span-view/span-search-context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
-import ShikiContentRenderer from "@/components/ui/content-renderer/shiki-renderer";
+import ContentRenderer from "@/components/ui/content-renderer/index";
+import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Span, SpanType } from "@/lib/traces/types";
 
@@ -89,19 +90,23 @@ const SpanViewTabs = ({
           <SpanContent span={span} type="output" />
         </TabsContent>
         <TabsContent value="attributes" className="w-full h-full">
-          <ShikiContentRenderer
+          <ContentRenderer
             className="rounded-none border-0"
             codeEditorClassName="rounded-none border-none bg-background contain-strict"
+            readOnly
             value={JSON.stringify(span.attributes)}
             defaultMode="yaml"
+            customTheme={spanViewTheme}
           />
         </TabsContent>
         <TabsContent value="events" className="w-full h-full">
-          <ShikiContentRenderer
+          <ContentRenderer
             className="rounded-none border-0"
             codeEditorClassName="rounded-none border-none bg-background contain-strict"
+            readOnly
             value={JSON.stringify(span.events)}
             defaultMode="yaml"
+            customTheme={spanViewTheme}
           />
         </TabsContent>
       </div>
