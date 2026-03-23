@@ -6,6 +6,7 @@ import { shallow } from "zustand/shallow";
 
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
+import SignalEventsPanel from "@/components/traces/trace-view/signal-events-panel";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
@@ -26,9 +27,10 @@ interface HeaderProps {
   handleClose: () => void;
   spans: TraceViewSpan[];
   onSearch: (filters: Filter[], search: string) => void;
+  traceId: string;
 }
 
-const Header = ({ handleClose, spans, onSearch }: HeaderProps) => {
+const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params?.projectId as string;
@@ -147,6 +149,11 @@ const Header = ({ handleClose, spans, onSearch }: HeaderProps) => {
           {trace && <ShareTraceButton projectId={projectId} />}
         </div>
       </div>
+      {signalsPanelOpen && (
+        <div className="rounded-md border bg-card max-h-[200px] flex flex-col overflow-hidden">
+          <SignalEventsPanel traceId={traceId} />
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />
       </div>
