@@ -142,7 +142,9 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
     }
   };
 
-  // Load existing messages when component mounts, then apply injection if present
+  // Effect 1: Load existing messages when the trace changes.
+  // This only depends on trace.id and projectId — it won't re-run when
+  // injection state changes.
   useEffect(() => {
     const loadExistingMessages = async () => {
       try {
@@ -156,20 +158,24 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
       } catch (error) {
         console.error("Error loading existing messages:", error);
       }
-
-      // One-time injection of messages from "Open in AI Chat" (ref guard prevents re-injection)
-      if (!hasInjectedRef.current && agentInitialMessages && agentInitialMessages.length > 0) {
-        hasInjectedRef.current = true;
-        setMessages(agentInitialMessages);
-        if (agentPrefillInput) {
-          setInput(agentPrefillInput);
-        }
-        clearAgentInjection();
-      }
     };
 
     loadExistingMessages();
-  }, [trace.id, projectId, setMessages, agentInitialMessages, agentPrefillInput, clearAgentInjection]);
+  }, [trace.id, projectId, setMessages]);
+
+  // Effect 2: One-time injection of messages from "Open in AI Chat".
+  // Separated from the fetch effect so that clearAgentInjection() (which
+  // nulls agentInitialMessages) doesn't re-trigger the fetch and overwrite
+  // the injected messages.
+  useEffect(() => {
+    if (hasInjectedRef.current || !agentInitialMessages || agentInitialMessages.length === 0) return;
+    hasInjectedRef.current = true;
+    setMessages(agentInitialMessages);
+    if (agentPrefillInput) {
+      setInput(agentPrefillInput);
+    }
+    clearAgentInjection();
+  }, [agentInitialMessages, agentPrefillInput, clearAgentInjection, setMessages]);
 
   return (
     <div className="flex flex-col overflow-hidden relative h-full">

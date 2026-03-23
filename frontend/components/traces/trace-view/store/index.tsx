@@ -15,7 +15,7 @@ export {
 } from "./base";
 
 export const MIN_TREE_VIEW_WIDTH = 500;
-export const DEFAULT_PANEL_WIDTH = 365;
+export const DEFAULT_PANEL_WIDTH = 375;
 export const MIN_PANEL_WIDTH = 375;
 
 export type ResizablePanel = "trace" | "span" | "chat";
