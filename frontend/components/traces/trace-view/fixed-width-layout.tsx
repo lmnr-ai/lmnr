@@ -7,11 +7,10 @@ import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize"
 import { type TraceViewPanels } from "./trace-view-content";
 
 export default function FixedWidthLayout({ panels }: { panels: TraceViewPanels }) {
-  const { tracePanelWidth, spanPanelWidth, signalPanelWidth, chatPanelWidth, resizePanel } = useTraceViewStore(
+  const { tracePanelWidth, spanPanelWidth, chatPanelWidth, resizePanel } = useTraceViewStore(
     (state) => ({
       tracePanelWidth: state.tracePanelWidth,
       spanPanelWidth: state.spanPanelWidth,
-      signalPanelWidth: state.signalPanelWidth,
       chatPanelWidth: state.chatPanelWidth,
       resizePanel: state.resizePanel,
     }),
@@ -20,7 +19,6 @@ export default function FixedWidthLayout({ panels }: { panels: TraceViewPanels }
 
   const traceResize = usePanelResize("trace", resizePanel);
   const spanResize = usePanelResize("span", resizePanel);
-  const signalResize = usePanelResize("signal", resizePanel);
   const chatResize = usePanelResize("chat", resizePanel);
 
   return (
@@ -30,14 +28,6 @@ export default function FixedWidthLayout({ panels }: { panels: TraceViewPanels }
         <div className="relative flex h-full flex-shrink-0" style={{ width: chatPanelWidth }}>
           <LeftEdgeResizeHandle onMouseDown={chatResize.handleMouseDown} />
           {panels.chatPanel}
-        </div>
-      )}
-
-      {/* Signal Events Panel */}
-      {panels.showSignal && (
-        <div className="relative flex h-full flex-shrink-0" style={{ width: signalPanelWidth }}>
-          <LeftEdgeResizeHandle onMouseDown={signalResize.handleMouseDown} />
-          {panels.signalPanel}
         </div>
       )}
 

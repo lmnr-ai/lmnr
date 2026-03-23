@@ -18,12 +18,11 @@ export const MIN_TREE_VIEW_WIDTH = 500;
 export const DEFAULT_PANEL_WIDTH = 365;
 export const MIN_PANEL_WIDTH = 375;
 
-export type ResizablePanel = "trace" | "span" | "signal" | "chat";
+export type ResizablePanel = "trace" | "span" | "chat";
 
 interface TraceViewStoreState {
   tracePanelWidth: number;
   spanPanelWidth: number;
-  signalPanelWidth: number;
   chatPanelWidth: number;
 }
 
@@ -41,7 +40,6 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string, 
 
         tracePanelWidth: MIN_TREE_VIEW_WIDTH,
         spanPanelWidth: DEFAULT_PANEL_WIDTH,
-        signalPanelWidth: DEFAULT_PANEL_WIDTH,
         chatPanelWidth: DEFAULT_PANEL_WIDTH,
 
         resizePanel: (panel, delta) => {
@@ -49,15 +47,11 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string, 
           // Visual order left-to-right: trace → span → chat
           // Propagation goes rightward when shrinking past min
           const panels: {
-            key: keyof Pick<
-              TraceViewStoreState,
-              "tracePanelWidth" | "spanPanelWidth" | "signalPanelWidth" | "chatPanelWidth"
-            >;
+            key: keyof Pick<TraceViewStoreState, "tracePanelWidth" | "spanPanelWidth" | "chatPanelWidth">;
             min: number;
           }[] = [
             { key: "tracePanelWidth", min: MIN_TREE_VIEW_WIDTH },
             { key: "spanPanelWidth", min: MIN_PANEL_WIDTH },
-            { key: "signalPanelWidth", min: MIN_PANEL_WIDTH },
             { key: "chatPanelWidth", min: MIN_PANEL_WIDTH },
           ];
 
@@ -95,7 +89,6 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string, 
           return {
             tracePanelWidth: state.tracePanelWidth,
             spanPanelWidth: state.spanPanelWidth,
-            signalPanelWidth: state.signalPanelWidth,
             chatPanelWidth: state.chatPanelWidth,
             spanPath: state.spanPath,
             spanTemplates: state.spanTemplates,
@@ -117,7 +110,6 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string, 
             // Only pick keys that partialize actually produces — never overwrite functions
             ...(typeof persisted.tracePanelWidth === "number" && { tracePanelWidth: persisted.tracePanelWidth }),
             ...(typeof persisted.spanPanelWidth === "number" && { spanPanelWidth: persisted.spanPanelWidth }),
-            ...(typeof persisted.signalPanelWidth === "number" && { signalPanelWidth: persisted.signalPanelWidth }),
             ...(typeof persisted.chatPanelWidth === "number" && { chatPanelWidth: persisted.chatPanelWidth }),
             ...(Array.isArray(persisted.spanPath) && { spanPath: persisted.spanPath as string[] }),
             ...(persisted.spanTemplates !== undefined && {
