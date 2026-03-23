@@ -4,7 +4,7 @@ import { type BundledLanguage, type BundledTheme, type HighlighterGeneric } from
 
 import Messages from "@/components/traces/span-view/messages";
 import { Button } from "@/components/ui/button";
-import { renderText } from "@/components/ui/content-renderer/utils";
+import { type ImageData, renderText } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -40,6 +40,23 @@ function escapeHtml(text: string): string {
 
 function wrapInPlainPre(text: string): string {
   return `<pre class="shiki github-dark" style="background-color:transparent;color:#c9d1d9" tabindex="0"><code>${escapeHtml(text)}</code></pre>`;
+}
+
+// Replace [IMG:n] placeholders in rendered HTML with actual <img> elements.
+// Shiki may split placeholders across multiple <span> tokens, so we operate
+// on the raw HTML string and match both plain and HTML-entity-encoded forms.
+function replaceImagePlaceholders(html: string, imageMap: Record<string, ImageData>): string {
+  let result = html;
+  for (const [id, data] of Object.entries(imageMap)) {
+    // The placeholder text [IMG:id] may appear literally or with the
+    // brackets entity-encoded depending on how Shiki tokenises the text.
+    const literal = `[IMG:${id}]`;
+    const encoded = `&#x5B;IMG:${id}&#x5D;`;
+    const imgTag = `<img src="${data.src}" style="max-height:100px;border-radius:4px;display:inline-block;vertical-align:text-top;margin:2px 0" />`;
+    result = result.replaceAll(literal, imgTag);
+    result = result.replaceAll(encoded, imgTag);
+  }
+  return result;
 }
 
 const defaultModes = ["TEXT", "YAML", "JSON", "CUSTOM"];
@@ -84,10 +101,11 @@ const PureShikiContentRenderer = ({
   const [highlightedHtml, setHighlightedHtml] = useState<string>("");
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const { text: renderedValue } = useMemo(
-    () => renderText(mode, value, shouldRenderImages),
-    [mode, value, shouldRenderImages]
-  );
+  const {
+    text: renderedValue,
+    imageMap,
+    hasImages,
+  } = useMemo(() => renderText(mode, value, shouldRenderImages), [mode, value, shouldRenderImages]);
 
   const handleModeChange = useCallback(
     (newMode: string) => {
@@ -132,25 +150,32 @@ const PureShikiContentRenderer = ({
 
     getHighlighter().then((highlighter) => {
       if (cancelled) return;
-      const html = highlighter.codeToHtml(renderedValue, {
+      let html = highlighter.codeToHtml(renderedValue, {
         lang,
         theme: "github-dark",
       });
+      if (hasImages) {
+        html = replaceImagePlaceholders(html, imageMap);
+      }
       setHighlightedHtml(html);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [renderedValue, mode, lang]);
+  }, [renderedValue, mode, lang, hasImages, imageMap]);
 
   // For "text" mode or unknown languages, compute plain HTML synchronously via memo
   const plainHtml = useMemo(() => {
     if (lang || mode === "custom" || mode === "messages") {
       return "";
     }
-    return wrapInPlainPre(renderedValue);
-  }, [renderedValue, mode, lang]);
+    let html = wrapInPlainPre(renderedValue);
+    if (hasImages) {
+      html = replaceImagePlaceholders(html, imageMap);
+    }
+    return html;
+  }, [renderedValue, mode, lang, hasImages, imageMap]);
 
   const displayHtml = lang ? highlightedHtml : plainHtml;
 
