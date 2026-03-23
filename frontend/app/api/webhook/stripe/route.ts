@@ -59,17 +59,17 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   // Check if overage items already exist (idempotency – e.g. if the webhook is retried)
   const existingLookupKeys = new Set(freshSubscription.items.data.map((item) => item.price.lookup_key));
   if (
-    existingLookupKeys.has(tierConfig.overageBytesLookupKey) &&
+    existingLookupKeys.has(tierConfig.overageMegabytesLookupKey) &&
     existingLookupKeys.has(tierConfig.overageSignalRunsLookupKey)
   ) {
     return;
   }
 
   const overagePrices = await s.prices.list({
-    lookup_keys: [tierConfig.overageBytesLookupKey, tierConfig.overageSignalRunsLookupKey],
+    lookup_keys: [tierConfig.overageMegabytesLookupKey, tierConfig.overageSignalRunsLookupKey],
   });
 
-  const bytesOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageBytesLookupKey);
+  const bytesOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageMegabytesLookupKey);
   const signalRunsOveragePrice = overagePrices.data.find((p) => p.lookup_key === tierConfig.overageSignalRunsLookupKey);
 
   if (!bytesOveragePrice || !signalRunsOveragePrice) {
@@ -78,7 +78,7 @@ async function addOveragePricesToSubscription(subscription: Stripe.Subscription)
   }
 
   const items: Stripe.SubscriptionUpdateParams.Item[] = [];
-  if (!existingLookupKeys.has(tierConfig.overageBytesLookupKey)) {
+  if (!existingLookupKeys.has(tierConfig.overageMegabytesLookupKey)) {
     items.push({ price: bytesOveragePrice.id });
   }
   if (!existingLookupKeys.has(tierConfig.overageSignalRunsLookupKey)) {
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       // Filter: must contain a line for a known overage price.
       // This excludes addon-only invoices and other unrelated invoices.
       const knownLookupKeys = new Set<string>(
-        Object.values(TIER_CONFIG).flatMap((c) => [c.overageBytesLookupKey, c.overageSignalRunsLookupKey])
+        Object.values(TIER_CONFIG).flatMap((c) => [c.overageMegabytesLookupKey, c.overageSignalRunsLookupKey])
       );
       let hasBytesOverage = false;
       let hasSignalRunsOverage = false;
