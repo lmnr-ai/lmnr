@@ -86,6 +86,8 @@ interface SpanInfo {
   end: string;
   status: string;
   parent: string;
+  totalCost: number;
+  totalTokens: number;
 }
 
 // Full span with input/output details
@@ -107,7 +109,9 @@ const fetchSpanInfos = async (projectId: string, traceId: string): Promise<SpanI
         start_time as start,
         end_time as end,
         status,
-        parent_span_id as parent
+        parent_span_id as parent,
+        total_cost as totalCost,
+        total_tokens as totalTokens
       FROM spans
       WHERE trace_id = {trace_id: UUID}
       ORDER BY start_time ASC
@@ -140,6 +144,8 @@ const fetchSpans = async (projectId: string, traceId: string, spanIds: string[])
         end_time as end,
         status,
         parent_span_id as parent,
+        total_cost as totalCost,
+        total_tokens as totalTokens,
         input,
         output
       FROM spans
@@ -220,12 +226,13 @@ function formatUtcTimestamp(chTimestamp: string): string {
 }
 
 function spanInfosToSkeletonString(spanInfos: SpanInfo[], spanIdToSeqId: Record<string, number>): string {
-  let result = "legend: span_name (id, parent_id, type)\n";
+  let result = "legend: span_name (id, parent_id, type, duration_sec, cost_usd, total_tokens)\n";
   for (let i = 0; i < spanInfos.length; i++) {
     const info = spanInfos[i];
     const seqId = i + 1;
     const parentSeqId = info.parent ? (spanIdToSeqId[info.parent] ?? null) : null;
-    result += `- ${info.name} (${seqId}, ${parentSeqId ?? "null"}, ${info.type})\n`;
+    const duration = calculateDuration(info.start, info.end);
+    result += `- ${info.name} (${seqId}, ${parentSeqId ?? "null"}, ${info.type}, ${duration.toFixed(3)}, ${info.totalCost.toFixed(6)}, ${info.totalTokens})\n`;
   }
   return result;
 }
@@ -237,6 +244,8 @@ interface DetailedSpanView {
   type: string;
   start: string;
   duration: number;
+  totalCost: number;
+  totalTokens: number;
   parent: number | null;
   status?: string;
   input?: unknown;
@@ -311,6 +320,8 @@ export const getTraceStructureAsString = async (
       type: info.type.toLowerCase(),
       start: formatUtcTimestamp(info.start),
       duration: calculateDuration(info.start, info.end),
+      totalCost: info.totalCost,
+      totalTokens: info.totalTokens,
       parent: parentSeqId,
     };
 

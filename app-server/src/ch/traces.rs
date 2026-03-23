@@ -11,6 +11,18 @@ use crate::db::spans::{Span, SpanType};
 use crate::db::trace::Trace;
 use crate::traces::spans::SpanUsage;
 
+/// Maximum number of characters to store for root span input/output preview.
+const ROOT_SPAN_PREVIEW_MAX_CHARS: usize = 2048;
+
+fn truncate_json_preview(value: &serde_json::Value) -> String {
+    let s = value.to_string();
+    if s.chars().count() > ROOT_SPAN_PREVIEW_MAX_CHARS {
+        s.chars().take(ROOT_SPAN_PREVIEW_MAX_CHARS).collect()
+    } else {
+        s
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
 pub struct CHTrace {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -41,6 +53,8 @@ pub struct CHTrace {
     pub num_spans: u64,
     pub has_browser_session: bool,
     pub span_names: Vec<String>,
+    pub root_span_input: String,
+    pub root_span_output: String,
 }
 
 impl CHTrace {
@@ -79,6 +93,8 @@ impl CHTrace {
             num_spans: trace.num_spans() as u64,
             has_browser_session: trace.has_browser_session().unwrap_or(false),
             span_names: trace.span_names(),
+            root_span_input: trace.root_span_input().unwrap_or_default(),
+            root_span_output: trace.root_span_output().unwrap_or_default(),
         }
     }
 }
@@ -115,6 +131,8 @@ pub struct TraceAggregation {
     pub trace_type: u8,
     pub has_browser_session: Option<bool>,
     pub span_names: HashSet<String>,
+    pub root_span_input: Option<String>,
+    pub root_span_output: Option<String>,
 }
 
 impl TraceAggregation {
@@ -151,6 +169,8 @@ impl TraceAggregation {
                         trace_type: 0,
                         has_browser_session: None,
                         span_names: HashSet::new(),
+                        root_span_input: None,
+                        root_span_output: None,
                     });
 
             // Aggregate min start_time
@@ -214,6 +234,8 @@ impl TraceAggregation {
                 entry.top_span_id = Some(span.span_id);
                 entry.top_span_name = Some(span.name.clone());
                 entry.top_span_type = span.span_type.clone().into();
+                entry.root_span_input = span.input.as_ref().map(truncate_json_preview);
+                entry.root_span_output = span.output.as_ref().map(truncate_json_preview);
             }
 
             if entry.top_span_name.is_none() {

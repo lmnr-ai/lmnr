@@ -11,14 +11,35 @@ export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.string(),
   signalId: z.string(),
+  clusterId: z.array(z.string()).optional(),
+  unclustered: z.coerce.boolean().optional(),
 });
 
 export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginatedSchema>) {
-  const { projectId, signalId, pageSize, pageNumber, pastHours, startDate, endDate, filter } = input;
+  const {
+    projectId,
+    signalId,
+    pageSize,
+    pageNumber,
+    pastHours,
+    startDate,
+    endDate,
+    filter,
+    clusterId: clusterIds,
+    unclustered,
+  } = input;
 
   const filters = compact(filter);
   const limit = pageSize;
   const offset = Math.max(0, pageNumber * pageSize);
+
+  // Use the `clusters` array column on signal_events for filtering
+  let clusterFilter: "unclustered" | string[] | undefined;
+  if (unclustered) {
+    clusterFilter = "unclustered";
+  } else if (clusterIds && clusterIds.length > 0) {
+    clusterFilter = clusterIds;
+  }
 
   const { query: mainQuery, parameters: mainParams } = buildEventsQueryWithParams({
     signalId,
@@ -28,6 +49,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     startTime: startDate,
     endTime: endDate,
     pastHours,
+    clusterFilter,
   });
 
   const { query: countQuery, parameters: countParams } = buildEventsCountQueryWithParams({
@@ -36,6 +58,7 @@ export async function getEventsPaginated(input: z.infer<typeof GetEventsPaginate
     startTime: startDate,
     endTime: endDate,
     pastHours,
+    clusterFilter,
   });
 
   const [items, [countResult]] = await Promise.all([

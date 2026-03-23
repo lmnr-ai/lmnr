@@ -1,0 +1,194 @@
+---
+title: "Migrate from Traceloop to Laminar"
+date: "2026-03-05"
+description: "A practical migration guide from Traceloop/OpenLLMetry to Laminar, with an agent-driven path and manual steps."
+author:
+  name: Sam Komesarook
+  url: https://x.com/raymondmarkable
+tags: ["laminar", "traceloop", "openllmetry", "migration", "observability", "agents", "tracing", "open-source"]
+---
+
+Traceloop has announced it is joining ServiceNow (March 2026), with OpenLLMetry remaining open source while the commercial platform becomes part of ServiceNow's AI Control Tower. If you chose Traceloop because it was OTel-native and open source, you probably care that your next tool stays that way. Laminar is also built on OpenTelemetry, fully open source, and available self-hosted - so if you already emit OTel spans, the migration can be as small as changing your exporter endpoint. Traceloop combined OpenLLMetry instrumentation with a commercial platform for evaluators, monitors, experiments, and insights; this guide maps those features to Laminar equivalents. It covers three paths: swap your OTel exporter (2 minutes), let a coding agent handle the full SDK swap, or do it manually.
+
+## Fastest Path: Swap the OTLP Exporter (OTel Users)
+
+If you're already emitting OpenTelemetry spans (the main reason many teams picked Traceloop), you can keep your span structure and just point your exporter at Laminar. Traceloop defaults to OTLP/HTTP, while Laminar defaults to OTLP/gRPC. You can stay on HTTP, but we recommend gRPC for stability. For HTTP, `Authorization` is fine; for gRPC metadata, use lowercase `authorization`.
+
+```python
+# OTLP/HTTP (Traceloop default)
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+import os
+
+exporter = OTLPSpanExporter(
+    endpoint="https://api.lmnr.ai/v1/traces",
+    headers={"Authorization": f"Bearer {os.environ['LMNR_PROJECT_API_KEY']}"},
+)
+```
+
+```typescript
+// OTLP/HTTP (Traceloop default)
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+
+const exporter = new OTLPTraceExporter({
+  url: "https://api.lmnr.ai/v1/traces",
+  headers: {
+    Authorization: `Bearer ${process.env.LMNR_PROJECT_API_KEY}`,
+  },
+});
+```
+
+```typescript
+// OTLP/gRPC (recommended for Laminar)
+import { Metadata } from "@grpc/grpc-js";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc";
+
+const metadata = new Metadata();
+metadata.set("authorization", `Bearer ${process.env.LMNR_PROJECT_API_KEY}`);
+
+const exporter = new OTLPTraceExporter({
+  url: "https://api.lmnr.ai:8443/v1/traces",
+  metadata,
+});
+```
+
+See [OpenTelemetry](https://docs.laminar.sh/tracing/otel) for more context and Python gRPC examples.
+
+## Fast Path: Let the Agent Migrate It
+
+If you use Claude Code, Cursor, Codex, or another coding agent that supports skills, this is the fastest route. Run the `laminar-instrument-codebase` skill (see [Skills setup](https://docs.laminar.sh/getting-started#set-up-with-ai)) with the following prompt:
+
+```text
+Use the laminar-instrument-codebase skill to migrate this repo from Traceloop to Laminar.
+Replace Traceloop initialization with Laminar.initialize, keep existing trace structure,
+and verify traces in Laminar.
+```
+
+What it will do:
+
+- Install the Laminar SDK in the right package
+- Add `Laminar.initialize(...)` at the earliest safe startup point
+- Remove Traceloop initialization and vendor-specific settings
+- Keep existing spans and map context into Laminar tags/metadata
+- Verify traces show up in the Laminar UI
+
+## Manual Migration (Full Control)
+
+1. Create a Laminar project and set `LMNR_PROJECT_API_KEY`.
+2. Install the SDK (TypeScript: `npm add @lmnr-ai/lmnr`; Python: `pip install lmnr`). See [Hosting Options](https://docs.laminar.sh/hosting-options) if you are self-hosting.
+3. Replace Traceloop initialization with Laminar initialization.
+
+```typescript
+import { Laminar } from "@lmnr-ai/lmnr";
+
+Laminar.initialize({
+  projectApiKey: process.env.LMNR_PROJECT_API_KEY!,
+});
+```
+
+```python
+import os
+from lmnr import Laminar
+
+Laminar.initialize(project_api_key=os.environ["LMNR_PROJECT_API_KEY"])
+```
+
+4. If you're only using Traceloop for auto-instrumentation (no `@workflow` or `@task` decorators), you're done. This is a one-line migration: replace `Traceloop.init()` with `Laminar.initialize()`.
+5. If you use decorators or manual spans, map them to Laminar equivalents. Laminar collapses workflow/task into a single `@observe()` decorator - a simpler mental model with the same trace fidelity. Use the mapping table below.
+
+6. Verify in the UI.
+   Run a single request. You should see a full trace tree with LLM spans. Tool spans will appear if your tool layer is instrumented (e.g., LangChain/LlamaIndex) or if you wrap tool calls with `observe({ spanType: 'TOOL' })` (TypeScript) or `Laminar.start_as_current_span(..., span_type="TOOL")` (Python). If you only see a root span, add `observe(...)` or `@observe()` around your agent entrypoint. See [Viewing Traces](https://docs.laminar.sh/platform/viewing-traces).
+
+## Traceloop to Laminar Mapping
+
+<div className="overflow-x-auto">
+  <table className="min-w-[920px] w-full table-fixed text-left border-separate border-spacing-x-6 border-spacing-y-3">
+    <colgroup>
+      <col className="w-[32%]" />
+      <col className="w-[28%]" />
+      <col className="w-[40%]" />
+    </colgroup>
+    <thead className="text-sm text-white/70">
+      <tr>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">What You Used in Traceloop</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Laminar Equivalent</th>
+        <th className="px-2 py-1 font-medium whitespace-nowrap">Notes</th>
+      </tr>
+    </thead>
+    <tbody className="font-light text-white/85">
+      <tr>
+        <td className="px-2 py-1 align-top">
+          <code>Traceloop.init()</code> auto-instrumentation
+        </td>
+        <td className="px-2 py-1 align-top">
+          <code>Laminar.initialize()</code>
+        </td>
+        <td className="px-2 py-1 align-top">Same concept, both auto-instrument major providers.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">
+          <code>@workflow</code> / <code>@task</code> decorators
+        </td>
+        <td className="px-2 py-1 align-top">
+          <code>@observe()</code>
+        </td>
+        <td className="px-2 py-1 align-top">Simpler mental model - one decorator for everything.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">OpenLLMetry instrumentations</td>
+        <td className="px-2 py-1 align-top">Laminar instrumentations</td>
+        <td className="px-2 py-1 align-top">Both cover common providers like OpenAI, Anthropic, and LangChain.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">OTel span export</td>
+        <td className="px-2 py-1 align-top">OTel-native ingestion</td>
+        <td className="px-2 py-1 align-top">Redirect your exporter and keep your spans.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Built-in evaluators (faithfulness, relevance)</td>
+        <td className="px-2 py-1 align-top">Laminar evals SDK + CLI</td>
+        <td className="px-2 py-1 align-top">
+          Different approach - run evals locally or in CI, not as a managed service.
+        </td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Custom evaluators</td>
+        <td className="px-2 py-1 align-top">Laminar eval functions</td>
+        <td className="px-2 py-1 align-top">Write eval functions in code and run via SDK or CLI.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Monitors (production quality gates)</td>
+        <td className="px-2 py-1 align-top">Signals</td>
+        <td className="px-2 py-1 align-top">
+          Describe patterns in natural language; Laminar detects them across traces.
+        </td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Experiments / A/B model testing</td>
+        <td className="px-2 py-1 align-top">Playground + evals</td>
+        <td className="px-2 py-1 align-top">Compare model outputs and run evals against datasets.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Hub (LLM gateway)</td>
+        <td className="px-2 py-1 align-top">No equivalent</td>
+        <td className="px-2 py-1 align-top">Use LiteLLM or provider SDKs directly.</td>
+      </tr>
+      <tr>
+        <td className="px-2 py-1 align-top">Insights layer / drift detection</td>
+        <td className="px-2 py-1 align-top">Signals + SQL + dashboards</td>
+        <td className="px-2 py-1 align-top">Different mechanism - SQL queries + Signals vs automated insights.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+## What You Gain with Laminar
+
+- [Browser session recordings synced to traces](https://docs.laminar.sh/tracing/browser-agent-observability)
+- [SQL editor for ad-hoc analysis](https://docs.laminar.sh/platform/sql-editor)
+- [Signals for natural language monitoring](https://docs.laminar.sh/signals)
+- [Evals you can run locally or in CI](https://docs.laminar.sh/evaluations/introduction)
+- Fully open source and self-hostable, independent of enterprise platform roadmaps
+
+Once you're set up, explore [Signals](https://docs.laminar.sh/signals), [SQL analysis](https://docs.laminar.sh/platform/sql-editor), and [real-time agent tracing](https://docs.laminar.sh/platform/viewing-traces) in the docs.
+
+If anything doesn't map cleanly, drop into our [Discord](https://discord.gg/nNFUUDAKub) and we'll help you sort it out.

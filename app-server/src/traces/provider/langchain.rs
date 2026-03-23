@@ -24,7 +24,17 @@ use crate::{
     utils::json_value_to_string,
 };
 
-use super::openai::OpenAIChatMessageContentPartImageUrl;
+#[derive(Serialize, Debug)]
+struct LangChainChatMessageContentPartImageUrlInner {
+    url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    detail: Option<String>,
+}
+
+#[derive(Serialize, Debug)]
+struct LangChainChatMessageContentPartImageUrl {
+    image_url: LangChainChatMessageContentPartImageUrlInner,
+}
 
 #[derive(Serialize, Debug)]
 struct LangChainChatMessageContentPartText {
@@ -82,7 +92,7 @@ enum LangChainChatMessageContentPart {
         dead_code,
         reason = "While LangChain supports OpenAI-style image URLs, we convert to LangChain-style image, source_type=url"
     )]
-    ImageUrl(OpenAIChatMessageContentPartImageUrl),
+    ImageUrl(LangChainChatMessageContentPartImageUrl),
     Image(LangChainChatMessageContentPartImage),
     File(LangChainChatMessageContentPartFile),
     #[allow(
@@ -371,9 +381,6 @@ impl TryInto<Option<LangChainChatMessageContentPart>> for ChatMessageContentPart
             // LangChain CAN accept tool calls inside content parts, but we put them
             // in the tool_calls field instead, similar to OpenAI, so we skip them here.
             ChatMessageContentPart::ToolCall(_) => Ok(None),
-            ChatMessageContentPart::ImageRawBytes(_) => Err(anyhow::anyhow!(
-                "Image raw bytes is not supported in LangChain"
-            )),
         }
     }
 }
@@ -386,8 +393,8 @@ mod tests {
     use crate::{
         language_model::{
             ChatMessageContentPart, ChatMessageDocument, ChatMessageDocumentSource,
-            ChatMessageDocumentUrl, ChatMessageImage, ChatMessageImageRawBytes,
-            ChatMessageImageUrl, ChatMessageText, ChatMessageToolCall,
+            ChatMessageDocumentUrl, ChatMessageImage, ChatMessageImageUrl, ChatMessageText,
+            ChatMessageToolCall,
         },
         traces::spans::SpanAttributes,
     };
@@ -908,22 +915,6 @@ mod tests {
         assert!(result.is_none());
     }
 
-    #[test]
-    fn test_content_part_conversion_image_raw_bytes_error() {
-        let part = ChatMessageContentPart::ImageRawBytes(ChatMessageImageRawBytes {
-            image: vec![1, 2, 3, 4],
-            mime_type: Some("image/png".to_string()),
-        });
-        let result: Result<Option<LangChainChatMessageContentPart>, _> = part.try_into();
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Image raw bytes is not supported in LangChain")
-        );
-    }
-
     // Span conversion tests
     #[test]
     fn test_convert_span_to_langchain_with_input_and_output() {
@@ -1431,11 +1422,6 @@ mod tests {
             content: ChatMessageContent::ContentPartList(vec![
                 ChatMessageContentPart::Text(ChatMessageText {
                     text: "Valid text".to_string(),
-                }),
-                // unsupported content part
-                ChatMessageContentPart::ImageRawBytes(ChatMessageImageRawBytes {
-                    image: vec![1, 2, 3],
-                    mime_type: Some("image/png".to_string()),
                 }),
                 ChatMessageContentPart::Text(ChatMessageText {
                     text: "Another valid text".to_string(),

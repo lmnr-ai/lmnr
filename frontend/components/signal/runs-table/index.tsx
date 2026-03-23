@@ -15,7 +15,7 @@ import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators.ts";
+import { Operator } from "@/lib/actions/common/operators";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
 import { useToast } from "@/lib/hooks/use-toast";
 
@@ -57,15 +57,12 @@ function RunsTableContent() {
   const { toast } = useToast();
   const router = useRouter();
   const params = useParams<{ projectId: string; id: string }>();
-  const { signal, runsFilters, setRunsFilters, setTriggersFilters, setJobsFilters } = useSignalStoreContext(
-    (state) => ({
-      signal: state.signal,
-      runsFilters: state.runsFilters,
-      setRunsFilters: state.setRunsFilters,
-      setTriggersFilters: state.setTriggersFilters,
-      setJobsFilters: state.setJobsFilters,
-    })
-  );
+  const { signal, runsFilters, setRunsFilters, setJobsFilters } = useSignalStoreContext((state) => ({
+    signal: state.signal,
+    runsFilters: state.runsFilters,
+    setRunsFilters: state.setRunsFilters,
+    setJobsFilters: state.setJobsFilters,
+  }));
 
   const filter = runsFilters;
   const [dateRange, setDateRange] = useState<{
@@ -92,17 +89,12 @@ function RunsTableContent() {
     [setRunsFilters]
   );
 
-  const onTriggerNav = (row: Row<SignalRunRow>) => {
-    router.push(`/project/${params.projectId}/signals/${params.id}?tab=triggers`);
-    setTriggersFilters([{ column: "trigger_id", operator: Operator.Eq, value: row.original.triggerId }]);
-  };
-
   const onJobNav = (row: Row<SignalRunRow>) => {
     router.push(`/project/${params.projectId}/signals/${params.id}?tab=jobs`);
     setJobsFilters([{ column: "job_id", operator: Operator.Eq, value: row.original.jobId }]);
   };
 
-  const columns = getSignalRunsColumns({ onTriggerNav, onJobNav });
+  const columns = getSignalRunsColumns({ onJobNav });
   const fetchRuns = useCallback(
     async (pageNumber: number) => {
       try {

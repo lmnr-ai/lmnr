@@ -28,7 +28,7 @@ pub struct InternalSpan {
     pub input: Option<Value>,
     pub output: Option<Value>,
     pub input_tokens: Option<i32>,
-    pub input_cached_tokens: Option<i64>,
+    pub input_cached_tokens: Option<i32>,
     pub output_tokens: Option<i32>,
     pub model: String,
     pub provider: String,
@@ -37,6 +37,7 @@ pub struct InternalSpan {
     pub job_id: Option<Uuid>,
     pub error: Option<String>,
     pub provider_batch_id: Option<String>,
+    pub metadata: Option<HashMap<String, Value>>,
 }
 
 /// Try to parse JSON string, return the parsed value or the original string
@@ -72,7 +73,7 @@ pub fn extract_batch_id_from_operation(operation_name: &str) -> Result<String> {
 /// Converts short span IDs (last 4 hex chars of UUID) to full UUIDs using span_ids_map.
 ///
 /// Format: `<span id='a1b2' name='openai.chat' reference_text='...' />`
-/// Becomes: `[openai.chat](https://www.lmnr.ai/project/{project_id}/traces/{trace_id}?spanId={uuid})`
+/// Becomes: `[openai.chat](https://www.laminar.sh/project/{project_id}/traces/{trace_id}?spanId={uuid})`
 ///
 /// # Arguments
 /// * `attributes` - JSON value that may contain span tags in its string values
@@ -92,8 +93,7 @@ pub fn replace_span_tags_with_links(
     let json_str = serde_json::to_string(&attributes)?;
 
     // Pattern to match <span id='...' name='...' ... />
-    let pattern =
-        Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#)?;
+    let pattern = Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#)?;
 
     // Replace all span tags
     let replaced_str = pattern.replace_all(&json_str, |caps: &regex::Captures| {
@@ -107,7 +107,7 @@ pub fn replace_span_tags_with_links(
             .unwrap_or_else(|| short_id.to_string());
 
         format!(
-            "[{}](https://www.lmnr.ai/project/{}/traces/{}?spanId={})",
+            "[{}](https://www.laminar.sh/project/{}/traces/{}?spanId={})",
             span_name, project_id, trace_id, real_span_id
         )
     });
@@ -127,6 +127,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
     };
 
     let span_id = Uuid::new_v4();
+    let mut span_name = span.name.clone();
 
     let mut attrs = HashMap::from([
         (
@@ -166,10 +167,25 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         );
     }
     if let Some(provider_batch_id) = span.provider_batch_id {
+        span_name += ".batch";
         attrs.insert(
             "signal.batch_id".to_string(),
             Value::String(provider_batch_id.to_string()),
         );
+        attrs.insert("gen_ai.request.batch".to_string(), Value::Bool(true));
+        attrs.insert(
+            "lmnr.association.properties.tags".to_string(),
+            Value::String("batch".to_string()),
+        );
+    }
+
+    if let Some(metadata) = span.metadata {
+        for (key, value) in metadata {
+            attrs.insert(
+                format!("lmnr.association.properties.metadata.{}", key),
+                value,
+            );
+        }
     }
 
     attrs.insert(
@@ -185,7 +201,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         );
         attrs.insert(
             "lmnr.span.path".to_string(),
-            serde_json::json!(["signal.run".to_string(), span.name.to_string()]),
+            serde_json::json!(["signal.run".to_string(), span_name.to_string()]),
             // TODO: Pass parent span name in the message
         );
     } else {
@@ -195,7 +211,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         );
         attrs.insert(
             "lmnr.span.path".to_string(),
-            serde_json::json!([span.name.to_string()]),
+            serde_json::json!([span_name.to_string()]),
         );
     }
 
@@ -204,7 +220,7 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
         project_id,
         trace_id: span.trace_id,
         parent_span_id: span.parent_span_id,
-        name: span.name.to_string(),
+        name: span_name.to_string(),
         attributes: SpanAttributes::new(attrs),
         input: span.input,
         output: span.output,

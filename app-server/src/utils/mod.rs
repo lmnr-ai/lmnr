@@ -30,6 +30,22 @@ pub fn is_url(data: &str) -> bool {
     data.starts_with("http://") || data.starts_with("https://") || data.starts_with("data:")
 }
 
+pub fn infer_image_type(base64: &str) -> &str {
+    if base64.starts_with("/9j/") {
+        "image/jpeg"
+    } else if base64.starts_with("iVBORw0KGgo") {
+        "image/png"
+    } else if base64.starts_with("R0lGODlh") {
+        "image/gif"
+    } else if base64.starts_with("UklGR") {
+        "image/webp"
+    } else if base64.starts_with("PHN2Zz") {
+        "image/svg+xml"
+    } else {
+        "image/png"
+    }
+}
+
 pub fn sanitize_string(input: &str) -> String {
     // Remove Unicode null characters and invalid UTF-8 sequences
     input

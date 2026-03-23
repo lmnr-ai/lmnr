@@ -4,20 +4,22 @@ import { X } from "lucide-react";
 import { Controller, useFieldArray, useFormContext } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
-import {
-  type ColumnFilter,
-  dataTypeOperationsMap,
-  OperatorLabelMap,
-} from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { type ColumnFilter, dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.tsx";
 import { type Filter, type StringFilter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators.ts";
 
 export const SIGNAL_TRIGGER_COLUMNS: ColumnFilter[] = [
   { name: "Trace has span with name", key: "span_name", dataType: "string" },
   { name: "Status", key: "status", dataType: "enum", options: [{ label: "Error", value: "error" }] },
+  {
+    name: "Root span finished",
+    key: "root_span_finished",
+    dataType: "enum",
+    options: [{ label: "True", value: "true" }],
+  },
+  { name: "Total tokens", key: "total_token_count", dataType: "number" },
 ];
 
 export const getDefaultFilter = (): StringFilter => {
@@ -55,7 +57,7 @@ function FilterRow({ index, onRemove }: { index: number; onRemove: () => void })
 
   const column = SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === currentColumn);
   const dataType = column?.dataType || "string";
-  const operations = [{ key: Operator.Eq, label: OperatorLabelMap[Operator.Eq] }];
+  const operations = dataTypeOperationsMap[dataType] || dataTypeOperationsMap.string;
 
   const handleColumnChange = (newColumn: string, onChange: (value: string) => void) => {
     const newColumnDef = SIGNAL_TRIGGER_COLUMNS.find((c) => c.key === newColumn);

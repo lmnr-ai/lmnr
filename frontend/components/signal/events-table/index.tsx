@@ -2,12 +2,13 @@
 
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
-import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url.ts";
-import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import EventsChart from "@/components/signal/events-chart";
-import { useSignalStoreContext } from "@/components/signal/store.tsx";
+import ClustersSection from "@/components/signal/clusters-section";
+import ClusterBreadcrumbs from "@/components/signal/clusters-section/cluster-breadcrumbs";
+import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
+import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -18,10 +19,11 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
+import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type EventRow } from "@/lib/events/types";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { defaultEventsColumnOrder, eventsTableColumns, eventsTableFilters } from "./columns";
+import { buildEventsColumns } from "./columns";
 
 const FETCH_SIZE = 50;
 
@@ -55,19 +57,39 @@ function PureEventsTable() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
-  const { signal, lastEvent } = useSignalStoreContext((state) => ({
-    signal: state.signal,
-    lastEvent: state.lastEvent,
-  }));
+  const [clusterId] = useClusterId();
+  const signal = useSignalStoreContext((state) => state.signal);
+  const selectedEvent = useSignalStoreContext((state) => state.selectedEvent);
+  const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
+  const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
-  const chartContainerRef = useRef<HTMLDivElement>(null);
 
   const pastHours = searchParams.get("pastHours");
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
-  const filter = searchParams.getAll("filter");
+  const filterRaw = searchParams.getAll("filter");
+  const filter = useMemo(() => filterRaw, [JSON.stringify(filterRaw)]);
+
+  const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
+
+  const setTraceId = useSignalStoreContext((state) => state.setTraceId);
+  const setSelectedEvent = useSignalStoreContext((state) => state.setSelectedEvent);
+
+  // Listen for open-trace events from the traceId column button
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const traceId = (e as CustomEvent<string>).detail;
+      setTraceId(traceId);
+
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.set("traceId", traceId);
+      router.push(`${pathName}?${newParams.toString()}`);
+    };
+    window.addEventListener("open-trace", handler);
+    return () => window.removeEventListener("open-trace", handler);
+  }, [setTraceId, searchParams, pathName, router]);
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -89,6 +111,12 @@ function PureEventsTable() {
         }
 
         filter.forEach((f) => urlParams.append("filter", f));
+
+        if (isUnclusteredFilter) {
+          urlParams.set("unclustered", "true");
+        } else {
+          selectedClusterIds.forEach((id) => urlParams.append("clusterId", id));
+        }
 
         urlParams.set("eventDefinitionId", signal.id);
 
@@ -112,46 +140,24 @@ function PureEventsTable() {
       }
       return { items: [], count: 0 };
     },
-    [pastHours, startDate, endDate, filter, signal.id, params.projectId, toast]
+    [pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter, signal.id, params.projectId, toast]
   );
 
   const getRowHref = useCallback(
     (row: Row<EventRow>) => {
       const params = new URLSearchParams(searchParams.toString());
-      params.set("traceId", row.original.traceId);
+      params.set("eventId", row.original.id);
       return `${pathName}?${params.toString()}`;
     },
     [pathName, searchParams]
   );
 
-  const { traceId, setTraceId, fetchStats, setChartContainerWidth, chartContainerWidth } = useSignalStoreContext(
-    (state) => ({
-      traceId: state.traceId,
-      setTraceId: state.setTraceId,
-      fetchStats: state.fetchStats,
-      setChartContainerWidth: state.setChartContainerWidth,
-      chartContainerWidth: state.chartContainerWidth,
-    })
-  );
-
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
-      setTraceId(row.original.traceId);
+      setSelectedEvent(row.original);
     },
-    [setTraceId]
+    [setSelectedEvent]
   );
-
-  const statsUrl = useTimeSeriesStatsUrl({
-    baseUrl: `/api/projects/${params.projectId}/signals/${signal.id}/events/stats`,
-    chartContainerWidth,
-    pastHours,
-    startDate,
-    endDate,
-    filters: filter,
-    additionalParams: {
-      eventSource: "SEMANTIC",
-    },
-  });
 
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
 
@@ -164,13 +170,13 @@ function PureEventsTable() {
   } = useInfiniteScroll<EventRow>({
     fetchFn: fetchEvents,
     enabled: !!(pastHours || (startDate && endDate)),
-    deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter],
+    deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter],
   });
 
   const focusedRowId = useMemo(() => {
-    if (!traceId) return undefined;
-    return events?.find((event) => event.traceId === traceId)?.id;
-  }, [events, traceId]);
+    if (!selectedEvent) return undefined;
+    return selectedEvent.id;
+  }, [selectedEvent]);
 
   useEffect(() => {
     if (events) {
@@ -183,23 +189,6 @@ function PureEventsTable() {
   }, [events, setNavigationRefList]);
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const width = entry.contentRect.width;
-        setChartContainerWidth(width);
-      }
-    });
-
-    resizeObserver.observe(chartContainerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [setChartContainerWidth]);
-
-  useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
       const params = new URLSearchParams(searchParams.toString());
       params.set("pastHours", "72");
@@ -207,26 +196,11 @@ function PureEventsTable() {
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
 
-  useEffect(() => {
-    if (statsUrl) {
-      fetchStats(statsUrl);
-    }
-  }, [statsUrl, fetchStats]);
-
   return (
-    <div className="flex flex-col gap-2 flex-1">
-      <span className="text-xs text-muted-foreground font-medium">
-        Last event:{" "}
-        {lastEvent ? (
-          <ClientTimestampFormatter timestamp={lastEvent.timestamp} className="text-xs text-primary" />
-        ) : (
-          <span className="text-xs">-</span>
-        )}
-      </span>
-
+    <div className="flex flex-1 overflow-hidden px-4 pb-4">
       <InfiniteDataTable<EventRow>
         className="w-full"
-        columns={eventsTableColumns}
+        columns={columns}
         data={events}
         onRowClick={handleRowClick}
         getRowId={(row: EventRow) => row.id}
@@ -240,26 +214,31 @@ function PureEventsTable() {
         estimatedRowHeight={80}
         emptyRow={filter.length === 0 ? getEmptyRow({ pastHours, startDate, endDate }) : undefined}
       >
-        <div className="flex flex-1 w-full space-x-2">
-          <DataTableFilter columns={eventsTableFilters} />
+        <div className="flex flex-1 w-full h-full gap-2">
+          <DataTableFilter columns={filters} />
           <ColumnsMenu
-            columnLabels={eventsTableColumns.map((column) => ({
+            columnLabels={columns.map((column) => ({
               id: column.id!,
               label: typeof column.header === "string" ? column.header : column.id!,
             }))}
           />
           <DateRangeFilter />
         </div>
+        <ClusterBreadcrumbs />
         <DataTableFilterList />
-        <EventsChart className="w-full bg-secondary rounded border p-2" containerRef={chartContainerRef} />
+        <ClustersSection />
       </InfiniteDataTable>
     </div>
   );
 }
 
 export default function EventsTable() {
+  const signal = useSignalStoreContext((state) => state.signal);
+
+  const { columnOrder } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
+
   return (
-    <DataTableStateProvider storageKey="events-table" uniqueKey="id" defaultColumnOrder={defaultEventsColumnOrder}>
+    <DataTableStateProvider storageKey={`events-table-${signal.id}`} uniqueKey="id" defaultColumnOrder={columnOrder}>
       <PureEventsTable />
     </DataTableStateProvider>
   );

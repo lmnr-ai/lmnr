@@ -2,9 +2,10 @@ pub mod browser_events;
 pub mod cloud;
 pub mod data_plane;
 pub mod datapoints;
-pub mod evaluation_datapoints;
+
 pub mod limits;
 pub mod logs;
+pub mod notification_logs;
 pub mod service;
 pub mod signal_events;
 pub mod signal_run_messages;
@@ -27,6 +28,7 @@ use crate::db::workspaces::WorkspaceDeployment;
 pub enum Table {
     Spans,
     Traces,
+    NotificationLogs,
 }
 
 impl Table {
@@ -34,6 +36,7 @@ impl Table {
         match self {
             Table::Spans => "spans",
             Table::Traces => "traces_replacing",
+            Table::NotificationLogs => "notification_logs",
         }
     }
 }

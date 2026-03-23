@@ -1,11 +1,10 @@
-import { closeSearchPanel, findNext, openSearchPanel, SearchQuery, setSearchQuery } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 import CodeMirror, { type ReactCodeMirrorProps, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { Settings } from "lucide-react";
 import React, { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import Messages from "@/components/traces/span-view/messages";
-import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context.tsx";
+import { useSpanSearchRegistration } from "@/components/traces/span-view/span-search-context.tsx";
 import { Button } from "@/components/ui/button";
 import CodeSheet from "@/components/ui/content-renderer/code-sheet";
 import {
@@ -15,7 +14,7 @@ import {
   languageExtensions,
   modes as defaultModes,
   renderText,
-  theme,
+  theme as defaultTheme,
 } from "@/components/ui/content-renderer/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -38,9 +37,11 @@ interface ContentRendererProps {
   codeEditorClassName?: string;
   renderBase64Images?: boolean;
   defaultShowLineNumbers?: boolean;
-  searchTerm?: string;
   messageIndex?: number;
   contentPartIndex?: number;
+  hideScrollToBottom?: boolean;
+  messageMaxHeight?: number;
+  customTheme?: Parameters<typeof CodeMirror>[0]["theme"];
 }
 
 function restoreOriginalFromPlaceholders(newText: string, imageMap: Record<string, ImageData>): string {
@@ -69,16 +70,19 @@ const PureContentRenderer = ({
   codeEditorClassName,
   renderBase64Images = true,
   defaultShowLineNumbers = false,
-  searchTerm = "",
   messageIndex = 0,
   contentPartIndex = 0,
+  hideScrollToBottom,
+  messageMaxHeight,
+  customTheme,
 }: ContentRendererProps) => {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const editorId = useId();
 
   const editorIdRef = useRef(`editor-${editorId}`);
-  const searchCoordinator = useSpanSearchContext();
+  const searchRegistration = useSpanSearchRegistration();
+  const currentViewRef = useRef<EditorView | null>(null);
+  const [editorMountKey, setEditorMountKey] = useState(0);
 
   const [mode, setMode] = useState(() => {
     if (presetKey && typeof window !== "undefined") {
@@ -164,89 +168,20 @@ const PureContentRenderer = ({
     return extensions;
   }, [mode, shouldRenderImages, hasImages, readOnly, imageMap]);
 
-  const clearSearch = (view: EditorView) => {
-    closeSearchPanel(view);
-
-    const emptyQuery = new SearchQuery({ search: "" });
-    view.dispatch({
-      effects: setSearchQuery.of(emptyQuery),
-    });
-  };
-
-  const applySearch = useCallback(
-    (view: EditorView) => {
-      const searchTermTrimmed = searchTerm.trim();
-      if (searchTermTrimmed) {
-        const docText = view.state.doc.toString();
-
-        const hasEscapeSequences = /\\[nrt]/.test(searchTermTrimmed);
-        const processedSearchTerm = hasEscapeSequences
-          ? searchTermTrimmed.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r")
-          : searchTermTrimmed;
-
-        const hasMatch = docText.toLowerCase().includes(processedSearchTerm.toLowerCase());
-
-        if (hasMatch) {
-          openSearchPanel(view);
-
-          const searchQuery = new SearchQuery({
-            search: processedSearchTerm,
-            caseSensitive: false,
-            literal: true,
-            wholeWord: false,
-            regexp: false,
-          });
-
-          view.dispatch({
-            effects: setSearchQuery.of(searchQuery),
-          });
-
-          const selection = view.state.selection.main;
-
-          setTimeout(() => {
-            view.dispatch({
-              effects: EditorView.scrollIntoView(selection, { y: "end" }),
-            });
-            findNext(view);
-          }, 100);
-        } else {
-          clearSearch(view);
-        }
-      } else {
-        closeSearchPanel(view);
-      }
-    },
-    [searchTerm]
-  );
+  const handleCreateEditor = useCallback((view: EditorView) => {
+    currentViewRef.current = view;
+    setEditorMountKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
-    if (editorRef.current?.view) {
-      applySearch(editorRef.current?.view);
-    }
-  }, [searchTerm, applySearch, editorRef]);
-
-  // Register this editor with the search coordinator
-  useEffect(() => {
-    if (
-      searchCoordinator &&
-      editorRef.current?.view &&
-      containerRef.current &&
-      mode !== "custom" &&
-      mode !== "messages"
-    ) {
-      searchCoordinator.registerEditor(
-        editorIdRef.current,
-        editorRef.current.view,
-        messageIndex,
-        contentPartIndex,
-        containerRef.current
-      );
+    if (searchRegistration && currentViewRef.current && mode !== "custom" && mode !== "messages") {
+      searchRegistration.registerEditor(editorIdRef.current, currentViewRef.current, messageIndex, contentPartIndex);
 
       return () => {
-        searchCoordinator.unregisterEditor(editorIdRef.current);
+        searchRegistration.unregisterEditor(editorIdRef.current);
       };
     }
-  }, [searchCoordinator, messageIndex, contentPartIndex, mode]);
+  }, [searchRegistration, editorMountKey, messageIndex, contentPartIndex, mode]);
 
   const renderHeaderContent = () => (
     <>
@@ -316,7 +251,6 @@ const PureContentRenderer = ({
 
   return (
     <div
-      ref={containerRef}
       className={cn("size-full min-h-7 flex flex-col border relative", className)}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -330,7 +264,12 @@ const PureContentRenderer = ({
         </div>
       ) : mode === "messages" ? (
         <div className="flex-1 flex w-full min-h-0">
-          <Messages messages={tryParseJson(value) ?? []} presetKey={presetKey ?? ""} />
+          <Messages
+            messages={tryParseJson(value) ?? []}
+            presetKey={presetKey ?? ""}
+            hideScrollToBottom={hideScrollToBottom}
+            maxHeight={messageMaxHeight}
+          />
         </div>
       ) : (
         <div className={cn("flex-1 flex w-full overflow-hidden", !showLineNumbers && "pl-1", codeEditorClassName)}>
@@ -339,7 +278,7 @@ const PureContentRenderer = ({
             className="w-full"
             placeholder={placeholder}
             onChange={handleChange}
-            theme={theme}
+            theme={customTheme ?? defaultTheme}
             basicSetup={{
               lineNumbers: showLineNumbers,
               foldGutter: showLineNumbers,
@@ -347,7 +286,7 @@ const PureContentRenderer = ({
             extensions={extensions}
             value={renderedValue}
             readOnly={readOnly}
-            onCreateEditor={applySearch}
+            onCreateEditor={handleCreateEditor}
           />
         </div>
       )}

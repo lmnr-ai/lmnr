@@ -2,6 +2,9 @@ import { withSentryConfig } from "@sentry/nextjs";
 import { type NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  env: {
+    LAMINAR_CLOUD: process.env.LAMINAR_CLOUD,
+  },
   experimental: {
     turbopackFileSystemCacheForDev: true,
   },
@@ -25,7 +28,7 @@ const nextConfig: NextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://esm.sh https://p.laminar.sh https://us.i.posthog.com https://www.gstatic.com http://www.gstatic.com; worker-src 'self' blob: https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https: data:; font-src 'self' https: data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: ws: https://p.laminar.sh https://us.i.posthog.com https://github.com https://api.github.com; frame-src 'self' https://unpkg.com; media-src 'self' https://*.mux.com https://*.muxed.com blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://github.com; frame-ancestors 'none';",
+              "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://esm.sh https://p.laminar.sh https://us.i.posthog.com https://www.gstatic.com http://www.gstatic.com; worker-src 'self' blob: https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https: data:; font-src 'self' https: data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: ws: https://p.laminar.sh https://us.i.posthog.com https://github.com https://api.github.com; frame-src 'self' https://unpkg.com https://www.youtube-nocookie.com; media-src 'self' https://*.mux.com https://*.muxed.com blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://github.com; frame-ancestors 'none';",
           },
           {
             key: "X-Content-Type-Options",
@@ -86,6 +89,7 @@ if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.FRONTEND_SENTRY_DSN)
 
     org: process.env.SENTRY_ORG,
     project: process.env.FRONTEND_SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
 
     // Only print logs for uploading source maps in CI
     silent: true,
@@ -103,7 +107,11 @@ if (process.env.ENVIRONMENT === "PRODUCTION" && process.env.FRONTEND_SENTRY_DSN)
     tunnelRoute: "/monitoring",
 
     // Automatically tree-shake Sentry logger statements to reduce bundle size
-    disableLogger: true,
+    webpack: {
+      treeshake: {
+        removeDebugLogging: true,
+      },
+    },
   });
 } else {
   module.exports = nextConfig;

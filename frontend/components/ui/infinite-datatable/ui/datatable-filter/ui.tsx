@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input.tsx";
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip.tsx";
-import { type Filter } from "@/lib/actions/common/filters";
+import { type Filter, type FilterDataType } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils.ts";
 
@@ -70,11 +70,13 @@ const FilterPopover = ({
   const handleApplyFilters = useCallback(
     (filter: { column: string; operator: Operator; value: string | number | string[] }) => {
       const column = find(columns, ["key", filter.column]);
-      const dataType = column?.dataType || "string";
+      const uiDataType = column?.dataType || "string";
+      // Map "enum" to "string" for the filter schema — enum is a UI-only concept
+      const dataType: FilterDataType = uiDataType === "enum" ? "string" : uiDataType;
 
       const filterValue = dataType === "array" && typeof filter.value === "string" ? [filter.value] : filter.value;
 
-      const filterToAdd = { ...filter, value: filterValue } as Filter;
+      const filterToAdd = { ...filter, dataType, value: filterValue } as Filter;
       if (!filters.some((f) => isEqual(f, filterToAdd))) {
         onAddFilter(filterToAdd);
       }

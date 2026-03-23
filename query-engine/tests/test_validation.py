@@ -177,6 +177,35 @@ class TestQueryValidator:
         with pytest.raises(QueryValidationError, match="not allowed"):
             query_validator.validate_and_secure_query("SELECT * FROM system.users", sample_project_id)
 
+    def test_reject_dangerous_functions(self, query_validator: QueryValidator, sample_project_id: str):
+        """Test that dangerous ClickHouse functions are blocked"""
+        dangerous_queries = [
+            "SELECT url('http://attacker.com') FROM spans",
+            "SELECT file('/etc/passwd') FROM spans",
+            "SELECT * FROM remote('attacker.com', 'db', 'table')",
+            "SELECT * FROM remoteSecure('attacker.com', 'db', 'table')",
+            "SELECT * FROM s3('http://bucket/key')",
+            "SELECT * FROM mysql('host', 'db', 'table', 'user', 'pass')",
+            "SELECT * FROM postgresql('host', 'db', 'table', 'user', 'pass')",
+        ]
+
+        for query in dangerous_queries:
+            with pytest.raises(QueryValidationError, match="not allowed"):
+                query_validator.validate_and_secure_query(query, sample_project_id)
+
+    def test_allow_safe_functions(self, query_validator: QueryValidator, sample_project_id: str):
+        """Test that safe aggregate and scalar functions are allowed"""
+        safe_queries = [
+            "SELECT countIf(status = 'ERROR') FROM spans",
+            "SELECT sum(total_cost) FROM spans",
+            "SELECT toStartOfInterval(start_time, INTERVAL 5 MINUTE) AS t FROM spans",
+            "SELECT quantile(0.9)(duration) FROM spans",
+        ]
+
+        for query in safe_queries:
+            # Should not raise
+            query_validator.validate_and_secure_query(query, sample_project_id)
+
     def test_reject_project_id_access(self, query_validator: QueryValidator, sample_project_id: str):
         """Test that direct project_id access is rejected"""
         with pytest.raises(QueryValidationError, match="Column 'project_id' does not exist"):

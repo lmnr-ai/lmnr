@@ -39,6 +39,7 @@ const BrowserScreenRecordingImage = ({ className }: Props) => {
           muted={true}
           loop={true}
           thumbnailTime={0}
+          minResolution="1080p"
           style={
             {
               width: "100%",

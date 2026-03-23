@@ -24,6 +24,9 @@ pub struct SubmitSignalJobRequest {
     pub signal_id: Uuid,
     #[serde(default)]
     pub parameters: HashMap<String, serde_json::Value>,
+    /// 0 = batch, 1 = realtime
+    #[serde(default)]
+    pub mode: u8,
 }
 
 #[derive(Serialize)]
@@ -69,6 +72,7 @@ pub async fn submit_signal_job(
         query,
         parameters,
         signal_id,
+        mode,
     } = request.into_inner();
 
     let clickhouse_client = match clickhouse_ro.as_ref() {
@@ -144,6 +148,7 @@ pub async fn submit_signal_job(
         trace_ids,
         clickhouse.as_ref().clone(),
         queue.as_ref().clone(),
+        mode,
     )
     .await
     .map_err(|e| {

@@ -7,6 +7,7 @@ import { type CategoricalChartFunc } from "recharts/types/chart/generateCategori
 
 import { numberFormatter, parseUtcTimestamp, selectNiceTicksFromData } from "@/components/chart-builder/charts/utils";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { cn } from "@/lib/utils";
 
 import RoundedBar from "./bar";
 import { type TimeSeriesChartProps, type TimeSeriesDataPoint } from "./types";
@@ -32,7 +33,8 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   onZoom,
   formatValue = numberFormatter.format,
   showTotal = true,
-}: Omit<TimeSeriesChartProps<T>, "isLoading" | "className">) {
+  className,
+}: Omit<TimeSeriesChartProps<T>, "isLoading">) {
   const router = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -104,8 +106,8 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
   );
 
   return (
-    <div className="flex flex-col items-start">
-      <ChartContainer config={chartConfig} className="h-48 w-full">
+    <div className="flex flex-col items-start h-full">
+      <ChartContainer config={chartConfig} className={cn("h-48 w-full", className)}>
         <BarChart
           data={data}
           margin={{ left: -8, top: 8 }}

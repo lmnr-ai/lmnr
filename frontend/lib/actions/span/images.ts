@@ -27,7 +27,7 @@ export async function getSpanImages(input: z.infer<typeof GetSpanImagesSchema>):
 
   const chResult = await clickhouseClient.query({
     query: `
-      SELECT span_id, name, start_time, end_time, input, output
+      SELECT span_id, name, start_time, end_time, input
       FROM spans
       WHERE span_id IN {spanIds: Array(UUID)} AND project_id = {projectId: UUID} AND trace_id = {traceId: UUID}
       ORDER BY start_time ASC
@@ -42,7 +42,6 @@ export async function getSpanImages(input: z.infer<typeof GetSpanImagesSchema>):
     start_time: string;
     end_time: string;
     input: string;
-    output: string;
   }>;
 
   return chData.flatMap((spanData) => {

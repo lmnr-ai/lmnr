@@ -1,4 +1,4 @@
-import { scaleTime, scaleUtc } from "d3-scale";
+import { scaleTime } from "d3-scale";
 import { format, isValid, parseISO } from "date-fns";
 import { isNil } from "lodash";
 
@@ -104,9 +104,9 @@ export const selectNiceTicksFromData = (
 
   if (!isValid(startDate) || !isValid(endDate)) return null;
 
-  const scale = scaleUtc().domain([startDate, endDate]);
+  const scale = scaleTime().domain([startDate, endDate]);
   const idealTicks = scale.ticks(targetTickCount);
-  const formatTick = scaleTime().domain([startDate, endDate]).tickFormat();
+  const formatTick = scale.tickFormat();
 
   const findClosestTimestamp = (targetTime: number) =>
     dataTimestamps.reduce((closest, current) => {

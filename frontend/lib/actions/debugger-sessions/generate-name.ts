@@ -1,6 +1,7 @@
-import { google } from "@ai-sdk/google";
 import { generateObject } from "ai";
 import { z } from "zod";
+
+import { getLanguageModel } from "@/lib/ai/model";
 
 const MAX_PROMPT_CHARS = 500;
 
@@ -19,7 +20,7 @@ export async function generatePromptName(promptContent: string): Promise<Generat
   const truncated = promptContent.slice(0, MAX_PROMPT_CHARS);
 
   const { object } = await generateObject({
-    model: google("gemini-2.5-flash-lite"),
+    model: getLanguageModel("lite"),
     schema: NameResultSchema,
     prompt: `Given this system prompt, generate a short 2-5 word descriptive name for the agent/role it defines. If the input is not a valid system prompt or is too vague to name, set success to false with a brief error.\n\nSystem prompt:\n${truncated}`,
   });

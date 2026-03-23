@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    env,
-    sync::{Arc, LazyLock},
+    sync::LazyLock,
 };
 
 use anyhow::Result;
@@ -23,9 +22,7 @@ use crate::{
         ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatMessageText,
         ChatMessageToolCall, InstrumentationChatMessageContentPart,
     },
-    mq::{MessageQueue, utils::mq_max_payload},
     opentelemetry_proto::opentelemetry_proto_trace_v1::Span as OtelSpan,
-    storage::producer::publish_payload,
     traces::{
         span_attributes::{GEN_AI_CACHE_READ_INPUT_TOKENS, GEN_AI_CACHE_WRITE_INPUT_TOKENS},
         utils::{convert_any_value_to_json_value, serialize_indexmap},
@@ -50,13 +47,6 @@ const OUTPUT_ATTRIBUTE_NAME: &str = "lmnr.span.output";
 /// is not sent to the backend – this is done to overwrite trace IDs for spans.
 const OVERRIDE_PARENT_SPAN_ATTRIBUTE_NAME: &str = "lmnr.internal.override_parent_span";
 const TRACING_LEVEL_ATTRIBUTE_NAME: &str = "lmnr.internal.tracing_level";
-
-// Minimal number of tokens in the input or output to store the payload
-// in storage instead of database.
-//
-// We use 7/2 as an estimate of the number of characters per token.
-// And 128K is a common input size for LLM calls.
-const DEFAULT_PAYLOAD_SIZE_THRESHOLD: usize = 128_000 * 7 / 2; // approx 448KB
 
 const HAS_BROWSER_SESSION_ATTRIBUTE_NAME: &str = "lmnr.internal.has_browser_session";
 
@@ -102,6 +92,32 @@ impl SpanAttributes {
     pub fn new(attributes: HashMap<String, Value>) -> Self {
         Self {
             raw_attributes: attributes,
+        }
+    }
+
+    pub fn string_attr(&self, key: &str) -> Option<String> {
+        match self.raw_attributes.get(key) {
+            Some(Value::String(s)) => Some(s.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn int_attr(&self, key: &str) -> Option<i64> {
+        match self.raw_attributes.get(key) {
+            Some(Value::Number(n)) => n.as_i64(),
+            _ => None,
+        }
+    }
+
+    pub fn bool_attr(&self, key: &str) -> Option<bool> {
+        match self.raw_attributes.get(key) {
+            Some(Value::Bool(b)) => Some(*b),
+            Some(Value::String(s)) => match s.to_lowercase().as_str() {
+                "true" | "1" => Some(true),
+                "false" | "0" => Some(false),
+                _ => None,
+            },
+            _ => None,
         }
     }
 
@@ -804,100 +820,6 @@ impl Span {
             self.input = None;
             self.output = None;
         }
-    }
-
-    pub async fn store_payloads(
-        &mut self,
-        project_id: &Uuid,
-        queue: Arc<MessageQueue>,
-    ) -> Result<()> {
-        let payload_size_threshold = env::var("MAX_DB_SPAN_PAYLOAD_BYTES")
-            .ok()
-            .and_then(|s: String| s.parse::<usize>().ok())
-            .unwrap_or(DEFAULT_PAYLOAD_SIZE_THRESHOLD);
-        let Ok(bucket) = std::env::var("S3_TRACE_PAYLOADS_BUCKET") else {
-            log::error!("S3_TRACE_PAYLOADS_BUCKET is not set");
-            return Err(anyhow::anyhow!("S3_TRACE_PAYLOADS_BUCKET is not set"));
-        };
-        if let Some(input) = self.input.clone() {
-            let span_input = serde_json::from_value::<Vec<ChatMessage>>(input);
-            if let Ok(span_input) = span_input {
-                let mut new_messages = Vec::new();
-                for mut message in span_input {
-                    if let ChatMessageContent::ContentPartList(parts) = message.content {
-                        let mut new_parts = Vec::new();
-                        for part in parts {
-                            let stored_part =
-                                match part.store_media(project_id, queue.clone(), &bucket).await {
-                                    Ok(stored_part) => stored_part,
-                                    Err(e) => {
-                                        log::error!("Error storing media: {e}");
-                                        part
-                                    }
-                                };
-                            new_parts.push(stored_part);
-                        }
-                        message.content = ChatMessageContent::ContentPartList(new_parts);
-                    }
-                    new_messages.push(message);
-                }
-                self.input = Some(serde_json::to_value(new_messages).unwrap());
-            } else {
-                let mut data = Vec::new();
-                serde_json::to_writer(&mut data, &self.input)?;
-                if data.len() > payload_size_threshold {
-                    let key = crate::storage::create_key(project_id, &None);
-                    let preview = String::from_utf8_lossy(&data).chars().take(100).collect();
-                    log::info!(
-                        "Span input for span_id: [{}], project_id: [{}], is too large, storing in storage. Payload size: [{}]",
-                        self.span_id,
-                        project_id,
-                        data.len()
-                    );
-                    if data.len() >= mq_max_payload() {
-                        log::warn!(
-                            "[STORAGE] MQ payload limit exceeded (span input). Project ID: [{}], span_id: [{}], payload size: [{}]",
-                            project_id,
-                            self.span_id,
-                            data.len()
-                        );
-                    } else {
-                        let url = publish_payload(queue.clone(), &bucket, &key, data).await?;
-                        self.input_url = Some(url);
-                        self.input = Some(serde_json::Value::String(preview));
-                    }
-                }
-            }
-        }
-        if let Some(output) = self.output.clone() {
-            let output_str = serde_json::to_string(&output).unwrap_or_default();
-            if output_str.len() > payload_size_threshold {
-                let key = crate::storage::create_key(project_id, &None);
-                let mut data = Vec::new();
-                serde_json::to_writer(&mut data, &output)?;
-                log::info!(
-                    "Span output for span_id: [{}], project_id: [{}], is too large, storing in storage. Payload size: [{}]",
-                    self.span_id,
-                    project_id,
-                    data.len()
-                );
-                if data.len() >= mq_max_payload() {
-                    log::warn!(
-                        "[STORAGE] MQ payload limit exceeded (span output). Project ID: [{}], span_id: [{}], payload size: [{}]",
-                        project_id,
-                        self.span_id,
-                        data.len()
-                    );
-                } else {
-                    let url = publish_payload(queue, &bucket, &key, data).await?;
-                    self.output_url = Some(url);
-                    self.output = Some(serde_json::Value::String(
-                        output_str.chars().take(100).collect(),
-                    ));
-                }
-            }
-        }
-        Ok(())
     }
 
     /// This function MUST to be called right after we deserialize or create a span object.

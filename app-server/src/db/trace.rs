@@ -51,6 +51,8 @@ pub struct Trace {
     num_spans: i64,
     has_browser_session: Option<bool>,
     span_names: Option<Value>,
+    root_span_input: Option<String>,
+    root_span_output: Option<String>,
 }
 
 impl Trace {
@@ -119,6 +121,12 @@ impl Trace {
         self.has_browser_session.clone()
     }
 
+    pub fn root_span_input(&self) -> Option<String> {
+        self.root_span_input.clone()
+    }
+    pub fn root_span_output(&self) -> Option<String> {
+        self.root_span_output.clone()
+    }
     pub fn span_names(&self) -> Vec<String> {
         self.span_names
             .as_ref()
@@ -202,6 +210,8 @@ impl Trace {
                 evaluate_string_filter(&status, &filter.operator, &filter.value)
             }
 
+            "root_span_finished" => self.top_span_id.is_some(),
+
             _ => {
                 log::warn!("Unknown filter column: {}", filter.column);
                 false
@@ -234,30 +244,32 @@ pub async fn upsert_trace_statistics_batch(
         let trace = sqlx::query_as::<_, Trace>(
             r#"
             INSERT INTO traces (
-                id, 
-                project_id, 
-                start_time, 
-                end_time, 
+                id,
+                project_id,
+                start_time,
+                end_time,
                 type,
                 top_span_id,
                 top_span_name,
                 top_span_type,
-                session_id, 
-                metadata, 
+                session_id,
+                metadata,
                 user_id,
-                input_token_count, 
-                output_token_count, 
-                total_token_count, 
-                input_cost, 
-                output_cost, 
+                input_token_count,
+                output_token_count,
+                total_token_count,
+                input_cost,
+                output_cost,
                 cost,
                 status,
                 tags,
                 num_spans,
                 has_browser_session,
-                span_names
+                span_names,
+                root_span_input,
+                root_span_output
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
             ON CONFLICT (project_id, id) DO UPDATE SET
                 start_time = LEAST(traces.start_time, EXCLUDED.start_time),
                 end_time = GREATEST(traces.end_time, EXCLUDED.end_time),
@@ -280,30 +292,34 @@ pub async fn upsert_trace_statistics_batch(
                 num_spans = traces.num_spans + EXCLUDED.num_spans,
                 has_browser_session = COALESCE(EXCLUDED.has_browser_session, traces.has_browser_session),
                 -- `||` operator merges span_names objects to keep unique names
-                span_names = COALESCE(traces.span_names || EXCLUDED.span_names, EXCLUDED.span_names, traces.span_names)
-            RETURNING 
-                id, 
-                project_id, 
-                start_time, 
-                end_time, 
+                span_names = COALESCE(traces.span_names || EXCLUDED.span_names, EXCLUDED.span_names, traces.span_names),
+                root_span_input = COALESCE(EXCLUDED.root_span_input, traces.root_span_input),
+                root_span_output = COALESCE(EXCLUDED.root_span_output, traces.root_span_output)
+            RETURNING
+                id,
+                project_id,
+                start_time,
+                end_time,
                 type,
                 top_span_id,
                 top_span_name,
                 top_span_type,
-                session_id, 
-                metadata, 
+                session_id,
+                metadata,
                 user_id,
-                input_token_count, 
-                output_token_count, 
-                total_token_count, 
-                input_cost, 
-                output_cost, 
+                input_token_count,
+                output_token_count,
+                total_token_count,
+                input_cost,
+                output_cost,
                 cost,
                 status,
                 tags,
                 num_spans,
                 has_browser_session,
-                span_names
+                span_names,
+                root_span_input,
+                root_span_output
             "#,
         )
         .bind(agg.trace_id)
@@ -328,6 +344,8 @@ pub async fn upsert_trace_statistics_batch(
         .bind(agg.num_spans)
         .bind(agg.has_browser_session)
         .bind(&span_names_jsonb)
+        .bind(&agg.root_span_input)
+        .bind(&agg.root_span_output)
         .fetch_one(pool)
         .await?;
 

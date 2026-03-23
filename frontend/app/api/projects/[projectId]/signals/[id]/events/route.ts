@@ -3,6 +3,7 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { getEventsPaginated, GetEventsPaginatedSchema } from "@/lib/actions/events";
+import { checkDataRetentionAccess } from "@/lib/actions/usage/limits";
 
 export async function GET(
   req: NextRequest,
@@ -12,11 +13,20 @@ export async function GET(
   const { projectId, id: signalId } = params;
   const parseResult = parseUrlParams(
     req.nextUrl.searchParams,
-    GetEventsPaginatedSchema.omit({ projectId: true, signalId: true })
+    GetEventsPaginatedSchema.omit({ projectId: true, signalId: true }),
+    ["filter", "searchIn", "clusterId"]
   );
 
   if (!parseResult.success) {
     return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+  }
+
+  const retentionError = await checkDataRetentionAccess(projectId, {
+    pastHours: parseResult.data.pastHours,
+    startDate: parseResult.data.startDate,
+  });
+  if (retentionError) {
+    return retentionError;
   }
 
   try {

@@ -54,6 +54,7 @@ export async function POST(
       projectId,
       signalId,
       filters: body.filters,
+      mode: body.mode ?? 0,
     });
 
     return Response.json(result);
@@ -82,6 +83,7 @@ export async function PUT(
       signalId,
       triggerId: body.triggerId,
       filters: body.filters,
+      mode: body.mode,
     });
 
     if (!result) {

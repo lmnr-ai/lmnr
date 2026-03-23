@@ -3,52 +3,33 @@
 //! - Pushes results to the Pending Queue for polling
 
 use async_trait::async_trait;
-use chrono::Utc;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    ch::{
-        signal_run_messages::{
-            CHSignalRunMessage, delete_signal_run_messages, get_signal_run_messages,
-            insert_signal_run_messages,
-        },
-        signal_runs::{CHSignalRun, insert_signal_runs},
-    },
-    db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
+    ch::signal_run_messages::{CHSignalRunMessage, insert_signal_run_messages},
+    db::DB,
     mq::MessageQueue,
     signals::{
-        LLM_MODEL, LLM_PROVIDER, SignalRun, SignalWorkerConfig,
-        gemini::{
-            Content, GeminiClient, GenerateContentRequest, GenerationConfig, InlineRequestItem,
-            Part,
-        },
-        prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
+        SignalRun, SignalWorkerConfig, llm_model, llm_provider,
+        provider::{LanguageModelClient, ProviderClient, models::ProviderRequestItem},
         queue::{
             SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
-            push_to_pending_queue,
+            push_to_pending_queue, push_to_realtime_queue, push_to_signals_queue,
         },
-        spans::get_trace_structure_as_string,
-        tools::build_tool_definitions,
-        utils::{InternalSpan, emit_internal_span, extract_batch_id_from_operation},
+        utils::extract_batch_id_from_operation,
     },
     utils::get_unsigned_env_with_default,
     worker::{HandlerError, MessageHandler},
 };
 
-const DEFAULT_SLEEP_DURATION_FOR_DELAYED_RETRY: usize = 60;
-
-struct ProcessRunResult {
-    request: InlineRequestItem,
-    new_messages: Vec<CHSignalRunMessage>,
-    request_start_time: chrono::DateTime<Utc>,
-}
+use crate::signals::common::{ProcessRunResult, handle_failed_runs, process_run};
 
 pub struct SignalJobSubmissionBatchHandler {
     pub db: Arc<DB>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
-    pub gemini: Arc<GeminiClient>,
+    pub llm_client: Arc<ProviderClient>,
     pub config: Arc<SignalWorkerConfig>,
 }
 
@@ -57,14 +38,14 @@ impl SignalJobSubmissionBatchHandler {
         db: Arc<DB>,
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
-        gemini: Arc<GeminiClient>,
+        llm_client: Arc<ProviderClient>,
         config: Arc<SignalWorkerConfig>,
     ) -> Self {
         Self {
             db,
             queue,
             clickhouse,
-            gemini,
+            llm_client,
             config,
         }
     }
@@ -85,7 +66,7 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
             self.db.clone(),
             self.clickhouse.clone(),
             self.queue.clone(),
-            self.gemini.clone(),
+            self.llm_client.clone(),
             self.config.clone(),
         )
         .await
@@ -97,10 +78,10 @@ async fn process(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    gemini: Arc<GeminiClient>,
+    llm_client: Arc<ProviderClient>,
     config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
-    let mut requests: Vec<InlineRequestItem> = Vec::with_capacity(msg.messages.len());
+    let mut requests: Vec<ProviderRequestItem> = Vec::with_capacity(msg.messages.len());
     let mut all_new_messages: Vec<CHSignalRunMessage> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
     let mut successful_messages: Vec<SignalMessage> = Vec::new();
@@ -121,8 +102,8 @@ async fn process(
             &signal.prompt,
             &signal.name,
             &signal.structured_output_schema,
-            &LLM_MODEL,
-            &LLM_PROVIDER,
+            &llm_model(),
+            &llm_provider(),
             clickhouse.clone(),
             queue.clone(),
             config.internal_project_id,
@@ -158,9 +139,7 @@ async fn process(
         log::error!("[SIGNAL JOB] No requests to submit");
         // All runs failed during processing, handle them before returning
         handle_failed_runs(clickhouse, db, failed_runs).await;
-        return Err(HandlerError::permanent(anyhow::anyhow!(
-            "No requests to submit"
-        )));
+        return Ok(());
     }
 
     // Insert new messages into ClickHouse
@@ -172,9 +151,15 @@ async fn process(
             })?;
     }
 
-    // Submit batch to Gemini API
-    let batch_result =
-        submit_batch_to_gemini(&LLM_MODEL, gemini, requests, successful_messages, queue).await;
+    // Submit batch to LLM API
+    let batch_result = submit_batch_to_llm(
+        &llm_model(),
+        llm_client,
+        requests,
+        successful_messages,
+        queue,
+    )
+    .await;
 
     match batch_result {
         Ok(()) => {
@@ -193,16 +178,16 @@ async fn process(
     }
 }
 
-/// Submit batch to Gemini API and push to pending queue on success.
+/// Submit batch to LLM API and push to pending queue on success.
 /// On failure, returns the failed runs and the handler error.
-async fn submit_batch_to_gemini(
+async fn submit_batch_to_llm(
     model: &str,
-    gemini: Arc<GeminiClient>,
-    requests: Vec<InlineRequestItem>,
+    llm_client: Arc<ProviderClient>,
+    requests: Vec<ProviderRequestItem>,
     messages: Vec<SignalMessage>,
     queue: Arc<MessageQueue>,
 ) -> Result<(), (Vec<SignalRun>, HandlerError)> {
-    match gemini
+    match llm_client
         .create_batch(
             model,
             requests,
@@ -253,254 +238,62 @@ async fn submit_batch_to_gemini(
             Ok(())
         }
         Err(e) => {
-            log::error!("[SIGNAL JOB] Failed to submit batch to Gemini: {:?}", e);
+            log::error!("[SIGNAL JOB] Failed to submit batch to LLM: {:?}", e);
+
+            let error_msg = format!("Batch submission failed: {}", e);
+
+            if matches!(e, crate::signals::provider::ProviderError::NotSupported(_)) {
+                log::info!(
+                    "[SIGNAL JOB] Batch API not supported by provider, falling back to realtime API"
+                );
+                for message in messages {
+                    if let Err(push_err) = push_to_realtime_queue(message, queue.clone()).await {
+                        log::error!(
+                            "Failed to push to realtime queue after batch not supported: {:?}",
+                            push_err
+                        );
+                    }
+                }
+                return Ok(());
+            }
+
+            if e.is_retryable() {
+                let max_retry_count = get_unsigned_env_with_default("SIGNALS_MAX_RETRY_COUNT", 4);
+
+                for mut message in messages {
+                    // only increment on 429 so we can push to realtime queue when batch API's overloaded
+                    message.retry_count += if e.is_resource_exhausted() { 1 } else { 0 };
+
+                    if message.retry_count >= max_retry_count {
+                        if let Err(push_err) = push_to_realtime_queue(message, queue.clone()).await
+                        {
+                            log::error!(
+                                "Failed to push to realtime queue after max retries: {:?}",
+                                push_err
+                            );
+                        }
+                    } else {
+                        // Still under retry limit - push back to signals queue to try batch again
+                        if let Err(push_err) = push_to_signals_queue(message, queue.clone()).await {
+                            log::error!(
+                                "Failed to push back to signals queue for retry: {:?}",
+                                push_err
+                            );
+                        }
+                    }
+                }
+                // Return Ok because we've re-enqueued individual items for retry
+                return Ok(());
+            }
 
             let batch_failed_runs = messages
                 .iter()
                 .map(|message| {
-                    SignalRun::from_message(message, message.signal.id)
-                        .failed(&format!("Batch submission failed: {}", e))
+                    SignalRun::from_message(message, message.signal.id).failed(&error_msg)
                 })
                 .collect();
 
-            let handler_error = if e.is_retryable() {
-                if e.is_resource_exhausted() {
-                    let sleep_duration = get_unsigned_env_with_default(
-                        "SIGNAL_JOB_SLEEP_BEFORE_RETRY_SEC",
-                        DEFAULT_SLEEP_DURATION_FOR_DELAYED_RETRY,
-                    );
-                    tokio::time::sleep(Duration::from_secs(sleep_duration as u64)).await;
-                }
-                HandlerError::transient(e)
-            } else {
-                HandlerError::permanent(e)
-            };
-
-            Err((batch_failed_runs, handler_error))
+            Err((batch_failed_runs, HandlerError::permanent(e)))
         }
     }
-}
-
-/// Insert failed runs into ClickHouse and delete their messages
-async fn handle_failed_runs(
-    clickhouse: clickhouse::Client,
-    db: Arc<DB>,
-    failed_runs: Vec<SignalRun>,
-) {
-    if failed_runs.is_empty() {
-        return;
-    }
-
-    // Insert failed runs into ClickHouse
-    let failed_runs_ch: Vec<CHSignalRun> = failed_runs.iter().map(CHSignalRun::from).collect();
-    if let Err(e) = insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await {
-        log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
-    }
-
-    // Delete messages for failed runs since they won't be processed further
-    let project_run_pairs: Vec<(Uuid, Uuid)> = failed_runs
-        .iter()
-        .map(|run| (run.project_id, run.run_id))
-        .collect();
-
-    if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
-        log::error!(
-            "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
-            e
-        );
-    }
-
-    // Update job statistics - group by job_id since runs may belong to different jobs
-    let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
-    for run in &failed_runs {
-        if let Some(job_id) = run.job_id {
-            *failed_by_job.entry(job_id).or_insert(0) += 1;
-        }
-    }
-    for (job_id, failed_count) in failed_by_job {
-        if let Err(e) = update_signal_job_stats(&db.pool, job_id, 0, failed_count).await {
-            log::error!("Failed to update job statistics for job {}: {}", job_id, e);
-        }
-    }
-}
-
-async fn process_run(
-    project_id: Uuid,
-    trace_id: Uuid,
-    run_id: Uuid,
-    step: usize,
-    internal_trace_id: Uuid,
-    internal_span_id: Uuid,
-    job_id: Option<Uuid>,
-    prompt: &str,
-    signal_name: &str,
-    structured_output_schema: &serde_json::Value,
-    model: &str,
-    provider: &str,
-    clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-    internal_project_id: Option<Uuid>,
-) -> Result<ProcessRunResult, HandlerError> {
-    let processing_start_time = Utc::now();
-
-    // 1. Query existing messages for this run
-    let existing_messages = get_signal_run_messages(clickhouse.clone(), project_id, run_id)
-        .await
-        .map_err(|e| {
-            HandlerError::Transient(anyhow::anyhow!("Failed to query existing messages: {}", e))
-        })?;
-
-    let (contents, system_instruction, new_messages) = if existing_messages.is_empty() {
-        // No messages exist - build initial prompts
-        let trace_structure =
-            get_trace_structure_as_string(clickhouse.clone(), project_id, trace_id)
-                .await
-                .map_err(|e| {
-                    HandlerError::Transient(anyhow::anyhow!("Failed to get trace structure: {}", e))
-                })?;
-
-        let system_prompt = SYSTEM_PROMPT.replace("{{fullTraceData}}", &trace_structure);
-
-        let user_prompt = IDENTIFICATION_PROMPT.replace("{{developer_prompt}}", prompt);
-
-        let now = Utc::now();
-        let user_time = now + chrono::Duration::milliseconds(1);
-
-        // Create Content objects (used for both storage and API request)
-        let system_content = Content {
-            role: Some("system".to_string()), // Stored as "system", converted to None for Gemini API
-            parts: Some(vec![Part {
-                text: Some(system_prompt.clone()),
-                ..Default::default()
-            }]),
-        };
-
-        let user_content = Content {
-            role: Some("user".to_string()),
-            parts: Some(vec![Part {
-                text: Some(user_prompt.clone()),
-                ..Default::default()
-            }]),
-        };
-
-        // Store as serialized Content for consistent format
-        let system_message = CHSignalRunMessage::new(
-            project_id,
-            run_id,
-            now,
-            serde_json::to_string(&system_content)
-                .map_err(|e| log::error!("Failed to serialize system content: {}", e))
-                .unwrap_or_default(),
-        );
-
-        let user_message = CHSignalRunMessage::new(
-            project_id,
-            run_id,
-            user_time,
-            serde_json::to_string(&user_content)
-                .map_err(|e| log::error!("Failed to serialize user content: {}", e))
-                .unwrap_or_default(),
-        );
-
-        // For Gemini API: system instruction has role: None
-        let system_instruction_content = Content {
-            role: None,
-            ..system_content.clone()
-        };
-
-        (
-            vec![user_content],
-            Some(system_instruction_content),
-            vec![system_message, user_message],
-        )
-    } else {
-        let mut contents = Vec::new();
-        let mut system_instruction = None;
-
-        for msg in existing_messages {
-            // Parse as Content object (all messages are stored in this format)
-            let content: Content = serde_json::from_str(&msg.message).map_err(|e| {
-                HandlerError::Permanent(anyhow::anyhow!(
-                    "Failed to parse message as Content: {}",
-                    e
-                ))
-            })?;
-
-            match content.role.as_deref() {
-                Some("system") => {
-                    // System instruction: convert role to None for Gemini API
-                    system_instruction = Some(Content {
-                        role: None,
-                        parts: content.parts,
-                    });
-                }
-                Some("model") | Some("user") => {
-                    // Model (assistant) or user messages go into contents
-                    contents.push(content);
-                }
-                other => {
-                    log::warn!("Unknown message role: {:?}, skipping", other);
-                }
-            }
-        }
-
-        (contents, system_instruction, vec![])
-    };
-
-    // 2. Build tool definitions
-    let tools = vec![build_tool_definitions(structured_output_schema)];
-
-    // 3. Create GenerateContentRequest
-    let request = InlineRequestItem {
-        request: GenerateContentRequest {
-            contents: contents.clone(),
-            generation_config: Some(GenerationConfig {
-                temperature: Some(1.0),
-                ..Default::default()
-            }),
-            system_instruction: system_instruction.clone(),
-            tools: Some(tools),
-        },
-        metadata: Some(serde_json::json!({
-            "run_id": run_id,
-            "trace_id": trace_id,
-        })),
-    };
-
-    // Emit internal tracing span
-    let mut contents_with_sys = contents.clone();
-    if let Some(mut sys) = system_instruction.clone() {
-        sys.role = Some("system".to_string());
-        contents_with_sys.insert(0, sys);
-    }
-    emit_internal_span(
-        queue.clone(),
-        InternalSpan {
-            name: format!("step_{}.submit_request", step),
-            trace_id: internal_trace_id,
-            run_id,
-            signal_name: signal_name.to_string(),
-            parent_span_id: Some(internal_span_id),
-            span_type: SpanType::LLM,
-            start_time: processing_start_time,
-            input: Some(serde_json::json!(contents_with_sys)),
-            output: None,
-            input_tokens: None,
-            input_cached_tokens: None,
-            output_tokens: None,
-            model: model.to_string(),
-            provider: provider.to_string(),
-            internal_project_id,
-            job_id,
-            error: None,
-            provider_batch_id: None,
-        },
-    )
-    .await;
-
-    Ok(ProcessRunResult {
-        request,
-        new_messages,
-        request_start_time: processing_start_time,
-    })
 }

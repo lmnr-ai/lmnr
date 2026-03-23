@@ -26,6 +26,11 @@ pub const SIGNALS_QUEUE: &str = "semantic_event_queue";
 pub const SIGNALS_EXCHANGE: &str = "semantic_event_exchange";
 pub const SIGNALS_ROUTING_KEY: &str = "semantic_event_routing_key";
 
+// Queue for realtime processing
+pub const SIGNALS_REALTIME_QUEUE: &str = "signals_realtime_queue";
+pub const SIGNALS_REALTIME_EXCHANGE: &str = "signals_realtime_exchange";
+pub const SIGNALS_REALTIME_ROUTING_KEY: &str = "signals_realtime_routing_key";
+
 pub const DEFAULT_BATCH_SIZE: usize = 64;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -64,6 +69,9 @@ pub struct SignalMessage {
     pub retry_count: usize,
     #[serde(default = "chrono::Utc::now")]
     pub request_start_time: chrono::DateTime<chrono::Utc>,
+    /// 0 = batch, 1 = realtime. Determines billing and routing.
+    #[serde(default)]
+    pub mode: u8,
 }
 
 pub async fn push_to_submissions_queue(
@@ -129,6 +137,32 @@ pub async fn push_to_waiting_queue(
             ttl_ms,
         )
         .await?;
+
+    Ok(())
+}
+
+pub async fn push_to_realtime_queue(
+    message: SignalMessage,
+    queue: Arc<MessageQueue>,
+) -> anyhow::Result<()> {
+    let serialized = serde_json::to_vec(&message)?;
+
+    queue
+        .publish(
+            &serialized,
+            SIGNALS_REALTIME_EXCHANGE,
+            SIGNALS_REALTIME_ROUTING_KEY,
+            None,
+        )
+        .await?;
+
+    log::debug!(
+        "Pushed signal message to realtime queue: trace_id={}, project_id={}, trigger_id={}, signal={}",
+        message.trace_id,
+        message.project_id,
+        message.trigger_id.unwrap_or_default(),
+        message.signal.name
+    );
 
     Ok(())
 }

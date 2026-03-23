@@ -2,12 +2,16 @@
 
 import Projects from "@/components/projects/projects.tsx";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type SubscriptionDetails, type UpcomingInvoiceInfo } from "@/lib/actions/checkout/types";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
+import { Feature } from "@/lib/features/features";
 import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptionalUsers } from "@/lib/workspaces/types";
 
 import WorkspaceBilling from "./billing";
 import WorkspaceDeployment from "./deployment-settings/workspace-deployment.tsx";
+import WorkspaceReports from "./reports";
+import WorkspaceIntegrations from "./workspace-integrations";
 import WorkspaceSettings from "./workspace-settings";
 import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";
@@ -20,9 +24,9 @@ interface WorkspaceProps {
   currentUserRole: WorkspaceRole;
   subscription: SubscriptionDetails | null;
   upcomingInvoice: UpcomingInvoiceInfo | null;
-  isSubscription: boolean;
-  isDeployment: boolean;
   canManageBilling: boolean;
+  slackClientId?: string;
+  slackRedirectUri?: string;
 }
 
 export default function WorkspaceComponent({
@@ -33,27 +37,27 @@ export default function WorkspaceComponent({
   currentUserRole,
   subscription,
   upcomingInvoice,
-  isSubscription,
-  isDeployment,
   canManageBilling,
+  slackClientId,
+  slackRedirectUri,
 }: WorkspaceProps) {
   const { menu } = useWorkspaceMenuContext();
+  const featureFlags = useFeatureFlags();
 
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="flex flex-col gap-8 max-w-4xl mx-auto px-4 py-8">
-        {menu === "projects" && <Projects workspace={workspace} isSubscription={isSubscription} />}
+        {menu === "projects" && <Projects workspace={workspace} />}
         {menu === "team" && (
           <WorkspaceUsers
             invitations={invitations}
             workspace={workspace}
             isOwner={isOwner}
             currentUserRole={currentUserRole}
-            isSubscription={isSubscription}
           />
         )}
-        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} isSubscription={isSubscription} />}
-        {isSubscription && menu === "billing" && (
+        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} />}
+        {featureFlags[Feature.SUBSCRIPTION] && menu === "billing" && (
           <WorkspaceBilling
             workspace={workspace}
             isOwner={isOwner}
@@ -62,8 +66,16 @@ export default function WorkspaceComponent({
             upcomingInvoice={upcomingInvoice}
           />
         )}
+        {menu === "integrations" && (
+          <WorkspaceIntegrations
+            workspaceId={workspace.id}
+            slackClientId={slackClientId}
+            slackRedirectUri={slackRedirectUri}
+          />
+        )}
+        {menu === "reports" && <WorkspaceReports workspaceId={workspace.id} />}
         {menu === "settings" && <WorkspaceSettings workspace={workspace} isOwner={isOwner} />}
-        {isDeployment && menu === "deployment" && <WorkspaceDeployment workspace={workspace} />}
+        {featureFlags[Feature.DEPLOYMENT] && menu === "deployment" && <WorkspaceDeployment workspace={workspace} />}
       </div>
     </div>
   );

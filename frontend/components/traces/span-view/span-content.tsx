@@ -1,13 +1,10 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-import { useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
 import ContentRenderer from "@/components/ui/content-renderer/index";
+import { spanViewTheme } from "@/components/ui/content-renderer/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAYLOAD_URL_REGEX } from "@/lib/actions/trace/utils";
 import { useToast } from "@/lib/hooks/use-toast.ts";
-import { GeminiInputSchema, GeminiOutputSchema } from "@/lib/spans/types/gemini";
-import { LangChainMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
-import { OpenAIMessageSchema, OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 import { type Span, SpanType } from "@/lib/traces/types";
 
 interface SpanContentProps {
@@ -71,27 +68,6 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
     return spanData;
   }, [spanData]);
 
-  // Check if data should be rendered as messages
-  const shouldRenderAsMessages = useMemo(() => {
-    if (!normalizedData) return false;
-
-    // Try to parse as OpenAI, LangChain, or Gemini messages
-    const openAIMessageResult = OpenAIMessageSchema.safeParse(normalizedData);
-    const openAIMessagesResult = OpenAIMessagesSchema.safeParse(normalizedData);
-    const langchainMessageResult = LangChainMessageSchema.safeParse(normalizedData);
-    const langchainMessagesResult = LangChainMessagesSchema.safeParse(normalizedData);
-    return (
-      openAIMessageResult.success ||
-      openAIMessagesResult.success ||
-      langchainMessageResult.success ||
-      langchainMessagesResult.success ||
-      GeminiOutputSchema.safeParse(normalizedData).success ||
-      GeminiInputSchema.safeParse(normalizedData).success
-    );
-  }, [normalizedData]);
-
-  const searchContext = useSpanSearchContext();
-
   if (isLoading) {
     return (
       <div className="flex flex-col gap-2 p-2 justify-center items-center">
@@ -102,8 +78,7 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
     );
   }
 
-  // Render as messages if it matches message schema
-  if (shouldRenderAsMessages && span.spanType === SpanType.LLM) {
+  if (span.spanType === SpanType.LLM) {
     return (
       <ContentRenderer
         className="rounded border-0"
@@ -113,12 +88,12 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
         defaultMode="messages"
         modes={["MESSAGES", "JSON", "YAML", "TEXT", "CUSTOM"]}
         presetKey={presetKey}
-        searchTerm={searchContext?.searchTerm || ""}
+        messageMaxHeight={type === "input" ? 320 : 560}
+        customTheme={spanViewTheme}
       />
     );
   }
 
-  // Otherwise render as regular code
   return (
     <ContentRenderer
       className="rounded-none border-none bg-background"
@@ -126,8 +101,8 @@ const SpanContent = ({ span, type }: SpanContentProps) => {
       modes={["JSON", "YAML", "TEXT", "CUSTOM", "MESSAGES"]}
       value={JSON.stringify(normalizedData)}
       presetKey={presetKey}
-      defaultMode={span.spanType === SpanType.LLM ? "messages" : "json"}
-      searchTerm={searchContext?.searchTerm || ""}
+      defaultMode="json"
+      customTheme={spanViewTheme}
     />
   );
 };

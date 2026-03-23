@@ -46,9 +46,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     where: eq(workspaceInvitations.workspaceId, params.workspaceId),
   });
 
-  const isSubscription = isFeatureEnabled(Feature.SUBSCRIPTION);
-  const isDeployment = isFeatureEnabled(Feature.DEPLOYMENT);
-  const canManageBilling = isSubscription && ["owner", "admin"].includes(currentUserRole);
+  const canManageBilling = isFeatureEnabled(Feature.SUBSCRIPTION) && ["owner", "admin"].includes(currentUserRole);
 
   // Fetch subscription details for paid tiers (only for owners/admins)
   const isPaidTier = workspace.tierName !== "Free";
@@ -70,12 +68,7 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
     <WorkspaceMenuProvider>
       <div className="fixed inset-0 flex overflow-hidden md:pt-2 bg-sidebar">
         <SidebarProvider className="bg-sidebar">
-          <WorkspaceSidebar
-            isOwner={isOwner}
-            workspace={workspace}
-            isSubscription={isSubscription}
-            isDeployment={isDeployment}
-          />
+          <WorkspaceSidebar isOwner={isOwner} workspace={workspace} />
           <SidebarInset className="flex flex-col flex-1 md:rounded-tl-lg border h-full overflow-hidden">
             <WorkspaceComponent
               invitations={invitations}
@@ -85,9 +78,9 @@ export default async function WorkspacePage(props: { params: Promise<{ workspace
               currentUserRole={currentUserRole}
               subscription={subscription}
               upcomingInvoice={upcomingInvoice}
-              isSubscription={isSubscription}
-              isDeployment={isDeployment}
               canManageBilling={canManageBilling}
+              slackClientId={process.env.SLACK_CLIENT_ID}
+              slackRedirectUri={process.env.SLACK_REDIRECT_URL}
             />
           </SidebarInset>
         </SidebarProvider>

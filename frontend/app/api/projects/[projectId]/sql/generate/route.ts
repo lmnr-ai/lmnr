@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, z, ZodError } from "zod/v4";
 
-import { generateSql } from "@/lib/actions/sql";
+import { generateSql } from "@/lib/actions/sql/generate";
 
 const GenerateSchema = z.object({
   prompt: z.string().min(1, "Prompt is required"),

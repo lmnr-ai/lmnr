@@ -134,9 +134,9 @@ const Hero = ({ className, hasSession }: Props) => {
                   "text-sm leading-5 mt-4"
                 )}
               >
-                Open-source observability platform for agent tracing,
+                Open-source observability platform for long-running agents.
                 <br className="hidden md:block" />
-                evals, and signal extraction from traces at scale.
+                Trace in one line, debug from any step, detect patterns at scale.
               </p>
             </div>
             <div className={cn("flex md:flex-row md:gap-5 items-center justify-center", "gap-2")}>

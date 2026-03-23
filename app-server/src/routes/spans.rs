@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, sync::LazyLock};
 
 use actix_web::{HttpResponse, post, web};
 use chrono::{DateTime, Utc};
@@ -10,12 +10,13 @@ use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     db::spans::{Span, SpanType},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
-    quickwit::client::QuickwitClient,
+    quickwit::{SPANS_INDEX_ID, client::QuickwitClient},
     routes::{ResponseResult, error::Error},
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
 
 const DEFAULT_SEARCH_MAX_HITS: usize = 500;
+const DEFAULT_SEARCH_TIME_RANGE: chrono::Duration = chrono::Duration::days(7);
 // TODO: maybe remove all punctuation similar to the default tokenizer in the index?
 const QUICKWIT_RESERVED_CHARACTERS: &[char] = &['?', '`', '~', '!', '\\'];
 // Quickwit documentation is very brief on this, it lists all of the reserved characters
@@ -140,7 +141,7 @@ pub struct SearchSpansRequest {
     pub offset: usize,
 }
 
-const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 3] = ["input", "output", "attributes"];
+const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
 
 #[derive(Serialize, Deserialize)]
 struct QuickwitHit {
@@ -184,11 +185,10 @@ pub async fn search_spans(
         format!("({})", escaped_query),
     ];
 
-    let mut sort_by = "_score,start_time"; // default sort for scores and timestamp in quickwit is desc!
+    let sort_by = "start_time";
 
     if let Some(trace_id) = request.trace_id {
         query_parts.push(format!("trace_id:{}", trace_id));
-        sort_by = "start_time"; // sort by timestamp (desc) inside a single trace
     }
 
     let query_string = query_parts.join(" AND ");
@@ -223,14 +223,6 @@ pub async fn search_spans(
     let search_field_str = search_fields.join(",");
     search_body["search_field"] = serde_json::Value::String(search_field_str);
 
-    // Handle timestamps
-    if let Some(start) = request.start_time {
-        search_body["start_timestamp"] = serde_json::Value::Number(start.timestamp().into());
-    }
-    if let Some(end) = request.end_time {
-        search_body["end_timestamp"] = serde_json::Value::Number(end.timestamp().into());
-    }
-
     // Handle pagination
     if request.limit != 0 {
         search_body["max_hits"] = serde_json::Value::Number(request.limit.into())
@@ -242,19 +234,35 @@ pub async fn search_spans(
         search_body["start_offset"] = serde_json::Value::Number(request.offset.into());
     }
 
-    let response_value = quickwit_client
-        .search_spans(search_body)
-        .await
-        .map_err(|e| {
-            log::error!("Quickwit search error: {:?}", e);
-            Error::InternalAnyhowError(anyhow::anyhow!("Failed to search spans"))
-        })?;
+    // Handle timestamps, defaults to last week if not provided
+    if let Some(s) = request.start_time {
+        search_body["start_timestamp"] = serde_json::Value::Number(s.timestamp().into());
+    } else {
+        search_body["start_timestamp"] =
+            serde_json::Value::Number((Utc::now() - DEFAULT_SEARCH_TIME_RANGE).timestamp().into());
+    }
+    if let Some(e) = request.end_time {
+        search_body["end_timestamp"] = serde_json::Value::Number(e.timestamp().into());
+    }
+
+    let hits = search_index(quickwit_client, &SPANS_INDEX_ID, search_body).await?;
+    Ok(HttpResponse::Ok().json(hits))
+}
+
+async fn search_index(
+    client: &QuickwitClient,
+    index_id: &str,
+    body: serde_json::Value,
+) -> Result<Vec<QuickwitHit>, Error> {
+    let response_value = client.search_index(index_id, body).await.map_err(|e| {
+        log::error!("Quickwit search error (index {}): {:?}", index_id, e);
+        Error::InternalAnyhowError(anyhow::anyhow!("Failed to search spans"))
+    })?;
 
     let quickwit_response: QuickwitResponse =
         serde_json::from_value(response_value).map_err(|e| {
             Error::InternalAnyhowError(anyhow::anyhow!("Failed to parse Quickwit response: {}", e))
         })?;
 
-    let hits = quickwit_response.hits;
-    Ok(HttpResponse::Ok().json(hits))
+    Ok(quickwit_response.hits)
 }

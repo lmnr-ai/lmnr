@@ -1,15 +1,18 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
-use std::{env, fmt, sync::LazyLock};
+use serde::{Deserialize, Serialize};
+use std::{env, fmt, sync::OnceLock};
 use uuid::Uuid;
 
 pub mod batching;
+pub mod common;
 pub mod enqueue;
-pub mod gemini;
 pub mod pendings_consumer;
 pub mod postprocess;
 pub mod prompts;
+pub mod provider;
 pub mod queue;
+pub mod realtime_api;
+pub mod response_processor;
 pub mod spans;
 pub mod submissions_consumer;
 pub mod tools;
@@ -27,11 +30,28 @@ pub use queue::{
 
 use crate::signals::queue::SignalMessage;
 
-pub static LLM_MODEL: LazyLock<String> = LazyLock::new(|| {
-    env::var("SIGNAL_JOB_LLM_MODEL").unwrap_or("gemini-3-flash-preview".to_string())
-});
-pub static LLM_PROVIDER: LazyLock<String> =
-    LazyLock::new(|| env::var("SIGNAL_JOB_LLM_PROVIDER").unwrap_or("gemini".to_string()));
+static LLM_MODEL: OnceLock<String> = OnceLock::new();
+static LLM_PROVIDER: OnceLock<String> = OnceLock::new();
+
+/// Get the LLM model name.
+pub fn llm_model() -> String {
+    LLM_MODEL
+        .get_or_init(|| {
+            env::var("SIGNALS_LLM_MODEL")
+                .ok()
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| provider::default_model_for_provider(&llm_provider()))
+        })
+        .clone()
+}
+
+/// Get the LLM provider name.
+pub fn llm_provider() -> String {
+    LLM_PROVIDER
+        .get_or_init(|| provider::resolve_provider_name())
+        .clone()
+}
 
 /// Configuration for signal workers, initialized from environment variables.
 #[derive(Debug, Clone)]
@@ -74,6 +94,31 @@ impl SignalWorkerConfig {
     }
 }
 
+/// Signal processing mode: batch (cheaper, slower) or realtime (2x cost, faster).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[repr(u8)]
+pub enum SignalMode {
+    Batch = 0,
+    Realtime = 1,
+}
+
+impl SignalMode {
+    pub fn as_u8(self) -> u8 {
+        self as u8
+    }
+
+    pub fn from_u8(value: u8) -> Self {
+        match value {
+            1 => Self::Realtime,
+            _ => Self::Batch,
+        }
+    }
+
+    pub fn is_realtime(self) -> bool {
+        self == Self::Realtime
+    }
+}
+
 /// Represents a signal run with its current state and metadata.
 /// Used to track individual runs.
 #[derive(Debug, Clone, Serialize)]
@@ -91,6 +136,7 @@ pub struct SignalRun {
     pub updated_at: DateTime<Utc>,
     pub event_id: Option<Uuid>,
     pub error_message: Option<String>,
+    pub mode: SignalMode,
 }
 
 impl SignalRun {
@@ -131,6 +177,7 @@ impl SignalRun {
             updated_at: chrono::Utc::now(),
             event_id: None,
             error_message: None,
+            mode: SignalMode::from_u8(message.mode),
         }
     }
 
@@ -149,6 +196,7 @@ impl SignalRun {
             updated_at: chrono::Utc::now(),
             event_id: None,
             error_message: None,
+            mode: SignalMode::Batch,
         }
     }
 }

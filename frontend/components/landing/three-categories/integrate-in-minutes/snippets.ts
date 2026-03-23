@@ -150,15 +150,14 @@ chain = prompt | model | output_parser`,
     name: "LiteLLM",
     logoSrc: lightLlm,
     alt: "LiteLLM",
-    highlightedLines: [2, 5, 6],
+    highlightedLines: [2, 5],
     screenshot: "/assets/landing/snippet-screenshots/lite-llm.png",
     python: `from dotenv import load_dotenv
 import litellm
-from lmnr import Laminar, LaminarLiteLLMCallback
+from lmnr import Laminar
 
 load_dotenv()
 Laminar.initialize()
-litellm.callbacks = [LaminarLiteLLMCallback()]
 
 response = litellm.completion(
     model="gpt-4o-mini",

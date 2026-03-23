@@ -3,11 +3,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
+import React from "react";
+import remarkGfm from "remark-gfm";
 
 import BlogMeta from "@/components/blog/blog-meta";
 import LightboxImage from "@/components/blog/lightbox-image";
 import MDHeading from "@/components/blog/md-heading";
 import PreHighlighter from "@/components/blog/pre-highlighter";
+import YouTubeEmbed, { extractYouTubeId } from "@/components/blog/youtube-embed";
 import { type BlogMetadata } from "@/lib/blog/types";
 import { getBlogPost } from "@/lib/blog/utils";
 
@@ -15,20 +18,32 @@ export const generateMetadata = async (props: { params: Promise<{ slug: string }
   const params = await props.params;
   try {
     const { data } = getBlogPost(params.slug);
+    const description = data.description || `${data.title} - from the Laminar blog`;
+    const ogImageUrl = `/blog/${params.slug}/opengraph-image`;
     return {
       title: data.title,
-      description: data.description,
+      description,
       authors: data.coAuthors ? [data.author, ...data.coAuthors] : [data.author],
-      icons: ["https://www.lmnr.ai/favicon.ico"],
       openGraph: {
-        images: data.image ? ["https://www.lmnr.ai" + data.image] : ["https://www.lmnr.ai/favicon.ico"],
+        title: data.title,
+        description,
         type: "article",
         publishedTime: data.date,
+        url: `https://laminar.sh/blog/${params.slug}`,
+        images: [
+          {
+            url: ogImageUrl,
+            width: 1200,
+            height: 630,
+            alt: data.title,
+          },
+        ],
       },
       twitter: {
+        card: "summary_large_image",
         title: data.title,
-        description: data.description,
-        images: data.image ? ["https://www.lmnr.ai" + data.image] : ["https://www.lmnr.ai/favicon.ico"],
+        description,
+        images: [ogImageUrl],
       },
     };
   } catch {
@@ -66,12 +81,41 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
         <div className="pt-4 text-base">
           <MDXRemote
             source={content}
+            options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
             components={{
               h1: (props) => <MDHeading props={props} level={0} />,
               h2: (props) => <MDHeading props={props} level={1} />,
               h3: (props) => <MDHeading props={props} level={2} />,
               h4: (props) => <MDHeading props={props} level={3} />,
-              p: (props) => <p className="pt-4 text-white/85 font-light leading-relaxed" {...props} />,
+              p: (props) => {
+                // Auto-embed YouTube links when they are the sole content of a paragraph
+                // and the link text is the URL itself (i.e. a bare pasted URL, not a named
+                // markdown link like [Watch demo](https://youtube.com/...)).
+                const children = React.Children.toArray(props.children);
+                if (children.length === 1) {
+                  const child = children[0];
+                  if (
+                    React.isValidElement<{
+                      href?: string;
+                      children?: React.ReactNode;
+                    }>(child) &&
+                    typeof child.props.href === "string" &&
+                    extractYouTubeId(child.props.href)
+                  ) {
+                    // Only auto-embed when the link text matches the href (bare URL).
+                    // Named links like [text](url) should remain as regular links.
+                    const linkChildren = React.Children.toArray(child.props.children);
+                    const isBareUrl =
+                      linkChildren.length === 1 &&
+                      typeof linkChildren[0] === "string" &&
+                      linkChildren[0] === child.props.href;
+                    if (isBareUrl) {
+                      return <YouTubeEmbed url={child.props.href} />;
+                    }
+                  }
+                }
+                return <p className="pt-4 text-white/85 font-light" {...props} />;
+              },
               a: (props) => (
                 <a
                   className="text-white underline hover:text-primary"
@@ -95,9 +139,11 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
                   {props.children}
                 </li>
               ),
+              strong: (props) => <strong className="text-white/90 font-semibold" {...props} />,
               img: (props) => (
                 <LightboxImage className="md:w-[1000px] relative w-full border rounded-lg mb-8" {...props} />
               ),
+              YouTubeEmbed,
             }}
           />
         </div>

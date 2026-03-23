@@ -3,6 +3,7 @@
 import { type Row } from "@tanstack/react-table";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 
 import { FETCH_SIZE, tracePickerColumnOrder, tracePickerColumns } from "@/components/traces/trace-picker/columns";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
@@ -15,14 +16,16 @@ import { useDebuggerSessionStore } from "../store";
 const RunsContent = () => {
   const { projectId, id: sessionId } = useParams<{ projectId: string; id: string }>();
   const { historyRuns, isHistoryLoading, setHistoryRuns, setIsHistoryLoading, loadHistoryTrace, trace } =
-    useDebuggerSessionStore((state) => ({
-      historyRuns: state.historyRuns,
-      isHistoryLoading: state.isHistoryLoading,
-      setHistoryRuns: state.setHistoryRuns,
-      setIsHistoryLoading: state.setIsHistoryLoading,
-      loadHistoryTrace: state.loadHistoryTrace,
-      trace: state.trace,
-    }));
+    useDebuggerSessionStore(
+      useShallow((state) => ({
+        historyRuns: state.historyRuns,
+        isHistoryLoading: state.isHistoryLoading,
+        setHistoryRuns: state.setHistoryRuns,
+        setIsHistoryLoading: state.setIsHistoryLoading,
+        loadHistoryTrace: state.loadHistoryTrace,
+        trace: state.trace,
+      }))
+    );
 
   const fetchHistory = useCallback(async () => {
     setIsHistoryLoading(true);

@@ -3,6 +3,7 @@ import { prettifyError, ZodError } from "zod/v4";
 
 import { parseUrlParams } from "@/lib/actions/common/utils";
 import { deleteSessions, getSessions, GetSessionsSchema } from "@/lib/actions/sessions";
+import { checkDataRetentionAccess } from "@/lib/actions/usage/limits";
 
 export async function GET(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -12,6 +13,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ projectId
 
   if (!parseResult.success) {
     return Response.json({ error: prettifyError(parseResult.error) }, { status: 400 });
+  }
+
+  const retentionError = await checkDataRetentionAccess(projectId, {
+    pastHours: parseResult.data.pastHours,
+    startDate: parseResult.data.startDate,
+  });
+  if (retentionError) {
+    return retentionError;
   }
 
   try {
