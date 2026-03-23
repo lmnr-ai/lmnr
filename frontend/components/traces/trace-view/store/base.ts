@@ -132,9 +132,12 @@ export interface BaseTraceViewState {
   // the fact.
   initialSignalId?: string;
 
-  // Traces Agent injection
-  agentInitialMessages: any[] | null;
-  agentPrefillInput: string | null;
+  // Pending signal→chat injection. Written by openSignalInChat, consumed
+  // once by the Chat component's effect, then nulled.
+  pendingChatInjection: {
+    signalDefinition: string;
+    eventPayload: string;
+  } | null;
 
   // Layout options
   isAlwaysSelectSpan: boolean;
@@ -181,7 +184,7 @@ export interface BaseTraceViewActions {
 
   // Traces Agent injection actions
   openSignalInChat: (signalDefinition: string, eventPayload: string) => void;
-  clearAgentInjection: () => void;
+  consumePendingChatInjection: () => { signalDefinition: string; eventPayload: string } | null;
 
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
@@ -233,8 +236,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     initialSignalId: options?.initialSignalId,
 
     // Traces Agent injection defaults
-    agentInitialMessages: null,
-    agentPrefillInput: null,
+    pendingChatInjection: null,
 
     // Layout options
     isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
@@ -456,25 +458,15 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     openSignalInChat: (signalDefinition: string, eventPayload: string) =>
       set({
         tracesAgentOpen: true,
-        agentInitialMessages: [
-          {
-            id: "injected-user-" + Date.now(),
-            role: "user",
-            parts: [{ type: "text", text: signalDefinition }],
-          },
-          {
-            id: "injected-assistant-" + Date.now(),
-            role: "assistant",
-            parts: [{ type: "text", text: eventPayload }],
-          },
-        ],
-        agentPrefillInput: "Explain how this signal event relates to my trace and include specific span references",
+        pendingChatInjection: { signalDefinition, eventPayload },
       } as Partial<T>),
-    clearAgentInjection: () =>
-      set({
-        agentInitialMessages: null,
-        agentPrefillInput: null,
-      } as Partial<T>),
+    consumePendingChatInjection: () => {
+      const pending = get().pendingChatInjection;
+      if (pending) {
+        set({ pendingChatInjection: null } as Partial<T>);
+      }
+      return pending;
+    },
   };
 }
 

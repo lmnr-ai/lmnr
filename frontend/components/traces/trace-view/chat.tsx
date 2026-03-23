@@ -3,7 +3,7 @@ import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
@@ -29,13 +29,10 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
   const [input, setInput] = useState("");
   const [newChatLoading, setNewChatLoading] = useState(false);
   const projectId = useParams().projectId;
-  const hasInjectedRef = useRef(false);
 
-  // Read injection state from store
-  const { agentInitialMessages, agentPrefillInput, clearAgentInjection } = useTraceViewBaseStore((state) => ({
-    agentInitialMessages: state.agentInitialMessages,
-    agentPrefillInput: state.agentPrefillInput,
-    clearAgentInjection: state.clearAgentInjection,
+  const { pendingChatInjection, consumePendingChatInjection } = useTraceViewBaseStore((state) => ({
+    pendingChatInjection: state.pendingChatInjection,
+    consumePendingChatInjection: state.consumePendingChatInjection,
   }));
 
   // Resolve sequential span ID to UUID on-demand
@@ -142,10 +139,29 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
     }
   };
 
-  // Effect 1: Load existing messages when the trace changes.
-  // This only depends on trace.id and projectId — it won't re-run when
-  // injection state changes.
+  // Load existing chat history OR consume a pending signal injection.
+  // When pendingChatInjection is set, we skip the fetch and inject directly
+  // so there's no race between the two. Repeated "Open in AI Chat" clicks
+  // just overwrite pendingChatInjection; this effect picks up whatever's latest.
   useEffect(() => {
+    const pending = consumePendingChatInjection();
+    if (pending) {
+      setMessages([
+        {
+          id: "injected-user-" + Date.now(),
+          role: "user" as const,
+          parts: [{ type: "text" as const, text: pending.signalDefinition }],
+        },
+        {
+          id: "injected-assistant-" + Date.now(),
+          role: "assistant" as const,
+          parts: [{ type: "text" as const, text: pending.eventPayload }],
+        },
+      ]);
+      setInput("Explain how this signal event relates to my trace and include specific span references");
+      return;
+    }
+
     const loadExistingMessages = async () => {
       try {
         const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/messages`);
@@ -161,21 +177,8 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
     };
 
     loadExistingMessages();
-  }, [trace.id, projectId, setMessages]);
-
-  // Effect 2: One-time injection of messages from "Open in AI Chat".
-  // Separated from the fetch effect so that clearAgentInjection() (which
-  // nulls agentInitialMessages) doesn't re-trigger the fetch and overwrite
-  // the injected messages.
-  useEffect(() => {
-    if (hasInjectedRef.current || !agentInitialMessages || agentInitialMessages.length === 0) return;
-    hasInjectedRef.current = true;
-    setMessages(agentInitialMessages);
-    if (agentPrefillInput) {
-      setInput(agentPrefillInput);
-    }
-    clearAgentInjection();
-  }, [agentInitialMessages, agentPrefillInput, clearAgentInjection, setMessages]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- consumePendingChatInjection is stable; pendingChatInjection triggers re-runs
+  }, [trace.id, projectId, pendingChatInjection, setMessages]);
 
   return (
     <div className="flex flex-col overflow-hidden relative h-full">
