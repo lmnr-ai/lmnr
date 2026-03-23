@@ -277,7 +277,13 @@ function TracesTableContent() {
   // Reset searchTraceIds when any search-affecting parameter changes so
   // stats wait for the new traces fetch instead of using stale IDs.
   useEffect(() => {
-    searchTraceIdsPendingResetRef.current = true;
+    // Only set the pending-reset flag when a search is active. Without a
+    // search, searchTraceIds is already undefined so setSearchTraceIds is a
+    // no-op and no re-render would clear the flag, permanently blocking
+    // the stats effect.
+    if (textSearchFilter) {
+      searchTraceIdsPendingResetRef.current = true;
+    }
     setSearchTraceIds(textSearchFilter ? null : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [textSearchFilter, pastHours, startDate, endDate, JSON.stringify(searchIn)]);
