@@ -94,12 +94,6 @@ async fn process_clustering_logic(
                             project_id,
                             signal_id
                         );
-                        if let Err(e) = cache.release_lock(&project_lock_key).await {
-                            log::error!(
-                                "Failed to release LEGACY project clustering lock: {:?}",
-                                e
-                            );
-                        }
                         break;
                     }
                     Ok(false) => {
@@ -144,6 +138,9 @@ async fn process_clustering_logic(
             project_id,
             signal_id
         );
+    }
+    if let Err(e) = cache.release_lock(&project_lock_key).await {
+        log::error!("Failed to release LEGACY project clustering lock: {:?}", e);
     }
 
     match result {
