@@ -117,7 +117,7 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
   };
 
   return (
-    <div className="px-2 py-1.5 space-y-1.5">
+    <div className="py-1.5 space-y-1.5">
       {/* Event count + action buttons */}
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
