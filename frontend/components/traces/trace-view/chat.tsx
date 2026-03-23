@@ -155,7 +155,8 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
     if (!pending) return;
 
     justInjectedRef.current = true;
-    setMessages([
+    setMessages((prev) => [
+      ...prev,
       {
         id: "injected-user-" + Date.now(),
         role: "user" as const,
