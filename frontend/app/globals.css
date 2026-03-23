@@ -223,3 +223,19 @@
   display: block;
 }
 
+/* Line numbers via CSS counters when toggled on */
+.shiki-line-numbers pre.shiki code {
+  counter-reset: shiki-line;
+}
+
+.shiki-line-numbers pre.shiki code .line::before {
+  counter-increment: shiki-line;
+  content: counter(shiki-line);
+  display: inline-block;
+  width: 2.5em;
+  margin-right: 0.75em;
+  text-align: right;
+  color: gray;
+  user-select: none;
+}
+

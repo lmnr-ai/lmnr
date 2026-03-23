@@ -17,12 +17,18 @@ let highlighterPromise: Promise<HighlighterGeneric<BundledLanguage, BundledTheme
 
 function getHighlighter() {
   if (!highlighterPromise) {
-    highlighterPromise = import("shiki").then((shiki) =>
-      shiki.createHighlighter({
-        themes: ["github-dark"],
-        langs: ["json", "yaml", "html", "python"],
-      })
-    );
+    highlighterPromise = import("shiki")
+      .then((shiki) =>
+        shiki.createHighlighter({
+          themes: ["github-dark"],
+          langs: ["json", "yaml", "html", "python"],
+        })
+      )
+      .catch((err) => {
+        // Clear the cached promise so subsequent calls can retry
+        highlighterPromise = null;
+        throw err;
+      });
   }
   return highlighterPromise;
 }
@@ -98,7 +104,9 @@ const PureShikiContentRenderer = ({
   const [showLineNumbers, setShowLineNumbers] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [highlightedHtml, setHighlightedHtml] = useState<string>("");
+  // Track highlighted HTML together with the inputs that produced it,
+  // so we can detect when it's stale (e.g. during async mode switches).
+  const [shikiResult, setShikiResult] = useState<{ key: string; html: string }>({ key: "", html: "" });
   const contentRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -106,6 +114,9 @@ const PureShikiContentRenderer = ({
     imageMap,
     hasImages,
   } = useMemo(() => renderText(mode, value, shouldRenderImages), [mode, value, shouldRenderImages]);
+
+  // A stable key identifying the current input combination for Shiki rendering
+  const shikiKey = `${mode}:${renderedValue}`;
 
   const handleModeChange = useCallback(
     (newMode: string) => {
@@ -147,23 +158,31 @@ const PureShikiContentRenderer = ({
     }
 
     let cancelled = false;
+    const currentKey = shikiKey;
 
-    getHighlighter().then((highlighter) => {
-      if (cancelled) return;
-      let html = highlighter.codeToHtml(renderedValue, {
-        lang,
-        theme: "github-dark",
+    getHighlighter()
+      .then((highlighter) => {
+        if (cancelled) return;
+        let html = highlighter.codeToHtml(renderedValue, {
+          lang,
+          theme: "github-dark",
+        });
+        if (hasImages) {
+          html = replaceImagePlaceholders(html, imageMap);
+        }
+        setShikiResult({ key: currentKey, html });
+      })
+      .catch(() => {
+        // Highlighter failed to load — fall back to plain text rendering
+        if (!cancelled) {
+          setShikiResult({ key: currentKey, html: wrapInPlainPre(renderedValue) });
+        }
       });
-      if (hasImages) {
-        html = replaceImagePlaceholders(html, imageMap);
-      }
-      setHighlightedHtml(html);
-    });
 
     return () => {
       cancelled = true;
     };
-  }, [renderedValue, mode, lang, hasImages, imageMap]);
+  }, [renderedValue, mode, lang, hasImages, imageMap, shikiKey]);
 
   // For "text" mode or unknown languages, compute plain HTML synchronously via memo
   const plainHtml = useMemo(() => {
@@ -177,7 +196,9 @@ const PureShikiContentRenderer = ({
     return html;
   }, [renderedValue, mode, lang, hasImages, imageMap]);
 
-  const displayHtml = lang ? highlightedHtml : plainHtml;
+  // Only use cached Shiki HTML if it matches the current inputs; otherwise show
+  // nothing while the async highlight is in-flight to avoid flashing stale content.
+  const displayHtml = lang ? (shikiResult.key === shikiKey ? shikiResult.html : "") : plainHtml;
 
   return (
     <div
@@ -251,7 +272,7 @@ const PureShikiContentRenderer = ({
           ref={contentRef}
           className={cn(
             "shiki-content-wrapper flex-1 w-full overflow-auto",
-            !showLineNumbers && "pl-1",
+            showLineNumbers ? "shiki-line-numbers" : "pl-1",
             codeEditorClassName
           )}
           dangerouslySetInnerHTML={{ __html: displayHtml }}
