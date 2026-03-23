@@ -4,6 +4,7 @@ export enum Feature {
   GOOGLE_AUTH = "GOOGLE_AUTH",
   AZURE_AUTH = "AZURE_AUTH",
   OKTA_AUTH = "OKTA_AUTH",
+  KEYCLOAK_AUTH = "KEYCLOAK_AUTH",
   EMAIL_AUTH = "EMAIL_AUTH",
   POSTHOG = "POSTHOG",
   LOCAL_DB = "LOCAL_DB",
@@ -16,7 +17,13 @@ export enum Feature {
   LANDING = "LANDING",
 }
 
-const AUTH_PROVIDER_FEATURES = [Feature.GITHUB_AUTH, Feature.GOOGLE_AUTH, Feature.AZURE_AUTH, Feature.OKTA_AUTH];
+const AUTH_PROVIDER_FEATURES = [
+  Feature.GITHUB_AUTH,
+  Feature.GOOGLE_AUTH,
+  Feature.AZURE_AUTH,
+  Feature.OKTA_AUTH,
+  Feature.KEYCLOAK_AUTH,
+];
 
 // right now all managed-version features are disabled in local environment
 export const isFeatureEnabled = (feature: Feature): boolean => {
@@ -57,6 +64,10 @@ export const isFeatureEnabled = (feature: Feature): boolean => {
 
   if (feature === Feature.OKTA_AUTH) {
     return !!process.env.AUTH_OKTA_CLIENT_ID && !!process.env.AUTH_OKTA_CLIENT_SECRET && !!process.env.AUTH_OKTA_ISSUER;
+  }
+
+  if (feature === Feature.KEYCLOAK_AUTH) {
+    return !!process.env.AUTH_KEYCLOAK_ID && !!process.env.AUTH_KEYCLOAK_SECRET && !!process.env.AUTH_KEYCLOAK_ISSUER;
   }
 
   if (feature === Feature.FULL_BUILD) {
