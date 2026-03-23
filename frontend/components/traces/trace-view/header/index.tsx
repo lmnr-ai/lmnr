@@ -66,7 +66,8 @@ function ResizableSignalCard({ traceId }: { traceId: string }) {
   );
 
   return (
-    <div className="flex flex-col" style={{ height }}>
+    <div className="flex flex-col rounded-md border bg-card overflow-hidden" style={{ height }}>
+      <div className="flex-shrink-0 px-2 pt-1.5 pb-1 text-xs font-medium text-secondary-foreground">Signal events</div>
       <div className="flex-1 min-h-0 overflow-hidden">
         <SignalEventsPanel traceId={traceId} />
       </div>
