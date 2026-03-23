@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 import Metadata from "../metadata";
 import CondensedTimelineControls from "./timeline-toggle";
 
-const DEFAULT_SIGNAL_CARD_HEIGHT = 180;
+const DEFAULT_SIGNAL_CARD_HEIGHT = 300;
 const MIN_SIGNAL_CARD_HEIGHT = 80;
 const MAX_SIGNAL_CARD_HEIGHT = 500;
 
