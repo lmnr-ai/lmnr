@@ -112,7 +112,7 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
       onValueChange={setActiveSignalTabId}
       className="flex flex-col flex-1 min-h-0 overflow-hidden gap-0"
     >
-      <TabsList className="flex-shrink-0 overflow-x-auto no-scrollbar h-8 justify-start rounded-md px-1">
+      <TabsList className="flex-shrink-0 overflow-x-auto styled-scrollbar max-w-full h-8 justify-start rounded-md px-1">
         {traceSignals.map((signal) => (
           <TooltipProvider key={signal.signalId} delayDuration={500}>
             <Tooltip>
@@ -134,7 +134,11 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
         ))}
       </TabsList>
       {traceSignals.map((signal) => (
-        <TabsContent key={signal.signalId} value={signal.signalId} className="flex-1 min-h-0 overflow-y-auto m-0">
+        <TabsContent
+          key={signal.signalId}
+          value={signal.signalId}
+          className="flex-1 min-h-0 overflow-y-auto styled-scrollbar m-0"
+        >
           <SignalTab
             signalId={signal.signalId}
             signalName={signal.signalName}

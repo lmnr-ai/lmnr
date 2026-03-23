@@ -67,7 +67,7 @@ function ResizableSignalCard({ traceId, onClose }: { traceId: string; onClose: (
 
   return (
     <div className="flex flex-col rounded-md border bg-card overflow-hidden" style={{ height }}>
-      <div className="flex-shrink-0 px-2 pt-1.5 pb-1 flex items-center justify-between">
+      <div className="flex-shrink-0 pr-2 pl-0.5 pt-1.5 flex items-center justify-between">
         <span className="text-xs font-medium text-secondary-foreground">Signal events</span>
         <Button variant="ghost" className="h-6 w-6 p-0" onClick={onClose}>
           <X className="h-3.5 w-3.5" />
