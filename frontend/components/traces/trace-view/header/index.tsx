@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Radio, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Radio, Sparkles, X } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -30,7 +30,7 @@ const DEFAULT_SIGNAL_CARD_HEIGHT = 300;
 const MIN_SIGNAL_CARD_HEIGHT = 80;
 const MAX_SIGNAL_CARD_HEIGHT = 500;
 
-function ResizableSignalCard({ traceId }: { traceId: string }) {
+function ResizableSignalCard({ traceId, onClose }: { traceId: string; onClose: () => void }) {
   const [height, setHeight] = useState(DEFAULT_SIGNAL_CARD_HEIGHT);
   const isDragging = useRef(false);
   const startY = useRef(0);
@@ -67,7 +67,12 @@ function ResizableSignalCard({ traceId }: { traceId: string }) {
 
   return (
     <div className="flex flex-col rounded-md border bg-card overflow-hidden" style={{ height }}>
-      <div className="flex-shrink-0 px-2 pt-1.5 pb-1 text-xs font-medium text-secondary-foreground">Signal events</div>
+      <div className="flex-shrink-0 px-2 pt-1.5 pb-1 flex items-center justify-between">
+        <span className="text-xs font-medium text-secondary-foreground">Signal events</span>
+        <Button variant="ghost" className="h-6 w-6 p-0" onClick={onClose}>
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         <SignalEventsPanel traceId={traceId} />
       </div>
@@ -255,7 +260,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {trace && <ShareTraceButton projectId={projectId} />}
         </div>
       </div>
-      {signalsPanelOpen && <ResizableSignalCard traceId={traceId} />}
+      {signalsPanelOpen && <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} />}
       <div className="flex items-center gap-2">
         <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />
       </div>
