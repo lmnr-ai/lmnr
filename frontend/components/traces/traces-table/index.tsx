@@ -159,8 +159,14 @@ function TracesTableContent() {
     textSearchFilter ? null : undefined
   );
 
+  // Track the current textSearchFilter so stale fetch responses don't
+  // overwrite searchTraceIds after the user changes or clears the search.
+  const textSearchFilterRef = useRef(textSearchFilter);
+  textSearchFilterRef.current = textSearchFilter;
+
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
+      const searchAtFetchTime = textSearchFilter;
       try {
         const urlParams = buildFetchParams({
           pageNumber,
@@ -200,7 +206,12 @@ function TracesTableContent() {
         }
 
         const data = (await res.json()) as { items: TraceRow[]; searchTraceIds?: string[] };
-        setSearchTraceIds(data.searchTraceIds);
+        // Only update searchTraceIds if the search filter hasn't changed
+        // since this fetch started, preventing stale responses from
+        // overwriting the current state.
+        if (textSearchFilterRef.current === searchAtFetchTime) {
+          setSearchTraceIds(data.searchTraceIds);
+        }
         return { items: data.items, count: 0 };
       } catch (error) {
         toast({
