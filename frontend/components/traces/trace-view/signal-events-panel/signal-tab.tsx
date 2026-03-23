@@ -118,39 +118,39 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Event count + action buttons */}
-      <div className="flex items-center justify-between px-2 py-1.5 border-b">
-        <span className="text-xs text-muted-foreground">
-          {safeEvents.length} event{safeEvents.length !== 1 ? "s" : ""}
-        </span>
-        <div className="flex items-center gap-0.5">
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleOpenInChat}>
-                  <Sparkles className="size-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Open in AI Chat</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
-                  <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`}>
-                    <ExternalLink className="size-3.5" />
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Open in Signals</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      </div>
-
-      {/* Event payload */}
       <div className="flex-1 overflow-y-auto px-2 py-1.5 space-y-1.5">
+        {/* Event count + action buttons */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            {safeEvents.length} event{safeEvents.length !== 1 ? "s" : ""}
+          </span>
+          <div className="flex items-center gap-0.5">
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleOpenInChat}>
+                    <Sparkles className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Open in AI Chat</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
+                    <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`}>
+                      <ExternalLink className="size-3.5" />
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Open in Signals</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </div>
+
+        {/* Event payload */}
         {!latestEvent ? (
           <div className="flex items-center justify-center h-full text-xs text-muted-foreground">No events found</div>
         ) : (
