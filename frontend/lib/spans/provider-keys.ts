@@ -44,11 +44,18 @@ const PROVIDER_SCHEMAS: ProviderSchema[] = [
  * Returns the corresponding mustache key on match, or null if no match.
  */
 export function matchProviderSchema(data: unknown): string | null {
-  if (data === null || data === undefined || typeof data !== "object" || Array.isArray(data)) {
+  if (data === null || data === undefined || typeof data !== "object") {
     return null;
   }
 
-  const keys = Object.keys(data as Record<string, unknown>);
+  // Unwrap single-element arrays, consistent with computeFingerprint,
+  // preparePayloadForModel, and validateMustacheKey.
+  const unwrapped = Array.isArray(data) ? (data.length === 1 ? data[0] : null) : data;
+  if (unwrapped === null || typeof unwrapped !== "object" || Array.isArray(unwrapped)) {
+    return null;
+  }
+
+  const keys = Object.keys(unwrapped as Record<string, unknown>);
   const keySet = new Set(keys);
 
   for (const schema of PROVIDER_SCHEMAS) {
