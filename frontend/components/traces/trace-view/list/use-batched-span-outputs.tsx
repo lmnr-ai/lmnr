@@ -80,7 +80,7 @@ export function useBatchedSpanOutputs(
                 ...body,
                 spanTypes: currentSpanTypes,
               }),
-            })
+            }).catch(() => null)
           : null;
 
         // Await outputs
@@ -109,7 +109,7 @@ export function useBatchedSpanOutputs(
         if (previewsPromise) {
           try {
             const previewsResponse = await previewsPromise;
-            if (previewsResponse.ok) {
+            if (previewsResponse?.ok) {
               const previewsData = (await previewsResponse.json()) as {
                 previews: Record<string, SpanPreview | null>;
               };
