@@ -16,7 +16,7 @@ interface TraceViewProps {
   initialSignalId?: string;
 }
 
-export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
+export default function TraceView(props: TraceViewProps) {
   return (
     <TraceViewStoreProvider
       initialTrace={props.propsTrace}
@@ -24,7 +24,7 @@ export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
       initialSignalId={props.initialSignalId}
       initialSignalsPanelOpen={props.initialSignalsPanelOpen}
     >
-      <TraceViewContent {...props} isFillWidth />
+      <TraceViewContent {...props} isFillWidth={props.isFillWidth ?? true} />
     </TraceViewStoreProvider>
   );
 }

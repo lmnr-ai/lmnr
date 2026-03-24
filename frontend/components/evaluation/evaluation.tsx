@@ -305,7 +305,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
                 </Select>
               </div>
             )}
-            <TraceView key={traceId} onClose={onClose} traceId={traceId} />
+            <TraceView key={traceId} onClose={onClose} traceId={traceId} isFillWidth={false} />
           </div>
         </div>
       )}
