@@ -64,8 +64,15 @@ export function computeFingerprint(spanName: string, data: unknown): string | nu
 
   if (Array.isArray(data)) {
     if (data.length === 0) return null;
-    // Use first element's shape
-    return computeFingerprint(spanName, data[0]);
+    if (data.length === 1) {
+      // Single-element arrays are unwrapped (consistent with
+      // preparePayloadForModel and validateMustacheKey)
+      return computeFingerprint(spanName, data[0]);
+    }
+    // Multi-element arrays: fingerprint the array structure directly so the
+    // LLM sees the same shape that validation will run against.
+    const descriptor = typeDescriptor(data);
+    return `${spanName}:${descriptor}`;
   }
 
   if (typeof data === "object" && data !== null) {
