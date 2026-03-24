@@ -201,7 +201,12 @@ export type BaseTraceViewStore = BaseTraceViewState & BaseTraceViewActions;
 export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
   set: (partial: T | Partial<T> | ((state: T) => T | Partial<T>)) => void,
   get: () => T,
-  options?: { initialTrace?: TraceViewTrace; isAlwaysSelectSpan?: boolean; initialSignalId?: string }
+  options?: {
+    initialTrace?: TraceViewTrace;
+    isAlwaysSelectSpan?: boolean;
+    initialSignalId?: string;
+    initialSignalsPanelOpen?: boolean;
+  }
 ): BaseTraceViewStore {
   return {
     trace: options?.initialTrace,
@@ -227,7 +232,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
     // Panel visibility defaults
     tracesAgentOpen: false,
-    signalsPanelOpen: false,
+    signalsPanelOpen: options?.initialSignalsPanelOpen ?? false,
 
     // Signal data defaults
     traceSignals: [],

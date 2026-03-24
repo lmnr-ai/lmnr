@@ -22,6 +22,7 @@ export default function TraceView(props: TraceViewProps) {
       initialTrace={props.propsTrace}
       isAlwaysSelectSpan={props.isAlwaysSelectSpan}
       initialSignalId={props.initialSignalId}
+      initialSignalsPanelOpen={props.initialSignalsPanelOpen}
     >
       <TraceViewContent {...props} />
     </TraceViewStoreProvider>

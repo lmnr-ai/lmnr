@@ -53,6 +53,7 @@ function TracesContent() {
     (item: NavigationItem | null) => {
       if (item) {
         if (typeof item === "string") {
+          setSpanId(null);
           setTraceId(item);
         } else {
           setSpanId(item.spanId);
