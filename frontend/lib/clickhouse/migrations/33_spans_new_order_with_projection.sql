@@ -33,8 +33,6 @@ CREATE TABLE IF NOT EXISTS spans_v2
         timestamp Int64,
         name String,
         attributes String)),
-    INDEX idx_project_span (project_id, span_id) TYPE bloom_filter GRANULARITY 1,
-    INDEX spans_parent_span_id_bf_idx (project_id, trace_id, parent_span_id) TYPE bloom_filter GRANULARITY 1,
     PROJECTION spans_no_io_by_start_time (
         SELECT
             span_id,
