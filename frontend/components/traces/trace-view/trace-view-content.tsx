@@ -138,11 +138,6 @@ export default function TraceViewContent({
         setBrowserSession(true);
       }
       setTrace(traceData);
-
-      // Auto-open chat panel for traces with >1000 tokens
-      if (traceData.totalTokens > 1000) {
-        setTracesAgentOpen(true);
-      }
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : "Failed to load trace. Please try again.";
       setTraceError(errorMessage);
@@ -293,13 +288,6 @@ export default function TraceViewContent({
   useEffect(() => {
     handleFetchTrace();
   }, [handleFetchTrace]);
-
-  // Auto-open chat for propsTrace with >1000 tokens (propsTrace skips handleFetchTrace)
-  useEffect(() => {
-    if (propsTrace && propsTrace.totalTokens > 1000) {
-      setTracesAgentOpen(true);
-    }
-  }, [propsTrace, setTracesAgentOpen]);
 
   useEffect(() => {
     fetchSpans("", []);

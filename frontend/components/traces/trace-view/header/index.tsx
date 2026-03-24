@@ -264,17 +264,19 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               Signals ({signalCount})
             </Button>
           )}
-          <Button
-            onClick={() => setTracesAgentOpen(!tracesAgentOpen)}
-            variant="outline"
-            className={cn(
-              "h-6 text-xs px-1.5",
-              tracesAgentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-            )}
-          >
-            <Sparkles size={14} className="mr-1" />
-            Chat with trace
-          </Button>
+          {spans.length > 0 && (
+            <Button
+              onClick={() => setTracesAgentOpen(!tracesAgentOpen)}
+              variant="outline"
+              className={cn(
+                "h-6 text-xs px-1.5",
+                tracesAgentOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+              )}
+            >
+              <Sparkles size={14} className="mr-1" />
+              Chat with trace
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-x-0.5 flex-shrink-0">
           <Metadata metadata={trace?.metadata} />
