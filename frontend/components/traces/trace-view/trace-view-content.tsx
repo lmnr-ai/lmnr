@@ -13,8 +13,8 @@ import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 
 import { SpanView } from "../span-view";
+import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
-import FixedWidthLayout from "./fixed-width-layout";
 import { ScrollContextProvider } from "./scroll-context";
 import TracePanel from "./trace-panel";
 
@@ -366,7 +366,7 @@ export default function TraceViewContent({
 
   return (
     <ScrollContextProvider>
-      {isFillWidth ? <FillWidthLayout panels={panels} /> : <FixedWidthLayout panels={panels} />}
+      {isFillWidth ? <FillWidthLayout panels={panels} /> : <DynamicWidthLayout panels={panels} />}
     </ScrollContextProvider>
   );
 }

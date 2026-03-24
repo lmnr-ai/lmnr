@@ -36,7 +36,7 @@ export function TraceViewSidePanel({
   return (
     <div
       className={cn(
-        "absolute top-0 right-0 bottom-0 max-w-[calc(100%-40px)] bg-background border-l z-50 flex",
+        "absolute top-0 right-0 bottom-0 max-w-[calc(100%-80px)] bg-background border-l z-50 flex",
         className
       )}
     >
