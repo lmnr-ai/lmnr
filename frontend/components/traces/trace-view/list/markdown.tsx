@@ -3,6 +3,7 @@ import Mustache from "mustache";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
+import { preprocessForMustache } from "@/lib/actions/spans/reader-utils";
 import { cn, tryParseJson } from "@/lib/utils.ts";
 
 const formatOutput = (output: any): string => {
@@ -64,45 +65,6 @@ interface MarkdownProps {
   contentClassName?: string;
 }
 
-const preprocessDataForMustache = (data: any): any => {
-  if (data === null || data === undefined) {
-    return data;
-  }
-
-  if (typeof data === "string" || typeof data === "number" || typeof data === "boolean") {
-    return data;
-  }
-
-  if (Array.isArray(data)) {
-    return data.map(preprocessDataForMustache);
-  }
-
-  if (typeof data === "object") {
-    const processed: Record<string, any> = {};
-    for (const [key, value] of Object.entries(data)) {
-      if (value === null || value === undefined) {
-        processed[key] = value;
-      } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-        processed[key] = value;
-      } else if (Array.isArray(value)) {
-        processed[key] = preprocessDataForMustache(value);
-      } else if (typeof value === "object") {
-        // Convert nested objects to formatted JSON strings
-        const jsonStr = JSON.stringify(value, null, 2);
-        // Keep the original key for the object, but add a new key with the JSON string
-        processed[`${key}Json`] = jsonStr;
-
-        processed[key] = preprocessDataForMustache(value);
-      } else {
-        processed[key] = value;
-      }
-    }
-    return processed;
-  }
-
-  return data;
-};
-
 const Markdown = ({ output, defaultValue, className, contentClassName }: MarkdownProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollUp, setCanScrollUp] = useState(false);
@@ -152,7 +114,7 @@ const Markdown = ({ output, defaultValue, className, contentClassName }: Markdow
         const data = parsed !== null ? parsed : output;
 
         const unwrappedData = Array.isArray(data) && data.length === 1 ? data[0] : data;
-        const processedData = preprocessDataForMustache(unwrappedData);
+        const processedData = preprocessForMustache(unwrappedData);
         let rendered = Mustache.render(defaultValue, processedData);
 
         // Unescape HTML entities that Mustache escaped (like &quot; back to ")

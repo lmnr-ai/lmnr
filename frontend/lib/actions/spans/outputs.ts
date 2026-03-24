@@ -255,18 +255,23 @@ export async function getSpanPreviews(
 
   // Step 5: Call LLM for remaining misses
   if (needsLLM.length > 0) {
-    const structures: SpanStructure[] = needsLLM.map(({ spanData, fingerprint }) => ({
-      fingerprint,
-      side: spanData.side,
-      payload: preparePayloadForModel(spanData.data),
-    }));
-
     // Map fingerprint → spanData entries for result mapping
     const fingerprintToSpans = new Map<string, Array<{ spanData: SpanData; fingerprint: string }>>();
     for (const entry of needsLLM) {
       const list = fingerprintToSpans.get(entry.fingerprint) || [];
       list.push(entry);
       fingerprintToSpans.set(entry.fingerprint, list);
+    }
+
+    // Deduplicate: send only one representative structure per fingerprint
+    const structures: SpanStructure[] = [];
+    for (const [fingerprint, entries] of fingerprintToSpans) {
+      const representative = entries[0];
+      structures.push({
+        fingerprint,
+        side: representative.spanData.side,
+        payload: preparePayloadForModel(representative.spanData.data),
+      });
     }
 
     try {

@@ -112,10 +112,10 @@ export function preparePayloadForModel(data: unknown): string {
 }
 
 /**
- * Preprocess data for Mustache rendering — handle arrays with single element
- * by unwrapping, and convert nested objects to include `keyJson` variants.
+ * Preprocess data for Mustache rendering — recursively traverse objects,
+ * adding `${key}Json` keys for nested objects so templates can access them.
  */
-function preprocessForMustache(data: unknown): unknown {
+export function preprocessForMustache(data: unknown): unknown {
   if (data === null || data === undefined) return data;
   if (typeof data === "string" || typeof data === "number" || typeof data === "boolean") return data;
 
