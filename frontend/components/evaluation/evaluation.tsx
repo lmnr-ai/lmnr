@@ -12,6 +12,7 @@ import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapo
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
 import { buildEvalFetchParams, buildEvalStatsParams, useEvalStore } from "@/components/evaluation/store";
+import { type CustomColumn } from "@/components/ui/columns-menu";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -57,6 +58,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const [datapointId, setDatapointId] = useState<string | undefined>(
     () => searchParams.get("datapointId") ?? undefined
   );
+  const [customColumnsForQuery, setCustomColumnsForQuery] = useState<CustomColumn[]>([]);
 
   // Pagination state
   const pageSize = 50;
@@ -66,17 +68,42 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const setIsShared = useEvalStore((s) => s.setIsShared);
   const isShared = useEvalStore((s) => s.isShared);
 
+  const scoreNamesFromFilters = useMemo(() => {
+    const scoreNames = new Set<string>();
+    for (const rawFilter of filter) {
+      try {
+        const parsed = JSON.parse(rawFilter) as { column?: string };
+        if (parsed.column?.startsWith("score:")) {
+          scoreNames.add(parsed.column.slice("score:".length));
+        }
+      } catch {
+        // Ignore malformed filters
+      }
+    }
+    return [...scoreNames];
+  }, [filter]);
+
   // Statistics URL (fetches all stats at once)
-  // We build column defs inline here for stats params — the actual column defs
-  // are managed in the DataTableStateProvider inside EvaluationDatapointsTable
+  // Include score/custom column defs referenced by active filters so the backend
+  // can resolve filtered columns to SQL.
   const statsUrl = useMemo(() => {
     const base = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
-    // For stats, we only need columns that have active filters — build minimal defs
-    const columnDefs = buildEvalColumnDefs([], [], isShared);
+    const columnDefs = buildEvalColumnDefs(scoreNamesFromFilters, customColumnsForQuery, isShared);
     const urlParams = buildEvalStatsParams(columnDefs, { search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, isShared]);
+  }, [
+    params?.projectId,
+    evaluationId,
+    search,
+    searchIn,
+    filter,
+    sortBy,
+    sortDirection,
+    scoreNamesFromFilters,
+    customColumnsForQuery,
+    isShared,
+  ]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: EvaluationType;
@@ -89,11 +116,22 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const targetStatsUrl = useMemo(() => {
     if (!targetId) return null;
     const base = `/api/projects/${params?.projectId}/evaluations/${targetId}/stats`;
-    const columnDefs = buildEvalColumnDefs([], [], isShared);
+    const columnDefs = buildEvalColumnDefs(scoreNamesFromFilters, customColumnsForQuery, isShared);
     const urlParams = buildEvalStatsParams(columnDefs, { search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, isShared]);
+  }, [
+    params.projectId,
+    targetId,
+    search,
+    searchIn,
+    filter,
+    sortBy,
+    sortDirection,
+    scoreNamesFromFilters,
+    customColumnsForQuery,
+    isShared,
+  ]);
 
   const { data: targetStatsData } = useSWR<{
     evaluation: EvaluationType;
@@ -117,7 +155,10 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   // Build column defs for fetch params (includes scores + custom columns)
   // The datatable store inside EvaluationDatapointsTable manages the actual columnDefs,
   // but we need them here for the infinite scroll fetch function.
-  const columnDefsForFetch = useMemo(() => buildEvalColumnDefs(scores, [], isShared), [scores, isShared]);
+  const columnDefsForFetch = useMemo(
+    () => buildEvalColumnDefs(scores, customColumnsForQuery, isShared),
+    [scores, customColumnsForQuery, isShared]
+  );
 
   const columnSqls = useMemo(() => columnDefsForFetch.map((c) => c.meta?.sql).filter(Boolean), [columnDefsForFetch]);
 
@@ -275,6 +316,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
             datapointId={datapointId}
             data={allDatapoints}
             scores={scores}
+            onCustomColumnsChange={setCustomColumnsForQuery}
             handleRowClick={handleRowClick}
             getRowHref={getRowHref}
             hasMore={hasMorePages}

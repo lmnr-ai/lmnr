@@ -25,6 +25,7 @@ import { type EvaluationDatapointsTableProps } from ".";
 const EvaluationDatapointsTableContent = ({
   data,
   scores,
+  onCustomColumnsChange,
   handleRowClick,
   getRowHref,
   datapointId,
@@ -64,6 +65,10 @@ const EvaluationDatapointsTableContent = ({
   if (rebuiltDefsKey !== currentDefsKey) {
     setColumnDefs(rebuiltDefs);
   }
+
+  useEffect(() => {
+    onCustomColumnsChange?.(customColumns);
+  }, [customColumns, onCustomColumnsChange]);
 
   // Visible columns (hidden + output-in-comparison filtered out)
   const visibleColumns = useMemo(() => selectVisibleEvalColumns(columnDefs, isComparison), [columnDefs, isComparison]);

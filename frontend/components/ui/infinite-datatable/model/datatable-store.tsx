@@ -345,18 +345,24 @@ function createDataTableStore<TData extends RowData>(
             }
           >;
 
-          // Derive the full set of valid column IDs from current column defs (visible only)
+          // Restore persisted custom columns first so their IDs remain valid during hydration.
+          const restoredCustomColumns = persisted?.customColumns ?? currentState.customColumns;
+          const restoredCustomIds = restoredCustomColumns.map((c) => `custom:${c.name}`);
+
+          // Derive valid column IDs from current defs plus restored custom columns.
           const visibleIds = currentState.columnDefs.filter((c: any) => !c.meta?.hidden).map((c: any) => c.id!);
-          const allValidIds = visibleIds.length > 0 ? visibleIds : defaultColumnOrder;
+          const allValidIds = [
+            ...new Set([
+              ...((visibleIds.length > 0 ? visibleIds : defaultColumnOrder) as string[]),
+              ...restoredCustomIds,
+            ]),
+          ];
 
           const validColumns = intersection(persisted?.columnOrder ?? [], allValidIds);
           const newColumns = allValidIds.filter((col: string) => !validColumns.includes(col));
           const mergedColumnOrder = [...validColumns, ...newColumns];
           const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, allValidIds);
           const filteredColumnSizing = pick(persisted?.columnSizing ?? {}, allValidIds);
-
-          // Restore persisted custom columns
-          const restoredCustomColumns = persisted?.customColumns ?? currentState.customColumns;
 
           return {
             ...currentState,
@@ -380,11 +386,6 @@ function createDataTableStore<TData extends RowData>(
 /** Select only columns with SQL metadata (for building query params). */
 export function selectColumnSqls<TData>(state: DataTableStore<TData>): (string | undefined)[] {
   return state.columnDefs.map((c) => c.meta?.sql).filter(Boolean);
-}
-
-/** Select custom column defs only. */
-export function selectCustomColumnDefs<TData>(state: DataTableStore<TData>): ColumnDef<TData>[] {
-  return state.columnDefs.filter((c) => c.meta?.isCustom);
 }
 
 // ---------------------------------------------------------------------------

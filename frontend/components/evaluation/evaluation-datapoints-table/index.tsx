@@ -1,6 +1,7 @@
 import { type Row } from "@tanstack/react-table";
 
 import { buildEvalColumnDefs, buildEvalCustomColumnDef, useEvalStore } from "@/components/evaluation/store";
+import { type CustomColumn } from "@/components/ui/columns-menu";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -12,6 +13,7 @@ export interface EvaluationDatapointsTableProps {
   datapointId?: string;
   data: EvalRow[] | undefined;
   scores: string[];
+  onCustomColumnsChange?: (columns: CustomColumn[]) => void;
   handleRowClick: (row: Row<EvalRow>) => void;
   getRowHref?: (row: Row<EvalRow>) => string;
   hasMore: boolean;
