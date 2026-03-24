@@ -17,3 +17,5 @@ pub const WORKSPACE_DEPLOYMENTS_BY_WORKSPACE_CACHE_KEY: &str = "workspace_deploy
 pub const DATA_PLANE_AUTH_TOKEN_CACHE_KEY: &str = "data_plane_auth_token";
 pub const REPORT_SCHEDULER_LOCK_CACHE_KEY: &str = "report_scheduler_lock";
 pub const REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY: &str = "report_scheduler_last_check";
+pub const SIGNAL_BATCH_LOCK_CACHE_KEY: &str = "signal_batch_lock";
+pub const SIGNAL_BATCH_SUBMITTED_CACHE_KEY: &str = "signal_batch_submitted";

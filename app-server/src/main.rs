@@ -1277,6 +1277,7 @@ fn main() -> anyhow::Result<()> {
                     // Spawn LLM batch submissions workers
                     if let Some(llm_client) = llm_provider_client.as_ref() {
                         let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let llm_client_clone = llm_client.clone();
@@ -1287,6 +1288,7 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 SignalJobSubmissionBatchHandler::new(
                                     db.clone(),
+                                    cache.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
                                     llm_client_clone.clone(),
