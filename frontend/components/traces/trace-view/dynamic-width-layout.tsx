@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
@@ -6,6 +7,8 @@ import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize";
 
 import { type TraceViewPanels } from "./trace-view-content";
+
+const panelTransition = { duration: 0.2, ease: "easeOut" } as const;
 
 export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels }) {
   const { tracePanelWidth, spanPanelWidth, chatPanelWidth, resizePanel, setMaxWidth } = useTraceViewStore(
@@ -21,16 +24,10 @@ export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Observe the containing block that the SidePanel is positioned within.
-  // The SidePanel is position:absolute, so we need its offsetParent — the
-  // nearest positioned ancestor (the page's main content area). This gives
-  // a stable width that doesn't shrink when panel content shrinks.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    // Walk up past our container and the SidePanel to find the element
-    // that provides the positioning context (offsetParent of the SidePanel).
     const sidePanel = el.closest("[class*='absolute']");
     const measured = (sidePanel?.parentElement as HTMLElement) ?? el;
 
@@ -57,21 +54,42 @@ export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels
           {panels.tracePanel}
         </div>
 
-        {/* Span Panel */}
-        {panels.showSpan && (
-          <div className="relative flex h-full flex-shrink-0" style={{ width: spanPanelWidth }}>
-            <LeftEdgeResizeHandle onMouseDown={spanResize.handleMouseDown} />
-            {panels.spanPanel}
-          </div>
-        )}
+        <AnimatePresence initial={false}>
+          {/* Span Panel — curtain reveal: outer animates width, inner stays fixed */}
+          {panels.showSpan && (
+            <motion.div
+              key="span-panel"
+              className="relative h-full flex-shrink-0 overflow-hidden"
+              initial={{ width: 0, opacity: 0.5 }}
+              animate={{ width: spanPanelWidth, opacity: 1 }}
+              exit={{ width: 0, opacity: 0.5 }}
+              transition={panelTransition}
+            >
+              <div className="absolute inset-y-0 left-0 flex" style={{ width: spanPanelWidth }}>
+                <LeftEdgeResizeHandle onMouseDown={spanResize.handleMouseDown} />
+                {panels.spanPanel}
+              </div>
+            </motion.div>
+          )}
 
-        {/* Chat Panel */}
-        {panels.showChat && panels.chatPanel && (
-          <div className="relative flex h-full flex-shrink-0" style={{ width: chatPanelWidth }}>
-            <LeftEdgeResizeHandle onMouseDown={chatResize.handleMouseDown} />
-            {panels.chatPanel}
-          </div>
-        )}
+          {/* Chat Panel — curtain reveal: outer animates width, inner stays fixed */}
+          {panels.showChat && panels.chatPanel && (
+            <motion.div
+              key="chat-panel"
+              className="relative h-full flex-shrink-0 overflow-hidden"
+              initial={{ width: 0, opacity: 0.5 }}
+              animate={{ width: chatPanelWidth, opacity: 1 }}
+              exit={{ width: 0, opacity: 0.5 }}
+              transition={panelTransition}
+            >
+              {/* Inner container: always at target width, clipped by outer */}
+              <div className="absolute inset-y-0 left-0 flex" style={{ width: chatPanelWidth }}>
+                <LeftEdgeResizeHandle onMouseDown={chatResize.handleMouseDown} />
+                {panels.chatPanel}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

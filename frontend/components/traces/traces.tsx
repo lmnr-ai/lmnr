@@ -95,7 +95,6 @@ function TracesContent() {
       {traceId && (
         <TraceViewSidePanel
           spanId={spanId || undefined}
-          key={traceId}
           onClose={() => {
             const params = new URLSearchParams(searchParams);
             params.delete("traceId");

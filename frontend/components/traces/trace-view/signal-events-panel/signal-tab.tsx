@@ -125,7 +125,7 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
             Open in AI Chat
           </Button>
           <Button variant="outline" className="h-6 px-1.5 text-xs bg-transparent" asChild>
-            <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`}>
+            <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`} target="_blank">
               <ExternalLink className="size-3.5 mr-1" />
               Open in Signals
             </Link>

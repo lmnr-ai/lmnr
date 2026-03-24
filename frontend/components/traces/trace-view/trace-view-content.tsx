@@ -7,12 +7,12 @@ import Chat from "@/components/traces/trace-view/chat";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
-import { Skeleton } from "@/components/ui/skeleton";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 
 import { SpanView } from "../span-view";
+import { SpanViewSkeleton } from "../span-view/skeleton";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
 import { ScrollContextProvider } from "./scroll-context";
@@ -49,8 +49,9 @@ export default function TraceViewContent({
   const { projectId } = useParams();
 
   // Panel visibility states
-  const { tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
+  const { spanPanelOpen, tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
     (state) => ({
+      spanPanelOpen: state.spanPanelOpen,
       tracesAgentOpen: state.tracesAgentOpen,
       setTracesAgentOpen: state.setTracesAgentOpen,
       selectSpanById: state.selectSpanById,
@@ -228,8 +229,8 @@ export default function TraceViewContent({
         if (urlSpanId && spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
           setSelectedSpan(selectedSpan);
-        } else if (spans.length > 0) {
-          // Always select the first span so the span panel is open by default
+        } else if (spanPanelOpen && spans.length > 0) {
+          // Auto-select first span only if the span panel is open
           setSelectedSpan(spans[0]);
         } else {
           setSelectedSpan(undefined);
@@ -331,14 +332,8 @@ export default function TraceViewContent({
 
   const spanPanel = (
     <div className="flex flex-col h-full w-full overflow-hidden flex-1">
-      {isSpansLoading ? (
-        <div className="flex flex-col space-y-2 p-4">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-        </div>
-      ) : !selectedSpan ? (
-        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No span selected</div>
+      {!selectedSpan ? (
+        <SpanViewSkeleton />
       ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
         <HumanEvaluatorSpanView traceId={selectedSpan.traceId} spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
       ) : (
@@ -353,7 +348,7 @@ export default function TraceViewContent({
     </div>
   ) : null;
 
-  const showSpan = !!selectedSpan || (isAlwaysSelectSpan === true && !isLoading && spans.length > 0);
+  const showSpan = spanPanelOpen || (isAlwaysSelectSpan === true && !isLoading && spans.length > 0);
   const showChat = tracesAgentOpen && !!trace;
 
   const panels: TraceViewPanels = {

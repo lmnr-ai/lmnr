@@ -21,8 +21,8 @@ type PanelDef = { key: PanelWidthKey; min: number; default: number };
 
 const ALL_PANELS: PanelDef[] = [
   { key: "tracePanelWidth", min: 400, default: 500 },
-  { key: "spanPanelWidth", min: 360, default: 375 },
-  { key: "chatPanelWidth", min: 360, default: 375 },
+  { key: "spanPanelWidth", min: 400, default: 405 },
+  { key: "chatPanelWidth", min: 375, default: 385 },
 ];
 
 interface TraceViewStoreState {
@@ -44,8 +44,7 @@ type TraceViewStore = BaseTraceViewStore & TraceViewStoreState & TraceViewStoreA
 function getVisiblePanels(state: TraceViewStore): PanelDef[] {
   const result: PanelDef[] = [ALL_PANELS[0]]; // trace always visible
 
-  const spanVisible = !!state.selectedSpan || (state.isAlwaysSelectSpan && state.spans.length > 0);
-  if (spanVisible) result.push(ALL_PANELS[1]);
+  if (state.spanPanelOpen || (state.isAlwaysSelectSpan && state.spans.length > 0)) result.push(ALL_PANELS[1]);
 
   const chatVisible = state.tracesAgentOpen && !!state.trace;
   if (chatVisible) result.push(ALL_PANELS[2]);
@@ -115,7 +114,8 @@ const createTraceViewStore = (options?: {
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialSignalsPanelOpen?: boolean;
-}) => createStore<TraceViewStore>()(
+}) =>
+  createStore<TraceViewStore>()(
     persist(
       (set, get) => {
         const baseSlice = createBaseTraceViewSlice<TraceViewStore>(set, get, {
@@ -214,6 +214,11 @@ const createTraceViewStore = (options?: {
             get().fitPanelsToMaxWidth();
           },
 
+          setSpanPanelOpen: (open) => {
+            baseSlice.setSpanPanelOpen(open);
+            get().fitPanelsToMaxWidth();
+          },
+
           setTracesAgentOpen: (open) => {
             baseSlice.setTracesAgentOpen(open);
             get().fitPanelsToMaxWidth();
@@ -235,6 +240,7 @@ const createTraceViewStore = (options?: {
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
+            spanPanelOpen: state.spanPanelOpen,
           };
         },
         merge: (persistedState, currentState) => {
@@ -259,6 +265,7 @@ const createTraceViewStore = (options?: {
             ...(typeof persisted.condensedTimelineEnabled === "boolean" && {
               condensedTimelineEnabled: persisted.condensedTimelineEnabled,
             }),
+            ...(typeof persisted.spanPanelOpen === "boolean" && { spanPanelOpen: persisted.spanPanelOpen }),
             tab,
           };
         },

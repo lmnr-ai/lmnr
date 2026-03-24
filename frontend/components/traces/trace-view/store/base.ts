@@ -117,6 +117,7 @@ export interface BaseTraceViewState {
   isCostHeatmapVisible: boolean;
 
   // Panel visibility
+  spanPanelOpen: boolean;
   tracesAgentOpen: boolean;
   signalsPanelOpen: boolean;
 
@@ -174,6 +175,7 @@ export interface BaseTraceViewActions {
   selectMaxSpanCost: () => number;
 
   // Panel visibility actions
+  setSpanPanelOpen: (open: boolean) => void;
   setTracesAgentOpen: (open: boolean) => void;
   setSignalsPanelOpen: (open: boolean) => void;
 
@@ -231,6 +233,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     isCostHeatmapVisible: false,
 
     // Panel visibility defaults
+    spanPanelOpen: true,
     tracesAgentOpen: false,
     signalsPanelOpen: options?.initialSignalsPanelOpen ?? false,
 
@@ -315,7 +318,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       return lightweightListSpans;
     },
 
-    setSelectedSpan: (span) => set({ selectedSpan: span } as Partial<T>),
+    setSelectedSpan: (span) => set({ selectedSpan: span, spanPanelOpen: !!span } as Partial<T>),
     selectSpanById: (spanId: string) => {
       const span = get().spans.find((s) => s.spanId === spanId);
       if (span && !span.pending) {
@@ -451,6 +454,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     },
 
     // Panel visibility actions
+    setSpanPanelOpen: (open: boolean) => set({ spanPanelOpen: open } as Partial<T>),
     setTracesAgentOpen: (open: boolean) => set({ tracesAgentOpen: open } as Partial<T>),
     setSignalsPanelOpen: (open: boolean) => set({ signalsPanelOpen: open } as Partial<T>),
 

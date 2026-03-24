@@ -376,9 +376,7 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
           </form>
         </motion.div>
       </div>
-      <span className="text-xs text-muted-foreground/50 text-center pb-2">
-        Trace assistant is in beta and can make mistakes
-      </span>
+      <span className="text-xs text-muted-foreground/50 text-center pb-2">Trace agent can make mistakes.</span>
     </div>
   );
 }
