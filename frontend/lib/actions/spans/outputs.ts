@@ -7,6 +7,7 @@ import { matchProviderSchema } from "@/lib/spans/provider-keys";
 
 import { generateReaderKeys, type SpanStructure } from "./prompts";
 import {
+  bracketsToDots,
   computeFingerprint,
   isEmptyPayload,
   isPrimitive,
@@ -281,7 +282,8 @@ export async function getSpanPreviews(
           if (result.key) {
             const rendered = validateMustacheKey(result.key, spanData.data);
             if (rendered) {
-              results[spanData.spanId] = { preview: truncatePreview(rendered), mustacheKey: result.key };
+              const normalizedKey = bracketsToDots(result.key);
+              results[spanData.spanId] = { preview: truncatePreview(rendered), mustacheKey: normalizedKey };
               // TODO: Save to DB when migration is in place
               // await saveCachedKeys(projectId, [{ fingerprint: result.fingerprint, mustacheKey: result.key }]);
             } else {

@@ -146,14 +146,24 @@ function preprocessForMustache(data: unknown): unknown {
 }
 
 /**
+ * Convert bracket notation (e.g. `[0]`) to dot notation (e.g. `.0`) for Mustache.js compatibility.
+ * Mustache.js uses dot notation for array index access, not bracket notation.
+ */
+export function bracketsToDots(key: string): string {
+  return key.replace(/\[(\d+)\]/g, ".$1");
+}
+
+/**
  * Validate a mustache key by rendering it against sample data.
  * Returns the rendered string if valid, or null if it fails or produces empty output.
+ * Automatically converts bracket notation to dot notation for Mustache.js compatibility.
  */
 export function validateMustacheKey(mustacheKey: string, data: unknown): string | null {
   try {
+    const normalizedKey = bracketsToDots(mustacheKey);
     const unwrapped = Array.isArray(data) && data.length === 1 ? data[0] : data;
     const processed = preprocessForMustache(unwrapped);
-    const rendered = Mustache.render(mustacheKey, processed);
+    const rendered = Mustache.render(normalizedKey, processed);
 
     // Unescape HTML entities
     const unescaped = rendered

@@ -15,11 +15,12 @@ Context:
   Example: "Grep:{output_mode:string,pattern:string,type:string}" means a span named
   "Grep" whose data has three fields.
 - mustache_key is an access path to extract a value from the JSON.
+  IMPORTANT: Use dot notation for array indices, NOT bracket notation.
   Examples:
     "{{pattern}}"                        — top-level "pattern" field
     "{{result.text}}"                    — "text" inside "result"
-    "{{[0].file}}"                       — "file" on the first array element
-    "{{choices[0].message.content}}"     — deeply nested content
+    "{{0.file}}"                         — "file" on the first array element
+    "{{choices.0.message.content}}"      — deeply nested content
 
 Rules:
 - Pick the single most human-readable, descriptive string field per structure.

@@ -15,17 +15,17 @@ const PROVIDER_SCHEMAS: ProviderSchema[] = [
   // OpenAI / Azure
   {
     requiredKeys: ["choices"],
-    mustacheKey: "{{choices[0].message.content}}",
+    mustacheKey: "{{choices.0.message.content}}",
   },
   // Anthropic
   {
     requiredKeys: ["content"],
-    mustacheKey: "{{content[0].text}}",
+    mustacheKey: "{{content.0.text}}",
   },
   // Google (Gemini)
   {
     requiredKeys: ["candidates"],
-    mustacheKey: "{{candidates[0].content.parts[0].text}}",
+    mustacheKey: "{{candidates.0.content.parts.0.text}}",
   },
   // Cohere
   {
@@ -35,7 +35,7 @@ const PROVIDER_SCHEMAS: ProviderSchema[] = [
   // Cohere v2 (chat)
   {
     requiredKeys: ["message"],
-    mustacheKey: "{{message.content[0].text}}",
+    mustacheKey: "{{message.content.0.text}}",
   },
 ];
 
