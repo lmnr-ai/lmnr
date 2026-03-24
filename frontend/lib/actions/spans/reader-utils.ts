@@ -100,10 +100,13 @@ function truncateValues(value: unknown, maxLength: number = MAX_FIELD_LENGTH): u
 }
 
 /**
- * Prepare a payload for the model: truncate field values and cap total size.
+ * Prepare a payload for the model: unwrap single-element arrays (to match
+ * computeFingerprint and validateMustacheKey), truncate field values, and cap
+ * total size.
  */
 export function preparePayloadForModel(data: unknown): string {
-  const truncated = truncateValues(data);
+  const unwrapped = Array.isArray(data) && data.length === 1 ? data[0] : data;
+  const truncated = truncateValues(unwrapped);
   let json = JSON.stringify(truncated);
   if (json.length > MAX_PAYLOAD_SIZE) {
     json = json.slice(0, MAX_PAYLOAD_SIZE);
