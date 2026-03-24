@@ -201,7 +201,12 @@ const ListItem = ({
             ) : isNil(output) ? (
               <div className="text-sm text-muted-foreground italic">No output available</div>
             ) : (
-              <Markdown className="max-h-60" output={output} defaultValue={savedTemplate ?? preview?.mustacheKey} />
+              <Markdown
+                className="max-h-60"
+                output={output}
+                defaultValue={savedTemplate ?? (preview?.side === "output" ? preview.mustacheKey : undefined)}
+                previewText={!savedTemplate && preview?.side === "input" ? preview.preview : undefined}
+              />
             )}
           </div>
         )}

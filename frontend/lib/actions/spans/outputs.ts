@@ -199,13 +199,13 @@ function truncatePreview(text: string): string {
  */
 export async function getSpanPreviews(
   input: z.infer<typeof GetSpanPreviewsSchema>
-): Promise<Record<string, { preview: string; mustacheKey: string } | null>> {
+): Promise<Record<string, { preview: string; mustacheKey: string; side: "input" | "output" } | null>> {
   const { projectId, traceId, spanIds, spanTypes, startDate, endDate } = GetSpanPreviewsSchema.parse(input);
 
   // 1. Fetch data from ClickHouse
   const spanDataList = await fetchSpanData(projectId, traceId, spanIds, spanTypes, startDate, endDate);
 
-  const results: Record<string, { preview: string; mustacheKey: string } | null> = {};
+  const results: Record<string, { preview: string; mustacheKey: string; side: "input" | "output" } | null> = {};
   const needsLLM: Array<{ spanData: SpanData; fingerprint: string }> = [];
 
   // 2-4. Process each span
@@ -241,7 +241,7 @@ export async function getSpanPreviews(
       if (providerKey) {
         const rendered = validateMustacheKey(providerKey, data);
         if (rendered) {
-          results[spanId] = { preview: truncatePreview(rendered), mustacheKey: providerKey };
+          results[spanId] = { preview: truncatePreview(rendered), mustacheKey: providerKey, side };
           // TODO: Save to DB when migration is in place
           // await saveCachedKeys(projectId, [{ fingerprint, mustacheKey: providerKey }]);
           continue;
@@ -288,7 +288,11 @@ export async function getSpanPreviews(
             const rendered = validateMustacheKey(result.key, spanData.data);
             if (rendered) {
               const normalizedKey = bracketsToDots(result.key);
-              results[spanData.spanId] = { preview: truncatePreview(rendered), mustacheKey: normalizedKey };
+              results[spanData.spanId] = {
+                preview: truncatePreview(rendered),
+                mustacheKey: normalizedKey,
+                side: spanData.side,
+              };
               // TODO: Save to DB when migration is in place
               // await saveCachedKeys(projectId, [{ fingerprint: result.fingerprint, mustacheKey: result.key }]);
             } else {

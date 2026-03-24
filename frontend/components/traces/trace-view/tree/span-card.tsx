@@ -203,7 +203,12 @@ export function SpanCard({
                 </div>
               )}
               {!isLoadingOutput && !isNil(output) && (
-                <Markdown className="max-h-48" output={output} defaultValue={savedTemplate ?? preview?.mustacheKey} />
+                <Markdown
+                  className="max-h-48"
+                  output={output}
+                  defaultValue={savedTemplate ?? (preview?.side === "output" ? preview.mustacheKey : undefined)}
+                  previewText={!savedTemplate && preview?.side === "input" ? preview.preview : undefined}
+                />
               )}
             </div>
           )}

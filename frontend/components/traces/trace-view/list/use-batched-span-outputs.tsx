@@ -8,6 +8,8 @@ import { convertToTimeParameters } from "@/lib/time.ts";
 export interface SpanPreview {
   preview: string;
   mustacheKey: string;
+  /** Whether the key was computed from the span's input or output data */
+  side: "input" | "output";
 }
 
 export interface BatchedOutputsHook {

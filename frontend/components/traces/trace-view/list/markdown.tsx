@@ -61,11 +61,13 @@ const formatOutput = (output: any): string => {
 interface MarkdownProps {
   output: any;
   defaultValue?: string;
+  /** Pre-rendered preview text (used when the mustache key targets different data than output) */
+  previewText?: string;
   className?: string;
   contentClassName?: string;
 }
 
-const Markdown = ({ output, defaultValue, className, contentClassName }: MarkdownProps) => {
+const Markdown = ({ output, defaultValue, previewText, className, contentClassName }: MarkdownProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
@@ -108,6 +110,9 @@ const Markdown = ({ output, defaultValue, className, contentClassName }: Markdow
   const formattedOutput = useMemo(() => {
     if (!output) return "";
 
+    // Use pre-rendered preview text when available (e.g. tool span input previews)
+    if (previewText) return previewText;
+
     if (defaultValue) {
       try {
         const parsed = tryParseJson(output);
@@ -132,7 +137,7 @@ const Markdown = ({ output, defaultValue, className, contentClassName }: Markdow
     }
 
     return formatOutput(output);
-  }, [output, defaultValue]);
+  }, [output, defaultValue, previewText]);
 
   return (
     <div
