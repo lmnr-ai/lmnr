@@ -385,11 +385,6 @@ export function selectColumnSqls<TData>(state: DataTableStore<TData>): (string |
   return state.columnDefs.map((c) => c.meta?.sql).filter(Boolean);
 }
 
-/** Select custom column defs only. */
-export function selectCustomColumnDefs<TData>(state: DataTableStore<TData>): ColumnDef<TData>[] {
-  return state.columnDefs.filter((c) => c.meta?.isCustom);
-}
-
 // ---------------------------------------------------------------------------
 // Context + Provider
 // ---------------------------------------------------------------------------

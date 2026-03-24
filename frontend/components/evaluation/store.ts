@@ -130,11 +130,14 @@ export interface EvalStoreState {
   heatmapEnabled: boolean;
   isComparison: boolean;
   isShared: boolean;
+  /** Custom columns synced from the inner datatable store for outer fetch access. */
+  customColumns: CustomColumn[];
 
   setScoreRanges: (ranges: ScoreRanges) => void;
   setHeatmapEnabled: (enabled: boolean) => void;
   setIsComparison: (value: boolean) => void;
   setIsShared: (value: boolean) => void;
+  setCustomColumns: (columns: CustomColumn[]) => void;
 }
 
 /** Selector: visible columns, excluding output in comparison mode. Takes columnDefs + isComparison. */
@@ -152,11 +155,13 @@ export const useEvalStore = create<EvalStoreState>()(
       heatmapEnabled: false,
       isComparison: false,
       isShared: false,
+      customColumns: [],
 
       setScoreRanges: (ranges) => set({ scoreRanges: ranges }),
       setHeatmapEnabled: (enabled) => set({ heatmapEnabled: enabled }),
       setIsComparison: (value) => set({ isComparison: value }),
       setIsShared: (value) => set({ isShared: value }),
+      setCustomColumns: (columns) => set({ customColumns: columns }),
     }),
     {
       name: "evaluation-heatmap-enabled",

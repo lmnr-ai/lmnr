@@ -47,12 +47,20 @@ const EvaluationDatapointsTableContent = ({
   const setScoreRanges = useEvalStore((s) => s.setScoreRanges);
   const isComparison = useEvalStore((s) => s.isComparison);
   const isShared = useEvalStore((s) => s.isShared);
+  const setEvalCustomColumns = useEvalStore((s) => s.setCustomColumns);
 
   // Column defs from the datatable store
   const datatableStore = useDataTableStore<EvalRow>();
   const columnDefs = useStore(datatableStore, (s) => s.columnDefs);
   const customColumns = useStore(datatableStore, (s) => s.customColumns);
   const setColumnDefs = useStore(datatableStore, (s) => s.setColumnDefs);
+
+  // Sync custom columns to the global eval store so the outer fetch function
+  // (in EvaluationContent) can include custom column SQL in fetch params.
+  const evalCustomColumns = useEvalStore((s) => s.customColumns);
+  if (customColumns !== evalCustomColumns) {
+    setEvalCustomColumns(customColumns);
+  }
 
   // Rebuild column defs when scores or custom columns change
   const rebuiltDefs = useMemo(

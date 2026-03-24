@@ -65,15 +65,17 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     setIsShared(true);
   }, [setIsComparison, setIsShared]);
 
-  // Build column defs for stats/fetch — shared evals don't have custom columns
-  const columnDefs = useMemo(() => buildEvalColumnDefs([], [], true), []);
+  // Scores arrive after the first SWR fetch. We track them in state so the
+  // statsUrl can include score column SQL for filters without a circular dep.
+  const [prevScoresForDefs, setPrevScoresForDefs] = useState<string[]>([]);
 
   const statsUrl = useMemo(() => {
     const base = `/api/shared/evals/${evaluationId}/stats`;
+    const columnDefs = buildEvalColumnDefs(prevScoresForDefs, [], true);
     const urlParams = buildEvalStatsParams(columnDefs, { search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, columnDefs]);
+  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, prevScoresForDefs]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: Evaluation;
@@ -83,6 +85,11 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   }>(statsUrl, swrFetcher);
 
   const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
+
+  // Sync scores into state for stats URL recalculation
+  if (scores.length > 0 && scores.length !== prevScoresForDefs.length) {
+    setPrevScoresForDefs(scores);
+  }
 
   // Build full column defs with scores for fetch
   const columnDefsForFetch = useMemo(() => buildEvalColumnDefs(scores, [], true), [scores]);

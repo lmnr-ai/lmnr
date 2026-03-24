@@ -65,18 +65,31 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const setIsComparison = useEvalStore((s) => s.setIsComparison);
   const setIsShared = useEvalStore((s) => s.setIsShared);
   const isShared = useEvalStore((s) => s.isShared);
+  const customColumns = useEvalStore((s) => s.customColumns);
 
-  // Statistics URL (fetches all stats at once)
-  // We build column defs inline here for stats params — the actual column defs
-  // are managed in the DataTableStateProvider inside EvaluationDatapointsTable
+  // First SWR fetch: scores start as [] until statsData arrives.
+  // We build stats URL without score columns initially; statsUrl recalculates
+  // via columnDefsForFetch dep when scores become available.
+  const [prevScoresForDefs, setPrevScoresForDefs] = useState<string[]>([]);
+
   const statsUrl = useMemo(() => {
     const base = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
-    // For stats, we only need columns that have active filters — build minimal defs
-    const columnDefs = buildEvalColumnDefs([], [], isShared);
+    const columnDefs = buildEvalColumnDefs(prevScoresForDefs, customColumns, isShared);
     const urlParams = buildEvalStatsParams(columnDefs, { search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, isShared]);
+  }, [
+    params?.projectId,
+    evaluationId,
+    search,
+    searchIn,
+    filter,
+    sortBy,
+    sortDirection,
+    customColumns,
+    isShared,
+    prevScoresForDefs,
+  ]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: EvaluationType;
@@ -89,11 +102,22 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const targetStatsUrl = useMemo(() => {
     if (!targetId) return null;
     const base = `/api/projects/${params?.projectId}/evaluations/${targetId}/stats`;
-    const columnDefs = buildEvalColumnDefs([], [], isShared);
+    const columnDefs = buildEvalColumnDefs(prevScoresForDefs, customColumns, isShared);
     const urlParams = buildEvalStatsParams(columnDefs, { search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, isShared]);
+  }, [
+    params.projectId,
+    targetId,
+    search,
+    searchIn,
+    filter,
+    sortBy,
+    sortDirection,
+    customColumns,
+    isShared,
+    prevScoresForDefs,
+  ]);
 
   const { data: targetStatsData } = useSWR<{
     evaluation: EvaluationType;
@@ -103,6 +127,12 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   }>(targetStatsUrl, swrFetcher);
 
   const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
+
+  // Sync scores into state for stats URL recalculation (breaks the hook-order
+  // dependency: scores → statsUrl → statsData → scores)
+  if (scores !== prevScoresForDefs && scores.length > 0 && scores.length !== prevScoresForDefs.length) {
+    setPrevScoresForDefs(scores);
+  }
 
   // Sync comparison state from URL
   useEffect(() => {
@@ -114,10 +144,14 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     setIsShared(false);
   }, [setIsShared]);
 
-  // Build column defs for fetch params (includes scores + custom columns)
+  // Build column defs for fetch params (includes scores + custom columns).
   // The datatable store inside EvaluationDatapointsTable manages the actual columnDefs,
   // but we need them here for the infinite scroll fetch function.
-  const columnDefsForFetch = useMemo(() => buildEvalColumnDefs(scores, [], isShared), [scores, isShared]);
+  // customColumns is synced from the inner datatable store via useEvalStore.
+  const columnDefsForFetch = useMemo(
+    () => buildEvalColumnDefs(scores, customColumns, isShared),
+    [scores, customColumns, isShared]
+  );
 
   const columnSqls = useMemo(() => columnDefsForFetch.map((c) => c.meta?.sql).filter(Boolean), [columnDefsForFetch]);
 
