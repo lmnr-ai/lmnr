@@ -54,10 +54,7 @@ async fn process_clustering_logic(
     let project_id = first.project_id;
     let signal_id = first.signal_id;
 
-    // legacy lock. Keeping for the time of migration. To be dropped in a follow up release
-    let project_lock_key = format!("{CLUSTERING_LOCK_CACHE_KEY}-{project_id}");
-    // new, more granular lock
-    let signal_lock_key = format!("{CLUSTERING_LOCK_CACHE_KEY}-{project_id}-{signal_id}");
+    let lock_key = format!("{CLUSTERING_LOCK_CACHE_KEY}-{project_id}-{signal_id}");
     let lock_ttl =
         get_unsigned_env_with_default("CLUSTERING_LOCK_TTL_SECONDS", DEFAULT_LOCK_TTL_SECONDS);
     let max_wait = get_unsigned_env_with_default(
@@ -72,55 +69,30 @@ async fn process_clustering_logic(
         // Check if we've exceeded the max wait time
         if start_time.elapsed() >= max_wait_duration {
             log::warn!(
-                "Timeout waiting for clustering lock for project_id={}, requeuing",
-                project_id
+                "Timeout waiting for clustering lock for project_id={}, signal_id={}. Requeuing",
+                project_id,
+                signal_id,
             );
             return Err(HandlerError::transient(anyhow::anyhow!("Lock timeout")));
         }
 
-        match cache
-            .try_acquire_lock(&project_lock_key, lock_ttl as u64)
-            .await
-        {
+        match cache.try_acquire_lock(&lock_key, lock_ttl as u64).await {
             Ok(true) => {
-                // Project lock acquired, now try to acquire per-signal lock
-                match cache
-                    .try_acquire_lock(&signal_lock_key, lock_ttl as u64)
-                    .await
-                {
-                    Ok(true) => {
-                        log::debug!(
-                            "Acquired project and signal clustering locks for project_id={}, signal_id={}.",
-                            project_id,
-                            signal_id
-                        );
-                        break;
-                    }
-                    Ok(false) => {
-                        // Signal lock already held, release project lock and retry
-                        if let Err(e) = cache.release_lock(&project_lock_key).await {
-                            log::error!(
-                                "Failed to release LEGACY project clustering lock: {:?}",
-                                e
-                            );
-                        }
-                        tokio::time::sleep(Duration::from_millis(500)).await;
-                        continue;
-                    }
-                    Err(e) => {
-                        log::error!("Failed to acquire signal clustering lock: {:?}", e);
-                        let _ = cache.release_lock(&project_lock_key).await;
-                        return Err(HandlerError::permanent(e));
-                    }
-                }
+                // Lock acquired, proceed with clustering
+                log::debug!(
+                    "Acquired clustering lock for project_id={}, signal_id={}",
+                    project_id,
+                    signal_id,
+                );
+                break;
             }
             Ok(false) => {
-                // Project lock already held, wait and retry
+                // Lock already held, wait and retry
                 tokio::time::sleep(Duration::from_millis(500)).await;
                 continue;
             }
             Err(e) => {
-                log::error!("Failed to acquire project clustering lock: {:?}", e);
+                log::error!("Failed to acquire clustering lock: {:?}", e);
                 return Err(HandlerError::permanent(e));
             }
         }
@@ -129,39 +101,39 @@ async fn process_clustering_logic(
     // Call clustering endpoint
     let result = call_clustering_endpoint(&client, project_id, signal_id, &message).await;
 
-    // Always release signal lock.
-    if let Err(e) = cache.release_lock(&signal_lock_key).await {
-        log::error!("Failed to release signal clustering lock: {:?}", e);
+    // Always release lock
+    if let Err(e) = cache.release_lock(&lock_key).await {
+        log::error!("Failed to release clustering lock: {:?}", e);
     } else {
         log::debug!(
-            "Released signal clustering lock for project_id={}, signal_id={}",
+            "Released clustering lock for project_id={}, signal_id={}",
             project_id,
-            signal_id
+            signal_id,
         );
-    }
-    if let Err(e) = cache.release_lock(&project_lock_key).await {
-        log::error!("Failed to release LEGACY project clustering lock: {:?}", e);
     }
 
     match result {
         Ok(success) => {
             if success {
                 log::info!(
-                    "Successfully clustered events for project_id={}",
-                    project_id
+                    "Successfully clustered events for project_id={}, signal_id={}",
+                    project_id,
+                    signal_id,
                 );
             } else {
                 log::warn!(
-                    "Clustering endpoint returned success=false for project_id={}",
-                    project_id
+                    "Clustering endpoint returned success=false for project_id={}, signal_id={}",
+                    project_id,
+                    signal_id,
                 );
             }
             Ok(())
         }
         Err(e) => {
             log::error!(
-                "Failed to call clustering endpoint for project_id={}: {:?}",
+                "Failed to call clustering endpoint for project_id={}, signal_id={}: {:?}",
                 project_id,
+                signal_id,
                 e
             );
             Err(e.into())
