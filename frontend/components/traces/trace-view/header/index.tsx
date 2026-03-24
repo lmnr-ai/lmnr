@@ -285,7 +285,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       <div className="flex items-center gap-2">
         <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />
       </div>
-      <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
+      {spans.length > 0 && (
+        <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />
+      )}
     </div>
   );
 };
