@@ -10,7 +10,11 @@
 //! - `MOCK_LLM_CLIENT_STEPS_COUNT` — total number of steps to before returning the final result.
 //!   All but last step return `get_full_spans`, last step returns `submit_identification`.
 //!   Defaults to 2.
+//!
+//! For programmatic control in tests, use [`MockProviderClient::with_generate_failure`] to
+//! configure `generate_content` to fail a specified number of times before succeeding.
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use dashmap::DashMap;
 use uuid::Uuid;
@@ -27,15 +31,41 @@ struct BatchEntry {
     poll_count: u32,
 }
 
+/// Controls how `generate_content` fails during testing.
+#[derive(Clone)]
+pub enum GenerateFailureMode {
+    /// Return a retryable 429 ApiError (resource exhausted).
+    #[allow(dead_code)]
+    Retryable429,
+    /// Return a non-retryable 400 ApiError.
+    #[allow(dead_code)]
+    NonRetryable,
+}
+
+/// Configuration for programmatic `generate_content` failure injection.
+#[derive(Clone)]
+struct GenerateFailureConfig {
+    /// How many calls to `generate_content` should fail before succeeding.
+    /// `usize::MAX` means fail forever.
+    fail_count: usize,
+    mode: GenerateFailureMode,
+}
+
 #[derive(Clone)]
 pub struct MockProviderClient {
     batches: Arc<DashMap<String, BatchEntry>>,
+    /// Tracks how many times `generate_content` has been called.
+    generate_call_count: Arc<AtomicUsize>,
+    /// Optional failure injection for `generate_content`.
+    generate_failure: Option<GenerateFailureConfig>,
 }
 
 impl Default for MockProviderClient {
     fn default() -> Self {
         Self {
             batches: Arc::new(DashMap::new()),
+            generate_call_count: Arc::new(AtomicUsize::new(0)),
+            generate_failure: None,
         }
     }
 }
@@ -43,6 +73,22 @@ impl Default for MockProviderClient {
 impl MockProviderClient {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Create a mock provider that fails `generate_content` for the first `fail_count` calls,
+    /// then succeeds. Use `usize::MAX` for `fail_count` to fail forever.
+    #[cfg(test)]
+    pub fn with_generate_failure(fail_count: usize, mode: GenerateFailureMode) -> Self {
+        Self {
+            generate_failure: Some(GenerateFailureConfig { fail_count, mode }),
+            ..Self::default()
+        }
+    }
+
+    /// Returns how many times `generate_content` has been called.
+    #[cfg(test)]
+    pub fn generate_call_count(&self) -> usize {
+        self.generate_call_count.load(Ordering::Relaxed)
     }
 }
 
@@ -132,7 +178,33 @@ impl LanguageModelClient for MockProviderClient {
         _model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
-        log::debug!("[Mock LLM client] generate_content called");
+        let call_num = self.generate_call_count.fetch_add(1, Ordering::Relaxed);
+
+        if let Some(ref config) = self.generate_failure {
+            if call_num < config.fail_count {
+                log::debug!(
+                    "[Mock LLM client] Generate single. Returning failure (call {}/{})",
+                    call_num + 1,
+                    config.fail_count,
+                );
+                return match config.mode {
+                    GenerateFailureMode::Retryable429 => Err(ProviderError::ApiError {
+                        status_code: 429,
+                        message: "Mock: resource exhausted".to_string(),
+                        retryable: true,
+                        resource_exhausted: true,
+                    }),
+                    GenerateFailureMode::NonRetryable => Err(ProviderError::ApiError {
+                        status_code: 400,
+                        message: "Mock: bad request".to_string(),
+                        retryable: false,
+                        resource_exhausted: false,
+                    }),
+                };
+            }
+        }
+
+        log::debug!("[Mock LLM client] Generate single. Returning mock response");
         Ok(mock_response(request))
     }
 

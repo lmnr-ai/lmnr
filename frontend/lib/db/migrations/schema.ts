@@ -63,7 +63,6 @@ export const signalTriggers = pgTable("signal_triggers", {
   value: jsonb().notNull(),
   signalId: uuid("signal_id").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
-  clusteringKey: text("clustering_key"),
   mode: smallint().default(0).notNull(),
 });
 
