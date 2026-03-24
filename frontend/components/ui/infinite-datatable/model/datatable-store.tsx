@@ -345,18 +345,21 @@ function createDataTableStore<TData extends RowData>(
             }
           >;
 
+          // Restore persisted custom columns first so we can include their IDs
+          const restoredCustomColumns = persisted?.customColumns ?? currentState.customColumns;
+          const customColumnIds = restoredCustomColumns.map((cc: CustomColumn) => `custom:${cc.name}`);
+
           // Derive the full set of valid column IDs from current column defs (visible only)
+          // plus any persisted custom column IDs (not yet in columnDefs at hydration time)
           const visibleIds = currentState.columnDefs.filter((c: any) => !c.meta?.hidden).map((c: any) => c.id!);
-          const allValidIds = visibleIds.length > 0 ? visibleIds : defaultColumnOrder;
+          const baseIds = visibleIds.length > 0 ? visibleIds : defaultColumnOrder;
+          const allValidIds = [...baseIds, ...customColumnIds.filter((id: string) => !baseIds.includes(id))];
 
           const validColumns = intersection(persisted?.columnOrder ?? [], allValidIds);
           const newColumns = allValidIds.filter((col: string) => !validColumns.includes(col));
           const mergedColumnOrder = [...validColumns, ...newColumns];
           const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, allValidIds);
           const filteredColumnSizing = pick(persisted?.columnSizing ?? {}, allValidIds);
-
-          // Restore persisted custom columns
-          const restoredCustomColumns = persisted?.customColumns ?? currentState.customColumns;
 
           return {
             ...currentState,
