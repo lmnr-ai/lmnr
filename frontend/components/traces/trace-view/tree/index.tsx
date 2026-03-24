@@ -12,6 +12,8 @@ import { useScrollContext } from "../scroll-context";
 import { type PathInfo } from "../store/utils";
 import { SpanCard } from "./span-card";
 
+type SpanTypesMap = Record<string, string>;
+
 interface TreeProps {
   onSpanSelect: (span?: TraceViewSpan) => void;
   isShared?: boolean;
@@ -31,6 +33,11 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     }));
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
+
+  const spanTypesMap = useMemo<SpanTypesMap>(
+    () => Object.fromEntries(spans.map((s) => [s.spanId, s.spanType])),
+    [spans]
+  );
 
   const [settingsSpan, setSettingsSpan] = useState<(TraceViewSpan & { pathInfo: PathInfo }) | null>(null);
 
@@ -67,7 +74,7 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     })
   ) as string[];
 
-  const { outputs } = useBatchedSpanOutputs(
+  const { outputs, previews } = useBatchedSpanOutputs(
     projectId,
     visibleSpanIds,
     {
@@ -75,6 +82,7 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
       startTime: trace?.startTime,
       endTime: trace?.endTime,
     },
+    spanTypesMap,
     { isShared }
   );
 
@@ -149,6 +157,7 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
                     span={spanItem.span}
                     branchMask={spanItem.branchMask}
                     output={outputs[spanItem.span.spanId]}
+                    preview={previews[spanItem.span.spanId]}
                     depth={spanItem.depth}
                     pathInfo={spanItem.pathInfo}
                     onSpanSelect={onSpanSelect}

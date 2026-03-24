@@ -38,6 +38,8 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
 
   const listSpans = useMemo(() => getListData(), [getListData, spans, condensedTimelineVisibleSpanIds]);
 
+  const spanTypesMap = useMemo(() => Object.fromEntries(spans.map((s) => [s.spanId, s.spanType])), [spans]);
+
   const virtualizer = useVirtualizer({
     count: listSpans.length,
     getScrollElement: () => scrollRef.current,
@@ -66,7 +68,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
 
   const visibleSpanIds = compact(items.map((item) => listSpans[item.index]?.spanId)) as string[];
 
-  const { outputs } = useBatchedSpanOutputs(
+  const { outputs, previews } = useBatchedSpanOutputs(
     projectId,
     // Fetches outputs for visible or rendered spans in virtualized list.
     // Make sure that spans in view (~20) + overscan spans < cache size (default 100) in this hook.
@@ -76,6 +78,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       startTime: trace?.startTime,
       endTime: trace?.endTime,
     },
+    spanTypesMap,
     { isShared }
   );
 
@@ -195,6 +198,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
                     isLast={isLast}
                     span={listSpan}
                     output={outputs[listSpan.spanId]}
+                    preview={previews[listSpan.spanId]}
                     onSpanSelect={handleSpanSelect}
                     onOpenSettings={setSettingsSpan}
                   />

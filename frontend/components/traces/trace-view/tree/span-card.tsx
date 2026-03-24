@@ -4,6 +4,7 @@ import { useMemo, useRef } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
+import { type SpanPreview } from "@/components/traces/trace-view/list/use-batched-span-outputs";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { type PathInfo } from "@/components/traces/trace-view/store/utils";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
@@ -27,6 +28,7 @@ interface SpanCardProps {
   span: TraceViewSpan;
   branchMask: boolean[];
   output: any | undefined;
+  preview?: SpanPreview | null;
   depth: number;
   pathInfo: PathInfo;
   onSpanSelect?: (span?: TraceViewSpan) => void;
@@ -44,7 +46,16 @@ const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo
   return pathSegments.join(", ");
 };
 
-export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathInfo, onOpenSettings }: SpanCardProps) {
+export function SpanCard({
+  span,
+  branchMask,
+  output,
+  preview,
+  onSpanSelect,
+  depth,
+  pathInfo,
+  onOpenSettings,
+}: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewBaseStore((state) => ({
@@ -192,7 +203,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
                 </div>
               )}
               {!isLoadingOutput && !isNil(output) && (
-                <Markdown className="max-h-48" output={output} defaultValue={savedTemplate} />
+                <Markdown className="max-h-48" output={output} defaultValue={savedTemplate ?? preview?.mustacheKey} />
               )}
             </div>
           )}

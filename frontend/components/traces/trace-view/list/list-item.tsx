@@ -9,6 +9,7 @@ import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import { MiniTree } from "@/components/traces/trace-view/list/mini-tree";
+import { type SpanPreview } from "@/components/traces/trace-view/list/use-batched-span-outputs";
 import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
@@ -21,13 +22,22 @@ import { cn } from "@/lib/utils";
 interface ListItemProps {
   span: TraceViewListSpan;
   output: any | undefined;
+  preview?: SpanPreview | null;
   onSpanSelect: (span: TraceViewListSpan) => void;
   onOpenSettings: (span: TraceViewListSpan) => void;
   isFirst: boolean;
   isLast: boolean;
 }
 
-const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
+const ListItem = ({
+  span,
+  output,
+  preview,
+  onSpanSelect,
+  onOpenSettings,
+  isFirst = false,
+  isLast = false,
+}: ListItemProps) => {
   const { selectedSpan, spans } = useTraceViewBaseStore((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
@@ -191,7 +201,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
             ) : isNil(output) ? (
               <div className="text-sm text-muted-foreground italic">No output available</div>
             ) : (
-              <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
+              <Markdown className="max-h-60" output={output} defaultValue={savedTemplate ?? preview?.mustacheKey} />
             )}
           </div>
         )}
