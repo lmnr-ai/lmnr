@@ -337,7 +337,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
           );
         }
 
-        set({ selectedSpan: span } as Partial<T>);
+        get().setSelectedSpan(span);
         const spanPath = span.attributes?.["lmnr.span.path"];
         if (spanPath && Array.isArray(spanPath)) {
           set({ spanPath } as Partial<T>);
