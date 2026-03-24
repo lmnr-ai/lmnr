@@ -30,7 +30,7 @@ const SIGNAL_QUICK_RANGES: DateRange[] = [
 
 export default function Signals() {
   return (
-    <DataTableStateProvider storageKey="signals-cards" uniqueKey="id" defaultColumnOrder={[]}>
+    <DataTableStateProvider storageKey="signals-cards" uniqueKey="id">
       <SignalsContent />
     </DataTableStateProvider>
   );

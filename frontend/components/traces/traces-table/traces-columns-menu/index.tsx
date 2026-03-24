@@ -1,48 +1,28 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
-import { useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
-import { type ColumnActions, ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
+import { ColumnsMenu, type CustomColumnPanelConfig } from "@/components/ui/columns-menu";
+import { selectAllColumnDefs, useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
 
-interface TracesColumnsMenuProps {
-  lockedColumns?: string[];
-  columnLabels?: { id: string; label: string; onDelete?: () => void }[];
-}
-
-export default function TracesColumnsMenu({ lockedColumns = [], columnLabels = [] }: TracesColumnsMenuProps) {
-  const addCustomColumn = useTracesTableStore((s) => s.addCustomColumn);
-  const updateCustomColumn = useTracesTableStore((s) => s.updateCustomColumn);
+export default function TracesColumnsMenu() {
+  const store = useDataTableStore();
 
   const panelConfig = useMemo<CustomColumnPanelConfig>(
     () => ({
       schema: { tables: ["traces"] },
       generationMode: "trace-expression",
       buildTestQuery: (sql) => `SELECT ${sql} as \`test\` FROM traces LIMIT 1`,
-      getColumnDefs: () => useTracesTableStore.getState().columnDefs,
+      getColumnDefs: () => selectAllColumnDefs(store.getState()),
       namePlaceholder: "e.g. LLM span count",
       sqlPlaceholder: "e.g. total_tokens * total_cost",
       aiInputPlaceholder: "e.g. Calculate cost per token",
       sqlHint: "Expression is added as a column: SELECT <expr> FROM traces",
     }),
-    []
+    [store]
   );
 
-  const columnActions = useMemo<ColumnActions>(
-    () => ({
-      addCustomColumn,
-      updateCustomColumn,
-      getColumnDef: (columnId) => useTracesTableStore.getState().columnDefs.find((c) => c.id === columnId),
-    }),
-    [addCustomColumn, updateCustomColumn]
-  );
+  const getColumnDefs = useCallback(() => selectAllColumnDefs(store.getState()), [store]);
 
-  return (
-    <ColumnsMenu
-      lockedColumns={lockedColumns}
-      columnLabels={columnLabels}
-      panelConfig={panelConfig}
-      columnActions={columnActions}
-    />
-  );
+  return <ColumnsMenu panelConfig={panelConfig} getColumnDefs={getColumnDefs} />;
 }

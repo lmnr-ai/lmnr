@@ -10,9 +10,9 @@ import useSWR from "swr";
 import { type SignalJobRow, signalJobsColumns, signalJobsFilters } from "@/components/signal/jobs-table/columns.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";
@@ -97,10 +97,8 @@ const JobsTableContent = () => {
       </Link>
       <InfiniteDataTable<SignalJobRow>
         className="w-full"
-        columns={signalJobsColumns}
         data={jobs}
         getRowId={(job) => job.id}
-        lockedColumns={["id"]}
         hasMore={false}
         isFetching={isLoading}
         isLoading={isLoading}
@@ -111,13 +109,7 @@ const JobsTableContent = () => {
       >
         <div className="flex flex-1 w-full space-x-2">
           <FilterPopover columns={signalJobsFilters} filters={jobsFilters} onAddFilter={handleAddFilter} />
-          <ColumnsMenu
-            columnLabels={signalJobsColumns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-            lockedColumns={["id"]}
-          />
+          <ColumnsMenu />
         </div>
         <FilterList className="py-[3px] text-xs px-1" filters={jobsFilters} onRemoveFilter={handleRemoveFilter} />
       </InfiniteDataTable>
@@ -127,7 +119,7 @@ const JobsTableContent = () => {
 
 export default function SignalJobsTable() {
   return (
-    <DataTableStateProvider defaultColumnOrder={signalJobsColumns.map((c) => String(c.id))}>
+    <DataTableStateProvider columnDefs={signalJobsColumns} lockedColumns={["id"]}>
       <JobsTableContent />
     </DataTableStateProvider>
   );

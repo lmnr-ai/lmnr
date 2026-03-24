@@ -7,11 +7,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Button } from "@/components/ui/button.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import { type Datapoint, type Dataset as DatasetType } from "@/lib/dataset/types";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -70,8 +70,6 @@ const columns: ColumnDef<Datapoint>[] = [
     id: "metadata",
   },
 ];
-
-const defaultDatasetColumnOrder = ["__row_selection", "index", "createdAt", "data", "target", "metadata"];
 
 const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: DatasetProps) => {
   const router = useRouter();
@@ -289,7 +287,6 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
         </div>
         <div className="flex overflow-hidden flex-1">
           <InfiniteDataTable
-            columns={columns}
             data={datapoints}
             hasMore={hasMore}
             isFetching={isFetching}
@@ -305,7 +302,6 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
             }}
             onRowSelectionChange={setRowSelection}
             className="flex-1"
-            lockedColumns={["__row_selection"]}
             selectionPanel={(selectedRowIds) => (
               <div className="flex flex-col space-y-2">
                 <DeleteSelectedRows
@@ -316,13 +312,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
               </div>
             )}
           >
-            <ColumnsMenu
-              lockedColumns={["__row_selection"]}
-              columnLabels={columns.map((column: ColumnDef<Datapoint>) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-            />
+            <ColumnsMenu />
           </InfiniteDataTable>
         </div>
         <div className="flex text-secondary-foreground text-sm">{totalCount} datapoints</div>
@@ -356,7 +346,12 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
 
 export default function Dataset(props: DatasetProps) {
   return (
-    <DataTableStateProvider storageKey="dataset-table" defaultColumnOrder={defaultDatasetColumnOrder}>
+    <DataTableStateProvider
+      storageKey="dataset-table"
+      columnDefs={columns}
+      enableRowSelection
+      lockedColumns={["__row_selection"]}
+    >
       <DatasetContent {...props} />
     </DataTableStateProvider>
   );

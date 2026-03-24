@@ -8,17 +8,16 @@ import useSWR, { mutate } from "swr";
 
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
 import {
-  defaultTriggersColumnOrder,
   getTriggersTableColumns,
   type TriggerRow,
   triggersFilters,
 } from "@/components/signal/triggers-table/columns.tsx";
 import ManageTriggerDialog from "@/components/signals/manage-trigger-dialog";
 import { Button } from "@/components/ui/button.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { type Filter } from "@/lib/actions/common/filters.ts";
@@ -66,8 +65,6 @@ function TriggersTableContent() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const triggers: TriggerRow[] = data?.items || [];
-
-  const columns = getTriggersTableColumns();
 
   const handleAddFilter = useCallback(
     (filter: Filter) => {
@@ -148,10 +145,8 @@ function TriggersTableContent() {
       </ManageTriggerDialog>
       <InfiniteDataTable<TriggerRow>
         className="w-full"
-        columns={columns}
         data={triggers}
         getRowId={(trigger) => trigger.id}
-        lockedColumns={["__row_selection"]}
         hasMore={false}
         isFetching={isLoading}
         isLoading={isLoading}
@@ -167,13 +162,7 @@ function TriggersTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <FilterPopover columns={triggersFilters} filters={storeTriggersFilters} onAddFilter={handleAddFilter} />
-          <ColumnsMenu
-            lockedColumns={["__row_selection"]}
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-          />
+          <ColumnsMenu />
         </div>
         <FilterList
           className="py-[3px] text-xs px-1"
@@ -187,7 +176,11 @@ function TriggersTableContent() {
 
 export default function TriggersTable() {
   return (
-    <DataTableStateProvider defaultColumnOrder={["__row_selection", ...defaultTriggersColumnOrder]}>
+    <DataTableStateProvider
+      columnDefs={getTriggersTableColumns()}
+      enableRowSelection
+      lockedColumns={["__row_selection"]}
+    >
       <TriggersTableContent />
     </DataTableStateProvider>
   );

@@ -7,11 +7,11 @@ import { type ReactNode, useCallback, useState } from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import { Badge } from "@/components/ui/badge.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import Header from "@/components/ui/header";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks/use-infinite-scroll";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import Mono from "@/components/ui/mono";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type DebuggerSession, type DebuggerSessionStatus } from "@/lib/actions/debugger-sessions";
@@ -81,8 +81,6 @@ const columns: ColumnDef<DebuggerSession>[] = [
     size: 180,
   },
 ];
-
-const defaultDebuggerSessionsColumnOrder = ["id", "name", "status", "createdAt"];
 
 const EmptyRow = (
   <TableRow className="flex">
@@ -167,7 +165,6 @@ function DebuggerSessionsContent() {
         <div className="flex overflow-hidden flex-1">
           <InfiniteDataTable
             getRowId={(row: DebuggerSession) => row.id}
-            columns={columns}
             data={debuggerSessions ?? []}
             hasMore={hasMore}
             getRowHref={(row) => `debugger-sessions/${row.id}`}
@@ -181,12 +178,7 @@ function DebuggerSessionsContent() {
             emptyRow={EmptyRow}
           >
             <div className="flex flex-1 w-full space-x-2 pt-1">
-              <ColumnsMenu
-                columnLabels={columns.map((column) => ({
-                  id: column.id!,
-                  label: typeof column.header === "string" ? column.header : column.id!,
-                }))}
-              />
+              <ColumnsMenu />
             </div>
           </InfiniteDataTable>
         </div>
@@ -197,10 +189,7 @@ function DebuggerSessionsContent() {
 
 export default function DebuggerSessions() {
   return (
-    <DataTableStateProvider
-      storageKey="debugger-sessions-table"
-      defaultColumnOrder={defaultDebuggerSessionsColumnOrder}
-    >
+    <DataTableStateProvider storageKey="debugger-sessions-table" columnDefs={columns}>
       <DebuggerSessionsContent />
     </DataTableStateProvider>
   );

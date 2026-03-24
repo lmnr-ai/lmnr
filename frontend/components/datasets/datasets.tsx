@@ -6,10 +6,10 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
@@ -49,8 +49,6 @@ const columns: ColumnDef<DatasetInfo>[] = [
     id: "createdAt",
   },
 ];
-
-const defaultDatasetsColumnOrder = ["__row_selection", "id", "name", "datapointsCount", "createdAt"];
 
 const datasetsTableFilters: ColumnFilter[] = [
   {
@@ -209,7 +207,6 @@ function DatasetsContent() {
             enableRowSelection={true}
             getRowHref={(row) => `/project/${projectId}/datasets/${row.original.id}`}
             getRowId={(row: DatasetInfo) => row.id}
-            columns={columns}
             data={datasets}
             hasMore={hasMore}
             isFetching={isFetching}
@@ -219,7 +216,6 @@ function DatasetsContent() {
               rowSelection,
             }}
             onRowSelectionChange={setRowSelection}
-            lockedColumns={["__row_selection"]}
             emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
             selectionPanel={(selectedRowIds) => (
               <div className="flex flex-col space-y-2">
@@ -233,13 +229,7 @@ function DatasetsContent() {
           >
             <div className="flex flex-1 w-full space-x-2 pt-1">
               <DataTableFilter columns={datasetsTableFilters} />
-              <ColumnsMenu
-                lockedColumns={["__row_selection"]}
-                columnLabels={columns.map((column) => ({
-                  id: column.id!,
-                  label: typeof column.header === "string" ? column.header : column.id!,
-                }))}
-              />
+              <ColumnsMenu />
               <DataTableSearch className="mr-0.5" placeholder="Search by dataset name..." />
             </div>
             <DataTableFilterList />
@@ -252,7 +242,12 @@ function DatasetsContent() {
 
 export default function Datasets() {
   return (
-    <DataTableStateProvider storageKey="datasets-table" defaultColumnOrder={defaultDatasetsColumnOrder}>
+    <DataTableStateProvider
+      storageKey="datasets-table"
+      columnDefs={columns}
+      enableRowSelection
+      lockedColumns={["__row_selection"]}
+    >
       <DatasetsContent />
     </DataTableStateProvider>
   );

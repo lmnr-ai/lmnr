@@ -6,10 +6,10 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { DataTableSearch } from "@/components/ui/infinite-datatable/ui/datatable-search";
@@ -51,8 +51,6 @@ const columns: ColumnDef<PlaygroundInfo>[] = [
     cell: (row) => <ClientTimestampFormatter absolute timestamp={String(row.getValue())} />,
   },
 ];
-
-export const defaultPlaygroundsColumnOrder = ["__row_selection", "id", "name", "createdAt"];
 
 const playgroundsTableFilters: ColumnFilter[] = [
   {
@@ -196,7 +194,6 @@ const PlaygroundsContent = () => {
           enableRowSelection={true}
           getRowHref={(row) => `/project/${projectId}/playgrounds/${row.original.id}`}
           getRowId={(row) => row.id}
-          columns={columns}
           data={playgrounds ?? []}
           hasMore={hasMore}
           isFetching={isFetching}
@@ -206,7 +203,6 @@ const PlaygroundsContent = () => {
             rowSelection,
           }}
           onRowSelectionChange={setRowSelection}
-          lockedColumns={["__row_selection"]}
           emptyRow={filter.length === 0 && !search ? EmptyRow : undefined}
           selectionPanel={(selectedRowIds) => (
             <div className="flex flex-col space-y-2">
@@ -240,13 +236,7 @@ const PlaygroundsContent = () => {
         >
           <div className="flex flex-1 w-full space-x-2 pt-1">
             <DataTableFilter columns={playgroundsTableFilters} />
-            <ColumnsMenu
-              columnLabels={columns.map((column) => ({
-                id: column.id!,
-                label: typeof column.header === "string" ? column.header : column.id!,
-              }))}
-              lockedColumns={["__row_selection"]}
-            />
+            <ColumnsMenu />
             <DataTableSearch className="mr-0.5" placeholder="Search by playground name..." />
           </div>
           <DataTableFilterList />
@@ -258,7 +248,12 @@ const PlaygroundsContent = () => {
 
 export default function Playgrounds() {
   return (
-    <DataTableStateProvider storageKey="playgrounds-table" defaultColumnOrder={defaultPlaygroundsColumnOrder}>
+    <DataTableStateProvider
+      storageKey="playgrounds-table"
+      columnDefs={columns}
+      enableRowSelection
+      lockedColumns={["__row_selection"]}
+    >
       <PlaygroundsContent />
     </DataTableStateProvider>
   );

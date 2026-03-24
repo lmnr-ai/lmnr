@@ -11,12 +11,12 @@ import { useClusterId } from "@/components/signal/hooks/use-cluster-id";
 import { getFilterClusterIds, useSignalStoreContext } from "@/components/signal/store.tsx";
 import { type EventNavigationItem } from "@/components/signal/utils.ts";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context.tsx";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { UNCLUSTERED_ID } from "@/lib/actions/clusters";
@@ -72,7 +72,7 @@ function PureEventsTable() {
   const filterRaw = searchParams.getAll("filter");
   const filter = useMemo(() => filterRaw, [JSON.stringify(filterRaw)]);
 
-  const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
+  const { filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   const setTraceId = useSignalStoreContext((state) => state.setTraceId);
   const setSelectedEvent = useSignalStoreContext((state) => state.setSelectedEvent);
@@ -200,7 +200,6 @@ function PureEventsTable() {
     <div className="flex flex-1 overflow-hidden px-4 pb-4">
       <InfiniteDataTable<EventRow>
         className="w-full"
-        columns={columns}
         data={events}
         onRowClick={handleRowClick}
         getRowId={(row: EventRow) => row.id}
@@ -216,12 +215,7 @@ function PureEventsTable() {
       >
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
-          <ColumnsMenu
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-          />
+          <ColumnsMenu />
           <DateRangeFilter />
         </div>
         <ClusterBreadcrumbs />
@@ -235,10 +229,10 @@ function PureEventsTable() {
 export default function EventsTable() {
   const signal = useSignalStoreContext((state) => state.signal);
 
-  const { columnOrder } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
+  const { columns } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   return (
-    <DataTableStateProvider storageKey={`events-table-${signal.id}`} uniqueKey="id" defaultColumnOrder={columnOrder}>
+    <DataTableStateProvider storageKey={`events-table-${signal.id}`} uniqueKey="id" columnDefs={columns}>
       <PureEventsTable />
     </DataTableStateProvider>
   );

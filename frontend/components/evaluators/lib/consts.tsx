@@ -23,5 +23,3 @@ export const columns: ColumnDef<Evaluator>[] = [
     cell: ({ row }) => <ClientTimestampFormatter absolute timestamp={row.getValue("createdAt")} />,
   },
 ];
-
-export const defaultEvaluatorsColumnOrder = ["__row_selection", "name", "evaluatorType", "createdAt"];

@@ -1,25 +1,23 @@
 "use client";
 
-import { type Row } from "@tanstack/react-table";
 import { isEqual } from "lodash";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import React, { useCallback, useState } from "react";
 
 import { useSignalStoreContext } from "@/components/signal/store";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { getDisplayRange, getTimeDifference } from "@/components/ui/date-range-filter/utils.ts";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu";
 import FilterPopover, { FilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter/ui";
 import { TableCell, TableRow } from "@/components/ui/table.tsx";
 import { type Filter } from "@/lib/actions/common/filters";
-import { Operator } from "@/lib/actions/common/operators";
 import { type SignalRunRow } from "@/lib/actions/signal-runs";
 import { useToast } from "@/lib/hooks/use-toast";
 
-import { defaultRunsColumnOrder, getSignalRunsColumns, signalRunsFilters } from "./columns";
+import { getSignalRunsColumns, signalRunsFilters } from "./columns";
 
 const FETCH_SIZE = 50;
 
@@ -55,13 +53,11 @@ const getEmptyRow = ({
 
 function RunsTableContent() {
   const { toast } = useToast();
-  const router = useRouter();
   const params = useParams<{ projectId: string; id: string }>();
-  const { signal, runsFilters, setRunsFilters, setJobsFilters } = useSignalStoreContext((state) => ({
+  const { signal, runsFilters, setRunsFilters } = useSignalStoreContext((state) => ({
     signal: state.signal,
     runsFilters: state.runsFilters,
     setRunsFilters: state.setRunsFilters,
-    setJobsFilters: state.setJobsFilters,
   }));
 
   const filter = runsFilters;
@@ -89,12 +85,6 @@ function RunsTableContent() {
     [setRunsFilters]
   );
 
-  const onJobNav = (row: Row<SignalRunRow>) => {
-    router.push(`/project/${params.projectId}/signals/${params.id}?tab=jobs`);
-    setJobsFilters([{ column: "job_id", operator: Operator.Eq, value: row.original.jobId }]);
-  };
-
-  const columns = getSignalRunsColumns({ onJobNav });
   const fetchRuns = useCallback(
     async (pageNumber: number) => {
       try {
@@ -153,7 +143,6 @@ function RunsTableContent() {
     <div className="flex flex-col gap-2 flex-1 overflow-hidden">
       <InfiniteDataTable<SignalRunRow>
         className="w-full"
-        columns={columns}
         data={runs}
         getRowId={(row: SignalRunRow) => row.runId}
         hasMore={hasMore}
@@ -164,12 +153,7 @@ function RunsTableContent() {
       >
         <div className="flex flex-1 w-full space-x-2">
           <FilterPopover columns={signalRunsFilters} filters={filter} onAddFilter={handleAddFilter} />
-          <ColumnsMenu
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-          />
+          <ColumnsMenu />
           <DateRangeFilter mode="state" value={dateRange} onChange={setDateRange} />
         </div>
         <FilterList className="py-[3px] text-xs px-1" filters={filter} onRemoveFilter={handleRemoveFilter} />
@@ -183,7 +167,7 @@ export default function SignalRunsTable() {
     <DataTableStateProvider
       storageKey="signal-runs-table"
       uniqueKey="runId"
-      defaultColumnOrder={defaultRunsColumnOrder}
+      columnDefs={getSignalRunsColumns({ onJobNav: () => {} })}
     >
       <RunsTableContent />
     </DataTableStateProvider>

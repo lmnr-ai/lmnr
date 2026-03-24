@@ -1,44 +1,53 @@
 import { AnimatePresence } from "framer-motion";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useStore } from "zustand";
 
 import { Button } from "@/components/ui/button.tsx";
-import { useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
+import { type CustomColumn, useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 
 import { ColumnsListPanel } from "./columns-list-panel";
 import { CustomColumnPanel } from "./custom-column-panel";
-import type { ColumnActions, CustomColumn, CustomColumnPanelConfig } from "./types";
+import type { CustomColumnPanelConfig } from "./types";
 
 interface ColumnsMenuProps {
-  lockedColumns?: string[];
-  columnLabels?: { id: string; label: string; onDelete?: () => void }[];
-  /** Configuration for the custom column panel (schema, test query, etc.). */
-  panelConfig: CustomColumnPanelConfig;
-  /** Store actions for managing custom columns. */
-  columnActions: ColumnActions;
+  /** Configuration for the custom column panel (schema, test query, etc.). When omitted, the custom column UI is hidden. */
+  panelConfig?: CustomColumnPanelConfig;
   /** Whether to show the "Create column with SQL" button. Defaults to true. */
   showCreateButton?: boolean;
+  /** Return all current column defs for duplicate-name checking in the custom column panel. */
+  getColumnDefs?: () => import("@tanstack/react-table").ColumnDef<any>[];
 }
 
-export default function ColumnsMenu({
-  lockedColumns = [],
-  columnLabels = [],
-  panelConfig,
-  columnActions,
-  showCreateButton = true,
-}: ColumnsMenuProps) {
+export default function ColumnsMenu({ panelConfig, showCreateButton = true, getColumnDefs }: ColumnsMenuProps) {
   const store = useDataTableStore();
-  const { resetColumns, columnOrder, setColumnOrder, columnVisibility, setColumnVisibility } = useStore(
-    store,
-    (state) => ({
-      resetColumns: state.resetColumns,
-      columnOrder: state.columnOrder,
-      setColumnOrder: state.setColumnOrder,
-      columnVisibility: state.columnVisibility,
-      setColumnVisibility: state.setColumnVisibility,
-    })
-  );
+  const {
+    lockedColumns,
+    columnLabelMap,
+    resetColumns,
+    columnOrder,
+    setColumnOrder,
+    columnVisibility,
+    setColumnVisibility,
+    customColumns,
+    addCustomColumn,
+    updateCustomColumn,
+    removeCustomColumn,
+  } = useStore(store, (state) => ({
+    lockedColumns: state.lockedColumns,
+    columnLabelMap: state.columnLabelMap,
+    resetColumns: state.resetColumns,
+    columnOrder: state.columnOrder,
+    setColumnOrder: state.setColumnOrder,
+    columnVisibility: state.columnVisibility,
+    setColumnVisibility: state.setColumnVisibility,
+    customColumns: state.customColumns,
+    addCustomColumn: state.addCustomColumn,
+    updateCustomColumn: state.updateCustomColumn,
+    removeCustomColumn: state.removeCustomColumn,
+  }));
+
+  const hasCustomColumns = !!panelConfig;
 
   const [isOpen, setIsOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<"list" | "form">("list");
@@ -53,27 +62,36 @@ export default function ColumnsMenu({
     });
   }
 
-  const handleEditColumn = (columnId: string) => {
-    const col = columnActions.getColumnDef(columnId);
-    if (col?.meta?.isCustom) {
-      setEditingColumn({
-        name: col.header as string,
-        sql: col.meta.sql!,
-        dataType: col.meta.dataType as "string" | "number",
-      });
-      setActivePanel("form");
-    }
-  };
+  const handleEditColumn = useCallback(
+    (columnId: string) => {
+      const cc = customColumns.find((c) => `custom:${c.name}` === columnId);
+      if (cc) {
+        setEditingColumn(cc);
+        setActivePanel("form");
+      }
+    },
+    [customColumns]
+  );
 
-  const handleSave = (column: CustomColumn) => {
-    if (editingColumn) {
-      columnActions.updateCustomColumn(editingColumn.name, column);
-    } else {
-      columnActions.addCustomColumn(column);
-    }
-    setEditingColumn(null);
-    setActivePanel("list");
-  };
+  const handleDeleteColumn = useCallback(
+    (columnId: string) => {
+      removeCustomColumn(columnId.replace("custom:", ""));
+    },
+    [removeCustomColumn]
+  );
+
+  const handleSave = useCallback(
+    (column: CustomColumn) => {
+      if (editingColumn) {
+        updateCustomColumn(editingColumn.name, column);
+      } else {
+        addCustomColumn(column);
+      }
+      setEditingColumn(null);
+      setActivePanel("list");
+    },
+    [editingColumn, addCustomColumn, updateCustomColumn]
+  );
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
@@ -82,6 +100,10 @@ export default function ColumnsMenu({
       setEditingColumn(null);
     }
   };
+
+  const panelConfigWithDefs = panelConfig
+    ? { ...panelConfig, getColumnDefs: getColumnDefs ?? panelConfig.getColumnDefs }
+    : undefined;
 
   return (
     <Popover open={isOpen} onOpenChange={handleOpenChange}>
@@ -95,7 +117,6 @@ export default function ColumnsMenu({
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onInteractOutside={(e) => {
-          // Prevent closing when interacting with CodeMirror autocomplete tooltips
           const target = e.target as HTMLElement | null;
           if (target?.closest(".cm-tooltip-autocomplete")) {
             e.preventDefault();
@@ -107,19 +128,24 @@ export default function ColumnsMenu({
             <ColumnsListPanel
               columnOrder={columnOrder}
               columnVisibility={columnVisibility}
-              columnLabels={columnLabels}
+              columnLabelMap={columnLabelMap}
               lockedColumns={lockedColumns}
               onReorder={setColumnOrder}
               onToggleVisibility={handleToggleVisibility}
               onReset={resetColumns}
-              onCustomColumnClick={() => {
-                setEditingColumn(null);
-                setActivePanel("form");
-              }}
-              onEditColumn={handleEditColumn}
-              showCreateButton={showCreateButton}
+              onCustomColumnClick={
+                hasCustomColumns
+                  ? () => {
+                      setEditingColumn(null);
+                      setActivePanel("form");
+                    }
+                  : undefined
+              }
+              onEditColumn={hasCustomColumns ? handleEditColumn : undefined}
+              onDeleteColumn={hasCustomColumns ? handleDeleteColumn : undefined}
+              showCreateButton={hasCustomColumns && showCreateButton}
             />
-          ) : (
+          ) : panelConfigWithDefs ? (
             <CustomColumnPanel
               key={editingColumn?.name ?? "__new__"}
               onBack={() => {
@@ -128,9 +154,9 @@ export default function ColumnsMenu({
               }}
               onSave={handleSave}
               editingColumn={editingColumn ?? undefined}
-              config={panelConfig}
+              config={panelConfigWithDefs}
             />
-          )}
+          ) : null}
         </AnimatePresence>
       </PopoverContent>
     </Popover>

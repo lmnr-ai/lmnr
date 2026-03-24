@@ -6,14 +6,14 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect } from "react";
 
 import SearchInput from "@/components/common/search-input";
-import { columns, defaultSessionsColumnOrder, filters } from "@/components/traces/sessions-table/columns";
+import { columns, filters } from "@/components/traces/sessions-table/columns";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
+import { ColumnsMenu } from "@/components/ui/columns-menu";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -23,11 +23,7 @@ const FETCH_SIZE = 50;
 
 export default function SessionsTable() {
   return (
-    <DataTableStateProvider
-      storageKey="sessions-table"
-      uniqueKey="sessionId"
-      defaultColumnOrder={defaultSessionsColumnOrder}
-    >
+    <DataTableStateProvider storageKey="sessions-table" uniqueKey="sessionId" columnDefs={columns}>
       <SessionsTableContent />
     </DataTableStateProvider>
   );
@@ -210,7 +206,6 @@ function SessionsTableContent() {
     <div className="flex overflow-hidden px-4 pb-6">
       <InfiniteDataTable<SessionRow>
         className="w-full"
-        columns={columns}
         data={sessions}
         getRowId={(session) => get(session, ["id"], session.sessionId)}
         onRowClick={handleRowClick}
@@ -223,12 +218,7 @@ function SessionsTableContent() {
       >
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
-          <ColumnsMenu
-            columnLabels={columns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-            }))}
-          />
+          <ColumnsMenu />
           <DateRangeFilter />
           <RefreshButton onClick={refetch} variant="outline" />
           <SearchInput placeholder="Search in sessions..." />

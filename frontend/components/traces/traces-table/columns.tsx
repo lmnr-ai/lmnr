@@ -257,9 +257,6 @@ export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
   },
 ];
 
-/** @deprecated Use STATIC_COLUMNS and useTracesTableStore().columnDefs instead */
-export const columns = STATIC_COLUMNS;
-
 export const filters: ColumnFilter[] = [
   {
     name: "ID",
@@ -359,20 +356,4 @@ export const filters: ColumnFilter[] = [
     key: "user_id",
     dataType: "string",
   },
-];
-
-export const defaultTracesColumnOrder = [
-  "status",
-  "id",
-  "top_span_type",
-  "root_span_input",
-  "root_span_output",
-  "start_time",
-  "duration",
-  "cost",
-  "total_tokens",
-  "tags",
-  "metadata",
-  "session_id",
-  "user_id",
 ];
