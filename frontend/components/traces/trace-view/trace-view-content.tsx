@@ -33,7 +33,6 @@ export interface TraceViewContentProps {
   onClose: () => void;
   isFillWidth?: boolean;
   isAlwaysSelectSpan?: boolean;
-  initialSignalsPanelOpen?: boolean;
 }
 
 export default function TraceViewContent({
@@ -43,7 +42,6 @@ export default function TraceViewContent({
   propsTrace,
   isFillWidth,
   isAlwaysSelectSpan,
-  initialSignalsPanelOpen,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -51,22 +49,14 @@ export default function TraceViewContent({
   const { projectId } = useParams();
 
   // Panel visibility states
-  const { tracesAgentOpen, setTracesAgentOpen, selectSpanById, setSignalsPanelOpen } = useTraceViewStore(
+  const { tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
     (state) => ({
       tracesAgentOpen: state.tracesAgentOpen,
       setTracesAgentOpen: state.setTracesAgentOpen,
       selectSpanById: state.selectSpanById,
-      setSignalsPanelOpen: state.setSignalsPanelOpen,
     }),
     shallow
   );
-
-  // Auto-open signals panel when navigating from the signals page
-  useEffect(() => {
-    if (initialSignalsPanelOpen) {
-      setSignalsPanelOpen(true);
-    }
-  }, [initialSignalsPanelOpen, setSignalsPanelOpen]);
 
   // Data states
   const {
@@ -147,6 +137,11 @@ export default function TraceViewContent({
         setBrowserSession(true);
       }
       setTrace(traceData);
+
+      // Auto-open chat panel for traces with >1000 tokens
+      if (traceData.totalTokens > 1000) {
+        setTracesAgentOpen(true);
+      }
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : "Failed to load trace. Please try again.";
       setTraceError(errorMessage);
@@ -161,6 +156,7 @@ export default function TraceViewContent({
     setIsTraceLoading,
     setTrace,
     setTraceError,
+    setTracesAgentOpen,
     traceId,
   ]);
 
@@ -232,7 +228,8 @@ export default function TraceViewContent({
         if (urlSpanId && spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
           setSelectedSpan(selectedSpan);
-        } else if (isAlwaysSelectSpan && spans.length > 0) {
+        } else if (spans.length > 0) {
+          // Always select the first span so the span panel is open by default
           setSelectedSpan(spans[0]);
         } else {
           setSelectedSpan(undefined);
@@ -257,7 +254,6 @@ export default function TraceViewContent({
       setHasBrowserSession,
       setBrowserSession,
       setSelectedSpan,
-      isAlwaysSelectSpan,
     ]
   );
 
@@ -297,6 +293,13 @@ export default function TraceViewContent({
     handleFetchTrace();
   }, [handleFetchTrace]);
 
+  // Auto-open chat for propsTrace with >1000 tokens (propsTrace skips handleFetchTrace)
+  useEffect(() => {
+    if (propsTrace && propsTrace.totalTokens > 1000) {
+      setTracesAgentOpen(true);
+    }
+  }, [propsTrace, setTracesAgentOpen]);
+
   useEffect(() => {
     fetchSpans("", []);
 
@@ -335,9 +338,7 @@ export default function TraceViewContent({
           <Skeleton className="h-8 w-full" />
         </div>
       ) : !selectedSpan ? (
-        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-          No span selected
-        </div>
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">No span selected</div>
       ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
         <HumanEvaluatorSpanView traceId={selectedSpan.traceId} spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
       ) : (
