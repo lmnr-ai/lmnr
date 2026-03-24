@@ -251,17 +251,19 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               </DropdownMenu>
             </div>
           )}
-          <Button
-            onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
-            variant="outline"
-            className={cn(
-              "h-6 text-xs px-1.5",
-              signalsPanelOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-            )}
-          >
-            <Radio size={14} className="mr-1" />
-            Signals ({signalCount})
-          </Button>
+          {signalCount > 0 && (
+            <Button
+              onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
+              variant="outline"
+              className={cn(
+                "h-6 text-xs px-1.5",
+                signalsPanelOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
+              )}
+            >
+              <Radio size={14} className="mr-1" />
+              Signals ({signalCount})
+            </Button>
+          )}
           <Button
             onClick={() => setTracesAgentOpen(!tracesAgentOpen)}
             variant="outline"
