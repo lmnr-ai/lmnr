@@ -13,6 +13,22 @@ import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { cn } from "@/lib/utils";
 
+/**
+ * Wraps markdown-style span links and XML-style span references in backticks
+ * so the markdown renderer routes them through the custom `code` component
+ * (which calls renderSpanReferences) instead of rendering them as <a> tags.
+ */
+function wrapSpanLinksInBackticks(text: string): string {
+  // Markdown-style: [Label](https://...?spanId=UUID)
+  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)]*[?&]spanId=[0-9a-f-]+[^)]*)\)/gi, (match) => `\`${match}\``);
+  // XML-style: <span id='123' name='my-span' />
+  text = text.replace(
+    /<span\s+id='(\d+)'\s+name='([^']+)'(?:\s+reference_text='(.*?)')?\s*\/>/g,
+    (match) => `\`${match}\``
+  );
+  return text;
+}
+
 const EXAMPLE_QUESTIONS = [
   "Summarize this trace",
   "Explain any errors in this trace",
@@ -158,16 +174,20 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
 
     // Format the JSON payload as markdown: keys become ### headers,
     // values become body text. One layer deep only.
+    // Wrap span link patterns in backticks so the custom code component
+    // routes them through renderSpanReferences (instead of markdown
+    // rendering them as clickable <a> links).
     let formattedPayload = pending.eventPayload;
     try {
       const parsed = JSON.parse(pending.eventPayload);
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         formattedPayload = Object.entries(parsed)
-          .map(([key, value]) => `### ${key}\n${String(value)}`)
+          .map(([key, value]) => `### ${key}\n${wrapSpanLinksInBackticks(String(value))}`)
           .join("\n\n");
       }
     } catch {
-      // Not valid JSON — use as-is
+      // Not valid JSON — wrap as-is but still handle span links
+      formattedPayload = wrapSpanLinksInBackticks(formattedPayload);
     }
 
     setMessages((prev) => [
@@ -315,7 +335,7 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
               }
             }}
           >
-            <div className="relative p-0 flex w-full py-1">
+            <div className="flex flex-row items-end w-full py-1">
               <DefaultTextarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -332,12 +352,12 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
                   }
                 }}
                 placeholder="Summarize, find inefficiencies, explain errors..."
-                className="bg-transparent border-none focus-visible:ring-0 resize-none w-full"
+                className="bg-transparent border-none focus-visible:ring-0 resize-none flex-1 min-w-0"
               />
               <Button
                 type="submit"
                 size="icon"
-                className="absolute right-1 bottom-2 h-7 w-7 rounded-full border bg-primary"
+                className="h-7 w-7 rounded-full border bg-primary flex-shrink-0 mr-1 mb-1"
                 variant="ghost"
                 disabled={input.trim() === "" || status === "streaming"}
                 onClick={() => {
