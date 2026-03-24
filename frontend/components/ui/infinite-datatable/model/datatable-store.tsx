@@ -1,9 +1,16 @@
 "use client";
 
+import { type ColumnDef, type RowData } from "@tanstack/react-table";
 import { intersection, pick, uniqBy } from "lodash";
 import { createContext, type ReactNode, useContext, useState } from "react";
 import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
+
+import { type CustomColumn } from "@/components/ui/columns-menu";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export interface InfiniteScrollState<TData> {
   data: TData[];
@@ -50,21 +57,115 @@ export interface SelectionActions {
   getStorageKey: () => string;
 }
 
+export interface ColumnState<TData> {
+  columnDefs: ColumnDef<TData>[];
+  customColumns: CustomColumn[];
+  lockedColumns: string[];
+  /** Labels for all columns: visible (including dynamic) columns. */
+  columnLabels: { id: string; label: string; onDelete?: () => void }[];
+}
+
+export interface ColumnActions<TData> {
+  /** Replace the full column def list. Syncs columnOrder automatically. */
+  setColumnDefs: (defs: ColumnDef<TData>[]) => void;
+  addCustomColumn: (column: CustomColumn) => void;
+  updateCustomColumn: (oldName: string, column: CustomColumn) => void;
+  removeCustomColumn: (name: string) => void;
+}
+
 type DataTableStore<TData> = InfiniteScrollState<TData> &
   InfiniteScrollActions<TData> &
   SelectionState &
-  SelectionActions;
+  SelectionActions &
+  ColumnState<TData> &
+  ColumnActions<TData>;
 
-function createDataTableStore<TData>(
-  uniqueKey: string = "id",
-  storageKey?: string,
-  defaultColumnOrder: string[] = [],
-  pageSize: number = 50
+// ---------------------------------------------------------------------------
+// Config passed to createStore via provider
+// ---------------------------------------------------------------------------
+
+export interface DataTableStoreConfig<TData> {
+  uniqueKey?: string;
+  pageSize?: number;
+  storageKey?: string;
+  defaultColumnOrder?: string[];
+  lockedColumns?: string[];
+  /** Initial column definitions (static). Can be updated later via setColumnDefs. */
+  initialColumnDefs?: ColumnDef<TData>[];
+  /** Derive a label for a column from its id. Falls back to column.header or column.id. */
+  columnLabelFn?: (column: ColumnDef<TData>) => string;
+  /** Build a custom ColumnDef from a CustomColumn. Consumer provides domain-specific accessors/cells. */
+  buildCustomColumnDef?: (cc: CustomColumn) => ColumnDef<TData>;
+  /** Initial custom columns (e.g. from persisted state). */
+  initialCustomColumns?: CustomColumn[];
+  /** Whether custom columns are enabled. Defaults to true. */
+  enableCustomColumns?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function defaultColumnLabel<TData>(col: ColumnDef<TData>): string {
+  if (typeof col.header === "string") return col.header;
+  return col.id ?? "";
+}
+
+function deriveColumnLabels<TData>(
+  columnDefs: ColumnDef<TData>[],
+  labelFn: (col: ColumnDef<TData>) => string,
+  removeCustomColumn: (name: string) => void
+): { id: string; label: string; onDelete?: () => void }[] {
+  return columnDefs
+    .filter((c) => !c.meta?.hidden)
+    .map((c) => ({
+      id: c.id!,
+      label: labelFn(c),
+      ...(c.id!.startsWith("custom:") && {
+        onDelete: () => removeCustomColumn(c.id!.replace("custom:", "")),
+      }),
+    }));
+}
+
+/** Sync columnOrder when columnDefs change: keep existing order, append new, remove deleted. */
+function syncColumnOrder(currentOrder: string[], visibleIds: string[]): string[] {
+  const defSet = new Set(visibleIds);
+  const currentSet = new Set(currentOrder);
+
+  const toAdd = visibleIds.filter((id) => !currentSet.has(id));
+  const toRemove = currentOrder.filter((id) => !defSet.has(id));
+
+  if (toAdd.length === 0 && toRemove.length === 0) return currentOrder;
+
+  const filtered = currentOrder.filter((id) => defSet.has(id));
+  return [...filtered, ...toAdd];
+}
+
+// ---------------------------------------------------------------------------
+// Store factory
+// ---------------------------------------------------------------------------
+
+function createDataTableStore<TData extends RowData>(
+  config: DataTableStoreConfig<TData>
 ): StoreApi<DataTableStore<TData>> {
+  const {
+    uniqueKey = "id",
+    pageSize = 50,
+    storageKey,
+    defaultColumnOrder = [],
+    lockedColumns = [],
+    initialColumnDefs = [],
+    columnLabelFn = defaultColumnLabel,
+    buildCustomColumnDef,
+    initialCustomColumns = [],
+    enableCustomColumns = true,
+  } = config;
+
   const storeConfig = (
     set: StoreApi<DataTableStore<TData>>["setState"],
     get: StoreApi<DataTableStore<TData>>["getState"]
   ): DataTableStore<TData> => ({
+    // -- Infinite scroll state --
     data: [],
     currentPage: 0,
     isFetching: false,
@@ -73,31 +174,32 @@ function createDataTableStore<TData>(
     uniqueKey,
     hasMore: true,
     pageSize,
+
+    // -- Selection / column UI state --
     columnVisibility: {},
     columnOrder: defaultColumnOrder,
     columnSizing: {},
     draggingColumnId: null,
+    selectedRows: new Set(),
+
+    // -- Column defs & custom columns --
+    columnDefs: initialColumnDefs,
+    customColumns: initialCustomColumns,
+    lockedColumns,
+    columnLabels: deriveColumnLabels(initialColumnDefs, columnLabelFn, (name) => get().removeCustomColumn(name)),
+
+    // -- Infinite scroll actions --
     setData: (updater) => set((state) => ({ data: updater(state.data) })),
     setCurrentPage: (currentPage) => set({ currentPage }),
     setIsFetching: (isFetching) => set({ isFetching }),
     setIsLoading: (isLoading) => set({ isLoading }),
     setError: (error) => set({ error }),
     setHasMore: (hasMore) => set({ hasMore }),
-    setColumnVisibility: (visibility) => set({ columnVisibility: visibility }),
-    setColumnOrder: (order) => set({ columnOrder: order }),
-    setColumnSizing: (sizing) => set({ columnSizing: sizing }),
-    setDraggingColumnId: (columnId) => set({ draggingColumnId: columnId }),
-    resetColumns: () =>
-      set({
-        columnVisibility: {},
-        columnOrder: defaultColumnOrder,
-        columnSizing: {},
-      }),
-    appendData: (items, count) =>
+
+    appendData: (items, _count) =>
       set((state) => {
         const combined = [...state.data, ...items];
         const uniqueData = uniqBy(combined, state.uniqueKey);
-
         return {
           data: uniqueData,
           isFetching: false,
@@ -107,7 +209,7 @@ function createDataTableStore<TData>(
         };
       }),
 
-    replaceData: (items, count) =>
+    replaceData: (items, _count) =>
       set((state) => ({
         data: uniqBy(items, state.uniqueKey),
         isFetching: false,
@@ -128,7 +230,7 @@ function createDataTableStore<TData>(
         pageSize: state.pageSize,
       })),
 
-    selectedRows: new Set(),
+    // -- Selection actions --
     selectRow: (id) =>
       set((state) => {
         const newSelected = new Set(state.selectedRows);
@@ -151,12 +253,79 @@ function createDataTableStore<TData>(
         }
         return { selectedRows: newSelected };
       }),
-    selectAll: (ids) =>
-      set({
-        selectedRows: new Set(ids),
-      }),
+    selectAll: (ids) => set({ selectedRows: new Set(ids) }),
     clearSelection: () => set({ selectedRows: new Set() }),
+
+    // -- Column UI actions --
+    setColumnVisibility: (visibility) => set({ columnVisibility: visibility }),
+    setColumnOrder: (order) => set({ columnOrder: order }),
+    setColumnSizing: (sizing) => set({ columnSizing: sizing }),
+    setDraggingColumnId: (columnId) => set({ draggingColumnId: columnId }),
+    resetColumns: () =>
+      set((state) => {
+        const visibleIds = state.columnDefs.filter((c) => !c.meta?.hidden).map((c) => c.id!);
+        return {
+          columnVisibility: {},
+          columnOrder: visibleIds.length > 0 ? visibleIds : defaultColumnOrder,
+          columnSizing: {},
+        };
+      }),
     getStorageKey: () => storageKey || "datatable",
+
+    // -- Column def actions --
+    setColumnDefs: (defs) =>
+      set((state) => {
+        const visibleIds = defs.filter((c) => !c.meta?.hidden).map((c) => c.id!);
+        const newOrder = syncColumnOrder(state.columnOrder, visibleIds);
+        return {
+          columnDefs: defs,
+          columnOrder: newOrder,
+          columnLabels: deriveColumnLabels(defs, columnLabelFn, (name) => get().removeCustomColumn(name)),
+        };
+      }),
+
+    addCustomColumn: (column) => {
+      if (!enableCustomColumns) return;
+      const { customColumns, columnDefs } = get();
+      if (customColumns.some((cc) => cc.name === column.name)) return;
+      const newCustomColumns = [...customColumns, column];
+      set({ customColumns: newCustomColumns });
+      if (buildCustomColumnDef) {
+        const newDef = buildCustomColumnDef(column);
+        get().setColumnDefs([...columnDefs, newDef]);
+      }
+    },
+
+    updateCustomColumn: (oldName, column) => {
+      if (!enableCustomColumns) return;
+      const { customColumns, columnDefs } = get();
+      const newCustomColumns = customColumns.map((cc) => (cc.name === oldName ? column : cc));
+      set({ customColumns: newCustomColumns });
+      if (buildCustomColumnDef) {
+        const oldId = `custom:${oldName}`;
+        const newDef = buildCustomColumnDef(column);
+        const updatedDefs = columnDefs.map((c) => (c.id === oldId ? newDef : c));
+        get().setColumnDefs(updatedDefs);
+      }
+    },
+
+    removeCustomColumn: (name) => {
+      if (!enableCustomColumns) return;
+      const { customColumns, columnDefs, columnOrder, columnVisibility } = get();
+      const columnId = `custom:${name}`;
+      const newCustomColumns = customColumns.filter((cc) => cc.name !== name);
+      const newDefs = columnDefs.filter((c) => c.id !== columnId);
+      // Purge from columnOrder on delete
+      const newOrder = columnOrder.filter((id) => id !== columnId);
+      // Clean up visibility entry
+      const { [columnId]: _, ...newVisibility } = columnVisibility;
+      set({ customColumns: newCustomColumns, columnOrder: newOrder, columnVisibility: newVisibility });
+      // Re-derive labels with new defs
+      set({
+        columnDefs: newDefs,
+        columnLabels: deriveColumnLabels(newDefs, columnLabelFn, (n) => get().removeCustomColumn(n)),
+      });
+    },
   });
 
   if (storageKey) {
@@ -167,22 +336,34 @@ function createDataTableStore<TData>(
           columnVisibility: state.columnVisibility,
           columnOrder: state.columnOrder,
           columnSizing: state.columnSizing,
+          customColumns: state.customColumns,
         }),
         merge: (persistedState, currentState) => {
           const persisted = persistedState as Partial<
-            Pick<SelectionState, "columnVisibility" | "columnOrder" | "columnSizing">
+            Pick<SelectionState, "columnVisibility" | "columnOrder" | "columnSizing"> & {
+              customColumns: CustomColumn[];
+            }
           >;
-          const validColumns = intersection(persisted?.columnOrder ?? [], defaultColumnOrder);
-          const newColumns = defaultColumnOrder.filter((col) => !validColumns.includes(col));
+
+          // Derive the full set of valid column IDs from current column defs (visible only)
+          const visibleIds = currentState.columnDefs.filter((c: any) => !c.meta?.hidden).map((c: any) => c.id!);
+          const allValidIds = visibleIds.length > 0 ? visibleIds : defaultColumnOrder;
+
+          const validColumns = intersection(persisted?.columnOrder ?? [], allValidIds);
+          const newColumns = allValidIds.filter((col: string) => !validColumns.includes(col));
           const mergedColumnOrder = [...validColumns, ...newColumns];
-          const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, defaultColumnOrder);
-          const filteredColumnSizing = pick(persisted?.columnSizing ?? {}, defaultColumnOrder);
+          const filteredColumnVisibility = pick(persisted?.columnVisibility ?? {}, allValidIds);
+          const filteredColumnSizing = pick(persisted?.columnSizing ?? {}, allValidIds);
+
+          // Restore persisted custom columns
+          const restoredCustomColumns = persisted?.customColumns ?? currentState.customColumns;
 
           return {
             ...currentState,
             columnVisibility: filteredColumnVisibility,
             columnOrder: mergedColumnOrder,
             columnSizing: filteredColumnSizing,
+            customColumns: restoredCustomColumns,
           };
         },
       })
@@ -192,28 +373,38 @@ function createDataTableStore<TData>(
   return createStore<DataTableStore<TData>>()(storeConfig);
 }
 
+// ---------------------------------------------------------------------------
+// Selectors
+// ---------------------------------------------------------------------------
+
+/** Select only columns with SQL metadata (for building query params). */
+export function selectColumnSqls<TData>(state: DataTableStore<TData>): (string | undefined)[] {
+  return state.columnDefs.map((c) => c.meta?.sql).filter(Boolean);
+}
+
+/** Select custom column defs only. */
+export function selectCustomColumnDefs<TData>(state: DataTableStore<TData>): ColumnDef<TData>[] {
+  return state.columnDefs.filter((c) => c.meta?.isCustom);
+}
+
+// ---------------------------------------------------------------------------
+// Context + Provider
+// ---------------------------------------------------------------------------
+
 type DataTableStoreApi<TData> = ReturnType<typeof createDataTableStore<TData>>;
 
 const DataTableContext = createContext<DataTableStoreApi<any> | undefined>(undefined);
 
-export interface DataTableStateProviderProps {
+export type DataTableStateProviderProps<TData extends RowData> = {
   children: ReactNode;
-  uniqueKey?: string;
-  pageSize?: number;
-  storageKey?: string;
-  defaultColumnOrder?: string[];
-}
+} & DataTableStoreConfig<TData>;
 
-export function DataTableStateProvider<TData>({
+export function DataTableStateProvider<TData extends RowData>({
   children,
-  storageKey,
-  uniqueKey = "id",
-  pageSize = 50,
-  defaultColumnOrder = [],
-}: DataTableStateProviderProps) {
-  const [store] = useState(() => createDataTableStore<TData>(uniqueKey, storageKey, defaultColumnOrder, pageSize));
-
-  return <DataTableContext.Provider value={store}>{children}</DataTableContext.Provider>;
+  ...config
+}: DataTableStateProviderProps<TData>) {
+  const [store] = useState(() => createDataTableStore<TData>(config));
+  return <DataTableContext.Provider value={store as DataTableStoreApi<any>}>{children}</DataTableContext.Provider>;
 }
 
 export function useDataTableStore<TData>() {

@@ -11,7 +11,7 @@ import CompareChart from "@/components/evaluation/compare-chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import EvaluationHeader from "@/components/evaluation/evaluation-header";
 import ScoreCard from "@/components/evaluation/score-card";
-import { useEvalStore } from "@/components/evaluation/store";
+import { buildEvalFetchParams, buildEvalStatsParams, useEvalStore } from "@/components/evaluation/store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,12 +23,21 @@ import { formatTimestamp, swrFetcher } from "@/lib/utils";
 import TraceView from "../traces/trace-view";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { buildEvalColumnDefs } from "./store";
 
 interface EvaluationProps {
   evaluations: EvaluationType[];
   evaluationId: string;
   evaluationName: string;
   initialTraceViewWidth?: number;
+}
+
+export default function Evaluation(props: EvaluationProps) {
+  return (
+    <DataTableStateProvider<EvalRow> storageKey="evaluation-datapoints-pagination">
+      <EvaluationContent {...props} />
+    </DataTableStateProvider>
+  );
 }
 
 function EvaluationContent({ evaluations, evaluationId, evaluationName, initialTraceViewWidth }: EvaluationProps) {
@@ -53,21 +62,21 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const pageSize = 50;
 
   // Store
-  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
   const setIsComparison = useEvalStore((s) => s.setIsComparison);
   const setIsShared = useEvalStore((s) => s.setIsShared);
-  const columnDefs = useEvalStore((s) => s.columnDefs);
-  const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
-  const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
+  const isShared = useEvalStore((s) => s.isShared);
 
   // Statistics URL (fetches all stats at once)
+  // We build column defs inline here for stats params — the actual column defs
+  // are managed in the DataTableStateProvider inside EvaluationDatapointsTable
   const statsUrl = useMemo(() => {
     const base = `/api/projects/${params?.projectId}/evaluations/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    // For stats, we only need columns that have active filters — build minimal defs
+    const columnDefs = buildEvalColumnDefs([], [], isShared);
+    const urlParams = buildEvalStatsParams(columnDefs, { search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-    // columnDefs used internally in buildStatParams via store
-  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [params?.projectId, evaluationId, search, searchIn, filter, sortBy, sortDirection, isShared]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: EvaluationType;
@@ -80,11 +89,11 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   const targetStatsUrl = useMemo(() => {
     if (!targetId) return null;
     const base = `/api/projects/${params?.projectId}/evaluations/${targetId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const columnDefs = buildEvalColumnDefs([], [], isShared);
+    const urlParams = buildEvalStatsParams(columnDefs, { search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-    // columnDefs used internally in buildStatParams via store
-  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [params.projectId, targetId, search, searchIn, filter, sortBy, sortDirection, isShared]);
 
   const { data: targetStatsData } = useSWR<{
     evaluation: EvaluationType;
@@ -105,18 +114,12 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     setIsShared(false);
   }, [setIsShared]);
 
-  const customColumns = useEvalStore((s) => s.customColumns);
+  // Build column defs for fetch params (includes scores + custom columns)
+  // The datatable store inside EvaluationDatapointsTable manages the actual columnDefs,
+  // but we need them here for the infinite scroll fetch function.
+  const columnDefsForFetch = useMemo(() => buildEvalColumnDefs(scores, [], isShared), [scores, isShared]);
 
-  // Rebuild column defs when scores or custom columns change.
-  // This must run before useInfiniteScroll's effect (declaration order).
-  useEffect(() => {
-    rebuildColumns(scores);
-  }, [scores, customColumns, rebuildColumns]);
-
-  // SQL strings from column defs — only changes when columns structurally change.
-  // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
-  // produce the same string → no spurious re-fetch.
-  const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
+  const columnSqls = useMemo(() => columnDefsForFetch.map((c) => c.meta?.sql).filter(Boolean), [columnDefsForFetch]);
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
@@ -129,7 +132,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
   // Fetch function for datapoints — single query handles comparison via targetId
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
-      const urlParams = buildFetchParams({
+      const urlParams = buildEvalFetchParams(columnDefsForFetch, {
         search,
         searchIn,
         filter,
@@ -159,7 +162,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
       sortBy,
       sortDirection,
       targetId,
-      buildFetchParams,
+      columnDefsForFetch,
     ]
   );
 
@@ -329,13 +332,5 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
         </div>
       )}
     </>
-  );
-}
-
-export default function Evaluation(props: EvaluationProps) {
-  return (
-    <DataTableStateProvider storageKey="evaluation-datapoints-pagination">
-      <EvaluationContent {...props} />
-    </DataTableStateProvider>
   );
 }

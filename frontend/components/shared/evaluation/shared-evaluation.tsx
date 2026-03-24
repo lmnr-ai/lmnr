@@ -12,7 +12,12 @@ import fullLogo from "@/assets/logo/logo.svg";
 import Chart from "@/components/evaluation/chart";
 import EvaluationDatapointsTable from "@/components/evaluation/evaluation-datapoints-table";
 import ScoreCard from "@/components/evaluation/score-card";
-import { useEvalStore } from "@/components/evaluation/store";
+import {
+  buildEvalColumnDefs,
+  buildEvalFetchParams,
+  buildEvalStatsParams,
+  useEvalStore,
+} from "@/components/evaluation/store";
 import SharedEvalTraceView from "@/components/shared/evaluation/shared-eval-trace-view";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -51,10 +56,6 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
   const pageSize = 50;
 
   // Store actions
-  const rebuildColumns = useEvalStore((s) => s.rebuildColumns);
-  const columnDefs = useEvalStore((s) => s.columnDefs);
-  const buildStatsParams = useEvalStore((s) => s.buildStatsParams);
-  const buildFetchParams = useEvalStore((s) => s.buildFetchParams);
   const setIsComparison = useEvalStore((s) => s.setIsComparison);
   const setIsShared = useEvalStore((s) => s.setIsShared);
 
@@ -64,13 +65,15 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
     setIsShared(true);
   }, [setIsComparison, setIsShared]);
 
+  // Build column defs for stats/fetch — shared evals don't have custom columns
+  const columnDefs = useMemo(() => buildEvalColumnDefs([], [], true), []);
+
   const statsUrl = useMemo(() => {
     const base = `/api/shared/evals/${evaluationId}/stats`;
-    const urlParams = buildStatsParams({ search, searchIn, filter, sortBy, sortDirection });
+    const urlParams = buildEvalStatsParams(columnDefs, { search, searchIn, filter, sortBy, sortDirection });
     const qs = urlParams.toString();
     return qs ? `${base}?${qs}` : base;
-    // columnDefs used internally in buildStatParams via store
-  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, buildStatsParams, columnDefs]);
+  }, [evaluationId, search, searchIn, filter, sortBy, sortDirection, columnDefs]);
 
   const { data: statsData, isLoading: isStatsLoading } = useSWR<{
     evaluation: Evaluation;
@@ -81,13 +84,11 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const scores = useMemo(() => statsData?.scores ?? [], [statsData?.scores]);
 
-  // Rebuild column defs when scores change.
-  useEffect(() => {
-    rebuildColumns(scores);
-  }, [scores, rebuildColumns]);
+  // Build full column defs with scores for fetch
+  const columnDefsForFetch = useMemo(() => buildEvalColumnDefs(scores, [], true), [scores]);
 
   // SQL strings from column defs — only changes when columns structurally change.
-  const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
+  const columnSqls = useMemo(() => columnDefsForFetch.map((c) => c.meta?.sql).filter(Boolean), [columnDefsForFetch]);
 
   const onClose = useCallback(() => {
     setTraceId(undefined);
@@ -101,7 +102,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
   const fetchDatapoints = useCallback(
     async (pageNumber: number) => {
-      const urlParams = buildFetchParams({
+      const urlParams = buildEvalFetchParams(columnDefsForFetch, {
         search,
         searchIn,
         filter,
@@ -120,7 +121,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
       return { items: data.results, count: 0 };
     },
-    [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection, buildFetchParams]
+    [search, searchIn, filter, evaluationId, pageSize, sortBy, sortDirection, columnDefsForFetch]
   );
 
   const {
@@ -246,7 +247,7 @@ function SharedEvaluationContent({ evaluationId, evaluationName }: SharedEvaluat
 
 export default function SharedEvaluation(props: SharedEvaluationProps) {
   return (
-    <DataTableStateProvider storageKey="shared-evaluation-datapoints">
+    <DataTableStateProvider<EvalRow> storageKey="shared-evaluation-datapoints">
       <SharedEvaluationContent {...props} />
     </DataTableStateProvider>
   );

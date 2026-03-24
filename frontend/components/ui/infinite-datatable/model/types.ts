@@ -8,8 +8,10 @@ export interface LoadMoreButtonProps {
   hasMore: boolean;
 }
 
-export interface InfiniteDataTableProps<TData extends RowData>
-  extends Omit<Partial<TableOptions<TData>>, "data" | "columns"> {
+export interface InfiniteDataTableProps<TData extends RowData> extends Omit<
+  Partial<TableOptions<TData>>,
+  "data" | "columns"
+> {
   data: TData[];
   columns: TableOptions<TData>["columns"];
 

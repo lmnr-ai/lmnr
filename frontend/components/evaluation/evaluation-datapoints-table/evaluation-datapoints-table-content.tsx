@@ -2,11 +2,10 @@ import { Settings as SettingsIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import { useStore } from "zustand";
-import { useShallow } from "zustand/react/shallow";
 
 import EvalColumnsMenu from "@/components/evaluation/eval-columns-menu";
 import SearchEvaluationInput from "@/components/evaluation/search-evaluation-input";
-import { selectVisibleColumns, useEvalStore } from "@/components/evaluation/store";
+import { buildEvalColumnDefs, selectVisibleEvalColumns, useEvalStore } from "@/components/evaluation/store";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -43,33 +42,31 @@ const EvaluationDatapointsTableContent = ({
   const sortDirection = (searchParams.get("sortDirection")?.toLowerCase() ?? undefined) as "asc" | "desc" | undefined;
 
   // Store state
-  const columns = useEvalStore((s) => s.columnDefs);
   const heatmapEnabled = useEvalStore((s) => s.heatmapEnabled);
   const setHeatmapEnabled = useEvalStore((s) => s.setHeatmapEnabled);
   const setScoreRanges = useEvalStore((s) => s.setScoreRanges);
-  const removeCustomColumn = useEvalStore((s) => s.removeCustomColumn);
+  const isComparison = useEvalStore((s) => s.isComparison);
+  const isShared = useEvalStore((s) => s.isShared);
 
-  // Datatable store for column sync
-  const datatableStore = useDataTableStore();
-  const { columnOrder, setColumnOrder } = useStore(datatableStore, (s) => ({
-    columnOrder: s.columnOrder,
-    setColumnOrder: s.setColumnOrder,
-  }));
+  // Column defs from the datatable store
+  const datatableStore = useDataTableStore<EvalRow>();
+  const columnDefs = useStore(datatableStore, (s) => s.columnDefs);
+  const customColumns = useStore(datatableStore, (s) => s.customColumns);
+  const setColumnDefs = useStore(datatableStore, (s) => s.setColumnDefs);
 
-  // Sync datatable columnOrder with eval store columnDefs
-  useEffect(() => {
-    const visibleIds = columns.filter((c) => !c.meta?.hidden).map((c) => c.id!);
-    const currentSet = new Set(columnOrder);
-    const defSet = new Set(visibleIds);
+  // Rebuild column defs when scores or custom columns change
+  const rebuiltDefs = useMemo(
+    () => buildEvalColumnDefs(scores, customColumns, isShared),
+    [scores, customColumns, isShared]
+  );
+  const rebuiltDefsKey = useMemo(() => rebuiltDefs.map((c) => c.id).join(","), [rebuiltDefs]);
+  const currentDefsKey = useMemo(() => columnDefs.map((c) => c.id).join(","), [columnDefs]);
+  if (rebuiltDefsKey !== currentDefsKey) {
+    setColumnDefs(rebuiltDefs);
+  }
 
-    const toAdd = visibleIds.filter((id) => !currentSet.has(id));
-    const toRemove = columnOrder.filter((id) => !defSet.has(id));
-
-    if (toAdd.length > 0 || toRemove.length > 0) {
-      const filtered = columnOrder.filter((id) => defSet.has(id));
-      setColumnOrder([...filtered, ...toAdd]);
-    }
-  }, [columns, columnOrder, setColumnOrder]);
+  // Visible columns (hidden + output-in-comparison filtered out)
+  const visibleColumns = useMemo(() => selectVisibleEvalColumns(columnDefs, isComparison), [columnDefs, isComparison]);
 
   // Compute and set score ranges from data
   useEffect(() => {
@@ -120,13 +117,10 @@ const EvaluationDatapointsTableContent = ({
     [searchParams, router, pathname]
   );
 
-  // Visible columns (hidden + output-in-comparison filtered out)
-  const visibleColumns = useEvalStore(useShallow(selectVisibleColumns));
-
-  // Derive filter definitions from column defs in the store
+  // Derive filter definitions from column defs
   const columnFilters = useMemo(
     () =>
-      columns
+      columnDefs
         .filter((c) => c.meta?.filterable)
         .map((c) => ({
           key: c.id!,
@@ -138,7 +132,7 @@ const EvaluationDatapointsTableContent = ({
                 ? ("number" as const)
                 : ("string" as const),
         })),
-    [columns]
+    [columnDefs]
   );
 
   return (
@@ -161,15 +155,7 @@ const EvaluationDatapointsTableContent = ({
       >
         <div className="flex flex-1 w-full space-x-2">
           <DataTableFilter columns={columnFilters} />
-          <EvalColumnsMenu
-            columnLabels={visibleColumns.map((column) => ({
-              id: column.id!,
-              label: typeof column.header === "string" ? column.header : column.id!,
-              ...(column.id!.startsWith("custom:") && {
-                onDelete: () => removeCustomColumn(column.id!.replace("custom:", "")),
-              }),
-            }))}
-          />
+          <EvalColumnsMenu />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="h-7 w-7" variant="outline" size="icon">

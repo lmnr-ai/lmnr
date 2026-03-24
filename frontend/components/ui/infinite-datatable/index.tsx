@@ -50,7 +50,7 @@ export function InfiniteDataTable<TData extends RowData>({
   onRowClick,
   focusedRowId,
   selectionPanel,
-  lockedColumns = EMPTY_ARRAY as string[],
+  lockedColumns: lockedColumnsProp,
 
   // Styling
   className,
@@ -99,6 +99,7 @@ export function InfiniteDataTable<TData extends RowData>({
     setColumnSizing,
     draggingColumnId,
     setDraggingColumnId,
+    lockedColumnsFromStore,
   } = useStore(store, (state) => ({
     columnOrder: state.columnOrder,
     setColumnOrder: state.setColumnOrder,
@@ -108,7 +109,11 @@ export function InfiniteDataTable<TData extends RowData>({
     setColumnSizing: state.setColumnSizing,
     draggingColumnId: state.draggingColumnId,
     setDraggingColumnId: state.setDraggingColumnId,
+    lockedColumnsFromStore: state.lockedColumns,
   }));
+
+  // Prefer prop over store for backwards compatibility with tables that don't use the store config
+  const lockedColumns = lockedColumnsProp ?? lockedColumnsFromStore ?? (EMPTY_ARRAY as string[]);
 
   // Handle drag start
   function handleDragStart(event: DragStartEvent) {

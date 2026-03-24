@@ -257,7 +257,7 @@ export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
   },
 ];
 
-/** @deprecated Use STATIC_COLUMNS and useTracesTableStore().columnDefs instead */
+/** @deprecated Use STATIC_COLUMNS and the datatable store's columnDefs instead */
 export const columns = STATIC_COLUMNS;
 
 export const filters: ColumnFilter[] = [

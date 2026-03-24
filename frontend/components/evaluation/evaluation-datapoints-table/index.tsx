@@ -1,7 +1,6 @@
 import { type Row } from "@tanstack/react-table";
-import { useMemo } from "react";
 
-import { useEvalStore } from "@/components/evaluation/store";
+import { buildEvalColumnDefs, buildEvalCustomColumnDef, useEvalStore } from "@/components/evaluation/store";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { type EvalRow } from "@/lib/evaluation/types";
 
@@ -24,11 +23,7 @@ const baseColumnOrder = ["status", "index", "data", "target", "metadata", "outpu
 
 const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
   const { scores, isLoading } = props;
-  const customColumns = useEvalStore((s) => s.customColumns);
-  const defaultColumnOrder = useMemo(
-    () => [...baseColumnOrder, ...scores.map((s) => `score:${s}`), ...customColumns.map((cc) => `custom:${cc.name}`)],
-    [scores, customColumns]
-  );
+  const isShared = useEvalStore((s) => s.isShared);
 
   // Delay mounting the store until scores are known, otherwise the store
   // is created with an incomplete defaultColumnOrder and score columns
@@ -37,8 +32,16 @@ const EvaluationDatapointsTable = (props: EvaluationDatapointsTableProps) => {
     return <EvalTableSkeleton />;
   }
 
+  const defaultColumnOrder = [...baseColumnOrder, ...scores.map((s) => `score:${s}`)];
+
   return (
-    <DataTableStateProvider storageKey="evaluation-datapoints-table" defaultColumnOrder={defaultColumnOrder}>
+    <DataTableStateProvider<EvalRow>
+      storageKey="evaluation-datapoints-table"
+      defaultColumnOrder={defaultColumnOrder}
+      initialColumnDefs={buildEvalColumnDefs(scores, [], isShared)}
+      buildCustomColumnDef={buildEvalCustomColumnDef}
+      enableCustomColumns={!isShared}
+    >
       <EvaluationDatapointsTableContent {...props} />
     </DataTableStateProvider>
   );
