@@ -12,29 +12,29 @@ type ProviderSchema = {
 };
 
 const PROVIDER_SCHEMAS: ProviderSchema[] = [
-  // OpenAI / Azure
+  // OpenAI / Azure — responses always include "object" (e.g. "chat.completion")
   {
-    requiredKeys: ["choices"],
+    requiredKeys: ["choices", "object"],
     mustacheKey: "{{choices.0.message.content}}",
   },
-  // Anthropic
+  // Anthropic — responses include "role" and "stop_reason"
   {
-    requiredKeys: ["content"],
+    requiredKeys: ["content", "role", "stop_reason"],
     mustacheKey: "{{content.0.text}}",
   },
-  // Google (Gemini)
+  // Google (Gemini) — "candidates" is already highly specific
   {
     requiredKeys: ["candidates"],
     mustacheKey: "{{candidates.0.content.parts.0.text}}",
   },
-  // Cohere
+  // Cohere — responses include "generation_id"
   {
-    requiredKeys: ["text"],
+    requiredKeys: ["text", "generation_id"],
     mustacheKey: "{{text}}",
   },
-  // Cohere v2 (chat)
+  // Cohere v2 (chat) — responses include "chat_history" or "finish_reason"
   {
-    requiredKeys: ["message"],
+    requiredKeys: ["message", "finish_reason"],
     mustacheKey: "{{message.content.0.text}}",
   },
 ];
