@@ -1,9 +1,9 @@
-import { google } from "@ai-sdk/google";
 import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { generateObject } from "ai";
 import { z } from "zod";
 
 import { getTraceStructureAsString } from "@/lib/actions/trace/agent/spans";
+import { getLanguageModel } from "@/lib/ai/model";
 
 import { SPAN_MATCHING_SYSTEM_PROMPT } from "./prompts";
 import { type SpanMapping } from "./types";
@@ -35,7 +35,7 @@ export const generateSpanMapping = async (
     { name: "generateSpanMapping" },
     async () =>
       await generateObject({
-        model: google("gemini-3.1-flash-lite-preview"),
+        model: getLanguageModel("lite"),
         schema: SpanMatchSchema,
         system: SPAN_MATCHING_SYSTEM_PROMPT,
         prompt: `Here is Trace A (left):
