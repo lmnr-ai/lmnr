@@ -1,7 +1,14 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 
-import { DEFAULT_PANEL_WIDTH, MIN_PANEL_WIDTH, MIN_TREE_VIEW_WIDTH } from "./store";
 import { type TraceViewPanels } from "./trace-view-content";
+
+// react-resizable-panels uses percentage-based sizing by default.
+// These percentages approximate the pixel constants from the store
+// (MIN_TREE_VIEW_WIDTH=500, DEFAULT_PANEL_WIDTH=375) at typical viewport widths.
+const TRACE_DEFAULT_PCT = 50;
+const TRACE_MIN_PCT = 30;
+const PANEL_DEFAULT_PCT = 25;
+const PANEL_MIN_PCT = 20;
 
 export default function FillWidthLayout({ panels }: { panels: TraceViewPanels }) {
   return (
@@ -9,8 +16,8 @@ export default function FillWidthLayout({ panels }: { panels: TraceViewPanels })
       {/* Trace Panel — always visible */}
       <ResizablePanel
         id="trace"
-        defaultSize={MIN_TREE_VIEW_WIDTH}
-        minSize={MIN_TREE_VIEW_WIDTH}
+        defaultSize={TRACE_DEFAULT_PCT}
+        minSize={TRACE_MIN_PCT}
         className="overflow-hidden"
       >
         {panels.tracePanel}
@@ -22,8 +29,8 @@ export default function FillWidthLayout({ panels }: { panels: TraceViewPanels })
           <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors" />
           <ResizablePanel
             id="span"
-            defaultSize={DEFAULT_PANEL_WIDTH}
-            minSize={MIN_PANEL_WIDTH}
+            defaultSize={PANEL_DEFAULT_PCT}
+            minSize={PANEL_MIN_PCT}
             className="overflow-hidden"
           >
             {panels.spanPanel}
@@ -37,8 +44,8 @@ export default function FillWidthLayout({ panels }: { panels: TraceViewPanels })
           <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors" />
           <ResizablePanel
             id="chat"
-            defaultSize={DEFAULT_PANEL_WIDTH}
-            minSize={MIN_PANEL_WIDTH}
+            defaultSize={PANEL_DEFAULT_PCT}
+            minSize={PANEL_MIN_PCT}
             className="overflow-hidden"
           >
             {panels.chatPanel}

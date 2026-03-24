@@ -328,11 +328,15 @@ export default function TraceViewContent({
 
   const spanPanel = (
     <div className="flex flex-col h-full w-full overflow-hidden flex-1">
-      {isSpansLoading || !selectedSpan ? (
+      {isSpansLoading ? (
         <div className="flex flex-col space-y-2 p-4">
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-8 w-full" />
+        </div>
+      ) : !selectedSpan ? (
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+          No span selected
         </div>
       ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
         <HumanEvaluatorSpanView traceId={selectedSpan.traceId} spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
@@ -348,7 +352,7 @@ export default function TraceViewContent({
     </div>
   ) : null;
 
-  const showSpan = !!selectedSpan || (isAlwaysSelectSpan === true && !isLoading);
+  const showSpan = !!selectedSpan || (isAlwaysSelectSpan === true && !isLoading && spans.length > 0);
   const showChat = tracesAgentOpen && !!trace;
 
   const panels: TraceViewPanels = {
