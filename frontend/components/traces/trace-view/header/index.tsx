@@ -1,4 +1,14 @@
-import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Sparkles, X } from "lucide-react";
+import {
+  ArrowLeftRight,
+  ChevronDown,
+  ChevronsRight,
+  Copy,
+  Database,
+  Loader,
+  Maximize,
+  Sparkles,
+  X,
+} from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useCallback, useMemo } from "react";
@@ -95,6 +105,23 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
                   <DropdownMenuItem disabled={isSqlLoading} onClick={openInSql}>
                     {isSqlLoading ? <Loader className="size-3.5 animate-spin" /> : <Database className="size-3.5" />}
                     Open in SQL editor
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const diffParams = new URLSearchParams();
+                      diffParams.set("left", trace?.id ?? "");
+                      for (const key of ["pastHours", "startDate", "endDate", "search"] as const) {
+                        const val = searchParams.get(key);
+                        if (val) diffParams.set(key, val);
+                      }
+                      for (const f of searchParams.getAll("filter")) {
+                        diffParams.append("filter", f);
+                      }
+                      window.open(`/project/${projectId}/traces/diff?${diffParams.toString()}`, "_blank");
+                    }}
+                  >
+                    <ArrowLeftRight className="size-3.5" />
+                    Compare with another trace...
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

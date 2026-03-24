@@ -35,7 +35,7 @@ What it will do:
 3. Initialize Laminar as early as possible in your app entrypoint.
 
    ```typescript
-   import { Laminar } from '@lmnr-ai/lmnr';
+   import { Laminar } from "@lmnr-ai/lmnr";
 
    Laminar.initialize({
      projectApiKey: process.env.LMNR_PROJECT_API_KEY!,
@@ -50,17 +50,20 @@ What it will do:
    ```
 
 4. Remove Helicone proxying.
+
    ```typescript
    // Before: Helicone proxy
    const openai = new OpenAI({
-     baseURL: 'https://oai.helicone.ai/v1',
-     defaultHeaders: { 'Helicone-Auth': process.env.HELICONE_API_KEY },
+     baseURL: "https://oai.helicone.ai/v1",
+     defaultHeaders: { "Helicone-Auth": process.env.HELICONE_API_KEY },
    });
 
    // After: native endpoint, Laminar instruments automatically
    const openai = new OpenAI();
    ```
+
 5. Move Helicone metadata into Laminar context (inside an active span).
+
    ```typescript
    // Before: Helicone headers
    headers: {
@@ -74,27 +77,31 @@ What it will do:
    Laminar.setTraceSessionId(sessionId);
    Laminar.setTraceMetadata({ env: 'production' });
    ```
+
    ```python
    # After: Laminar context (inside an active span)
    Laminar.set_trace_user_id(user_id)
    Laminar.set_trace_session_id(session_id)
    Laminar.set_trace_metadata({"env": "production"})
    ```
+
    Active span means you're already inside an `observe(...)` block or a Laminar span. For example:
 
    **TypeScript**
-   ```typescript
-   import { Laminar, observe } from '@lmnr-ai/lmnr';
 
-   await observe({ name: 'handle_request' }, async () => {
+   ```typescript
+   import { Laminar, observe } from "@lmnr-ai/lmnr";
+
+   await observe({ name: "handle_request" }, async () => {
      Laminar.setTraceUserId(userId);
      Laminar.setTraceSessionId(sessionId);
-     Laminar.setTraceMetadata({ env: 'production' });
+     Laminar.setTraceMetadata({ env: "production" });
      // ...rest of your request/agent logic
    });
    ```
 
    **Python**
+
    ```python
    from lmnr import Laminar, observe
 
@@ -105,6 +112,7 @@ What it will do:
        Laminar.set_trace_metadata({"env": "production"})
        # ...rest of your request/agent logic
    ```
+
 6. Verify in the UI.
    Run a single request. You should see a trace with LLM spans and a clear tree. Tool spans will appear if your tool layer is instrumented (e.g., LangChain/LlamaIndex) or if you wrap tool calls with `observe({ spanType: 'TOOL' })` (TypeScript) or `Laminar.start_as_current_span(..., span_type="TOOL")` (Python). If you only see a root span, wrap your agent entrypoint with `observe(...)` or `@observe()`. See [Viewing Traces](https://docs.laminar.sh/platform/viewing-traces).
 
@@ -113,14 +121,14 @@ What it will do:
 Laminar is OTel-native. If you already emit OTel spans, keep your span structure and point the OTLP exporter to Laminar. OTLP/gRPC is recommended.
 
 ```typescript
-import { Metadata } from '@grpc/grpc-js';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
+import { Metadata } from "@grpc/grpc-js";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-grpc";
 
 const metadata = new Metadata();
-metadata.set('authorization', `Bearer ${process.env.LMNR_PROJECT_API_KEY}`);
+metadata.set("authorization", `Bearer ${process.env.LMNR_PROJECT_API_KEY}`);
 
 const exporter = new OTLPTraceExporter({
-  url: 'https://api.lmnr.ai:8443/v1/traces',
+  url: "https://api.lmnr.ai:8443/v1/traces",
   metadata,
 });
 ```
@@ -149,27 +157,37 @@ Laminar replaces Helicone's observability and tracing - and gives you significan
       <tr>
         <td className="px-2 py-1 align-top">Request logging &amp; cost tracking</td>
         <td className="px-2 py-1 align-top">Trace viewer + dashboards</td>
-        <td className="px-2 py-1 align-top">Laminar auto-tracks tokens, latency, and cost per span for instrumented providers.</td>
+        <td className="px-2 py-1 align-top">
+          Laminar auto-tracks tokens, latency, and cost per span for instrumented providers.
+        </td>
       </tr>
       <tr>
         <td className="px-2 py-1 align-top">Session tracing</td>
-        <td className="px-2 py-1 align-top"><code>observe()</code> + session IDs</td>
+        <td className="px-2 py-1 align-top">
+          <code>observe()</code> + session IDs
+        </td>
         <td className="px-2 py-1 align-top">Deeper agent trace trees, not just request logs.</td>
       </tr>
       <tr>
         <td className="px-2 py-1 align-top">Custom properties (headers)</td>
-        <td className="px-2 py-1 align-top"><code>Laminar.setTraceMetadata()</code></td>
+        <td className="px-2 py-1 align-top">
+          <code>Laminar.setTraceMetadata()</code>
+        </td>
         <td className="px-2 py-1 align-top">Same concept, SDK-based instead of header-based.</td>
       </tr>
       <tr>
         <td className="px-2 py-1 align-top">User/session tracking</td>
-        <td className="px-2 py-1 align-top"><code>Laminar.setTraceUserId()</code> / <code>Laminar.setTraceSessionId()</code></td>
+        <td className="px-2 py-1 align-top">
+          <code>Laminar.setTraceUserId()</code> / <code>Laminar.setTraceSessionId()</code>
+        </td>
         <td className="px-2 py-1 align-top">Direct mapping.</td>
       </tr>
       <tr>
         <td className="px-2 py-1 align-top">Prompt playground</td>
         <td className="px-2 py-1 align-top">Laminar Playground</td>
-        <td className="px-2 py-1 align-top">Similar capability. See <a href="https://docs.laminar.sh/playground">Playground</a>.</td>
+        <td className="px-2 py-1 align-top">
+          Similar capability. See <a href="https://docs.laminar.sh/playground">Playground</a>.
+        </td>
       </tr>
       <tr>
         <td className="px-2 py-1 align-top">Response caching</td>

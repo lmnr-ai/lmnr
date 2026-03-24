@@ -5,7 +5,7 @@ import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { cn, tryParseJson } from "@/lib/utils.ts";
 
-const formatOutput = (output: any): string => {
+export const formatOutput = (output: any): string => {
   const PRIORITY_KEYS = ["content", "text", "message", "data", "output"];
   const METADATA_KEYS = ["role", "type", "id", "name", "model", "metadata"];
   const MAX_DEPTH = 10;
@@ -191,11 +191,17 @@ const Markdown = ({ output, defaultValue, className, contentClassName }: Markdow
                 {children}
               </h1>
             ),
-            p: ({ children, className, ...props }) => (
-              <p {...props} className={cn(className, "text-[13px]")}>
-                {children}
-              </p>
-            ),
+            p: ({ children, className, node, ...props }) => {
+              const hasBlockChild = node?.children?.some(
+                (child) => child.type === "element" && ["div", "img", "figure", "table"].includes(child.tagName)
+              );
+              const Tag = hasBlockChild ? "div" : "p";
+              return (
+                <Tag {...props} className={cn(className, "text-[13px]")}>
+                  {children}
+                </Tag>
+              );
+            },
             li: ({ children, className, ...props }) => (
               <li {...props} className={cn(className, "text-[13px]")}>
                 {children}

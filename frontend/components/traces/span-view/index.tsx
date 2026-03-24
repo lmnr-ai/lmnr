@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 interface SpanViewProps {
   spanId: string;
   traceId: string;
+  onClose?: () => void;
 }
 
 const swrFetcher = async (url: string) => {
@@ -114,7 +115,7 @@ const SpanViewTabs = ({
   );
 };
 
-export function SpanView({ spanId, traceId }: SpanViewProps) {
+export function SpanView({ spanId, traceId, onClose }: SpanViewProps) {
   const { projectId } = useParams();
   const [searchOpen, setSearchOpen] = useState(false);
   const {
@@ -179,7 +180,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
   if (span) {
     return (
       <SpanSearchProvider>
-        <SpanControls span={span}>
+        <SpanControls span={span} onClose={onClose}>
           <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
         </SpanControls>
       </SpanSearchProvider>
