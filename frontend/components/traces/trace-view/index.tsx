@@ -16,7 +16,7 @@ interface TraceViewProps {
   initialSignalId?: string;
 }
 
-export default function TraceView(props: TraceViewProps) {
+export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
   return (
     <TraceViewStoreProvider
       initialTrace={props.propsTrace}
@@ -24,23 +24,30 @@ export default function TraceView(props: TraceViewProps) {
       initialSignalId={props.initialSignalId}
       initialSignalsPanelOpen={props.initialSignalsPanelOpen}
     >
-      <TraceViewContent {...props} />
+      <TraceViewContent {...props} isFillWidth />
     </TraceViewStoreProvider>
   );
 }
 
-export function SidePanel({ children, className }: { children: React.ReactNode; className?: string }) {
+export function TraceViewSidePanel({
+  className,
+  ...props
+}: Omit<TraceViewProps, "isFillWidth"> & { className?: string }) {
   return (
-    <div className={cn("absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex max-w-full", className)}>
-      {children}
+    <div
+      className={cn(
+        "absolute top-0 right-0 bottom-0 max-w-[calc(100%-40px)] bg-background border-l z-50 flex",
+        className
+      )}
+    >
+      <TraceViewStoreProvider
+        initialTrace={props.propsTrace}
+        isAlwaysSelectSpan={props.isAlwaysSelectSpan}
+        initialSignalId={props.initialSignalId}
+        initialSignalsPanelOpen={props.initialSignalsPanelOpen}
+      >
+        <TraceViewContent {...props} isFillWidth={false} />
+      </TraceViewStoreProvider>
     </div>
-  );
-}
-
-export function TraceViewSidePanel({ className, ...traceViewProps }: TraceViewProps & { className?: string }) {
-  return (
-    <SidePanel className={className}>
-      <TraceView {...traceViewProps} />
-    </SidePanel>
   );
 }

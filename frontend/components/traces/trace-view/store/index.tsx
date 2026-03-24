@@ -14,23 +14,100 @@ export {
   ZOOM_INCREMENT,
 } from "./base";
 
-export const MIN_TREE_VIEW_WIDTH = 500;
-export const DEFAULT_PANEL_WIDTH = 375;
-export const MIN_PANEL_WIDTH = 375;
-
 export type ResizablePanel = "trace" | "span" | "chat";
+
+type PanelWidthKey = "tracePanelWidth" | "spanPanelWidth" | "chatPanelWidth";
+type PanelDef = { key: PanelWidthKey; min: number; default: number };
+
+const ALL_PANELS: PanelDef[] = [
+  { key: "tracePanelWidth", min: 400, default: 500 },
+  { key: "spanPanelWidth", min: 360, default: 375 },
+  { key: "chatPanelWidth", min: 360, default: 375 },
+];
 
 interface TraceViewStoreState {
   tracePanelWidth: number;
   spanPanelWidth: number;
   chatPanelWidth: number;
+  maxWidth: number;
 }
 
 interface TraceViewStoreActions {
   resizePanel: (panel: ResizablePanel, delta: number) => void;
+  setMaxWidth: (maxWidth: number) => void;
+  fitPanelsToMaxWidth: () => void;
 }
 
 type TraceViewStore = BaseTraceViewStore & TraceViewStoreState & TraceViewStoreActions;
+
+/** Determine which panels are currently visible based on store state. */
+function getVisiblePanels(state: TraceViewStore): PanelDef[] {
+  const result: PanelDef[] = [ALL_PANELS[0]]; // trace always visible
+
+  const spanVisible = !!state.selectedSpan || (state.isAlwaysSelectSpan && state.spans.length > 0);
+  if (spanVisible) result.push(ALL_PANELS[1]);
+
+  const chatVisible = state.tracesAgentOpen && !!state.trace;
+  if (chatVisible) result.push(ALL_PANELS[2]);
+
+  return result;
+}
+
+/** Distribute a deficit proportionally across panels based on their budget above minimum.
+ *  If all panels are at minimum, falls back to proportional shrinking below minimums. */
+function distributeDeficit(
+  state: TraceViewStore,
+  visiblePanels: PanelDef[],
+  deficit: number
+): Partial<TraceViewStoreState> {
+  const updates: Partial<TraceViewStoreState> = {};
+  const budgets = visiblePanels.map((p) => ({
+    key: p.key,
+    min: p.min,
+    width: state[p.key],
+    budget: state[p.key] - p.min,
+  }));
+  const totalBudget = budgets.reduce((sum, b) => sum + b.budget, 0);
+
+  if (totalBudget > 0) {
+    // Preferred: shrink panels proportionally to their budget above minimum
+    let remaining = deficit;
+    for (const b of budgets) {
+      const share = Math.min(b.budget, Math.round(deficit * (b.budget / totalBudget)));
+      const actual = Math.min(share, remaining);
+      updates[b.key] = b.width - actual;
+      remaining -= actual;
+    }
+    // Absorb rounding remainder
+    if (remaining > 0) {
+      for (let i = budgets.length - 1; i >= 0 && remaining > 0; i--) {
+        const b = budgets[i];
+        const current = (updates[b.key] as number) ?? b.width;
+        const absorb = Math.min(remaining, current - b.min);
+        updates[b.key] = current - absorb;
+        remaining -= absorb;
+      }
+    }
+  } else {
+    // Fallback: all at minimum, shrink proportionally below minimums
+    const totalWidth = budgets.reduce((sum, b) => sum + b.width, 0);
+    if (totalWidth <= 0) return updates;
+    let remaining = deficit;
+    for (const b of budgets) {
+      const share = Math.round(deficit * (b.width / totalWidth));
+      const actual = Math.min(share, remaining);
+      updates[b.key] = b.width - actual;
+      remaining -= actual;
+    }
+    // Absorb rounding remainder from last panel
+    if (remaining > 0) {
+      const last = budgets[budgets.length - 1];
+      updates[last.key] = ((updates[last.key] as number) ?? last.width) - remaining;
+    }
+  }
+
+  return updates;
+}
 
 const createTraceViewStore = (options?: {
   initialTrace?: TraceViewTrace;
@@ -38,59 +115,111 @@ const createTraceViewStore = (options?: {
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
   initialSignalsPanelOpen?: boolean;
-}) =>
-  createStore<TraceViewStore>()(
+}) => createStore<TraceViewStore>()(
     persist(
-      (set, get) => ({
-        ...createBaseTraceViewSlice(set, get, {
+      (set, get) => {
+        const baseSlice = createBaseTraceViewSlice<TraceViewStore>(set, get, {
           initialTrace: options?.initialTrace,
           isAlwaysSelectSpan: options?.isAlwaysSelectSpan,
           initialSignalId: options?.initialSignalId,
           initialSignalsPanelOpen: options?.initialSignalsPanelOpen,
-        }),
+        });
 
-        tracePanelWidth: MIN_TREE_VIEW_WIDTH,
-        spanPanelWidth: DEFAULT_PANEL_WIDTH,
-        chatPanelWidth: DEFAULT_PANEL_WIDTH,
+        return {
+          ...baseSlice,
 
-        resizePanel: (panel, delta) => {
-          const state = get();
-          // Visual order left-to-right: trace → span → chat
-          // Propagation goes rightward when shrinking past min
-          const panels: {
-            key: keyof Pick<TraceViewStoreState, "tracePanelWidth" | "spanPanelWidth" | "chatPanelWidth">;
-            min: number;
-          }[] = [
-            { key: "tracePanelWidth", min: MIN_TREE_VIEW_WIDTH },
-            { key: "spanPanelWidth", min: MIN_PANEL_WIDTH },
-            { key: "chatPanelWidth", min: MIN_PANEL_WIDTH },
-          ];
+          tracePanelWidth: ALL_PANELS[0].default,
+          spanPanelWidth: ALL_PANELS[1].default,
+          chatPanelWidth: ALL_PANELS[2].default,
+          maxWidth: Infinity,
 
-          const startIndex = panels.findIndex((p) => p.key === `${panel}PanelWidth`);
-          if (startIndex === -1) return;
+          setMaxWidth: (maxWidth: number) => {
+            const current = get().maxWidth;
+            if (Math.abs(maxWidth - current) < 1) return; // guard against loops
+            set({ maxWidth } as Partial<TraceViewStore>);
+            get().fitPanelsToMaxWidth();
+          },
 
-          const updates: Partial<TraceViewStoreState> = {};
-          let remaining = delta;
+          fitPanelsToMaxWidth: () => {
+            const state = get();
+            if (state.maxWidth === Infinity) return;
 
-          // Walk rightward from the target panel, propagating any overflow
-          for (let i = startIndex; i < panels.length && remaining < 0; i++) {
-            const { key, min } = panels[i];
-            const current = state[key];
-            const newWidth = Math.max(min, current + remaining);
-            updates[key] = newWidth;
-            // Whatever we couldn't absorb propagates to the next panel
-            remaining = remaining - (newWidth - current);
-          }
+            const visible = getVisiblePanels(state);
+            const total = visible.reduce((sum, p) => sum + state[p.key], 0);
+            if (total <= state.maxWidth) return;
 
-          // If delta is positive (growing), only apply to the target panel
-          if (delta > 0) {
-            const { key } = panels[startIndex];
-            updates[key] = state[key] + delta;
-          }
+            const deficit = total - state.maxWidth;
+            const updates = distributeDeficit(state, visible, deficit);
+            set(updates as Partial<TraceViewStore>);
+          },
 
-          set(updates);
-        },
-      }),
+          resizePanel: (panel: ResizablePanel, delta: number) => {
+            const state = get();
+            const visible = getVisiblePanels(state);
+
+            const targetKey = `${panel}PanelWidth` as PanelWidthKey;
+            const startIndex = visible.findIndex((p) => p.key === targetKey);
+            if (startIndex === -1) {
+              return;
+            }
+
+            const updates: Partial<TraceViewStoreState> = {};
+
+            if (delta > 0) {
+              // GROW: apply delta to target, then cascade-shrink LEFT to fit maxWidth
+              const newTargetWidth = state[targetKey] + delta;
+              updates[targetKey] = newTargetWidth;
+
+              // Compute total with the update applied
+              let total = 0;
+              for (const p of visible) {
+                total += (updates[p.key] as number) ?? state[p.key];
+              }
+
+              let overflow = total - state.maxWidth;
+              if (overflow > 0) {
+                // Walk LEFT from target, shrinking each panel to its minimum
+                for (let i = startIndex - 1; i >= 0 && overflow > 0; i--) {
+                  const { key, min } = visible[i];
+                  const current = (updates[key] as number) ?? state[key];
+                  const shrinkable = Math.max(0, current - min);
+                  const shrinkAmount = Math.min(shrinkable, overflow);
+                  updates[key] = current - shrinkAmount;
+                  overflow -= shrinkAmount;
+                }
+
+                // If still overflow, cap the target's growth
+                if (overflow > 0) {
+                  updates[targetKey] = (updates[targetKey] as number) - overflow;
+                }
+              }
+            } else if (delta < 0) {
+              // SHRINK: clamp to min, propagate overflow RIGHTWARD
+              let remaining = delta;
+              for (let i = startIndex; i < visible.length && remaining < 0; i++) {
+                const { key, min } = visible[i];
+                const current = state[key];
+                const newWidth = Math.max(min, current + remaining);
+                updates[key] = newWidth;
+                remaining -= newWidth - current;
+              }
+            }
+
+            set(updates as Partial<TraceViewStore>);
+          },
+
+          // Override visibility-changing actions to auto-fit after
+          setSelectedSpan: (span) => {
+            baseSlice.setSelectedSpan(span);
+            get().fitPanelsToMaxWidth();
+          },
+
+          setTracesAgentOpen: (open) => {
+            baseSlice.setTracesAgentOpen(open);
+            get().fitPanelsToMaxWidth();
+          },
+        };
+      },
       {
         name: options?.storeKey ?? "trace-view-state",
         partialize: (state) => {

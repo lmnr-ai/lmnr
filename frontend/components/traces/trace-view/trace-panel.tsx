@@ -120,8 +120,8 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                 condensedTimelineEnabled ? "pt-2 pl-2 pr-2" : "pt-0 pl-2 pr-[96px]"
               )}
             >
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-2 w-full min-w-0">
+                <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                   <ViewDropdown />
                   {trace && (
                     <TraceStatsShields
@@ -131,17 +131,17 @@ export default function TracePanel({ traceId, handleClose, handleSpanSelect, fet
                     />
                   )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 min-w-0">
                   <Button
                     disabled={!trace}
-                    className={cn("h-6 px-1.5 text-xs", {
+                    className={cn("h-6 px-1.5 text-xs overflow-hidden", {
                       "border-primary text-primary": browserSession,
                     })}
                     variant="outline"
                     onClick={() => setBrowserSession(!browserSession)}
                   >
-                    <CirclePlay size={14} className="mr-1" />
-                    Media
+                    <CirclePlay size={14} className="flex-shrink-0" />
+                    <span className="ml-1 truncate">Media</span>
                   </Button>
                   {hasLangGraph && <LangGraphViewTrigger setOpen={setLangGraph} open={langGraph} />}
                 </div>

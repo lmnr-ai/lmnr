@@ -42,16 +42,13 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
       onValueChange={setActiveSignalTabId}
       className="flex flex-col flex-1 min-h-0 overflow-hidden gap-0"
     >
-      <TabsList className="flex-shrink-0 w-full h-8 rounded-md px-1">
+      <TabsList className="flex-shrink-0 w-full h-8">
         {traceSignals.map((signal) => (
           <TooltipProvider key={signal.signalId} delayDuration={500}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="flex-1 min-w-0">
-                  <TabsTrigger
-                    value={signal.signalId}
-                    className="w-full text-xs text-left justify-start overflow-hidden"
-                  >
+                  <TabsTrigger value={signal.signalId} className="w-full text-xs overflow-hidden">
                     <span className="block truncate">{signal.signalName}</span>
                   </TabsTrigger>
                 </span>

@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
-import TraceView, { SidePanel } from "../traces/trace-view";
+import TraceView from "../traces/trace-view";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
@@ -272,7 +272,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
         </div>
       </div>
       {traceId && (
-        <SidePanel>
+        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex max-w-full">
           <div className="w-full h-full flex flex-col">
             {targetId && (
               <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
@@ -307,7 +307,7 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
             )}
             <TraceView key={traceId} onClose={onClose} traceId={traceId} />
           </div>
-        </SidePanel>
+        </div>
       )}
     </>
   );
