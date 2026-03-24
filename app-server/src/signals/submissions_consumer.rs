@@ -7,6 +7,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
+    cache::{
+        CacheTrait,
+        keys::{SIGNAL_BATCH_LOCK_CACHE_KEY, SIGNAL_BATCH_SUBMITTED_CACHE_KEY},
+    },
     ch::signal_run_messages::{CHSignalRunMessage, insert_signal_run_messages},
     db::DB,
     mq::MessageQueue,
@@ -16,6 +20,7 @@ use crate::{
         queue::{
             SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
             push_to_pending_queue, push_to_realtime_queue, push_to_signals_queue,
+            push_to_submissions_queue,
         },
         utils::extract_batch_id_from_operation,
     },
@@ -27,6 +32,7 @@ use crate::signals::common::{ProcessRunResult, handle_failed_runs, process_run};
 
 pub struct SignalJobSubmissionBatchHandler {
     pub db: Arc<DB>,
+    pub cache: Arc<crate::cache::Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
     pub llm_client: Arc<ProviderClient>,
@@ -36,6 +42,7 @@ pub struct SignalJobSubmissionBatchHandler {
 impl SignalJobSubmissionBatchHandler {
     pub fn new(
         db: Arc<DB>,
+        cache: Arc<crate::cache::Cache>,
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
         llm_client: Arc<ProviderClient>,
@@ -43,6 +50,7 @@ impl SignalJobSubmissionBatchHandler {
     ) -> Self {
         Self {
             db,
+            cache,
             queue,
             clickhouse,
             llm_client,
@@ -57,13 +65,15 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         log::debug!(
-            "[SIGNAL JOB] Processing submission message. runs: {}",
+            "[SIGNAL JOB] Processing submission message. runs: {}, batch_message_id: {}",
             message.messages.len(),
+            message.id,
         );
 
         process(
             message,
             self.db.clone(),
+            self.cache.clone(),
             self.clickhouse.clone(),
             self.queue.clone(),
             self.llm_client.clone(),
@@ -73,7 +83,88 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
     }
 }
 
+const BATCH_LOCK_TTL_SECONDS: u64 = 7200;
+const BATCH_SUBMITTED_TTL_SECONDS: u64 = 86400;
+
 async fn process(
+    msg: SignalJobSubmissionBatchMessage,
+    db: Arc<DB>,
+    cache: Arc<crate::cache::Cache>,
+    clickhouse: clickhouse::Client,
+    queue: Arc<MessageQueue>,
+    llm_client: Arc<ProviderClient>,
+    config: Arc<SignalWorkerConfig>,
+) -> Result<(), HandlerError> {
+    let batch_message_id = msg.id;
+    let submitted_key = format!("{SIGNAL_BATCH_SUBMITTED_CACHE_KEY}:{batch_message_id}");
+    let lock_key = format!("{SIGNAL_BATCH_LOCK_CACHE_KEY}:{batch_message_id}");
+
+    // Check if this batch was already submitted (idempotency on redelivery)
+    if let Ok(Some(true)) = cache.get::<bool>(&submitted_key).await {
+        log::info!(
+            "[SIGNAL JOB] Batch {} already submitted, skipping",
+            batch_message_id
+        );
+        return Ok(());
+    }
+
+    // Acquire distributed lock to prevent concurrent processing
+    // This can happen if worker is taking long to process the batch and the message is redelivered to another worker
+    match cache
+        .try_acquire_lock(&lock_key, BATCH_LOCK_TTL_SECONDS)
+        .await
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            log::info!(
+                "[SIGNAL JOB] Batch {} is locked by another worker, re-publishing to back of queue",
+                batch_message_id,
+            );
+            if let Err(e) = push_to_submissions_queue(msg, queue).await {
+                log::error!(
+                    "[SIGNAL JOB] Failed to re-publish locked batch {}: {:?}",
+                    batch_message_id,
+                    e
+                );
+            }
+            return Ok(());
+        }
+        Err(e) => {
+            log::warn!(
+                "[SIGNAL JOB] Failed to acquire lock for batch {}: {:?}, proceeding without lock",
+                batch_message_id,
+                e
+            );
+        }
+    }
+
+    let result = process_batch(msg, db, clickhouse, queue, llm_client, config).await;
+
+    if result.is_ok() {
+        if let Err(e) = cache
+            .insert_with_ttl(&submitted_key, true, BATCH_SUBMITTED_TTL_SECONDS)
+            .await
+        {
+            log::warn!(
+                "[SIGNAL JOB] Failed to set submitted flag for batch {}: {:?}",
+                batch_message_id,
+                e
+            );
+        }
+    }
+
+    if let Err(e) = cache.release_lock(&lock_key).await {
+        log::warn!(
+            "[SIGNAL JOB] Failed to release lock for batch {}: {:?}",
+            batch_message_id,
+            e
+        );
+    }
+
+    result
+}
+
+async fn process_batch(
     msg: SignalJobSubmissionBatchMessage,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
@@ -137,12 +228,10 @@ async fn process(
 
     if requests.is_empty() {
         log::error!("[SIGNAL JOB] No requests to submit");
-        // All runs failed during processing, handle them before returning
         handle_failed_runs(clickhouse, db, failed_runs).await;
         return Ok(());
     }
 
-    // Insert new messages into ClickHouse
     if !all_new_messages.is_empty() {
         insert_signal_run_messages(clickhouse.clone(), &all_new_messages)
             .await
@@ -151,7 +240,6 @@ async fn process(
             })?;
     }
 
-    // Submit batch to LLM API
     let batch_result = submit_batch_to_llm(
         &llm_model(),
         llm_client,
@@ -163,12 +251,10 @@ async fn process(
 
     match batch_result {
         Ok(()) => {
-            // Batch submitted successfully, handle any runs that failed during processing
             handle_failed_runs(clickhouse, db, failed_runs).await;
             Ok(())
         }
         Err((batch_failed_runs, handler_error)) => {
-            // Only handle failed runs for permanent errors (transient errors will be retried)
             if matches!(handler_error, HandlerError::Permanent(_)) {
                 failed_runs.extend(batch_failed_runs);
                 handle_failed_runs(clickhouse, db, failed_runs).await;
