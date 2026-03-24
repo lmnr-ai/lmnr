@@ -9,7 +9,6 @@ import { jsonSchemaToSchemaFields, type SchemaField } from "@/components/signals
 import { renderSpanReferences, type SpanReferenceCallbacks } from "@/components/traces/trace-view/span-reference";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type EventRow } from "@/lib/events/types";
 
 interface SignalTabProps {
@@ -118,34 +117,19 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
 
   return (
     <div className="py-1.5 space-y-1.5">
-      {/* Event count + action buttons */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">
-          {safeEvents.length} event{safeEvents.length !== 1 ? "s" : ""}
-        </span>
-        <div className="flex items-center gap-0.5">
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleOpenInChat}>
-                  <Sparkles className="size-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Open in AI Chat</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6" asChild>
-                  <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`}>
-                    <ExternalLink className="size-3.5" />
-                  </Link>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Open in Signals</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+      {/* Action buttons */}
+      <div className="flex items-center justify-start">
+        <div className="flex items-center gap-1">
+          <Button variant="outline" className="h-6 px-1.5 text-xs bg-transparent" onClick={handleOpenInChat}>
+            <Sparkles className="size-3.5 mr-1" />
+            Open in AI Chat
+          </Button>
+          <Button variant="outline" className="h-6 px-1.5 text-xs bg-transparent" asChild>
+            <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`}>
+              <ExternalLink className="size-3.5 mr-1" />
+              Open in Signals
+            </Link>
+          </Button>
         </div>
       </div>
 
