@@ -17,8 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
-import TraceViewStoreProvider from "../traces/trace-view/store";
-import TraceViewContent from "../traces/trace-view/trace-view-content";
+import { TraceViewSidePanel } from "../traces/trace-view";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
@@ -273,44 +272,39 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName }: Evalua
         </div>
       </div>
       {traceId && (
-        <div className="absolute top-0 right-0 bottom-0 max-w-[calc(100%-40px)] bg-background border-l z-50 flex">
-          <TraceViewStoreProvider>
-            <div className="w-full h-full flex flex-col">
-              {targetId && (
-                <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
-                  <Select value={traceId} onValueChange={handleTraceChange}>
-                    <SelectTrigger className="flex font-medium text-secondary-foreground">
-                      <SelectValue placeholder="Select evaluation" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(selectedRow?.["traceId"] as string) && (
-                        <SelectItem value={selectedRow!["traceId"] as string}>
-                          <span>
-                            {statsData?.evaluation.name}
-                            <span className="text-secondary-foreground text-xs ml-2">
-                              {formatTimestamp(String(statsData?.evaluation.createdAt))}
-                            </span>
-                          </span>
-                        </SelectItem>
-                      )}
-                      {(selectedRow?.["compared:traceId"] as string) && (
-                        <SelectItem value={selectedRow!["compared:traceId"] as string}>
-                          <span>
-                            {targetStatsData?.evaluation.name}
-                            <span className="text-secondary-foreground text-xs ml-2">
-                              {formatTimestamp(String(targetStatsData?.evaluation.createdAt))}
-                            </span>
-                          </span>
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <TraceViewContent key={traceId} onClose={onClose} traceId={traceId} isFillWidth={false} />
+        <TraceViewSidePanel onClose={onClose} traceId={traceId}>
+          {targetId && (
+            <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
+              <Select value={traceId} onValueChange={handleTraceChange}>
+                <SelectTrigger className="flex font-medium text-secondary-foreground">
+                  <SelectValue placeholder="Select evaluation" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(selectedRow?.["traceId"] as string) && (
+                    <SelectItem value={selectedRow!["traceId"] as string}>
+                      <span>
+                        {statsData?.evaluation.name}
+                        <span className="text-secondary-foreground text-xs ml-2">
+                          {formatTimestamp(String(statsData?.evaluation.createdAt))}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  )}
+                  {(selectedRow?.["compared:traceId"] as string) && (
+                    <SelectItem value={selectedRow!["compared:traceId"] as string}>
+                      <span>
+                        {targetStatsData?.evaluation.name}
+                        <span className="text-secondary-foreground text-xs ml-2">
+                          {formatTimestamp(String(targetStatsData?.evaluation.createdAt))}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
-          </TraceViewStoreProvider>
-        </div>
+          )}
+        </TraceViewSidePanel>
       )}
     </>
   );

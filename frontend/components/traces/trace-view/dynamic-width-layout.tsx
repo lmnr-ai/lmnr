@@ -8,7 +8,8 @@ import { usePanelResize } from "@/components/traces/trace-view/use-panel-resize"
 
 import { type TraceViewPanels } from "./trace-view-content";
 
-const panelTransition = { duration: 0.2, ease: "easeOut" } as const;
+const enterExitTransition = { type: "spring", stiffness: 300, damping: 30 } as const;
+const instantTransition = { duration: 0 } as const;
 
 export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels }) {
   const { tracePanelWidth, spanPanelWidth, chatPanelWidth, resizePanel, setMaxWidth } = useTraceViewStore(
@@ -45,6 +46,9 @@ export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels
   const spanResize = usePanelResize("span", resizePanel);
   const chatResize = usePanelResize("chat", resizePanel);
 
+  const isResizing = traceResize.isResizing || spanResize.isResizing || chatResize.isResizing;
+  const transition = isResizing ? instantTransition : enterExitTransition;
+
   return (
     <div ref={containerRef} className="h-full w-full overflow-hidden">
       <div className="flex flex-row h-full">
@@ -55,7 +59,7 @@ export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels
         </div>
 
         <AnimatePresence initial={false}>
-          {/* Span Panel — curtain reveal: outer animates width, inner stays fixed */}
+          {/* Span Panel */}
           {panels.showSpan && (
             <motion.div
               key="span-panel"
@@ -63,7 +67,7 @@ export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels
               initial={{ width: 0, opacity: 0.5 }}
               animate={{ width: spanPanelWidth, opacity: 1 }}
               exit={{ width: 0, opacity: 0.5 }}
-              transition={panelTransition}
+              transition={transition}
             >
               <div className="absolute inset-y-0 left-0 flex" style={{ width: spanPanelWidth }}>
                 <LeftEdgeResizeHandle onMouseDown={spanResize.handleMouseDown} />
@@ -72,7 +76,7 @@ export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels
             </motion.div>
           )}
 
-          {/* Chat Panel — curtain reveal: outer animates width, inner stays fixed */}
+          {/* Chat Panel */}
           {panels.showChat && panels.chatPanel && (
             <motion.div
               key="chat-panel"
@@ -80,9 +84,8 @@ export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels
               initial={{ width: 0, opacity: 0.5 }}
               animate={{ width: chatPanelWidth, opacity: 1 }}
               exit={{ width: 0, opacity: 0.5 }}
-              transition={panelTransition}
+              transition={transition}
             >
-              {/* Inner container: always at target width, clipped by outer */}
               <div className="absolute inset-y-0 left-0 flex" style={{ width: chatPanelWidth }}>
                 <LeftEdgeResizeHandle onMouseDown={chatResize.handleMouseDown} />
                 {panels.chatPanel}

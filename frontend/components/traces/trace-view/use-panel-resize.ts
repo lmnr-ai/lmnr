@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type ResizablePanel } from "@/components/traces/trace-view/store";
 
@@ -13,10 +13,13 @@ export function usePanelResize(panel: ResizablePanel, resizePanel: (panel: Resiz
     resizePanelRef.current = resizePanel;
   }, [resizePanel]);
 
+  const [isResizing, setIsResizing] = useState(false);
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       let lastX = e.clientX;
+      setIsResizing(true);
 
       const onMouseMove = (moveEvent: MouseEvent) => {
         // Left-edge handle: moving left (negative dx) = grow, moving right (positive dx) = shrink
@@ -28,6 +31,7 @@ export function usePanelResize(panel: ResizablePanel, resizePanel: (panel: Resiz
       };
 
       const onMouseUp = () => {
+        setIsResizing(false);
         document.removeEventListener("mousemove", onMouseMove);
         document.removeEventListener("mouseup", onMouseUp);
       };
@@ -38,5 +42,5 @@ export function usePanelResize(panel: ResizablePanel, resizePanel: (panel: Resiz
     [panel]
   );
 
-  return { handleMouseDown };
+  return { handleMouseDown, isResizing };
 }

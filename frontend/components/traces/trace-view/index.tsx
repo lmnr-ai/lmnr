@@ -32,8 +32,9 @@ export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
 
 export function TraceViewSidePanel({
   className,
+  children,
   ...props
-}: Omit<TraceViewProps, "isFillWidth"> & { className?: string }) {
+}: Omit<TraceViewProps, "isFillWidth"> & { className?: string; children?: React.ReactNode }) {
   return (
     <motion.div
       className={cn(
@@ -52,7 +53,10 @@ export function TraceViewSidePanel({
         initialSignalId={props.initialSignalId}
         initialSignalsPanelOpen={props.initialSignalsPanelOpen}
       >
-        <TraceViewContent {...props} isFillWidth={false} />
+        <div className="w-full h-full flex flex-col">
+          {children}
+          <TraceViewContent {...props} isFillWidth={false} />
+        </div>
       </TraceViewStoreProvider>
     </motion.div>
   );
