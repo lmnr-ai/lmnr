@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { SnippetPreview } from "@/components/traces/snippet-preview";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { type PathInfo } from "@/components/traces/trace-view/store/utils";
@@ -70,14 +71,20 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
 
   const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
 
+  // TODO(snippets): hasSnippet — remove when snippets come from a dedicated API
+  const hasSnippet = !!(span.inputSnippet || span.outputSnippet);
+
   const hasChildren = childSpans && childSpans.length > 0;
   const isExpandable =
-    hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true));
+    hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true)) || hasSnippet; // TODO(snippets): remove hasSnippet from this condition
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
+  // TODO(snippets): auto-expand when snippet exists — revert to original condition when removing snippets
   const showContent =
-    (showTreeContent ?? true) && !span.collapsed && (span.spanType === "LLM" || span.spanType === "CACHED");
+    (showTreeContent ?? true) &&
+    !span.collapsed &&
+    (span.spanType === "LLM" || span.spanType === "CACHED" || hasSnippet);
 
   const isLoadingOutput = output === undefined;
 
@@ -186,13 +193,27 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
 
           {showContent && (
             <div className="px-2 pt-0">
-              {isLoadingOutput && (
-                <div className="w-full pb-2">
-                  <Skeleton className="h-12 w-full" />
+              {/* TODO(snippets): snippet rendering — remove this branch when snippets come from a dedicated API */}
+              {hasSnippet ? (
+                <div className="pb-2">
+                  <SnippetPreview
+                    inputSnippet={span.inputSnippet}
+                    outputSnippet={span.outputSnippet}
+                    snippetCount={span.snippetCount}
+                    variant="span"
+                  />
                 </div>
-              )}
-              {!isLoadingOutput && !isNil(output) && (
-                <Markdown className="max-h-48" output={output} defaultValue={savedTemplate} />
+              ) : (
+                <>
+                  {isLoadingOutput && (
+                    <div className="w-full pb-2">
+                      <Skeleton className="h-12 w-full" />
+                    </div>
+                  )}
+                  {!isLoadingOutput && !isNil(output) && (
+                    <Markdown className="max-h-48" output={output} defaultValue={savedTemplate} />
+                  )}
+                </>
               )}
             </div>
           )}

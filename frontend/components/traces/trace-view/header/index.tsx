@@ -134,7 +134,14 @@ const Header = ({ handleClose, chatOpen, setChatOpen, spans, onSearch }: HeaderP
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {!chatOpen && <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />}
+        {!chatOpen && (
+          <TraceViewSearch
+            spans={spans}
+            onSubmit={onSearch}
+            className="flex-1"
+            initialSearch={searchParams.get("search") ?? undefined}
+          />
+        )}
       </div>
       {!chatOpen && (
         <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />

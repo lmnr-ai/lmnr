@@ -3,6 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
@@ -32,34 +33,14 @@ export const PREVIEW_COLUMN: ColumnDef<TraceRow, any> = {
   header: "Preview",
   enableResizing: true,
   size: 420,
-  cell: (row) => {
-    const snippet = row.row.original.inputSnippet ?? row.row.original.outputSnippet;
-    if (!snippet) {
-      return <span className="text-xs text-muted-foreground">No preview</span>;
-    }
-
-    const { text, highlight } = snippet;
-    const [start, end] = highlight;
-    const before = text.slice(0, start);
-    const match = text.slice(start, end);
-    const after = text.slice(end);
-    const snippetCount = row.row.original.snippetCount ?? 0;
-
-    return (
-      <span className="flex items-center gap-1.5 min-w-0">
-        <span className="whitespace-normal break-words text-xs text-secondary-foreground line-clamp-2">
-          {before}
-          <mark className="not-italic font-medium text-primary bg-primary/15 rounded px-0.5">{match}</mark>
-          {after}
-        </span>
-        {snippetCount > 1 && (
-          <span className="shrink-0 inline-flex items-center px-1.5 py-px text-[10px] font-medium text-primary bg-primary/10 rounded-full leading-normal whitespace-nowrap">
-            +{snippetCount - 1}
-          </span>
-        )}
-      </span>
-    );
-  },
+  cell: (row) => (
+    <SnippetPreview
+      inputSnippet={row.row.original.inputSnippet}
+      outputSnippet={row.row.original.outputSnippet}
+      snippetCount={row.row.original.snippetCount}
+      variant="table"
+    />
+  ),
 };
 
 export const columns: ColumnDef<TraceRow, any>[] = [

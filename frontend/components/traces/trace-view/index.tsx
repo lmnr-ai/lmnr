@@ -315,8 +315,10 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
     handleFetchTrace();
   }, [handleFetchTrace]);
 
+  const initialSearch = searchParams.get("search") ?? "";
+
   useEffect(() => {
-    fetchSpans("", []);
+    fetchSpans(initialSearch, []);
 
     return () => {
       setSpans([]);

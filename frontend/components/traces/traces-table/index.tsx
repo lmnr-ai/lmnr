@@ -102,8 +102,7 @@ function TracesTableContent() {
   const isSearchActive = typeof textSearchFilter === "string" && textSearchFilter.length > 0;
 
   const effectiveColumns = useMemo(() => {
-    // TODO(mock): Change condition back to `if (!isSearchActive) return columnDefs;` — currently always showing preview column for testing
-    return columnDefs;
+    if (!isSearchActive) return columnDefs;
     const statusIdx = columnDefs.findIndex((c) => c.id === "status");
     const cols = [...columnDefs];
     cols.splice(statusIdx + 1, 0, PREVIEW_COLUMN);
