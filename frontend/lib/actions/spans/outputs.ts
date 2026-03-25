@@ -279,33 +279,57 @@ export async function getSpanPreviews(input: z.infer<typeof GetSpanPreviewsSchem
   // Step 6: LLM generation for remaining misses
   if (needsLlm.length > 0) {
     try {
-      const structures = needsLlm.map((span) => ({
-        fingerprint: span.fingerprint,
-        side: span.side,
-        data: capPayloadSize(truncateFieldValues(span.parsedData)),
-      }));
+      // Deduplicate by fingerprint — spans with the same fingerprint share schema shape
+      // and will produce the same key, so we only need to send one example per fingerprint.
+      const seenFingerprints = new Set<string>();
+      const structures: Array<{ fingerprint: string; side: "input" | "output"; data: unknown }> = [];
+      for (const span of needsLlm) {
+        if (!seenFingerprints.has(span.fingerprint)) {
+          seenFingerprints.add(span.fingerprint);
+          structures.push({
+            fingerprint: span.fingerprint,
+            side: span.side,
+            data: capPayloadSize(truncateFieldValues(span.parsedData)),
+          });
+        }
+      }
 
       const results = await generatePreviewKeys(structures);
 
       // Step 7: Validate mustache keys
-      const fingerprintToSpan = new Map(needsLlm.map((s) => [s.fingerprint, s]));
+      // Group spans by fingerprint so all spans with the same schema shape get a preview
+      const fingerprintToSpans = new Map<string, ParsedSpan[]>();
+      for (const s of needsLlm) {
+        const group = fingerprintToSpans.get(s.fingerprint);
+        if (group) {
+          group.push(s);
+        } else {
+          fingerprintToSpans.set(s.fingerprint, [s]);
+        }
+      }
 
       for (const result of results) {
-        const span = fingerprintToSpan.get(result.fingerprint);
-        if (!span) continue;
+        const spans = fingerprintToSpans.get(result.fingerprint);
+        if (!spans) continue;
 
-        if (result.key) {
-          const rendered = validateMustacheKey(result.key, span.parsedData);
-          if (rendered) {
-            previews[span.spanId] = rendered;
-            keysToSave.push({ fingerprint: span.fingerprint, key: result.key });
+        for (const span of spans) {
+          if (result.key) {
+            const rendered = validateMustacheKey(result.key, span.parsedData);
+            if (rendered) {
+              previews[span.spanId] = rendered;
+            } else {
+              // Validation failed, fall back to JSON stringify
+              previews[span.spanId] = JSON.stringify(span.parsedData).slice(0, 500);
+            }
           } else {
-            // Validation failed, fall back to JSON stringify
+            // LLM returned null key (error case) — fall back to JSON
             previews[span.spanId] = JSON.stringify(span.parsedData).slice(0, 500);
           }
-        } else {
-          // LLM returned null key (error case) — fall back to JSON
-          previews[span.spanId] = JSON.stringify(span.parsedData).slice(0, 500);
+        }
+
+        // Save the key once per fingerprint
+        if (result.key) {
+          keysToSave.push({ fingerprint: result.fingerprint, key: result.key });
         }
       }
     } catch (error) {
