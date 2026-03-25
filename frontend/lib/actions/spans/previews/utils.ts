@@ -148,22 +148,6 @@ export const truncateFieldValues = (data: unknown, maxChars: number = 500): unkn
   return data;
 };
 
-/**
- * Cap total serialized payload size to approximately maxBytes.
- * Returns the original data if under limit, otherwise truncates.
- */
-export const capPayloadSize = (data: unknown, maxBytes: number = 4096): unknown => {
-  const serialized = JSON.stringify(data);
-  if (serialized.length <= maxBytes) return data;
-
-  for (const limit of [200, 100, 50, 20]) {
-    const truncated = truncateFieldValues(data, limit);
-    if (JSON.stringify(truncated).length <= maxBytes) return truncated;
-  }
-
-  return serialized.slice(0, maxBytes);
-};
-
 const postProcessRendered = (str: string): string =>
   str
     .replace(/&quot;/g, '"')
