@@ -1,9 +1,9 @@
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { useParams } from "next/navigation";
-import { type PropsWithChildren, useEffect, useMemo, useState } from "react";
+import { type PropsWithChildren, useMemo, useState } from "react";
 
 import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
+import { useSpanOutput } from "@/components/traces/trace-view/list/use-span-output.tsx";
 import { extractKeys, generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
 import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button.tsx";
@@ -13,7 +13,6 @@ import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
-import { convertToTimeParameters } from "@/lib/time.ts";
 
 interface MustacheTemplateSheetContentProps {
   span: TraceViewListSpan | null;
@@ -21,40 +20,10 @@ interface MustacheTemplateSheetContentProps {
 }
 
 function MustacheTemplateSheetContent({ span, setOpen }: MustacheTemplateSheetContentProps) {
-  const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
-  const trace = useTraceViewBaseStore((state) => state.trace);
-
-  const [output, setOutput] = useState<any>(undefined);
 
   // Fetch output on-demand when the sheet opens
-  useEffect(() => {
-    if (!span || !trace?.id || !projectId) return;
-
-    const body: Record<string, any> = { spanIds: [span.spanId] };
-
-    if (trace.startTime && trace.endTime) {
-      const startTime = new Date(new Date(trace.startTime).getTime() - 1000).toISOString();
-      const endTime = new Date(new Date(trace.endTime).getTime() + 1000).toISOString();
-      const params = convertToTimeParameters({ startTime, endTime });
-      body.startDate = params.start_time;
-      body.endDate = params.end_time;
-    }
-
-    fetch(`/api/projects/${projectId}/traces/${trace.id}/spans/outputs`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.outputs?.[span.spanId] !== undefined) {
-          setOutput(data.outputs[span.spanId]);
-        } else {
-          setOutput(null);
-        }
-      })
-      .catch(() => setOutput(null));
-  }, [span, trace?.id, trace?.startTime, trace?.endTime, projectId]);
+  const output = useSpanOutput(span?.spanId, !!span);
 
   const spanPathKey = useMemo(() => (span ? generateSpanPathKey(span) : ""), [span]);
 
