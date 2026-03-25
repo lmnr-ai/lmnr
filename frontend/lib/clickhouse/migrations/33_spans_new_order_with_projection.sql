@@ -53,8 +53,6 @@ CREATE TABLE IF NOT EXISTS spans_v2
             total_tokens,
             user_id,
             path,
-            SUBSTRING(`input`, 1, 500) AS input_preview,
-            SUBSTRING(`output`, 1, 500) AS output_preview,
             size_bytes,
             status,
             attributes,
