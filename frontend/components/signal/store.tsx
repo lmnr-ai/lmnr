@@ -24,7 +24,6 @@ export type SignalState = {
   selectedEvent: EventRow | null;
   runsFilters: Filter[];
   jobsFilters: Filter[];
-  initialTraceViewWidth?: number;
   lastEvent?: {
     id: string;
     timestamp: string;
@@ -65,7 +64,6 @@ export interface EventsProps {
     id: string;
     timestamp: string;
   };
-  initialTraceViewWidth?: number;
 }
 
 export type Store = SignalState & SignalActions;
@@ -175,7 +173,6 @@ export const createSignalStore = (initProps: EventsProps) =>
     runsFilters: [],
     jobsFilters: [],
     lastEvent: initProps.lastEvent,
-    initialTraceViewWidth: initProps.initialTraceViewWidth,
     // Cluster state
     rawClusters: [],
     clusterTree: [],

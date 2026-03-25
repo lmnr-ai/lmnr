@@ -17,7 +17,6 @@ import LangGraphViewTrigger from "@/components/traces/trace-view/lang-graph-view
 import List from "@/components/traces/trace-view/list";
 import { ScrollContextProvider } from "@/components/traces/trace-view/scroll-context";
 import TraceViewStoreProvider, {
-  MIN_TREE_VIEW_WIDTH,
   type TraceViewSpan,
   type TraceViewTrace,
   useTraceViewStore,
@@ -73,10 +72,6 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
     condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
   }));
 
-  const { treeWidth, setTreeWidth } = useTraceViewStore((state) => ({
-    treeWidth: state.treeWidth,
-    setTreeWidth: state.setTreeWidth,
-  }));
   const hasLangGraph = useMemo(() => getHasLangGraph(), [getHasLangGraph]);
   const filteredSpansForStats = useMemo(() => {
     if (condensedTimelineVisibleSpanIds.size === 0) return undefined;
@@ -97,28 +92,6 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
       setSelectedSpan(span);
     },
     [pathName, router, searchParams, setSelectedSpan]
-  );
-
-  const handleResizeTreeView = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startWidth = treeWidth;
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        const newWidth = Math.max(MIN_TREE_VIEW_WIDTH, startWidth + moveEvent.clientX - startX);
-        setTreeWidth(newWidth);
-      };
-
-      const handleMouseUp = () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-      };
-
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    },
-    [treeWidth, setTreeWidth]
   );
 
   useEffect(() => {
@@ -151,8 +124,12 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
             </Link>
           </div>
         )}
-        <div className="flex h-full w-full overflow-hidden">
-          <div className="flex h-full flex-col flex-none relative" style={{ width: treeWidth }}>
+        <ResizablePanelGroup
+          id="shared-trace-horizontal"
+          orientation="horizontal"
+          className="h-full w-full overflow-hidden"
+        >
+          <ResizablePanel id="shared-trace" defaultSize="50%" className="flex flex-col h-full overflow-hidden">
             <Header onClose={onClose} />
             <ResizablePanelGroup id="shared-trace-panels" orientation="vertical">
               {condensedTimelineEnabled && (
@@ -225,14 +202,9 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
               )}
               {langGraph && hasLangGraph && <LangGraphView spans={spans} />}
             </ResizablePanelGroup>
-            <div
-              className="absolute top-0 right-0 h-full cursor-col-resize z-50 group w-2"
-              onMouseDown={handleResizeTreeView}
-            >
-              <div className="absolute top-0 right-0 h-full w-px bg-border group-hover:w-1 group-hover:bg-blue-400 transition-colors" />
-            </div>
-          </div>
-          <div className="grow overflow-hidden flex-wrap h-full w-full">
+          </ResizablePanel>
+          <ResizableHandle className="hover:bg-blue-400 z-10 transition-colors hover:scale-200" />
+          <ResizablePanel id="shared-span" className="flex flex-col h-full overflow-hidden">
             {selectedSpan ? (
               <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={trace.id} />
             ) : (
@@ -241,8 +213,8 @@ export const PureTraceView = ({ trace, spans, onClose }: TraceViewProps) => {
                 <span className="text-base">Select a span from the trace tree to view its details</span>
               </div>
             )}
-          </div>
-        </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </ScrollContextProvider>
   );
