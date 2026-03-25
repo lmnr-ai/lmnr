@@ -71,11 +71,11 @@ export const GetSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: true }).e
 
 type SpanPreviewResult = Record<string, string | null>;
 
-/** Span types whose preview is derived from the OUTPUT side */
-const OUTPUT_SPAN_TYPES = new Set(["LLM", "CACHED"]);
+/** Span types that support preview generation */
+const PREVIEW_SPAN_TYPES = new Set(["LLM", "CACHED", "TOOL", "EXECUTOR", "EVALUATOR"]);
 
-/** Span types whose preview is derived from the INPUT side */
-const INPUT_SPAN_TYPES = new Set(["TOOL", "EXECUTOR", "EVALUATOR"]);
+/** Span types eligible for provider schema matching */
+const PROVIDER_SPAN_TYPES = new Set(["LLM", "CACHED"]);
 
 /**
  * Build time-range WHERE conditions for ClickHouse queries.
@@ -88,8 +88,7 @@ const buildTimeConditions = (startDate?: string, endDate?: string): string[] => 
 };
 
 /**
- * Step 1: Fetch data from ClickHouse.
- * Fetches outputs for LLM/CACHED spans and inputs for TOOL/EXECUTOR/EVALUATOR spans.
+ * Step 1: Fetch output data from ClickHouse for all supported span types.
  */
 const fetchSpanData = async (
   projectId: string,
@@ -98,53 +97,28 @@ const fetchSpanData = async (
   spanTypes: Record<string, string>,
   startDate?: string,
   endDate?: string
-): Promise<{
-  outputSpans: Array<{ spanId: string; data: string; name: string }>;
-  inputSpans: Array<{ spanId: string; data: string; name: string }>;
-}> => {
-  const outputSpanIds = spanIds.filter((id) => OUTPUT_SPAN_TYPES.has(spanTypes[id] ?? ""));
-  const inputSpanIds = spanIds.filter((id) => INPUT_SPAN_TYPES.has(spanTypes[id] ?? ""));
+): Promise<Array<{ spanId: string; data: string; name: string }>> => {
+  const previewSpanIds = spanIds.filter((id) => PREVIEW_SPAN_TYPES.has(spanTypes[id] ?? ""));
+
+  if (previewSpanIds.length === 0) return [];
 
   const timeConditions = buildTimeConditions(startDate, endDate);
 
-  const [outputSpans, inputSpans] = await Promise.all([
-    outputSpanIds.length > 0
-      ? executeQuery<{ spanId: string; data: string; name: string }>({
-          projectId,
-          query: `
-            SELECT
-              span_id as spanId,
-              output as data,
-              name
-            FROM spans
-            WHERE trace_id = {traceId: UUID}
-              AND span_id IN {spanIds: Array(UUID)}
-              AND span_type IN ('LLM', 'CACHED')
-              ${timeConditions.map((c) => `AND ${c}`).join("\n              ")}
-          `,
-          parameters: { traceId, spanIds: outputSpanIds, startDate, endDate },
-        })
-      : Promise.resolve([]),
-    inputSpanIds.length > 0
-      ? executeQuery<{ spanId: string; data: string; name: string }>({
-          projectId,
-          query: `
-            SELECT
-              span_id as spanId,
-              input as data,
-              name
-            FROM spans
-            WHERE trace_id = {traceId: UUID}
-              AND span_id IN {spanIds: Array(UUID)}
-              AND span_type IN ('TOOL', 'EXECUTOR', 'EVALUATOR')
-              ${timeConditions.map((c) => `AND ${c}`).join("\n              ")}
-          `,
-          parameters: { traceId, spanIds: inputSpanIds, startDate, endDate },
-        })
-      : Promise.resolve([]),
-  ]);
-
-  return { outputSpans, inputSpans };
+  return executeQuery<{ spanId: string; data: string; name: string }>({
+    projectId,
+    query: `
+      SELECT
+        span_id as spanId,
+        output as data,
+        name
+      FROM spans
+      WHERE trace_id = {traceId: UUID}
+        AND span_id IN {spanIds: Array(UUID)}
+        AND span_type IN ('LLM', 'CACHED', 'TOOL', 'EXECUTOR', 'EVALUATOR')
+        ${timeConditions.map((c) => `AND ${c}`).join("\n        ")}
+    `,
+    parameters: { traceId, spanIds: previewSpanIds, startDate, endDate },
+  });
 };
 
 /**
@@ -153,7 +127,6 @@ const fetchSpanData = async (
 interface ParsedSpan {
   spanId: string;
   name: string;
-  side: "input" | "output";
   parsedData: Record<string, unknown> | unknown[];
   fingerprint: string;
 }
@@ -166,44 +139,35 @@ export async function getSpanPreviews(input: z.infer<typeof GetSpanPreviewsSchem
 
   const previews: SpanPreviewResult = {};
 
-  // Step 1: Fetch data from ClickHouse
-  const { outputSpans, inputSpans } = await fetchSpanData(projectId, traceId, spanIds, spanTypes, startDate, endDate);
+  // Step 1: Fetch output data from ClickHouse
+  const rawSpans = await fetchSpanData(projectId, traceId, spanIds, spanTypes, startDate, endDate);
 
   // Step 2: Deep-parse all payloads and classify
   const parsedSpans: ParsedSpan[] = [];
 
-  const processRawSpans = (
-    rawSpans: Array<{ spanId: string; data: string; name: string }>,
-    side: "input" | "output"
-  ) => {
-    for (const raw of rawSpans) {
-      const classification = classifyPayload(raw.data);
+  for (const raw of rawSpans) {
+    const classification = classifyPayload(raw.data);
 
-      switch (classification.kind) {
-        case "primitive":
-        case "raw":
-          previews[raw.spanId] = classification.preview;
-          break;
-        case "empty":
-          previews[raw.spanId] = "";
-          break;
-        case "object": {
-          const fingerprint = generateFingerprint(raw.name, classification.data);
-          parsedSpans.push({
-            spanId: raw.spanId,
-            name: raw.name,
-            side,
-            parsedData: classification.data,
-            fingerprint,
-          });
-          break;
-        }
+    switch (classification.kind) {
+      case "primitive":
+      case "raw":
+        previews[raw.spanId] = classification.preview;
+        break;
+      case "empty":
+        previews[raw.spanId] = "";
+        break;
+      case "object": {
+        const fingerprint = generateFingerprint(raw.name, classification.data);
+        parsedSpans.push({
+          spanId: raw.spanId,
+          name: raw.name,
+          parsedData: classification.data,
+          fingerprint,
+        });
+        break;
       }
     }
-  };
-
-  processRawSpans(outputSpans, "output");
-  processRawSpans(inputSpans, "input");
+  }
 
   // If all payloads resolved to primitives/empty, return early
   if (parsedSpans.length === 0) {
@@ -216,7 +180,7 @@ export async function getSpanPreviews(input: z.infer<typeof GetSpanPreviewsSchem
     return previews;
   }
 
-  // Step 3: Compute fingerprints (already done above in processRawSpans)
+  // Step 3: Compute fingerprints (already done above during classification)
 
   // Step 4: Batch-lookup fingerprints in Postgres
   // NOTE: Postgres queries are commented out until migration is in place.
@@ -262,7 +226,7 @@ export async function getSpanPreviews(input: z.infer<typeof GetSpanPreviewsSchem
   const keysToSave: Array<{ fingerprint: string; key: string }> = [];
 
   for (const span of uncachedSpans) {
-    if (OUTPUT_SPAN_TYPES.has(spanTypes[span.spanId] ?? "")) {
+    if (PROVIDER_SPAN_TYPES.has(spanTypes[span.spanId] ?? "")) {
       const providerKey = matchProviderKey(span.parsedData);
       if (providerKey) {
         const rendered = validateMustacheKey(providerKey, span.parsedData);
@@ -282,13 +246,12 @@ export async function getSpanPreviews(input: z.infer<typeof GetSpanPreviewsSchem
       // Deduplicate by fingerprint — spans with the same fingerprint share schema shape
       // and will produce the same key, so we only need to send one example per fingerprint.
       const seenFingerprints = new Set<string>();
-      const structures: Array<{ fingerprint: string; side: "input" | "output"; data: unknown }> = [];
+      const structures: Array<{ fingerprint: string; data: unknown }> = [];
       for (const span of needsLlm) {
         if (!seenFingerprints.has(span.fingerprint)) {
           seenFingerprints.add(span.fingerprint);
           structures.push({
             fingerprint: span.fingerprint,
-            side: span.side,
             data: capPayloadSize(truncateFieldValues(span.parsedData)),
           });
         }

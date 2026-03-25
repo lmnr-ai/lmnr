@@ -7,9 +7,7 @@ const PREVIEW_KEY_SYSTEM_PROMPT = `You pick the most informative field from JSON
 
 Context:
 - You are helping an observability platform show span previews in a trace list.
-- Each span has input/output JSON data. We want to show ONE key field as a short preview.
-- The "side" attribute tells you whether you are looking at the span's input or output.
-  Pick the most informative field from that side's structure.
+- Each span has output JSON data. We want to show ONE key field as a short preview.
 - schema_fingerprint is a pre-computed unique identifier for a JSON structure shape,
   formatted as "span_name:{sorted_keys_with_types}".
   Example: "Grep:{output_mode:string,pattern:string,type:string}" means a span named
@@ -23,9 +21,7 @@ Context:
 
 Rules:
 - Pick the single most human-readable, descriptive string field per structure.
-- For tool inputs: pick the field showing what the tool operated on
-  (file path, query, command, search pattern, URL, prompt).
-- For LLM outputs: pick the field containing the model's generated text.
+- Prefer fields containing the main result or generated text of the span.
 - Never pick metadata fields: status, type, mode, count, timestamp, duration,
   id, version, role, finish_reason, model, token_count, usage, index, logprobs.
 
@@ -47,7 +43,6 @@ export type PreviewKeyResult = z.infer<typeof PreviewKeyResultSchema>;
 
 interface SpanStructure {
   fingerprint: string;
-  side: "input" | "output";
   data: unknown;
 }
 
@@ -58,7 +53,7 @@ const buildUserMessage = (structures: SpanStructure[]): string => {
   const spanElements = structures
     .map((s) => {
       const truncatedData = typeof s.data === "string" ? s.data : JSON.stringify(s.data);
-      return `<span fingerprint="${escapeXml(s.fingerprint)}" side="${s.side}">\n${truncatedData}\n</span>`;
+      return `<span fingerprint="${escapeXml(s.fingerprint)}">\n${truncatedData}\n</span>`;
     })
     .join("\n");
 
