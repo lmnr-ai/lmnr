@@ -316,6 +316,13 @@ const generateAndApplyKeys = async (
 
       if (key) keysToSave.push({ fingerprint, key });
     });
+
+    // Fall back to JSON for any spans the LLM didn't return results for
+    needsLlm.forEach((span) => {
+      if (!(span.spanId in resolved)) {
+        resolved[span.spanId] = JSON.stringify(span.parsedData).slice(0, 500);
+      }
+    });
   } catch (error) {
     console.error("Preview key generation failed:", error);
     needsLlm.forEach((span) => {
