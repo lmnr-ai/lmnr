@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { HighlightedSnippet } from "@/components/traces/highlighted-snippet";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
@@ -182,18 +183,28 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
           </div>
         </div>
 
-        {isExpanded && (
-          <div className="px-3 w-full p-2 pt-0 flex flex-col gap-2 h-full flex-1">
-            {isLoadingOutput ? (
-              <>
-                <Skeleton className="h-12 w-full" />
-              </>
-            ) : isNil(output) ? (
-              <div className="text-sm text-muted-foreground italic">No output available</div>
-            ) : (
-              <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
-            )}
+        {span.searchSnippet ? (
+          <div className="px-3 w-full p-2 pt-0">
+            <HighlightedSnippet
+              snippet={span.searchSnippet}
+              highlight={span.snippetHighlight}
+              className="text-xs text-secondary-foreground line-clamp-2 break-all"
+            />
           </div>
+        ) : (
+          isExpanded && (
+            <div className="px-3 w-full p-2 pt-0 flex flex-col gap-2 h-full flex-1">
+              {isLoadingOutput ? (
+                <>
+                  <Skeleton className="h-12 w-full" />
+                </>
+              ) : isNil(output) ? (
+                <div className="text-sm text-muted-foreground italic">No output available</div>
+              ) : (
+                <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
+              )}
+            </div>
+          )
         )}
       </div>
     </div>

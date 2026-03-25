@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { HighlightedSnippet } from "@/components/traces/highlighted-snippet";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { type PathInfo } from "@/components/traces/trace-view/store/utils";
@@ -184,17 +185,27 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
             </Button>
           </div>
 
-          {showContent && (
-            <div className="px-2 pt-0">
-              {isLoadingOutput && (
-                <div className="w-full pb-2">
-                  <Skeleton className="h-12 w-full" />
-                </div>
-              )}
-              {!isLoadingOutput && !isNil(output) && (
-                <Markdown className="max-h-48" output={output} defaultValue={savedTemplate} />
-              )}
+          {span.searchSnippet ? (
+            <div className="px-2 pt-0 pb-1">
+              <HighlightedSnippet
+                snippet={span.searchSnippet}
+                highlight={span.snippetHighlight}
+                className="text-xs text-secondary-foreground line-clamp-2 break-all"
+              />
             </div>
+          ) : (
+            showContent && (
+              <div className="px-2 pt-0">
+                {isLoadingOutput && (
+                  <div className="w-full pb-2">
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                )}
+                {!isLoadingOutput && !isNil(output) && (
+                  <Markdown className="max-h-48" output={output} defaultValue={savedTemplate} />
+                )}
+              </div>
+            )
           )}
         </div>
       </div>

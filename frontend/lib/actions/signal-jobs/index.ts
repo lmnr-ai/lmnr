@@ -7,7 +7,6 @@ import { Operator } from "@/lib/actions/common/operators";
 import { FiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types.ts";
 import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesIdsQueryWithParams, DEFAULT_SEARCH_MAX_HITS } from "@/lib/actions/traces/utils";
-import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { signalJobs } from "@/lib/db/migrations/schema";
@@ -100,7 +99,6 @@ export async function createSignalJob(
         traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startDate, endDate),
-        searchType: [] as SpanSearchType[],
       })
     : [];
   const traceIdsFromSearch = [...new Set(spanHits.map((span) => span.trace_id))];

@@ -2,6 +2,7 @@ pub mod error;
 pub mod probes;
 pub mod realtime;
 pub mod rollouts;
+pub mod search_snippets;
 pub mod signals;
 pub mod spans;
 pub mod sql;

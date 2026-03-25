@@ -46,7 +46,6 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
         projectId,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
       })
     : [];
 

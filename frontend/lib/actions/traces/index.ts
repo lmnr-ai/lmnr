@@ -4,14 +4,13 @@ import { z } from "zod/v4";
 import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { searchSpans } from "@/lib/actions/traces/search";
+import { type SearchSpanHit, searchSpans } from "@/lib/actions/traces/search";
 import {
   buildTracesCountQueryWithParams,
   buildTracesQueryWithParams,
   type CustomColumn,
 } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
-import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { type TraceRow } from "@/lib/traces/types.ts";
 
@@ -67,13 +66,13 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
 
-  const spanHits: { trace_id: string; span_id: string }[] = search
+  const spanHits: SearchSpanHit[] = search
     ? await searchSpans({
         projectId,
         traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
+        getSnippets: true,
       })
     : [];
   const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
@@ -126,6 +125,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
 
   // If we have traceIds from search, sort items to match the search order
+  // and enrich with snippet data
   if (search && traceIds.length > 0) {
     const traceIdIndexMap = new Map(traceIds.map((id, index) => [id, index]));
     items.sort((a, b) => {
@@ -133,6 +133,36 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       const indexB = traceIdIndexMap.get(b.id) ?? Infinity;
       return indexA - indexB;
     });
+
+    const snippetsByTrace = new Map<
+      string,
+      { snippet: string; highlight?: [number, number]; matchingSpanCount: number }
+    >();
+    for (const hit of spanHits) {
+      const info = hit.output_snippet ?? hit.input_snippet;
+      if (!info) continue;
+      const existing = snippetsByTrace.get(hit.trace_id);
+      if (existing) {
+        existing.matchingSpanCount += 1;
+        existing.snippet = info.text;
+        existing.highlight = info.highlight;
+      } else {
+        snippetsByTrace.set(hit.trace_id, {
+          snippet: info.text,
+          highlight: info.highlight,
+          matchingSpanCount: 1,
+        });
+      }
+    }
+
+    for (const item of items) {
+      const snippetData = snippetsByTrace.get(item.id);
+      if (snippetData) {
+        item.searchSnippet = snippetData.snippet;
+        item.searchSnippetHighlight = snippetData.highlight;
+        item.searchMatchCount = snippetData.matchingSpanCount;
+      }
+    }
   }
 
   return {
@@ -154,16 +184,15 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
 
   const filters: Filter[] = compact(inputFilters);
 
-  const spanHits: { trace_id: string; span_id: string }[] = search
+  const countSpanHits = search
     ? await searchSpans({
         projectId,
         traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
       })
     : [];
-  const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
+  const traceIds = [...new Set(countSpanHits.map((span) => span.trace_id))];
 
   if (search && traceIds?.length === 0) {
     return { count: 0 };
