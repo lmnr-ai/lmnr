@@ -20,7 +20,13 @@ export function useSpanOutput(spanId: string | undefined, enabled: boolean) {
   useEffect(() => {
     fetchedSpanIdRef.current = spanId;
 
-    if (!enabled || !spanId || !trace?.id || !projectId) return;
+    if (!enabled || !spanId || !trace?.id) return;
+
+    // Determine endpoint: use shared endpoint when projectId is not available (shared trace view)
+    const isShared = !projectId;
+    const url = isShared
+      ? `/api/shared/traces/${trace.id}/spans/outputs`
+      : `/api/projects/${projectId}/traces/${trace.id}/spans/outputs`;
 
     let cancelled = false;
     const body: Record<string, any> = { spanIds: [spanId] };
@@ -33,7 +39,7 @@ export function useSpanOutput(spanId: string | undefined, enabled: boolean) {
       body.endDate = params.end_time;
     }
 
-    fetch(`/api/projects/${projectId}/traces/${trace.id}/spans/outputs`, {
+    fetch(url, {
       method: "POST",
       body: JSON.stringify(body),
     })
