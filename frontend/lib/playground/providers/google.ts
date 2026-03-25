@@ -5,7 +5,8 @@ export const googleThinkingModels = [
   "gemini:gemini-2.5-flash",
   "gemini:gemini-2.5-flash-lite",
   "gemini:gemini-3-flash-preview",
-  "gemini:gemini-3-pro",
+  "gemini:gemini-3-pro-preview",
+  "gemini:gemini-3.1-pro-preview",
   "gemini:gemini-3.1-flash-lite-preview",
 ] as const;
 
@@ -37,12 +38,19 @@ export const googleProviderOptionsSettings: Record<
       max: 24576,
     },
   },
-  "gemini:gemini-3-pro": {
+  "gemini:gemini-3-pro-preview": {
     thinkingConfig: {
-      min: 0,
+      min: 1024,
       max: 24576,
     },
   },
+  "gemini:gemini-3.1-pro-preview": {
+    thinkingConfig: {
+      min: 1024,
+      max: 24576,
+    },
+  },
+
   "gemini:gemini-3.1-flash-lite-preview": {
     thinkingConfig: {
       min: 512,
