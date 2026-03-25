@@ -1,7 +1,8 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
@@ -10,11 +11,13 @@ import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-chec
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import { MiniTree } from "@/components/traces/trace-view/list/mini-tree";
 import { type SpanPreview } from "@/components/traces/trace-view/list/use-batched-span-outputs";
+import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { convertToTimeParameters } from "@/lib/time.ts";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
@@ -28,9 +31,11 @@ interface ListItemProps {
 }
 
 const ListItem = ({ span, preview, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
-  const { selectedSpan, spans } = useTraceViewBaseStore((state) => ({
+  const { projectId } = useParams<{ projectId: string }>();
+  const { selectedSpan, spans, trace } = useTraceViewBaseStore((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
+    trace: state.trace,
   }));
 
   const {
@@ -39,6 +44,46 @@ const ListItem = ({ span, preview, onSpanSelect, onOpenSettings, isFirst = false
   } = useOptionalDebuggerStore((s) => ({
     isSpanCached: s.isSpanCached,
   }));
+
+  const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
+  const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
+
+  // Fetch output on-demand only when a saved template exists (needs raw output for mustache rendering)
+  const [templateOutput, setTemplateOutput] = useState<any>(undefined);
+  useEffect(() => {
+    if (!savedTemplate || !trace?.id || !projectId) return;
+
+    let cancelled = false;
+    const body: Record<string, any> = { spanIds: [span.spanId] };
+    if (trace.startTime && trace.endTime) {
+      const startTime = new Date(new Date(trace.startTime).getTime() - 1000).toISOString();
+      const endTime = new Date(new Date(trace.endTime).getTime() + 1000).toISOString();
+      const params = convertToTimeParameters({ startTime, endTime });
+      body.startDate = params.start_time;
+      body.endDate = params.end_time;
+    }
+
+    fetch(`/api/projects/${projectId}/traces/${trace.id}/spans/outputs`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.outputs?.[span.spanId] !== undefined) {
+          setTemplateOutput(data.outputs[span.spanId]);
+        } else {
+          setTemplateOutput(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTemplateOutput(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [savedTemplate, span.spanId, trace?.id, trace?.startTime, trace?.endTime, projectId]);
 
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
   const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
@@ -187,7 +232,12 @@ const ListItem = ({ span, preview, onSpanSelect, onOpenSettings, isFirst = false
             ) : isNil(preview) ? (
               <div className="text-sm text-muted-foreground italic">No output available</div>
             ) : (
-              <Markdown className="max-h-60" previewText={preview.preview} />
+              <Markdown
+                className="max-h-60"
+                output={savedTemplate ? templateOutput : undefined}
+                defaultValue={savedTemplate}
+                previewText={!savedTemplate ? preview.preview : undefined}
+              />
             )}
           </div>
         )}

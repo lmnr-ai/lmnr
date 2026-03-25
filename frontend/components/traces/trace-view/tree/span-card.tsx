@@ -1,6 +1,7 @@
 import { isNil } from "lodash";
 import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
-import { useMemo, useRef } from "react";
+import { useParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
@@ -9,6 +10,7 @@ import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/t
 import { type PathInfo } from "@/components/traces/trace-view/store/utils";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
 import { Button } from "@/components/ui/button";
+import { convertToTimeParameters } from "@/lib/time.ts";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
@@ -34,14 +36,27 @@ interface SpanCardProps {
   onOpenSettings?: (span: TraceViewSpan & { pathInfo: PathInfo }) => void;
 }
 
+const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo): string => {
+  if (!pathInfo) {
+    return span.name;
+  }
+
+  const pathSegments = pathInfo.full.map((item) => item.name);
+  pathSegments.push(span.name);
+
+  return pathSegments.join(", ");
+};
+
 export function SpanCard({ span, branchMask, preview, onSpanSelect, depth, pathInfo, onOpenSettings }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const { projectId } = useParams<{ projectId: string }>();
 
-  const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewBaseStore((state) => ({
+  const { selectedSpan, spans, toggleCollapse, showTreeContent, trace } = useTraceViewBaseStore((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
     toggleCollapse: state.toggleCollapse,
     showTreeContent: state.showTreeContent,
+    trace: state.trace,
   }));
 
   const {
@@ -55,6 +70,46 @@ export function SpanCard({ span, branchMask, preview, onSpanSelect, depth, pathI
 
   const llmMetrics = getLLMMetrics(span);
   const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
+
+  const spanPathKey = useMemo(() => generateSpanPathKeyFromPathInfo(span, pathInfo), [span, pathInfo]);
+  const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
+
+  // Fetch output on-demand only when a saved template exists (needs raw output for mustache rendering)
+  const [templateOutput, setTemplateOutput] = useState<any>(undefined);
+  useEffect(() => {
+    if (!savedTemplate || !trace?.id || !projectId) return;
+
+    let cancelled = false;
+    const body: Record<string, any> = { spanIds: [span.spanId] };
+    if (trace.startTime && trace.endTime) {
+      const startTime = new Date(new Date(trace.startTime).getTime() - 1000).toISOString();
+      const endTime = new Date(new Date(trace.endTime).getTime() + 1000).toISOString();
+      const params = convertToTimeParameters({ startTime, endTime });
+      body.startDate = params.start_time;
+      body.endDate = params.end_time;
+    }
+
+    fetch(`/api/projects/${projectId}/traces/${trace.id}/spans/outputs`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.outputs?.[span.spanId] !== undefined) {
+          setTemplateOutput(data.outputs[span.spanId]);
+        } else {
+          setTemplateOutput(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTemplateOutput(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [savedTemplate, span.spanId, trace?.id, trace?.startTime, trace?.endTime, projectId]);
 
   const hasChildren = childSpans && childSpans.length > 0;
   const isExpandable =
@@ -177,7 +232,14 @@ export function SpanCard({ span, branchMask, preview, onSpanSelect, depth, pathI
                   <Skeleton className="h-12 w-full" />
                 </div>
               )}
-              {!isLoadingPreview && !isNil(preview) && <Markdown className="max-h-48" previewText={preview.preview} />}
+              {!isLoadingPreview && !isNil(preview) && (
+                <Markdown
+                  className="max-h-48"
+                  output={savedTemplate ? templateOutput : undefined}
+                  defaultValue={savedTemplate}
+                  previewText={!savedTemplate ? preview.preview : undefined}
+                />
+              )}
             </div>
           )}
         </div>
