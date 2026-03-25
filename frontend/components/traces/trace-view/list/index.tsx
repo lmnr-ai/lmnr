@@ -1,16 +1,12 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
 import ListItem from "@/components/traces/trace-view/list/list-item.tsx";
-import MustacheTemplateSheet from "@/components/traces/trace-view/list/mustache-template-sheet.tsx";
+// import MustacheTemplateSheet from "@/components/traces/trace-view/list/mustache-template-sheet.tsx";
 import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
-import {
-  type TraceViewListSpan,
-  type TraceViewSpan,
-  useTraceViewBaseStore,
-} from "@/components/traces/trace-view/store/base";
+import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 import { useScrollContext } from "../scroll-context.tsx";
@@ -34,7 +30,6 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     }));
 
   const prevVisibleIdsRef = useRef<string>("");
-  const [settingsSpan, setSettingsSpan] = useState<TraceViewListSpan | null>(null);
 
   const listSpans = useMemo(() => getListData(), [getListData, spans, condensedTimelineVisibleSpanIds]);
 
@@ -66,9 +61,17 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
 
   const visibleSpanIds = compact(items.map((item) => listSpans[item.index]?.spanId)) as string[];
 
+  const spanTypes = useMemo(() => {
+    const types: Record<string, string> = {};
+    for (const span of listSpans) {
+      types[span.spanId] = span.spanType;
+    }
+    return types;
+  }, [listSpans]);
+
   const { outputs } = useBatchedSpanOutputs(
     projectId,
-    // Fetches outputs for visible or rendered spans in virtualized list.
+    // Fetches previews for visible or rendered spans in virtualized list.
     // Make sure that spans in view (~20) + overscan spans < cache size (default 100) in this hook.
     visibleSpanIds,
     {
@@ -76,7 +79,8 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       startTime: trace?.startTime,
       endTime: trace?.endTime,
     },
-    { isShared }
+    { isShared },
+    spanTypes
   );
 
   useEffect(() => {
@@ -196,7 +200,6 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
                     span={listSpan}
                     output={outputs[listSpan.spanId]}
                     onSpanSelect={handleSpanSelect}
-                    onOpenSettings={setSettingsSpan}
                   />
                 </div>
               );
@@ -204,12 +207,13 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
           </div>
         </div>
       </div>
-      <MustacheTemplateSheet
+      {/* MustacheTemplateSheet disabled for now — previews are auto-generated server-side */}
+      {/* <MustacheTemplateSheet
         span={settingsSpan}
         output={outputs[settingsSpan?.spanId ?? ""]}
         open={!!settingsSpan}
         onOpenChange={(open) => !open && setSettingsSpan(null)}
-      />
+      /> */}
     </div>
   );
 };

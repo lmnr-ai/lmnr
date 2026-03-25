@@ -1,6 +1,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
@@ -9,7 +9,6 @@ import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import { MiniTree } from "@/components/traces/trace-view/list/mini-tree";
-import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
@@ -22,12 +21,11 @@ interface ListItemProps {
   span: TraceViewListSpan;
   output: any | undefined;
   onSpanSelect: (span: TraceViewListSpan) => void;
-  onOpenSettings: (span: TraceViewListSpan) => void;
   isFirst: boolean;
   isLast: boolean;
 }
 
-const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
+const ListItem = ({ span, output, onSpanSelect, isFirst = false, isLast = false }: ListItemProps) => {
   const { selectedSpan, spans } = useTraceViewBaseStore((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
@@ -39,10 +37,6 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
   } = useOptionalDebuggerStore((s) => ({
     isSpanCached: s.isSpanCached,
   }));
-
-  const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
-
-  const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
 
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
   const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
@@ -140,17 +134,6 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
                   cacheReadInputTokens={span.cacheReadInputTokens}
                 />
               )}
-              <Button
-                disabled={isLoadingOutput}
-                variant="ghost"
-                className="hidden py-0 px-[3px] h-5 group-hover/message:block hover:bg-muted animate-in fade-in duration-200"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenSettings(span);
-                }}
-              >
-                <Settings className="size-3.5 text-secondary-foreground" />
-              </Button>
 
               {span.pathInfo && (
                 <TooltipProvider>
@@ -188,10 +171,10 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
               <>
                 <Skeleton className="h-12 w-full" />
               </>
-            ) : isNil(output) ? (
+            ) : isNil(output) || output === "" ? (
               <div className="text-sm text-muted-foreground italic">No output available</div>
             ) : (
-              <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
+              <Markdown className="max-h-60" output={output} />
             )}
           </div>
         )}
