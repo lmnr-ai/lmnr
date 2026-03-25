@@ -19,14 +19,12 @@ export const searchSpans = async ({
   searchQuery,
   timeRange,
   getSnippets = false,
-  onePerTrace = true,
 }: {
   projectId: string;
   traceId?: string;
   searchQuery: string;
   timeRange?: TimeRange;
   getSnippets?: boolean;
-  onePerTrace?: boolean;
 }): Promise<SearchSpanHit[]> => {
   const trimmedQuery = searchQuery.trim();
   if (!trimmedQuery) {
@@ -56,7 +54,6 @@ export const searchSpans = async ({
     limit: 0,
     offset: 0,
     getSnippets,
-    onePerTrace,
   };
 
   try {

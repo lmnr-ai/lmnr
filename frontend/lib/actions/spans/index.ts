@@ -284,7 +284,6 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
         searchQuery: search,
         ...(timeRange && { timeRange }),
         getSnippets: true,
-        onePerTrace: false,
       })
     : [];
   const spanIds = traceSpanHits.map((span) => span.span_id);

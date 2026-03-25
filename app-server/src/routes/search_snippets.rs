@@ -81,11 +81,18 @@ pub fn post_process_snippet(
         return None;
     }
 
-    let byte_pos = snippet.to_lowercase().find(&matched_text.to_lowercase())?;
-
-    let char_pos = snippet[..byte_pos].chars().count();
+    let matched_lower: Vec<char> = matched_text.to_lowercase().chars().collect();
     let matched_char_len = matched_text.chars().count();
-    let snippet_char_len = snippet.chars().count();
+    let snippet_chars: Vec<char> = snippet.chars().collect();
+
+    let char_pos = snippet_chars
+        .windows(matched_lower.len())
+        .position(|w| {
+            w.iter()
+                .zip(&matched_lower)
+                .all(|(a, b)| a.to_lowercase().eq(b.to_lowercase()))
+        })?;
+    let snippet_char_len = snippet_chars.len();
 
     let chars_before = char_pos;
     let chars_after = snippet_char_len.saturating_sub(char_pos + matched_char_len);
