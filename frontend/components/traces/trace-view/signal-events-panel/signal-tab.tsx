@@ -51,7 +51,7 @@ function PayloadValue({
       );
     case "enum":
       return (
-        <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+        <span className="inline-flex items-center rounded-full border border-blue-400/20 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
           {String(value)}
         </span>
       );
@@ -120,11 +120,19 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
       {/* Action buttons */}
       <div className="flex items-center justify-start">
         <div className="flex items-center gap-1">
-          <Button variant="outline" className="h-6 px-1.5 text-xs bg-transparent" onClick={handleOpenInChat}>
+          <Button
+            variant="outline"
+            className="h-6 px-1.5 text-xs bg-transparent border-blue-300/20 hover:bg-blue-200/10"
+            onClick={handleOpenInChat}
+          >
             <Sparkles className="size-3.5 mr-1" />
             Open in AI Chat
           </Button>
-          <Button variant="outline" className="h-6 px-1.5 text-xs bg-transparent" asChild>
+          <Button
+            variant="outline"
+            className="h-6 px-1.5 text-xs bg-transparent border-blue-300/20 hover:bg-blue-200/10"
+            asChild
+          >
             <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`} target="_blank">
               <ExternalLink className="size-3.5 mr-1" />
               Open in Signals
@@ -139,8 +147,8 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
       ) : (
         <>
           {validFields.map((field) => (
-            <div key={field.name} className="rounded-md border bg-secondary/50 px-2 py-1.5">
-              <div className="text-xs text-muted-foreground mb-0.5">{field.name}</div>
+            <div key={field.name} className="rounded-md border border-blue-200/10 bg-blue-300/5 px-2 py-1.5">
+              <div className="text-xs text-blue-200/60 mb-0.5">{field.name}</div>
               <div className="text-sm">
                 <PayloadValue value={parsed[field.name]} field={field} spanRefCallbacks={spanRefCallbacks} />
               </div>

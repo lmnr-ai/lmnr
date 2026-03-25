@@ -1,7 +1,6 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useParams } from "next/navigation";
 
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,8 +10,6 @@ import { type EventRow } from "@/lib/events/types";
 import SignalTab from "./signal-tab";
 
 export default function SignalEventsPanel({ traceId }: { traceId: string }) {
-  const { projectId } = useParams();
-
   const traceSignals = useTraceViewStore((state) => state.traceSignals);
   const isTraceSignalsLoading = useTraceViewStore((state) => state.isTraceSignalsLoading);
   const activeSignalTabId = useTraceViewStore((state) => state.activeSignalTabId);
@@ -42,13 +39,16 @@ export default function SignalEventsPanel({ traceId }: { traceId: string }) {
       onValueChange={setActiveSignalTabId}
       className="flex flex-col flex-1 min-h-0 overflow-hidden gap-0"
     >
-      <TabsList className="flex-shrink-0 w-full h-8">
+      <TabsList className="flex-shrink-0 w-full h-8 bg-blue-300/10">
         {traceSignals.map((signal) => (
           <TooltipProvider key={signal.signalId} delayDuration={500}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="flex-1 min-w-0">
-                  <TabsTrigger value={signal.signalId} className="w-full text-xs overflow-hidden">
+                  <TabsTrigger
+                    value={signal.signalId}
+                    className="w-full text-xs overflow-hidden data-[state=active]:bg-gray-900"
+                  >
                     <span className="block truncate">{signal.signalName}</span>
                   </TabsTrigger>
                 </span>

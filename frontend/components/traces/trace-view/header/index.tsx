@@ -66,9 +66,12 @@ function ResizableSignalCard({ traceId, onClose }: { traceId: string; onClose: (
   );
 
   return (
-    <div className="flex flex-col rounded-md border bg-card overflow-hidden" style={{ height }}>
+    <div
+      className="flex flex-col rounded-md border border-blue-400/30 bg-blue-400/12 overflow-hidden relative"
+      style={{ height }}
+    >
       <div className="flex-shrink-0 pr-2 pl-2.5 pt-1.5 flex items-center justify-between">
-        <span className="text-xs font-medium text-secondary-foreground">Signal events</span>
+        <span className="text-xs font-medium text-blue-200/60">Signal events</span>
         <Button variant="ghost" className="h-6 w-6 p-0" onClick={onClose}>
           <X className="h-3.5 w-3.5" />
         </Button>
@@ -78,9 +81,9 @@ function ResizableSignalCard({ traceId, onClose }: { traceId: string; onClose: (
       </div>
       <div
         onMouseDown={handleMouseDown}
-        className="h-1.5 cursor-row-resize flex items-center justify-center hover:bg-muted/60 transition-colors shrink-0"
+        className="h-1.5 cursor-row-resize flex items-center justify-center hover:bg-blue-300/10 transition-colors shrink-0 absolute bottom-0 w-full"
       >
-        <div className="w-8 h-0.5 rounded-full bg-border" />
+        <div className="w-8 h-0.5 rounded-full bg-primary-foreground/20" />
       </div>
     </div>
   );
