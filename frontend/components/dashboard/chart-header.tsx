@@ -1,4 +1,4 @@
-import { Edit, EllipsisVertical, GripVertical, Pen, Trash2 } from "lucide-react";
+import { Copy, Edit, EllipsisVertical, GripVertical, Pen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
@@ -16,8 +16,7 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 interface ChartHeaderProps {
-  name: string;
-  id: string;
+  chart: DashboardChart;
   projectId: string;
 }
 
@@ -36,11 +35,41 @@ const updateChart = async (id: string, projectId: string, name: string) => {
   });
 };
 
-const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
+const ChartHeader = ({ chart, projectId }: ChartHeaderProps) => {
+  const { id, name, settings, query } = chart;
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const { mutate } = useSWRConfig();
+
+  const handleDuplicateChart = useCallback(async () => {
+    try {
+      await mutate<DashboardChart[]>(
+        `/api/projects/${projectId}/dashboard-charts`,
+        async (currentData) => {
+          const response = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+            method: "POST",
+            body: JSON.stringify({
+              name: `${name} (copy)`,
+              query,
+              config: settings.config,
+            }),
+          });
+          const created = await response.json() as DashboardChart;
+          return [...(currentData || []), created];
+        },
+        {
+          revalidate: true,
+        }
+      );
+    } catch (e) {
+      toast({
+        title: "Failed to duplicate chart. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [id, mutate, name, projectId, query, settings, toast]);
+
   const handleDeleteChart = useCallback(async () => {
     try {
       await mutate<DashboardChart[]>(
@@ -160,6 +189,16 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
                 Edit
               </DropdownMenuItem>
             </Link>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDuplicateChart();
+              }}
+              className="cursor-pointer"
+            >
+              <Copy className="h-3.5 w-3.5 mr-1 text-inherit" />
+              Duplicate
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();

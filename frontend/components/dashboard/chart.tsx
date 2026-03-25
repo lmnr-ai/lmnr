@@ -89,7 +89,7 @@ const Chart = ({ chart }: ChartProps) => {
 
   return (
     <div className="flex flex-col border gap-2 rounded-lg p-4 h-full border-dashed border-border relative">
-      <ChartHeader name={name} id={id} projectId={projectId as string} />
+      <ChartHeader chart={chart} projectId={projectId as string} />
       {error ? (
         <div className="flex flex-1 flex-col items-center justify-center text-center">
           <p className="text text-muted-foreground">Error loading chart data</p>
