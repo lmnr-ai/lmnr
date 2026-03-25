@@ -39,7 +39,7 @@ const buildTimeConditions = (startDate?: string, endDate?: string): string[] =>
 /**
  * Fetch output data from ClickHouse for all supported span types.
  */
-export const fetchSpanData = async (
+const fetchSpanData = async (
   projectId: string,
   traceId: string,
   spanIds: string[],
@@ -81,7 +81,7 @@ interface ParsedSpan {
  * Extract a simple preview from a parsed object without LLM generation.
  * Returns the value of the first key if it's a string or number, otherwise null.
  */
-export const extractFirstPrimitiveValue = (data: Record<string, unknown> | unknown[]): string | null => {
+const extractFirstPrimitiveValue = (data: Record<string, unknown> | unknown[]): string | null => {
   if (Array.isArray(data)) {
     const first = data[0];
     if (typeof first === "string") return first;
