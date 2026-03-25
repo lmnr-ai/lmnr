@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getSpanPreviews } from "@/lib/actions/spans/outputs.ts";
+import { getSpanPreviews } from "@/lib/actions/spans/previews";
 
 export async function POST(
   req: NextRequest,

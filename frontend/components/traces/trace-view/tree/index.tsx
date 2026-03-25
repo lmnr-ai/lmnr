@@ -6,8 +6,7 @@ import { memo, useCallback, useEffect, useMemo } from "react";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// import MustacheTemplateSheet from "../list/mustache-template-sheet";
-import { useBatchedSpanOutputs } from "../list/use-batched-span-outputs";
+import { useBatchedSpanPreviews } from "../list/use-batched-span-previews";
 import { useScrollContext } from "../scroll-context";
 import { SpanCard } from "./span-card";
 
@@ -72,7 +71,7 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     return types;
   }, [treeSpans]);
 
-  const { outputs } = useBatchedSpanOutputs(
+  const { previews } = useBatchedSpanPreviews(
     projectId,
     visibleSpanIds,
     {
@@ -154,9 +153,8 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
                   <SpanCard
                     span={spanItem.span}
                     branchMask={spanItem.branchMask}
-                    output={outputs[spanItem.span.spanId]}
+                    output={previews[spanItem.span.spanId]}
                     depth={spanItem.depth}
-                    pathInfo={spanItem.pathInfo}
                     onSpanSelect={onSpanSelect}
                   />
                 </div>
@@ -165,13 +163,6 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
           </div>
         </div>
       </div>
-      {/* MustacheTemplateSheet disabled for now — previews are auto-generated server-side */}
-      {/* <MustacheTemplateSheet
-        span={settingsSpan}
-        output={outputs[settingsSpan?.spanId ?? ""]}
-        open={!!settingsSpan}
-        onOpenChange={(open) => !open && setSettingsSpan(null)}
-      /> */}
     </div>
   );
 };

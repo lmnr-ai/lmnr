@@ -1,6 +1,6 @@
 import { head, isNil } from "lodash";
 import Mustache from "mustache";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
 import { cn, tryParseJson } from "@/lib/utils.ts";
@@ -64,39 +64,51 @@ interface MarkdownProps {
   contentClassName?: string;
 }
 
+const tryDeepParse = (value: string): unknown => {
+  try {
+    const parsed = JSON.parse(value);
+    if (typeof parsed === "string") return tryDeepParse(parsed);
+    return parsed;
+  } catch {
+    return value;
+  }
+};
+
 const preprocessDataForMustache = (data: any): any => {
   if (data === null || data === undefined) {
     return data;
   }
 
-  if (typeof data === "string" || typeof data === "number" || typeof data === "boolean") {
+  if (typeof data === "string") {
+    const parsed = tryDeepParse(data);
+    if (parsed !== data && typeof parsed === "object" && parsed !== null) {
+      return preprocessDataForMustache(parsed);
+    }
+    return data;
+  }
+
+  if (typeof data === "number" || typeof data === "boolean") {
     return data;
   }
 
   if (Array.isArray(data)) {
-    return data.map(preprocessDataForMustache);
+    const mapped = data.map(preprocessDataForMustache);
+    Object.defineProperty(mapped, "toString", {
+      value: () => JSON.stringify(data),
+      enumerable: false,
+    });
+    return mapped;
   }
 
   if (typeof data === "object") {
     const processed: Record<string, any> = {};
     for (const [key, value] of Object.entries(data)) {
-      if (value === null || value === undefined) {
-        processed[key] = value;
-      } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-        processed[key] = value;
-      } else if (Array.isArray(value)) {
-        processed[key] = preprocessDataForMustache(value);
-      } else if (typeof value === "object") {
-        // Convert nested objects to formatted JSON strings
-        const jsonStr = JSON.stringify(value, null, 2);
-        // Keep the original key for the object, but add a new key with the JSON string
-        processed[`${key}Json`] = jsonStr;
-
-        processed[key] = preprocessDataForMustache(value);
-      } else {
-        processed[key] = value;
-      }
+      processed[key] = preprocessDataForMustache(value);
     }
+    Object.defineProperty(processed, "toString", {
+      value: () => JSON.stringify(data),
+      enumerable: false,
+    });
     return processed;
   }
 
@@ -104,45 +116,6 @@ const preprocessDataForMustache = (data: any): any => {
 };
 
 const Markdown = ({ output, defaultValue, className, contentClassName }: MarkdownProps) => {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollUp, setCanScrollUp] = useState(false);
-  const [canScrollDown, setCanScrollDown] = useState(false);
-
-  const updateScrollState = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-
-    setCanScrollUp(el.scrollTop > 0);
-    setCanScrollDown(el.scrollTop + el.clientHeight < el.scrollHeight - 1);
-  }, []);
-
-  const maskImage = useMemo(() => {
-    if (canScrollUp && canScrollDown) {
-      return "linear-gradient(to bottom, transparent, black 24px, black calc(100% - 30px), transparent)";
-    } else if (canScrollUp) {
-      return "linear-gradient(to bottom, transparent, black 30px)";
-    } else if (canScrollDown) {
-      return "linear-gradient(to bottom, black calc(100% - 60px), transparent)";
-    }
-    return undefined;
-  }, [canScrollUp, canScrollDown]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-
-    updateScrollState();
-    el.addEventListener("scroll", updateScrollState);
-
-    const resizeObserver = new ResizeObserver(updateScrollState);
-    resizeObserver.observe(el);
-
-    return () => {
-      el.removeEventListener("scroll", updateScrollState);
-      resizeObserver.disconnect();
-    };
-  }, [updateScrollState]);
-
   const formattedOutput = useMemo(() => {
     if (!output) return "";
 
@@ -153,15 +126,17 @@ const Markdown = ({ output, defaultValue, className, contentClassName }: Markdow
 
         const unwrappedData = Array.isArray(data) && data.length === 1 ? data[0] : data;
         const processedData = preprocessDataForMustache(unwrappedData);
-        let rendered = Mustache.render(defaultValue, processedData);
+        const template = defaultValue.replace(/([^\n])({{\/[^}]+}})/g, "$1\n$2");
+        let rendered = Mustache.render(template, processedData);
 
-        // Unescape HTML entities that Mustache escaped (like &quot; back to ")
         rendered = rendered
           .replace(/&quot;/g, '"')
-          .replace(/&amp;/g, "&")
+          .replace(/&#x27;/g, "'")
+          .replace(/&#x2F;/g, "/")
+          .replace(/&#x60;/g, "`")
           .replace(/&lt;/g, "<")
           .replace(/&gt;/g, ">")
-          .replace(/&#x27;/g, "'");
+          .replace(/&amp;/g, "&");
 
         return rendered;
       } catch (_) {
@@ -173,11 +148,7 @@ const Markdown = ({ output, defaultValue, className, contentClassName }: Markdow
   }, [output, defaultValue]);
 
   return (
-    <div
-      ref={scrollRef}
-      className={cn("h-full overflow-auto text-white/60 [&_*]:text-inherit", className)}
-      style={{ maskImage, WebkitMaskImage: maskImage }}
-    >
+    <div className={cn("text-white/60 [&_*]:text-inherit", className)}>
       <div className={cn("pb-2", contentClassName)}>
         <Streamdown
           mode="static"

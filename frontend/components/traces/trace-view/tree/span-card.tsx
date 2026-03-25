@@ -3,9 +3,9 @@ import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { ContentPreview } from "@/components/traces/trace-view/content-preview";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
-import { type PathInfo } from "@/components/traces/trace-view/store/utils";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "../../../ui/skeleton";
 import { NoSpanTooltip } from "../../no-span-tooltip";
 import SpanTypeIcon from "../../span-type-icon";
-import Markdown from "../list/markdown";
 import { SpanDisplayTooltip } from "../span-display-tooltip";
 import { SpanStatsShield } from "../span-stats-shield";
 import { BranchConnector } from "./branch-connector";
@@ -27,11 +26,10 @@ interface SpanCardProps {
   branchMask: boolean[];
   output: any | undefined;
   depth: number;
-  pathInfo: PathInfo;
   onSpanSelect?: (span?: TraceViewSpan) => void;
 }
 
-export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathInfo }: SpanCardProps) {
+export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewBaseStore((state) => ({
@@ -135,6 +133,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
               )
             ) : (
               <SpanStatsShield
+                className="hidden group-hover:flex"
                 startTime={span.startTime}
                 endTime={span.endTime}
                 tokens={llmMetrics?.tokens}
@@ -163,7 +162,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
                   <Skeleton className="h-12 w-full" />
                 </div>
               )}
-              {!isLoadingOutput && !isNil(output) && output !== "" && <Markdown className="max-h-48" output={output} />}
+              {!isLoadingOutput && !isNil(output) && output !== "" && <ContentPreview output={output} scrollable />}
             </div>
           )}
         </div>

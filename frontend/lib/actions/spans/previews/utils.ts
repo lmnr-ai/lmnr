@@ -10,12 +10,38 @@ export const deepParseValue = (value: unknown): unknown => {
 
   try {
     const parsed = JSON.parse(value);
-    // If it parsed to a string, try again (double-stringified)
     if (typeof parsed === "string") return deepParseValue(parsed);
     return parsed;
   } catch {
     return value;
   }
+};
+
+/**
+ * Recursively deep-parse all JSON string values within an object/array tree.
+ * Unlike deepParseValue (which only unwraps a single stringified value),
+ * this walks the entire structure and parses every string field that looks
+ * like JSON, then recurses into the parsed result.
+ */
+export const deepParseAllValues = (value: unknown): unknown => {
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return deepParseAllValues(parsed);
+    } catch {
+      return value;
+    }
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(deepParseAllValues);
+  }
+
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, deepParseAllValues(v)]));
+  }
+
+  return value;
 };
 
 /**
@@ -47,17 +73,19 @@ export const classifyPayload = (raw: unknown): PayloadClassification => {
     return { kind: "primitive", preview: String(parsed) };
   }
 
-  if (Array.isArray(parsed)) {
-    if (parsed.length === 0) return { kind: "empty", preview: "" };
-    return { kind: "object", data: parsed };
+  const deepParsed = deepParseAllValues(parsed);
+
+  if (Array.isArray(deepParsed)) {
+    if (deepParsed.length === 0) return { kind: "empty", preview: "" };
+    return { kind: "object", data: deepParsed };
   }
 
-  if (typeof parsed === "object") {
-    if (isEmpty(parsed)) return { kind: "empty", preview: "" };
-    return { kind: "object", data: parsed as Record<string, unknown> };
+  if (typeof deepParsed === "object" && deepParsed !== null) {
+    if (isEmpty(deepParsed)) return { kind: "empty", preview: "" };
+    return { kind: "object", data: deepParsed as Record<string, unknown> };
   }
 
-  return { kind: "raw", preview: String(parsed) };
+  return { kind: "raw", preview: String(deepParsed) };
 };
 
 /**
@@ -104,7 +132,7 @@ const describeShape = (value: unknown): string => {
  * Truncate individual field values in an object for LLM payload preparation.
  * Caps string values to maxChars characters.
  */
-export const truncateFieldValues = (data: unknown, maxChars: number = 200): unknown => {
+export const truncateFieldValues = (data: unknown, maxChars: number = 500): unknown => {
   if (typeof data === "string") {
     return data.length > maxChars ? data.slice(0, maxChars) + "…" : data;
   }
@@ -114,11 +142,7 @@ export const truncateFieldValues = (data: unknown, maxChars: number = 200): unkn
   }
 
   if (data !== null && typeof data === "object") {
-    const result: Record<string, unknown> = {};
-    for (const [key, val] of Object.entries(data)) {
-      result[key] = truncateFieldValues(val, maxChars);
-    }
-    return result;
+    return Object.fromEntries(Object.entries(data).map(([key, val]) => [key, truncateFieldValues(val, maxChars)]));
   }
 
   return data;
@@ -128,18 +152,70 @@ export const truncateFieldValues = (data: unknown, maxChars: number = 200): unkn
  * Cap total serialized payload size to approximately maxBytes.
  * Returns the original data if under limit, otherwise truncates.
  */
-export const capPayloadSize = (data: unknown, maxBytes: number = 2048): unknown => {
+export const capPayloadSize = (data: unknown, maxBytes: number = 4096): unknown => {
   const serialized = JSON.stringify(data);
   if (serialized.length <= maxBytes) return data;
 
-  // Progressively truncate fields with smaller limits
-  for (const limit of [100, 50, 20]) {
+  for (const limit of [200, 100, 50, 20]) {
     const truncated = truncateFieldValues(data, limit);
     if (JSON.stringify(truncated).length <= maxBytes) return truncated;
   }
 
-  // Last resort: return stringified and sliced
   return serialized.slice(0, maxBytes);
+};
+
+const postProcessRendered = (str: string): string =>
+  str
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, "/")
+    .replace(/&#x60;/g, "`")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+
+/**
+ * Add a non-enumerable toString to objects/arrays so Mustache renders them
+ * as JSON strings when used as {{variable}}, while still allowing section
+ * blocks like {{#obj}}{{field}}{{/obj}} to drill into them.
+ */
+const addStringifyToObjects = (value: unknown): unknown => {
+  if (value === null || value === undefined) return value;
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const mapped = value.map(addStringifyToObjects);
+    Object.defineProperty(mapped, "toString", {
+      value: () => JSON.stringify(value),
+      enumerable: false,
+    });
+    return mapped;
+  }
+
+  if (typeof value === "object") {
+    const result = Object.fromEntries(Object.entries(value).map(([k, v]) => [k, addStringifyToObjects(v)]));
+    Object.defineProperty(result, "toString", {
+      value: () => JSON.stringify(value),
+      enumerable: false,
+    });
+    return result;
+  }
+
+  return value;
+};
+
+/**
+ * Prepare data for mustache rendering: deep-parse JSON strings, unwrap
+ * single-element arrays, and add toString on objects so {{variable}}
+ * references render as JSON instead of [object Object].
+ */
+const prepareRenderTarget = (data: unknown): unknown => {
+  const deepParsed = deepParseAllValues(data);
+  const unwrapped = Array.isArray(deepParsed) && deepParsed.length === 1 ? deepParsed[0] : deepParsed;
+  return addStringifyToObjects(unwrapped);
 };
 
 /**
@@ -148,20 +224,13 @@ export const capPayloadSize = (data: unknown, maxBytes: number = 2048): unknown 
  */
 export const validateMustacheKey = (key: string, data: unknown): string | null => {
   try {
-    const renderTarget = Array.isArray(data) && data.length === 1 ? data[0] : data;
+    const renderTarget = prepareRenderTarget(data);
     const rendered = Mustache.render(key, renderTarget);
+    const processed = postProcessRendered(rendered);
 
-    // Unescape HTML entities that Mustache escaped
-    const unescaped = rendered
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&#x27;/g, "'");
+    if (!processed || processed.trim() === "" || processed.includes("[object Object]")) return null;
 
-    if (!unescaped || unescaped.trim() === "") return null;
-
-    return unescaped;
+    return processed;
   } catch {
     return null;
   }
@@ -172,15 +241,9 @@ export const validateMustacheKey = (key: string, data: unknown): string | null =
  */
 export const renderMustachePreview = (key: string, data: unknown): string => {
   try {
-    const renderTarget = Array.isArray(data) && data.length === 1 ? data[0] : data;
+    const renderTarget = prepareRenderTarget(data);
     const rendered = Mustache.render(key, renderTarget);
-
-    return rendered
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&#x27;/g, "'");
+    return postProcessRendered(rendered);
   } catch {
     return "";
   }

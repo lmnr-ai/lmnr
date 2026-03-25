@@ -43,7 +43,6 @@ const createTraceViewStore = (initialTrace?: TraceViewTrace, storeKey?: string) 
           return {
             treeWidth: state.treeWidth,
             spanPath: state.spanPath,
-            spanTemplates: state.spanTemplates,
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,

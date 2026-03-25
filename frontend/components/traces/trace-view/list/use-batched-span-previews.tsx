@@ -5,24 +5,24 @@ import { useToast } from "@/lib/hooks/use-toast.ts";
 import { SimpleLRU } from "@/lib/simple-lru.ts";
 import { convertToTimeParameters } from "@/lib/time.ts";
 
-export interface BatchedOutputsHook {
-  outputs: Record<string, any>;
+export interface BatchedPreviewsHook {
+  previews: Record<string, any>;
   clearCache: () => void;
 }
 
-interface UseBatchedSpanOutputsOptions {
+interface UseBatchedSpanPreviewsOptions {
   debounceMs?: number;
   maxEntries?: number;
   isShared?: boolean;
 }
 
-export function useBatchedSpanOutputs(
+export function useBatchedSpanPreviews(
   projectId: string | undefined,
   visibleSpanIds: string[],
   trace: { id?: string; startTime?: string; endTime?: string },
-  options: UseBatchedSpanOutputsOptions = {},
+  options: UseBatchedSpanPreviewsOptions = {},
   spanTypes?: Record<string, string>
-): BatchedOutputsHook {
+): BatchedPreviewsHook {
   const { debounceMs = 150, maxEntries = 100, isShared = false } = options;
   const { toast } = useToast();
   const cache = useRef(new SimpleLRU<string, any>(maxEntries));
@@ -30,10 +30,9 @@ export function useBatchedSpanOutputs(
   const pendingFetch = useRef(new Set<string>());
   const timer = useRef<NodeJS.Timeout | null>(null);
   const lastIdsRef = useRef<string>("");
-  const [outputs, setOutputs] = useState<Record<string, any>>({});
+  const [previews, setPreviews] = useState<Record<string, any>>({});
   const spanTypesRef = useRef<Record<string, string>>(spanTypes ?? {});
 
-  // Keep span types ref up to date without triggering re-renders
   if (spanTypes) {
     spanTypesRef.current = spanTypes;
   }
@@ -78,7 +77,7 @@ export function useBatchedSpanOutputs(
           fetching.current.delete(id);
         });
 
-        setOutputs((prev) => {
+        setPreviews((prev) => {
           const next = { ...prev };
           spanIds.forEach((id) => {
             next[id] = cache.current.get(id);
@@ -98,7 +97,7 @@ export function useBatchedSpanOutputs(
           fetching.current.delete(id);
         });
 
-        setOutputs((prev) => {
+        setPreviews((prev) => {
           const next = { ...prev };
           spanIds.forEach((id) => {
             next[id] = null;
@@ -146,8 +145,8 @@ export function useBatchedSpanOutputs(
   const clearCache = useCallback(() => {
     cache.current.clear();
     fetching.current.clear();
-    setOutputs({});
+    setPreviews({});
   }, []);
 
-  return { outputs, clearCache };
+  return { previews, clearCache };
 }

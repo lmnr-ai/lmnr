@@ -10,19 +10,25 @@
  * - Gemini: output is Candidate[] → `candidates[0].content.parts[0].text`
  *   Or single Candidate → `content.parts[0].text`
  * - LangChain: output is assistant message → `content` (string) or `content[0].text`
+ * - Mixed content: assistant message with text + tool_call/tool_use blocks
  *
- * Each entry in the map is an array of { test, key } objects.
- * `test` is a function that checks if a parsed output matches the provider shape.
- * `key` is the mustache access path to extract the preview content.
+ * Each entry has a `test` function and a `resolve` function.
+ * `test` checks if parsed output matches the provider shape.
+ * `resolve` returns the mustache key and optionally transformed data
+ * (e.g. stringifying object fields that Mustache can't render).
  *
  * We try each provider's patterns in order and return the first match.
  */
 
-interface ProviderKeyEntry {
-  /** Test if the data matches this provider shape */
-  test: (data: unknown) => boolean;
-  /** Mustache key to extract preview */
+export type ProviderKeyMatch = {
   key: string;
+  /** When set, use this instead of the original data for Mustache rendering. */
+  data?: unknown;
+};
+
+interface ProviderKeyEntry {
+  test: (data: unknown) => boolean;
+  resolve: (data: unknown) => ProviderKeyMatch;
 }
 
 const isObject = (val: unknown): val is Record<string, unknown> =>
@@ -31,13 +37,90 @@ const isObject = (val: unknown): val is Record<string, unknown> =>
 const hasKey = (obj: Record<string, unknown>, key: string): boolean => key in obj;
 
 /**
- * OpenAI/Azure patterns:
- * - Array of choices: [{ message: { content: "..." } }]
- * - Single choice: { message: { content: "..." } }
- * - Wrapped: { choices: [{ message: { content: "..." } }] }
+ * Unwrap a single-element array to its inner value.
+ * Mirrors the unwrapping in validateMustacheKey / renderMustachePreview.
  */
+const unwrapSingle = (data: unknown): unknown => (Array.isArray(data) && data.length === 1 ? data[0] : data);
+
+/**
+ * Check if an object looks like an assistant message with a content array
+ * that contains at least one tool_call or tool_use block.
+ */
+const hasMixedToolContent = (msg: Record<string, unknown>): boolean => {
+  if (!hasKey(msg, "content") || !Array.isArray(msg.content)) return false;
+  const content = msg.content as unknown[];
+  return content.some((item) => isObject(item) && (item.type === "tool_call" || item.type === "tool_use"));
+};
+
+/**
+ * Stringify object-valued `arguments` or `input` fields in content items
+ * so Mustache can render them as strings instead of [object Object].
+ */
+const MAX_ARGS_LENGTH = 80;
+
+const truncateStr = (str: string, max: number): string => (str.length > max ? str.slice(0, max) + "…" : str);
+
+const stringifyToolArgs = (data: Record<string, unknown>): Record<string, unknown> => {
+  const content = data.content as unknown[];
+  return {
+    ...data,
+    content: content.map((item) => {
+      if (!isObject(item)) return item;
+      if (item.type === "tool_call" && hasKey(item, "arguments")) {
+        const raw = typeof item.arguments === "string" ? item.arguments : JSON.stringify(item.arguments);
+        return { ...item, arguments: truncateStr(raw, MAX_ARGS_LENGTH) };
+      }
+      if (item.type === "tool_use" && hasKey(item, "input")) {
+        const raw = typeof item.input === "string" ? item.input : JSON.stringify(item.input);
+        return { ...item, input: truncateStr(raw, MAX_ARGS_LENGTH) };
+      }
+      return item;
+    }),
+  };
+};
+
+// --- Mixed content patterns (text + tool calls) ---
+// Must come before generic Anthropic/LangChain patterns since those would also match
+// but produce incomplete output (missing tool call info).
+
+const MIXED_CONTENT_TOOL_CALL_KEY =
+  "{{#content}}{{#text}}{{{text}}}{{/text}}{{#arguments}}\n- `{{{name}}}({{{arguments}}})`{{/arguments}}{{/content}}";
+
+const MIXED_CONTENT_TOOL_USE_KEY =
+  "{{#content}}{{#text}}{{{text}}}{{/text}}{{#input}}\n- `{{{name}}}({{{input}}})`{{/input}}{{/content}}";
+
+const mixedContentPatterns: ProviderKeyEntry[] = [
+  // Single message or single-element array with tool_call blocks (generic/normalized format)
+  {
+    test: (data) => {
+      const msg = unwrapSingle(data);
+      if (!isObject(msg)) return false;
+      if (!hasMixedToolContent(msg)) return false;
+      return (msg.content as unknown[]).some((item) => isObject(item) && item.type === "tool_call");
+    },
+    resolve: (data) => {
+      const msg = unwrapSingle(data) as Record<string, unknown>;
+      return { key: MIXED_CONTENT_TOOL_CALL_KEY, data: stringifyToolArgs(msg) };
+    },
+  },
+  // Single message or single-element array with tool_use blocks (Anthropic format)
+  {
+    test: (data) => {
+      const msg = unwrapSingle(data);
+      if (!isObject(msg)) return false;
+      if (!hasMixedToolContent(msg)) return false;
+      return (msg.content as unknown[]).some((item) => isObject(item) && item.type === "tool_use");
+    },
+    resolve: (data) => {
+      const msg = unwrapSingle(data) as Record<string, unknown>;
+      return { key: MIXED_CONTENT_TOOL_USE_KEY, data: stringifyToolArgs(msg) };
+    },
+  },
+];
+
+// --- OpenAI/Azure patterns ---
+
 const openAIPatterns: ProviderKeyEntry[] = [
-  // Wrapped format: { choices: [...] }
   {
     test: (data) => {
       if (!isObject(data) || !hasKey(data, "choices")) return false;
@@ -51,9 +134,8 @@ const openAIPatterns: ProviderKeyEntry[] = [
         hasKey(first.message as Record<string, unknown>, "content")
       );
     },
-    key: "{{choices.0.message.content}}",
+    resolve: () => ({ key: "{{choices.0.message.content}}" }),
   },
-  // Array of choices
   {
     test: (data) => {
       if (!Array.isArray(data) || data.length === 0) return false;
@@ -65,9 +147,8 @@ const openAIPatterns: ProviderKeyEntry[] = [
         hasKey(first.message as Record<string, unknown>, "content")
       );
     },
-    key: "{{#.}}{{message.content}}{{/.}}",
+    resolve: () => ({ key: "{{#.}}{{message.content}}{{/.}}" }),
   },
-  // Single choice
   {
     test: (data) => {
       if (!isObject(data)) return false;
@@ -77,18 +158,13 @@ const openAIPatterns: ProviderKeyEntry[] = [
         hasKey(data.message as Record<string, unknown>, "content")
       );
     },
-    key: "{{message.content}}",
+    resolve: () => ({ key: "{{message.content}}" }),
   },
 ];
 
-/**
- * Anthropic patterns:
- * - { content: [{ type: "text", text: "..." }], role: "assistant" }
- * - { content: "...", role: "assistant" }
- * - Array of output messages
- */
+// --- Anthropic patterns ---
+
 const anthropicPatterns: ProviderKeyEntry[] = [
-  // Single message with content array containing text blocks
   {
     test: (data) => {
       if (!isObject(data)) return false;
@@ -98,17 +174,15 @@ const anthropicPatterns: ProviderKeyEntry[] = [
       const first = content[0];
       return isObject(first) && first.type === "text" && hasKey(first, "text");
     },
-    key: "{{#content}}{{#text}}{{text}}{{/text}}{{/content}}",
+    resolve: () => ({ key: "{{#content}}{{#text}}{{text}}{{/text}}{{/content}}" }),
   },
-  // Single message with content as string
   {
     test: (data) => {
       if (!isObject(data)) return false;
       return hasKey(data, "content") && typeof data.content === "string" && hasKey(data, "role");
     },
-    key: "{{content}}",
+    resolve: () => ({ key: "{{content}}" }),
   },
-  // Array of messages — take first one's text content
   {
     test: (data) => {
       if (!Array.isArray(data) || data.length === 0) return false;
@@ -118,18 +192,13 @@ const anthropicPatterns: ProviderKeyEntry[] = [
       if (!Array.isArray(content) || content.length === 0) return false;
       return isObject(content[0]) && content[0].type === "text" && hasKey(content[0], "text");
     },
-    key: "{{#.}}{{#content}}{{#text}}{{text}}{{/text}}{{/content}}{{/.}}",
+    resolve: () => ({ key: "{{#.}}{{#content}}{{#text}}{{text}}{{/text}}{{/content}}{{/.}}" }),
   },
 ];
 
-/**
- * Gemini patterns:
- * - { content: { parts: [{ text: "..." }] } } (single candidate)
- * - [{ content: { parts: [{ text: "..." }] } }] (array of candidates)
- * - { candidates: [{ content: { parts: [{ text: "..." }] } }] } (wrapped)
- */
+// --- Gemini patterns ---
+
 const geminiPatterns: ProviderKeyEntry[] = [
-  // Wrapped format: { candidates: [...] }
   {
     test: (data) => {
       if (!isObject(data) || !hasKey(data, "candidates")) return false;
@@ -144,9 +213,8 @@ const geminiPatterns: ProviderKeyEntry[] = [
         Array.isArray((first.content as Record<string, unknown>).parts)
       );
     },
-    key: "{{candidates.0.content.parts.0.text}}",
+    resolve: () => ({ key: "{{candidates.0.content.parts.0.text}}" }),
   },
-  // Single candidate
   {
     test: (data) => {
       if (!isObject(data)) return false;
@@ -157,9 +225,8 @@ const geminiPatterns: ProviderKeyEntry[] = [
         Array.isArray((data.content as Record<string, unknown>).parts)
       );
     },
-    key: "{{content.parts.0.text}}",
+    resolve: () => ({ key: "{{content.parts.0.text}}" }),
   },
-  // Array of candidates
   {
     test: (data) => {
       if (!Array.isArray(data) || data.length === 0) return false;
@@ -171,15 +238,12 @@ const geminiPatterns: ProviderKeyEntry[] = [
         hasKey(first.content as Record<string, unknown>, "parts")
       );
     },
-    key: "{{#.}}{{content.parts.0.text}}{{/.}}",
+    resolve: () => ({ key: "{{#.}}{{content.parts.0.text}}{{/.}}" }),
   },
 ];
 
-/**
- * LangChain patterns:
- * - { content: "...", role: "assistant"|"ai" }
- * - { content: [{ type: "text", text: "..." }], role: "assistant"|"ai" }
- */
+// --- LangChain patterns ---
+
 const langchainPatterns: ProviderKeyEntry[] = [
   {
     test: (data) => {
@@ -188,7 +252,7 @@ const langchainPatterns: ProviderKeyEntry[] = [
       if (role !== "assistant" && role !== "ai") return false;
       return hasKey(data, "content") && typeof data.content === "string";
     },
-    key: "{{content}}",
+    resolve: () => ({ key: "{{content}}" }),
   },
   {
     test: (data) => {
@@ -199,13 +263,14 @@ const langchainPatterns: ProviderKeyEntry[] = [
       const first = (data.content as unknown[])[0];
       return isObject(first) && first.type === "text" && hasKey(first, "text");
     },
-    key: "{{content.0.text}}",
+    resolve: () => ({ key: "{{content.0.text}}" }),
   },
 ];
 
-/** All provider patterns in priority order */
+/** All provider patterns in priority order. Mixed content first to catch tool calls. */
 const allPatterns: ProviderKeyEntry[] = [
   ...openAIPatterns,
+  ...mixedContentPatterns,
   ...anthropicPatterns,
   ...geminiPatterns,
   ...langchainPatterns,
@@ -213,12 +278,12 @@ const allPatterns: ProviderKeyEntry[] = [
 
 /**
  * Try to match parsed LLM output data against known provider schemas.
- * Returns the mustache key if matched, null otherwise.
+ * Returns the mustache key (and optionally transformed data) if matched, null otherwise.
  */
-export const matchProviderKey = (data: unknown): string | null => {
+export const matchProviderKey = (data: unknown): ProviderKeyMatch | null => {
   for (const pattern of allPatterns) {
     if (pattern.test(data)) {
-      return pattern.key;
+      return pattern.resolve(data);
     }
   }
   return null;
