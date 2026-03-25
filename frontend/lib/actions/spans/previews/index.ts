@@ -184,10 +184,19 @@ const applyCachedKeys = async (
 ): Promise<{ resolved: SpanPreviewResult; uncached: ParsedSpan[] }> => {
   const fingerprints = parsedSpans.map((s) => s.fingerprint);
 
-  const cachedKeys = await db
-    .select()
-    .from(spanRenderingKeys)
-    .where(and(eq(spanRenderingKeys.projectId, projectId), inArray(spanRenderingKeys.schemaFingerprint, fingerprints)));
+  let cachedKeys: Array<{ schemaFingerprint: string; mustacheKey: string }>;
+  try {
+    cachedKeys = await db
+      .select()
+      .from(spanRenderingKeys)
+      .where(
+        and(eq(spanRenderingKeys.projectId, projectId), inArray(spanRenderingKeys.schemaFingerprint, fingerprints))
+      );
+  } catch (error) {
+    // Table may not exist yet (pending migration) — treat all spans as uncached
+    console.error("Failed to look up cached rendering keys:", error);
+    return { resolved: {}, uncached: parsedSpans };
+  }
 
   const fingerprintToKey = new Map(cachedKeys.map((row) => [row.schemaFingerprint, row.mustacheKey]));
 
