@@ -44,7 +44,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
     span.spanType === "EXECUTOR" ||
     span.spanType === "EVALUATOR" ||
     span.spanType === "TOOL" ||
-    !isNil(output);
+    (!isNil(output) && output !== "");
 
   const [expandOverride, setExpandOverride] = useState<{ spanId: string; expanded: boolean } | null>(null);
 

@@ -173,7 +173,8 @@ const fillMissing = (previews: SpanPreviewResult, spanIds: string[]): SpanPrevie
  */
 const applyCachedKeys = async (
   projectId: string,
-  parsedSpans: ParsedSpan[]
+  parsedSpans: ParsedSpan[],
+  spanTypes: Record<string, string>
 ): Promise<{ resolved: SpanPreviewResult; uncached: ParsedSpan[] }> => {
   const fingerprints = parsedSpans.map((s) => s.fingerprint);
 
@@ -190,7 +191,8 @@ const applyCachedKeys = async (
   parsedSpans.forEach((span) => {
     const cachedKey = fingerprintToKey.get(span.fingerprint);
     if (cachedKey) {
-      const match = matchProviderKey(span.parsedData);
+      const isProviderType = PROVIDER_SPAN_TYPES.has(spanTypes[span.spanId] ?? "");
+      const match = isProviderType ? matchProviderKey(span.parsedData) : null;
       resolved[span.spanId] = renderMustachePreview(cachedKey, match?.data ?? span.parsedData);
     } else {
       uncached.push(span);
@@ -356,7 +358,7 @@ export async function getSpanPreviews(
     return fillMissing(classifiedPreviews, spanIds);
   }
 
-  const { resolved: cachedPreviews, uncached } = await applyCachedKeys(projectId, needsProcessing);
+  const { resolved: cachedPreviews, uncached } = await applyCachedKeys(projectId, needsProcessing, spanTypes);
 
   const cachedResult = { ...classifiedPreviews, ...cachedPreviews };
 
