@@ -170,6 +170,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         setTraceSignals(mapped);
 
         if (mapped.length > 0) {
+          setSignalsPanelOpen(true);
           const preferred = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
           setActiveSignalTabId(preferred?.signalId ?? mapped[0].signalId);
         }
@@ -187,6 +188,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     traceSignals.length,
     setTraceSignals,
     setIsTraceSignalsLoading,
+    setSignalsPanelOpen,
     initialSignalId,
     setActiveSignalTabId,
   ]);
