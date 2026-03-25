@@ -3,7 +3,7 @@ import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
 import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
@@ -155,22 +155,14 @@ export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
     }
   };
 
-  // Tracks whether we just injected, so the fetch effect (which re-runs when
-  // pendingChatInjection is consumed/nulled) knows to skip.
-  const justInjectedRef = useRef(false);
-
-  // Consume pending signal injection. When pendingChatInjection changes to
-  // non-null, inject the messages and prefill the input. Consuming nulls
-  // the store value, which will re-trigger this effect — justInjectedRef
-  // prevents that second run from fetching saved messages.
+  // Consume pending signal injection. When pendingChatInjection is non-null,
+  // inject the messages and prefill the input.
   useEffect(() => {
     if (!pendingChatInjection) {
       return;
     }
     const pending = consumePendingChatInjection();
     if (!pending) return;
-
-    justInjectedRef.current = true;
 
     // Format the JSON payload as markdown: keys become ### headers,
     // values become body text. One layer deep only.
@@ -206,15 +198,8 @@ export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
     setInput("Explain how this signal event relates to my trace and include specific span references");
   }, [pendingChatInjection, consumePendingChatInjection, setMessages]);
 
-  // Load existing chat history when the trace changes.
+  // Load existing chat history on mount.
   useEffect(() => {
-    // Skip if we just injected — the consume effect nulled pendingChatInjection
-    // which re-renders and re-runs this effect.
-    if (justInjectedRef.current) {
-      justInjectedRef.current = false;
-      return;
-    }
-
     const loadExistingMessages = async () => {
       try {
         const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/agent/messages`);
@@ -230,7 +215,8 @@ export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
     };
 
     loadExistingMessages();
-  }, [traceId, projectId, setMessages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex flex-col overflow-hidden relative h-full">

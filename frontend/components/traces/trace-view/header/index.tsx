@@ -135,10 +135,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   // Eagerly fetch signal count when trace loads, so the button shows the correct count.
   // Tab selection uses initialSignalId from the store (set at creation time) — see
   // SignalEventsPanel for the same logic. Whichever fetch completes first picks the tab.
-  const hasFetchedSignalsRef = useRef(false);
   useEffect(() => {
-    if (!traceId || !projectId || hasFetchedSignalsRef.current || traceSignals.length > 0) return;
-    hasFetchedSignalsRef.current = true;
+    if (!traceId || !projectId) return;
 
     const fetchSignals = async () => {
       try {
@@ -182,16 +180,8 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     };
 
     fetchSignals();
-  }, [
-    traceId,
-    projectId,
-    traceSignals.length,
-    setTraceSignals,
-    setIsTraceSignalsLoading,
-    setSignalsPanelOpen,
-    initialSignalId,
-    setActiveSignalTabId,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
