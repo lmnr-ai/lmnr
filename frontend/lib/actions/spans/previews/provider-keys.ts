@@ -267,7 +267,7 @@ const langchainPatterns: ProviderKeyEntry[] = [
   },
 ];
 
-/** All provider patterns in priority order. Mixed content first to catch tool calls. */
+/** All provider patterns in priority order. OpenAI first, then mixed content before Anthropic/LangChain. */
 const allPatterns: ProviderKeyEntry[] = [
   ...openAIPatterns,
   ...mixedContentPatterns,
