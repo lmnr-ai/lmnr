@@ -1,4 +1,4 @@
-import { get } from "lodash";
+import { get, isNil } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
@@ -31,8 +31,9 @@ export interface TraceViewContentProps {
   spanId?: string;
   propsTrace?: TraceViewTrace;
   onClose: () => void;
-  isFillWidth?: boolean;
   isAlwaysSelectSpan?: boolean;
+  // Presence controls the layout type
+  sidePanelRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function TraceViewContent({
@@ -40,8 +41,8 @@ export default function TraceViewContent({
   spanId,
   onClose,
   propsTrace,
-  isFillWidth,
   isAlwaysSelectSpan,
+  sidePanelRef,
 }: TraceViewContentProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -224,8 +225,8 @@ export default function TraceViewContent({
         if (urlSpanId && spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
           setSelectedSpan(selectedSpan);
-        } else if (spanPanelOpen && spans.length > 0) {
-          // Auto-select first span only if the span panel is open
+        } else if ((spanPanelOpen || isAlwaysSelectSpan) && spans.length > 0) {
+          // Auto-select first span if the span panel is open or always-select mode is on
           setSelectedSpan(spans[0]);
         } else {
           setSelectedSpan(undefined);
@@ -251,6 +252,7 @@ export default function TraceViewContent({
       setBrowserSession,
       setSelectedSpan,
       spanPanelOpen,
+      isAlwaysSelectSpan,
       spanId,
       searchParams,
       spanPath,
@@ -353,7 +355,11 @@ export default function TraceViewContent({
 
   return (
     <ScrollContextProvider>
-      {isFillWidth ? <FillWidthLayout panels={panels} /> : <DynamicWidthLayout panels={panels} />}
+      {isNil(sidePanelRef) ? (
+        <FillWidthLayout panels={panels} />
+      ) : (
+        <DynamicWidthLayout panels={panels} sidePanelRef={sidePanelRef} />
+      )}
     </ScrollContextProvider>
   );
 }

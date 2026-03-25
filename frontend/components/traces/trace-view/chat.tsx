@@ -349,6 +349,8 @@ export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
                 }}
                 placeholder="Summarize, find inefficiencies, explain errors..."
                 className="bg-transparent border-none focus-visible:ring-0 resize-none flex-1 min-w-0"
+                rows={1}
+                maxRows={6}
               />
               <Button
                 type="submit"

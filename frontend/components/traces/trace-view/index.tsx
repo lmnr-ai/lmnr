@@ -1,5 +1,4 @@
-import { motion } from "framer-motion";
-import React from "react";
+import React, { useRef } from "react";
 
 import TraceViewStoreProvider, { type TraceViewTrace } from "@/components/traces/trace-view/store";
 import { cn } from "@/lib/utils";
@@ -27,7 +26,7 @@ export default function TraceView(props: Omit<TraceViewProps, "isFillWidth">) {
       initialSignalsPanelOpen={props.initialSignalsPanelOpen}
       initialChatOpen={props.showChatInitial}
     >
-      <TraceViewContent {...props} isFillWidth />
+      <TraceViewContent {...props} />
     </TraceViewStoreProvider>
   );
 }
@@ -37,16 +36,15 @@ export function TraceViewSidePanel({
   children,
   ...props
 }: Omit<TraceViewProps, "isFillWidth"> & { className?: string; children?: React.ReactNode }) {
+  const sidePanelRef = useRef<HTMLDivElement>(null);
+
   return (
-    <motion.div
+    <div
+      ref={sidePanelRef}
       className={cn(
         "absolute top-0 right-0 bottom-0 max-w-[calc(100%-80px)] bg-background border-l z-50 flex",
         className
       )}
-      initial={{ x: 100, opacity: 0.5 }}
-      animate={{ x: 0, opacity: 1 }}
-      exit={{ x: 100, opacity: 0.7 }}
-      transition={{ type: "spring", stiffness: 300, damping: 30 }}
     >
       <TraceViewStoreProvider
         key={props.traceId}
@@ -58,9 +56,9 @@ export function TraceViewSidePanel({
       >
         <div className="w-full h-full flex flex-col">
           {children}
-          <TraceViewContent {...props} isFillWidth={false} />
+          <TraceViewContent {...props} sidePanelRef={sidePanelRef} />
         </div>
       </TraceViewStoreProvider>
-    </motion.div>
+    </div>
   );
 }

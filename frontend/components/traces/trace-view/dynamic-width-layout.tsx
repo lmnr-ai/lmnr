@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import { LeftEdgeResizeHandle } from "@/components/traces/trace-view/left-edge-resize-handle";
@@ -11,7 +11,12 @@ import { type TraceViewPanels } from "./trace-view-content";
 const enterExitTransition = { type: "spring", stiffness: 300, damping: 30 } as const;
 const instantTransition = { duration: 0 } as const;
 
-export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels }) {
+interface DynamicWidthLayoutProps {
+  panels: TraceViewPanels;
+  sidePanelRef?: React.RefObject<HTMLDivElement | null>;
+}
+
+export default function DynamicWidthLayout({ panels, sidePanelRef }: DynamicWidthLayoutProps) {
   const { tracePanelWidth, spanPanelWidth, chatPanelWidth, resizePanel, setMaxWidth } = useTraceViewStore(
     (state) => ({
       tracePanelWidth: state.tracePanelWidth,
@@ -26,11 +31,8 @@ export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const sidePanel = el.closest("[class*='absolute']");
-    const measured = (sidePanel?.parentElement as HTMLElement) ?? el;
+    const measured = sidePanelRef?.current?.parentElement ?? containerRef.current;
+    if (!measured) return;
 
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -40,7 +42,7 @@ export default function DynamicWidthLayout({ panels }: { panels: TraceViewPanels
     });
     observer.observe(measured);
     return () => observer.disconnect();
-  }, [setMaxWidth]);
+  }, [sidePanelRef, setMaxWidth]);
 
   const traceResize = usePanelResize("trace", resizePanel);
   const spanResize = usePanelResize("span", resizePanel);
