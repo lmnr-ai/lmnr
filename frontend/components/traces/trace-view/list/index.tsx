@@ -186,6 +186,8 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
           >
             {items.map((virtualRow) => {
               const listSpan = listSpans[virtualRow.index];
+              if (!listSpan) return null;
+
               return (
                 <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
                   <ListItem span={listSpan} output={previews[listSpan.spanId]} onSpanSelect={handleSpanSelect} />
