@@ -204,11 +204,6 @@ pub async fn search_spans(
     let project_id = project_id.into_inner();
     let request = request.into_inner();
 
-    // tmp
-    if !request.get_snippets {
-        return Ok(HttpResponse::Ok().json(Vec::<SearchSpanHit>::new()));
-    }
-
     let trimmed_query = request.search_query.trim();
     if trimmed_query.is_empty() {
         return Ok(HttpResponse::Ok().json(Vec::<SearchSpanHit>::new()));
