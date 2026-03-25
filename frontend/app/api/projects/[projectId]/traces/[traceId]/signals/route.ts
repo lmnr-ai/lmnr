@@ -15,22 +15,36 @@ export async function GET(
   const traceId = params.traceId;
 
   try {
-    // Step 1: Get distinct signal IDs from signal_events for this trace
-    const signalIdRows = await executeQuery<{ signal_id: string }>({
+    // Step 1: Get all signal events for this trace in one query
+    const eventRows = await executeQuery<EventRow>({
       projectId,
       query: `
-        SELECT DISTINCT signal_id
+        SELECT
+          id,
+          signal_id as signalId,
+          trace_id as traceId,
+          payload,
+          formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp
         FROM signal_events
         WHERE trace_id = {traceId: UUID}
+        ORDER BY timestamp DESC
       `,
       parameters: { traceId },
     });
 
-    if (signalIdRows.length === 0) {
+    if (eventRows.length === 0) {
       return NextResponse.json([]);
     }
 
-    const signalIds = signalIdRows.map((r) => r.signal_id);
+    // Extract unique signal IDs and group events
+    const eventsBySignal = new Map<string, EventRow[]>();
+    for (const event of eventRows) {
+      const existing = eventsBySignal.get(event.signalId) ?? [];
+      existing.push(event);
+      eventsBySignal.set(event.signalId, existing);
+    }
+
+    const signalIds = [...eventsBySignal.keys()];
 
     // Step 2: Get signal metadata from PostgreSQL
     const signalRows = await db
@@ -42,32 +56,6 @@ export async function GET(
       })
       .from(signals)
       .where(and(eq(signals.projectId, projectId), inArray(signals.id, signalIds)));
-
-    // Step 3: Get events for each signal in this trace
-    const eventRows = await executeQuery<EventRow>({
-      projectId,
-      query: `
-        SELECT
-          id,
-          signal_id as signalId,
-          trace_id as traceId,
-          payload,
-          formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp
-        FROM signal_events
-        WHERE signal_id IN ({signalIds: Array(UUID)})
-          AND trace_id = {traceId: UUID}
-        ORDER BY timestamp DESC
-      `,
-      parameters: { signalIds, traceId },
-    });
-
-    // Step 4: Group events by signal and build response
-    const eventsBySignal = new Map<string, EventRow[]>();
-    for (const event of eventRows) {
-      const existing = eventsBySignal.get(event.signalId) ?? [];
-      existing.push(event);
-      eventsBySignal.set(event.signalId, existing);
-    }
 
     const result = signalRows.map((signal) => ({
       signalId: signal.id,
