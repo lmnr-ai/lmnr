@@ -6,6 +6,7 @@ import { shallow } from "zustand/shallow";
 import Chat from "@/components/traces/trace-view/chat";
 import { HumanEvaluatorSpanView } from "@/components/traces/trace-view/human-evaluator-span-view";
 import { type TraceViewSpan, type TraceViewTrace, useTraceViewStore } from "@/components/traces/trace-view/store";
+import { useTraceViewBaseStoreRaw } from "@/components/traces/trace-view/store/base";
 import { enrichSpansWithPending, findSpanToSelect, onRealtimeUpdateSpans } from "@/components/traces/trace-view/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
@@ -48,6 +49,7 @@ export default function TraceViewContent({
   const router = useRouter();
   const pathName = usePathname();
   const { projectId } = useParams();
+  const baseStore = useTraceViewBaseStoreRaw();
 
   // Panel visibility states
   const { spanPanelOpen, tracesAgentOpen, setTracesAgentOpen, selectSpanById } = useTraceViewStore(
@@ -225,7 +227,7 @@ export default function TraceViewContent({
         if (urlSpanId && spans.length > 0) {
           const selectedSpan = findSpanToSelect(spans, spanId, searchParams, spanPath);
           setSelectedSpan(selectedSpan);
-        } else if ((spanPanelOpen || isAlwaysSelectSpan) && spans.length > 0) {
+        } else if ((baseStore.getState().spanPanelOpen || isAlwaysSelectSpan) && spans.length > 0) {
           // Auto-select first span if the span panel is open or always-select mode is on
           setSelectedSpan(spans[0]);
         } else {
@@ -251,7 +253,7 @@ export default function TraceViewContent({
       setHasBrowserSession,
       setBrowserSession,
       setSelectedSpan,
-      spanPanelOpen,
+      baseStore,
       isAlwaysSelectSpan,
       spanId,
       searchParams,
