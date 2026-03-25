@@ -103,15 +103,21 @@ interface GetSpanPreviewsOptions {
 }
 
 /**
- * Try provider schema matching for a span, returning the rendered preview if matched.
+ * Try provider schema matching for a span, returning the rendered preview and key if matched.
  */
-const tryProviderMatch = (parsedData: Record<string, unknown> | unknown[], spanType: string): string | null => {
+const tryProviderMatch = (
+  parsedData: Record<string, unknown> | unknown[],
+  spanType: string
+): { rendered: string; key: string } | null => {
   if (!PROVIDER_SPAN_TYPES.has(spanType)) return null;
 
   const match = matchProviderKey(parsedData);
   if (!match) return null;
 
-  return validateMustacheKey(match.key, match.data ?? parsedData);
+  const rendered = validateMustacheKey(match.key, match.data ?? parsedData);
+  if (!rendered) return null;
+
+  return { rendered, key: match.key };
 };
 
 /**
@@ -138,8 +144,8 @@ const classifyRawSpans = (
         return;
       case "object": {
         if (skipGeneration) {
-          const providerPreview = tryProviderMatch(classification.data, spanTypes[raw.spanId] ?? "");
-          resolved[raw.spanId] = providerPreview ?? extractFirstPrimitiveValue(classification.data);
+          const providerMatch = tryProviderMatch(classification.data, spanTypes[raw.spanId] ?? "");
+          resolved[raw.spanId] = providerMatch?.rendered ?? extractFirstPrimitiveValue(classification.data);
         } else {
           needsProcessing.push({
             spanId: raw.spanId,
@@ -219,11 +225,10 @@ const applyProviderMatching = (
   const needsLlm: ParsedSpan[] = [];
 
   uncachedSpans.forEach((span) => {
-    const rendered = tryProviderMatch(span.parsedData, spanTypes[span.spanId] ?? "");
-    if (rendered) {
-      resolved[span.spanId] = rendered;
-      const match = matchProviderKey(span.parsedData);
-      if (match) keysToSave.push({ fingerprint: span.fingerprint, key: match.key });
+    const providerMatch = tryProviderMatch(span.parsedData, spanTypes[span.spanId] ?? "");
+    if (providerMatch) {
+      resolved[span.spanId] = providerMatch.rendered;
+      keysToSave.push({ fingerprint: span.fingerprint, key: providerMatch.key });
     } else {
       needsLlm.push(span);
     }
