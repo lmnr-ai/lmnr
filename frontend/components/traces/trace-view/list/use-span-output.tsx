@@ -1,5 +1,5 @@
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { convertToTimeParameters } from "@/lib/time.ts";
@@ -14,9 +14,12 @@ export function useSpanOutput(spanId: string | undefined, enabled: boolean) {
   const { projectId } = useParams<{ projectId: string }>();
   const trace = useTraceViewBaseStore((state) => state.trace);
 
-  const [output, setOutput] = useState<any>(undefined);
+  const [result, setResult] = useState<{ spanId: string; output: any } | undefined>(undefined);
+  const fetchedSpanIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
+    fetchedSpanIdRef.current = spanId;
+
     if (!enabled || !spanId || !trace?.id || !projectId) return;
 
     let cancelled = false;
@@ -38,13 +41,13 @@ export function useSpanOutput(spanId: string | undefined, enabled: boolean) {
       .then((data) => {
         if (cancelled) return;
         if (data?.outputs?.[spanId] !== undefined) {
-          setOutput(data.outputs[spanId]);
+          setResult({ spanId, output: data.outputs[spanId] });
         } else {
-          setOutput(null);
+          setResult({ spanId, output: null });
         }
       })
       .catch(() => {
-        if (!cancelled) setOutput(null);
+        if (!cancelled) setResult({ spanId, output: null });
       });
 
     return () => {
@@ -52,5 +55,7 @@ export function useSpanOutput(spanId: string | undefined, enabled: boolean) {
     };
   }, [enabled, spanId, trace?.id, trace?.startTime, trace?.endTime, projectId]);
 
-  return output;
+  // Return undefined if the result is stale (from a different spanId)
+  if (!result || result.spanId !== spanId) return undefined;
+  return result.output;
 }
