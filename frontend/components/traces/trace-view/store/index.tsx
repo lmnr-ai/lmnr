@@ -112,7 +112,6 @@ const createTraceViewStore = (options?: {
   storeKey?: string;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
-  initialSignalsPanelOpen?: boolean;
   initialChatOpen?: boolean;
 }) =>
   createStore<TraceViewStore>()(
@@ -122,7 +121,6 @@ const createTraceViewStore = (options?: {
           initialTrace: options?.initialTrace,
           isAlwaysSelectSpan: options?.isAlwaysSelectSpan,
           initialSignalId: options?.initialSignalId,
-          initialSignalsPanelOpen: options?.initialSignalsPanelOpen,
           initialChatOpen: options?.initialChatOpen,
         });
 
@@ -282,14 +280,12 @@ const TraceViewStoreProvider = ({
   storeKey,
   isAlwaysSelectSpan,
   initialSignalId,
-  initialSignalsPanelOpen,
   initialChatOpen,
 }: PropsWithChildren<{
   initialTrace?: TraceViewTrace;
   storeKey?: string;
   isAlwaysSelectSpan?: boolean;
   initialSignalId?: string;
-  initialSignalsPanelOpen?: boolean;
   initialChatOpen?: boolean;
 }>) => {
   const [storeState] = useState(() =>
@@ -298,7 +294,6 @@ const TraceViewStoreProvider = ({
       storeKey,
       isAlwaysSelectSpan,
       initialSignalId,
-      initialSignalsPanelOpen,
       initialChatOpen,
     })
   );

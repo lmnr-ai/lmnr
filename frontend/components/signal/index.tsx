@@ -133,7 +133,6 @@ function SignalContent() {
           }}
           traceId={traceId}
           showChatInitial
-          initialSignalsPanelOpen
           initialSignalId={signal.id}
         />
       )}
