@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use actix_web::{HttpResponse, post, web};
 use chrono::{DateTime, Utc};
@@ -11,14 +14,15 @@ use crate::{
     db::spans::{Span, SpanType},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     quickwit::{SPANS_INDEX_ID, client::QuickwitClient},
-    routes::{ResponseResult, error::Error},
+    routes::{ResponseResult, error::Error, search_snippets},
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
 
-const DEFAULT_SEARCH_MAX_HITS: usize = 500;
+const DEFAULT_SEARCH_MAX_HITS: usize = 400;
 const DEFAULT_SEARCH_TIME_RANGE: chrono::Duration = chrono::Duration::days(7);
+
 // TODO: maybe remove all punctuation similar to the default tokenizer in the index?
-const QUICKWIT_RESERVED_CHARACTERS: &[char] = &['?', '`', '~', '!', '\\'];
+const QUICKWIT_RESERVED_CHARACTERS: &[char] = &['"', '?', '`', '~', '!', '\\'];
 // Quickwit documentation is very brief on this, it lists all of the reserved characters
 // with a note that you can escape them with a backslash. However, some of them break
 // the query parsing when escaped, so we need to remove them.
@@ -31,9 +35,11 @@ const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
     '\u{2014}', // — em dash
 ];
 
-/// Escape special characters for Quickwit query syntax
+const PARALLEL_SNIPPETS_QUERIES: usize = 1;
+
+/// Escape special characters for Quickwit query syntax and wrap in quotes for phrase search.
 fn escape_quickwit_query(query: &str) -> String {
-    query
+    let escaped: String = query
         .chars()
         .flat_map(|c| {
             if QUICKWIT_RESERVED_CHARACTERS.contains(&c) {
@@ -44,7 +50,8 @@ fn escape_quickwit_query(query: &str) -> String {
                 vec![c]
             }
         })
-        .collect()
+        .collect();
+    format!("\"{escaped}\"")
 }
 
 #[derive(Deserialize)]
@@ -135,10 +142,16 @@ pub struct SearchSpansRequest {
     pub search_query: String,
     pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
-    #[serde(default)]
-    pub search_in: Option<Vec<String>>,
     pub limit: usize,
     pub offset: usize,
+    #[serde(default)]
+    pub get_snippets: bool,
+    #[serde(default)]
+    pub one_snippet_per_trace: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
@@ -154,18 +167,51 @@ struct QuickwitResponse {
     hits: Vec<QuickwitHit>,
 }
 
+#[derive(Serialize)]
+struct SnippetInfo {
+    text: String,
+    highlight: [usize; 2],
+}
+
+#[derive(Serialize)]
+struct SearchSpanHit {
+    trace_id: String,
+    span_id: String,
+    input_snippet: Option<SnippetInfo>,
+    output_snippet: Option<SnippetInfo>,
+    snippet_count: usize,
+}
+
+#[derive(clickhouse::Row, Deserialize)]
+struct SpanSnippetRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    span_id: Uuid,
+    input_pos: u64,
+    input_count: u64,
+    input_snippet: String,
+    output_pos: u64,
+    output_count: u64,
+    output_snippet: String,
+}
+
 #[post("spans/search")]
 pub async fn search_spans(
     project_id: web::Path<Uuid>,
     request: web::Json<SearchSpansRequest>,
     quickwit_client: web::Data<Option<QuickwitClient>>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
     let request = request.into_inner();
 
+    // tmp
+    if !request.get_snippets {
+        return Ok(HttpResponse::Ok().json(Vec::<SearchSpanHit>::new()));
+    }
+
     let trimmed_query = request.search_query.trim();
     if trimmed_query.is_empty() {
-        return Ok(HttpResponse::Ok().json(Vec::<String>::new()));
+        return Ok(HttpResponse::Ok().json(Vec::<SearchSpanHit>::new()));
     }
 
     // Escape characters reserved by quickwit
@@ -176,7 +222,7 @@ pub async fn search_spans(
         Some(client) => client,
         None => {
             log::warn!("Quickwit search requested but Quickwit client is not available");
-            return Ok(HttpResponse::Ok().json(Vec::<String>::new()));
+            return Ok(HttpResponse::Ok().json(Vec::<SearchSpanHit>::new()));
         }
     };
 
@@ -187,7 +233,7 @@ pub async fn search_spans(
 
     let sort_by = "start_time";
 
-    if let Some(trace_id) = request.trace_id {
+    if let Some(ref trace_id) = request.trace_id {
         query_parts.push(format!("trace_id:{}", trace_id));
     }
 
@@ -198,30 +244,8 @@ pub async fn search_spans(
         "sort_by": sort_by,
     });
 
-    // Handle search fields
-    let search_fields = if let Some(search_in) = request.search_in {
-        if search_in.is_empty() {
-            QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
-        } else {
-            let valid_fields: Vec<&str> = QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS
-                .iter()
-                .filter(|&&f| search_in.iter().any(|requested| requested == f))
-                .cloned()
-                .collect();
-
-            if valid_fields.is_empty() {
-                QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
-            } else {
-                valid_fields
-            }
-        }
-    } else {
-        QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
-    };
-
-    // Quickwit expects search_field as a comma-separated string, not an array
-    let search_field_str = search_fields.join(",");
-    search_body["search_field"] = serde_json::Value::String(search_field_str);
+    let search_fields = QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.join(",");
+    search_body["search_field"] = serde_json::Value::String(search_fields);
 
     // Handle pagination
     if request.limit != 0 {
@@ -234,19 +258,125 @@ pub async fn search_spans(
         search_body["start_offset"] = serde_json::Value::Number(request.offset.into());
     }
 
-    // Handle timestamps, defaults to last week if not provided
-    if let Some(s) = request.start_time {
-        search_body["start_timestamp"] = serde_json::Value::Number(s.timestamp().into());
-    } else {
-        search_body["start_timestamp"] =
-            serde_json::Value::Number((Utc::now() - DEFAULT_SEARCH_TIME_RANGE).timestamp().into());
-    }
-    if let Some(e) = request.end_time {
-        search_body["end_timestamp"] = serde_json::Value::Number(e.timestamp().into());
+    let effective_start = request
+        .start_time
+        .unwrap_or_else(|| Utc::now() - DEFAULT_SEARCH_TIME_RANGE);
+    let effective_end = request.end_time.unwrap_or_else(Utc::now);
+
+    search_body["start_timestamp"] = serde_json::Value::Number(effective_start.timestamp().into());
+    if request.end_time.is_some() {
+        search_body["end_timestamp"] = serde_json::Value::Number(effective_end.timestamp().into());
     }
 
+    let t0: std::time::Instant = std::time::Instant::now();
     let hits = search_index(quickwit_client, &SPANS_INDEX_ID, search_body).await?;
-    Ok(HttpResponse::Ok().json(hits))
+    log::info!(
+        "[search_spans] quickwit: {}ms, {} hits",
+        t0.elapsed().as_millis(),
+        hits.len()
+    );
+
+    if hits.is_empty() {
+        return Ok(HttpResponse::Ok().json(Vec::<SearchSpanHit>::new()));
+    }
+
+    if !request.get_snippets {
+        let results: Vec<SearchSpanHit> = hits
+            .into_iter()
+            .map(|h| SearchSpanHit {
+                trace_id: h.trace_id,
+                span_id: h.span_id,
+                input_snippet: None,
+                output_snippet: None,
+                snippet_count: 0,
+            })
+            .collect();
+
+        log::info!("[search_spans] total: {}ms", t0.elapsed().as_millis());
+        return Ok(HttpResponse::Ok().json(results));
+    }
+
+    let snippet_pairs: Vec<(Uuid, Uuid)> = if request.one_snippet_per_trace {
+        let mut seen_traces = HashSet::new();
+        hits.iter()
+            .filter(|h| seen_traces.insert(h.trace_id.clone()))
+            .filter_map(|h| {
+                let trace_id = Uuid::parse_str(&h.trace_id).ok()?;
+                let span_id = Uuid::parse_str(&h.span_id).ok()?;
+                Some((trace_id, span_id))
+            })
+            .collect()
+    } else {
+        hits.iter()
+            .filter_map(|h| {
+                let trace_id = Uuid::parse_str(&h.trace_id).ok()?;
+                let span_id = Uuid::parse_str(&h.span_id).ok()?;
+                Some((trace_id, span_id))
+            })
+            .collect()
+    };
+
+    let t1 = std::time::Instant::now();
+    let snippet_rows =
+        fetch_span_snippets(&clickhouse, project_id, &snippet_pairs, trimmed_query).await;
+    log::info!(
+        "[search_spans] clickhouse snippets: {}ms, {} rows",
+        t1.elapsed().as_millis(),
+        snippet_rows.len(),
+    );
+
+    let needle_char_len = trimmed_query.chars().count();
+    let snippet_max_chars = (needle_char_len as u64) + SNIPPET_SIDE_SIZE * 2;
+
+    let snippet_map: HashMap<String, SpanSnippetRow> = snippet_rows
+        .into_iter()
+        .map(|row| (row.span_id.to_string(), row))
+        .collect();
+
+    let enriched_hits: Vec<SearchSpanHit> = hits
+        .into_iter()
+        .map(|hit| {
+            if let Some(row) = snippet_map.get(&hit.span_id) {
+                let input_snippet = search_snippets::post_process_snippet(
+                    &row.input_snippet,
+                    row.input_pos,
+                    snippet_max_chars,
+                    needle_char_len,
+                )
+                .map(|(text, highlight)| SnippetInfo { text, highlight });
+
+                let output_snippet = search_snippets::post_process_snippet(
+                    &row.output_snippet,
+                    row.output_pos,
+                    snippet_max_chars,
+                    needle_char_len,
+                )
+                .map(|(text, highlight)| SnippetInfo { text, highlight });
+
+                let snippet_count = row.input_count + row.output_count;
+
+                SearchSpanHit {
+                    trace_id: hit.trace_id,
+                    span_id: hit.span_id,
+                    input_snippet,
+                    output_snippet,
+                    snippet_count: snippet_count as usize,
+                }
+            } else {
+                SearchSpanHit {
+                    trace_id: hit.trace_id,
+                    span_id: hit.span_id,
+                    input_snippet: None,
+                    output_snippet: None,
+                    snippet_count: 0,
+                }
+            }
+        })
+        .collect();
+
+    log::info!("[search_spans] total: {}ms", t0.elapsed().as_millis());
+
+    Ok(HttpResponse::Ok().json(enriched_hits))
 }
 
 async fn search_index(
@@ -265,4 +395,88 @@ async fn search_index(
         })?;
 
     Ok(quickwit_response.hits)
+}
+
+async fn fetch_span_snippets(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    pairs: &[(Uuid, Uuid)],
+    phrase: &str,
+) -> Vec<SpanSnippetRow> {
+    if pairs.is_empty() {
+        return Vec::new();
+    }
+
+    let chunk_size = (pairs.len() + PARALLEL_SNIPPETS_QUERIES - 1) / PARALLEL_SNIPPETS_QUERIES;
+    let futures: Vec<_> = pairs
+        .chunks(chunk_size.max(1))
+        .map(|chunk| {
+            let tuples = build_key_tuples(chunk);
+            let query = build_snippet_query(phrase, &tuples);
+            println!(
+                "search_spans: snippet query: {:?}, project_id: {:?}",
+                query, project_id
+            );
+            async move {
+                clickhouse
+                    .query(&query)
+                    .bind(project_id)
+                    .fetch_all::<SpanSnippetRow>()
+                    .await
+                    .unwrap_or_else(|e| {
+                        log::error!("Failed to fetch span snippets from ClickHouse: {:?}", e);
+                        Vec::new()
+                    })
+            }
+        })
+        .collect();
+
+    let results = futures_util::future::join_all(futures).await;
+    results.into_iter().flatten().collect()
+}
+
+const SNIPPET_SIDE_SIZE: u64 = 50;
+
+fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
+    pairs
+        .iter()
+        .map(|(trace_id, span_id)| format!("('{trace_id}', '{span_id}')"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn build_snippet_query(phrase: &str, key_tuples: &str) -> String {
+    let input_cols = build_phrase_columns("input", phrase);
+    let output_cols = build_phrase_columns("output", phrase);
+
+    format!(
+        "SELECT span_id,
+                input_pos, input_count, input_snippet,
+                output_pos, output_count, output_snippet
+         FROM (
+           SELECT span_id, {input_cols}, {output_cols}
+           FROM spans_v2
+           WHERE project_id = ?
+             AND (trace_id, span_id) IN ({key_tuples})
+           ORDER BY start_time ASC
+         )"
+    )
+}
+
+fn build_phrase_columns(field: &str, phrase: &str) -> String {
+    let escaped = search_snippets::escape_clickhouse_string(phrase);
+    let phrase_char_len = phrase.chars().count() as u64;
+    let snippet_len = phrase_char_len + SNIPPET_SIDE_SIZE * 2;
+
+    format!(
+        "positionCaseInsensitive({field}, '{escaped}') as _{field}_byte_pos,
+         toUInt64(countSubstringsCaseInsensitive({field}, '{escaped}')) as {field}_count,
+         if(_{field}_byte_pos > 0,
+            toUInt64(lengthUTF8(substring({field}, 1, toUInt64(_{field}_byte_pos) - 1)) + 1),
+            toUInt64(0)) as {field}_pos,
+         if({field}_pos > 0,
+            substringUTF8({field}, greatest(toUInt64(1), {field}_pos - {side_size}), {snippet_len}),
+            '') as {field}_snippet",
+        side_size = SNIPPET_SIDE_SIZE,
+    )
 }

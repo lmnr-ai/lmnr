@@ -108,16 +108,15 @@ export async function getSpans(input: z.infer<typeof GetSpansSchema>): Promise<{
     pastHours,
   });
 
-  const spanHits: { trace_id: string; span_id: string }[] = search
+  const spansHits = search
     ? await searchSpans({
         projectId,
         traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
       })
     : [];
-  const spanIds = spanHits.map((span) => span.span_id);
+  const spanIds = spansHits.map((span) => span.span_id);
 
   if (search) {
     if (spanIds?.length === 0) {
@@ -278,16 +277,17 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const filters: Filter[] = compact(inputFilters);
 
   const timeRange = getOptionalTimeRange(pastHours, startDate, endDate);
-  const spanHits: { trace_id: string; span_id: string }[] = search
+  const traceSpanHits = search
     ? await searchSpans({
         projectId,
         traceId,
         searchQuery: search,
         ...(timeRange && { timeRange }),
-        searchType: searchIn as SpanSearchType[],
+        getSnippets: true,
+        onePerTrace: false,
       })
     : [];
-  const spanIds = spanHits.map((span) => span.span_id);
+  const spanIds = traceSpanHits.map((span) => span.span_id);
 
   if (search && spanIds?.length === 0) {
     return [];
@@ -323,7 +323,33 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
 
   const transformedSpans = spans.map((span) => transformSpanWithEvents(span as any, parentRewiring));
 
-  return aggregateSpanMetrics(transformedSpans);
+  const result = aggregateSpanMetrics(transformedSpans);
+
+  if (search && traceSpanHits.length > 0) {
+    const snippetMap = new Map(
+      traceSpanHits.map((hit) => {
+        const info = hit.output_snippet ?? hit.input_snippet;
+        return [
+          hit.span_id,
+          {
+            snippet: info?.text,
+            highlight: info?.highlight,
+            count: hit.snippet_count,
+          },
+        ];
+      })
+    );
+    for (const span of result) {
+      const snippetData = snippetMap.get(span.spanId);
+      if (snippetData) {
+        span.searchSnippet = snippetData.snippet;
+        span.snippetHighlight = snippetData.highlight;
+        span.snippetCount = snippetData.count;
+      }
+    }
+  }
+
+  return result;
 }
 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {

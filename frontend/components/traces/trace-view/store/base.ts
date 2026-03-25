@@ -48,6 +48,9 @@ export type TraceViewSpan = {
     cacheReadInputTokens?: number;
     hasLLMDescendants: boolean;
   };
+  searchSnippet?: string;
+  snippetHighlight?: [number, number];
+  snippetCount?: number;
 };
 
 export type TraceViewListSpan = {
@@ -66,6 +69,9 @@ export type TraceViewListSpan = {
     display: Array<{ spanId: string; name: string; count?: number }>;
     full: Array<{ spanId: string; name: string }>;
   } | null;
+  searchSnippet?: string;
+  snippetHighlight?: [number, number];
+  snippetCount?: number;
 };
 
 export type TraceViewTrace = {
@@ -242,6 +248,9 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         totalCost: span.totalCost,
         pending: span.pending,
         pathInfo: pathInfoMap.get(span.spanId) ?? null,
+        searchSnippet: span.searchSnippet,
+        snippetHighlight: span.snippetHighlight,
+        snippetCount: span.snippetCount,
       }));
 
       return lightweightListSpans;

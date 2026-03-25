@@ -3,6 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { HighlightedSnippet } from "@/components/traces/highlighted-snippet";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
@@ -255,6 +256,33 @@ export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
     enableSorting: true,
     meta: { sql: "user_id" },
   },
+  {
+    accessorKey: "searchSnippet",
+    header: "Search preview",
+    id: "search_preview",
+    enableSorting: false,
+    cell: (row) => {
+      const snippet = row.getValue() as string | undefined;
+      const matchCount = row.row.original.searchMatchCount;
+      const highlight = row.row.original.searchSnippetHighlight;
+      if (!snippet) return null;
+      return (
+        <div className="flex items-center gap-1.5 min-w-0">
+          <HighlightedSnippet
+            snippet={snippet}
+            highlight={highlight}
+            className="text-xs text-secondary-foreground truncate"
+          />
+          {matchCount && matchCount > 1 && (
+            <span className="shrink-0 text-[10px] bg-primary/10 text-primary font-medium rounded-full px-1.5 py-0.5">
+              {matchCount} {matchCount === 1 ? "span" : "spans"}
+            </span>
+          )}
+        </div>
+      );
+    },
+    size: 250,
+  },
 ];
 
 /** @deprecated Use STATIC_COLUMNS and useTracesTableStore().columnDefs instead */
@@ -365,6 +393,7 @@ export const defaultTracesColumnOrder = [
   "status",
   "id",
   "top_span_type",
+  "search_preview",
   "root_span_input",
   "root_span_output",
   "start_time",

@@ -7,7 +7,6 @@ import { executeQuery } from "@/lib/actions/sql";
 import { GetTracesSchema } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesStatsWhereConditions, generateEmptyTimeBuckets } from "@/lib/actions/traces/utils";
-import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 
 export const GetTraceStatsSchema = GetTracesSchema.omit({
@@ -42,13 +41,12 @@ export async function getTraceStats(
 
   const filters: Filter[] = compact(inputFilters);
 
-  const spanHits: { trace_id: string; span_id: string }[] = search
+  const spanHits = search
     ? await searchSpans({
         projectId,
         traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
-        searchType: searchIn as SpanSearchType[],
       })
     : [];
   const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];

@@ -1,5 +1,4 @@
 import { searchSpans } from "@/lib/actions/traces/search";
-import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { type TimeRange } from "@/lib/clickhouse/utils";
 
 export async function getSearchTraceIds(
@@ -15,7 +14,6 @@ export async function getSearchTraceIds(
     traceId: undefined,
     searchQuery: search,
     timeRange: getTimeRangeForEvaluation(evaluationCreatedAt),
-    searchType: searchIn as SpanSearchType[],
   });
 
   return [...new Set(spanHits.map((span) => span.trace_id))];
