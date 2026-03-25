@@ -74,7 +74,7 @@ export function useBatchedSpanPreviews(
           spanIds.forEach((id) => {
             const output = get(data.outputs, id);
             const preview: SpanPreview | null =
-              output !== undefined ? { preview: formatOutput(output), mustacheKey: "", side: "output" } : null;
+              output != null ? { preview: formatOutput(output), mustacheKey: "", side: "output" } : null;
             cache.current.set(id, preview);
             fetching.current.delete(id);
           });
