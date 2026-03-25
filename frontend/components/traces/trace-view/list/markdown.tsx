@@ -1,5 +1,4 @@
 import { head, isNil } from "lodash";
-import Mustache from "mustache";
 import { useMemo } from "react";
 import { defaultRehypePlugins, Streamdown } from "streamdown";
 
@@ -59,93 +58,15 @@ const formatOutput = (output: any): string => {
 
 interface MarkdownProps {
   output: any;
-  defaultValue?: string;
   className?: string;
   contentClassName?: string;
 }
 
-const tryDeepParse = (value: string): unknown => {
-  try {
-    const parsed = JSON.parse(value);
-    if (typeof parsed === "string") return tryDeepParse(parsed);
-    return parsed;
-  } catch {
-    return value;
-  }
-};
-
-const preprocessDataForMustache = (data: any): any => {
-  if (data === null || data === undefined) {
-    return data;
-  }
-
-  if (typeof data === "string") {
-    const parsed = tryDeepParse(data);
-    if (parsed !== data && typeof parsed === "object" && parsed !== null) {
-      return preprocessDataForMustache(parsed);
-    }
-    return data;
-  }
-
-  if (typeof data === "number" || typeof data === "boolean") {
-    return data;
-  }
-
-  if (Array.isArray(data)) {
-    const mapped = data.map(preprocessDataForMustache);
-    Object.defineProperty(mapped, "toString", {
-      value: () => JSON.stringify(data),
-      enumerable: false,
-    });
-    return mapped;
-  }
-
-  if (typeof data === "object") {
-    const processed: Record<string, any> = {};
-    for (const [key, value] of Object.entries(data)) {
-      processed[key] = preprocessDataForMustache(value);
-    }
-    Object.defineProperty(processed, "toString", {
-      value: () => JSON.stringify(data),
-      enumerable: false,
-    });
-    return processed;
-  }
-
-  return data;
-};
-
-const Markdown = ({ output, defaultValue, className, contentClassName }: MarkdownProps) => {
+const Markdown = ({ output, className, contentClassName }: MarkdownProps) => {
   const formattedOutput = useMemo(() => {
     if (!output) return "";
-
-    if (defaultValue) {
-      try {
-        const parsed = tryParseJson(output);
-        const data = parsed !== null ? parsed : output;
-
-        const unwrappedData = Array.isArray(data) && data.length === 1 ? data[0] : data;
-        const processedData = preprocessDataForMustache(unwrappedData);
-        const template = defaultValue.replace(/([^\n])({{\/[^}]+}})/g, "$1\n$2");
-        let rendered = Mustache.render(template, processedData);
-
-        rendered = rendered
-          .replace(/&quot;/g, '"')
-          .replace(/&#x27;/g, "'")
-          .replace(/&#x2F;/g, "/")
-          .replace(/&#x60;/g, "`")
-          .replace(/&lt;/g, "<")
-          .replace(/&gt;/g, ">")
-          .replace(/&amp;/g, "&");
-
-        return rendered;
-      } catch (_) {
-        return formatOutput(output);
-      }
-    }
-
     return formatOutput(output);
-  }, [output, defaultValue]);
+  }, [output]);
 
   return (
     <div className={cn("text-white/60 [&_*]:text-inherit", className)}>
