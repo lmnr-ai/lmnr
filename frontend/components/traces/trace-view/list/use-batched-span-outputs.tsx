@@ -1,6 +1,7 @@
 import { get } from "lodash";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { formatOutput } from "@/components/traces/trace-view/list/markdown";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { SimpleLRU } from "@/lib/simple-lru.ts";
 import { convertToTimeParameters } from "@/lib/time.ts";
@@ -57,11 +58,42 @@ export function useBatchedSpanPreviews(
           body.endDate = params.end_time;
         }
 
+        if (isShared) {
+          // In shared mode, fetch raw outputs from the shared endpoint and convert to previews
+          const response = await fetch(`/api/shared/traces/${trace.id}/spans/outputs`, {
+            method: "POST",
+            body: JSON.stringify(body),
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to fetch span outputs");
+          }
+
+          const data = (await response.json()) as { outputs: Record<string, any> };
+
+          spanIds.forEach((id) => {
+            const output = get(data.outputs, id);
+            const preview: SpanPreview | null =
+              output !== undefined ? { preview: formatOutput(output), mustacheKey: "", side: "output" } : null;
+            cache.current.set(id, preview);
+            fetching.current.delete(id);
+          });
+
+          setPreviews((prev) => {
+            const next = { ...prev };
+            spanIds.forEach((id) => {
+              next[id] = cache.current.get(id) ?? null;
+            });
+            return next;
+          });
+          return;
+        }
+
         const currentSpanTypes = spanTypesRef.current;
         const hasSpanTypes = currentSpanTypes && Object.keys(currentSpanTypes).length > 0;
 
-        if (!hasSpanTypes || isShared) {
-          // Cannot fetch previews without spanTypes or in shared mode
+        if (!hasSpanTypes) {
+          // Cannot fetch previews without spanTypes
           spanIds.forEach((id) => {
             cache.current.set(id, null);
             fetching.current.delete(id);
