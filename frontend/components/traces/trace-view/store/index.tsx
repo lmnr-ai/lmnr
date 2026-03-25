@@ -46,8 +46,7 @@ function getVisiblePanels(state: TraceViewStore): PanelDef[] {
 
   if (state.spanPanelOpen || (state.isAlwaysSelectSpan && state.spans.length > 0)) result.push(ALL_PANELS[1]);
 
-  const chatVisible = state.tracesAgentOpen && !!state.trace;
-  if (chatVisible) result.push(ALL_PANELS[2]);
+  if (state.tracesAgentOpen) result.push(ALL_PANELS[2]);
 
   return result;
 }

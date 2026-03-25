@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
 import { renderSpanReferences } from "@/components/traces/trace-view/span-reference";
-import { type TraceViewTrace, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
+import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { cn } from "@/lib/utils";
@@ -36,12 +36,12 @@ const EXAMPLE_QUESTIONS = [
 ];
 
 interface ChatProps {
-  trace: TraceViewTrace;
+  traceId: string;
   onSetSpanId: (spanId: string) => void;
   onClose?: () => void;
 }
 
-export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
+export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
   const [input, setInput] = useState("");
   const [newChatLoading, setNewChatLoading] = useState(false);
   const projectId = useParams().projectId;
@@ -56,7 +56,7 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
     async (sequentialId: string): Promise<string | null> => {
       try {
         const response = await fetch(
-          `/api/projects/${projectId}/traces/${trace.id}/agent/resolve-span?id=${sequentialId}`
+          `/api/projects/${projectId}/traces/${traceId}/agent/resolve-span?id=${sequentialId}`
         );
         if (response.ok) {
           const data = await response.json();
@@ -67,7 +67,7 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
       }
       return null;
     },
-    [projectId, trace.id]
+    [projectId, traceId]
   );
 
   const handleExampleClick = (question: string) => {
@@ -99,16 +99,12 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
 
   const { messages, sendMessage, setMessages, status } = useChat({
     transport: new DefaultChatTransport({
-      api: `/api/projects/${projectId}/traces/${trace.id}/agent`,
-      body: {
-        traceStartTime: new Date(trace.startTime).toISOString(),
-        traceEndTime: new Date(trace.endTime).toISOString(),
-      },
+      api: `/api/projects/${projectId}/traces/${traceId}/agent`,
     }),
     onFinish: async ({ message }) => {
       // save assistant message in the UI format
       try {
-        const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/messages`, {
+        const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/agent/messages`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -133,7 +129,7 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
     setNewChatLoading(true);
     try {
       // Create a new chat session in the database
-      const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/new-chat`, {
+      const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/agent/new-chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -217,7 +213,7 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
 
     const loadExistingMessages = async () => {
       try {
-        const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/messages`);
+        const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/agent/messages`);
         if (response.ok) {
           const data = await response.json();
           if (data.messages && data.messages.length > 0) {
@@ -230,7 +226,7 @@ export default function Chat({ trace, onSetSpanId, onClose }: ChatProps) {
     };
 
     loadExistingMessages();
-  }, [trace.id, projectId, setMessages]);
+  }, [traceId, projectId, setMessages]);
 
   return (
     <div className="flex flex-col overflow-hidden relative h-full">
