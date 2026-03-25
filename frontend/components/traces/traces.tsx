@@ -31,9 +31,10 @@ function TracesContent() {
   const router = useRouter();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
-  const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext((state) => ({
+  const { traceId, spanId, showChatInitial, setTraceId, setSpanId } = useTracesStoreContext((state) => ({
     spanId: state.spanId,
     traceId: state.traceId,
+    showChatInitial: state.showChatInitial,
     setTraceId: state.setTraceId,
     setSpanId: state.setSpanId,
   }));
@@ -103,6 +104,7 @@ function TracesContent() {
             setTraceId(null);
           }}
           traceId={traceId}
+          showChatInitial={showChatInitial}
         />
       )}
     </TraceViewNavigationProvider>

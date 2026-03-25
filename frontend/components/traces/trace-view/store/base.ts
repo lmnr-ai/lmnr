@@ -208,6 +208,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     isAlwaysSelectSpan?: boolean;
     initialSignalId?: string;
     initialSignalsPanelOpen?: boolean;
+    initialChatOpen?: boolean;
   }
 ): BaseTraceViewStore {
   return {
@@ -234,7 +235,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
     // Panel visibility defaults
     spanPanelOpen: true,
-    tracesAgentOpen: false,
+    tracesAgentOpen: options?.initialChatOpen ?? false,
     signalsPanelOpen: options?.initialSignalsPanelOpen ?? false,
 
     // Signal data defaults
