@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { shallow } from "zustand/shallow";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
@@ -46,10 +47,13 @@ export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
   const [newChatLoading, setNewChatLoading] = useState(false);
   const projectId = useParams().projectId;
 
-  const { pendingChatInjection, consumePendingChatInjection } = useTraceViewBaseStore((state) => ({
-    pendingChatInjection: state.pendingChatInjection,
-    consumePendingChatInjection: state.consumePendingChatInjection,
-  }));
+  const { pendingChatInjection, consumePendingChatInjection } = useTraceViewBaseStore(
+    (state) => ({
+      pendingChatInjection: state.pendingChatInjection,
+      consumePendingChatInjection: state.consumePendingChatInjection,
+    }),
+    shallow
+  );
 
   // Resolve sequential span ID to UUID on-demand
   const resolveSpanId = useCallback(
