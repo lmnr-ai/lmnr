@@ -15,7 +15,12 @@ import {
 } from "@/components/ui/icons";
 import { EnvVars } from "@/lib/env/utils";
 import { anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
-import { googleProviderOptionsSettings, googleThinkingModels } from "@/lib/playground/providers/google";
+import {
+  gemini3ThinkingModels,
+  gemini25ProviderOptionsSettings,
+  gemini25ThinkingModels,
+  googleThinkingModels,
+} from "@/lib/playground/providers/google";
 import { openAIThinkingModels } from "@/lib/playground/providers/openai";
 import { type ProviderOptions } from "@/lib/playground/types";
 import { type Span } from "@/lib/traces/types";
@@ -77,15 +82,29 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
           },
         };
       case "gemini": {
-        const config = googleProviderOptionsSettings[value as (typeof googleThinkingModels)[number]].thinkingConfig;
-        return {
-          google: {
-            thinkingConfig: {
-              includeThoughts: false,
-              thinkingBudget: config?.min,
+        if (gemini25ThinkingModels.find((m) => m === (value as string))) {
+          const config =
+            gemini25ProviderOptionsSettings[value as (typeof gemini25ThinkingModels)[number]].thinkingConfig;
+          return {
+            google: {
+              thinkingConfig: {
+                includeThoughts: false,
+                thinkingBudget: config?.min,
+              },
             },
-          },
-        };
+          };
+        }
+        if (gemini3ThinkingModels.find((m) => m === (value as string))) {
+          return {
+            google: {
+              thinkingConfig: {
+                includeThoughts: false,
+                thinkingLevel: "high",
+              },
+            },
+          };
+        }
+        return {};
       }
       case "openai":
         return {

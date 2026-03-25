@@ -85,5 +85,5 @@ export const getSpanPath = async (input: z.infer<typeof GetSpanPathSchema>): Pro
   return evaluatorSpanPath.spanPath as string[];
 };
 
-
-export const spanPathCacheKey = (projectId: string, spanPath: string[]): string => `${PROJECT_EVALUATORS_BY_PATH_CACHE_KEY}:${projectId}:${JSON.stringify(spanPath)}`;
+export const spanPathCacheKey = (projectId: string, spanPath: string[]): string =>
+  `${PROJECT_EVALUATORS_BY_PATH_CACHE_KEY}:${projectId}:${JSON.stringify(spanPath)}`;

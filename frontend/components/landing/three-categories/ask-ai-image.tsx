@@ -35,20 +35,31 @@ const AskAIImage = ({ className }: Props) => {
   const messages = [
     { text: "Explain the error that's happening", hasButton: false, opacity: opacity1, x: x1 },
     { text: "Diagnose the core cause of the issue", hasButton: false, opacity: opacity2, x: x2 },
-    { text: "Summarize my trace for me and explain the root cause of the error", hasButton: false, opacity: opacity3, x: x3 },
-    { text: "Summarize my trace for me and explain the root cause of the error", hasButton: true, opacity: opacity4, x: x4 },
+    {
+      text: "Summarize my trace for me and explain the root cause of the error",
+      hasButton: false,
+      opacity: opacity3,
+      x: x3,
+    },
+    {
+      text: "Summarize my trace for me and explain the root cause of the error",
+      hasButton: true,
+      opacity: opacity4,
+      x: x4,
+    },
   ];
 
   return (
-    <div ref={containerRef} className={cn(
-      "bg-landing-surface-700 overflow-clip rounded-lg relative md:p-8",
-      "p-6",
-      className
-    )}>
-      <div className={cn(
-        "bg-landing-surface-600 border border-landing-surface-400 flex flex-col items-end justify-end rounded w-[685px] absolute md:gap-4 md:px-7 md:py-5 md:right-[100px] md:-top-[10px]",
-        "gap-3 px-5 py-4 right-[80px] -top-[8px]"
-      )}>
+    <div
+      ref={containerRef}
+      className={cn("bg-landing-surface-700 overflow-clip rounded-lg relative md:p-8", "p-6", className)}
+    >
+      <div
+        className={cn(
+          "bg-landing-surface-600 border border-landing-surface-400 flex flex-col items-end justify-end rounded w-[685px] absolute md:gap-4 md:px-7 md:py-5 md:right-[100px] md:-top-[10px]",
+          "gap-3 px-5 py-4 right-[80px] -top-[8px]"
+        )}
+      >
         {messages.map((message, index) => (
           <motion.div
             key={index}
@@ -61,15 +72,16 @@ const AskAIImage = ({ className }: Props) => {
               x: message.x,
             }}
           >
-            <p className={cn(
-              "flex-1 text-landing-text-500 md:text-base md:leading-[22px]",
-              "text-sm leading-[18px]"
-            )}>{message.text}</p>
+            <p className={cn("flex-1 text-landing-text-500 md:text-base md:leading-[22px]", "text-sm leading-[18px]")}>
+              {message.text}
+            </p>
             {message.hasButton && (
-              <div className={cn(
-                "bg-landing-primary-400-10 border border-landing-primary-400-50 flex items-center justify-center rounded shrink-0 md:p-2",
-                "p-1.5"
-              )}>
+              <div
+                className={cn(
+                  "bg-landing-primary-400-10 border border-landing-primary-400-50 flex items-center justify-center rounded shrink-0 md:p-2",
+                  "p-1.5"
+                )}
+              >
                 <ArrowRight className="w-4 h-4 text-landing-primary-400" />
               </div>
             )}

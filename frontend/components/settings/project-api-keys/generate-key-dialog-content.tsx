@@ -42,7 +42,8 @@ export function GenerateKeyDialogContent({
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <p className="max-w-xs">
-                    Ingest-only keys can write trace and browser session recording data but cannot access any other project data
+                    Ingest-only keys can write trace and browser session recording data but cannot access any other
+                    project data
                   </p>
                 </TooltipContent>
               </Tooltip>

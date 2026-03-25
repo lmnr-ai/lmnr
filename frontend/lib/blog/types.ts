@@ -25,4 +25,3 @@ export type MatterAndContent = {
   data: BlogMetadata;
   content: string;
 };
-

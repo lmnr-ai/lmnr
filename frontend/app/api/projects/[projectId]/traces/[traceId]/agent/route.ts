@@ -1,9 +1,9 @@
-import { prettifyError } from 'zod/v4';
+import { prettifyError } from "zod/v4";
 
-import { ChatMessageSchema } from '@/lib/actions/trace/agent/messages';
-import { streamTraceChat } from '@/lib/actions/trace/agent/stream';
+import { ChatMessageSchema } from "@/lib/actions/trace/agent/messages";
+import { streamTraceChat } from "@/lib/actions/trace/agent/stream";
 
-export async function POST(req: Request, props: { params: Promise<{ projectId: string, traceId: string }> }) {
+export async function POST(req: Request, props: { params: Promise<{ projectId: string; traceId: string }> }) {
   const params = await props.params;
   const projectId = params.projectId;
   const traceId = params.traceId;
@@ -24,10 +24,7 @@ export async function POST(req: Request, props: { params: Promise<{ projectId: s
     const result = await streamTraceChat(parseResult.data);
     return result.toUIMessageStreamResponse();
   } catch (error) {
-    console.error('Error in chat API:', error);
-    return Response.json(
-      { error: error instanceof Error ? error.message : 'Internal Server Error' },
-      { status: 500 }
-    );
+    console.error("Error in chat API:", error);
+    return Response.json({ error: error instanceof Error ? error.message : "Internal Server Error" }, { status: 500 });
   }
 }

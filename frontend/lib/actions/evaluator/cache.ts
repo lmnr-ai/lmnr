@@ -38,7 +38,7 @@ export const removeEvaluatorIdFromCache = async (
       return;
     }
 
-    const updatedIds = existingIds.filter(id => id !== evaluatorId);
+    const updatedIds = existingIds.filter((id) => id !== evaluatorId);
     await cache.set(cacheKey, JSON.stringify(updatedIds));
   } catch (error) {
     console.error(`Failed to remove evaluator ID from cache for project ${projectId}:`, error);

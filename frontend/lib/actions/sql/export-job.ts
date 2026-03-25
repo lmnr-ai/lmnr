@@ -84,6 +84,8 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
   return {
     message: "Export job started successfully",
     jobId: exportResult.jobId || null,
-    warnings: validationResult.error ? [`Query was validated and may have been modified: ${validationResult.error}`] : undefined,
+    warnings: validationResult.error
+      ? [`Query was validated and may have been modified: ${validationResult.error}`]
+      : undefined,
   };
 }

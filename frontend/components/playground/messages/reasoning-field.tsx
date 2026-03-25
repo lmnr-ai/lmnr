@@ -7,7 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { anthropicProviderOptionsSettings, anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
-import { googleProviderOptionsSettings, googleThinkingModels } from "@/lib/playground/providers/google";
+import {
+  gemini3SupportedThinkingLevels,
+  gemini3ThinkingModels,
+  gemini25ProviderOptionsSettings,
+  gemini25ThinkingModels,
+} from "@/lib/playground/providers/google";
 import { openAIThinkingModels } from "@/lib/playground/providers/openai";
 import { type PlaygroundForm } from "@/lib/playground/types";
 
@@ -101,8 +106,8 @@ const ReasoningField = () => {
     );
   }
 
-  if (googleThinkingModels.find((g) => g === model)) {
-    const config = googleProviderOptionsSettings[model as (typeof googleThinkingModels)[number]].thinkingConfig;
+  if (gemini25ThinkingModels.find((g) => g === model)) {
+    const config = gemini25ProviderOptionsSettings[model as (typeof gemini25ThinkingModels)[number]].thinkingConfig;
     return (
       <div className="flex flex-col gap-4">
         <Controller
@@ -129,6 +134,45 @@ const ReasoningField = () => {
           name="providerOptions.google.thinkingConfig.thinkingBudget"
           control={control}
         />
+        <Controller
+          render={({ field: { onChange, value } }) => (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">Include Thoughts</span>
+              <Switch checked={value || undefined} onCheckedChange={onChange} />
+            </div>
+          )}
+          name="providerOptions.google.thinkingConfig.includeThoughts"
+          control={control}
+        />
+      </div>
+    );
+  }
+
+  if (gemini3ThinkingModels.find((g) => g === model)) {
+    const supportedLevels = gemini3SupportedThinkingLevels[model as (typeof gemini3ThinkingModels)[number]];
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-between items-center">
+          <span className="text-sm">Thinking Level</span>
+          <Controller
+            render={({ field: { value, onChange } }) => (
+              <Select value={value} onValueChange={onChange}>
+                <SelectTrigger className="w-fit">
+                  <SelectValue placeholder="Select level" />
+                </SelectTrigger>
+                <SelectContent>
+                  {supportedLevels.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {capitalize(level)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            name="providerOptions.google.thinkingConfig.thinkingLevel"
+            control={control}
+          />
+        </div>
         <Controller
           render={({ field: { onChange, value } }) => (
             <div className="flex flex-col gap-2">

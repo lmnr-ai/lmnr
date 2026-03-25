@@ -50,9 +50,7 @@ export default function GitHubStarsButton({ owner, repo, className }: GitHubStar
       {stars !== null && (
         <div className="flex items-center gap-1.5 px-2.5 h-full border-l border-landing-surface-400 bg-landing-surface-700">
           <Star className="w-3.5 h-3.5 text-landing-text-300" />
-          <span className="font-sans text-xs font-medium text-landing-text-300">
-            {formatCount(stars)}
-          </span>
+          <span className="font-sans text-xs font-medium text-landing-text-300">{formatCount(stars)}</span>
         </div>
       )}
     </Link>
