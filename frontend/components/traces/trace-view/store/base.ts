@@ -464,11 +464,10 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     setActiveSignalTabId: (id: string | null) => set({ activeSignalTabId: id } as Partial<T>),
 
     // Traces Agent injection actions
-    openSignalInChat: (signalDefinition: string, eventPayload: string) =>
-      set({
-        tracesAgentOpen: true,
-        pendingChatInjection: { signalDefinition, eventPayload },
-      } as Partial<T>),
+    openSignalInChat: (signalDefinition: string, eventPayload: string) => {
+      get().setTracesAgentOpen(true);
+      set({ pendingChatInjection: { signalDefinition, eventPayload } } as Partial<T>);
+    },
     consumePendingChatInjection: () => {
       const pending = get().pendingChatInjection;
       if (pending) {
