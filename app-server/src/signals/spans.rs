@@ -125,11 +125,11 @@ fn truncate_value_strings(value: &Value) -> Value {
 }
 
 const RAW_BASE64_IMAGE_PREFIXES: &[&str] = &[
-    "/9j/",       // JPEG
+    "/9j/",        // JPEG
     "iVBORw0KGgo", // PNG
-    "R0lGODlh",   // GIF
-    "UklGR",      // WebP
-    "PHN2Zz",     // SVG
+    "R0lGODlh",    // GIF
+    "UklGR",       // WebP
+    "PHN2Zz",      // SVG
 ];
 
 /// Minimum length for a raw base64 string to be considered an image.
@@ -351,7 +351,7 @@ async fn get_trace_spans(
             trace_type,
             tags_array,
             events
-        FROM spans
+        FROM spans_v2
         WHERE project_id = ? AND trace_id = ?
         ORDER BY start_time ASC
     ";
@@ -379,7 +379,7 @@ pub async fn get_trace_span_ids_and_end_time(
     trace_id: Uuid,
 ) -> Result<Vec<SpanIdAndEndTime>> {
     let query = "
-        SELECT span_id, end_time FROM spans
+        SELECT span_id, end_time FROM spans_v2
         WHERE project_id = ? AND trace_id = ?
         ORDER BY start_time ASC";
 

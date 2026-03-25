@@ -10,8 +10,8 @@ use super::spans::{
     strip_signature_fields,
 };
 use super::utils::{nanoseconds_to_iso, try_parse_json};
-use crate::signals::provider::models::{ProviderFunctionDeclaration, ProviderTool};
 use crate::signals::prompts::{GET_FULL_SPAN_INFO_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION};
+use crate::signals::provider::models::{ProviderFunctionDeclaration, ProviderTool};
 
 /// Full span info returned by get_full_spans tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,7 +128,7 @@ pub async fn get_full_spans(
     let in_clause = hex_literals.join(", ");
 
     let query = format!(
-        "SELECT * FROM spans WHERE trace_id = ? AND project_id = ? AND lower(right(hex(span_id), 6)) IN ({}) ORDER BY start_time ASC",
+        "SELECT * FROM spans_v2 WHERE trace_id = ? AND project_id = ? AND lower(right(hex(span_id), 6)) IN ({}) ORDER BY start_time ASC",
         in_clause
     );
 
