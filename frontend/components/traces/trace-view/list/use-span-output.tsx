@@ -1,5 +1,5 @@
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { convertToTimeParameters } from "@/lib/time.ts";
@@ -15,11 +15,8 @@ export function useSpanOutput(spanId: string | undefined, enabled: boolean) {
   const trace = useTraceViewBaseStore((state) => state.trace);
 
   const [result, setResult] = useState<{ spanId: string; output: any } | undefined>(undefined);
-  const fetchedSpanIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    fetchedSpanIdRef.current = spanId;
-
     if (!enabled || !spanId || !trace?.id) return;
 
     // Determine endpoint: use shared endpoint when projectId is not available (shared trace view)
