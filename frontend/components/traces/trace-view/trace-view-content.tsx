@@ -250,6 +250,10 @@ export default function TraceViewContent({
       setHasBrowserSession,
       setBrowserSession,
       setSelectedSpan,
+      spanPanelOpen,
+      spanId,
+      searchParams,
+      spanPath,
     ]
   );
 
