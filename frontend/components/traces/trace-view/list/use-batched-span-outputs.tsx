@@ -12,34 +12,31 @@ export interface SpanPreview {
   side: "input" | "output";
 }
 
-export interface BatchedOutputsHook {
-  outputs: Record<string, any>;
+export interface BatchedPreviewsHook {
   previews: Record<string, SpanPreview | null>;
   clearCache: () => void;
 }
 
-interface UseBatchedSpanOutputsOptions {
+interface UseBatchedSpanPreviewsOptions {
   debounceMs?: number;
   maxEntries?: number;
   isShared?: boolean;
 }
 
-export function useBatchedSpanOutputs(
+export function useBatchedSpanPreviews(
   projectId: string | undefined,
   visibleSpanIds: string[],
   trace: { id?: string; startTime?: string; endTime?: string },
   spanTypes?: Record<string, string>,
-  options: UseBatchedSpanOutputsOptions = {}
-): BatchedOutputsHook {
+  options: UseBatchedSpanPreviewsOptions = {}
+): BatchedPreviewsHook {
   const { debounceMs = 150, maxEntries = 100, isShared = false } = options;
   const { toast } = useToast();
-  const cache = useRef(new SimpleLRU<string, any>(maxEntries));
-  const previewCache = useRef(new SimpleLRU<string, SpanPreview | null>(maxEntries));
+  const cache = useRef(new SimpleLRU<string, SpanPreview | null>(maxEntries));
   const fetching = useRef(new Set<string>());
   const pendingFetch = useRef(new Set<string>());
   const timer = useRef<NodeJS.Timeout | null>(null);
   const lastIdsRef = useRef<string>("");
-  const [outputs, setOutputs] = useState<Record<string, any>>({});
   const [previews, setPreviews] = useState<Record<string, SpanPreview | null>>({});
   const spanTypesRef = useRef(spanTypes);
   spanTypesRef.current = spanTypes;
@@ -60,81 +57,60 @@ export function useBatchedSpanOutputs(
           body.endDate = params.end_time;
         }
 
-        const outputsUrl = isShared
-          ? `/api/shared/traces/${trace.id}/spans/outputs`
-          : `/api/projects/${projectId}/traces/${trace.id}/spans/outputs`;
-
-        // Fire outputs request
-        const outputsPromise = fetch(outputsUrl, {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-
-        // Fire previews request in parallel (only for non-shared, when spanTypes available)
         const currentSpanTypes = spanTypesRef.current;
-        const shouldFetchPreviews = !isShared && currentSpanTypes && Object.keys(currentSpanTypes).length > 0;
-        const previewsPromise = shouldFetchPreviews
-          ? fetch(`/api/projects/${projectId}/traces/${trace.id}/spans/previews`, {
-              method: "POST",
-              body: JSON.stringify({
-                ...body,
-                spanTypes: currentSpanTypes,
-              }),
-            }).catch(() => null)
-          : null;
+        const hasSpanTypes = currentSpanTypes && Object.keys(currentSpanTypes).length > 0;
 
-        // Await outputs
-        const outputsResponse = await outputsPromise;
-        if (!outputsResponse.ok) {
-          const errorData = (await outputsResponse.json()) as { error: string };
-          throw new Error(errorData.error || "Failed to fetch span outputs");
+        if (!hasSpanTypes || isShared) {
+          // Cannot fetch previews without spanTypes or in shared mode
+          spanIds.forEach((id) => {
+            cache.current.set(id, null);
+            fetching.current.delete(id);
+          });
+          setPreviews((prev) => {
+            const next = { ...prev };
+            spanIds.forEach((id) => {
+              next[id] = null;
+            });
+            return next;
+          });
+          return;
         }
 
-        const outputsData = (await outputsResponse.json()) as { outputs: Record<string, any> };
+        const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/spans/previews`, {
+          method: "POST",
+          body: JSON.stringify({
+            ...body,
+            spanTypes: currentSpanTypes,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = (await response.json()) as { error: string };
+          throw new Error(errorData.error || "Failed to fetch span previews");
+        }
+
+        const data = (await response.json()) as {
+          previews: Record<string, SpanPreview | null>;
+        };
 
         spanIds.forEach((id) => {
-          cache.current.set(id, get(outputsData.outputs, id, null));
+          cache.current.set(id, get(data.previews, id, null));
           fetching.current.delete(id);
         });
 
-        setOutputs((prev) => {
+        setPreviews((prev) => {
           const next = { ...prev };
           spanIds.forEach((id) => {
-            next[id] = cache.current.get(id);
+            next[id] = cache.current.get(id) ?? null;
           });
           return next;
         });
-
-        // Await previews (non-blocking — outputs are already set)
-        if (previewsPromise) {
-          try {
-            const previewsResponse = await previewsPromise;
-            if (previewsResponse?.ok) {
-              const previewsData = (await previewsResponse.json()) as {
-                previews: Record<string, SpanPreview | null>;
-              };
-
-              spanIds.forEach((id) => {
-                previewCache.current.set(id, get(previewsData.previews, id, null));
-              });
-
-              setPreviews((prev) => {
-                const next = { ...prev };
-                spanIds.forEach((id) => {
-                  next[id] = previewCache.current.get(id) ?? null;
-                });
-                return next;
-              });
-            }
-          } catch {
-            // Preview failures are non-critical — outputs still display
-          }
-        }
       } catch (error) {
         toast({
           variant: "destructive",
           title: "Error",
-          description: error instanceof Error ? error.message : "Failed to fetch span outputs. Please try again later.",
+          description:
+            error instanceof Error ? error.message : "Failed to fetch span previews. Please try again later.",
         });
 
         spanIds.forEach((id) => {
@@ -142,7 +118,7 @@ export function useBatchedSpanOutputs(
           fetching.current.delete(id);
         });
 
-        setOutputs((prev) => {
+        setPreviews((prev) => {
           const next = { ...prev };
           spanIds.forEach((id) => {
             next[id] = null;
@@ -189,11 +165,9 @@ export function useBatchedSpanOutputs(
 
   const clearCache = useCallback(() => {
     cache.current.clear();
-    previewCache.current.clear();
     fetching.current.clear();
-    setOutputs({});
     setPreviews({});
   }, []);
 
-  return { outputs, previews, clearCache };
+  return { previews, clearCache };
 }

@@ -1,6 +1,7 @@
 import { json } from "@codemirror/lang-json";
 import CodeMirror from "@uiw/react-codemirror";
-import { type PropsWithChildren, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import { type PropsWithChildren, useEffect, useMemo, useState } from "react";
 
 import Markdown from "@/components/traces/trace-view/list/markdown.tsx";
 import { extractKeys, generateSpanPathKey } from "@/components/traces/trace-view/list/utils.ts";
@@ -10,21 +11,50 @@ import { mustache } from "@/components/ui/content-renderer/lang-mustache.ts";
 import { baseExtensions, theme } from "@/components/ui/content-renderer/utils.ts";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet.tsx";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
+import { convertToTimeParameters } from "@/lib/time.ts";
 
-interface MustacheTemplateSheetProps {
-  output: any;
+interface MustacheTemplateSheetContentProps {
   span: TraceViewListSpan | null;
+  setOpen: (open: boolean) => void;
 }
 
-function MustacheTemplateSheetContent({
-  output,
-  span,
-  setOpen,
-}: MustacheTemplateSheetProps & {
-  setOpen: (open: boolean) => void;
-}) {
+function MustacheTemplateSheetContent({ span, setOpen }: MustacheTemplateSheetContentProps) {
+  const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
+  const trace = useTraceViewBaseStore((state) => state.trace);
+
+  const [output, setOutput] = useState<any>(undefined);
+
+  // Fetch output on-demand when the sheet opens
+  useEffect(() => {
+    if (!span || !trace?.id || !projectId) return;
+
+    const body: Record<string, any> = { spanIds: [span.spanId] };
+
+    if (trace.startTime && trace.endTime) {
+      const startTime = new Date(new Date(trace.startTime).getTime() - 1000).toISOString();
+      const endTime = new Date(new Date(trace.endTime).getTime() + 1000).toISOString();
+      const params = convertToTimeParameters({ startTime, endTime });
+      body.startDate = params.start_time;
+      body.endDate = params.end_time;
+    }
+
+    fetch(`/api/projects/${projectId}/traces/${trace.id}/spans/outputs`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.outputs?.[span.spanId] !== undefined) {
+          setOutput(data.outputs[span.spanId]);
+        } else {
+          setOutput(null);
+        }
+      })
+      .catch(() => setOutput(null));
+  }, [span, trace?.id, trace?.startTime, trace?.endTime, projectId]);
 
   const spanPathKey = useMemo(() => (span ? generateSpanPathKey(span) : ""), [span]);
 
@@ -52,6 +82,8 @@ function MustacheTemplateSheetContent({
 
   const isSaved = savedTemplate === templateInput && templateInput.trim() !== "";
 
+  const isLoading = output === undefined;
+
   const suggestions = useMemo(() => {
     if (!output) return [];
     return extractKeys(output, 10);
@@ -69,7 +101,9 @@ function MustacheTemplateSheetContent({
       <div className="grid gap-4 p-4">
         <div>
           <label className="text-sm font-medium mb-2 block">Output Data</label>
-          {output ? (
+          {isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : output ? (
             <div className="flex flex-1 border rounded-md bg-muted/50 overflow-hidden max-h-64">
               <CodeMirror
                 className="w-full"
@@ -164,12 +198,10 @@ export default function MustacheTemplateSheet({
   children,
   open,
   onOpenChange,
-  output,
   span,
 }: PropsWithChildren<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  output: any;
   span: TraceViewListSpan | null;
 }>) {
   const spanPathKey = span ? generateSpanPathKey(span) : "";
@@ -178,7 +210,7 @@ export default function MustacheTemplateSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       {children && <SheetTrigger asChild>{children}</SheetTrigger>}
       <SheetContent side="right" className="min-w-[50vw] w-full flex flex-col gap-0">
-        <MustacheTemplateSheetContent key={spanPathKey} output={output} span={span} setOpen={onOpenChange} />
+        <MustacheTemplateSheetContent key={spanPathKey} span={span} setOpen={onOpenChange} />
       </SheetContent>
     </Sheet>
   );

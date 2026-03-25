@@ -7,7 +7,7 @@ import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/t
 import { Skeleton } from "@/components/ui/skeleton";
 
 import MustacheTemplateSheet from "../list/mustache-template-sheet";
-import { useBatchedSpanOutputs } from "../list/use-batched-span-outputs";
+import { useBatchedSpanPreviews } from "../list/use-batched-span-outputs";
 import { useScrollContext } from "../scroll-context";
 import { type PathInfo } from "../store/utils";
 import { SpanCard } from "./span-card";
@@ -74,7 +74,7 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     })
   ) as string[];
 
-  const { outputs, previews } = useBatchedSpanOutputs(
+  const { previews } = useBatchedSpanPreviews(
     projectId,
     visibleSpanIds,
     {
@@ -156,7 +156,6 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
                   <SpanCard
                     span={spanItem.span}
                     branchMask={spanItem.branchMask}
-                    output={outputs[spanItem.span.spanId]}
                     preview={previews[spanItem.span.spanId]}
                     depth={spanItem.depth}
                     pathInfo={spanItem.pathInfo}
@@ -171,7 +170,6 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
       </div>
       <MustacheTemplateSheet
         span={settingsSpan}
-        output={outputs[settingsSpan?.spanId ?? ""]}
         open={!!settingsSpan}
         onOpenChange={(open) => !open && setSettingsSpan(null)}
       />

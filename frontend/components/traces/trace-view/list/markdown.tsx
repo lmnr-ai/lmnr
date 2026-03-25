@@ -59,9 +59,11 @@ const formatOutput = (output: any): string => {
 };
 
 interface MarkdownProps {
-  output: any;
+  /** Raw span output data — only needed for MustacheTemplateSheet's template rendering */
+  output?: any;
+  /** Mustache template to render against output — only used when output is provided */
   defaultValue?: string;
-  /** Pre-rendered preview text (used when the mustache key targets different data than output) */
+  /** Pre-rendered preview text — displayed directly without mustache rendering */
   previewText?: string;
   className?: string;
   contentClassName?: string;
@@ -108,10 +110,10 @@ const Markdown = ({ output, defaultValue, previewText, className, contentClassNa
   }, [updateScrollState]);
 
   const formattedOutput = useMemo(() => {
-    if (!output) return "";
-
-    // Use pre-rendered preview text when available (e.g. tool span input previews)
+    // Use pre-rendered preview text when available
     if (previewText) return previewText;
+
+    if (!output) return "";
 
     if (defaultValue) {
       try {

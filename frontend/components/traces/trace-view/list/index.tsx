@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import ListItem from "@/components/traces/trace-view/list/list-item.tsx";
 import MustacheTemplateSheet from "@/components/traces/trace-view/list/mustache-template-sheet.tsx";
-import { useBatchedSpanOutputs } from "@/components/traces/trace-view/list/use-batched-span-outputs";
+import { useBatchedSpanPreviews } from "@/components/traces/trace-view/list/use-batched-span-outputs";
 import {
   type TraceViewListSpan,
   type TraceViewSpan,
@@ -68,9 +68,9 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
 
   const visibleSpanIds = compact(items.map((item) => listSpans[item.index]?.spanId)) as string[];
 
-  const { outputs, previews } = useBatchedSpanOutputs(
+  const { previews } = useBatchedSpanPreviews(
     projectId,
-    // Fetches outputs for visible or rendered spans in virtualized list.
+    // Fetches previews for visible or rendered spans in virtualized list.
     // Make sure that spans in view (~20) + overscan spans < cache size (default 100) in this hook.
     visibleSpanIds,
     {
@@ -197,7 +197,6 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
                     isFirst={virtualRow.index === 0}
                     isLast={isLast}
                     span={listSpan}
-                    output={outputs[listSpan.spanId]}
                     preview={previews[listSpan.spanId]}
                     onSpanSelect={handleSpanSelect}
                     onOpenSettings={setSettingsSpan}
@@ -210,7 +209,6 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       </div>
       <MustacheTemplateSheet
         span={settingsSpan}
-        output={outputs[settingsSpan?.spanId ?? ""]}
         open={!!settingsSpan}
         onOpenChange={(open) => !open && setSettingsSpan(null)}
       />

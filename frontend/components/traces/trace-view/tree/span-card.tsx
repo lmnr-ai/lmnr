@@ -27,7 +27,6 @@ const SQUARE_ICON_SIZE = 14;
 interface SpanCardProps {
   span: TraceViewSpan;
   branchMask: boolean[];
-  output: any | undefined;
   preview?: SpanPreview | null;
   depth: number;
   pathInfo: PathInfo;
@@ -35,27 +34,7 @@ interface SpanCardProps {
   onOpenSettings?: (span: TraceViewSpan & { pathInfo: PathInfo }) => void;
 }
 
-const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo): string => {
-  if (!pathInfo) {
-    return span.name;
-  }
-
-  const pathSegments = pathInfo.full.map((item) => item.name);
-  pathSegments.push(span.name);
-
-  return pathSegments.join(", ");
-};
-
-export function SpanCard({
-  span,
-  branchMask,
-  output,
-  preview,
-  onSpanSelect,
-  depth,
-  pathInfo,
-  onOpenSettings,
-}: SpanCardProps) {
+export function SpanCard({ span, branchMask, preview, onSpanSelect, depth, pathInfo, onOpenSettings }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewBaseStore((state) => ({
@@ -77,10 +56,6 @@ export function SpanCard({
   const llmMetrics = getLLMMetrics(span);
   const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
 
-  const spanPathKey = useMemo(() => generateSpanPathKeyFromPathInfo(span, pathInfo), [span, pathInfo]);
-
-  const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
-
   const hasChildren = childSpans && childSpans.length > 0;
   const isExpandable =
     hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true));
@@ -90,7 +65,7 @@ export function SpanCard({
   const showContent =
     (showTreeContent ?? true) && !span.collapsed && (span.spanType === "LLM" || span.spanType === "CACHED");
 
-  const isLoadingOutput = output === undefined;
+  const isLoadingPreview = preview === undefined;
 
   const outerClasses = cn(
     "group flex flex-row w-full min-w-full cursor-pointer transition-all border-l-2",
@@ -183,7 +158,7 @@ export function SpanCard({
             )}
             <div className="grow" />
             <Button
-              disabled={isLoadingOutput}
+              disabled={isLoadingPreview}
               variant="ghost"
               className="hidden py-0 px-[3px] h-5 group-hover:block hover:bg-muted animate-in fade-in duration-200"
               onClick={(e) => {
@@ -197,19 +172,12 @@ export function SpanCard({
 
           {showContent && (
             <div className="px-2 pt-0">
-              {isLoadingOutput && (
+              {isLoadingPreview && (
                 <div className="w-full pb-2">
                   <Skeleton className="h-12 w-full" />
                 </div>
               )}
-              {!isLoadingOutput && !isNil(output) && (
-                <Markdown
-                  className="max-h-48"
-                  output={output}
-                  defaultValue={savedTemplate ?? (preview?.side === "output" ? preview.mustacheKey : undefined)}
-                  previewText={!savedTemplate && preview?.side === "input" ? preview.preview : undefined}
-                />
-              )}
+              {!isLoadingPreview && !isNil(preview) && <Markdown className="max-h-48" previewText={preview.preview} />}
             </div>
           )}
         </div>

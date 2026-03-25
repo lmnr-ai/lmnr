@@ -10,7 +10,6 @@ import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-chec
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import { MiniTree } from "@/components/traces/trace-view/list/mini-tree";
 import { type SpanPreview } from "@/components/traces/trace-view/list/use-batched-span-outputs";
-import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,6 @@ import { cn } from "@/lib/utils";
 
 interface ListItemProps {
   span: TraceViewListSpan;
-  output: any | undefined;
   preview?: SpanPreview | null;
   onSpanSelect: (span: TraceViewListSpan) => void;
   onOpenSettings: (span: TraceViewListSpan) => void;
@@ -29,15 +27,7 @@ interface ListItemProps {
   isLast: boolean;
 }
 
-const ListItem = ({
-  span,
-  output,
-  preview,
-  onSpanSelect,
-  onOpenSettings,
-  isFirst = false,
-  isLast = false,
-}: ListItemProps) => {
+const ListItem = ({ span, preview, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
   const { selectedSpan, spans } = useTraceViewBaseStore((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
@@ -49,10 +39,6 @@ const ListItem = ({
   } = useOptionalDebuggerStore((s) => ({
     isSpanCached: s.isSpanCached,
   }));
-
-  const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
-
-  const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
 
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
   const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
@@ -68,7 +54,7 @@ const ListItem = ({
   const isExpanded = expandOverride?.spanId === span.spanId ? expandOverride.expanded : defaultExpanded;
 
   const isPending = span.pending;
-  const isLoadingOutput = output === undefined;
+  const isLoadingPreview = preview === undefined;
 
   const displayName = useMemo(
     () => (span.spanType === "LLM" && span.model ? span.model : span.name),
@@ -151,7 +137,7 @@ const ListItem = ({
                 />
               )}
               <Button
-                disabled={isLoadingOutput}
+                disabled={isLoadingPreview}
                 variant="ghost"
                 className="hidden py-0 px-[3px] h-5 group-hover/message:block hover:bg-muted animate-in fade-in duration-200"
                 onClick={(e) => {
@@ -194,19 +180,14 @@ const ListItem = ({
 
         {isExpanded && (
           <div className="px-3 w-full p-2 pt-0 flex flex-col gap-2 h-full flex-1">
-            {isLoadingOutput ? (
+            {isLoadingPreview ? (
               <>
                 <Skeleton className="h-12 w-full" />
               </>
-            ) : isNil(output) ? (
+            ) : isNil(preview) ? (
               <div className="text-sm text-muted-foreground italic">No output available</div>
             ) : (
-              <Markdown
-                className="max-h-60"
-                output={output}
-                defaultValue={savedTemplate ?? (preview?.side === "output" ? preview.mustacheKey : undefined)}
-                previewText={!savedTemplate && preview?.side === "input" ? preview.preview : undefined}
-              />
+              <Markdown className="max-h-60" previewText={preview.preview} />
             )}
           </div>
         )}
