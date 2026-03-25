@@ -145,7 +145,6 @@ const ListItem = ({ span, preview, onSpanSelect, onOpenSettings, isFirst = false
                 />
               )}
               <Button
-                disabled={isLoadingPreview}
                 variant="ghost"
                 className="hidden py-0 px-[3px] h-5 group-hover/message:block hover:bg-muted animate-in fade-in duration-200"
                 onClick={(e) => {

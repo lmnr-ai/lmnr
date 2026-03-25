@@ -176,7 +176,6 @@ export function SpanCard({ span, branchMask, preview, onSpanSelect, depth, pathI
             )}
             <div className="grow" />
             <Button
-              disabled={isLoadingPreview}
               variant="ghost"
               className="hidden py-0 px-[3px] h-5 group-hover:block hover:bg-muted animate-in fade-in duration-200"
               onClick={(e) => {
