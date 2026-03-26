@@ -173,8 +173,7 @@ const addStringifyToObjects = (value: unknown): unknown => {
 
 const prepareRenderTarget = (data: unknown): unknown => {
   const deepParsed = deepParseAllValues(data);
-  const unwrapped = Array.isArray(deepParsed) && deepParsed.length === 1 ? deepParsed[0] : deepParsed;
-  return addStringifyToObjects(unwrapped);
+  return addStringifyToObjects(deepParsed);
 };
 
 export const validateMustacheKey = (key: string, data: unknown): string | null => {

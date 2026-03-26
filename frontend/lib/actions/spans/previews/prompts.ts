@@ -1,12 +1,13 @@
 import { getTracer, observe } from "@lmnr-ai/lmnr";
-import { generateObject } from "ai";
-import { z } from "zod";
+import { generateText } from "ai";
 
 import { getLanguageModel } from "@/lib/ai/model";
 
 import { flattenPaths } from "./utils.ts";
 
-const PREVIEW_KEY_SYSTEM_PROMPT = `Pick fields from a schema to build a short Mustache preview template. One template per structure. Replace [] with .0. for direct access.
+const PREVIEW_KEY_SYSTEM_PROMPT = `Pick fields from a schema to build a short Mustache preview template. One template per structure.
+
+Array access: use .0. for nested arrays. When root is an array (paths start with []), wrap with {{#.}}...{{/.}} and use inner paths.
 
 Rules:
 - Pick 1-3 content fields. Prefer string fields without [meta].
@@ -17,22 +18,24 @@ Rules:
 Decision order:
 1. Single text field (content, text, result, output, message, answer) → {{{field}}}
 2. Label + value pair → **{{label}}** — {{value}}
-3. "name" as only non-meta field → **{{name}}**
-4. Array with name+value items → {{#arr}}\n- **{{name}}**: {{value}}\n{{/arr}}
-5. Deeply nested leaf → {{{path.0.to.0.field}}}
-6. All [meta]/empty → null
+3. Function/tool call (has "name" + "args"/"arguments"/"input") → **{{name}}** (ignore arg fields)
+4. "name" as only non-meta field → **{{name}}**
+5. Array with name+value items → {{#arr}}\n- **{{name}}**: {{value}}\n{{/arr}}
+6. Deeply nested leaf → {{{path.0.to.0.field}}}
+7. All [meta]/empty → null
 
 Examples:
 - "score: number" + "grade: string" → **{{grade}}** — {{score}}
 - "id: string [meta]" + "name: string" + "type: string [meta]" → **{{name}}**
+- "name: string" + "args.span_ids[]: string" → **{{name}}**
+- "[].content.parts[].function_call.name: string" + "[].content.parts[].function_call.args.city: string" → {{#.}}**{{content.parts.0.function_call.name}}**{{/.}}
 - "items[].name: string" + "items[].value: string" → {{#items}}\n- **{{name}}**: {{value}}\n{{/items}}
 - "choices[].message.content: string" → {{{choices.0.message.content}}}
+- "[].output[].content[].text: string" → {{#.}}{{{output.0.content.0.text}}}{{/.}}
 - "data.spans[].output[].content[].text: string" → {{{data.spans.0.output.0.content.0.text}}}
 - "id: string [meta]" + "status: string [meta]" + "version: string [meta]" → null`;
 
-const PreviewKeyResultSchema = z.array(z.string().nullable());
-
-export type PreviewKeyResult = z.infer<typeof PreviewKeyResultSchema>;
+export type PreviewKeyResult = Array<string | null>;
 
 interface SpanStructure {
   data: unknown;
@@ -46,26 +49,44 @@ const buildUserMessage = (structures: SpanStructure[]): string => {
     })
     .join("\n");
 
-  return `<structures count="${structures.length}">\n${spanElements}\n</structures>\nReturn exactly ${structures.length} templates.`;
+  return `<structures count="${structures.length}">\n${spanElements}\n</structures>\nReturn exactly ${structures.length} templates as a JSON array of strings (or null). No explanation.`;
+};
+
+const parsePreviewKeysResponse = (text: string, expectedLength: number): PreviewKeyResult => {
+  const trimmed = text.trim();
+  const jsonMatch = trimmed.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) return new Array(expectedLength).fill(null);
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(parsed)) return new Array(expectedLength).fill(null);
+    return parsed.map((v: unknown) => (typeof v === "string" ? v : null));
+  } catch {
+    return new Array(expectedLength).fill(null);
+  }
 };
 
 export const generatePreviewKeys = async (structures: SpanStructure[]): Promise<PreviewKeyResult> => {
   if (structures.length === 0) return [];
 
-  const { object } = await observe({ name: "generatePreviewKeys" }, async () =>
-    generateObject({
-      model: getLanguageModel("lite"),
-      schema: PreviewKeyResultSchema,
-      system: PREVIEW_KEY_SYSTEM_PROMPT,
-      prompt: buildUserMessage(structures),
-      maxRetries: 0,
-      temperature: 0,
-      experimental_telemetry: {
-        isEnabled: true,
-        tracer: getTracer(),
-      },
-    })
-  );
+  try {
+    const { text } = await observe({ name: "generatePreviewKeys" }, async () =>
+      generateText({
+        model: getLanguageModel("lite"),
+        system: PREVIEW_KEY_SYSTEM_PROMPT,
+        prompt: buildUserMessage(structures),
+        maxRetries: 0,
+        temperature: 0,
+        abortSignal: AbortSignal.timeout(5000),
+        experimental_telemetry: {
+          isEnabled: true,
+          tracer: getTracer(),
+        },
+      })
+    );
 
-  return object;
+    return parsePreviewKeysResponse(text, structures.length);
+  } catch {
+    return new Array(structures.length).fill(null);
+  }
 };
