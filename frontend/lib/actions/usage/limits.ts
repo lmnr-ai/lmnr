@@ -1,11 +1,11 @@
 import { addMonths, subHours } from "date-fns";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
 import { cache, PROJECT_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 const TIER_RETENTION_DAYS: Record<string, number> = {
@@ -94,12 +94,26 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
   }
 
   const { workspaceId, tierName, signalRunsLimit, resetTime, workspaceProjectIds } = info;
+  const isFree = tierName.trim().toLowerCase() === "free";
 
-  if (tierName.trim().toLowerCase() !== "free") {
-    return;
+  let effectiveLimit: number;
+  if (isFree) {
+    effectiveLimit = signalRunsLimit;
+  } else {
+    // For paid tiers, check for a custom signal_runs limit
+    const customLimits = await db
+      .select({ limitValue: workspaceUsageLimits.limitValue })
+      .from(workspaceUsageLimits)
+      .where(and(eq(workspaceUsageLimits.workspaceId, workspaceId), eq(workspaceUsageLimits.limitType, "signal_runs")))
+      .limit(1);
+
+    if (customLimits.length === 0) {
+      return; // No custom limit for paid tier, no enforcement
+    }
+    effectiveLimit = Number(customLimits[0].limitValue);
   }
 
-  if (signalRunsLimit === 0) {
+  if (effectiveLimit === 0) {
     return;
   }
 
@@ -136,10 +150,10 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
     totalSignalRuns = rows.length > 0 ? Number(rows[0].total_signal_runs) : 0;
   }
 
-  if (totalSignalRuns + tracesCount > signalRunsLimit) {
-    const remaining = Math.max(signalRunsLimit - totalSignalRuns, 0);
+  if (totalSignalRuns + tracesCount > effectiveLimit) {
+    const remaining = Math.max(effectiveLimit - totalSignalRuns, 0);
     throw new Error(
-      `Signal runs limit exceeded. This job requires ${tracesCount} signal runs, but your workspace only has ${remaining} remaining out of ${signalRunsLimit} allowed this billing period. Please upgrade your plan.`
+      `Signal runs limit exceeded. This job requires ${tracesCount} signal runs, but your workspace only has ${remaining} remaining out of ${effectiveLimit} allowed this billing period.${isFree ? " Please upgrade your plan." : ""}`
     );
   }
 }
