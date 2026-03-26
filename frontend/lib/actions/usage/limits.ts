@@ -113,7 +113,9 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
     effectiveLimit = Number(customLimits[0].limitValue);
   }
 
-  if (effectiveLimit === 0) {
+  // For free tier, signalRunsLimit=0 means "no limit configured on this tier"
+  // For custom limits (paid tiers), 0 means "block everything" so we don't skip
+  if (isFree && effectiveLimit === 0) {
     return;
   }
 
