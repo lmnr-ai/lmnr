@@ -252,41 +252,9 @@ async fn process_batch(
         requests,
         successful_messages.clone(),
         queue.clone(),
+        config.clone(),
     )
     .await;
-
-    let submission_error = match &batch_result {
-        Ok(()) => None,
-        Err((_, handler_error)) => Some(format!("{}", handler_error)),
-    };
-
-    for message in &successful_messages {
-        emit_internal_span(
-            queue.clone(),
-            InternalSpan {
-                name: format!("step_{}.submit_request", message.step),
-                trace_id: message.internal_trace_id,
-                run_id: message.run_id,
-                signal_name: message.signal.name.clone(),
-                parent_span_id: Some(message.internal_span_id),
-                span_type: SpanType::LLM,
-                start_time: message.request_start_time,
-                input: None,
-                output: None,
-                input_tokens: None,
-                input_cached_tokens: None,
-                output_tokens: None,
-                model: llm_model(),
-                provider: llm_provider(),
-                internal_project_id: config.internal_project_id,
-                job_id: message.job_id,
-                error: submission_error.clone(),
-                provider_batch_id: None,
-                metadata: None,
-            },
-        )
-        .await;
-    }
 
     match batch_result {
         Ok(()) => {
@@ -303,6 +271,51 @@ async fn process_batch(
     }
 }
 
+fn request_to_span_input(request: &ProviderRequestItem) -> serde_json::Value {
+    let mut contents = request.request.contents.clone();
+    if let Some(mut sys) = request.request.system_instruction.clone() {
+        sys.role = Some("system".to_string());
+        contents.insert(0, sys);
+    }
+    serde_json::json!(contents)
+}
+
+async fn emit_submit_spans(
+    messages: &[SignalMessage],
+    requests: &[ProviderRequestItem],
+    error: Option<String>,
+    queue: Arc<MessageQueue>,
+    config: &SignalWorkerConfig,
+) {
+    for (i, message) in messages.iter().enumerate() {
+        emit_internal_span(
+            queue.clone(),
+            InternalSpan {
+                name: format!("step_{}.submit_batch_request", message.step),
+                trace_id: message.internal_trace_id,
+                run_id: message.run_id,
+                signal_name: message.signal.name.clone(),
+                parent_span_id: Some(message.internal_span_id),
+                span_type: SpanType::LLM,
+                start_time: message.request_start_time,
+                input: requests.get(i).map(request_to_span_input),
+                output: None,
+                input_tokens: None,
+                input_cached_tokens: None,
+                output_tokens: None,
+                model: llm_model(),
+                provider: llm_provider(),
+                internal_project_id: config.internal_project_id,
+                job_id: message.job_id,
+                error: error.clone(),
+                provider_batch_id: None,
+                metadata: None,
+            },
+        )
+        .await;
+    }
+}
+
 /// Submit batch to LLM API and push to pending queue on success.
 /// On failure, returns the failed runs and the handler error.
 async fn submit_batch_to_llm(
@@ -311,7 +324,9 @@ async fn submit_batch_to_llm(
     requests: Vec<ProviderRequestItem>,
     messages: Vec<SignalMessage>,
     queue: Arc<MessageQueue>,
+    config: Arc<SignalWorkerConfig>,
 ) -> Result<(), (Vec<SignalRun>, HandlerError)> {
+    let span_requests = requests.clone();
     match llm_client
         .create_batch(
             model,
@@ -326,8 +341,9 @@ async fn submit_batch_to_llm(
                 operation.name
             );
 
+            emit_submit_spans(&messages, &span_requests, None, queue.clone(), &config).await;
+
             let batch_id = extract_batch_id_from_operation(&operation.name).map_err(|e| {
-                // If we can't extract batch ID, mark all runs as failed
                 let batch_failed_runs = messages
                     .iter()
                     .map(|message| {
@@ -349,7 +365,6 @@ async fn submit_batch_to_llm(
             push_to_pending_queue(queue, &pending_message)
                 .await
                 .map_err(|e| {
-                    // If we can't push to pending queue, mark all runs as failed
                     let batch_failed_runs = messages
                         .iter()
                         .map(|message| {
@@ -366,6 +381,14 @@ async fn submit_batch_to_llm(
             log::error!("[SIGNAL JOB] Failed to submit batch to LLM: {:?}", e);
 
             let error_msg = format!("Batch submission failed: {}", e);
+            emit_submit_spans(
+                &messages,
+                &span_requests,
+                Some(error_msg.clone()),
+                queue.clone(),
+                &config,
+            )
+            .await;
 
             if matches!(e, crate::signals::provider::ProviderError::NotSupported(_)) {
                 log::info!(
@@ -407,7 +430,6 @@ async fn submit_batch_to_llm(
                         }
                     }
                 }
-                // Return Ok because we've re-enqueued individual items for retry
                 return Ok(());
             }
 
