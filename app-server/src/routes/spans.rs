@@ -179,9 +179,7 @@ struct SearchSpanHit {
 struct SpanSnippetRow {
     #[serde(with = "clickhouse::serde::uuid")]
     span_id: Uuid,
-    input_matched_text: String,
     input_snippet: String,
-    output_matched_text: String,
     output_snippet: String,
 }
 
@@ -301,30 +299,30 @@ pub async fn search_spans(
         .collect();
     log::debug!("[search_spans] unique_traces: {}", unique_traces.len());
 
-    let (match_regex, context_regex) = match search_snippets::build_search_regexes(trimmed_query) {
-        Some(regexes) => regexes,
-        None => {
-            let results: Vec<SearchSpanHit> = hits
-                .into_iter()
-                .filter(|h| {
-                    request.trace_id.is_some() || unique_traces.contains(&h.trace_id)
-                })
-                .map(|h| SearchSpanHit {
-                    trace_id: h.trace_id,
-                    span_id: h.span_id,
-                    input_snippet: None,
-                    output_snippet: None,
-                })
-                .collect();
-            return Ok(HttpResponse::Ok().json(results));
-        }
-    };
+    let (match_re, context_regex) =
+        match search_snippets::build_search_regexes(trimmed_query) {
+            Some(regexes) => regexes,
+            None => {
+                let results: Vec<SearchSpanHit> = hits
+                    .into_iter()
+                    .filter(|h| {
+                        request.trace_id.is_some() || unique_traces.contains(&h.trace_id)
+                    })
+                    .map(|h| SearchSpanHit {
+                        trace_id: h.trace_id,
+                        span_id: h.span_id,
+                        input_snippet: None,
+                        output_snippet: None,
+                    })
+                    .collect();
+                return Ok(HttpResponse::Ok().json(results));
+            }
+        };
 
     let snippet_rows = fetch_span_snippets(
         &clickhouse,
         project_id,
         &snippet_pairs,
-        &match_regex,
         &context_regex,
     )
     .await;
@@ -343,14 +341,14 @@ pub async fn search_spans(
             if let Some(row) = snippet_map.get(&hit.span_id) {
                 let input_snippet = search_snippets::post_process_snippet(
                     &row.input_snippet,
-                    &row.input_matched_text,
+                    &match_re,
                     context_size,
                 )
                 .map(|(text, highlight)| SnippetInfo { text, highlight });
 
                 let output_snippet = search_snippets::post_process_snippet(
                     &row.output_snippet,
-                    &row.output_matched_text,
+                    &match_re,
                     context_size,
                 )
                 .map(|(text, highlight)| SnippetInfo { text, highlight });
@@ -399,18 +397,16 @@ async fn fetch_span_snippets(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
     pairs: &[(Uuid, Uuid)],
-    match_regex: &str,
     context_regex: &str,
 ) -> Vec<SpanSnippetRow> {
     if pairs.is_empty() {
         return Vec::new();
     }
 
-    let match_escaped = search_snippets::escape_clickhouse_string(match_regex);
     let context_escaped = search_snippets::escape_clickhouse_string(context_regex);
 
     let tuples = build_key_tuples(pairs);
-    let query = build_snippet_query(project_id, &match_escaped, &context_escaped, &tuples);
+    let query = build_snippet_query(project_id, &context_escaped, &tuples);
     log::debug!("search_spans: snippet query: {:?}", query);
 
     let t_start = std::time::Instant::now();
@@ -441,30 +437,16 @@ fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
 
 fn build_snippet_query(
     project_id: Uuid,
-    match_regex: &str,
     context_regex: &str,
     key_tuples: &str,
 ) -> String {
-    let input_cols = build_regex_columns("input", match_regex, context_regex);
-    let output_cols = build_regex_columns("output", match_regex, context_regex);
-
     format!(
         "SELECT span_id,
-                input_matched_text, input_snippet,
-                output_matched_text, output_snippet
-         FROM (
-           SELECT span_id, {input_cols}, {output_cols}
-           FROM spans_v2
-           WHERE project_id = '{project_id}'
-             AND (trace_id, span_id) IN ({key_tuples})
-           ORDER BY start_time ASC
-         )"
-    )
-}
-
-fn build_regex_columns(field: &str, match_regex: &str, context_regex: &str) -> String {
-    format!(
-        "extract({field}, '{match_regex}') AS {field}_matched_text,
-         extract({field}, '{context_regex}') AS {field}_snippet"
+                extract(input, '{context_regex}') AS input_snippet,
+                extract(output, '{context_regex}') AS output_snippet
+         FROM spans_v2
+         WHERE project_id = '{project_id}'
+           AND (trace_id, span_id) IN ({key_tuples})
+         ORDER BY start_time ASC"
     )
 }

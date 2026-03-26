@@ -28,20 +28,21 @@ fn escape_re2_token_ci(token: &str) -> String {
 }
 
 /// Tokenize `query` the same way Quickwit's default tokenizer does (split on
-/// non-alphanumeric boundaries) and build two ClickHouse-compatible (re2) regexes:
+/// non-alphanumeric boundaries) and build two regexes:
 ///
 /// 1. **Match regex** – matches just the phrase with flexible non-alnum gaps.
+///    Used Rust-side (via the `regex` crate) to locate the match within a
+///    snippet returned by ClickHouse.
 /// 2. **Context regex** – same core pattern wrapped with `[\s\S]{0,N}` on each
-///    side to pull surrounding context in a single `extract()` call.
+///    side, used in a ClickHouse `extract()` call to pull surrounding context.
+///    Call `escape_clickhouse_string` before embedding in a SQL string literal.
 ///
 /// Returns `None` when the query yields no alphanumeric tokens.
-/// The returned strings are raw regex; call `escape_clickhouse_string` before
-/// embedding them in a SQL string literal.
 ///
-/// The regex avoids `(?i)` / `(?s)` flags entirely (uses inline `[aA]` classes
-/// and `[\s\S]` wildcards) because the `clickhouse` crate treats `?` as a bind
-/// parameter placeholder.
-pub fn build_search_regexes(query: &str) -> Option<(String, String)> {
+/// Both regexes avoid `(?i)` / `(?s)` flags entirely (uses inline `[aA]`
+/// classes and `[\s\S]` wildcards) because the `clickhouse` crate treats `?`
+/// as a bind parameter placeholder.
+pub fn build_search_regexes(query: &str) -> Option<(regex::Regex, String)> {
     let tokens: Vec<String> = query
         .split(|c: char| !c.is_alphanumeric())
         .filter(|t| !t.is_empty())
@@ -58,13 +59,13 @@ pub fn build_search_regexes(query: &str) -> Option<(String, String)> {
         tokens.join("[^a-zA-Z0-9]+")
     };
 
-    let match_regex = core.clone();
+    let match_re = regex::Regex::new(&core).ok()?;
     let context_regex = format!(
         "[\\s\\S]{{0,{ctx}}}{core}[\\s\\S]{{0,{ctx}}}",
         ctx = SNIPPET_CONTEXT_CHARS,
     );
 
-    Some((match_regex, context_regex))
+    Some((match_re, context_regex))
 }
 
 /// Count UTF-16 code units for a slice of chars.
@@ -74,32 +75,29 @@ fn utf16_len(chars: &[char]) -> usize {
     chars.iter().map(|c| c.len_utf16()).sum()
 }
 
-/// Post-process an `extract()`-produced snippet and matched text into a final
-/// snippet with `...` prefix/suffix and UTF-16 code-unit highlight offsets.
+/// Post-process an `extract()`-produced context snippet by locating the match
+/// via `match_re` and producing a final string with `...` prefix/suffix and
+/// UTF-16 code-unit highlight offsets.
 ///
 /// Returns `(text_with_ellipsis, [highlight_start, highlight_end])` in UTF-16
 /// code-unit offsets (compatible with JS `String.prototype.slice()`), or `None`
-/// when either string is empty / no match found.
+/// when the snippet is empty or the regex doesn't match.
 pub fn post_process_snippet(
     snippet: &str,
-    matched_text: &str,
+    match_re: &regex::Regex,
     context_char_size: usize,
 ) -> Option<(String, [usize; 2])> {
-    if snippet.is_empty() || matched_text.is_empty() {
+    if snippet.is_empty() {
         return None;
     }
 
-    let matched_lower: Vec<char> = matched_text.to_lowercase().chars().collect();
+    let m = match_re.find(snippet)?;
+    let matched_text = m.as_str();
     let matched_char_len = matched_text.chars().count();
     let snippet_chars: Vec<char> = snippet.chars().collect();
 
-    let char_pos = snippet_chars
-        .windows(matched_lower.len())
-        .position(|w| {
-            w.iter()
-                .zip(&matched_lower)
-                .all(|(a, b)| a.to_lowercase().eq(b.to_lowercase()))
-        })?;
+    let byte_start = m.start();
+    let char_pos = snippet[..byte_start].chars().count();
     let snippet_char_len = snippet_chars.len();
 
     let chars_before = char_pos;
@@ -148,19 +146,15 @@ mod tests {
     #[test]
     fn test_regex_single_token() {
         let (m, c) = build_search_regexes("hello").unwrap();
-        assert_eq!(m, "[hH][eE][lL][lL][oO]");
+        assert_eq!(m.as_str(), "[hH][eE][lL][lL][oO]");
         assert!(c.contains("[hH][eE][lL][lL][oO]"));
-        assert!(
-            !m.contains('?'),
-            "regex must not contain ? (clickhouse crate bind placeholder)"
-        );
     }
 
     #[test]
     fn test_regex_multi_token() {
         let (m, _) = build_search_regexes("git commit -m").unwrap();
         assert_eq!(
-            m,
+            m.as_str(),
             "[gG][iI][tT][^a-zA-Z0-9]+[cC][oO][mM][mM][iI][tT][^a-zA-Z0-9]+[mM]"
         );
     }
@@ -168,7 +162,7 @@ mod tests {
     #[test]
     fn test_regex_non_alnum_separators() {
         let (m, _) = build_search_regexes("submit=true").unwrap();
-        assert_eq!(m, "[sS][uU][bB][mM][iI][tT][^a-zA-Z0-9]+[tT][rR][uU][eE]");
+        assert_eq!(m.as_str(), "[sS][uU][bB][mM][iI][tT][^a-zA-Z0-9]+[tT][rR][uU][eE]");
     }
 
     #[test]
@@ -180,7 +174,7 @@ mod tests {
     #[test]
     fn test_regex_escapes_re2_metachar_in_token() {
         let (m, _) = build_search_regexes("a]b").unwrap();
-        assert_eq!(m, "[aA][^a-zA-Z0-9]+[bB]");
+        assert_eq!(m.as_str(), "[aA][^a-zA-Z0-9]+[bB]");
     }
 
     #[test]
@@ -197,21 +191,26 @@ mod tests {
     #[test]
     fn test_regex_numeric_tokens_pass_through() {
         let (m, _) = build_search_regexes("404").unwrap();
-        assert_eq!(m, "404");
+        assert_eq!(m.as_str(), "404");
     }
 
     // ── post_process_snippet ────────────────────────────────────────────
 
+    fn re(pattern: &str) -> regex::Regex {
+        regex::Regex::new(pattern).unwrap()
+    }
+
     #[test]
     fn test_post_process_snippet_no_match() {
-        assert!(post_process_snippet("", "", 50).is_none());
-        assert!(post_process_snippet("hello world", "", 50).is_none());
-        assert!(post_process_snippet("", "hello", 50).is_none());
+        let r = re("[hH][eE][lL][lL][oO]");
+        assert!(post_process_snippet("", &r, 50).is_none());
+        assert!(post_process_snippet("no match here", &r, 50).is_none());
     }
 
     #[test]
     fn test_post_process_snippet_simple_match() {
-        let result = post_process_snippet("Hello World test end", "Hello", 50);
+        let r = re("[hH][eE][lL][lL][oO]");
+        let result = post_process_snippet("Hello World test end", &r, 50);
         let (text, highlight) = result.unwrap();
         assert!(!text.starts_with("..."));
         assert!(!text.ends_with("..."));
@@ -224,7 +223,8 @@ mod tests {
         let before = "x".repeat(SNIPPET_CONTEXT_CHARS);
         let after = "y".repeat(SNIPPET_CONTEXT_CHARS);
         let snippet = format!("{before}TARGET{after}");
-        let result = post_process_snippet(&snippet, "TARGET", SNIPPET_CONTEXT_CHARS);
+        let r = re("TARGET");
+        let result = post_process_snippet(&snippet, &r, SNIPPET_CONTEXT_CHARS);
         let (text, highlight) = result.unwrap();
         assert!(text.starts_with("..."));
         assert!(text.ends_with("..."));
@@ -233,14 +233,16 @@ mod tests {
 
     #[test]
     fn test_post_process_snippet_case_insensitive_find() {
-        let result = post_process_snippet("Hello WORLD test", "world", 50);
+        let r = re("[wW][oO][rR][lL][dD]");
+        let result = post_process_snippet("Hello WORLD test", &r, 50);
         let (text, highlight) = result.unwrap();
         assert_eq!(js_slice(&text, highlight[0], highlight[1]), "WORLD");
     }
 
     #[test]
     fn test_post_process_snippet_flexible_match() {
-        let result = post_process_snippet("submit: true is set", "submit: true", 50);
+        let r = re("[sS][uU][bB][mM][iI][tT][^a-zA-Z0-9]+[tT][rR][uU][eE]");
+        let result = post_process_snippet("submit: true is set", &r, 50);
         let (text, highlight) = result.unwrap();
         assert_eq!(js_slice(&text, highlight[0], highlight[1]), "submit: true");
     }
@@ -249,61 +251,44 @@ mod tests {
 
     #[test]
     fn test_post_process_snippet_emoji_before_match() {
-        // 🎉 is U+1F389 — 1 codepoint but 2 UTF-16 code units (surrogate pair)
-        let result = post_process_snippet("🎉 Hello world", "Hello", 50);
+        let r = re("[hH][eE][lL][lL][oO]");
+        let result = post_process_snippet("🎉 Hello world", &r, 50);
         let (text, highlight) = result.unwrap();
-        // "🎉 " = 2 (surrogate pair) + 1 (space) = 3 UTF-16 code units
         assert_eq!(highlight[0], 3);
-        assert_eq!(highlight[1], 8); // 3 + 5 ("Hello")
+        assert_eq!(highlight[1], 8);
         assert_eq!(js_slice(&text, highlight[0], highlight[1]), "Hello");
     }
 
     #[test]
-    fn test_post_process_snippet_emoji_in_match() {
-        // Match text itself contains emoji
-        let result = post_process_snippet("say 🎉🎊 done", "🎉🎊", 50);
-        let (text, highlight) = result.unwrap();
-        // "say " = 4 UTF-16 code units
-        assert_eq!(highlight[0], 4);
-        // 🎉 = 2 code units, 🎊 = 2 code units => matched len = 4
-        assert_eq!(highlight[1], 8);
-        assert_eq!(js_slice(&text, highlight[0], highlight[1]), "🎉🎊");
-    }
-
-    #[test]
     fn test_post_process_snippet_multiple_emoji_before_match() {
-        // Multiple emoji before the match
-        let result = post_process_snippet("🎉🎊🎈 test word", "test", 50);
+        let r = re("[tT][eE][sS][tT]");
+        let result = post_process_snippet("🎉🎊🎈 test word", &r, 50);
         let (text, highlight) = result.unwrap();
-        // 🎉(2) + 🎊(2) + 🎈(2) + space(1) = 7 UTF-16 code units
         assert_eq!(highlight[0], 7);
-        assert_eq!(highlight[1], 11); // 7 + 4 ("test")
+        assert_eq!(highlight[1], 11);
         assert_eq!(js_slice(&text, highlight[0], highlight[1]), "test");
     }
 
     #[test]
     fn test_post_process_snippet_emoji_with_ellipses() {
-        // Emoji in context with ellipses
-        let before = "🎉".repeat(SNIPPET_CONTEXT_CHARS); // each 🎉 is 1 codepoint
+        let before = "🎉".repeat(SNIPPET_CONTEXT_CHARS);
         let after = "🎊".repeat(SNIPPET_CONTEXT_CHARS);
         let snippet = format!("{before}TARGET{after}");
-        let result = post_process_snippet(&snippet, "TARGET", SNIPPET_CONTEXT_CHARS);
+        let r = re("TARGET");
+        let result = post_process_snippet(&snippet, &r, SNIPPET_CONTEXT_CHARS);
         let (text, highlight) = result.unwrap();
         assert!(text.starts_with("..."));
         assert!(text.ends_with("..."));
         assert_eq!(js_slice(&text, highlight[0], highlight[1]), "TARGET");
-        // Verify offset accounts for surrogate pairs:
-        // "..." (3) + 50 emoji × 2 code units each = 3 + 100 = 103
         assert_eq!(highlight[0], 103);
-        assert_eq!(highlight[1], 109); // 103 + 6 ("TARGET")
+        assert_eq!(highlight[1], 109);
     }
 
     #[test]
     fn test_post_process_snippet_bmp_chars_same_as_codepoints() {
-        // For BMP-only text (e.g. CJK), UTF-16 offsets == codepoint offsets
-        let result = post_process_snippet("日本語テスト hello", "hello", 50);
+        let r = re("[hH][eE][lL][lL][oO]");
+        let result = post_process_snippet("日本語テスト hello", &r, 50);
         let (text, highlight) = result.unwrap();
-        // "日本語テスト " = 7 codepoints = 7 UTF-16 code units (all BMP)
         assert_eq!(highlight[0], 7);
         assert_eq!(highlight[1], 12);
         assert_eq!(js_slice(&text, highlight[0], highlight[1]), "hello");
