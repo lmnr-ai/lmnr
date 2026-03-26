@@ -79,6 +79,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     : [];
   const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
+  console.log("spanHits", spanHits);
   if (search) {
     if (traceIds?.length === 0) {
       return { items: [] };
@@ -148,7 +149,6 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       if (hit) {
         item.inputSnippet = hit.input_snippet;
         item.outputSnippet = hit.output_snippet;
-        item.snippetCount = traceHitCounts.get(item.id) ?? 0;
       }
     }
   }

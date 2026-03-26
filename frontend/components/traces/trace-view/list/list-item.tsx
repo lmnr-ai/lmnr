@@ -192,12 +192,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
           <div className="px-3 w-full p-2 pt-0 flex flex-col gap-2 h-full flex-1">
             {/* TODO(snippets): snippet rendering — remove this branch when snippets come from a dedicated API */}
             {hasSnippet ? (
-              <SnippetPreview
-                inputSnippet={span.inputSnippet}
-                outputSnippet={span.outputSnippet}
-                snippetCount={span.snippetCount}
-                variant="span"
-              />
+              <SnippetPreview inputSnippet={span.inputSnippet} outputSnippet={span.outputSnippet} variant="span" />
             ) : isLoadingOutput ? (
               <>
                 <Skeleton className="h-12 w-full" />

@@ -49,10 +49,8 @@ export type TraceViewSpan = {
     cacheReadInputTokens?: number;
     hasLLMDescendants: boolean;
   };
-  // TODO(snippets): search snippet fields — remove when snippets come from a dedicated API
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
-  snippetCount?: number;
 };
 
 export type TraceViewListSpan = {
@@ -74,7 +72,6 @@ export type TraceViewListSpan = {
   // TODO(snippets): search snippet fields — remove when snippets come from a dedicated API
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
-  snippetCount?: number;
 };
 
 export type TraceViewTrace = {
@@ -254,7 +251,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         // TODO(snippets): pass through search snippet fields
         inputSnippet: span.inputSnippet,
         outputSnippet: span.outputSnippet,
-        snippetCount: span.snippetCount,
       }));
 
       return lightweightListSpans;

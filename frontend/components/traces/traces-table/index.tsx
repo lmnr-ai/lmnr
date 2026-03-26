@@ -399,7 +399,7 @@ function TracesTableContent() {
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         getRowHref={getRowHref}
-        lockedColumns={["status", "preview"]} // TODO(mock): Change back to `isSearchActive ? ["status", "preview"] : ["status"]`
+        lockedColumns={["status", "preview"]}
         sortBy={sortBy}
         sortDirection={sortDirection}
         onSort={handleSort}

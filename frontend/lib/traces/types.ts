@@ -147,7 +147,6 @@ export type TraceRow = {
   rootSpanOutput?: string;
   inputSnippet?: { text: string; highlight: [number, number] };
   outputSnippet?: { text: string; highlight: [number, number] };
-  snippetCount?: number;
 };
 
 export type RealtimeTracePayload = {
