@@ -13,7 +13,7 @@ use crate::db;
 use crate::features::{Feature, is_feature_enabled};
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
-use crate::notifications::{self, EmailPayload, EventIdentificationPayload, NotificationType};
+use crate::notifications::{self, EmailPayload, EventIdentificationPayload, TargetType};
 use crate::reports::email_template::html_escape;
 
 const ALERT_FROM_EMAIL: &str = "Laminar <alerts@mail.lmnr.ai>";
@@ -29,13 +29,22 @@ pub async fn process_event_notifications_and_clustering(
     let event_name = signal_event.name().to_string();
     let attributes = signal_event.payload_value().unwrap_or_default();
 
-    // Fetch all targets (SLACK + EMAIL) in a single DB call
+    // Fetch all notification targets
     let targets =
         db::alert_targets::get_targets_for_event(&db.pool, project_id, &event_name).await?;
 
     for target in &targets {
-        let (notification_type, target_type, message_payload) = match target.r#type.as_str() {
-            "SLACK" => {
+        let Ok(target_type) = target.r#type.parse::<TargetType>() else {
+            log::warn!(
+                "Unknown alert target type '{}' for target {}",
+                target.r#type,
+                target.id
+            );
+            continue;
+        };
+
+        let message_payload = match target_type {
+            TargetType::Slack => {
                 let (Some(channel_id), Some(integration_id)) =
                     (&target.channel_id, target.integration_id)
                 else {
@@ -47,10 +56,9 @@ pub async fn process_event_notifications_and_clustering(
                     channel_id: channel_id.clone(),
                     integration_id,
                 };
-                let value = serde_json::to_value(&payload)?;
-                (NotificationType::Slack, "SLACK", value)
+                serde_json::to_value(&payload)?
             }
-            "EMAIL" => {
+            TargetType::Email => {
                 let Some(ref email) = target.email else {
                     continue;
                 };
@@ -67,23 +75,14 @@ pub async fn process_event_notifications_and_clustering(
                     html,
                     inline_logo: true,
                 };
-                let value = serde_json::to_value(&payload)?;
-                (NotificationType::Email, "EMAIL", value)
-            }
-            other => {
-                log::warn!(
-                    "Unknown alert target type '{}' for target {}",
-                    other,
-                    target.id
-                );
-                continue;
+                serde_json::to_value(&payload)?
             }
         };
 
         let notification_message = notifications::NotificationMessage {
             project_id,
             trace_id,
-            notification_type,
+            notification_type: target_type.into(),
             event_name: event_name.to_string(),
             payload: message_payload,
             workspace_id: target.workspace_id,
@@ -97,7 +96,7 @@ pub async fn process_event_notifications_and_clustering(
             .map(|v| v.len())
             .unwrap_or(0);
         if serialized_size >= mq_max_payload() {
-            log::warn!(
+            log::error!(
                 "MQ payload limit exceeded for target {}: payload size [{}]",
                 target.id,
                 serialized_size,
@@ -212,4 +211,3 @@ fn render_alert_email(
         trace_link = trace_link,
     )
 }
-

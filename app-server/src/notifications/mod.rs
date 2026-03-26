@@ -27,6 +27,43 @@ pub enum NotificationType {
     Email,
 }
 
+/// The delivery channel for a notification target, as stored in the database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetType {
+    Email,
+    Slack,
+}
+
+impl std::str::FromStr for TargetType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "EMAIL" => Ok(Self::Email),
+            "SLACK" => Ok(Self::Slack),
+            other => Err(format!("unknown target type: {other}")),
+        }
+    }
+}
+
+impl std::fmt::Display for TargetType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Email => f.write_str("EMAIL"),
+            Self::Slack => f.write_str("SLACK"),
+        }
+    }
+}
+
+impl From<TargetType> for NotificationType {
+    fn from(t: TargetType) -> Self {
+        match t {
+            TargetType::Email => Self::Email,
+            TargetType::Slack => Self::Slack,
+        }
+    }
+}
+
 const LAMINAR_LOGO_PNG: &[u8] = include_bytes!("../../data/logo.png");
 const LAMINAR_LOGO_CID: &str = "laminar-logo";
 

@@ -19,6 +19,7 @@ pub async fn get_targets_for_event(
     project_id: Uuid,
     event_name: &str,
 ) -> anyhow::Result<Vec<AlertTarget>> {
+    // TODO: Why we use signal name instead of id ???
     let records = sqlx::query_as::<_, AlertTarget>(
         r#"
         SELECT at.id, at.alert_id, p.workspace_id,

@@ -21,7 +21,7 @@ use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
 use crate::notifications::{
-    EmailPayload, EventIdentificationPayload, NotificationMessage, NotificationType,
+    EmailPayload, EventIdentificationPayload, NotificationMessage, TargetType,
     push_to_notification_queue,
 };
 use crate::signals::llm_model;
@@ -241,9 +241,10 @@ async fn process_report_trigger(
         total_events,
     };
 
-    let html = render_report_email(&report_data);
+    let email_report = render_report_email(&report_data);
+    let slack_report = build_report_slack(&report_data);
 
-    // Fetch all targets (EMAIL + SLACK) in a single DB call
+    // Fetch all notification targets
     let targets = get_report_targets(&db.pool, &report_id, &workspace_id)
         .await
         .map_err(|e| HandlerError::transient(e))?;
@@ -259,13 +260,23 @@ async fn process_report_trigger(
 
     let subject = format!("{} – {}", report_name, workspace_name);
 
-    let mut push_failures = 0;
-    let mut oversized_failures = 0;
+    // Push notifications to all targets
     let mut processed = 0;
+    let mut failures = 0;
+    let mut transient_failures = 0;
 
     for target in &targets {
-        let (notification_type, target_type, message_payload) = match target.r#type.as_str() {
-            "EMAIL" => {
+        let Ok(target_type) = target.r#type.parse::<TargetType>() else {
+            log::warn!(
+                "[Reports Generator] Unknown target type '{}' for target {}",
+                target.r#type,
+                target.id
+            );
+            continue;
+        };
+
+        let message_payload = match target_type {
+            TargetType::Email => {
                 let Some(ref email) = target.email else {
                     continue;
                 };
@@ -273,14 +284,13 @@ async fn process_report_trigger(
                     from: REPORT_FROM_EMAIL.to_string(),
                     to: vec![email.clone()],
                     subject: subject.clone(),
-                    html: html.clone(),
+                    html: email_report.clone(),
                     inline_logo: true,
                 };
-                let value = serde_json::to_value(&payload)
-                    .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
-                (NotificationType::Email, "EMAIL", value)
+                serde_json::to_value(&payload)
+                    .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?
             }
-            "SLACK" => {
+            TargetType::Slack => {
                 let (Some(channel_id), Some(integration_id)) =
                     (&target.channel_id, target.integration_id)
                 else {
@@ -288,21 +298,12 @@ async fn process_report_trigger(
                 };
                 let payload = EventIdentificationPayload {
                     event_name: subject.clone(),
-                    extracted_information: Some(build_report_slack_summary(&report_data)),
+                    extracted_information: Some(slack_report.clone()),
                     channel_id: channel_id.clone(),
                     integration_id,
                 };
-                let value = serde_json::to_value(&payload)
-                    .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
-                (NotificationType::Slack, "SLACK", value)
-            }
-            other => {
-                log::warn!(
-                    "[Reports Generator] Unknown target type '{}' for target {}",
-                    other,
-                    target.id
-                );
-                continue;
+                serde_json::to_value(&payload)
+                    .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?
             }
         };
 
@@ -311,7 +312,7 @@ async fn process_report_trigger(
         let notification_message = NotificationMessage {
             project_id: Uuid::nil(),
             trace_id: Uuid::nil(),
-            notification_type,
+            notification_type: target_type.into(),
             event_name: subject.clone(),
             payload: message_payload,
             workspace_id,
@@ -325,18 +326,18 @@ async fn process_report_trigger(
             .map(|v| v.len())
             .unwrap_or(0);
         if serialized_size >= mq_max_payload() {
-            log::warn!(
+            log::error!(
                 "[Reports Generator] MQ payload limit exceeded. payload size: [{}], target: [{}]",
                 serialized_size,
                 target.id,
             );
-            push_failures += 1;
-            oversized_failures += 1;
+            failures += 1;
             continue;
         }
 
         if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
-            push_failures += 1;
+            failures += 1;
+            transient_failures += 1;
             log::error!(
                 "[Reports Generator] Failed to push report notification for target {}: {:?}",
                 target.id,
@@ -345,10 +346,9 @@ async fn process_report_trigger(
         }
     }
 
-    if processed > 0 && push_failures == processed {
-        // If all failures are due to oversized payloads, retrying won't help since
-        // payload size is deterministic. Use permanent error to avoid infinite retries.
-        if oversized_failures == push_failures {
+    // Return transient error if all notifications failed (except all permanent, then permanent error)
+    if processed > 0 && failures == processed {
+        if transient_failures == 0 {
             return Err(HandlerError::permanent(anyhow::anyhow!(
                 "All {} report notifications exceeded MQ payload size limit for workspace {}",
                 processed,
@@ -357,8 +357,7 @@ async fn process_report_trigger(
         }
         let msg = format!(
             "Failed to push all {} report notifications to queue for workspace {}",
-            processed,
-            workspace_id
+            processed, workspace_id
         );
         return Err(HandlerError::transient(anyhow::anyhow!(msg)));
     }
@@ -373,7 +372,7 @@ async fn process_report_trigger(
 }
 
 /// Build a JSON summary of the report data suitable for Slack message display.
-fn build_report_slack_summary(report_data: &ReportData) -> serde_json::Value {
+fn build_report_slack(report_data: &ReportData) -> serde_json::Value {
     let mut project_summaries = serde_json::Map::new();
     for project in &report_data.projects {
         let counts: Vec<String> = project
@@ -392,7 +391,10 @@ fn build_report_slack_summary(report_data: &ReportData) -> serde_json::Value {
                 serde_json::Value::String(project.ai_summary.clone()),
             );
         }
-        project_summaries.insert(project.project_name.clone(), serde_json::Value::Object(info));
+        project_summaries.insert(
+            project.project_name.clone(),
+            serde_json::Value::Object(info),
+        );
     }
 
     let mut summary = serde_json::Map::new();
