@@ -9,8 +9,9 @@ export async function DELETE(
   const params = await props.params;
   const projectId = params.projectId;
   const spanId = params.spanId;
-  // tagId is the tag name (used as id since tags_array stores names)
-  const tagName = decodeURIComponent(params.tagId);
+  // tagId is the tag name (used as id since tags_array stores names).
+  // Next.js auto-decodes dynamic route params, so no decodeURIComponent needed.
+  const tagName = params.tagId;
 
   await removeTagFromCHSpan({
     spanId,
