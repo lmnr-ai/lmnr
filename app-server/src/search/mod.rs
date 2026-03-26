@@ -110,9 +110,7 @@ pub async fn search_spans(
     let effective_end = end_time.unwrap_or_else(Utc::now);
 
     search_body["start_timestamp"] = serde_json::Value::Number(effective_start.timestamp().into());
-    if end_time.is_some() {
-        search_body["end_timestamp"] = serde_json::Value::Number(effective_end.timestamp().into());
-    }
+    search_body["end_timestamp"] = serde_json::Value::Number(effective_end.timestamp().into());
 
     // Search span ids in Quickwit
     let t0 = std::time::Instant::now();
