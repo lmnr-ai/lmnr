@@ -40,7 +40,7 @@ export default function UsageLimitRow({
   const [isRemoving, setIsRemoving] = useState(false);
 
   const form = useForm<LimitForm>({
-    defaultValues: {
+    values: {
       value: currentValue !== null ? String(toDisplayValue(currentValue)) : "",
     },
     mode: "onChange",
