@@ -37,7 +37,6 @@ const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
 ];
 
 
-
 /// Escape special characters for Quickwit query syntax and wrap in quotes for phrase search.
 fn escape_quickwit_query(query: &str) -> String {
     let escaped: String = query
@@ -194,7 +193,7 @@ pub async fn search_spans(
     clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
-    let mut request = request.into_inner();
+    let request = request.into_inner();
 
     let trimmed_query = request.search_query.trim();
     if trimmed_query.is_empty() {
@@ -307,6 +306,9 @@ pub async fn search_spans(
         None => {
             let results: Vec<SearchSpanHit> = hits
                 .into_iter()
+                .filter(|h| {
+                    request.trace_id.is_some() || unique_traces.contains(&h.trace_id)
+                })
                 .map(|h| SearchSpanHit {
                     trace_id: h.trace_id,
                     span_id: h.span_id,
