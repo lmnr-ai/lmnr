@@ -41,8 +41,6 @@ interface ClickHouseSpan {
   path: string;
   input: string;
   output: string;
-  input_lower: string;
-  output_lower: string;
   size_bytes: number;
   status: string;
   attributes: string;
