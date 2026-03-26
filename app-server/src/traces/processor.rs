@@ -6,8 +6,12 @@ use rayon::prelude::*;
 use tracing::instrument;
 use uuid::Uuid;
 
+use chrono::Utc;
+
 use super::trigger::get_signal_triggers_cached;
 use crate::ch::spans::CHSpanV2;
+use crate::ch::tags::CHTag;
+use crate::ch::utils::chrono_to_nanoseconds;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::{
@@ -153,6 +157,35 @@ pub async fn process_span_messages(
             log::error!(
                 "Failed to record spans v2 to clickhouse. Project span pairs: {}. Error: {:?}",
                 project_id_span_id_pairs,
+                e
+            );
+        }
+    }
+
+    // Insert tags from span attributes into the dedicated `tags` ClickHouse table.
+    // Tags set via SDK (source=CODE) are stored in spans.tags_array but the UI reads
+    // from the `tags` table, so we need to write them there as well.
+    let now_ns = chrono_to_nanoseconds(Utc::now());
+    let ch_tags: Vec<CHTag> = spans
+        .iter()
+        .filter(|span| span.should_record_to_clickhouse())
+        .flat_map(|span| {
+            span.attributes.tags().into_iter().map(move |tag_name| CHTag {
+                project_id: span.project_id,
+                created_at: now_ns,
+                id: Uuid::new_v4(),
+                name: tag_name,
+                source: 2, // CODE
+                span_id: span.span_id,
+            })
+        })
+        .collect();
+
+    if !ch_tags.is_empty() {
+        if let Err(e) = ch.insert_batch(&ch_tags, config).await {
+            log::error!(
+                "Failed to insert {} tags to clickhouse: {:?}",
+                ch_tags.len(),
                 e
             );
         }

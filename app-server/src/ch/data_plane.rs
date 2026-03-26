@@ -15,6 +15,7 @@ use crate::db::workspaces::WorkspaceDeployment;
 
 use super::notification_logs::CHNotificationLog;
 use super::spans::CHSpan;
+use super::tags::CHTag;
 use super::traces::CHTrace;
 use super::{ClickhouseInsertable, ClickhouseTrait};
 
@@ -25,6 +26,7 @@ use super::{ClickhouseInsertable, ClickhouseTrait};
 pub enum DataPlaneBatch {
     Spans(Vec<CHSpan>),
     Traces(Vec<CHTrace>),
+    Tags(Vec<CHTag>),
     NotificationLogs(Vec<CHNotificationLog>),
 }
 

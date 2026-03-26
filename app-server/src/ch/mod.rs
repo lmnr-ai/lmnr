@@ -11,6 +11,7 @@ pub mod signal_events;
 pub mod signal_run_messages;
 pub mod signal_runs;
 pub mod spans;
+pub mod tags;
 pub mod traces;
 pub mod utils;
 
@@ -29,6 +30,7 @@ pub enum Table {
     SpansV2,
     Spans,
     Traces,
+    Tags,
     NotificationLogs,
 }
 
@@ -38,6 +40,7 @@ impl Table {
             Table::SpansV2 => "spans_v2",
             Table::Spans => "spans",
             Table::Traces => "traces_replacing",
+            Table::Tags => "tags",
             Table::NotificationLogs => "notification_logs",
         }
     }
