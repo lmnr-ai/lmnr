@@ -428,7 +428,7 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
         "SELECT span_id,
                 extract(input, '{context_regex}') AS input_snippet,
                 extract(output, '{context_regex}') AS output_snippet
-         FROM spans_v2
+         FROM spans
          WHERE project_id = '{project_id}'
            AND (trace_id, span_id) IN ({key_tuples})
          ORDER BY start_time ASC"
