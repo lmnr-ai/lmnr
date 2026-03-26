@@ -23,35 +23,21 @@ const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 
 /// Returns the effective bytes hard limit for a workspace, or None if no limit should be enforced.
 ///
-/// - For free tier: uses min(custom_limit, tier_limit) when custom is set, else tier limit.
+/// - For free tier: always uses the tier limit (custom limits are not allowed).
 /// - For paid tiers: uses custom limit when set, else no limit is enforced.
 fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
-    let is_free = project_info.tier_name.trim().to_lowercase() == "free";
-    if let Some(custom_limit) = project_info.custom_bytes_limit {
-        if is_free {
-            return Some(custom_limit.min(project_info.bytes_limit));
-        }
-        return Some(custom_limit);
-    }
-    if is_free {
+    if project_info.tier_name.trim().to_lowercase() == "free" {
         return Some(project_info.bytes_limit);
     }
-    None
+    project_info.custom_bytes_limit
 }
 
 /// Returns the effective signal runs hard limit for a workspace, or None if no limit should be enforced.
 fn get_effective_signal_runs_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
-    let is_free = project_info.tier_name.trim().to_lowercase() == "free";
-    if let Some(custom_limit) = project_info.custom_signal_runs_limit {
-        if is_free {
-            return Some(custom_limit.min(project_info.signal_runs_limit));
-        }
-        return Some(custom_limit);
-    }
-    if is_free {
+    if project_info.tier_name.trim().to_lowercase() == "free" {
         return Some(project_info.signal_runs_limit);
     }
-    None
+    project_info.custom_signal_runs_limit
 }
 
 pub async fn get_workspace_bytes_limit_exceeded(

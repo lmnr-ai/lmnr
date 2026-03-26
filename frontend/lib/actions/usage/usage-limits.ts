@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { cache, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
-import { projects, workspaceUsageLimits } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
 
 export const USAGE_LIMIT_TYPES = ["bytes", "signal_runs"] as const;
 export type UsageLimitType = (typeof USAGE_LIMIT_TYPES)[number];
@@ -49,10 +49,25 @@ export async function getUsageLimits(input: z.infer<typeof GetUsageLimitsSchema>
   return limits as WorkspaceUsageLimit[];
 }
 
+async function isFreeTierWorkspace(workspaceId: string): Promise<boolean> {
+  const result = await db
+    .select({ tierName: subscriptionTiers.name })
+    .from(workspaces)
+    .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+
+  return result.length > 0 && result[0].tierName.toLowerCase() === "free";
+}
+
 export async function setUsageLimit(input: z.infer<typeof SetUsageLimitSchema>): Promise<WorkspaceUsageLimit> {
   const { workspaceId, limitType, limitValue } = SetUsageLimitSchema.parse(input);
 
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
+
+  if (await isFreeTierWorkspace(workspaceId)) {
+    throw new Error("Custom usage limits are not available on the free tier.");
+  }
 
   const [result] = await db
     .insert(workspaceUsageLimits)
@@ -83,6 +98,10 @@ export async function removeUsageLimit(input: z.infer<typeof RemoveUsageLimitSch
   const { workspaceId, limitType } = RemoveUsageLimitSchema.parse(input);
 
   await checkUserWorkspaceRole({ workspaceId, roles: ["owner", "admin"] });
+
+  if (await isFreeTierWorkspace(workspaceId)) {
+    throw new Error("Custom usage limits are not available on the free tier.");
+  }
 
   await db
     .delete(workspaceUsageLimits)
