@@ -285,7 +285,7 @@ pub async fn search_spans(
         return Ok(HttpResponse::Ok().json(results));
     }
 
-    const MAX_SNIPPET_TRACES: usize = 20;
+    const MAX_SNIPPET_TRACES: usize = 64;
 
     let snippet_pairs: Vec<(Uuid, Uuid)> = if request.trace_id.is_some() {
         hits.iter()
@@ -320,15 +320,16 @@ pub async fn search_spans(
     let needle_char_len = trimmed_query.chars().count();
     let snippet_max_chars = (needle_char_len as u64) + SNIPPET_SIDE_SIZE * 2;
 
-    let snippet_map: HashMap<String, SpanSnippetRow> = snippet_rows
+    let mut snippet_map: HashMap<String, SpanSnippetRow> = snippet_rows
         .into_iter()
         .map(|row| (row.span_id.to_string(), row))
         .collect();
 
-    let enriched_hits: Vec<SearchSpanHit> = hits
-        .into_iter()
-        .map(|hit| {
-            if let Some(row) = snippet_map.get(&hit.span_id) {
+    let enriched_hits: Vec<SearchSpanHit> = snippet_pairs
+        .iter()
+        .map(|(trace_id, span_id)| {
+            let span_id_str = span_id.to_string();
+            if let Some(row) = snippet_map.remove(&span_id_str) {
                 let input_snippet = search_snippets::post_process_snippet(
                     &row.input_snippet,
                     row.input_pos,
@@ -348,16 +349,16 @@ pub async fn search_spans(
                 let snippet_count = row.input_count + row.output_count;
 
                 SearchSpanHit {
-                    trace_id: hit.trace_id,
-                    span_id: hit.span_id,
+                    trace_id: trace_id.to_string(),
+                    span_id: span_id_str,
                     input_snippet,
                     output_snippet,
                     snippet_count: snippet_count as usize,
                 }
             } else {
                 SearchSpanHit {
-                    trace_id: hit.trace_id,
-                    span_id: hit.span_id,
+                    trace_id: trace_id.to_string(),
+                    span_id: span_id_str,
                     input_snippet: None,
                     output_snippet: None,
                     snippet_count: 0,
@@ -407,7 +408,8 @@ async fn fetch_span_snippets(
             let query = build_snippet_query(phrase, &tuples);
             log::debug!(
                 "[search_spans] snippet query: {:?}, project_id: {:?}",
-                query, project_id
+                query,
+                project_id
             );
             async move {
                 clickhouse
