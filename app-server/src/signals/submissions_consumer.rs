@@ -28,7 +28,13 @@ use crate::{
     worker::{HandlerError, MessageHandler},
 };
 
-use crate::signals::common::{ProcessRunResult, handle_failed_runs, process_run};
+use crate::{
+    db::spans::SpanType,
+    signals::{
+        common::{ProcessRunResult, handle_failed_runs, process_run},
+        utils::{InternalSpan, emit_internal_span},
+    },
+};
 
 pub struct SignalJobSubmissionBatchHandler {
     pub db: Arc<DB>,
@@ -244,10 +250,43 @@ async fn process_batch(
         &llm_model(),
         llm_client,
         requests,
-        successful_messages,
-        queue,
+        successful_messages.clone(),
+        queue.clone(),
     )
     .await;
+
+    let submission_error = match &batch_result {
+        Ok(()) => None,
+        Err((_, handler_error)) => Some(format!("{}", handler_error)),
+    };
+
+    for message in &successful_messages {
+        emit_internal_span(
+            queue.clone(),
+            InternalSpan {
+                name: format!("step_{}.submit_request", message.step),
+                trace_id: message.internal_trace_id,
+                run_id: message.run_id,
+                signal_name: message.signal.name.clone(),
+                parent_span_id: Some(message.internal_span_id),
+                span_type: SpanType::LLM,
+                start_time: message.request_start_time,
+                input: None,
+                output: None,
+                input_tokens: None,
+                input_cached_tokens: None,
+                output_tokens: None,
+                model: llm_model(),
+                provider: llm_provider(),
+                internal_project_id: config.internal_project_id,
+                job_id: message.job_id,
+                error: submission_error.clone(),
+                provider_batch_id: None,
+                metadata: None,
+            },
+        )
+        .await;
+    }
 
     match batch_result {
         Ok(()) => {
