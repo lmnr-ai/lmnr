@@ -1,13 +1,10 @@
-
 import { sample } from "lodash";
 import z from "zod";
 
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { dateToNanoseconds } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { tagClasses } from "@/lib/db/migrations/schema";
 import { defaultColors } from "@/lib/tags/colors";
-import { generateUuid } from "@/lib/utils";
 
 const AddSpanTagSchema = z.object({
   spanId: z.string(),
@@ -17,8 +14,6 @@ const AddSpanTagSchema = z.object({
 
 const AddSpanTagReturnSchema = AddSpanTagSchema.extend({
   id: z.string(),
-  createdAt: z.iso.date(),
-  source: z.enum(["MANUAL", "AUTO", "CODE"]),
 });
 
 const GetSpanTagsSchema = z.object({
@@ -26,18 +21,14 @@ const GetSpanTagsSchema = z.object({
   spanId: z.string(),
 });
 
-const TagSourceMap: Record<number, "MANUAL" | "AUTO" | "CODE"> = {
-  0: "MANUAL",
-  1: "AUTO",
-  2: "CODE",
-};
-
-export const addSpanTag = async (input: z.infer<typeof AddSpanTagSchema>): Promise<z.infer<typeof AddSpanTagReturnSchema>> => {
+export const addSpanTag = async (
+  input: z.infer<typeof AddSpanTagSchema>
+): Promise<z.infer<typeof AddSpanTagReturnSchema>> => {
   const parseResult = AddSpanTagSchema.parse(input);
   const { spanId, projectId, name } = parseResult;
 
   const existingTags = await getSpanTags({ spanId, projectId });
-  const existingTag = existingTags.find(tag => tag.name === name);
+  const existingTag = existingTags.find((tag) => tag.name === name);
   if (existingTag) {
     return {
       ...existingTag,
@@ -45,30 +36,12 @@ export const addSpanTag = async (input: z.infer<typeof AddSpanTagSchema>): Promi
       projectId,
     };
   }
-  const id = generateUuid();
-  const createdAt = new Date();
-  await clickhouseClient.insert({
-    table: "default.tags",
-    format: "JSONEachRow",
-    values: [
-      {
-        span_id: spanId,
-        id: id,
-        name: name,
-        project_id: projectId,
-        source: 0,
-        created_at: dateToNanoseconds(createdAt),
-      },
-    ],
-  });
   await addTagToCHSpan({ spanId, projectId, tag: name });
   return {
     spanId,
     projectId,
-    id,
+    id: name,
     name,
-    createdAt: createdAt.toISOString(),
-    source: "MANUAL",
   };
 };
 
@@ -86,18 +59,19 @@ export const addTagToCHSpan = async (input: z.infer<typeof AddTagToSpanSchema>):
 
   // No await here because we don't want to block the request,
   // ALTER TABLE may be slow.
-  clickhouseClient.command({
-    query: `
+  clickhouseClient
+    .command({
+      query: `
       ALTER TABLE spans
       UPDATE tags_array = arrayDistinct(arrayConcat(tags_array, [{tag: String}]))
       WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID} 
     `,
-    query_params: {
-      tag,
-      spanId,
-      projectId,
-    },
-  })
+      query_params: {
+        tag,
+        spanId,
+        projectId,
+      },
+    })
     .catch((error) => {
       console.error("Error updating tags in ClickHouse", error);
     });
@@ -117,35 +91,38 @@ export const removeTagFromCHSpan = async (input: z.infer<typeof RemoveTagFromSpa
 
   // No await here because we don't want to block the request,
   // ALTER TABLE may be slow.
-  clickhouseClient.command({
-    query: `
+  clickhouseClient
+    .command({
+      query: `
       ALTER TABLE spans
       UPDATE tags_array = arrayFilter(x -> x != {tag: String}, tags_array)
       WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID} 
     `,
-    query_params: {
-      tag,
-      spanId,
-      projectId,
-    },
-  })
+      query_params: {
+        tag,
+        spanId,
+        projectId,
+      },
+    })
     .catch((error) => {
       console.error("Error removing tag from ClickHouse", error);
     });
 };
 
-export const getSpanTags = async (input: z.infer<typeof GetSpanTagsSchema>): Promise<{
-  name: string;
-  source: "MANUAL" | "AUTO" | "CODE";
-  id: string;
-  createdAt: string;
-}[]> => {
+export const getSpanTags = async (
+  input: z.infer<typeof GetSpanTagsSchema>
+): Promise<
+  {
+    name: string;
+    id: string;
+  }[]
+> => {
   const { spanId, projectId } = GetSpanTagsSchema.parse(input);
 
   const chResponse = await clickhouseClient.query({
     query: `
-      SELECT name, id, source, created_at
-      FROM tags
+      SELECT arrayJoin(tags_array) as name
+      FROM spans
       WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
     `,
     format: "JSONEachRow",
@@ -157,19 +134,13 @@ export const getSpanTags = async (input: z.infer<typeof GetSpanTagsSchema>): Pro
 
   const chData = (await chResponse.json()) as Array<{
     name: string;
-    source: number;
-    id: string;
-    created_at: string;
   }>;
 
-  return chData.map(tag => ({
+  return chData.map((tag) => ({
     name: tag.name,
-    source: TagSourceMap[tag.source] ?? "MANUAL",
-    id: tag.id,
-    createdAt: tag.created_at,
+    id: tag.name,
   }));
 };
-
 
 const CreateOrUpdateTagClassSchema = z.object({
   projectId: z.string(),
@@ -182,22 +153,28 @@ const CreateOrUpdateTagClassReturnSchema = z.object({
   color: z.string(),
 });
 
-export const createOrUpdateTagClass = async (input: z.infer<typeof CreateOrUpdateTagClassSchema>): Promise<z.infer<typeof CreateOrUpdateTagClassReturnSchema>> => {
+export const createOrUpdateTagClass = async (
+  input: z.infer<typeof CreateOrUpdateTagClassSchema>
+): Promise<z.infer<typeof CreateOrUpdateTagClassReturnSchema>> => {
   const parseResult = CreateOrUpdateTagClassSchema.parse(input);
   const { projectId, name, color } = parseResult;
 
   const newColor = color ?? sample(defaultColors)!.color;
 
-  const result = await db.insert(tagClasses).values({
-    projectId,
-    name,
-    color: newColor,
-  }).onConflictDoUpdate({
-    target: [tagClasses.name, tagClasses.projectId],
-    set: {
+  const result = await db
+    .insert(tagClasses)
+    .values({
+      projectId,
+      name,
       color: newColor,
-    },
-  }).returning();
+    })
+    .onConflictDoUpdate({
+      target: [tagClasses.name, tagClasses.projectId],
+      set: {
+        color: newColor,
+      },
+    })
+    .returning();
 
   return {
     name: result[0].name,
