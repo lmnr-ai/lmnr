@@ -260,7 +260,7 @@ async fn process_report_trigger(
     let subject = format!("{} – {}", report_name, workspace_name);
 
     let mut push_failures = 0;
-    let total_targets = targets.len();
+    let mut processed = 0;
 
     for target in &targets {
         let (notification_type, target_type, message_payload) = match target.r#type.as_str() {
@@ -305,6 +305,8 @@ async fn process_report_trigger(
             }
         };
 
+        processed += 1;
+
         let notification_message = NotificationMessage {
             project_id: Uuid::nil(),
             trace_id: Uuid::nil(),
@@ -341,10 +343,10 @@ async fn process_report_trigger(
         }
     }
 
-    if push_failures == total_targets {
+    if processed > 0 && push_failures == processed {
         let msg = format!(
             "Failed to push all {} report notifications to queue for workspace {}",
-            total_targets,
+            processed,
             workspace_id
         );
         return Err(HandlerError::transient(anyhow::anyhow!(msg)));
@@ -353,7 +355,7 @@ async fn process_report_trigger(
     log::info!(
         "[Reports Generator] Report notifications pushed to queue for workspace {} ({} targets)",
         workspace_id,
-        total_targets,
+        processed,
     );
 
     Ok(())
