@@ -305,16 +305,22 @@ const generateAndApplyKeys = async (
       const spans = fingerprintToSpans.get(fingerprint);
       if (!spans) return;
 
+      let keyValidated = false;
       spans.forEach((span) => {
         if (key) {
           const rendered = validateMustacheKey(key, span.parsedData);
-          resolved[span.spanId] = rendered ?? JSON.stringify(span.parsedData).slice(0, 500);
+          if (rendered) {
+            resolved[span.spanId] = rendered;
+            keyValidated = true;
+          } else {
+            resolved[span.spanId] = JSON.stringify(span.parsedData).slice(0, 500);
+          }
         } else {
           resolved[span.spanId] = JSON.stringify(span.parsedData).slice(0, 500);
         }
       });
 
-      if (key) keysToSave.push({ fingerprint, key });
+      if (key && keyValidated) keysToSave.push({ fingerprint, key });
     });
 
     // Fall back to JSON for any spans the LLM didn't return results for
