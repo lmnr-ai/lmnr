@@ -1,4 +1,4 @@
-const SNIPPET_CONTEXT_CHARS: usize = 50;
+use super::spans::SNIPPET_SIDE_SIZE;
 
 /// Escape a string for use inside a ClickHouse single-quoted string literal.
 pub fn escape_clickhouse_string(s: &str) -> String {
@@ -24,7 +24,7 @@ pub fn post_process_snippet(
         return None;
     }
 
-    let snippet_char_start = (char_pos as i64 - SNIPPET_CONTEXT_CHARS as i64).max(1) as u64;
+    let snippet_char_start = (char_pos as i64 - SNIPPET_SIDE_SIZE as i64).max(1) as u64;
     let snippet_char_count = raw_snippet.chars().count() as u64;
 
     let has_prefix = snippet_char_start > 1;

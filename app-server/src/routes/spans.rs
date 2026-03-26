@@ -18,7 +18,7 @@ use crate::{
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
 
-const DEFAULT_SEARCH_MAX_HITS: usize = 400;
+const DEFAULT_SEARCH_MAX_HITS: usize = 500;
 const DEFAULT_SEARCH_TIME_RANGE: chrono::Duration = chrono::Duration::days(7);
 
 // TODO: maybe remove all punctuation similar to the default tokenizer in the index?
@@ -146,12 +146,6 @@ pub struct SearchSpansRequest {
     pub offset: usize,
     #[serde(default)]
     pub get_snippets: bool,
-    #[serde(default)]
-    pub one_snippet_per_trace: bool,
-}
-
-fn default_true() -> bool {
-    true
 }
 
 const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
@@ -265,7 +259,7 @@ pub async fn search_spans(
 
     let t0: std::time::Instant = std::time::Instant::now();
     let hits = search_index(quickwit_client, &SPANS_INDEX_ID, search_body).await?;
-    log::info!(
+    log::debug!(
         "[search_spans] quickwit: {}ms, {} hits",
         t0.elapsed().as_millis(),
         hits.len()
@@ -287,14 +281,14 @@ pub async fn search_spans(
             })
             .collect();
 
-        log::info!("[search_spans] total: {}ms", t0.elapsed().as_millis());
+        log::debug!("[search_spans] total: {}ms", t0.elapsed().as_millis());
         return Ok(HttpResponse::Ok().json(results));
     }
 
-    let snippet_pairs: Vec<(Uuid, Uuid)> = if request.one_snippet_per_trace {
-        let mut seen_traces = HashSet::new();
+    const MAX_SNIPPET_TRACES: usize = 20;
+
+    let snippet_pairs: Vec<(Uuid, Uuid)> = if request.trace_id.is_some() {
         hits.iter()
-            .filter(|h| seen_traces.insert(h.trace_id.clone()))
             .filter_map(|h| {
                 let trace_id = Uuid::parse_str(&h.trace_id).ok()?;
                 let span_id = Uuid::parse_str(&h.span_id).ok()?;
@@ -302,7 +296,10 @@ pub async fn search_spans(
             })
             .collect()
     } else {
+        let mut seen_traces = HashSet::new();
         hits.iter()
+            .filter(|h| seen_traces.insert(h.trace_id.clone()))
+            .take(MAX_SNIPPET_TRACES)
             .filter_map(|h| {
                 let trace_id = Uuid::parse_str(&h.trace_id).ok()?;
                 let span_id = Uuid::parse_str(&h.span_id).ok()?;
@@ -314,7 +311,7 @@ pub async fn search_spans(
     let t1 = std::time::Instant::now();
     let snippet_rows =
         fetch_span_snippets(&clickhouse, project_id, &snippet_pairs, trimmed_query).await;
-    log::info!(
+    log::debug!(
         "[search_spans] clickhouse snippets: {}ms, {} rows",
         t1.elapsed().as_millis(),
         snippet_rows.len(),
@@ -369,7 +366,7 @@ pub async fn search_spans(
         })
         .collect();
 
-    log::info!("[search_spans] total: {}ms", t0.elapsed().as_millis());
+    log::debug!("[search_spans] total: {}ms", t0.elapsed().as_millis());
 
     Ok(HttpResponse::Ok().json(enriched_hits))
 }
@@ -408,8 +405,8 @@ async fn fetch_span_snippets(
         .map(|chunk| {
             let tuples = build_key_tuples(chunk);
             let query = build_snippet_query(phrase, &tuples);
-            println!(
-                "search_spans: snippet query: {:?}, project_id: {:?}",
+            log::debug!(
+                "[search_spans] snippet query: {:?}, project_id: {:?}",
                 query, project_id
             );
             async move {
@@ -430,7 +427,7 @@ async fn fetch_span_snippets(
     results.into_iter().flatten().collect()
 }
 
-const SNIPPET_SIDE_SIZE: u64 = 50;
+pub(super) const SNIPPET_SIDE_SIZE: u64 = 50;
 
 fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
     pairs
