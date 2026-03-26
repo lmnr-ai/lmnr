@@ -336,7 +336,7 @@ export const alertTargets = pgTable(
     alertId: uuid("alert_id").notNull(),
     projectId: uuid("project_id").notNull(),
     type: text().notNull(),
-    integrationId: uuid("integration_id"),
+    integrationId: uuid("integration_id").notNull(),
     channelId: text("channel_id"),
     channelName: text("channel_name"),
     email: text(),
@@ -591,14 +591,16 @@ export const evaluatorSpanPaths = pgTable(
 
 export const subscriptionTiers = pgTable("subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-    name: "subscription_tiers_id_seq",
-    startWith: 1,
-    increment: 1,
-    minValue: 1,
-    maxValue: 9223372036854775807,
-    cache: 1,
-  }),
+  id: bigint({ mode: "number" })
+    .primaryKey()
+    .generatedByDefaultAsIdentity({
+      name: "subscription_tiers_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
