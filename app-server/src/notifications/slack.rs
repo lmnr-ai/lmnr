@@ -65,34 +65,10 @@ fn format_event_identification_blocks(
     event_name: &str,
     extracted_information: Option<serde_json::Value>,
 ) -> serde_json::Value {
-    // Only include "View Trace" button when we have real project/trace IDs.
-    // Reports use Uuid::nil() since they don't have an associated trace.
-    let nil_id = Uuid::nil().to_string();
-    let has_trace = project_id != nil_id && trace_id != nil_id;
-
-    let trace_action_block = if has_trace {
-        let trace_link = format!(
-            "https://laminar.sh/project/{}/traces/{}",
-            project_id, trace_id
-        );
-        Some(json!({
-            "type": "actions",
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "View Trace",
-                        "emoji": true
-                    },
-                    "url": trace_link,
-                    "action_id": "view_trace"
-                }
-            ]
-        }))
-    } else {
-        None
-    };
+    let trace_link = format!(
+        "https://laminar.sh/project/{}/traces/{}",
+        project_id, trace_id
+    );
 
     let extracted_information_text = if let Some(info) = extracted_information {
         if let Some(obj) = info.as_object() {
@@ -117,38 +93,60 @@ fn format_event_identification_blocks(
     };
 
     if !extracted_information_text.is_empty() {
-        let mut blocks = vec![
-            json!({
+        return json!([
+            {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
                     "text": format!("*Event*: `{}`", event_name)
                 }
-            }),
-            json!({
+            },
+            {
                 "type": "markdown",
                 "text": extracted_information_text
-            }),
-        ];
-        if let Some(action) = trace_action_block {
-            blocks.push(action);
-        }
-        return json!(blocks);
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {
+                            "type": "plain_text",
+                            "text": "View Trace",
+                            "emoji": true
+                        },
+                        "url": trace_link,
+                        "action_id": "view_trace"
+                    }
+                ]
+            }
+        ]);
     }
 
-    let mut blocks = vec![
-        json!({
+    json!([
+        {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
                 "text": format!("✅ *Event Detected: {}*", event_name)
             }
-        }),
-    ];
-    if let Some(action) = trace_action_block {
-        blocks.push(action);
-    }
-    json!(blocks)
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "View Trace",
+                        "emoji": true
+                    },
+                    "url": trace_link,
+                    "action_id": "view_trace"
+                }
+            ]
+        }
+    ])
 }
 
 pub fn format_message_blocks(

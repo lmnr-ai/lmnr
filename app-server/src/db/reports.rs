@@ -31,25 +31,24 @@ pub async fn get_reports_for_weekday_and_hour(
 }
 
 #[derive(FromRow, Debug, Clone)]
-pub struct ReportTarget {
+pub struct EmailReportTarget {
     pub id: Uuid,
-    pub r#type: String,
-    pub email: Option<String>,
-    pub channel_id: Option<String>,
-    pub integration_id: Option<Uuid>,
+    pub email: String,
 }
 
-/// Fetch all report targets (EMAIL and SLACK) for a given report in a single query.
-pub async fn get_report_targets(
+/// Fetch email report targets for a given report where type = 'EMAIL'.
+/// The workspace_id parameter is used as a safety check to ensure the report belongs
+/// to the expected workspace.
+pub async fn get_email_report_targets(
     pool: &PgPool,
     report_id: &Uuid,
     workspace_id: &Uuid,
-) -> anyhow::Result<Vec<ReportTarget>> {
-    let targets = sqlx::query_as::<_, ReportTarget>(
-        "SELECT rt.id, rt.type, rt.email, rt.channel_id, rt.integration_id
-         FROM report_targets rt
+) -> anyhow::Result<Vec<EmailReportTarget>> {
+    let targets = sqlx::query_as::<_, EmailReportTarget>(
+        "SELECT rt.id, rt.email FROM report_targets rt
          JOIN reports r ON rt.report_id = r.id
-         WHERE rt.report_id = $1 AND r.workspace_id = $2",
+         WHERE rt.report_id = $1 AND r.workspace_id = $2
+           AND rt.type = 'EMAIL' AND rt.email IS NOT NULL",
     )
     .bind(report_id)
     .bind(workspace_id)

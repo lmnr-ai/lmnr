@@ -6,20 +6,21 @@ import { alerts, alertTargets, projects } from "@/lib/db/migrations/schema";
 
 import { type AlertTarget, type AlertType, type AlertWithDetails } from "./types";
 
-const TargetSchema = z.object({
-  type: z.string(),
-  integrationId: z.uuid().optional(),
-  channelId: z.string().optional(),
-  channelName: z.string().optional(),
-  email: z.string().optional(),
-});
-
 const CreateAlertSchema = z.object({
   projectId: z.uuid(),
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT"]),
   sourceId: z.uuid(),
-  targets: z.array(TargetSchema).min(1),
+  targets: z
+    .array(
+      z.object({
+        type: z.string(),
+        integrationId: z.uuid(),
+        channelId: z.string().optional(),
+        channelName: z.string().optional(),
+      })
+    )
+    .min(1),
 });
 
 const UpdateAlertSchema = z.object({
@@ -28,7 +29,16 @@ const UpdateAlertSchema = z.object({
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT"]),
   sourceId: z.uuid(),
-  targets: z.array(TargetSchema).min(1),
+  targets: z
+    .array(
+      z.object({
+        type: z.string(),
+        integrationId: z.uuid(),
+        channelId: z.string().optional(),
+        channelName: z.string().optional(),
+      })
+    )
+    .min(1),
 });
 
 const DeleteAlertSchema = z.object({
@@ -108,10 +118,9 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
         alertId: alert.id,
         projectId,
         type: t.type,
-        integrationId: t.integrationId ?? null,
+        integrationId: t.integrationId,
         channelId: t.channelId ?? null,
         channelName: t.channelName ?? null,
-        email: t.email ?? null,
       }))
     );
 
@@ -135,10 +144,9 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
         alertId,
         projectId,
         type: t.type,
-        integrationId: t.integrationId ?? null,
+        integrationId: t.integrationId,
         channelId: t.channelId ?? null,
         channelName: t.channelName ?? null,
-        email: t.email ?? null,
       }))
     );
 
