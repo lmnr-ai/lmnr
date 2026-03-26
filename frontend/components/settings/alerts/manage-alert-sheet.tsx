@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Mail, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import useSWR from "swr";
@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { ALERT_TARGET_TYPE, type AlertWithDetails } from "@/lib/actions/alerts/types";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
@@ -26,17 +27,19 @@ import { cn, swrFetcher } from "@/lib/utils";
 interface ManageAlertSheetProps {
   projectId: string;
   workspaceId: string;
-  integrationId: string;
+  integrationId?: string | null;
   alert?: AlertWithDetails | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  userEmail: string;
 }
 
 interface AlertFormValues {
   name: string;
   signalName: string;
   channelId: string;
+  emailEnabled: boolean;
 }
 
 const CHART_FIELDS = ["count"] as const;
@@ -45,6 +48,7 @@ const DEFAULT_VALUES: AlertFormValues = {
   name: "",
   signalName: "",
   channelId: "",
+  emailEnabled: false,
 };
 
 export default function ManageAlertSheet({
@@ -55,8 +59,10 @@ export default function ManageAlertSheet({
   open,
   onOpenChange,
   onSaved,
+  userEmail,
 }: ManageAlertSheetProps) {
   const isEditMode = !!alert;
+  const hasSlackIntegration = !!integrationId;
 
   const [isTesting, setIsTesting] = useState(false);
   const [dateRange, setDateRange] = useState<{ pastHours?: string; startDate?: string; endDate?: string }>({
@@ -78,6 +84,7 @@ export default function ManageAlertSheet({
 
   const signalName = watch("signalName");
   const channelId = watch("channelId");
+  const emailEnabled = watch("emailEnabled");
 
   const { data: signalsData, isLoading: isLoadingSignals } = useSWR<{ items: SignalRow[] }>(
     open ? `/api/projects/${projectId}/signals?pageNumber=0&pageSize=100` : null,
@@ -89,13 +96,15 @@ export default function ManageAlertSheet({
 
     const signal = signalsData.items?.find((s) => s.id === alert.sourceId);
     const slackTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.SLACK);
+    const emailTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.EMAIL && t.email === userEmail);
 
     reset({
       name: alert.name,
       signalName: signal?.name ?? "",
       channelId: slackTarget?.channelId ?? "",
+      emailEnabled: !!emailTarget,
     });
-  }, [open, alert, signalsData, reset]);
+  }, [open, alert, signalsData, reset, userEmail]);
 
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
@@ -179,7 +188,7 @@ export default function ManageAlertSheet({
   );
 
   const { data: channels, isLoading: isLoadingChannels } = useSWR<SlackChannel[]>(
-    open && selectedSignal ? `/api/workspaces/${workspaceId}/slack/channels` : null,
+    open && selectedSignal && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
     swrFetcher
   );
 
@@ -194,6 +203,51 @@ export default function ManageAlertSheet({
     async (data: AlertFormValues) => {
       if (!selectedSignal) return;
 
+      const targets: Array<{
+        type: string;
+        integrationId?: string;
+        channelId?: string;
+        channelName?: string;
+        email?: string;
+      }> = [];
+
+      if (data.channelId && hasSlackIntegration && integrationId) {
+        targets.push({
+          type: ALERT_TARGET_TYPE.SLACK,
+          integrationId,
+          channelId: data.channelId,
+          channelName: selectedChannel?.name ?? "",
+        });
+      } else if (!hasSlackIntegration && isEditMode && alert) {
+        // Preserve existing Slack targets the user can't see/edit when Slack is disconnected
+        for (const t of alert.targets) {
+          if (t.type === ALERT_TARGET_TYPE.SLACK) {
+            targets.push({
+              type: ALERT_TARGET_TYPE.SLACK,
+              integrationId: t.integrationId ?? undefined,
+              channelId: t.channelId ?? undefined,
+              channelName: t.channelName ?? undefined,
+            });
+          }
+        }
+      }
+
+      if (data.emailEnabled && userEmail) {
+        targets.push({
+          type: ALERT_TARGET_TYPE.EMAIL,
+          email: userEmail,
+        });
+      }
+
+      if (targets.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "At least one notification target (Slack channel or email) is required.",
+        });
+        return;
+      }
+
       try {
         const url = isEditMode ? `/api/projects/${projectId}/alerts/${alert.id}` : `/api/projects/${projectId}/alerts`;
         const method = isEditMode ? "PATCH" : "POST";
@@ -205,14 +259,7 @@ export default function ManageAlertSheet({
             name: data.name.trim(),
             type: "SIGNAL_EVENT",
             sourceId: selectedSignal.id,
-            targets: [
-              {
-                type: ALERT_TARGET_TYPE.SLACK,
-                integrationId,
-                channelId: data.channelId,
-                channelName: selectedChannel?.name ?? "",
-              },
-            ],
+            targets,
           }),
         });
 
@@ -244,8 +291,10 @@ export default function ManageAlertSheet({
     [
       projectId,
       integrationId,
+      hasSlackIntegration,
       selectedSignal,
       selectedChannel,
+      userEmail,
       onSaved,
       resetForm,
       toast,
@@ -378,53 +427,75 @@ export default function ManageAlertSheet({
             )}
 
             {selectedSignal && (
-              <Controller
-                name="channelId"
-                control={control}
-                rules={{ required: "Slack channel is required" }}
-                render={({ field, fieldState }) => (
-                  <div className="grid gap-2">
-                    <Label>Slack Channel</Label>
-                    <p className="text-xs text-muted-foreground">Notifications will be sent to this channel.</p>
-                    {isLoadingChannels ? (
-                      <Skeleton className="h-7 w-full" />
-                    ) : (
-                      <>
-                        <div className="flex gap-2">
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <SelectTrigger className={cn("flex-1", fieldState.error && "border-destructive")}>
-                              <SelectValue placeholder="Select a channel" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {channels?.map((ch) => (
-                                <SelectItem key={ch.id} value={ch.id}>
-                                  #{ch.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            disabled={!channelId || isTesting}
-                            onClick={handleTest}
-                          >
-                            <Loader2 className={cn("hidden", { "animate-spin block mr-1": isTesting })} size={14} />
-                            {!isTesting && <Send className="size-3.5 mr-1" />}
-                            Test
-                          </Button>
-                        </div>
-                        {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
-                      </>
+              <div className="grid gap-4">
+                <Label>Notification targets</Label>
+                <p className="text-xs text-muted-foreground -mt-3">Choose where to send alert notifications.</p>
+
+                {hasSlackIntegration && (
+                  <Controller
+                    name="channelId"
+                    control={control}
+                    render={({ field, fieldState }) => (
+                      <div className="grid gap-2">
+                        <Label className="text-xs font-normal text-muted-foreground">Slack Channel</Label>
+                        {isLoadingChannels ? (
+                          <Skeleton className="h-7 w-full" />
+                        ) : (
+                          <>
+                            <div className="flex gap-2">
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <SelectTrigger className={cn("flex-1", fieldState.error && "border-destructive")}>
+                                  <SelectValue placeholder="Select a channel (optional)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {channels?.map((ch) => (
+                                    <SelectItem key={ch.id} value={ch.id}>
+                                      #{ch.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                disabled={!channelId || isTesting}
+                                onClick={handleTest}
+                              >
+                                <Loader2 className={cn("hidden", { "animate-spin block mr-1": isTesting })} size={14} />
+                                {!isTesting && <Send className="size-3.5 mr-1" />}
+                                Test
+                              </Button>
+                            </div>
+                            {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
+                          </>
+                        )}
+                      </div>
                     )}
-                  </div>
+                  />
                 )}
-              />
+
+                <Controller
+                  name="emailEnabled"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex items-center justify-between rounded-md border p-3">
+                      <div className="flex items-center gap-2">
+                        <Mail className="size-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Email</p>
+                          <p className="text-xs text-muted-foreground">{userEmail}</p>
+                        </div>
+                      </div>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </div>
+                  )}
+                />
+              </div>
             )}
           </div>
         </ScrollArea>
         <div className="flex justify-end px-4 py-3 border-t">
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || (!emailEnabled && !channelId)}>
             <Loader2 className={cn("mr-2 hidden", { "animate-spin block": isSubmitting })} size={16} />
             {isEditMode ? "Save" : "Create"}
           </Button>
