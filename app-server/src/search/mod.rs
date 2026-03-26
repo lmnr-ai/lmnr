@@ -30,9 +30,9 @@ const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
 
 const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
 
-/// Escape special characters for Quickwit query syntax and wrap in quotes for phrase search.
+/// Escape special characters for Quickwit query syntax.
 fn escape_quickwit_query(query: &str) -> String {
-    let escaped: String = query
+    query
         .chars()
         .flat_map(|c| {
             if QUICKWIT_RESERVED_CHARACTERS.contains(&c) {
@@ -43,8 +43,7 @@ fn escape_quickwit_query(query: &str) -> String {
                 vec![c]
             }
         })
-        .collect();
-    format!("\"{escaped}\"")
+        .collect()
 }
 
 #[derive(Serialize, Deserialize)]
