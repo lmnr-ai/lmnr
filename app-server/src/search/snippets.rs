@@ -1,4 +1,24 @@
+use std::collections::{HashMap, HashSet};
+
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
 pub const SNIPPET_CONTEXT_CHARS: usize = 50;
+const DEFAULT_SEARCH_MAX_TRACES: usize = 50;
+
+#[derive(Serialize)]
+pub struct SnippetInfo {
+    pub text: String,
+    pub highlight: [usize; 2],
+}
+
+#[derive(Serialize)]
+pub struct SearchSpanHit {
+    pub trace_id: String,
+    pub span_id: String,
+    pub input_snippet: Option<SnippetInfo>,
+    pub output_snippet: Option<SnippetInfo>,
+}
 
 const RE2_META_CHARS: &[char] = &[
     '\\', '.', '+', '*', '?', '(', ')', '|', '[', ']', '{', '}', '^', '$',
@@ -118,9 +138,160 @@ pub fn post_process_snippet(
     // "..." is 3 ASCII chars = 3 UTF-16 code units
     let prefix_offset: usize = if has_prefix { 3 } else { 0 };
     let highlight_start = prefix_offset + utf16_len(&snippet_chars[..char_pos]);
-    let highlight_end = highlight_start + utf16_len(&snippet_chars[char_pos..char_pos + matched_char_len]);
+    let highlight_end =
+        highlight_start + utf16_len(&snippet_chars[char_pos..char_pos + matched_char_len]);
 
     Some((text, [highlight_start, highlight_end]))
+}
+
+#[derive(clickhouse::Row, Deserialize)]
+pub struct SpanSnippetRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub span_id: Uuid,
+    pub input_snippet: String,
+    pub output_snippet: String,
+}
+
+#[tracing::instrument(skip_all, fields(pairs_count = pairs.len()))]
+pub async fn fetch_span_snippets(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    pairs: &[(Uuid, Uuid)],
+    context_regex: &str,
+) -> Vec<SpanSnippetRow> {
+    if pairs.is_empty() {
+        return Vec::new();
+    }
+
+    let context_escaped = escape_clickhouse_string(context_regex);
+
+    let tuples = build_key_tuples(pairs);
+    let query = build_snippet_query(project_id, &context_escaped, &tuples);
+    log::debug!("search_spans: snippet query: {:?}", query);
+
+    let t_start = std::time::Instant::now();
+    clickhouse
+        .query(&query)
+        .fetch_all::<SpanSnippetRow>()
+        .await
+        .inspect(|rows| {
+            log::debug!(
+                "[search_spans] clickhouse snippets: {}ms, {} rows",
+                t_start.elapsed().as_millis(),
+                rows.len()
+            );
+        })
+        .unwrap_or_else(|e| {
+            log::error!("Failed to fetch span snippets from ClickHouse: {:?}", e);
+            Vec::new()
+        })
+}
+
+fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
+    pairs
+        .iter()
+        .map(|(trace_id, span_id)| format!("('{trace_id}', '{span_id}')"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) -> String {
+    format!(
+        "SELECT span_id,
+                extract(input, '{context_regex}') AS input_snippet,
+                extract(output, '{context_regex}') AS output_snippet
+         FROM spans
+         WHERE project_id = '{project_id}'
+           AND (trace_id, span_id) IN ({key_tuples})
+         ORDER BY start_time ASC"
+    )
+}
+
+/// Given Quickwit hits as `(trace_id, span_id)` pairs, fetches context
+/// snippets from ClickHouse and enriches each hit with highlighted matches.
+///
+/// When `is_single_trace` is false, only the first `DEFAULT_SEARCH_MAX_TRACES`
+/// unique traces are kept.
+#[tracing::instrument(skip_all, name = "enrich_hits_with_snippets")]
+pub async fn enrich_hits_with_snippets(
+    clickhouse: &clickhouse::Client,
+    project_id: Uuid,
+    hits: Vec<(String, String)>,
+    is_single_trace: bool,
+    search_query: &str,
+) -> Vec<SearchSpanHit> {
+    let mut unique_traces = HashSet::new();
+    let snippet_pairs: Vec<(Uuid, Uuid)> = hits
+        .iter()
+        .filter_map(|(trace_id, span_id)| {
+            if !is_single_trace {
+                if unique_traces.contains(trace_id) {
+                    return None;
+                }
+                if unique_traces.len() >= DEFAULT_SEARCH_MAX_TRACES {
+                    return None;
+                }
+                unique_traces.insert(trace_id.clone());
+            }
+            let trace_id = Uuid::parse_str(trace_id).ok()?;
+            let span_id = Uuid::parse_str(span_id).ok()?;
+            Some((trace_id, span_id))
+        })
+        .collect();
+    log::debug!("[search_spans] unique_traces: {}", unique_traces.len());
+
+    let (match_re, context_regex) = match build_search_regexes(search_query) {
+        Some(regexes) => regexes,
+        None => {
+            return hits
+                .into_iter()
+                .filter(|(tid, _)| is_single_trace || unique_traces.contains(tid))
+                .map(|(trace_id, span_id)| SearchSpanHit {
+                    trace_id,
+                    span_id,
+                    input_snippet: None,
+                    output_snippet: None,
+                })
+                .collect();
+        }
+    };
+
+    let snippet_rows =
+        fetch_span_snippets(clickhouse, project_id, &snippet_pairs, &context_regex).await;
+
+    let snippet_map: HashMap<String, SpanSnippetRow> = snippet_rows
+        .into_iter()
+        .map(|row| (row.span_id.to_string(), row))
+        .collect();
+
+    hits.into_iter()
+        .filter(|(tid, _)| is_single_trace || unique_traces.contains(tid))
+        .map(|(trace_id, span_id)| {
+            if let Some(row) = snippet_map.get(&span_id) {
+                let input_snippet =
+                    post_process_snippet(&row.input_snippet, &match_re, SNIPPET_CONTEXT_CHARS)
+                        .map(|(text, highlight)| SnippetInfo { text, highlight });
+
+                let output_snippet =
+                    post_process_snippet(&row.output_snippet, &match_re, SNIPPET_CONTEXT_CHARS)
+                        .map(|(text, highlight)| SnippetInfo { text, highlight });
+
+                SearchSpanHit {
+                    trace_id,
+                    span_id,
+                    input_snippet,
+                    output_snippet,
+                }
+            } else {
+                SearchSpanHit {
+                    trace_id,
+                    span_id,
+                    input_snippet: None,
+                    output_snippet: None,
+                }
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -162,7 +333,10 @@ mod tests {
     #[test]
     fn test_regex_non_alnum_separators() {
         let (m, _) = build_search_regexes("submit=true").unwrap();
-        assert_eq!(m.as_str(), "[sS][uU][bB][mM][iI][tT][^a-zA-Z0-9]+[tT][rR][uU][eE]");
+        assert_eq!(
+            m.as_str(),
+            "[sS][uU][bB][mM][iI][tT][^a-zA-Z0-9]+[tT][rR][uU][eE]"
+        );
     }
 
     #[test]
