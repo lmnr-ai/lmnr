@@ -21,12 +21,14 @@ export const searchSpans = async ({
   searchQuery,
   timeRange,
   searchType,
+  getSnippets,
 }: {
   projectId: string;
   traceId?: string;
   searchQuery: string;
   timeRange?: TimeRange;
   searchType?: SpanSearchType[];
+  getSnippets?: boolean;
 }): Promise<SpanSearchHit[]> => {
   const trimmedQuery = searchQuery.trim();
   if (!trimmedQuery) {
@@ -54,6 +56,7 @@ export const searchSpans = async ({
     startTime,
     endTime,
     searchIn: searchType?.map((t) => t.toString()),
+    getSnippets: getSnippets ?? false,
     // Pagination is currently disabled (defaults on app-server side): API paginates by traces, search engine by spans
     limit: 0,
     offset: 0,
