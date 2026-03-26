@@ -591,16 +591,14 @@ export const evaluatorSpanPaths = pgTable(
 
 export const subscriptionTiers = pgTable("subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" })
-    .primaryKey()
-    .generatedByDefaultAsIdentity({
-      name: "subscription_tiers_id_seq",
-      startWith: 1,
-      increment: 1,
-      minValue: 1,
-      maxValue: 9223372036854775807,
-      cache: 1,
-    }),
+  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
+    name: "subscription_tiers_id_seq",
+    startWith: 1,
+    increment: 1,
+    minValue: 1,
+    maxValue: 9223372036854775807,
+    cache: 1,
+  }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -641,6 +639,27 @@ export const workspaces = pgTable(
       foreignColumns: [subscriptionTiers.id],
       name: "workspaces_tier_id_fkey",
     }).onUpdate("cascade"),
+  ]
+);
+
+export const workspaceUsageLimits = pgTable(
+  "workspace_usage_limits",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    limitType: text("limit_type").notNull(),
+    limitValue: bigint("limit_value", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("workspace_usage_limits_workspace_id_limit_type_unique").on(table.workspaceId, table.limitType),
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "workspace_usage_limits_workspace_id_fkey",
+    })
+      .onDelete("cascade")
+      .onUpdate("cascade"),
   ]
 );
 

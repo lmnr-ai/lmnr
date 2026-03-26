@@ -50,6 +50,7 @@ import {
   semanticEventTriggerSpans,
   clusters,
   traces,
+  workspaceUsageLimits,
 } from "./schema";
 
 export const rolloutSessionsRelations = relations(rolloutSessions, ({ one }) => ({
@@ -116,6 +117,7 @@ export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
   projects: many(projects),
   membersOfWorkspaces: many(membersOfWorkspaces),
   workspaceUsages: many(workspaceUsage),
+  workspaceUsageLimits: many(workspaceUsageLimits),
   reportTargets: many(reportTargets),
   reports: many(reports),
   workspaceInvitations: many(workspaceInvitations),
@@ -185,6 +187,13 @@ export const customModelCostsRelations = relations(customModelCosts, ({ one }) =
 export const workspaceUsageRelations = relations(workspaceUsage, ({ one }) => ({
   workspace: one(workspaces, {
     fields: [workspaceUsage.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const workspaceUsageLimitsRelations = relations(workspaceUsageLimits, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceUsageLimits.workspaceId],
     references: [workspaces.id],
   }),
 }));

@@ -15,6 +15,7 @@ import { type Workspace, type WorkspaceWithProjects } from "@/lib/workspaces/typ
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import UsageLimitsSettings from "./usage-limits";
 
 interface RenameWorkspaceForm {
   name: string;
@@ -217,6 +218,8 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
           </DialogContent>
         </Dialog>
       </SettingsSection>
+
+      <UsageLimitsSettings workspaceId={workspace.id} />
 
       <SettingsSection>
         <SettingsSectionHeader

@@ -15,6 +15,10 @@ pub struct ProjectWithWorkspaceBillingInfo {
     pub workspace_project_ids: Vec<Uuid>,
     pub bytes_limit: i64,
     pub signal_runs_limit: i64,
+    /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
+    pub custom_bytes_limit: Option<i64>,
+    /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
+    pub custom_signal_runs_limit: Option<i64>,
 }
 
 #[derive(FromRow, Debug, Clone)]
@@ -57,12 +61,18 @@ pub async fn get_project_and_workspace_billing_info(
             workspaces.reset_time,
             COALESCE(workspace_project_ids.project_ids, '{}') as workspace_project_ids,
             subscription_tiers.bytes_ingested as bytes_limit,
-            subscription_tiers.signal_runs as signal_runs_limit
+            subscription_tiers.signal_runs as signal_runs_limit,
+            wul_bytes.limit_value as custom_bytes_limit,
+            wul_signal_runs.limit_value as custom_signal_runs_limit
         FROM
             projects
             join workspaces on projects.workspace_id = workspaces.id
             join subscription_tiers on workspaces.tier_id = subscription_tiers.id
             LEFT join workspace_project_ids on projects.workspace_id = workspace_project_ids.workspace_id
+            LEFT join workspace_usage_limits wul_bytes
+                on wul_bytes.workspace_id = workspaces.id AND wul_bytes.limit_type = 'bytes'
+            LEFT join workspace_usage_limits wul_signal_runs
+                on wul_signal_runs.workspace_id = workspaces.id AND wul_signal_runs.limit_type = 'signal_runs'
         WHERE
             projects.id = $1",
     )
