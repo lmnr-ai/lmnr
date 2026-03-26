@@ -40,3 +40,42 @@ pub async fn get_slack_targets_for_event(
 
     Ok(records)
 }
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct EmailAlertTarget {
+    pub id: Uuid,
+    pub alert_id: Uuid,
+    pub workspace_id: Uuid,
+    pub email: String,
+}
+
+/// Look up Email alert targets for a given project and signal event name.
+///
+/// Joins alerts → signals (by source_id) → alert_targets to find
+/// which email addresses should be notified when a signal event fires.
+pub async fn get_email_targets_for_event(
+    pool: &PgPool,
+    project_id: Uuid,
+    event_name: &str,
+) -> anyhow::Result<Vec<EmailAlertTarget>> {
+    let records = sqlx::query_as::<_, EmailAlertTarget>(
+        r#"
+        SELECT at.id, at.alert_id, p.workspace_id,
+               at.email
+        FROM alert_targets at
+        INNER JOIN alerts a ON a.id = at.alert_id
+        INNER JOIN signals s ON s.id = a.source_id
+        INNER JOIN projects p ON p.id = a.project_id
+        WHERE a.project_id = $1
+          AND s.name = $2
+          AND at.type = 'EMAIL'
+          AND at.email IS NOT NULL
+        "#,
+    )
+    .bind(project_id)
+    .bind(event_name)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(records)
+}

@@ -65,6 +65,33 @@ pub struct SignalInfo {
     pub project_id: Uuid,
 }
 
+#[derive(FromRow, Debug, Clone)]
+pub struct SlackReportTarget {
+    pub id: Uuid,
+    pub channel_id: String,
+    pub integration_id: Uuid,
+}
+
+/// Fetch Slack report targets for a given report where type = 'SLACK'.
+pub async fn get_slack_report_targets(
+    pool: &PgPool,
+    report_id: &Uuid,
+    workspace_id: &Uuid,
+) -> anyhow::Result<Vec<SlackReportTarget>> {
+    let targets = sqlx::query_as::<_, SlackReportTarget>(
+        "SELECT rt.id, rt.channel_id, rt.integration_id FROM report_targets rt
+         JOIN reports r ON rt.report_id = r.id
+         WHERE rt.report_id = $1 AND r.workspace_id = $2
+           AND rt.type = 'SLACK' AND rt.channel_id IS NOT NULL",
+    )
+    .bind(report_id)
+    .bind(workspace_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(targets)
+}
+
 /// Fetch all signals for all projects in a workspace in a single query.
 pub async fn get_signals_for_workspace(
     pool: &PgPool,

@@ -1,6 +1,7 @@
 //! This module reads report triggers from RabbitMQ and processes them: fetches signal event
 //! samples from ClickHouse, generates per-project AI summaries via the LLM service with tool
-//! calling, generates an HTML report, and pushes email notifications to the notification queue.
+//! calling, generates an HTML report, and pushes email and Slack notifications to the
+//! notification queue.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -15,12 +16,13 @@ use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData, rend
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
-use crate::db::reports::{get_email_report_targets, get_signals_for_workspace};
+use crate::db::reports::{get_email_report_targets, get_signals_for_workspace, get_slack_report_targets};
 use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
 use crate::notifications::{
-    EmailPayload, NotificationMessage, NotificationType, push_to_notification_queue,
+    EmailPayload, EventIdentificationPayload, NotificationMessage, NotificationType,
+    push_to_notification_queue,
 };
 use crate::signals::llm_model;
 use crate::signals::provider::models::{
@@ -246,9 +248,14 @@ async fn process_report_trigger(
         .await
         .map_err(|e| HandlerError::transient(e))?;
 
-    if email_targets.is_empty() {
+    // Get Slack targets from report_targets table
+    let slack_targets = get_slack_report_targets(&db.pool, &report_id, &workspace_id)
+        .await
+        .map_err(|e| HandlerError::transient(e))?;
+
+    if email_targets.is_empty() && slack_targets.is_empty() {
         log::info!(
-            "[Reports Generator] No email targets found for report {} in workspace {}",
+            "[Reports Generator] No targets found for report {} in workspace {}",
             report_id,
             workspace_id
         );
@@ -257,8 +264,10 @@ async fn process_report_trigger(
 
     let subject = format!("{} – {}", report_name, workspace_name);
 
-    // Push one notification per email target so each gets its own notification log entry
     let mut push_failures = 0;
+    let total_targets = email_targets.len() + slack_targets.len();
+
+    // Push one notification per email target so each gets its own notification log entry
     for target in &email_targets {
         let email_payload = EmailPayload {
             from: REPORT_FROM_EMAIL.to_string(),
@@ -311,10 +320,57 @@ async fn process_report_trigger(
         }
     }
 
-    if push_failures == email_targets.len() {
+    // Push one notification per Slack target
+    for target in &slack_targets {
+        let slack_payload = EventIdentificationPayload {
+            event_name: subject.clone(),
+            extracted_information: Some(build_report_slack_summary(&report_data)),
+            channel_id: target.channel_id.clone(),
+            integration_id: target.integration_id,
+        };
+
+        let message_payload = serde_json::to_value(&slack_payload)
+            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
+
+        let notification_message = NotificationMessage {
+            project_id: Uuid::nil(),
+            trace_id: Uuid::nil(),
+            notification_type: NotificationType::Slack,
+            event_name: subject.clone(),
+            payload: message_payload,
+            workspace_id,
+            definition_type: "REPORT".to_string(),
+            definition_id: report_id,
+            target_id: target.id,
+            target_type: "SLACK".to_string(),
+        };
+
+        let serialized_size = serde_json::to_vec(&notification_message)
+            .map(|v| v.len())
+            .unwrap_or(0);
+        if serialized_size >= mq_max_payload() {
+            log::warn!(
+                "[Reports Generator] MQ payload limit exceeded for Slack target. payload size: [{}], channel: [{}]",
+                serialized_size,
+                target.channel_id,
+            );
+            continue;
+        }
+
+        if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
+            push_failures += 1;
+            log::error!(
+                "[Reports Generator] Failed to push Slack report notification for channel {}: {:?}",
+                target.channel_id,
+                e
+            );
+        }
+    }
+
+    if push_failures == total_targets {
         let msg = format!(
             "Failed to push all {} report notifications to queue for workspace {}",
-            email_targets.len(),
+            total_targets,
             workspace_id
         );
         // Publish failures are transient (MQ connectivity), retrying may help
@@ -322,11 +378,56 @@ async fn process_report_trigger(
     }
 
     log::info!(
-        "[Reports Generator] Report email notifications pushed to queue for workspace {}",
-        workspace_id
+        "[Reports Generator] Report notifications pushed to queue for workspace {} ({} email, {} slack)",
+        workspace_id,
+        email_targets.len(),
+        slack_targets.len(),
     );
 
     Ok(())
+}
+
+/// Build a JSON summary of the report data suitable for Slack message display.
+fn build_report_slack_summary(report_data: &ReportData) -> serde_json::Value {
+    let mut project_summaries = serde_json::Map::new();
+    for project in &report_data.projects {
+        let counts: Vec<String> = project
+            .signal_event_counts
+            .iter()
+            .map(|(name, count)| format!("{}: {}", name, count))
+            .collect();
+        let mut info = serde_json::Map::new();
+        info.insert(
+            "signal_events".to_string(),
+            serde_json::Value::String(counts.join(", ")),
+        );
+        if !project.ai_summary.is_empty() {
+            info.insert(
+                "summary".to_string(),
+                serde_json::Value::String(project.ai_summary.clone()),
+            );
+        }
+        project_summaries.insert(project.project_name.clone(), serde_json::Value::Object(info));
+    }
+
+    let mut summary = serde_json::Map::new();
+    summary.insert(
+        "period".to_string(),
+        serde_json::Value::String(format!(
+            "{} – {}",
+            report_data.period_start, report_data.period_end
+        )),
+    );
+    summary.insert(
+        "total_events".to_string(),
+        serde_json::Value::Number(serde_json::Number::from(report_data.total_events)),
+    );
+    summary.insert(
+        "projects".to_string(),
+        serde_json::Value::Object(project_summaries),
+    );
+
+    serde_json::Value::Object(summary)
 }
 
 /// Build the tool definition for the report summary LLM call.
