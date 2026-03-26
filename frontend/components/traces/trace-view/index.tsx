@@ -1,7 +1,7 @@
 import { get } from "lodash";
 import { AlertTriangle, CirclePlay } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { TraceStatsShields } from "@/components/traces/stats-shields";
 import Header from "@/components/traces/trace-view/header";
@@ -318,7 +318,7 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
   const initialSearch = searchParams.get("search") ?? "";
 
   useEffect(() => {
-    fetchSpans(initialSearch, []);
+    fetchSpans("", []);
 
     return () => {
       setSpans([]);
@@ -326,6 +326,15 @@ const PureTraceView = ({ traceId, spanId, onClose, propsTrace }: TraceViewProps)
       setSpansError(undefined);
     };
   }, [traceId, projectId, setSpans, setTraceError, setSpansError]);
+
+  // Re-fetch with the URL search query once trace (and its time range) is available.
+  const initialSearchDone = useRef(false);
+  useEffect(() => {
+    if (initialSearch && trace && !initialSearchDone.current) {
+      initialSearchDone.current = true;
+      fetchSpans(initialSearch, []);
+    }
+  }, [trace, initialSearch, fetchSpans]);
 
   useRealtime({
     key: `trace_${traceId}`,

@@ -67,11 +67,19 @@ pub fn build_search_regexes(query: &str) -> Option<(String, String)> {
     Some((match_regex, context_regex))
 }
 
+/// Count UTF-16 code units for a slice of chars.
+/// JS `String.prototype.slice()` operates on UTF-16 code units, so offsets
+/// sent to the frontend must be in this unit, not Unicode codepoints.
+fn utf16_len(chars: &[char]) -> usize {
+    chars.iter().map(|c| c.len_utf16()).sum()
+}
+
 /// Post-process an `extract()`-produced snippet and matched text into a final
-/// snippet with `...` prefix/suffix and character-level highlight offsets.
+/// snippet with `...` prefix/suffix and UTF-16 code-unit highlight offsets.
 ///
-/// Returns `(text_with_ellipsis, [highlight_start, highlight_end])` in character
-/// offsets, or `None` when either string is empty / no match found.
+/// Returns `(text_with_ellipsis, [highlight_start, highlight_end])` in UTF-16
+/// code-unit offsets (compatible with JS `String.prototype.slice()`), or `None`
+/// when either string is empty / no match found.
 pub fn post_process_snippet(
     snippet: &str,
     matched_text: &str,
@@ -109,9 +117,10 @@ pub fn post_process_snippet(
         text.push_str("...");
     }
 
-    let prefix_offset = if has_prefix { 3 } else { 0 };
-    let highlight_start = prefix_offset + char_pos;
-    let highlight_end = highlight_start + matched_char_len;
+    // "..." is 3 ASCII chars = 3 UTF-16 code units
+    let prefix_offset: usize = if has_prefix { 3 } else { 0 };
+    let highlight_start = prefix_offset + utf16_len(&snippet_chars[..char_pos]);
+    let highlight_end = highlight_start + utf16_len(&snippet_chars[char_pos..char_pos + matched_char_len]);
 
     Some((text, [highlight_start, highlight_end]))
 }
@@ -119,6 +128,13 @@ pub fn post_process_snippet(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Extract a substring from `s` using UTF-16 code-unit offsets,
+    /// mirroring JS `s.slice(start, end)`.
+    fn js_slice(s: &str, start: usize, end: usize) -> String {
+        let utf16: Vec<u16> = s.encode_utf16().collect();
+        String::from_utf16(&utf16[start..end]).expect("invalid UTF-16 slice")
+    }
 
     #[test]
     fn test_escape_clickhouse_string() {
@@ -212,26 +228,84 @@ mod tests {
         let (text, highlight) = result.unwrap();
         assert!(text.starts_with("..."));
         assert!(text.ends_with("..."));
-        let chars: Vec<char> = text.chars().collect();
-        let highlighted: String = chars[highlight[0]..highlight[1]].iter().collect();
-        assert_eq!(highlighted, "TARGET");
+        assert_eq!(js_slice(&text, highlight[0], highlight[1]), "TARGET");
     }
 
     #[test]
     fn test_post_process_snippet_case_insensitive_find() {
         let result = post_process_snippet("Hello WORLD test", "world", 50);
         let (text, highlight) = result.unwrap();
-        let chars: Vec<char> = text.chars().collect();
-        let highlighted: String = chars[highlight[0]..highlight[1]].iter().collect();
-        assert_eq!(highlighted, "WORLD");
+        assert_eq!(js_slice(&text, highlight[0], highlight[1]), "WORLD");
     }
 
     #[test]
     fn test_post_process_snippet_flexible_match() {
         let result = post_process_snippet("submit: true is set", "submit: true", 50);
         let (text, highlight) = result.unwrap();
-        let chars: Vec<char> = text.chars().collect();
-        let highlighted: String = chars[highlight[0]..highlight[1]].iter().collect();
-        assert_eq!(highlighted, "submit: true");
+        assert_eq!(js_slice(&text, highlight[0], highlight[1]), "submit: true");
+    }
+
+    // ── UTF-16 encoding tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_post_process_snippet_emoji_before_match() {
+        // 🎉 is U+1F389 — 1 codepoint but 2 UTF-16 code units (surrogate pair)
+        let result = post_process_snippet("🎉 Hello world", "Hello", 50);
+        let (text, highlight) = result.unwrap();
+        // "🎉 " = 2 (surrogate pair) + 1 (space) = 3 UTF-16 code units
+        assert_eq!(highlight[0], 3);
+        assert_eq!(highlight[1], 8); // 3 + 5 ("Hello")
+        assert_eq!(js_slice(&text, highlight[0], highlight[1]), "Hello");
+    }
+
+    #[test]
+    fn test_post_process_snippet_emoji_in_match() {
+        // Match text itself contains emoji
+        let result = post_process_snippet("say 🎉🎊 done", "🎉🎊", 50);
+        let (text, highlight) = result.unwrap();
+        // "say " = 4 UTF-16 code units
+        assert_eq!(highlight[0], 4);
+        // 🎉 = 2 code units, 🎊 = 2 code units => matched len = 4
+        assert_eq!(highlight[1], 8);
+        assert_eq!(js_slice(&text, highlight[0], highlight[1]), "🎉🎊");
+    }
+
+    #[test]
+    fn test_post_process_snippet_multiple_emoji_before_match() {
+        // Multiple emoji before the match
+        let result = post_process_snippet("🎉🎊🎈 test word", "test", 50);
+        let (text, highlight) = result.unwrap();
+        // 🎉(2) + 🎊(2) + 🎈(2) + space(1) = 7 UTF-16 code units
+        assert_eq!(highlight[0], 7);
+        assert_eq!(highlight[1], 11); // 7 + 4 ("test")
+        assert_eq!(js_slice(&text, highlight[0], highlight[1]), "test");
+    }
+
+    #[test]
+    fn test_post_process_snippet_emoji_with_ellipses() {
+        // Emoji in context with ellipses
+        let before = "🎉".repeat(SNIPPET_CONTEXT_CHARS); // each 🎉 is 1 codepoint
+        let after = "🎊".repeat(SNIPPET_CONTEXT_CHARS);
+        let snippet = format!("{before}TARGET{after}");
+        let result = post_process_snippet(&snippet, "TARGET", SNIPPET_CONTEXT_CHARS);
+        let (text, highlight) = result.unwrap();
+        assert!(text.starts_with("..."));
+        assert!(text.ends_with("..."));
+        assert_eq!(js_slice(&text, highlight[0], highlight[1]), "TARGET");
+        // Verify offset accounts for surrogate pairs:
+        // "..." (3) + 50 emoji × 2 code units each = 3 + 100 = 103
+        assert_eq!(highlight[0], 103);
+        assert_eq!(highlight[1], 109); // 103 + 6 ("TARGET")
+    }
+
+    #[test]
+    fn test_post_process_snippet_bmp_chars_same_as_codepoints() {
+        // For BMP-only text (e.g. CJK), UTF-16 offsets == codepoint offsets
+        let result = post_process_snippet("日本語テスト hello", "hello", 50);
+        let (text, highlight) = result.unwrap();
+        // "日本語テスト " = 7 codepoints = 7 UTF-16 code units (all BMP)
+        assert_eq!(highlight[0], 7);
+        assert_eq!(highlight[1], 12);
+        assert_eq!(js_slice(&text, highlight[0], highlight[1]), "hello");
     }
 }
