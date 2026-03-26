@@ -4,11 +4,11 @@ import { z } from "zod/v4";
 import { type Filter, parseFilters } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
+import { cache, SIGNAL_TRIGGERS_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { signals, signalTriggers } from "@/lib/db/migrations/schema";
+import { projects, signals, signalTriggers } from "@/lib/db/migrations/schema";
 
 export type SignalRow = {
   id: string;
@@ -255,6 +255,7 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
     .returning();
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
+  await invalidateWorkspaceSignalRunsCache(projectId);
 
   return result;
 }
@@ -287,8 +288,24 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
   }
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
+  await invalidateWorkspaceSignalRunsCache(projectId);
 
   return { success: true };
+}
+
+async function invalidateWorkspaceSignalRunsCache(projectId: string) {
+  try {
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, projectId),
+      columns: { workspaceId: true },
+    });
+
+    if (project) {
+      await cache.remove(`${WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:${project.workspaceId}`);
+    }
+  } catch (error) {
+    console.error("Failed to invalidate workspace signal runs cache:", error);
+  }
 }
 
 export { executeSignal } from "./execute";
