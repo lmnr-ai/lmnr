@@ -207,8 +207,8 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
     )
 }
 
-/// Given Quickwit hits as `(trace_id, span_id)` pairs, fetches context
-/// snippets from ClickHouse and enriches each hit with highlighted matches.
+/// Given Quickwit hits, fetches context snippets from ClickHouse and enriches
+/// each hit with highlighted matches.
 ///
 /// When `is_single_trace` is false, only the first `DEFAULT_SEARCH_MAX_TRACES`
 /// unique traces are kept.
@@ -216,25 +216,25 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
 pub async fn enrich_hits_with_snippets(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
-    hits: Vec<(String, String)>,
+    hits: Vec<SearchSpanHit>,
     is_single_trace: bool,
     search_query: &str,
 ) -> Vec<SearchSpanHit> {
     let mut unique_traces = HashSet::new();
     let snippet_pairs: Vec<(Uuid, Uuid)> = hits
         .iter()
-        .filter_map(|(trace_id, span_id)| {
+        .filter_map(|hit| {
             if !is_single_trace {
-                if unique_traces.contains(trace_id) {
+                if unique_traces.contains(&hit.trace_id) {
                     return None;
                 }
                 if unique_traces.len() >= DEFAULT_SEARCH_MAX_TRACES {
                     return None;
                 }
-                unique_traces.insert(trace_id.clone());
+                unique_traces.insert(hit.trace_id.clone());
             }
-            let trace_id = Uuid::parse_str(trace_id).ok()?;
-            let span_id = Uuid::parse_str(span_id).ok()?;
+            let trace_id = Uuid::parse_str(&hit.trace_id).ok()?;
+            let span_id = Uuid::parse_str(&hit.span_id).ok()?;
             Some((trace_id, span_id))
         })
         .collect();
@@ -245,13 +245,7 @@ pub async fn enrich_hits_with_snippets(
         None => {
             return hits
                 .into_iter()
-                .filter(|(tid, _)| is_single_trace || unique_traces.contains(tid))
-                .map(|(trace_id, span_id)| SearchSpanHit {
-                    trace_id,
-                    span_id,
-                    input_snippet: None,
-                    output_snippet: None,
-                })
+                .filter(|hit| is_single_trace || unique_traces.contains(&hit.trace_id))
                 .collect();
         }
     };
@@ -265,31 +259,18 @@ pub async fn enrich_hits_with_snippets(
         .collect();
 
     hits.into_iter()
-        .filter(|(tid, _)| is_single_trace || unique_traces.contains(tid))
-        .map(|(trace_id, span_id)| {
-            if let Some(row) = snippet_map.get(&span_id) {
-                let input_snippet =
+        .filter(|hit| is_single_trace || unique_traces.contains(&hit.trace_id))
+        .map(|mut hit| {
+            if let Some(row) = snippet_map.get(&hit.span_id) {
+                hit.input_snippet =
                     post_process_snippet(&row.input_snippet, &match_re, SNIPPET_CONTEXT_CHARS)
                         .map(|(text, highlight)| SnippetInfo { text, highlight });
 
-                let output_snippet =
+                hit.output_snippet =
                     post_process_snippet(&row.output_snippet, &match_re, SNIPPET_CONTEXT_CHARS)
                         .map(|(text, highlight)| SnippetInfo { text, highlight });
-
-                SearchSpanHit {
-                    trace_id,
-                    span_id,
-                    input_snippet,
-                    output_snippet,
-                }
-            } else {
-                SearchSpanHit {
-                    trace_id,
-                    span_id,
-                    input_snippet: None,
-                    output_snippet: None,
-                }
             }
+            hit
         })
         .collect()
 }

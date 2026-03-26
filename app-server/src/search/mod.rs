@@ -127,29 +127,27 @@ pub async fn search_spans(
         return Ok(Vec::new());
     }
 
-    let hit_pairs: Vec<(String, String)> =
-        hits.into_iter().map(|h| (h.trace_id, h.span_id)).collect();
+    let span_hits: Vec<SearchSpanHit> = hits
+        .into_iter()
+        .map(|h| SearchSpanHit {
+            trace_id: h.trace_id,
+            span_id: h.span_id,
+            input_snippet: None,
+            output_snippet: None,
+        })
+        .collect();
 
-    // If snippets are requested, enrich the hits with snippets from ClickHouse
     let results = if get_snippets {
         snippets::enrich_hits_with_snippets(
             clickhouse,
             project_id,
-            hit_pairs,
+            span_hits,
             trace_id.is_some(),
             query,
         )
         .await
     } else {
-        hit_pairs
-            .into_iter()
-            .map(|(trace_id, span_id)| SearchSpanHit {
-                trace_id,
-                span_id,
-                input_snippet: None,
-                output_snippet: None,
-            })
-            .collect()
+        span_hits
     };
 
     log::debug!("[search_spans] total: {}ms", t0.elapsed().as_millis());
