@@ -14,7 +14,7 @@ use crate::{
     db::spans::{Span, SpanType},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
     quickwit::{SPANS_INDEX_ID, client::QuickwitClient},
-    routes::{ResponseResult, error::Error, search_snippets},
+    routes::{ResponseResult, error::Error, snippets},
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
 
@@ -35,7 +35,6 @@ const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
     '\u{2013}', // – en dash
     '\u{2014}', // — em dash
 ];
-
 
 /// Escape special characters for Quickwit query syntax and wrap in quotes for phrase search.
 fn escape_quickwit_query(query: &str) -> String {
@@ -184,6 +183,7 @@ struct SpanSnippetRow {
 }
 
 #[post("spans/search")]
+#[tracing::instrument(skip_all, name = "search_spans")]
 pub async fn search_spans(
     project_id: web::Path<Uuid>,
     request: web::Json<SearchSpansRequest>,
@@ -253,7 +253,7 @@ pub async fn search_spans(
     }
 
     let t0: std::time::Instant = std::time::Instant::now();
-    let hits = search_index(quickwit_client, &SPANS_INDEX_ID, search_body).await?;
+    let hits = search_span_hits(quickwit_client, &SPANS_INDEX_ID, search_body).await?;
     log::debug!(
         "[search_spans] quickwit: {}ms, {} hits",
         t0.elapsed().as_millis(),
@@ -299,35 +299,27 @@ pub async fn search_spans(
         .collect();
     log::debug!("[search_spans] unique_traces: {}", unique_traces.len());
 
-    let (match_re, context_regex) =
-        match search_snippets::build_search_regexes(trimmed_query) {
-            Some(regexes) => regexes,
-            None => {
-                let results: Vec<SearchSpanHit> = hits
-                    .into_iter()
-                    .filter(|h| {
-                        request.trace_id.is_some() || unique_traces.contains(&h.trace_id)
-                    })
-                    .map(|h| SearchSpanHit {
-                        trace_id: h.trace_id,
-                        span_id: h.span_id,
-                        input_snippet: None,
-                        output_snippet: None,
-                    })
-                    .collect();
-                return Ok(HttpResponse::Ok().json(results));
-            }
-        };
+    let (match_re, context_regex) = match snippets::build_search_regexes(trimmed_query) {
+        Some(regexes) => regexes,
+        None => {
+            let results: Vec<SearchSpanHit> = hits
+                .into_iter()
+                .filter(|h| request.trace_id.is_some() || unique_traces.contains(&h.trace_id))
+                .map(|h| SearchSpanHit {
+                    trace_id: h.trace_id,
+                    span_id: h.span_id,
+                    input_snippet: None,
+                    output_snippet: None,
+                })
+                .collect();
+            return Ok(HttpResponse::Ok().json(results));
+        }
+    };
 
-    let snippet_rows = fetch_span_snippets(
-        &clickhouse,
-        project_id,
-        &snippet_pairs,
-        &context_regex,
-    )
-    .await;
+    let snippet_rows =
+        fetch_span_snippets(&clickhouse, project_id, &snippet_pairs, &context_regex).await;
 
-    let context_size = search_snippets::SNIPPET_CONTEXT_CHARS;
+    let context_size = snippets::SNIPPET_CONTEXT_CHARS;
 
     let snippet_map: HashMap<String, SpanSnippetRow> = snippet_rows
         .into_iter()
@@ -339,19 +331,13 @@ pub async fn search_spans(
         .filter(|hit| request.trace_id.is_some() || unique_traces.contains(&hit.trace_id))
         .map(|hit| {
             if let Some(row) = snippet_map.get(&hit.span_id) {
-                let input_snippet = search_snippets::post_process_snippet(
-                    &row.input_snippet,
-                    &match_re,
-                    context_size,
-                )
-                .map(|(text, highlight)| SnippetInfo { text, highlight });
+                let input_snippet =
+                    snippets::post_process_snippet(&row.input_snippet, &match_re, context_size)
+                        .map(|(text, highlight)| SnippetInfo { text, highlight });
 
-                let output_snippet = search_snippets::post_process_snippet(
-                    &row.output_snippet,
-                    &match_re,
-                    context_size,
-                )
-                .map(|(text, highlight)| SnippetInfo { text, highlight });
+                let output_snippet =
+                    snippets::post_process_snippet(&row.output_snippet, &match_re, context_size)
+                        .map(|(text, highlight)| SnippetInfo { text, highlight });
 
                 SearchSpanHit {
                     trace_id: hit.trace_id,
@@ -375,7 +361,8 @@ pub async fn search_spans(
     Ok(HttpResponse::Ok().json(enriched_hits))
 }
 
-async fn search_index(
+#[tracing::instrument(skip_all, fields(index_id))]
+async fn search_span_hits(
     client: &QuickwitClient,
     index_id: &str,
     body: serde_json::Value,
@@ -393,6 +380,7 @@ async fn search_index(
     Ok(quickwit_response.hits)
 }
 
+#[tracing::instrument(skip_all, fields(pairs_count = pairs.len()))]
 async fn fetch_span_snippets(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
@@ -403,7 +391,7 @@ async fn fetch_span_snippets(
         return Vec::new();
     }
 
-    let context_escaped = search_snippets::escape_clickhouse_string(context_regex);
+    let context_escaped = snippets::escape_clickhouse_string(context_regex);
 
     let tuples = build_key_tuples(pairs);
     let query = build_snippet_query(project_id, &context_escaped, &tuples);
@@ -435,11 +423,7 @@ fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
         .join(", ")
 }
 
-fn build_snippet_query(
-    project_id: Uuid,
-    context_regex: &str,
-    key_tuples: &str,
-) -> String {
+fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) -> String {
     format!(
         "SELECT span_id,
                 extract(input, '{context_regex}') AS input_snippet,
