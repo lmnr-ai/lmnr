@@ -32,7 +32,7 @@ use crate::{
     db::spans::SpanType,
     signals::{
         common::{ProcessRunResult, handle_failed_runs, process_run},
-        utils::{InternalSpan, emit_internal_span},
+        utils::{InternalSpan, emit_internal_span, request_to_span_input},
     },
 };
 
@@ -271,19 +271,11 @@ async fn process_batch(
     }
 }
 
-fn request_to_span_input(request: &ProviderRequestItem) -> serde_json::Value {
-    let mut contents = request.request.contents.clone();
-    if let Some(mut sys) = request.request.system_instruction.clone() {
-        sys.role = Some("system".to_string());
-        contents.insert(0, sys);
-    }
-    serde_json::json!(contents)
-}
-
 async fn emit_submit_spans(
     messages: &[SignalMessage],
     requests: &[ProviderRequestItem],
     error: Option<String>,
+    batch_id: Option<String>,
     queue: Arc<MessageQueue>,
     config: &SignalWorkerConfig,
 ) {
@@ -298,7 +290,7 @@ async fn emit_submit_spans(
                 parent_span_id: Some(message.internal_span_id),
                 span_type: SpanType::LLM,
                 start_time: message.request_start_time,
-                input: requests.get(i).map(request_to_span_input),
+                input: requests.get(i).map(|r| request_to_span_input(&r.request)),
                 output: None,
                 input_tokens: None,
                 input_cached_tokens: None,
@@ -308,7 +300,7 @@ async fn emit_submit_spans(
                 internal_project_id: config.internal_project_id,
                 job_id: message.job_id,
                 error: error.clone(),
-                provider_batch_id: None,
+                provider_batch_id: batch_id.clone(),
                 metadata: None,
             },
         )
@@ -341,8 +333,6 @@ async fn submit_batch_to_llm(
                 operation.name
             );
 
-            emit_submit_spans(&messages, &span_requests, None, queue.clone(), &config).await;
-
             let batch_id = extract_batch_id_from_operation(&operation.name).map_err(|e| {
                 let batch_failed_runs = messages
                     .iter()
@@ -357,6 +347,16 @@ async fn submit_batch_to_llm(
                 )
             })?;
 
+            emit_submit_spans(
+                &messages,
+                &span_requests,
+                None,
+                Some(batch_id.clone()),
+                queue.clone(),
+                &config,
+            )
+            .await;
+
             let pending_message = SignalJobPendingBatchMessage {
                 messages: messages.clone(),
                 batch_id,
@@ -365,6 +365,7 @@ async fn submit_batch_to_llm(
             push_to_pending_queue(queue, &pending_message)
                 .await
                 .map_err(|e| {
+                    // If we can't push to pending queue, mark all runs as failed and return the error
                     let batch_failed_runs = messages
                         .iter()
                         .map(|message| {
@@ -385,6 +386,7 @@ async fn submit_batch_to_llm(
                 &messages,
                 &span_requests,
                 Some(error_msg.clone()),
+                None,
                 queue.clone(),
                 &config,
             )

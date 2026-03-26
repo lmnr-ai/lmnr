@@ -17,7 +17,7 @@ use crate::{
         },
         queue::{SignalMessage, push_to_realtime_queue},
         response_processor::{finalize_runs, process_provider_responses},
-        utils::{InternalSpan, emit_internal_span},
+        utils::{InternalSpan, emit_internal_span, request_to_span_input},
     },
     worker::{HandlerError, MessageHandler},
 };
@@ -167,12 +167,7 @@ impl SignalJobRealtimeHandler {
         message: SignalMessage,
         backoff: ExponentialBackoff,
     ) {
-        let mut input_contents = request.contents.clone();
-        if let Some(mut sys) = request.system_instruction.clone() {
-            sys.role = Some("system".to_string());
-            input_contents.insert(0, sys);
-        }
-        let span_input = serde_json::json!(input_contents);
+        let span_input = request_to_span_input(&request);
 
         let model_str = llm_model();
         let llm_client = self.llm_client.clone();
