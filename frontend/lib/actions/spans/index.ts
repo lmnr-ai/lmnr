@@ -19,7 +19,7 @@ import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getOptionalTimeRange, getTimeRange } from "@/lib/clickhouse/utils.ts";
 import { type Span } from "@/lib/traces/types";
 
-import { searchSpans } from "../traces/search";
+import { searchSpans, type SpanSearchHit } from "../traces/search";
 import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
 export const GetSpansSchema = PaginationFiltersSchema.extend({
@@ -278,13 +278,14 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
   const filters: Filter[] = compact(inputFilters);
 
   const timeRange = getOptionalTimeRange(pastHours, startDate, endDate);
-  const spanHits: { trace_id: string; span_id: string }[] = search
+  const spanHits: SpanSearchHit[] = search
     ? await searchSpans({
         projectId,
         traceId,
         searchQuery: search,
         ...(timeRange && { timeRange }),
         searchType: searchIn as SpanSearchType[],
+        getSnippets: true,
       })
     : [];
   const spanIds = spanHits.map((span) => span.span_id);
@@ -323,7 +324,26 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
 
   const transformedSpans = spans.map((span) => transformSpanWithEvents(span as any, parentRewiring));
 
-  return aggregateSpanMetrics(transformedSpans);
+  const result = aggregateSpanMetrics(transformedSpans);
+
+  // Attach search snippets to matching spans
+  if (search && spanHits.length > 0) {
+    const snippetMap = new Map<string, SpanSearchHit>();
+    for (const hit of spanHits) {
+      if (!snippetMap.has(hit.span_id)) {
+        snippetMap.set(hit.span_id, hit);
+      }
+    }
+    for (const span of result) {
+      const hit = snippetMap.get(span.spanId);
+      if (hit) {
+        span.inputSnippet = hit.input_snippet;
+        span.outputSnippet = hit.output_snippet;
+      }
+    }
+  }
+
+  return result;
 }
 
 export async function deleteSpans(input: z.infer<typeof DeleteSpansSchema>) {

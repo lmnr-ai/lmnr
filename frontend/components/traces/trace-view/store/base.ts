@@ -2,6 +2,7 @@ import { clamp, has } from "lodash";
 import { createContext, useContext } from "react";
 import { type StoreApi, useStore } from "zustand";
 
+import { type SnippetInfo } from "@/lib/actions/traces/search";
 import { type SpanEvent } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { type SpanType } from "@/lib/traces/types";
@@ -48,6 +49,8 @@ export type TraceViewSpan = {
     cacheReadInputTokens?: number;
     hasLLMDescendants: boolean;
   };
+  inputSnippet?: SnippetInfo;
+  outputSnippet?: SnippetInfo;
 };
 
 export type TraceViewListSpan = {
@@ -66,6 +69,8 @@ export type TraceViewListSpan = {
     display: Array<{ spanId: string; name: string; count?: number }>;
     full: Array<{ spanId: string; name: string }>;
   } | null;
+  inputSnippet?: SnippetInfo;
+  outputSnippet?: SnippetInfo;
 };
 
 export type TraceViewTrace = {
@@ -313,6 +318,8 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         totalCost: span.totalCost,
         pending: span.pending,
         pathInfo: pathInfoMap.get(span.spanId) ?? null,
+        inputSnippet: span.inputSnippet,
+        outputSnippet: span.outputSnippet,
       }));
 
       return lightweightListSpans;

@@ -280,7 +280,12 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       </div>
       {signalsPanelOpen && <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} />}
       <div className="flex items-center gap-2">
-        <TraceViewSearch spans={spans} onSubmit={onSearch} className="flex-1" />
+        <TraceViewSearch
+          spans={spans}
+          onSubmit={onSearch}
+          className="flex-1"
+          initialSearch={searchParams.get("search") ?? undefined}
+        />
       </div>
       {spans.length > 0 && (
         <CondensedTimelineControls enabled={condensedTimelineEnabled} setEnabled={setCondensedTimelineEnabled} />

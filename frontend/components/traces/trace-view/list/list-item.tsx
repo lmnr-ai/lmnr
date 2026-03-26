@@ -5,6 +5,7 @@ import React, { useMemo, useState } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
+import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown";
@@ -47,11 +48,14 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
   const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
 
+  const hasSnippet = !!(span.inputSnippet || span.outputSnippet);
+
   const defaultExpanded =
     span.spanType === "LLM" ||
     span.spanType === "CACHED" ||
     span.spanType === "EXECUTOR" ||
-    span.spanType === "EVALUATOR";
+    span.spanType === "EVALUATOR" ||
+    hasSnippet;
 
   const [expandOverride, setExpandOverride] = useState<{ spanId: string; expanded: boolean } | null>(null);
 
@@ -184,7 +188,9 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
 
         {isExpanded && (
           <div className="px-3 w-full p-2 pt-0 flex flex-col gap-2 h-full flex-1">
-            {isLoadingOutput ? (
+            {hasSnippet ? (
+              <SnippetPreview inputSnippet={span.inputSnippet} outputSnippet={span.outputSnippet} variant="span" />
+            ) : isLoadingOutput ? (
               <>
                 <Skeleton className="h-12 w-full" />
               </>

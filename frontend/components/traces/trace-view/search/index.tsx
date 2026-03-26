@@ -12,9 +12,10 @@ interface TraceViewSearchProps {
   onSubmit: (filters: Filter[], search: string) => void;
   className?: string;
   disabled?: boolean;
+  initialSearch?: string;
 }
 
-const TraceViewSearch = ({ spans, onSubmit, className, disabled }: TraceViewSearchProps) => {
+const TraceViewSearch = ({ spans, onSubmit, className, disabled, initialSearch }: TraceViewSearchProps) => {
   const suggestions = useMemo(() => {
     const dynamicSuggestions = extractSpanSuggestions(spans);
     const allSuggestions = [...dynamicSuggestions, ...STATIC_SPAN_SUGGESTIONS];
@@ -35,7 +36,7 @@ const TraceViewSearch = ({ spans, onSubmit, className, disabled }: TraceViewSear
       mode="state"
       filters={filterColumns}
       resource="spans"
-      value={{ filters: [], search: "" }}
+      value={{ filters: [], search: initialSearch ?? "" }}
       onSubmit={onSubmit}
       placeholder="Search text, name, id, tags..."
       className={cn("w-full", className)}

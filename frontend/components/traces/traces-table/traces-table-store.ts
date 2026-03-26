@@ -5,7 +5,7 @@ import { persist } from "zustand/middleware";
 import { type CustomColumn } from "@/components/ui/columns-menu";
 import { type TraceRow } from "@/lib/traces/types";
 
-import { STATIC_COLUMNS } from "./columns";
+import { columns } from "./columns";
 
 export interface TracesQueryColumn {
   id: string;
@@ -45,7 +45,7 @@ interface TracesTableStoreState {
 export const useTracesTableStore = create<TracesTableStoreState>()(
   persist(
     (set, get) => ({
-      columnDefs: [...STATIC_COLUMNS],
+      columnDefs: [...columns],
       customColumns: [],
 
       rebuildColumns: () => {
@@ -61,7 +61,7 @@ export const useTracesTableStore = create<TracesTableStoreState>()(
             isCustom: true,
           },
         }));
-        set({ columnDefs: [...STATIC_COLUMNS, ...customCols] });
+        set({ columnDefs: [...columns, ...customCols] });
       },
 
       addCustomColumn: (column) => {

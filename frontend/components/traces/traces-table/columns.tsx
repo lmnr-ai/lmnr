@@ -3,6 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
@@ -27,7 +28,22 @@ const detailedFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 8,
 });
 
-export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
+export const PREVIEW_COLUMN: ColumnDef<TraceRow, any> = {
+  id: "preview",
+  header: "Preview",
+  enableResizing: true,
+  size: 420,
+  cell: (row) => (
+    <SnippetPreview
+      inputSnippet={row.row.original.inputSnippet}
+      outputSnippet={row.row.original.outputSnippet}
+      snippetsCount={row.row.original.snippetsCount}
+      variant="table"
+    />
+  ),
+};
+
+export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
       <div
@@ -256,9 +272,6 @@ export const STATIC_COLUMNS: ColumnDef<TraceRow, any>[] = [
     meta: { sql: "user_id" },
   },
 ];
-
-/** @deprecated Use STATIC_COLUMNS and useTracesTableStore().columnDefs instead */
-export const columns = STATIC_COLUMNS;
 
 export const filters: ColumnFilter[] = [
   {
