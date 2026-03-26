@@ -339,7 +339,6 @@ export async function getTraceSpans(input: z.infer<typeof GetTraceSpansSchema>):
       if (hit) {
         span.inputSnippet = hit.input_snippet;
         span.outputSnippet = hit.output_snippet;
-        span.snippetCount = hit.snippet_count;
       }
     }
   }

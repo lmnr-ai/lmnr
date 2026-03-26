@@ -136,7 +136,9 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     });
 
     const snippetMap = new Map<string, SpanSearchHit>();
+    const traceHitCounts = new Map<string, number>();
     for (const hit of spanHits) {
+      traceHitCounts.set(hit.trace_id, (traceHitCounts.get(hit.trace_id) ?? 0) + 1);
       if (!snippetMap.has(hit.trace_id)) {
         snippetMap.set(hit.trace_id, hit);
       }
@@ -146,11 +148,9 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       if (hit) {
         item.inputSnippet = hit.input_snippet;
         item.outputSnippet = hit.output_snippet;
-        item.snippetCount = hit.snippet_count;
+        item.snippetCount = traceHitCounts.get(item.id) ?? 0;
       }
     }
-
-    // END snippet mapping
   }
 
   return {
