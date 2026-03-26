@@ -48,10 +48,8 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
   const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
 
-  // TODO(snippets): hasSnippet — remove when snippets come from a dedicated API
   const hasSnippet = !!(span.inputSnippet || span.outputSnippet);
 
-  // TODO(snippets): `|| hasSnippet` auto-expands when snippet exists — revert when removing snippets
   const defaultExpanded =
     span.spanType === "LLM" ||
     span.spanType === "CACHED" ||

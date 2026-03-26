@@ -71,16 +71,14 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
 
   const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
 
-  // TODO(snippets): hasSnippet — remove when snippets come from a dedicated API
   const hasSnippet = !!(span.inputSnippet || span.outputSnippet);
 
   const hasChildren = childSpans && childSpans.length > 0;
   const isExpandable =
-    hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true)) || hasSnippet; // TODO(snippets): remove hasSnippet from this condition
+    hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true)) || hasSnippet;
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
-  // TODO(snippets): auto-expand when snippet exists — revert to original condition when removing snippets
   const showContent =
     (showTreeContent ?? true) &&
     !span.collapsed &&

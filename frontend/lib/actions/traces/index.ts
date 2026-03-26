@@ -79,7 +79,6 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     : [];
   const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
 
-  console.log("spanHits", spanHits);
   if (search) {
     if (traceIds?.length === 0) {
       return { items: [] };

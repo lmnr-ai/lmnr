@@ -69,7 +69,6 @@ export type TraceViewListSpan = {
     display: Array<{ spanId: string; name: string; count?: number }>;
     full: Array<{ spanId: string; name: string }>;
   } | null;
-  // TODO(snippets): search snippet fields — remove when snippets come from a dedicated API
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
 };
@@ -248,7 +247,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         totalCost: span.totalCost,
         pending: span.pending,
         pathInfo: pathInfoMap.get(span.spanId) ?? null,
-        // TODO(snippets): pass through search snippet fields
         inputSnippet: span.inputSnippet,
         outputSnippet: span.outputSnippet,
       }));
