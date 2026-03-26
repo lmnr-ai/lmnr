@@ -34,19 +34,21 @@ function looksLikeMessageArray(value: unknown): boolean {
 }
 
 /**
- * Determine the best default rendering mode for a queue item payload.
+ * Determine the best default rendering mode for a queue item payload
+ * and extract the relevant value to pass to ContentRenderer.
+ *
  * If the payload (or its data/target fields) contain LLM message arrays,
- * default to "messages" mode for consistent rendering with the trace view.
+ * returns "messages" mode with the extracted message array so that
+ * ContentRenderer receives the correct data shape.
  */
-function getPayloadDefaultMode(payload: unknown): string {
-  if (looksLikeMessageArray(payload)) return "messages";
+function getPayloadRendering(payload: unknown): { mode: string; value: unknown } {
+  if (looksLikeMessageArray(payload)) return { mode: "messages", value: payload };
   if (typeof payload === "object" && payload !== null) {
     const obj = payload as Record<string, unknown>;
-    if (looksLikeMessageArray(obj.data) || looksLikeMessageArray(obj.target)) {
-      return "messages";
-    }
+    if (looksLikeMessageArray(obj.data)) return { mode: "messages", value: obj.data };
+    if (looksLikeMessageArray(obj.target)) return { mode: "messages", value: obj.target };
   }
-  return "json";
+  return { mode: "json", value: payload };
 }
 
 function QueueInner() {
@@ -125,6 +127,8 @@ function QueueInner() {
     // No source - manually created
     return null;
   }, [currentItem, projectId]);
+
+  const payloadRendering = useMemo(() => getPayloadRendering(currentItem?.payload), [currentItem?.payload]);
 
   const onChange = useCallback(
     (v: string) => {
@@ -313,13 +317,14 @@ function QueueInner() {
               </div>
               <div className="flex flex-1 overflow-hidden mt-2">
                 <ContentRenderer
+                  key={currentItem?.id}
                   presetKey={`labeling-queue-${storeQueue?.id}`}
                   codeEditorClassName="rounded-b"
                   className="rounded"
-                  defaultMode={getPayloadDefaultMode(currentItem?.payload)}
+                  defaultMode={payloadRendering.mode}
                   modes={["MESSAGES", "JSON", "YAML", "TEXT"]}
                   readOnly
-                  value={JSON.stringify(currentItem?.payload, null, 2)}
+                  value={JSON.stringify(payloadRendering.value, null, 2)}
                 />
               </div>
             </>
