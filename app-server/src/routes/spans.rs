@@ -300,6 +300,7 @@ pub async fn search_spans(
             Some((trace_id, span_id))
         })
         .collect();
+    log::debug!("[search_spans] unique_traces: {}", unique_traces.len());
 
     let (match_regex, context_regex) = match search_snippets::build_search_regexes(trimmed_query) {
         Some(regexes) => regexes,
@@ -335,7 +336,7 @@ pub async fn search_spans(
 
     let enriched_hits: Vec<SearchSpanHit> = hits
         .into_iter()
-        .filter(|hit| unique_traces.contains(&hit.trace_id))
+        .filter(|hit| request.trace_id.is_some() || unique_traces.contains(&hit.trace_id))
         .map(|hit| {
             if let Some(row) = snippet_map.get(&hit.span_id) {
                 let input_snippet = search_snippets::post_process_snippet(
