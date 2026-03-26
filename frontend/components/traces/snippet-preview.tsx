@@ -4,11 +4,18 @@ import { cn } from "@/lib/utils";
 export interface SnippetPreviewProps {
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
+  snippetsCount?: number;
   className?: string;
   variant?: "table" | "span";
 }
 
-export function SnippetPreview({ inputSnippet, outputSnippet, className, variant = "table" }: SnippetPreviewProps) {
+export function SnippetPreview({
+  inputSnippet,
+  outputSnippet,
+  snippetsCount,
+  className,
+  variant = "table",
+}: SnippetPreviewProps) {
   const snippet = inputSnippet ?? outputSnippet;
   if (!snippet) {
     return <span className="text-xs text-muted-foreground">No preview</span>;
@@ -19,6 +26,7 @@ export function SnippetPreview({ inputSnippet, outputSnippet, className, variant
   const before = text.slice(0, start);
   const match = text.slice(start, end);
   const after = text.slice(end);
+  const count = snippetsCount ?? 0;
 
   return (
     <span
@@ -35,9 +43,14 @@ export function SnippetPreview({ inputSnippet, outputSnippet, className, variant
         )}
       >
         {before}
-        <mark className="not-italic font-medium text-primary bg-primary/15 rounded px-0.5">{match}</mark>
+        <mark className="font-medium text-primary bg-primary/15 rounded px-0.5 min-w-0">{match}</mark>
         {after}
       </span>
+      {count > 1 && (
+        <span className="shrink-0 inline-flex items-center px-1.5 py-px text-[11px] font-medium text-primary bg-primary/10 rounded-full leading-normal whitespace-nowrap">
+          +{count - 1}
+        </span>
+      )}
     </span>
   );
 }

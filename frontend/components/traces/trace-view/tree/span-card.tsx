@@ -191,7 +191,6 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
 
           {showContent && (
             <div className="px-2 pt-0">
-              {/* TODO(snippets): snippet rendering — remove this branch when snippets come from a dedicated API */}
               {hasSnippet ? (
                 <div className="pb-2">
                   <SnippetPreview inputSnippet={span.inputSnippet} outputSnippet={span.outputSnippet} variant="span" />
