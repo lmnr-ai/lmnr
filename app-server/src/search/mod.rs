@@ -58,7 +58,7 @@ struct QuickwitResponse {
     hits: Vec<QuickwitHit>,
 }
 
-#[tracing::instrument(skip_all, name = "search_spans")]
+#[tracing::instrument(skip_all, name = "search_spans", fields(project_id))]
 pub async fn search_spans(
     quickwit_client: &QuickwitClient,
     clickhouse: &clickhouse::Client,
