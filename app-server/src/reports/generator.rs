@@ -260,6 +260,7 @@ async fn process_report_trigger(
     let subject = format!("{} – {}", report_name, workspace_name);
 
     let mut push_failures = 0;
+    let mut oversized_failures = 0;
     let mut processed = 0;
 
     for target in &targets {
@@ -330,6 +331,7 @@ async fn process_report_trigger(
                 target.id,
             );
             push_failures += 1;
+            oversized_failures += 1;
             continue;
         }
 
@@ -344,6 +346,15 @@ async fn process_report_trigger(
     }
 
     if processed > 0 && push_failures == processed {
+        // If all failures are due to oversized payloads, retrying won't help since
+        // payload size is deterministic. Use permanent error to avoid infinite retries.
+        if oversized_failures == push_failures {
+            return Err(HandlerError::permanent(anyhow::anyhow!(
+                "All {} report notifications exceeded MQ payload size limit for workspace {}",
+                processed,
+                workspace_id
+            )));
+        }
         let msg = format!(
             "Failed to push all {} report notifications to queue for workspace {}",
             processed,

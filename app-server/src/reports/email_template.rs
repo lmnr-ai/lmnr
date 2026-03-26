@@ -204,7 +204,7 @@ pub fn render_report_email(data: &ReportData) -> String {
     )
 }
 
-fn html_escape(s: &str) -> String {
+pub fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")

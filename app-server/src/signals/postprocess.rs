@@ -14,6 +14,7 @@ use crate::features::{Feature, is_feature_enabled};
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
 use crate::notifications::{self, EmailPayload, EventIdentificationPayload, NotificationType};
+use crate::reports::email_template::html_escape;
 
 const ALERT_FROM_EMAIL: &str = "Laminar <alerts@mail.lmnr.ai>";
 
@@ -212,10 +213,3 @@ fn render_alert_email(
     )
 }
 
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#x27;")
-}
