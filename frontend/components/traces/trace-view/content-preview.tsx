@@ -79,7 +79,7 @@ export function ContentPreview({
   const showToggle = expandable && (isOverflowing || isExpanded);
 
   return (
-    <div className={cn("relative", expandable && isExpanded && "pb-6", className)}>
+    <div className={cn("relative", expandable && isExpanded && "pb-2", className)}>
       <div
         ref={containerRef}
         className={cn(scrollable ? "overflow-auto styled-scrollbar" : "overflow-hidden", !isExpanded && maxHeight)}
@@ -94,8 +94,8 @@ export function ContentPreview({
             setIsExpanded((prev) => !prev);
           }}
           className={cn(
-            "absolute left-1/2 -translate-x-1/2 bottom-0 flex items-center gap-1 px-1 py-1 rounded-full",
-            "bg-secondary hover:bg-muted border border-border text-xs text-muted-foreground",
+            "absolute left-1/2 -translate-x-1/2 bottom-0 flex items-center gap-1 px-1 pt-4 pb-0.5 rounded-full w-full justify-center",
+            "text-xs text-foreground",
             "transition-colors cursor-pointer z-10"
           )}
         >

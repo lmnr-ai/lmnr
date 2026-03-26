@@ -8,13 +8,7 @@ import { spanRenderingKeys } from "@/lib/db/migrations/schema";
 
 import { generatePreviewKeys } from "./prompts.ts";
 import { matchProviderKey } from "./provider-keys.ts";
-import {
-  classifyPayload,
-  generateFingerprint,
-  renderMustachePreview,
-  truncateFieldValues,
-  validateMustacheKey,
-} from "./utils.ts";
+import { classifyPayload, generateFingerprint, renderMustachePreview, validateMustacheKey } from "./utils.ts";
 
 export const GetSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: true }).extend({
   projectId: z.string(),
@@ -25,10 +19,8 @@ export const GetSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: true }).e
 
 export type SpanPreviewResult = Record<string, string | null>;
 
-/** Span types that support preview generation */
 export const PREVIEW_SPAN_TYPES = new Set(["LLM", "CACHED", "TOOL", "EXECUTOR", "EVALUATOR"]);
 
-/** Span types eligible for provider schema matching */
 export const PROVIDER_SPAN_TYPES = new Set(["LLM", "CACHED"]);
 
 const buildTimeConditions = (startDate?: string, endDate?: string): string[] =>
@@ -36,9 +28,6 @@ const buildTimeConditions = (startDate?: string, endDate?: string): string[] =>
     (c): c is string => c !== null
   );
 
-/**
- * Fetch output data from ClickHouse for all supported span types.
- */
 const fetchSpanData = async (
   projectId: string,
   traceId: string,
@@ -77,10 +66,6 @@ interface ParsedSpan {
   fingerprint: string;
 }
 
-/**
- * Extract a simple preview from a parsed object without LLM generation.
- * Returns the value of the first key if it's a string or number, otherwise null.
- */
 const extractFirstPrimitiveValue = (data: Record<string, unknown> | unknown[]): string | null => {
   if (Array.isArray(data)) {
     const first = data[0];
@@ -102,9 +87,6 @@ interface GetSpanPreviewsOptions {
   skipGeneration?: boolean;
 }
 
-/**
- * Try provider schema matching for a span, returning the rendered preview and key if matched.
- */
 const tryProviderMatch = (
   parsedData: Record<string, unknown> | unknown[],
   spanType: string
@@ -162,9 +144,6 @@ const classifyRawSpans = (
   return { resolved, needsProcessing };
 };
 
-/**
- * Fill in empty strings for any spanIds that don't yet have a preview.
- */
 const fillMissing = (previews: SpanPreviewResult, spanIds: string[]): SpanPreviewResult =>
   spanIds.reduce(
     (acc, id) => {
@@ -174,9 +153,6 @@ const fillMissing = (previews: SpanPreviewResult, spanIds: string[]): SpanPrevie
     { ...previews }
   );
 
-/**
- * Look up cached rendering keys from Postgres and split into resolved/uncached spans.
- */
 const applyCachedKeys = async (
   projectId: string,
   parsedSpans: ParsedSpan[],
@@ -217,10 +193,6 @@ const applyCachedKeys = async (
   return { resolved, uncached };
 };
 
-/**
- * Try provider schema matching on uncached spans, returning resolved previews,
- * keys to save, and spans still needing LLM generation.
- */
 const applyProviderMatching = (
   uncachedSpans: ParsedSpan[],
   spanTypes: Record<string, string>
@@ -246,9 +218,6 @@ const applyProviderMatching = (
   return { resolved, keysToSave, needsLlm };
 };
 
-/**
- * Deduplicate spans by fingerprint, keeping one example per unique schema shape.
- */
 const deduplicateByFingerprint = (
   spans: ParsedSpan[]
 ): { dedupedFingerprints: string[]; structures: Array<{ data: unknown }> } => {
@@ -260,16 +229,13 @@ const deduplicateByFingerprint = (
     if (!seen.has(span.fingerprint)) {
       seen.add(span.fingerprint);
       dedupedFingerprints.push(span.fingerprint);
-      structures.push({ data: truncateFieldValues(span.parsedData, 50) });
+      structures.push({ data: span.parsedData });
     }
   });
 
   return { dedupedFingerprints, structures };
 };
 
-/**
- * Group spans by fingerprint for batch application of generated keys.
- */
 const groupByFingerprint = (spans: ParsedSpan[]): Map<string, ParsedSpan[]> =>
   spans.reduce((map, span) => {
     const group = map.get(span.fingerprint);
@@ -281,9 +247,8 @@ const groupByFingerprint = (spans: ParsedSpan[]): Map<string, ParsedSpan[]> =>
     return map;
   }, new Map<string, ParsedSpan[]>());
 
-/**
- * Generate preview keys via LLM and apply them to spans.
- */
+const toJsonPreview = (data: unknown): string => JSON.stringify(data).slice(0, 500);
+
 const generateAndApplyKeys = async (
   needsLlm: ParsedSpan[]
 ): Promise<{
@@ -295,55 +260,57 @@ const generateAndApplyKeys = async (
 
   if (needsLlm.length === 0) return { resolved, keysToSave };
 
+  const { dedupedFingerprints, structures } = deduplicateByFingerprint(needsLlm);
+  const fingerprintToSpans = groupByFingerprint(needsLlm);
+
+  let generatedKeys: Array<string | null> = [];
   try {
-    const { dedupedFingerprints, structures } = deduplicateByFingerprint(needsLlm);
-    const results = await generatePreviewKeys(structures);
-    const fingerprintToSpans = groupByFingerprint(needsLlm);
-
-    results.slice(0, dedupedFingerprints.length).forEach((key, i) => {
-      const fingerprint = dedupedFingerprints[i];
-      const spans = fingerprintToSpans.get(fingerprint);
-      if (!spans) return;
-
-      let keyValidated = false;
-      spans.forEach((span) => {
-        if (key) {
-          const rendered = validateMustacheKey(key, span.parsedData);
-          if (rendered) {
-            resolved[span.spanId] = rendered;
-            keyValidated = true;
-          } else {
-            resolved[span.spanId] = JSON.stringify(span.parsedData).slice(0, 500);
-          }
-        } else {
-          resolved[span.spanId] = JSON.stringify(span.parsedData).slice(0, 500);
-        }
-      });
-
-      if (key && keyValidated) keysToSave.push({ fingerprint, key });
-    });
-
-    // Fall back to JSON for any spans the LLM didn't return results for
-    needsLlm.forEach((span) => {
-      if (!(span.spanId in resolved)) {
-        resolved[span.spanId] = JSON.stringify(span.parsedData).slice(0, 500);
-      }
-    });
+    const raw = await generatePreviewKeys(structures);
+    generatedKeys = raw.slice(0, dedupedFingerprints.length);
   } catch (error) {
     console.error("Preview key generation failed:", error);
-    needsLlm.forEach((span) => {
-      if (!(span.spanId in resolved)) {
-        resolved[span.spanId] = JSON.stringify(span.parsedData).slice(0, 500);
+  }
+
+  for (let i = 0; i < dedupedFingerprints.length; i++) {
+    const fingerprint = dedupedFingerprints[i];
+    const key = generatedKeys[i] ?? null;
+    const spans = fingerprintToSpans.get(fingerprint) ?? [];
+
+    if (!key) {
+      for (const span of spans) {
+        resolved[span.spanId] = toJsonPreview(span.parsedData);
       }
-    });
+      continue;
+    }
+
+    // Only cache the key if it renders successfully for at least one span
+    let keyProducedValidRender = false;
+
+    for (const span of spans) {
+      const rendered = validateMustacheKey(key, span.parsedData);
+      if (rendered) {
+        resolved[span.spanId] = rendered;
+        keyProducedValidRender = true;
+      } else {
+        resolved[span.spanId] = toJsonPreview(span.parsedData);
+      }
+    }
+
+    if (keyProducedValidRender) {
+      keysToSave.push({ fingerprint, key });
+    }
+  }
+
+  // Fill in JSON fallback for any spans without a preview (e.g. LLM returned fewer results)
+  for (const span of needsLlm) {
+    if (!(span.spanId in resolved)) {
+      resolved[span.spanId] = toJsonPreview(span.parsedData);
+    }
   }
 
   return { resolved, keysToSave };
 };
 
-/**
- * Persist rendering keys to Postgres for future cache hits.
- */
 const saveRenderingKeys = async (
   projectId: string,
   keysToSave: Array<{ fingerprint: string; key: string }>
@@ -366,10 +333,6 @@ const saveRenderingKeys = async (
   }
 };
 
-/**
- * Main server action: orchestrates the preview generation flow.
- * When skipGeneration is true, skips DB fingerprint lookups and LLM key generation.
- */
 export async function getSpanPreviews(
   input: z.infer<typeof GetSpanPreviewsSchema>,
   options: GetSpanPreviewsOptions = {}

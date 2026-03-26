@@ -1,4 +1,4 @@
-import { isNil } from "lodash";
+import { isEmpty, isNil } from "lodash";
 import { ChevronDown, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -38,20 +38,21 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
   const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
 
-  const defaultExpanded =
+  const isExpandableType =
     span.spanType === "LLM" ||
     span.spanType === "CACHED" ||
     span.spanType === "EXECUTOR" ||
     span.spanType === "EVALUATOR" ||
-    span.spanType === "TOOL" ||
-    (!isNil(output) && output !== "");
+    span.spanType === "TOOL";
+
+  const isPending = span.pending;
+  const isLoadingOutput = output === undefined;
+
+  const defaultExpanded = isExpandableType && (isLoadingOutput || !isEmpty(output));
 
   const [expandOverride, setExpandOverride] = useState<{ spanId: string; expanded: boolean } | null>(null);
 
   const isExpanded = expandOverride?.spanId === span.spanId ? expandOverride.expanded : defaultExpanded;
-
-  const isPending = span.pending;
-  const isLoadingOutput = output === undefined;
 
   const isSelected = selectedSpan?.spanId === span.spanId;
 
