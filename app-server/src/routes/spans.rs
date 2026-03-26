@@ -36,7 +36,7 @@ const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
     '\u{2014}', // — em dash
 ];
 
-const PARALLEL_SNIPPETS_QUERIES: usize = 1;
+
 
 /// Escape special characters for Quickwit query syntax and wrap in quotes for phrase search.
 fn escape_quickwit_query(query: &str) -> String {
@@ -407,36 +407,26 @@ async fn fetch_span_snippets(
     let match_escaped = search_snippets::escape_clickhouse_string(match_regex);
     let context_escaped = search_snippets::escape_clickhouse_string(context_regex);
 
-    let chunk_size = (pairs.len() + PARALLEL_SNIPPETS_QUERIES - 1) / PARALLEL_SNIPPETS_QUERIES;
-    let futures: Vec<_> = pairs
-        .chunks(chunk_size.max(1))
-        .map(|chunk| {
-            let tuples = build_key_tuples(chunk);
-            let query = build_snippet_query(project_id, &match_escaped, &context_escaped, &tuples);
-            log::debug!("search_spans: snippet query: {:?}", query);
-            async move {
-                let t_start = std::time::Instant::now();
-                clickhouse
-                    .query(&query)
-                    .fetch_all::<SpanSnippetRow>()
-                    .await
-                    .inspect(|rows| {
-                        log::debug!(
-                            "[search_spans] clickhouse snippets: {}ms, {} rows",
-                            t_start.elapsed().as_millis(),
-                            rows.len()
-                        );
-                    })
-                    .unwrap_or_else(|e| {
-                        log::error!("Failed to fetch span snippets from ClickHouse: {:?}", e);
-                        Vec::new()
-                    })
-            }
-        })
-        .collect();
+    let tuples = build_key_tuples(pairs);
+    let query = build_snippet_query(project_id, &match_escaped, &context_escaped, &tuples);
+    log::debug!("search_spans: snippet query: {:?}", query);
 
-    let results = futures_util::future::join_all(futures).await;
-    results.into_iter().flatten().collect()
+    let t_start = std::time::Instant::now();
+    clickhouse
+        .query(&query)
+        .fetch_all::<SpanSnippetRow>()
+        .await
+        .inspect(|rows| {
+            log::debug!(
+                "[search_spans] clickhouse snippets: {}ms, {} rows",
+                t_start.elapsed().as_millis(),
+                rows.len()
+            );
+        })
+        .unwrap_or_else(|e| {
+            log::error!("Failed to fetch span snippets from ClickHouse: {:?}", e);
+            Vec::new()
+        })
 }
 
 fn build_key_tuples(pairs: &[(Uuid, Uuid)]) -> String {
