@@ -7,12 +7,12 @@ import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { ContentPreview } from "@/components/traces/trace-view/content-preview";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
+import { PreviewLoadingPlaceholder } from "@/components/traces/trace-view/preview-loading-placeholder";
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
@@ -115,7 +115,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
                     </div>
                   </NoSpanTooltip>
                 ) : (
-                  <Skeleton className="w-20 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
+                  <PreviewLoadingPlaceholder compact />
                 )
               ) : (
                 <SpanStatsShield
@@ -134,7 +134,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
         {isExpanded && (
           <div className="px-2 w-full h-full flex-1">
             {isLoadingOutput ? (
-              <Skeleton className="h-12 w-full" />
+              <PreviewLoadingPlaceholder />
             ) : isNil(output) || output === "" ? (
               <div className="text-sm text-muted-foreground italic">No output available</div>
             ) : (

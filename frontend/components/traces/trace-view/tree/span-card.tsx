@@ -10,9 +10,9 @@ import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-vie
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
-import { Skeleton } from "../../../ui/skeleton";
 import { NoSpanTooltip } from "../../no-span-tooltip";
 import SpanTypeIcon from "../../span-type-icon";
+import { PreviewLoadingPlaceholder } from "../preview-loading-placeholder";
 import { SpanDisplayTooltip } from "../span-display-tooltip";
 import { SpanStatsShield } from "../span-stats-shield";
 import { BranchConnector } from "./branch-connector";
@@ -129,7 +129,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
                   </div>
                 </NoSpanTooltip>
               ) : (
-                <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
+                <PreviewLoadingPlaceholder compact />
               )
             ) : (
               <SpanStatsShield
@@ -159,7 +159,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
             <div className="px-2 pt-0">
               {isLoadingOutput && (
                 <div className="w-full pb-2">
-                  <Skeleton className="h-12 w-full" />
+                  <PreviewLoadingPlaceholder />
                 </div>
               )}
               {!isLoadingOutput && !isNil(output) && output !== "" && <ContentPreview output={output} scrollable />}
