@@ -9,7 +9,7 @@ use crate::{
         },
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
-    db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
+    db::{DB, signal_jobs::update_signal_job_stats},
     mq::MessageQueue,
     signals::{
         SignalRun,
@@ -23,7 +23,6 @@ use crate::{
         },
         spans::get_trace_structure_as_string,
         tools::build_tool_definitions,
-        utils::{InternalSpan, emit_internal_span},
     },
     worker::HandlerError,
 };
@@ -222,38 +221,6 @@ pub async fn process_run(
             "trace_id": trace_id,
         })),
     };
-
-    // Emit internal tracing span
-    let mut contents_with_sys = contents.clone();
-    if let Some(mut sys) = system_instruction.clone() {
-        sys.role = Some("system".to_string());
-        contents_with_sys.insert(0, sys);
-    }
-    emit_internal_span(
-        queue.clone(),
-        InternalSpan {
-            name: format!("step_{}.submit_request", step),
-            trace_id: internal_trace_id,
-            run_id,
-            signal_name: signal_name.to_string(),
-            parent_span_id: Some(internal_span_id),
-            span_type: SpanType::LLM,
-            start_time: processing_start_time,
-            input: Some(serde_json::json!(contents_with_sys)),
-            output: None,
-            input_tokens: None,
-            input_cached_tokens: None,
-            output_tokens: None,
-            model: model.to_string(),
-            provider: provider.to_string(),
-            internal_project_id,
-            job_id,
-            error: None,
-            provider_batch_id: None,
-            metadata: None,
-        },
-    )
-    .await;
 
     Ok(ProcessRunResult {
         request,
