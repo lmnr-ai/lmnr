@@ -411,7 +411,6 @@ async fn fetch_span_snippets(
             let query = build_snippet_query(project_id, &match_escaped, &context_escaped, &tuples);
             log::debug!("search_spans: snippet query: {:?}", query);
             async move {
-                return Vec::<SpanSnippetRow>::new();
                 let t_start = std::time::Instant::now();
                 clickhouse
                     .query(&query)
