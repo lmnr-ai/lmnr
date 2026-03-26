@@ -16,8 +16,10 @@ pub struct ProjectWithWorkspaceBillingInfo {
     pub bytes_limit: i64,
     pub signal_runs_limit: i64,
     /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
+    #[serde(default)]
     pub custom_bytes_limit: Option<i64>,
     /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
+    #[serde(default)]
     pub custom_signal_runs_limit: Option<i64>,
 }
 
