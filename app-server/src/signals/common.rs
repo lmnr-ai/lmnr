@@ -3,23 +3,28 @@ use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::{
-    ch::signal_run_messages::{
-        CHSignalRunMessage, delete_signal_run_messages, get_signal_run_messages,
+    ch::{
+        signal_run_messages::{
+            CHSignalRunMessage, delete_signal_run_messages, get_signal_run_messages,
+        },
+        signal_runs::{CHSignalRun, insert_signal_runs},
     },
-    ch::signal_runs::{CHSignalRun, insert_signal_runs},
-    db::DB,
-    db::signal_jobs::update_signal_job_stats,
-    db::spans::SpanType,
+    db::{DB, signal_jobs::update_signal_job_stats, spans::SpanType},
     mq::MessageQueue,
-    signals::SignalRun,
-    signals::prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
-    signals::provider::models::{
-        ProviderContent as Content, ProviderGenerationConfig, ProviderPart as Part,
-        ProviderRequest, ProviderRequestItem,
+    signals::{
+        SignalRun,
+        prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
+        provider::{
+            ProviderThinkingConfig, ProviderThinkingLevel,
+            models::{
+                ProviderContent as Content, ProviderGenerationConfig, ProviderPart as Part,
+                ProviderRequest, ProviderRequestItem,
+            },
+        },
+        spans::get_trace_structure_as_string,
+        tools::build_tool_definitions,
+        utils::{InternalSpan, emit_internal_span},
     },
-    signals::spans::get_trace_structure_as_string,
-    signals::tools::build_tool_definitions,
-    signals::utils::{InternalSpan, emit_internal_span},
     worker::HandlerError,
 };
 
@@ -205,6 +210,10 @@ pub async fn process_run(
             tools: Some(tools),
             generation_config: Some(ProviderGenerationConfig {
                 temperature: Some(1.0),
+                thinking_config: Some(ProviderThinkingConfig {
+                    include_thoughts: Some(true),
+                    thinking_level: Some(ProviderThinkingLevel::Low),
+                }),
                 ..Default::default()
             }),
         },

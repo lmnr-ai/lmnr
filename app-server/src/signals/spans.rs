@@ -125,11 +125,11 @@ fn truncate_value_strings(value: &Value) -> Value {
 }
 
 const RAW_BASE64_IMAGE_PREFIXES: &[&str] = &[
-    "/9j/",       // JPEG
+    "/9j/",        // JPEG
     "iVBORw0KGgo", // PNG
-    "R0lGODlh",   // GIF
-    "UklGR",      // WebP
-    "PHN2Zz",     // SVG
+    "R0lGODlh",    // GIF
+    "UklGR",       // WebP
+    "PHN2Zz",      // SVG
 ];
 
 /// Minimum length for a raw base64 string to be considered an image.
@@ -293,19 +293,27 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
 /// Create skeleton string representation of spans
 pub fn spans_to_skeleton_string(spans: &[CompressedSpan]) -> String {
     let mut skeleton = String::from(
-        "legend: span_name (id, parent_id, type, duration_sec, cost_usd, total_tokens)\n",
+        "legend: span_name (id, parent_id, type, duration_sec, cost_usd, total_tokens, is_input_empty, is_output_empty)\n",
     );
     for span in spans {
+        let cost = if span.total_cost > 0.0 {
+            format!("{:.5}", span.total_cost)
+        } else {
+            "0".to_string()
+        };
+
         let parent_str = span.parent.as_deref().unwrap_or("None");
         skeleton.push_str(&format!(
-            "- {} ({}, {}, {}, {:.3}, {:.6}, {})\n",
+            "- {} ({}, {}, {}, {:.1}, {}, {}, {}, {})\n",
             span.name,
             span.id,
             parent_str,
             span.span_type,
             span.duration,
-            span.total_cost,
-            span.total_tokens
+            cost,
+            span.total_tokens,
+            span.input.is_none(),
+            span.output.is_none()
         ));
     }
     skeleton
