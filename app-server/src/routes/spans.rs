@@ -333,6 +333,7 @@ pub async fn search_spans(
 
     let enriched_hits: Vec<SearchSpanHit> = hits
         .into_iter()
+        .filter(|hit| seen_traces.contains(&hit.trace_id))
         .map(|hit| {
             if let Some(row) = snippet_map.get(&hit.span_id) {
                 let input_snippet = search_snippets::post_process_snippet(
