@@ -31,24 +31,25 @@ pub async fn get_reports_for_weekday_and_hour(
 }
 
 #[derive(FromRow, Debug, Clone)]
-pub struct EmailReportTarget {
+pub struct ReportTarget {
     pub id: Uuid,
-    pub email: String,
+    pub r#type: String,
+    pub email: Option<String>,
+    pub channel_id: Option<String>,
+    pub integration_id: Option<Uuid>,
 }
 
-/// Fetch email report targets for a given report where type = 'EMAIL'.
-/// The workspace_id parameter is used as a safety check to ensure the report belongs
-/// to the expected workspace.
-pub async fn get_email_report_targets(
+/// Fetch all report targets (EMAIL and SLACK) for a given report in a single query.
+pub async fn get_report_targets(
     pool: &PgPool,
     report_id: &Uuid,
     workspace_id: &Uuid,
-) -> anyhow::Result<Vec<EmailReportTarget>> {
-    let targets = sqlx::query_as::<_, EmailReportTarget>(
-        "SELECT rt.id, rt.email FROM report_targets rt
+) -> anyhow::Result<Vec<ReportTarget>> {
+    let targets = sqlx::query_as::<_, ReportTarget>(
+        "SELECT rt.id, rt.type, rt.email, rt.channel_id, rt.integration_id
+         FROM report_targets rt
          JOIN reports r ON rt.report_id = r.id
-         WHERE rt.report_id = $1 AND r.workspace_id = $2
-           AND rt.type = 'EMAIL' AND rt.email IS NOT NULL",
+         WHERE rt.report_id = $1 AND r.workspace_id = $2",
     )
     .bind(report_id)
     .bind(workspace_id)
@@ -63,33 +64,6 @@ pub struct SignalInfo {
     pub id: Uuid,
     pub name: String,
     pub project_id: Uuid,
-}
-
-#[derive(FromRow, Debug, Clone)]
-pub struct SlackReportTarget {
-    pub id: Uuid,
-    pub channel_id: String,
-    pub integration_id: Uuid,
-}
-
-/// Fetch Slack report targets for a given report where type = 'SLACK'.
-pub async fn get_slack_report_targets(
-    pool: &PgPool,
-    report_id: &Uuid,
-    workspace_id: &Uuid,
-) -> anyhow::Result<Vec<SlackReportTarget>> {
-    let targets = sqlx::query_as::<_, SlackReportTarget>(
-        "SELECT rt.id, rt.channel_id, rt.integration_id FROM report_targets rt
-         JOIN reports r ON rt.report_id = r.id
-         WHERE rt.report_id = $1 AND r.workspace_id = $2
-           AND rt.type = 'SLACK' AND rt.channel_id IS NOT NULL",
-    )
-    .bind(report_id)
-    .bind(workspace_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(targets)
 }
 
 /// Fetch all signals for all projects in a workspace in a single query.

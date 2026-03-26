@@ -218,6 +218,18 @@ export default function ManageAlertSheet({
           channelId: data.channelId,
           channelName: selectedChannel?.name ?? "",
         });
+      } else if (!hasSlackIntegration && isEditMode && alert) {
+        // Preserve existing Slack targets the user can't see/edit when Slack is disconnected
+        for (const t of alert.targets) {
+          if (t.type === ALERT_TARGET_TYPE.SLACK) {
+            targets.push({
+              type: ALERT_TARGET_TYPE.SLACK,
+              integrationId: t.integrationId ?? undefined,
+              channelId: t.channelId ?? undefined,
+              channelName: t.channelName ?? undefined,
+            });
+          }
+        }
       }
 
       if (data.emailEnabled && userEmail) {

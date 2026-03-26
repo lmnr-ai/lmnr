@@ -16,7 +16,7 @@ use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData, rend
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
-use crate::db::reports::{get_email_report_targets, get_signals_for_workspace, get_slack_report_targets};
+use crate::db::reports::{get_report_targets, get_signals_for_workspace};
 use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
@@ -243,17 +243,12 @@ async fn process_report_trigger(
 
     let html = render_report_email(&report_data);
 
-    // Get email targets from report_targets table
-    let email_targets = get_email_report_targets(&db.pool, &report_id, &workspace_id)
+    // Fetch all targets (EMAIL + SLACK) in a single DB call
+    let targets = get_report_targets(&db.pool, &report_id, &workspace_id)
         .await
         .map_err(|e| HandlerError::transient(e))?;
 
-    // Get Slack targets from report_targets table
-    let slack_targets = get_slack_report_targets(&db.pool, &report_id, &workspace_id)
-        .await
-        .map_err(|e| HandlerError::transient(e))?;
-
-    if email_targets.is_empty() && slack_targets.is_empty() {
+    if targets.is_empty() {
         log::info!(
             "[Reports Generator] No targets found for report {} in workspace {}",
             report_id,
@@ -265,36 +260,64 @@ async fn process_report_trigger(
     let subject = format!("{} – {}", report_name, workspace_name);
 
     let mut push_failures = 0;
-    let total_targets = email_targets.len() + slack_targets.len();
+    let total_targets = targets.len();
 
-    // Push one notification per email target so each gets its own notification log entry
-    for target in &email_targets {
-        let email_payload = EmailPayload {
-            from: REPORT_FROM_EMAIL.to_string(),
-            to: vec![target.email.clone()],
-            subject: subject.clone(),
-            html: html.clone(),
-            inline_logo: true,
+    for target in &targets {
+        let (notification_type, target_type, message_payload) = match target.r#type.as_str() {
+            "EMAIL" => {
+                let Some(ref email) = target.email else {
+                    continue;
+                };
+                let payload = EmailPayload {
+                    from: REPORT_FROM_EMAIL.to_string(),
+                    to: vec![email.clone()],
+                    subject: subject.clone(),
+                    html: html.clone(),
+                    inline_logo: true,
+                };
+                let value = serde_json::to_value(&payload)
+                    .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
+                (NotificationType::Email, "EMAIL", value)
+            }
+            "SLACK" => {
+                let (Some(channel_id), Some(integration_id)) =
+                    (&target.channel_id, target.integration_id)
+                else {
+                    continue;
+                };
+                let payload = EventIdentificationPayload {
+                    event_name: subject.clone(),
+                    extracted_information: Some(build_report_slack_summary(&report_data)),
+                    channel_id: channel_id.clone(),
+                    integration_id,
+                };
+                let value = serde_json::to_value(&payload)
+                    .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
+                (NotificationType::Slack, "SLACK", value)
+            }
+            other => {
+                log::warn!(
+                    "[Reports Generator] Unknown target type '{}' for target {}",
+                    other,
+                    target.id
+                );
+                continue;
+            }
         };
-
-        let message_payload = serde_json::to_value(&email_payload)
-            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
 
         let notification_message = NotificationMessage {
             project_id: Uuid::nil(),
             trace_id: Uuid::nil(),
-            notification_type: NotificationType::Email,
-            event_name: "report_email".to_string(),
+            notification_type,
+            event_name: subject.clone(),
             payload: message_payload,
             workspace_id,
             definition_type: "REPORT".to_string(),
             definition_id: report_id,
             target_id: target.id,
-            target_type: "EMAIL".to_string(),
+            target_type: target_type.to_string(),
         };
 
-        // Check payload size on the handler side — exceeding the limit is a permanent
-        // error because retrying won't shrink the payload.
         let serialized_size = serde_json::to_vec(&notification_message)
             .map(|v| v.len())
             .unwrap_or(0);
@@ -302,66 +325,17 @@ async fn process_report_trigger(
             log::warn!(
                 "[Reports Generator] MQ payload limit exceeded. payload size: [{}], target: [{}]",
                 serialized_size,
-                target.email,
+                target.id,
             );
-            return Err(HandlerError::permanent(anyhow::anyhow!(
-                "Notification payload size ({} bytes) exceeds MQ limit",
-                serialized_size,
-            )));
-        }
-
-        if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
             push_failures += 1;
-            log::error!(
-                "[Reports Generator] Failed to push report notification for {}: {:?}",
-                target.email,
-                e
-            );
-        }
-    }
-
-    // Push one notification per Slack target
-    for target in &slack_targets {
-        let slack_payload = EventIdentificationPayload {
-            event_name: subject.clone(),
-            extracted_information: Some(build_report_slack_summary(&report_data)),
-            channel_id: target.channel_id.clone(),
-            integration_id: target.integration_id,
-        };
-
-        let message_payload = serde_json::to_value(&slack_payload)
-            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
-
-        let notification_message = NotificationMessage {
-            project_id: Uuid::nil(),
-            trace_id: Uuid::nil(),
-            notification_type: NotificationType::Slack,
-            event_name: subject.clone(),
-            payload: message_payload,
-            workspace_id,
-            definition_type: "REPORT".to_string(),
-            definition_id: report_id,
-            target_id: target.id,
-            target_type: "SLACK".to_string(),
-        };
-
-        let serialized_size = serde_json::to_vec(&notification_message)
-            .map(|v| v.len())
-            .unwrap_or(0);
-        if serialized_size >= mq_max_payload() {
-            log::warn!(
-                "[Reports Generator] MQ payload limit exceeded for Slack target. payload size: [{}], channel: [{}]",
-                serialized_size,
-                target.channel_id,
-            );
             continue;
         }
 
         if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
             push_failures += 1;
             log::error!(
-                "[Reports Generator] Failed to push Slack report notification for channel {}: {:?}",
-                target.channel_id,
+                "[Reports Generator] Failed to push report notification for target {}: {:?}",
+                target.id,
                 e
             );
         }
@@ -373,15 +347,13 @@ async fn process_report_trigger(
             total_targets,
             workspace_id
         );
-        // Publish failures are transient (MQ connectivity), retrying may help
         return Err(HandlerError::transient(anyhow::anyhow!(msg)));
     }
 
     log::info!(
-        "[Reports Generator] Report notifications pushed to queue for workspace {} ({} email, {} slack)",
+        "[Reports Generator] Report notifications pushed to queue for workspace {} ({} targets)",
         workspace_id,
-        email_targets.len(),
-        slack_targets.len(),
+        total_targets,
     );
 
     Ok(())
