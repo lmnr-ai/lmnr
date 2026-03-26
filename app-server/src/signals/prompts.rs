@@ -26,7 +26,7 @@ EVERY SINGLE RESPONSE you produce MUST be a function call. You MUST NEVER output
 
 You have exactly two functions available:
 
-1. get_full_spans — call this ONLY when the provided trace data is insufficient (possibly truncated) and you need full details for specific spans. For LLM spans, only the last 2 messages are returned.
+1. get_full_spans — call this ONLY when the provided trace data is insufficient (e.g. due to truncation) and you need more details for specific spans. For LLM spans, only the last 2 messages are returned. In the trace skeleton it's indicated which spans have empty input or output, so you should not request full spans for spans that have empty input or output.
    REQUIRED arguments: "reasoning" (string explaining why you need these spans) and "span_ids" (array of span ID strings, e.g. ["a1b2c3", "d4e5f6"]). You MUST always provide both arguments.
 
 2. submit_identification — call this when you have made your final determination.
