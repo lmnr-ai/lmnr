@@ -121,7 +121,7 @@ export const getSpanTags = async (
 
   const chResponse = await clickhouseClient.query({
     query: `
-      SELECT arrayJoin(tags_array) as name
+      SELECT DISTINCT arrayJoin(tags_array) as name
       FROM spans
       WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
     `,
