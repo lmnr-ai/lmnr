@@ -22,6 +22,33 @@ import AnnotationInterface from "./annotation-interface";
 import { QueueStoreProvider, useQueueStore } from "./queue-store";
 import SchemaDefinitionDialog from "./schema-definition-dialog";
 
+/**
+ * Check if a value looks like an LLM chat message array.
+ * Returns true for arrays of objects with "role" and "content" fields,
+ * which is the standard format used by OpenAI, Anthropic, etc.
+ */
+function looksLikeMessageArray(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  if (value.length === 0) return false;
+  return value.every((item) => typeof item === "object" && item !== null && "role" in item && "content" in item);
+}
+
+/**
+ * Determine the best default rendering mode for a queue item payload.
+ * If the payload (or its data/target fields) contain LLM message arrays,
+ * default to "messages" mode for consistent rendering with the trace view.
+ */
+function getPayloadDefaultMode(payload: unknown): string {
+  if (looksLikeMessageArray(payload)) return "messages";
+  if (typeof payload === "object" && payload !== null) {
+    const obj = payload as Record<string, unknown>;
+    if (looksLikeMessageArray(obj.data) || looksLikeMessageArray(obj.target)) {
+      return "messages";
+    }
+  }
+  return "json";
+}
+
 function QueueInner() {
   const { projectId } = useParams();
   const { toast } = useToast();
@@ -289,7 +316,8 @@ function QueueInner() {
                   presetKey={`labeling-queue-${storeQueue?.id}`}
                   codeEditorClassName="rounded-b"
                   className="rounded"
-                  defaultMode="json"
+                  defaultMode={getPayloadDefaultMode(currentItem?.payload)}
+                  modes={["MESSAGES", "JSON", "YAML", "TEXT"]}
                   readOnly
                   value={JSON.stringify(currentItem?.payload, null, 2)}
                 />
