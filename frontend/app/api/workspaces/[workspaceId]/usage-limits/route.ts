@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ workspac
   try {
     const params = await props.params;
     const body = await req.json();
-    const result = await setUsageLimit({ workspaceId: params.workspaceId, ...body });
+    const result = await setUsageLimit({ ...body, workspaceId: params.workspaceId });
     return Response.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
@@ -40,7 +40,7 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ worksp
   try {
     const params = await props.params;
     const body = await req.json();
-    await removeUsageLimit({ workspaceId: params.workspaceId, ...body });
+    await removeUsageLimit({ ...body, workspaceId: params.workspaceId });
     return Response.json({ success: true });
   } catch (error) {
     if (error instanceof ZodError) {
