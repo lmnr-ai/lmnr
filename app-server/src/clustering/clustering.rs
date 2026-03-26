@@ -6,11 +6,14 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::cache::{Cache, CacheTrait, keys};
-use crate::utils::call_service_with_retry;
+use crate::cache::{Cache, CacheTrait, keys::CLUSTERING_LOCK_CACHE_KEY};
+use crate::utils::{call_service_with_retry, get_unsigned_env_with_default};
 use crate::worker::{HandlerError, MessageHandler};
 
 use crate::clustering::ClusteringBatchMessage;
+
+const DEFAULT_LOCK_TTL_SECONDS: usize = 300;
+const DEFAULT_LOCK_MAX_WAIT_SECONDS: usize = 300;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct ClusterResponse {
@@ -51,9 +54,14 @@ async fn process_clustering_logic(
     let project_id = first.project_id;
     let signal_id = first.signal_id;
 
-    let lock_key = format!("{}-{}", keys::CLUSTERING_LOCK_CACHE_KEY, project_id);
-    let lock_ttl = 300; // 5 minutes
-    let max_wait_duration = Duration::from_secs(300); // 5 minutes max wait
+    let lock_key = format!("{CLUSTERING_LOCK_CACHE_KEY}-{project_id}-{signal_id}");
+    let lock_ttl =
+        get_unsigned_env_with_default("CLUSTERING_LOCK_TTL_SECONDS", DEFAULT_LOCK_TTL_SECONDS);
+    let max_wait = get_unsigned_env_with_default(
+        "CLUSTERING_LOCK_MAX_WAIT_SECONDS",
+        DEFAULT_LOCK_MAX_WAIT_SECONDS,
+    );
+    let max_wait_duration = Duration::from_secs(max_wait as u64);
     let start_time = tokio::time::Instant::now();
 
     // Try to acquire lock, wait if already locked (with timeout)
@@ -61,16 +69,21 @@ async fn process_clustering_logic(
         // Check if we've exceeded the max wait time
         if start_time.elapsed() >= max_wait_duration {
             log::warn!(
-                "Timeout waiting for clustering lock for project_id={}, requeuing",
-                project_id
+                "Timeout waiting for clustering lock for project_id={}, signal_id={}. Requeuing",
+                project_id,
+                signal_id,
             );
             return Err(HandlerError::transient(anyhow::anyhow!("Lock timeout")));
         }
 
-        match cache.try_acquire_lock(&lock_key, lock_ttl).await {
+        match cache.try_acquire_lock(&lock_key, lock_ttl as u64).await {
             Ok(true) => {
                 // Lock acquired, proceed with clustering
-                log::debug!("Acquired clustering lock for project_id={}", project_id);
+                log::debug!(
+                    "Acquired clustering lock for project_id={}, signal_id={}",
+                    project_id,
+                    signal_id,
+                );
                 break;
             }
             Ok(false) => {
@@ -92,28 +105,35 @@ async fn process_clustering_logic(
     if let Err(e) = cache.release_lock(&lock_key).await {
         log::error!("Failed to release clustering lock: {:?}", e);
     } else {
-        log::debug!("Released clustering lock for project_id={}", project_id);
+        log::debug!(
+            "Released clustering lock for project_id={}, signal_id={}",
+            project_id,
+            signal_id,
+        );
     }
 
     match result {
         Ok(success) => {
             if success {
                 log::info!(
-                    "Successfully clustered events for project_id={}",
-                    project_id
+                    "Successfully clustered events for project_id={}, signal_id={}",
+                    project_id,
+                    signal_id,
                 );
             } else {
                 log::warn!(
-                    "Clustering endpoint returned success=false for project_id={}",
-                    project_id
+                    "Clustering endpoint returned success=false for project_id={}, signal_id={}",
+                    project_id,
+                    signal_id,
                 );
             }
             Ok(())
         }
         Err(e) => {
             log::error!(
-                "Failed to call clustering endpoint for project_id={}: {:?}",
+                "Failed to call clustering endpoint for project_id={}, signal_id={}: {:?}",
                 project_id,
+                signal_id,
                 e
             );
             Err(e.into())

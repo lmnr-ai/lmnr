@@ -53,6 +53,7 @@ function TracesTableContent() {
   const {
     traceId,
     setTraceId: onRowClick,
+    setShowChatInitial,
     fetchStats,
     incrementStat,
     chartContainerWidth,
@@ -61,6 +62,7 @@ function TracesTableContent() {
   } = useTracesStoreContext((state) => ({
     traceId: state.traceId,
     setTraceId: state.setTraceId,
+    setShowChatInitial: state.setShowChatInitial,
     fetchStats: state.fetchStats,
     incrementStat: state.incrementStat,
     chartContainerWidth: state.chartContainerWidth,
@@ -343,9 +345,10 @@ function TracesTableContent() {
 
   const handleRowClick = useCallback(
     (row: Row<TraceRow>) => {
+      setShowChatInitial(row.original.totalTokens > 1000);
       onRowClick?.(row.id);
     },
-    [onRowClick]
+    [onRowClick, setShowChatInitial]
   );
 
   const getRowHref = useCallback(

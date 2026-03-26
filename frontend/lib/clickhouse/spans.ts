@@ -73,7 +73,7 @@ export const searchSpans = async ({
 
 export const searchTypeToQueryFilter = (searchType?: SpanSearchType[], queryParamName: string = "query"): string => {
   const uniqueSearchTypes = Array.from(new Set(searchType));
-  const searchBoth = `input_lower LIKE {${queryParamName}: String} OR output_lower LIKE {${queryParamName}: String}`;
+  const searchBoth = `lower(input) LIKE {${queryParamName}: String} OR lower(output) LIKE {${queryParamName}: String}`;
   if (uniqueSearchTypes.length === 0) {
     return searchBoth;
   }
@@ -81,9 +81,9 @@ export const searchTypeToQueryFilter = (searchType?: SpanSearchType[], queryPara
     const searchType = uniqueSearchTypes[0];
     switch (searchType) {
       case SpanSearchType.Input:
-        return `input_lower LIKE {${queryParamName}: String}`;
+        return `lower(input) LIKE {${queryParamName}: String}`;
       case SpanSearchType.Output:
-        return `output_lower LIKE {${queryParamName}: String}`;
+        return `lower(output) LIKE {${queryParamName}: String}`;
       default:
         return searchBoth;
     }

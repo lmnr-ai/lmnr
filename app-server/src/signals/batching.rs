@@ -4,6 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use uuid::Uuid;
 
 use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult};
 use crate::batch_worker::{config::BatchingConfig, message_handler::MessageDelivery};
@@ -56,6 +57,7 @@ impl SignalBatchingHandler {
         match push_to_submissions_queue(
             SignalJobSubmissionBatchMessage {
                 messages: deliveries.iter().map(|d| d.message.clone()).collect(),
+                id: Uuid::new_v4(),
             },
             self.queue.clone(),
         )

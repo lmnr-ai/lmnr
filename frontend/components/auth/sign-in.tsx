@@ -11,6 +11,7 @@ import { AzureButton } from "@/components/auth/azure-button";
 import { EmailSignInButton } from "@/components/auth/email-sign-in";
 import { GitHubButton } from "@/components/auth/github-button";
 import { GoogleButton } from "@/components/auth/google-button";
+import { KeycloakButton } from "@/components/auth/keycloak-button";
 import { OktaButton } from "@/components/auth/okta-button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { Feature } from "@/lib/features/features";
@@ -20,7 +21,7 @@ interface SignInProps {
   callbackUrl: string;
 }
 
-type Provider = "github" | "google" | "azure-ad" | "okta";
+type Provider = "github" | "google" | "azure-ad" | "okta" | "keycloak";
 
 const defaultErrorMessage = `Failed to sign in. Please try again.`;
 
@@ -31,6 +32,7 @@ const SignIn = ({ callbackUrl }: SignInProps) => {
   const enableGoogle = featureFlags[Feature.GOOGLE_AUTH];
   const enableAzure = featureFlags[Feature.AZURE_AUTH];
   const enableOkta = featureFlags[Feature.OKTA_AUTH];
+  const enableKeycloak = featureFlags[Feature.KEYCLOAK_AUTH];
   const searchParams = useSearchParams();
   const [error, setError] = useState(searchParams.get("error"));
   const [isLoading, setIsLoading] = useState<Provider | string>("");
@@ -91,6 +93,16 @@ const SignIn = ({ callbackUrl }: SignInProps) => {
             <OktaButton
               onClick={() => handleSignIn("okta")}
               isLoading={isLoading === "okta"}
+              isDisabled={!!isLoading}
+              className={cn({
+                "w-full": enableCredentials,
+              })}
+            />
+          )}
+          {enableKeycloak && (
+            <KeycloakButton
+              onClick={() => handleSignIn("keycloak")}
+              isLoading={isLoading === "keycloak"}
               isDisabled={!!isLoading}
               className={cn({
                 "w-full": enableCredentials,

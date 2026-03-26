@@ -13,10 +13,10 @@ import { SpanSearchProvider } from "@/components/traces/span-view/span-search-co
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
-import { Skeleton } from "@/components/ui/skeleton";
 import { type Span, SpanType } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
+import { SpanViewSkeleton } from "./skeleton";
 
 interface SpanViewProps {
   spanId: string;
@@ -141,13 +141,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col space-y-2 p-2">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-      </div>
-    );
+    return <SpanViewSkeleton />;
   }
 
   if (error) {

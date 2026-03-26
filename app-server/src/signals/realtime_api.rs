@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 use crate::{
     cache::Cache,
     ch::signal_run_messages::insert_signal_run_messages,
-    db::DB,
+    db::{DB, spans::SpanType},
     mq::MessageQueue,
     signals::{
         SignalRun, SignalWorkerConfig,
@@ -17,6 +17,7 @@ use crate::{
         },
         queue::{SignalMessage, push_to_realtime_queue},
         response_processor::{finalize_runs, process_provider_responses},
+        utils::{InternalSpan, emit_internal_span},
     },
     worker::{HandlerError, MessageHandler},
 };
@@ -131,6 +132,30 @@ impl MessageHandler for SignalJobRealtimeHandler {
 }
 
 impl SignalJobRealtimeHandler {
+    fn build_submit_span(message: &SignalMessage, config: &SignalWorkerConfig, error: Option<String>) -> InternalSpan {
+        InternalSpan {
+            name: format!("step_{}.submit_request", message.step),
+            trace_id: message.internal_trace_id,
+            run_id: message.run_id,
+            signal_name: message.signal.name.clone(),
+            parent_span_id: Some(message.internal_span_id),
+            span_type: SpanType::LLM,
+            start_time: message.request_start_time,
+            input: None,
+            output: None,
+            input_tokens: None,
+            input_cached_tokens: None,
+            output_tokens: None,
+            model: llm_model(),
+            provider: llm_provider(),
+            internal_project_id: config.internal_project_id,
+            job_id: message.job_id,
+            error,
+            provider_batch_id: None,
+            metadata: None,
+        }
+    }
+
     async fn process_realtime_request(
         &self,
         request: crate::signals::provider::models::ProviderRequest,
@@ -156,6 +181,7 @@ impl SignalJobRealtimeHandler {
 
         match backoff::future::retry(backoff, generate_fn).await {
             Ok(response) => {
+                emit_internal_span(self.queue.clone(), Self::build_submit_span(&message, &self.config, None)).await;
                 let inline_response = ProviderInlineResponse {
                     response: Some(response),
                     error: None,
@@ -266,6 +292,12 @@ impl SignalJobRealtimeHandler {
             }
             Err(e) => {
                 log::error!("[SIGNAL JOB] Realtime API error after backoff: {:?}", e);
+                emit_internal_span(
+                    self.queue.clone(),
+                    Self::build_submit_span(&message, &self.config, Some(format!("{}", e))),
+                )
+                .await;
+
                 let failed_run = SignalRun::from_message(&message, message.signal.id)
                     .failed(&format!("Realtime API failed: {}", e));
 

@@ -2,7 +2,6 @@
 
 import { type Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
@@ -15,12 +14,10 @@ import { useEvalStore } from "@/components/evaluation/store";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
 import { Skeleton } from "@/components/ui/skeleton";
-import { setTraceViewWidthCookie } from "@/lib/actions/evaluation/cookies";
 import { type EvalRow, type Evaluation as EvaluationType, type EvaluationResultsInfo } from "@/lib/evaluation/types";
-import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 import { formatTimestamp, swrFetcher } from "@/lib/utils";
 
-import TraceView from "../traces/trace-view";
+import { TraceViewSidePanel } from "../traces/trace-view";
 import Header from "../ui/header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
@@ -28,10 +25,9 @@ interface EvaluationProps {
   evaluations: EvaluationType[];
   evaluationId: string;
   evaluationName: string;
-  initialTraceViewWidth?: number;
 }
 
-function EvaluationContent({ evaluations, evaluationId, evaluationName, initialTraceViewWidth }: EvaluationProps) {
+function EvaluationContent({ evaluations, evaluationId, evaluationName }: EvaluationProps) {
   const { push } = useRouter();
   const pathName = usePathname();
   const searchParams = useSearchParams();
@@ -211,11 +207,6 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
     }
   }
 
-  const { width: defaultTraceViewWidth, handleResizeStop } = useResizableTraceViewWidth({
-    initialWidth: initialTraceViewWidth,
-    onSaveWidth: setTraceViewWidthCookie,
-  });
-
   return (
     <>
       <Header
@@ -281,52 +272,39 @@ function EvaluationContent({ evaluations, evaluationId, evaluationName, initialT
         </div>
       </div>
       {traceId && (
-        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
-          <Resizable
-            onResizeStop={handleResizeStop}
-            enable={{
-              left: true,
-            }}
-            size={{
-              width: defaultTraceViewWidth,
-            }}
-          >
-            <div className="w-full h-full flex flex-col">
-              {targetId && (
-                <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
-                  <Select value={traceId} onValueChange={handleTraceChange}>
-                    <SelectTrigger className="flex font-medium text-secondary-foreground">
-                      <SelectValue placeholder="Select evaluation" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(selectedRow?.["traceId"] as string) && (
-                        <SelectItem value={selectedRow!["traceId"] as string}>
-                          <span>
-                            {statsData?.evaluation.name}
-                            <span className="text-secondary-foreground text-xs ml-2">
-                              {formatTimestamp(String(statsData?.evaluation.createdAt))}
-                            </span>
-                          </span>
-                        </SelectItem>
-                      )}
-                      {(selectedRow?.["compared:traceId"] as string) && (
-                        <SelectItem value={selectedRow!["compared:traceId"] as string}>
-                          <span>
-                            {targetStatsData?.evaluation.name}
-                            <span className="text-secondary-foreground text-xs ml-2">
-                              {formatTimestamp(String(targetStatsData?.evaluation.createdAt))}
-                            </span>
-                          </span>
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <TraceView key={traceId} onClose={onClose} traceId={traceId} />
+        <TraceViewSidePanel onClose={onClose} traceId={traceId}>
+          {targetId && (
+            <div className="h-12 flex flex-none items-center border-b space-x-2 px-4">
+              <Select value={traceId} onValueChange={handleTraceChange}>
+                <SelectTrigger className="flex font-medium text-secondary-foreground">
+                  <SelectValue placeholder="Select evaluation" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(selectedRow?.["traceId"] as string) && (
+                    <SelectItem value={selectedRow!["traceId"] as string}>
+                      <span>
+                        {statsData?.evaluation.name}
+                        <span className="text-secondary-foreground text-xs ml-2">
+                          {formatTimestamp(String(statsData?.evaluation.createdAt))}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  )}
+                  {(selectedRow?.["compared:traceId"] as string) && (
+                    <SelectItem value={selectedRow!["compared:traceId"] as string}>
+                      <span>
+                        {targetStatsData?.evaluation.name}
+                        <span className="text-secondary-foreground text-xs ml-2">
+                          {formatTimestamp(String(targetStatsData?.evaluation.createdAt))}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
-          </Resizable>
-        </div>
+          )}
+        </TraceViewSidePanel>
       )}
     </>
   );

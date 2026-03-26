@@ -52,7 +52,7 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     if (isNull(selectedSpanIndex) || isSpansLoading) return;
     if (selectedSpanIndex !== -1) {
       const rafId = requestAnimationFrame(() => {
-        virtualizer.scrollToIndex(selectedSpanIndex, { align: "start" });
+        virtualizer.scrollToIndex(selectedSpanIndex, { align: "auto" });
       });
       return () => cancelAnimationFrame(rafId);
     }

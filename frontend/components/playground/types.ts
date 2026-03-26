@@ -191,6 +191,26 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         name: "gemini-2.5-flash-lite",
         label: "Gemini 2.5 Flash Lite",
       },
+      {
+        id: "gemini:gemini-3-flash-preview",
+        name: "gemini-3-flash-preview",
+        label: "Gemini 3 Flash Preview",
+      },
+      {
+        id: "gemini:gemini-3-pro-preview",
+        name: "gemini-3-pro-preview",
+        label: "Gemini 3 Pro Preview",
+      },
+      {
+        id: "gemini:gemini-3.1-flash-lite-preview",
+        name: "gemini-3.1-flash-lite-preview",
+        label: "Gemini 3.1 Flash Lite Preview",
+      },
+      {
+        id: "gemini:gemini-3.1-pro-preview",
+        name: "gemini-3.1-pro-preview",
+        label: "Gemini 3.1 Pro Preview",
+      },
     ],
   },
   {
