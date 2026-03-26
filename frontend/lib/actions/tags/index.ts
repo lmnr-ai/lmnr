@@ -57,24 +57,19 @@ export const addTagToCHSpan = async (input: z.infer<typeof AddTagToSpanSchema>):
   const parseResult = AddTagToSpanSchema.parse(input);
   const { spanId, projectId, tag } = parseResult;
 
-  // No await here because we don't want to block the request,
-  // ALTER TABLE may be slow.
-  clickhouseClient
-    .command({
-      query: `
+  // With mutations_sync=0, this returns immediately while the mutation runs in the background.
+  await clickhouseClient.command({
+    query: `
       ALTER TABLE spans
       UPDATE tags_array = arrayDistinct(arrayConcat(tags_array, [{tag: String}]))
-      WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID} 
+      WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
     `,
-      query_params: {
-        tag,
-        spanId,
-        projectId,
-      },
-    })
-    .catch((error) => {
-      console.error("Error updating tags in ClickHouse", error);
-    });
+    query_params: {
+      tag,
+      spanId,
+      projectId,
+    },
+  });
 };
 
 const RemoveTagFromSpanSchema = z.object({
@@ -89,24 +84,19 @@ export const removeTagFromCHSpan = async (input: z.infer<typeof RemoveTagFromSpa
   const parseResult = RemoveTagFromSpanSchema.parse(input);
   const { spanId, projectId, tag } = parseResult;
 
-  // No await here because we don't want to block the request,
-  // ALTER TABLE may be slow.
-  clickhouseClient
-    .command({
-      query: `
+  // With mutations_sync=0, this returns immediately while the mutation runs in the background.
+  await clickhouseClient.command({
+    query: `
       ALTER TABLE spans
       UPDATE tags_array = arrayFilter(x -> x != {tag: String}, tags_array)
-      WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID} 
+      WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
     `,
-      query_params: {
-        tag,
-        spanId,
-        projectId,
-      },
-    })
-    .catch((error) => {
-      console.error("Error removing tag from ClickHouse", error);
-    });
+    query_params: {
+      tag,
+      spanId,
+      projectId,
+    },
+  });
 };
 
 export const getSpanTags = async (
