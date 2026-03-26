@@ -1,6 +1,6 @@
 import { get, isNil } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import Chat from "@/components/traces/trace-view/chat";
@@ -300,7 +300,7 @@ export default function TraceViewContent({
   const initialSearch = searchParams.get("search") ?? "";
 
   useEffect(() => {
-    fetchSpans("", []);
+    fetchSpans(initialSearch, []);
 
     return () => {
       setSpans([]);
@@ -308,15 +308,6 @@ export default function TraceViewContent({
       setSpansError(undefined);
     };
   }, [traceId, projectId, setSpans, setTraceError, setSpansError]);
-
-  // Re-fetch with the URL search query once trace (and its time range) is available.
-  const initialSearchDone = useRef(false);
-  useEffect(() => {
-    if (initialSearch && trace && !initialSearchDone.current) {
-      initialSearchDone.current = true;
-      fetchSpans(initialSearch, []);
-    }
-  }, [trace, initialSearch, fetchSpans]);
 
   useRealtime({
     key: `trace_${traceId}`,
