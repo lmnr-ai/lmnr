@@ -208,11 +208,11 @@ impl TraceAggregation {
                     }
                 }
             }
-            if entry.status.is_none() {
-                if let Some(status) = &span.status {
-                    if !status.is_empty() {
-                        entry.status = Some(status.clone());
-                    }
+            if let Some(status) = &span.status {
+                if status == "error" {
+                    entry.status = Some("error".to_string());
+                } else if entry.status.is_none() && !status.is_empty() {
+                    entry.status = Some(status.clone());
                 }
             }
             if entry.metadata.is_none() {
