@@ -1,17 +1,14 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable } from "re-resizable";
 import { useCallback } from "react";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
-import { setTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
-import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import SessionsTable from "./sessions-table";
 import SpansTable from "./spans-table";
-import TraceView from "./trace-view";
+import { TraceViewSidePanel } from "./trace-view";
 import { TracesStoreProvider, useTracesStoreContext } from "./traces-store";
 import TracesTable from "./traces-table";
 
@@ -28,23 +25,19 @@ type NavigationItem =
       spanId: string;
     };
 
-function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
+function TracesContent() {
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const router = useRouter();
   const tracesTab = (searchParams.get("view") || TracesTab.TRACES) as TracesTab;
 
-  const { traceId, spanId, setTraceId, setSpanId } = useTracesStoreContext((state) => ({
+  const { traceId, spanId, showChatInitial, setTraceId, setSpanId } = useTracesStoreContext((state) => ({
     spanId: state.spanId,
     traceId: state.traceId,
+    showChatInitial: state.showChatInitial,
     setTraceId: state.setTraceId,
     setSpanId: state.setSpanId,
   }));
-
-  const { width, handleResizeStop } = useResizableTraceViewWidth({
-    initialWidth: initialTraceViewWidth,
-    onSaveWidth: setTraceViewWidthCookie,
-  });
 
   const resetUrlParams = (newView: string) => {
     const params = new URLSearchParams(searchParams);
@@ -61,6 +54,7 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
     (item: NavigationItem | null) => {
       if (item) {
         if (typeof item === "string") {
+          setSpanId(null);
           setTraceId(item);
         } else {
           setSpanId(item.spanId);
@@ -100,36 +94,24 @@ function TracesContent({ initialTraceViewWidth }: { initialTraceViewWidth?: numb
         </TabsContent>
       </Tabs>
       {traceId && (
-        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-50 flex">
-          <Resizable
-            onResizeStop={handleResizeStop}
-            enable={{
-              left: true,
-            }}
-            size={{
-              width,
-            }}
-          >
-            <TraceView
-              spanId={spanId || undefined}
-              key={traceId}
-              onClose={() => {
-                const params = new URLSearchParams(searchParams);
-                params.delete("traceId");
-                params.delete("spanId");
-                router.push(`${pathName}?${params.toString()}`);
-                setTraceId(null);
-              }}
-              traceId={traceId}
-            />
-          </Resizable>
-        </div>
+        <TraceViewSidePanel
+          spanId={spanId || undefined}
+          onClose={() => {
+            const params = new URLSearchParams(searchParams);
+            params.delete("traceId");
+            params.delete("spanId");
+            router.push(`${pathName}?${params.toString()}`);
+            setTraceId(null);
+          }}
+          traceId={traceId}
+          showChatInitial={showChatInitial}
+        />
       )}
     </TraceViewNavigationProvider>
   );
 }
 
-export default function Traces({ initialTraceViewWidth }: { initialTraceViewWidth?: number }) {
+export default function Traces() {
   const searchParams = useSearchParams();
 
   const traceId = searchParams.get("traceId");
@@ -137,7 +119,7 @@ export default function Traces({ initialTraceViewWidth }: { initialTraceViewWidt
 
   return (
     <TracesStoreProvider traceId={traceId} spanId={spanId}>
-      <TracesContent initialTraceViewWidth={initialTraceViewWidth} />
+      <TracesContent />
     </TracesStoreProvider>
   );
 }

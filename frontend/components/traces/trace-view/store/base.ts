@@ -84,6 +84,14 @@ export type TraceViewTrace = {
   hasBrowserSession: boolean;
 };
 
+export type TraceSignal = {
+  signalId: string;
+  signalName: string;
+  prompt: string;
+  schemaFields: Array<{ name: string; type: string; description?: string }>;
+  events: Array<Record<string, any>>;
+};
+
 export interface BaseTraceViewState {
   trace?: TraceViewTrace;
   isTraceLoading: boolean;
@@ -104,6 +112,33 @@ export interface BaseTraceViewState {
   condensedTimelineVisibleSpanIds: Set<string>;
   condensedTimelineZoom: number;
   isCostHeatmapVisible: boolean;
+
+  // Panel visibility
+  spanPanelOpen: boolean;
+  tracesAgentOpen: boolean;
+  signalsPanelOpen: boolean;
+
+  // Signal data for the signal events panel
+  traceSignals: TraceSignal[];
+  isTraceSignalsLoading: boolean;
+  activeSignalTabId: string | null;
+
+  // Set once at store creation. When signals are fetched (by either Header or
+  // SignalEventsPanel — whichever wins the race), the fetch callback checks this
+  // value to pick the correct default tab instead of blindly selecting the first
+  // signal. This avoids brittle useEffect chains that try to fix the tab after
+  // the fact.
+  initialSignalId?: string;
+
+  // Pending signal→chat injection. Written by openSignalInChat, consumed
+  // once by the Chat component's effect, then nulled.
+  pendingChatInjection: {
+    signalDefinition: string;
+    eventPayload: string;
+  } | null;
+
+  // Layout options
+  isAlwaysSelectSpan: boolean;
 }
 
 export interface BaseTraceViewActions {
@@ -134,6 +169,20 @@ export interface BaseTraceViewActions {
   setIsCostHeatmapVisible: (visible: boolean) => void;
   selectMaxSpanCost: () => number;
 
+  // Panel visibility actions
+  setSpanPanelOpen: (open: boolean) => void;
+  setTracesAgentOpen: (open: boolean) => void;
+  setSignalsPanelOpen: (open: boolean) => void;
+
+  // Signal data actions
+  setTraceSignals: (signals: TraceSignal[]) => void;
+  setIsTraceSignalsLoading: (loading: boolean) => void;
+  setActiveSignalTabId: (id: string | null) => void;
+
+  // Traces Agent injection actions
+  openSignalInChat: (signalDefinition: string, eventPayload: string) => void;
+  consumePendingChatInjection: () => { signalDefinition: string; eventPayload: string } | null;
+
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
   getListData: () => TraceViewListSpan[];
@@ -146,7 +195,12 @@ export type BaseTraceViewStore = BaseTraceViewState & BaseTraceViewActions;
 export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
   set: (partial: T | Partial<T> | ((state: T) => T | Partial<T>)) => void,
   get: () => T,
-  options?: { initialTrace?: TraceViewTrace }
+  options?: {
+    initialTrace?: TraceViewTrace;
+    isAlwaysSelectSpan?: boolean;
+    initialSignalId?: string;
+    initialChatOpen?: boolean;
+  }
 ): BaseTraceViewStore {
   return {
     trace: options?.initialTrace,
@@ -168,6 +222,23 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     condensedTimelineVisibleSpanIds: new Set(),
     condensedTimelineZoom: 1,
     isCostHeatmapVisible: false,
+
+    // Panel visibility defaults
+    spanPanelOpen: true,
+    tracesAgentOpen: options?.initialChatOpen ?? false,
+    signalsPanelOpen: false,
+
+    // Signal data defaults
+    traceSignals: [],
+    isTraceSignalsLoading: false,
+    activeSignalTabId: null,
+    initialSignalId: options?.initialSignalId,
+
+    // Traces Agent injection defaults
+    pendingChatInjection: null,
+
+    // Layout options
+    isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
     setTrace: (trace) => {
@@ -238,7 +309,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       return lightweightListSpans;
     },
 
-    setSelectedSpan: (span) => set({ selectedSpan: span } as Partial<T>),
+    setSelectedSpan: (span) => set({ selectedSpan: span, spanPanelOpen: !!span } as Partial<T>),
     selectSpanById: (spanId: string) => {
       const span = get().spans.find((s) => s.spanId === spanId);
       if (span && !span.pending) {
@@ -257,7 +328,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
           );
         }
 
-        set({ selectedSpan: span } as Partial<T>);
+        get().setSelectedSpan(span);
         const spanPath = span.attributes?.["lmnr.span.path"];
         if (spanPath && Array.isArray(spanPath)) {
           set({ spanPath } as Partial<T>);
@@ -311,17 +382,43 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       const span = get().spans.find((s) => s.spanId === spanId);
       return span?.attributes?.[attributeKey];
     },
+
+    // Panel visibility actions
+    setSpanPanelOpen: (open: boolean) => set({ spanPanelOpen: open } as Partial<T>),
+    setTracesAgentOpen: (open: boolean) => set({ tracesAgentOpen: open } as Partial<T>),
+    setSignalsPanelOpen: (open: boolean) => set({ signalsPanelOpen: open } as Partial<T>),
+
+    // Signal data actions
+    setTraceSignals: (signals: TraceSignal[]) => set({ traceSignals: signals } as Partial<T>),
+    setIsTraceSignalsLoading: (loading: boolean) => set({ isTraceSignalsLoading: loading } as Partial<T>),
+    setActiveSignalTabId: (id: string | null) => set({ activeSignalTabId: id } as Partial<T>),
+
+    // Traces Agent injection actions
+    openSignalInChat: (signalDefinition: string, eventPayload: string) => {
+      get().setTracesAgentOpen(true);
+      set({ pendingChatInjection: { signalDefinition, eventPayload } } as Partial<T>);
+    },
+    consumePendingChatInjection: () => {
+      const pending = get().pendingChatInjection;
+      if (pending) {
+        set({ pendingChatInjection: null } as Partial<T>);
+      }
+      return pending;
+    },
   };
 }
 
 export const TraceViewContext = createContext<StoreApi<BaseTraceViewStore> | undefined>(undefined);
 
-export const useTraceViewBaseStore = <T>(selector: (store: BaseTraceViewStore) => T): T => {
+export const useTraceViewBaseStore = <T>(
+  selector: (store: BaseTraceViewStore) => T,
+  equalityFn?: (a: T, b: T) => boolean
+): T => {
   const store = useContext(TraceViewContext);
   if (!store) {
     throw new Error("useTraceViewContext must be used within a TraceViewContext provider");
   }
-  return useStore(store, selector);
+  return useStore(store, selector, equalityFn);
 };
 
 export const useTraceViewBaseStoreRaw = () => {

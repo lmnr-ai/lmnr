@@ -139,8 +139,7 @@ type HandledKey = {
 };
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 
   // Must only be used for dialogs or other pop-ups where there is only 1 button to handle at the moment
@@ -207,13 +206,20 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     // Get the icon component from the map
     const IconComponent = icon ? iconMap[icon] : null;
 
+    // When asChild is true, Comp is Radix Slot which requires exactly one React
+    // element child. Injecting IconComponent alongside children would create two
+    // children (even if IconComponent is null), which causes React.Children.only
+    // to throw in React 19 where Children.count includes null entries.
+    if (asChild) {
+      return (
+        <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props}>
+          {children}
+        </Comp>
+      );
+    }
+
     return (
-      <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref}
-        {...(!asChild && { type })}
-        {...props}
-      >
+      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} type={type} {...props}>
         {IconComponent && (
           <IconComponent className={cn(size === "sm" ? "size-3" : "size-3.5", { "mr-1": !!children })} />
         )}
