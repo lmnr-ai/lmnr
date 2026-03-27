@@ -8,7 +8,7 @@ import { spanRenderingKeys } from "@/lib/db/migrations/schema";
 
 import { generatePreviewKeys } from "./prompts.ts";
 import { matchProviderKey } from "./provider-keys.ts";
-import { classifyPayload, generateFingerprint, renderMustachePreview, validateMustacheKey } from "./utils.ts";
+import { classifyPayload, generateFingerprint, validateMustacheKey } from "./utils.ts";
 
 export const GetSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: true }).extend({
   projectId: z.string(),
@@ -153,6 +153,8 @@ const fillMissing = (previews: SpanPreviewResult, spanIds: string[]): SpanPrevie
     { ...previews }
   );
 
+const toJsonPreview = (data: unknown): string => JSON.stringify(data).slice(0, 500);
+
 const applyCachedKeys = async (
   projectId: string,
   parsedSpans: ParsedSpan[],
@@ -184,7 +186,8 @@ const applyCachedKeys = async (
     if (cachedKey) {
       const isProviderType = PROVIDER_SPAN_TYPES.has(spanTypes[span.spanId] ?? "");
       const match = isProviderType ? matchProviderKey(span.parsedData) : null;
-      resolved[span.spanId] = renderMustachePreview(cachedKey, match?.data ?? span.parsedData);
+      const rendered = validateMustacheKey(cachedKey, match?.data ?? span.parsedData);
+      resolved[span.spanId] = rendered ?? toJsonPreview(span.parsedData);
     } else {
       uncached.push(span);
     }
@@ -246,8 +249,6 @@ const groupByFingerprint = (spans: ParsedSpan[]): Map<string, ParsedSpan[]> =>
     }
     return map;
   }, new Map<string, ParsedSpan[]>());
-
-const toJsonPreview = (data: unknown): string => JSON.stringify(data).slice(0, 500);
 
 const generateAndApplyKeys = async (
   needsLlm: ParsedSpan[]
