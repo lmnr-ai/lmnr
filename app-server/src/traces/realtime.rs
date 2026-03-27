@@ -121,7 +121,11 @@ pub async fn send_span_updates(spans: &[Span], pubsub: &PubSub) {
 }
 
 /// Send trace update events to SSE connections for the traces table
-pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
+pub async fn send_trace_updates(
+    traces: &[Trace],
+    pubsub: &PubSub,
+    existing_trace_tags: &HashMap<Uuid, Vec<String>>,
+) {
     if traces.is_empty() {
         return;
     }
@@ -139,10 +143,14 @@ pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
             }
         }
 
+        let tags = existing_trace_tags
+            .get(&trace.id())
+            .cloned()
+            .unwrap_or_default();
         traces_by_project
             .entry(trace.project_id())
             .or_default()
-            .push(RealtimeTrace::from_trace(trace));
+            .push(RealtimeTrace::from_trace(trace, tags));
 
         if let Some(rollout_session_id) = trace
             .metadata()
@@ -185,8 +193,8 @@ pub async fn send_trace_updates(traces: &[Trace], pubsub: &PubSub) {
 }
 
 impl RealtimeTrace {
-    /// Convert database trace to realtime format
-    fn from_trace(trace: &Trace) -> Self {
+    /// Convert database trace to realtime format, preserving existing trace_tags.
+    fn from_trace(trace: &Trace, existing_trace_tags: Vec<String>) -> Self {
         Self {
             id: trace.id(),
             start_time: trace.start_time(),
@@ -208,7 +216,7 @@ impl RealtimeTrace {
             status: trace.status(),
             user_id: trace.user_id(),
             span_tags: trace.tags().clone(),
-            trace_tags: Vec::new(),
+            trace_tags: existing_trace_tags,
             root_span_input: trace.root_span_input(),
             root_span_output: trace.root_span_output(),
         }

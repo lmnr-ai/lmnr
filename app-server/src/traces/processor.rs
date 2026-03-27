@@ -16,7 +16,7 @@ use crate::{
     ch::{
         ClickhouseTrait,
         spans::CHSpan,
-        traces::{CHTrace, TraceAggregation},
+        traces::{CHTrace, TraceAggregation, get_existing_trace_tags},
     },
     db::{
         DB,
@@ -90,9 +90,20 @@ pub async fn process_span_messages(
     // Upsert trace statistics in PostgreSQL
     let updated_traces = match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
         Ok(updated_traces) => {
+            // Fetch existing trace_tags from ClickHouse so they are preserved
+            // when ReplacingMergeTree merges rows with higher num_spans.
+            let trace_ids: Vec<Uuid> = updated_traces.iter().map(|t| t.id()).collect();
+            let existing_tags = get_existing_trace_tags(&clickhouse, &trace_ids).await;
+
             let ch_traces: Vec<CHTrace> = updated_traces
                 .iter()
-                .map(|trace| CHTrace::from_db_trace(trace))
+                .map(|trace| {
+                    let tags = existing_tags
+                        .get(&trace.id())
+                        .cloned()
+                        .unwrap_or_default();
+                    CHTrace::from_db_trace(trace, tags)
+                })
                 .collect();
 
             if let Err(e) = ch.insert_batch(&ch_traces, config).await {
@@ -103,7 +114,7 @@ pub async fn process_span_messages(
                 );
             }
 
-            send_trace_updates(&updated_traces, &pubsub).await;
+            send_trace_updates(&updated_traces, &pubsub, &existing_tags).await;
 
             Some(updated_traces)
         }

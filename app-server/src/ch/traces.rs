@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
@@ -60,8 +60,8 @@ pub struct CHTrace {
 }
 
 impl CHTrace {
-    /// Create CHTrace from database Trace
-    pub fn from_db_trace(trace: &Trace) -> Self {
+    /// Create CHTrace from database Trace, preserving existing trace_tags from ClickHouse.
+    pub fn from_db_trace(trace: &Trace, existing_trace_tags: Vec<String>) -> Self {
         let start_time_ns = trace.start_time().map(chrono_to_nanoseconds).unwrap_or(0);
         let end_time_ns = trace.end_time().map(chrono_to_nanoseconds).unwrap_or(0);
 
@@ -92,12 +92,50 @@ impl CHTrace {
             top_span_type: trace.top_span_type().unwrap_or(0) as u8,
             trace_type: trace.trace_type() as u8,
             span_tags: trace.tags().clone(),
-            trace_tags: Vec::new(),
+            trace_tags: existing_trace_tags,
             num_spans: trace.num_spans() as u64,
             has_browser_session: trace.has_browser_session().unwrap_or(false),
             span_names: trace.span_names(),
             root_span_input: trace.root_span_input().unwrap_or_default(),
             root_span_output: trace.root_span_output().unwrap_or_default(),
+        }
+    }
+}
+
+#[derive(Debug, Row, Deserialize)]
+struct ExistingTraceTags {
+    #[serde(with = "clickhouse::serde::uuid")]
+    id: Uuid,
+    trace_tags: Vec<String>,
+}
+
+/// Fetch existing trace_tags from traces_replacing for the given trace IDs.
+/// This is needed to preserve user-applied trace tags when ReplacingMergeTree
+/// merges rows (the new row with higher num_spans must carry forward existing tags).
+pub async fn get_existing_trace_tags(
+    clickhouse: &clickhouse::Client,
+    trace_ids: &[Uuid],
+) -> HashMap<Uuid, Vec<String>> {
+    if trace_ids.is_empty() {
+        return HashMap::new();
+    }
+
+    let placeholders: Vec<String> = trace_ids.iter().map(|_| "?".to_string()).collect();
+    let query_str = format!(
+        "SELECT id, trace_tags FROM traces_replacing FINAL WHERE id IN ({})",
+        placeholders.join(",")
+    );
+
+    let mut query = clickhouse.query(&query_str);
+    for trace_id in trace_ids {
+        query = query.bind(trace_id);
+    }
+
+    match query.fetch_all::<ExistingTraceTags>().await {
+        Ok(rows) => rows.into_iter().map(|r| (r.id, r.trace_tags)).collect(),
+        Err(e) => {
+            log::error!("Failed to fetch existing trace_tags from ClickHouse: {:?}", e);
+            HashMap::new()
         }
     }
 }
