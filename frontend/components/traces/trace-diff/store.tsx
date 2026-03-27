@@ -161,9 +161,18 @@ const createTraceDiffStore = () =>
 
         getCachedMapping: (left, right) => get().mappingCache[`${left}-${right}`],
         setCachedMapping: (left, right, mapping) =>
-          set((s) => ({
-            mappingCache: { ...s.mappingCache, [`${left}-${right}`]: mapping },
-          })),
+          set((s) => {
+            const cache = { ...s.mappingCache, [`${left}-${right}`]: mapping };
+            // Evict oldest entries when cache exceeds max size
+            const MAX_CACHE_ENTRIES = 50;
+            const keys = Object.keys(cache);
+            if (keys.length > MAX_CACHE_ENTRIES) {
+              for (const key of keys.slice(0, keys.length - MAX_CACHE_ENTRIES)) {
+                delete cache[key];
+              }
+            }
+            return { mappingCache: cache };
+          }),
       }),
       {
         name: "trace-diff-mapping-cache",
