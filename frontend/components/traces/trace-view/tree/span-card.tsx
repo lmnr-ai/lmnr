@@ -138,7 +138,6 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
               )
             ) : (
               <SpanStatsShield
-                className="hidden group-hover:flex"
                 startTime={span.startTime}
                 endTime={span.endTime}
                 tokens={llmMetrics?.tokens}
