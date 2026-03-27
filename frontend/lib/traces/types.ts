@@ -48,8 +48,8 @@ export type Span = {
   attributes: Record<string, any>;
   input: any;
   output: any;
-  inputPreview: string;
-  outputPreview: string;
+  inputPreview?: string;
+  outputPreview?: string;
   spanType: SpanType;
   events: SpanEvent[];
   path: string;
@@ -72,8 +72,6 @@ export type SpanRow = {
   name: string;
   startTime: string;
   endTime: string;
-  inputPreview?: string;
-  outputPreview?: string;
   spanType: SpanType;
 
   totalCost: number;
