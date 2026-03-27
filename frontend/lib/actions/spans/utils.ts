@@ -69,8 +69,6 @@ const spansSelectColumns = [
   "total_tokens as totalTokens",
   "status",
   "tags",
-  "substring(input, 1, 200) as inputPreview",
-  "substring(output, 1, 200) as outputPreview",
   "path",
   "model",
   "duration",
