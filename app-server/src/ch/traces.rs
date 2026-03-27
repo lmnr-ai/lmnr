@@ -50,13 +50,13 @@ pub struct CHTrace {
     pub top_span_type: u8,
     pub trace_type: u8,
     pub span_tags: Vec<String>,
-    #[serde(default)]
-    pub trace_tags: Vec<String>,
     pub num_spans: u64,
     pub has_browser_session: bool,
     pub span_names: Vec<String>,
     pub root_span_input: String,
     pub root_span_output: String,
+    #[serde(default)]
+    pub trace_tags: Vec<String>,
 }
 
 impl CHTrace {
@@ -92,12 +92,12 @@ impl CHTrace {
             top_span_type: trace.top_span_type().unwrap_or(0) as u8,
             trace_type: trace.trace_type() as u8,
             span_tags: trace.tags().clone(),
-            trace_tags: existing_trace_tags,
             num_spans: trace.num_spans() as u64,
             has_browser_session: trace.has_browser_session().unwrap_or(false),
             span_names: trace.span_names(),
             root_span_input: trace.root_span_input().unwrap_or_default(),
             root_span_output: trace.root_span_output().unwrap_or_default(),
+            trace_tags: existing_trace_tags,
         }
     }
 }
