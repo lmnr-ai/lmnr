@@ -16,7 +16,7 @@ const TagsList = () => {
             style={{ background: tagClasses?.find((c) => c.name === t.name)?.color }}
             className="w-2 h-2 rounded-full"
           />
-          <span className="ml-1.5">{t.name}</span>
+          <span className="ml-1.5">{tagClasses?.find((c) => c.name === t.name)?.name}</span>
         </Badge>
       ))}
     </div>

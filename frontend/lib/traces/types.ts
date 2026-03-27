@@ -5,9 +5,9 @@ export type TagClass = typeof tagClasses.$inferSelect;
 
 export type SpanTag = {
   id: string;
+  createdAt: string;
+  spanId: string;
   name: string;
-  createdAt?: string;
-  spanId?: string;
   email?: string;
   color?: string;
 };
