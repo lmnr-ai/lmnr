@@ -74,7 +74,7 @@ const PureToolCallContentPart = ({
   messageIndex = 0,
   contentPartIndex = 0,
 }: ToolCallContentPartProps) => (
-  <div className="flex flex-col gap-2 p-2 bg-background">
+  <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
     <span
       className="flex items-center gap-1.5 text-xs font-medium"
       style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
@@ -112,7 +112,7 @@ const PureToolResultContentPart = ({
   presetKey,
   children,
 }: ToolResultContentPartProps) => (
-  <div className="flex flex-col gap-2 p-2 bg-background">
+  <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
     <span
       className="flex items-center gap-1.5 text-xs font-medium"
       style={{ color: ROLE_COLORS.tool.badgeText, opacity: 0.85 }}
@@ -185,7 +185,7 @@ export const RoleHeader = ({ role, className }: RoleHeaderProps) => {
   if (role) {
     const colors = getRoleColors(role);
     return (
-      <div className={cn("flex items-center px-2 py-1 gap-2 border-b bg-background", className)}>
+      <div className={cn("flex items-center px-2 py-1 gap-2 border-b bg-background rounded-t", className)}>
         <span className="text-sm font-medium" style={{ color: colors.badgeText }}>
           {capitalize(role)}
         </span>
@@ -226,7 +226,7 @@ const PureThinkingContentPart = ({
   messageIndex = 0,
   contentPartIndex = 0,
 }: ThinkingContentPartProps) => (
-  <div className="flex flex-col gap-2 p-2 bg-background">
+  <div className="flex flex-col gap-2 p-2 bg-background rounded-b">
     <span className="flex items-center text-xs">
       <Brain size={12} className="min-w-3 mr-2" />
       {label}
@@ -258,10 +258,12 @@ export const MessageWrapper = ({
   children,
   role,
   maxHeight = DEFAULT_MESSAGE_MAX_HEIGHT,
+  stickyHeader = true,
 }: PropsWithChildren<{
   role?: string;
   presetKey: string;
   maxHeight?: number;
+  stickyHeader?: boolean;
 }>) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -288,27 +290,23 @@ export const MessageWrapper = ({
   const isCapped = !isExpanded && isOverflowing;
 
   return (
-    <div className="relative">
-      <div
-        ref={containerRef}
-        className={cn("border rounded overflow-hidden bg-card", isExpanded && isOverflowing && "pb-4")}
-        style={!isExpanded ? { maxHeight } : undefined}
-      >
-        <RoleHeader role={role} />
+    <div className="relative border rounded bg-card">
+      <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
+      <div ref={containerRef} className="overflow-hidden" style={!isExpanded ? { maxHeight } : undefined}>
         <div className="flex flex-col divide-y">{children}</div>
-        {isCapped && (
-          <button
-            onClick={() => setIsExpanded(true)}
-            className="absolute bottom-px left-px right-px h-16 bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center"
-          >
-            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-          </button>
-        )}
       </div>
+      {isCapped && (
+        <button
+          onClick={() => setIsExpanded(true)}
+          className="sticky bottom-0 z-10 w-full h-4 bg-transparent bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center"
+        >
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+        </button>
+      )}
       {isExpanded && isOverflowing && (
         <button
           onClick={() => setIsExpanded(false)}
-          className="absolute bottom-px left-px right-px h-8 bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center"
+          className="sticky bottom-0 z-10 w-full h-4 bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center"
         >
           <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
         </button>
