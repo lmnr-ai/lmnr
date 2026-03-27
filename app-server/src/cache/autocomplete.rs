@@ -42,6 +42,12 @@ const AUTOCOMPLETE_CONFIG: &[(&str, &[&str])] = &[
             "SELECT arrayJoin(topK(512)(name)) as value FROM span_tags WHERE project_id = {project_id:UUID} AND created_at >= {start_time:DateTime64(9)} AND created_at < {end_time:DateTime64(9)}",
         ],
     ),
+    (
+        "trace_tags",
+        &[
+            "SELECT arrayJoin(topK(512)(name)) as value FROM trace_tags WHERE project_id = {project_id:UUID} AND created_at >= {start_time:DateTime64(9)} AND created_at < {end_time:DateTime64(9)}",
+        ],
+    ),
 ];
 
 #[derive(Row, Deserialize)]
