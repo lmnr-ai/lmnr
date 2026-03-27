@@ -17,47 +17,39 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
   ]),
   defaultProcessor: (filter, paramKey) => {
     const { column, value, dataType } = filter;
+    const opSymbol = OperatorLabelMap[filter.operator];
 
-    // Handle payload field filters (payload.fieldName)
-    if (column.startsWith("payload.")) {
-      const fieldName = column.slice("payload.".length);
-      const opSymbol = OperatorLabelMap[filter.operator];
-
-      if (dataType === "number") {
-        const numValue = parseFloat(String(value));
-        return {
-          condition: `(simpleJSONExtractFloat(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:Float64})`,
-          params: {
-            [`${paramKey}_key`]: fieldName,
-            [`${paramKey}_val`]: numValue,
-          },
-        };
-      }
-
-      if (dataType === "boolean") {
-        const boolStr = String(value) === "true" ? "true" : "false";
-        return {
-          condition: `(simpleJSONExtractBool(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:Bool})`,
-          params: {
-            [`${paramKey}_key`]: fieldName,
-            [`${paramKey}_val`]: boolStr,
-          },
-        };
-      }
-
-      // Default: string comparison (covers dataType "string", "json", "enum", etc.)
+    if (dataType === "number") {
+      const numValue = parseFloat(String(value));
       return {
-        condition:
-          `(simpleJSONExtractString(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String}` +
-          ` OR simpleJSONExtractRaw(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String})`,
+        condition: `(simpleJSONExtractFloat(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:Float64})`,
         params: {
-          [`${paramKey}_key`]: fieldName,
-          [`${paramKey}_val`]: String(value),
+          [`${paramKey}_key`]: column,
+          [`${paramKey}_val`]: numValue,
         },
       };
     }
 
-    return { condition: null, params: {} };
+    if (dataType === "boolean") {
+      const boolStr = String(value) === "true" ? "true" : "false";
+      return {
+        condition: `(simpleJSONExtractBool(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:Bool})`,
+        params: {
+          [`${paramKey}_key`]: column,
+          [`${paramKey}_val`]: boolStr,
+        },
+      };
+    }
+
+    return {
+      condition:
+        `(simpleJSONExtractString(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String}` +
+        ` OR simpleJSONExtractRaw(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String})`,
+      params: {
+        [`${paramKey}_key`]: column,
+        [`${paramKey}_val`]: String(value),
+      },
+    };
   },
 };
 

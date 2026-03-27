@@ -104,25 +104,25 @@ function createPayloadFilter(field: SchemaField): ColumnFilter {
     case "number":
       return {
         name: field.name,
-        key: `payload.${field.name}`,
+        key: field.name,
         dataType: "number",
       };
     case "boolean":
       return {
         name: field.name,
-        key: `payload.${field.name}`,
+        key: field.name,
         dataType: "boolean",
       };
     case "enum":
       return {
         name: field.name,
-        key: `payload.${field.name}`,
+        key: field.name,
         dataType: "string",
       };
     default:
       return {
         name: field.name,
-        key: `payload.${field.name}`,
+        key: field.name,
         dataType: "string",
       };
   }
