@@ -1,13 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { createAlert, deleteAlert, getAlerts } from "@/lib/actions/alerts";
+import { authOptions } from "@/lib/auth";
 
 export async function GET(_request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await props.params;
 
   try {
-    const result = await getAlerts(projectId);
+    const session = await getServerSession(authOptions);
+    const userEmail = session?.user?.email ?? undefined;
+    const result = await getAlerts(projectId, userEmail);
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);

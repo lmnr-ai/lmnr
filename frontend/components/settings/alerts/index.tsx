@@ -113,38 +113,42 @@ export default function AlertsSettings({
         headers={["Name", "Send to", "Created", ""]}
         colSpan={4}
       >
-        {alertsList?.map((alert) => (
-          <SettingsTableRow key={alert.id}>
-            <td className="px-4 text-sm font-medium max-w-0">
-              <span title={alert.name} className="block truncate">
-                {alert.name}
-              </span>
-            </td>
-            <td className="px-4">
-              <TargetChips targets={alert.targets} />
-            </td>
-            <td className="px-4 text-xs text-muted-foreground">
-              <ClientTimestampFormatter timestamp={alert.createdAt} absolute />
-            </td>
-            <td className="px-4 w-1/10">
-              <div className="flex justify-end gap-4">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setEditTarget(alert);
-                    setSheetOpen(true);
-                  }}
-                >
-                  <Pen size={14} className="text-muted-foreground" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(alert)}>
-                  <Trash2 size={14} className="text-destructive" />
-                </Button>
-              </div>
-            </td>
-          </SettingsTableRow>
-        ))}
+        {alertsList?.map((alert) => {
+          // Only show the current user's own email target + all non-email targets
+          const visibleTargets = alert.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
+          return (
+            <SettingsTableRow key={alert.id}>
+              <td className="px-4 text-sm font-medium max-w-0">
+                <span title={alert.name} className="block truncate">
+                  {alert.name}
+                </span>
+              </td>
+              <td className="px-4">
+                <TargetChips targets={visibleTargets} />
+              </td>
+              <td className="px-4 text-xs text-muted-foreground">
+                <ClientTimestampFormatter timestamp={alert.createdAt} absolute />
+              </td>
+              <td className="px-4 w-1/10">
+                <div className="flex justify-end gap-4">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setEditTarget(alert);
+                      setSheetOpen(true);
+                    }}
+                  >
+                    <Pen size={14} className="text-muted-foreground" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(alert)}>
+                    <Trash2 size={14} className="text-destructive" />
+                  </Button>
+                </div>
+              </td>
+            </SettingsTableRow>
+          );
+        })}
       </SettingsTable>
 
       <ManageAlertSheet

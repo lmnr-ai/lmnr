@@ -36,7 +36,7 @@ const DeleteAlertSchema = z.object({
   projectId: z.uuid(),
 });
 
-export async function getAlerts(projectId: string): Promise<AlertWithDetails[]> {
+export async function getAlerts(projectId: string, userEmail?: string): Promise<AlertWithDetails[]> {
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
@@ -77,6 +77,8 @@ export async function getAlerts(projectId: string): Promise<AlertWithDetails[]> 
 
   const targetsByAlert = new Map<string, AlertTarget[]>();
   for (const t of targetRows) {
+    // Only include the current user's own email target; never expose other members' emails
+    if (t.type === "EMAIL" && userEmail && t.email !== userEmail) continue;
     const list = targetsByAlert.get(t.alertId) ?? [];
     list.push({
       id: t.id,

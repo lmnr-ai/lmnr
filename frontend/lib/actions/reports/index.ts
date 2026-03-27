@@ -37,7 +37,7 @@ const RemoveSlackTargetSchema = z.object({
   workspaceId: z.uuid(),
 });
 
-export async function getReports(workspaceId: string): Promise<ReportWithDetails[]> {
+export async function getReports(workspaceId: string, userEmail?: string): Promise<ReportWithDetails[]> {
   const reportRows = await db
     .select({
       id: reports.id,
@@ -67,6 +67,8 @@ export async function getReports(workspaceId: string): Promise<ReportWithDetails
 
   const targetsByReport = new Map<string, ReportTargetRow[]>();
   for (const t of targetRows) {
+    // Only include the current user's own email target; never expose other members' emails
+    if (t.type === REPORT_TARGET_TYPE.EMAIL && userEmail && t.email !== userEmail) continue;
     const list = targetsByReport.get(t.reportId) ?? [];
     list.push({
       id: t.id,
