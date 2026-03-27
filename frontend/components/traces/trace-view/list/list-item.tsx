@@ -51,7 +51,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
   const isPending = span.pending;
   const isLoadingOutput = output === undefined;
 
-  const defaultExpanded = isExpandableType && (isLoadingOutput || !isEmpty(output));
+  const defaultExpanded = hasSnippet || (isExpandableType && (isLoadingOutput || !isEmpty(output)));
 
   const [expandOverride, setExpandOverride] = useState<{ spanId: string; expanded: boolean } | null>(null);
 
