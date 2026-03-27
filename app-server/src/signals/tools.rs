@@ -1,4 +1,5 @@
 use anyhow::Result;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -10,7 +11,9 @@ use super::spans::{
     strip_signature_fields,
 };
 use super::utils::{nanoseconds_to_iso, try_parse_json};
-use crate::signals::prompts::{GET_FULL_SPAN_INFO_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION};
+use crate::signals::prompts::{
+    GET_FULL_SPAN_INFO_DESCRIPTION, REGEX_IN_SPANS_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION,
+};
 use crate::signals::provider::models::{ProviderFunctionDeclaration, ProviderTool};
 
 /// Full span info returned by get_full_spans tool
@@ -45,6 +48,43 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
 
     let function_declarations = vec![
         ProviderFunctionDeclaration {
+            name: "regex_in_spans".to_string(),
+            description: REGEX_IN_SPANS_DESCRIPTION.to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "searches": {
+                        "type": "array",
+                        "description": "REQUIRED. List of regex search operations to perform.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "span_id": {
+                                    "type": "string",
+                                    "description": "The span ID (6-character hex string, e.g. 'a1b2c3') to search within."
+                                },
+                                "regex": {
+                                    "type": "string",
+                                    "description": "Regular expression pattern to match against the span's content. Uses standard regex syntax."
+                                },
+                                "search_in": {
+                                    "type": "string",
+                                    "enum": ["input", "output"],
+                                    "description": "Which field of the span to search within."
+                                },
+                                "reasoning": {
+                                    "type": "string",
+                                    "description": "Explanation of why this search is needed and what the agent expects to learn from the results."
+                                }
+                            },
+                            "required": ["span_id", "regex", "search_in", "reasoning"]
+                        }
+                    }
+                },
+                "required": ["searches"]
+            }),
+        },
+        ProviderFunctionDeclaration {
             name: "get_full_spans".to_string(),
             description: GET_FULL_SPAN_INFO_DESCRIPTION.to_string(),
             parameters: serde_json::json!({
@@ -52,7 +92,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
                 "properties": {
                     "reasoning": {
                         "type": "string",
-                        "description": "REQUIRED. Explain why these spans need full details and how the additional information will help extract the signal event."
+                        "description": "REQUIRED. Explain why regex_in_spans is insufficient and why these spans need full details."
                     },
                     "span_ids": {
                         "type": "array",
@@ -190,4 +230,289 @@ pub async fn get_full_spans(
         .collect();
 
     Ok(result_spans)
+}
+
+const CONTEXT_PADDING: usize = 50;
+const MAX_MATCHES_PER_SEARCH: usize = 20;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegexSearchRequest {
+    pub span_id: String,
+    pub regex: String,
+    pub search_in: String,
+    pub reasoning: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RegexSearchResult {
+    pub span_id: String,
+    pub matches: Vec<RegexMatch>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RegexMatch {
+    pub snippet: String,
+    pub offset: usize,
+}
+
+pub async fn regex_in_spans(
+    clickhouse: clickhouse::Client,
+    project_id: Uuid,
+    trace_id: Uuid,
+    searches: Vec<RegexSearchRequest>,
+) -> Result<Vec<RegexSearchResult>> {
+    let unique_span_ids: Vec<String> = searches
+        .iter()
+        .map(|s| s.span_id.clone())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    log::info!(
+        "regex_in_spans: {} searches across {} unique spans in trace {}",
+        searches.len(),
+        unique_span_ids.len(),
+        trace_id
+    );
+
+    let hex_literals: Vec<String> = unique_span_ids
+        .iter()
+        .filter(|id| id.chars().all(|c| c.is_ascii_hexdigit()))
+        .map(|id| format!("'{}'", id.to_lowercase()))
+        .collect();
+
+    if hex_literals.is_empty() {
+        return Ok(searches
+            .iter()
+            .map(|s| RegexSearchResult {
+                span_id: s.span_id.clone(),
+                matches: vec![],
+                error: Some("Invalid span_id format".to_string()),
+            })
+            .collect());
+    }
+
+    let in_clause = hex_literals.join(", ");
+    let query = format!(
+        "SELECT * FROM spans WHERE trace_id = ? AND project_id = ? AND lower(right(hex(span_id), 6)) IN ({}) ORDER BY start_time ASC",
+        in_clause
+    );
+
+    let ch_spans = clickhouse
+        .query(&query)
+        .bind(trace_id)
+        .bind(project_id)
+        .fetch_all::<CHSpan>()
+        .await?;
+
+    let span_map: std::collections::HashMap<String, &CHSpan> = ch_spans
+        .iter()
+        .map(|s| (span_short_id(&s.span_id), s))
+        .collect();
+
+    let results = searches
+        .iter()
+        .map(|search| {
+            let Some(ch_span) = span_map.get(&search.span_id.to_lowercase()) else {
+                return RegexSearchResult {
+                    span_id: search.span_id.clone(),
+                    matches: vec![],
+                    error: Some("Span not found".to_string()),
+                };
+            };
+
+            let raw = match search.search_in.as_str() {
+                "input" => &ch_span.input,
+                "output" => &ch_span.output,
+                _ => {
+                    return RegexSearchResult {
+                        span_id: search.span_id.clone(),
+                        matches: vec![],
+                        error: Some(
+                            "Invalid search_in value, must be 'input' or 'output'".to_string(),
+                        ),
+                    };
+                }
+            };
+            let content = decode_json_content(raw);
+
+            match find_regex_matches(&content, &search.regex) {
+                Ok(matches) => RegexSearchResult {
+                    span_id: search.span_id.clone(),
+                    matches,
+                    error: None,
+                },
+                Err(e) => RegexSearchResult {
+                    span_id: search.span_id.clone(),
+                    matches: vec![],
+                    error: Some(e),
+                },
+            }
+        })
+        .collect();
+
+    Ok(results)
+}
+
+/// Parse raw JSON from ClickHouse into a plain-text representation where
+/// JSON string values are fully decoded (escape sequences like `\n`, `\"`,
+/// `\\` become their actual characters). This ensures the regex the agent
+/// writes matches the content as it appears in the trace view.
+///
+/// Non-string JSON values (objects, arrays, numbers, bools, null) are
+/// rendered in a readable format without re-escaping string contents.
+fn decode_json_content(raw: &str) -> String {
+    if raw.is_empty() {
+        return String::new();
+    }
+    match serde_json::from_str::<Value>(raw) {
+        Ok(value) => json_value_to_text(&value),
+        Err(_) => raw.to_string(),
+    }
+}
+
+fn json_value_to_text(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        Value::Null => "null".to_string(),
+        Value::Bool(b) => b.to_string(),
+        Value::Number(n) => n.to_string(),
+        Value::Array(arr) => {
+            let items: Vec<String> = arr.iter().map(json_value_to_text).collect();
+            format!("[{}]", items.join(", "))
+        }
+        Value::Object(map) => {
+            let pairs: Vec<String> = map
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, json_value_to_text(v)))
+                .collect();
+            format!("{{{}}}", pairs.join(", "))
+        }
+    }
+}
+
+fn find_regex_matches(
+    content: &str,
+    pattern: &str,
+) -> std::result::Result<Vec<RegexMatch>, String> {
+    let re = Regex::new(pattern).map_err(|e| format!("Invalid regex: {}", e))?;
+
+    let matches = re
+        .find_iter(content)
+        .take(MAX_MATCHES_PER_SEARCH)
+        .map(|m| {
+            let start = m.start().saturating_sub(CONTEXT_PADDING);
+            let end = (m.end() + CONTEXT_PADDING).min(content.len());
+            // Snap to char boundaries to avoid panics on multi-byte UTF-8
+            let start = content.floor_char_boundary(start);
+            let end = content.ceil_char_boundary(end);
+            RegexMatch {
+                snippet: content[start..end].to_string(),
+                offset: m.start(),
+            }
+        })
+        .collect();
+
+    Ok(matches)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_regex_match_with_newlines_in_json_raw() {
+        // Raw ClickHouse content has literal \n escape sequences (backslash + n)
+        let raw = r#"{"is_done":false,"success":null,"judgement":null,"error":null,"attachments":null,"images":null,"long_term_memory":null,"extracted_content":"Clicked a \"F2\nNew York, NY, USA\nThe AI pl...\"","include_extracted_content_only_once":false,"metadata":{"click_x":1112.5,"click_y":599.3828125},"include_in_memory":false}"#;
+        // The regex \n should match actual newlines after decode_json_content
+        let pattern = r"F2.*?\n.*?\n.*?AI pl\.\.\.";
+
+        let decoded = decode_json_content(raw);
+        let matches = find_regex_matches(&decoded, pattern).unwrap();
+
+        println!("Decoded content (around F2):");
+        if let Some(pos) = decoded.find("F2") {
+            let ctx_start = pos.saturating_sub(5);
+            let ctx_end = (pos + 60).min(decoded.len());
+            let slice = &decoded[ctx_start..ctx_end];
+            println!("  text: {:?}", slice);
+            println!("  bytes: {:?}", slice.as_bytes());
+        }
+
+        println!("Matches found: {}", matches.len());
+        for m in &matches {
+            println!("  snippet: {:?}", m.snippet);
+        }
+
+        assert!(!matches.is_empty(), "Expected at least one match");
+    }
+
+    #[test]
+    fn test_decode_json_content_converts_escapes() {
+        let raw = r#"{"msg":"hello\nworld"}"#;
+        let decoded = decode_json_content(raw);
+        // After decode, \n should be an actual newline character
+        assert!(decoded.contains('\n'));
+        assert!(decoded.contains("hello"));
+        assert!(decoded.contains("world"));
+    }
+
+    #[test]
+    fn test_decode_json_content_passthrough_invalid() {
+        let raw = "not valid json {{{";
+        let decoded = decode_json_content(raw);
+        assert_eq!(decoded, raw);
+    }
+
+    #[test]
+    fn test_regex_simple_match() {
+        let content = "hello world foo bar";
+        let pattern = r"world.*bar";
+        let matches = find_regex_matches(content, pattern).unwrap();
+        assert_eq!(matches.len(), 1);
+    }
+
+    #[test]
+    fn test_regex_no_match() {
+        let content = "hello world";
+        let pattern = r"xyz";
+        let matches = find_regex_matches(content, pattern).unwrap();
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_regex_invalid_pattern() {
+        let content = "hello";
+        let pattern = r"[invalid";
+        let result = find_regex_matches(content, pattern);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_regex_context_padding() {
+        let content = "aaaaaaaaaa_PREFIX_match_here_SUFFIX_bbbbbbbbbb";
+        let pattern = r"match_here";
+        let matches = find_regex_matches(content, pattern).unwrap();
+        assert_eq!(matches.len(), 1);
+        assert!(matches[0].snippet.contains("PREFIX"));
+        assert!(matches[0].snippet.contains("SUFFIX"));
+    }
+
+    #[test]
+    fn test_regex_max_matches_cap() {
+        let content = "ab ".repeat(MAX_MATCHES_PER_SEARCH + 10);
+        let pattern = r"ab";
+        let matches = find_regex_matches(content.trim(), pattern).unwrap();
+        assert_eq!(matches.len(), MAX_MATCHES_PER_SEARCH);
+    }
+
+    #[test]
+    fn test_regex_multibyte_utf8_boundary() {
+        let content = "价格是 hello 世界";
+        let pattern = r"hello";
+        let matches = find_regex_matches(content, pattern).unwrap();
+        assert_eq!(matches.len(), 1);
+    }
 }
