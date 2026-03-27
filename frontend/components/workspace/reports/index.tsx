@@ -1,16 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { isEmpty, isNil } from "lodash";
+import { Pen } from "lucide-react";
+import { useState } from "react";
 import useSWR from "swr";
 
-import { SettingsSectionHeader } from "@/components/settings/settings-section";
+import TargetChips from "@/components/settings/alerts/target-chips";
+import {
+  SettingsSection,
+  SettingsSectionHeader,
+  SettingsTable,
+  SettingsTableRow,
+} from "@/components/settings/settings-section";
 import SlackConnectionCard, { useSlackIntegration } from "@/components/slack/slack-connection-card";
+import { Button } from "@/components/ui/button";
 import { useUserContext } from "@/contexts/user-context";
-import { REPORT_TARGET_TYPE, type ReportTargetRow, type ReportWithDetails } from "@/lib/actions/reports/types";
-import { useToast } from "@/lib/hooks/use-toast";
+import { type ReportWithDetails } from "@/lib/actions/reports/types";
 import { swrFetcher } from "@/lib/utils";
 
-import ReportsList from "./reports-list";
+import ManageReportSheet from "./manage-report-sheet";
+import { formatSchedule } from "./utils";
 
 interface WorkspaceReportsProps {
   workspaceId: string;
@@ -19,8 +28,7 @@ interface WorkspaceReportsProps {
 }
 
 export default function WorkspaceReports({ workspaceId, slackClientId, slackRedirectUri }: WorkspaceReportsProps) {
-  const { email } = useUserContext();
-  const { toast } = useToast();
+  const { email: userEmail } = useUserContext();
 
   const { data: slackIntegration } = useSlackIntegration(workspaceId);
 
@@ -28,149 +36,74 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
     data: reports,
     isLoading,
     mutate,
-    error,
   } = useSWR<ReportWithDetails[]>(`/api/workspaces/${workspaceId}/reports`, swrFetcher);
 
-  useEffect(() => {
-    if (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to load reports.",
-      });
-    }
-  }, [error, toast]);
-
-  const [togglingReportId, setTogglingReportId] = useState<string | null>(null);
-
-  const isSubscribed = useCallback(
-    (report: ReportWithDetails) => report.targets.some((t) => t.type === REPORT_TARGET_TYPE.EMAIL && t.email === email),
-    [email]
-  );
-
-  const getSlackTarget = useCallback(
-    (report: ReportWithDetails): ReportTargetRow | null =>
-      report.targets.find((t) => t.type === REPORT_TARGET_TYPE.SLACK) ?? null,
-    []
-  );
-
-  const handleToggle = useCallback(
-    async (report: ReportWithDetails, subscribe: boolean) => {
-      setTogglingReportId(report.id);
-      try {
-        const res = await fetch(`/api/workspaces/${workspaceId}/reports`, {
-          method: subscribe ? "POST" : "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reportId: report.id, email }),
-        });
-
-        if (!res.ok) {
-          const error = (await res.json().catch(() => ({ error: "Failed to update" }))) as { error: string };
-          throw new Error(error?.error ?? "Failed to update subscription");
-        }
-
-        toast({
-          title: subscribe ? "Subscribed to report" : "Unsubscribed from report",
-          description: subscribe
-            ? "You will receive this report at your email."
-            : "You will no longer receive this report.",
-        });
-        await mutate();
-      } catch (e) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: e instanceof Error ? e.message : "Failed to update subscription. Please try again.",
-        });
-      } finally {
-        setTogglingReportId(null);
-      }
-    },
-    [workspaceId, email, mutate, toast]
-  );
-
-  const handleSlackChannelChange = useCallback(
-    async (report: ReportWithDetails, channelId: string | null, channelName: string) => {
-      if (!slackIntegration) return;
-      setTogglingReportId(report.id);
-      try {
-        if (channelId) {
-          const res = await fetch(`/api/workspaces/${workspaceId}/reports/slack-target`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              reportId: report.id,
-              integrationId: slackIntegration.id,
-              channelId,
-              channelName,
-            }),
-          });
-
-          if (!res.ok) {
-            const error = (await res.json().catch(() => ({ error: "Failed to set Slack channel" }))) as {
-              error: string;
-            };
-            throw new Error(error?.error ?? "Failed to set Slack channel");
-          }
-
-          toast({
-            title: "Slack channel set",
-            description: `Reports will be sent to #${channelName}.`,
-          });
-        } else {
-          const res = await fetch(`/api/workspaces/${workspaceId}/reports/slack-target`, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reportId: report.id }),
-          });
-
-          if (!res.ok) {
-            const error = (await res.json().catch(() => ({ error: "Failed to remove Slack channel" }))) as {
-              error: string;
-            };
-            throw new Error(error?.error ?? "Failed to remove Slack channel");
-          }
-
-          toast({
-            title: "Slack channel removed",
-            description: "Reports will no longer be sent to Slack.",
-          });
-        }
-        await mutate();
-      } catch (e) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: e instanceof Error ? e.message : "Failed to update Slack channel. Please try again.",
-        });
-      } finally {
-        setTogglingReportId(null);
-      }
-    },
-    [workspaceId, slackIntegration, mutate, toast]
-  );
+  const [editTarget, setEditTarget] = useState<ReportWithDetails | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
-    <>
+    <SettingsSection>
       <SettingsSectionHeader title="Reports" description="Periodic reports delivered to your email and Slack." />
+
       <SlackConnectionCard
         workspaceId={workspaceId}
         slackClientId={slackClientId}
         slackRedirectUri={slackRedirectUri}
         returnPath={`/workspace/${workspaceId}?menu=reports`}
       />
-      <ReportsList
-        reports={reports ?? []}
+
+      <SettingsTable
         isLoading={isLoading}
-        email={email}
+        isEmpty={isNil(reports) || isEmpty(reports)}
+        emptyMessage="No reports available yet. Reports will appear here once they are configured for your workspace."
+        headers={["Report", "Schedule", "Send to", ""]}
+        colSpan={4}
+      >
+        {reports?.map((report) => (
+          <SettingsTableRow key={report.id}>
+            <td className="px-4 text-sm font-medium max-w-0">
+              <span title={report.label} className="block truncate">
+                {report.label}
+              </span>
+            </td>
+            <td className="px-4 text-xs text-muted-foreground whitespace-nowrap">{formatSchedule(report.schedule)}</td>
+            <td className="px-4">
+              <TargetChips targets={report.targets} />
+            </td>
+            <td className="px-4 w-1/10">
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setEditTarget(report);
+                    setSheetOpen(true);
+                  }}
+                >
+                  <Pen size={14} className="text-muted-foreground" />
+                </Button>
+              </div>
+            </td>
+          </SettingsTableRow>
+        ))}
+      </SettingsTable>
+
+      <ManageReportSheet
         workspaceId={workspaceId}
-        togglingReportId={togglingReportId}
-        isSubscribed={isSubscribed}
-        getSlackTarget={getSlackTarget}
-        hasSlackIntegration={!!slackIntegration}
-        onToggle={handleToggle}
-        onSlackChannelChange={handleSlackChannelChange}
+        integrationId={slackIntegration?.id}
+        report={editTarget}
+        open={sheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) setEditTarget(null);
+        }}
+        onSaved={() => {
+          mutate();
+          setSheetOpen(false);
+          setEditTarget(null);
+        }}
+        userEmail={userEmail}
       />
-    </>
+    </SettingsSection>
   );
 }

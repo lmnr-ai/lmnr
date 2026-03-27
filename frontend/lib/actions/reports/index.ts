@@ -140,27 +140,29 @@ export async function optOutReport(input: z.infer<typeof OptOutSchema>) {
 export async function setSlackTarget(input: z.infer<typeof SetSlackTargetSchema>) {
   const { reportId, workspaceId, integrationId, channelId, channelName } = SetSlackTargetSchema.parse(input);
 
-  // Remove existing Slack target for this report (only one Slack channel per report)
-  await db
-    .delete(reportTargets)
-    .where(
-      and(
-        eq(reportTargets.reportId, reportId),
-        eq(reportTargets.workspaceId, workspaceId),
-        eq(reportTargets.type, REPORT_TARGET_TYPE.SLACK)
-      )
-    );
+  return await db.transaction(async (tx) => {
+    // Remove existing Slack target for this report (only one Slack channel per report)
+    await tx
+      .delete(reportTargets)
+      .where(
+        and(
+          eq(reportTargets.reportId, reportId),
+          eq(reportTargets.workspaceId, workspaceId),
+          eq(reportTargets.type, REPORT_TARGET_TYPE.SLACK)
+        )
+      );
 
-  await db.insert(reportTargets).values({
-    workspaceId,
-    reportId,
-    type: REPORT_TARGET_TYPE.SLACK,
-    integrationId,
-    channelId,
-    channelName,
+    await tx.insert(reportTargets).values({
+      workspaceId,
+      reportId,
+      type: REPORT_TARGET_TYPE.SLACK,
+      integrationId,
+      channelId,
+      channelName,
+    });
+
+    return { success: true };
   });
-
-  return { success: true };
 }
 
 export async function removeSlackTarget(input: z.infer<typeof RemoveSlackTargetSchema>) {
