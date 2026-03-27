@@ -17,22 +17,22 @@ export const METRIC_FUNCTION_OPTIONS: MetricFunctionOption[] = [
   {
     value: "sum",
     label: "sum",
-    createMetric: (column) => ({ fn: "sum", column, args: [] }),
+    createMetric: (column) => ({ fn: "sum", column, args: [], alias: `sum_${column}` }),
   },
   {
     value: "avg",
     label: "average",
-    createMetric: (column) => ({ fn: "avg", column, args: [] }),
+    createMetric: (column) => ({ fn: "avg", column, args: [], alias: `avg_${column}` }),
   },
   {
     value: "min",
     label: "min",
-    createMetric: (column) => ({ fn: "min", column, args: [] }),
+    createMetric: (column) => ({ fn: "min", column, args: [], alias: `min_${column}` }),
   },
   {
     value: "max",
     label: "max",
-    createMetric: (column) => ({ fn: "max", column, args: [] }),
+    createMetric: (column) => ({ fn: "max", column, args: [], alias: `max_${column}` }),
   },
   {
     value: "p90",

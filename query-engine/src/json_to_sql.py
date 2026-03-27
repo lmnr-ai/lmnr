@@ -261,7 +261,7 @@ class JsonToSqlConverter:
         if fn_lower not in self.ALLOWED_METRIC_FNS:
             raise QueryBuilderError(f"Unsupported metric function: {fn}")
 
-        alias = metric.get('alias') or col
+        alias = metric.get('alias') or f"{fn_lower}_{col}"
         safe_alias = self._escape_alias(alias)
         safe_col = self._safe_column_expr(col)
 
