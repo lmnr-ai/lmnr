@@ -1,6 +1,7 @@
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
-import { createStore, type StoreApi, useStore } from "zustand";
+import { createStore, type StoreApi } from "zustand";
 import { persist } from "zustand/middleware";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type BaseTraceViewStore, createBaseTraceViewSlice, TraceViewContext, type TraceViewTrace } from "./base";
 
@@ -235,7 +236,6 @@ const createTraceViewStore = (options?: {
             spanPanelWidth: state.spanPanelWidth,
             chatPanelWidth: state.chatPanelWidth,
             spanPath: state.spanPath,
-            spanTemplates: state.spanTemplates,
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,
@@ -257,9 +257,6 @@ const createTraceViewStore = (options?: {
             ...(typeof persisted.spanPanelWidth === "number" && { spanPanelWidth: persisted.spanPanelWidth }),
             ...(typeof persisted.chatPanelWidth === "number" && { chatPanelWidth: persisted.chatPanelWidth }),
             ...(Array.isArray(persisted.spanPath) && { spanPath: persisted.spanPath as string[] }),
-            ...(persisted.spanTemplates !== undefined && {
-              spanTemplates: persisted.spanTemplates as TraceViewStore["spanTemplates"],
-            }),
             ...(typeof persisted.showTreeContent === "boolean" && { showTreeContent: persisted.showTreeContent }),
             ...(typeof persisted.condensedTimelineEnabled === "boolean" && {
               condensedTimelineEnabled: persisted.condensedTimelineEnabled,
@@ -314,7 +311,7 @@ export const useTraceViewStore = <T,>(
     throw new Error("useTraceViewStoreContext must be used within a TraceViewStoreContext");
   }
 
-  return useStore(store, selector, equalityFn);
+  return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
 export default TraceViewStoreProvider;
