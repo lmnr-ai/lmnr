@@ -295,11 +295,13 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
     <>
       <div className="size-full relative">
         <div
+          className="absolute top-0 left-0 right-0 z-20 bg-background transition-opacity duration-150"
           ref={overlayRef}
-          className="absolute top-0 left-2 right-2 z-20 flex items-center px-2 py-1 gap-2 border-b border bg-background rounded-t shadow-sm transition-opacity duration-150"
           style={{ opacity: 0, pointerEvents: "none" }}
         >
-          <span ref={labelRef} className="text-sm font-medium" />
+          <div className="mx-2 flex items-center px-2 py-1 gap-2 border bg-background rounded-t shadow-sm">
+            <span ref={labelRef} className="text-sm font-medium" />
+          </div>
         </div>
         <div
           ref={parentRef}

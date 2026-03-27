@@ -290,26 +290,32 @@ export const MessageWrapper = ({
   const isCapped = !isExpanded && isOverflowing;
 
   return (
-    <div className="relative border rounded bg-card">
+    <div className="relative border rounded">
       <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
       <div ref={containerRef} className="overflow-hidden" style={!isExpanded ? { maxHeight } : undefined}>
         <div className="flex flex-col divide-y">{children}</div>
       </div>
       {isCapped && (
-        <button
-          onClick={() => setIsExpanded(true)}
-          className="sticky bottom-0 z-10 w-full h-4 bg-transparent bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center"
-        >
-          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-        </button>
+        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b">
+          <button
+            onClick={() => setIsExpanded(true)}
+            className="w-full flex items-center justify-center gap-1 py-1 bg-background/40 text-xs text-secondary-foreground cursor-pointer rounded-b transition-colors"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )}
       {isExpanded && isOverflowing && (
-        <button
-          onClick={() => setIsExpanded(false)}
-          className="sticky bottom-0 z-10 w-full h-4 bg-gradient-to-t from-background to-transparent rounded-b cursor-pointer flex items-end justify-center"
-        >
-          <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
-        </button>
+        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b">
+          <button
+            onClick={() => setIsExpanded(false)}
+            className="w-full flex items-center justify-center gap-1 pb-2 bg-background/40 text-xs text-secondary-foreground cursor-pointer rounded-b transition-colors"
+          >
+            <span className="bg-background">
+              <ChevronUp className="w-3.5 h-3.5 p-1" />
+            </span>
+          </button>
+        </div>
       )}
     </div>
   );
