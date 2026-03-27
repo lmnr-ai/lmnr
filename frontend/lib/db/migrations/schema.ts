@@ -819,7 +819,7 @@ export const spanRenderingKeys = pgTable(
       columns: [table.projectId],
       foreignColumns: [projects.id],
       name: "span_rendering_keys_project_id_fkey",
-    }),
+    }).onDelete("cascade"),
     primaryKey({ columns: [table.projectId, table.schemaFingerprint], name: "span_rendering_keys_pkey" }),
   ]
 );
