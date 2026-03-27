@@ -17,6 +17,7 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
   ]),
   defaultProcessor: (filter, paramKey) => {
     const { column, value, dataType } = filter;
+    const fieldName = column.startsWith("payload.") ? column.slice("payload.".length) : column;
     const opSymbol = OperatorLabelMap[filter.operator];
 
     if (dataType === "number") {
@@ -24,7 +25,7 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
       return {
         condition: `(simpleJSONExtractFloat(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:Float64})`,
         params: {
-          [`${paramKey}_key`]: column,
+          [`${paramKey}_key`]: fieldName,
           [`${paramKey}_val`]: numValue,
         },
       };
@@ -35,7 +36,7 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
       return {
         condition: `(simpleJSONExtractBool(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:Bool})`,
         params: {
-          [`${paramKey}_key`]: column,
+          [`${paramKey}_key`]: fieldName,
           [`${paramKey}_val`]: boolStr,
         },
       };
@@ -46,7 +47,7 @@ export const eventsColumnFilterConfig: ColumnFilterConfig = {
         `(simpleJSONExtractString(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String}` +
         ` OR simpleJSONExtractRaw(payload, {${paramKey}_key:String}) ${opSymbol} {${paramKey}_val:String})`,
       params: {
-        [`${paramKey}_key`]: column,
+        [`${paramKey}_key`]: fieldName,
         [`${paramKey}_val`]: String(value),
       },
     };
