@@ -49,7 +49,9 @@ const describeShape = (value: unknown): string => {
   if (typeof value === "boolean") return "boolean";
 
   if (Array.isArray(value)) {
-    return isEmpty(value) ? "[]" : `[]${describeShape(value[0])}`;
+    if (isEmpty(value)) return "[]";
+    const uniqueShapes = [...new Set(value.map(describeShape))].sort();
+    return uniqueShapes.length === 1 ? `[]${uniqueShapes[0]}` : `[](${uniqueShapes.join("|")})`;
   }
 
   if (isPlainObject(value)) {

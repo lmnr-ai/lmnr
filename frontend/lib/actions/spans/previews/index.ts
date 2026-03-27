@@ -181,7 +181,14 @@ const applyCachedKeys = async (
       const isProviderType = PROVIDER_SPAN_TYPES.has(spanTypes[span.spanId] ?? "");
       const match = isProviderType ? matchProviderKey(span.parsedData) : null;
       const rendered = validateMustacheKey(cachedKey, match?.data ?? span.parsedData);
-      resolved[span.spanId] = rendered ?? toJsonPreview(span.parsedData);
+      if (rendered) {
+        resolved[span.spanId] = rendered;
+      } else if (match) {
+        const providerRendered = validateMustacheKey(match.key, match.data ?? span.parsedData);
+        resolved[span.spanId] = providerRendered ?? toJsonPreview(span.parsedData);
+      } else {
+        resolved[span.spanId] = toJsonPreview(span.parsedData);
+      }
     } else {
       uncached.push(span);
     }
