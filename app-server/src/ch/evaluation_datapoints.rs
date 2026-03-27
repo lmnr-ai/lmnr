@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use chrono::Utc;
 use clickhouse::Row;
@@ -81,7 +83,16 @@ impl CHEvaluationDatapoint {
                 .map(|output| json_value_to_string(&output))
                 .unwrap_or_default(),
             group_id: group_name.clone(),
-            scores: json_value_to_string(&serde_json::to_value(result.scores).unwrap_or_default()),
+            scores: json_value_to_string(
+                &serde_json::to_value(
+                    result
+                        .scores
+                        .iter()
+                        .filter_map(|(k, v)| v.map(|num| (k, num)))
+                        .collect::<HashMap<_, _>>(),
+                )
+                .unwrap_or_default(),
+            ),
         }
     }
 }
