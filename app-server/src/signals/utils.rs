@@ -12,10 +12,21 @@ use crate::{
         spans::{Span, SpanType},
     },
     mq::{MessageQueue, MessageQueueTrait},
+    signals::provider::models::ProviderRequest,
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
 
-// internal span for observability
+/// Build the span input value from a ProviderRequest by combining contents
+/// with the system instruction (relabeled as role "system") prepended.
+pub fn request_to_span_input(request: &ProviderRequest) -> Value {
+    let mut contents = request.contents.clone();
+    if let Some(mut sys) = request.system_instruction.clone() {
+        sys.role = Some("system".to_string());
+        contents.insert(0, sys);
+    }
+    serde_json::json!(contents)
+}
+
 #[derive(Debug, Clone)]
 pub struct InternalSpan {
     pub name: String,

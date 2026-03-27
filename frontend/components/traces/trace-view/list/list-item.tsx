@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
+import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
 import { ContentPreview } from "@/components/traces/trace-view/content-preview";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
@@ -38,12 +39,14 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
   const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
 
+  const hasSnippet = !!(span.inputSnippet || span.outputSnippet);
   const isExpandableType =
     span.spanType === "LLM" ||
     span.spanType === "CACHED" ||
     span.spanType === "EXECUTOR" ||
     span.spanType === "EVALUATOR" ||
-    span.spanType === "TOOL";
+    span.spanType === "TOOL" ||
+    hasSnippet;
 
   const isPending = span.pending;
   const isLoadingOutput = output === undefined;
@@ -132,9 +135,13 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
         </div>
 
         {isExpanded && (
-          <div className="px-2 w-full h-full flex-1">
-            {isLoadingOutput ? (
-              <PreviewLoadingPlaceholder />
+          <div className="px-3 w-full p-2 pt-0 flex flex-col gap-2 h-full flex-1">
+            {hasSnippet ? (
+              <SnippetPreview inputSnippet={span.inputSnippet} outputSnippet={span.outputSnippet} variant="span" />
+            ) : isLoadingOutput ? (
+              <>
+                <PreviewLoadingPlaceholder />
+              </>
             ) : isNil(output) || output === "" ? (
               <div className="text-sm text-muted-foreground italic">No output available</div>
             ) : (

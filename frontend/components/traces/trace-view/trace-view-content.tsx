@@ -297,8 +297,10 @@ export default function TraceViewContent({
     handleFetchTrace();
   }, [handleFetchTrace]);
 
+  const initialSearch = searchParams.get("search") ?? "";
+
   useEffect(() => {
-    fetchSpans("", []);
+    fetchSpans(initialSearch, []);
 
     return () => {
       setSpans([]);

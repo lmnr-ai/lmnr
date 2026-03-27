@@ -124,6 +124,7 @@ mod realtime;
 mod reports;
 mod routes;
 mod runtime;
+mod search;
 mod signals;
 mod sql;
 mod storage;

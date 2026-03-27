@@ -10,7 +10,7 @@ import AdvancedSearch from "@/components/common/advanced-search";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import { defaultTracesColumnOrder, filters } from "@/components/traces/traces-table/columns";
+import { defaultTracesColumnOrder, filters, PREVIEW_COLUMN } from "@/components/traces/traces-table/columns";
 import TracesColumnsMenu from "@/components/traces/traces-table/traces-columns-menu";
 import { useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -101,6 +101,16 @@ function TracesTableContent() {
   // produce the same string → no spurious re-fetch.
   const columnSqls = useMemo(() => columnDefs.map((c) => c.meta?.sql).filter(Boolean), [columnDefs]);
 
+  const isSearchActive = typeof textSearchFilter === "string" && textSearchFilter.length > 0;
+
+  const effectiveColumns = useMemo(() => {
+    if (!isSearchActive) return columnDefs;
+    const statusIdx = columnDefs.findIndex((c) => c.id === "status");
+    const cols = [...columnDefs];
+    cols.splice(statusIdx + 1, 0, PREVIEW_COLUMN);
+    return cols;
+  }, [columnDefs, isSearchActive]);
+
   // Sync datatable columnOrder with traces store columnDefs
   const datatableStore = useDataTableStore();
   const { columnOrder, setColumnOrder } = useStore(datatableStore, (s) => ({
@@ -109,21 +119,21 @@ function TracesTableContent() {
   }));
 
   useEffect(() => {
-    // Skip sync before the store has hydrated columnDefs to avoid wiping saved column order.
-    if (columnDefs.length === 0) return;
+    if (effectiveColumns.length === 0) return;
 
-    const visibleIds = columnDefs.map((c) => c.id!);
-    const currentSet = new Set(columnOrder);
-    const defSet = new Set(visibleIds);
+    const pinned = new Set(["status", "preview"]);
+    const visibleIds = new Set(effectiveColumns.map((c) => c.id!));
+    const hasPreview = visibleIds.has("preview");
 
-    const toAdd = visibleIds.filter((id) => !currentSet.has(id));
-    const toRemove = columnOrder.filter((id) => !defSet.has(id));
+    const rest = columnOrder.filter((id) => visibleIds.has(id) && !pinned.has(id));
+    const newIds = [...visibleIds].filter((id) => !new Set(columnOrder).has(id) && !pinned.has(id));
 
-    if (toAdd.length > 0 || toRemove.length > 0) {
-      const filtered = columnOrder.filter((id) => defSet.has(id));
-      setColumnOrder([...filtered, ...toAdd]);
+    const newOrder = ["status", ...(hasPreview ? ["preview"] : []), ...rest, ...newIds];
+
+    if (newOrder.length !== columnOrder.length || newOrder.some((id, i) => columnOrder[i] !== id)) {
+      setColumnOrder(newOrder);
     }
-  }, [columnDefs, columnOrder, setColumnOrder]);
+  }, [effectiveColumns, columnOrder, setColumnOrder]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -382,7 +392,7 @@ function TracesTableContent() {
     <div className="flex flex-1 overflow-hidden px-4 pb-4">
       <InfiniteDataTable<TraceRow>
         className="w-full"
-        columns={columnDefs.length > 0 ? columnDefs : []}
+        columns={effectiveColumns}
         data={traces}
         getRowId={(trace) => trace.id}
         onRowClick={handleRowClick}
@@ -392,14 +402,14 @@ function TracesTableContent() {
         isLoading={isLoading}
         fetchNextPage={fetchNextPage}
         getRowHref={getRowHref}
-        lockedColumns={["status"]}
+        lockedColumns={["status", "preview"]}
         sortBy={sortBy}
         sortDirection={sortDirection}
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
-          <TracesColumnsMenu lockedColumns={["status"]} columnLabels={columnLabels} />
+          <TracesColumnsMenu lockedColumns={["status", "preview"]} columnLabels={columnLabels} />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
           <div className="flex items-center gap-2 px-2 border rounded-md bg-background h-7">

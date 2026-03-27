@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { SnippetPreview } from "@/components/traces/snippet-preview";
 import { ContentPreview } from "@/components/traces/trace-view/content-preview";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
@@ -18,7 +19,7 @@ import { SpanStatsShield } from "../span-stats-shield";
 import { BranchConnector } from "./branch-connector";
 
 const ROW_HEIGHT = 32;
-const SQUARE_SIZE = 20;
+const SQUARE_SIZE = 22;
 const SQUARE_ICON_SIZE = 14;
 
 interface SpanCardProps {
@@ -51,14 +52,18 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
   const llmMetrics = getLLMMetrics(span);
   const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
 
+  const hasSnippet = !!(span.inputSnippet || span.outputSnippet);
+
   const hasChildren = childSpans && childSpans.length > 0;
   const isExpandable =
-    hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true));
+    hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true)) || hasSnippet;
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
   const showContent =
-    (showTreeContent ?? true) && !span.collapsed && (span.spanType === "LLM" || span.spanType === "CACHED");
+    (showTreeContent ?? true) &&
+    !span.collapsed &&
+    (span.spanType === "LLM" || span.spanType === "CACHED" || hasSnippet);
 
   const isLoadingOutput = output === undefined;
 
@@ -157,12 +162,20 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
 
           {showContent && (
             <div className="px-2 pt-0">
-              {isLoadingOutput && (
-                <div className="w-full pb-2">
-                  <PreviewLoadingPlaceholder />
+              {hasSnippet ? (
+                <div className="pb-2">
+                  <SnippetPreview inputSnippet={span.inputSnippet} outputSnippet={span.outputSnippet} variant="span" />
                 </div>
+              ) : (
+                <>
+                  {isLoadingOutput && (
+                    <div className="w-full pb-2">
+                      <PreviewLoadingPlaceholder />
+                    </div>
+                  )}
+                  {!isLoadingOutput && !isNil(output) && output !== "" && <ContentPreview output={output} scrollable />}
+                </>
               )}
-              {!isLoadingOutput && !isNil(output) && output !== "" && <ContentPreview output={output} scrollable />}
             </div>
           )}
         </div>
