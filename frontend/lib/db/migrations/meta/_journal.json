@@ -551,15 +551,8 @@
     {
       "idx": 78,
       "version": "7",
-      "when": 1774950776846,
-      "tag": "0078_open_katie_power",
-      "breakpoints": true
-    },
-    {
-      "idx": 79,
-      "version": "7",
-      "when": 1774978896688,
-      "tag": "0079_abandoned_gorgon",
+      "when": 1774700000000,
+      "tag": "0078_trace_tags",
       "breakpoints": true
     }
   ]

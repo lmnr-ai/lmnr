@@ -83,6 +83,7 @@ class TableRegistry:
             "top_span_name",
             "top_span_type",
             "tags",
+            "span_tags",
             "span_names",
             "root_span_input",
             "root_span_output",

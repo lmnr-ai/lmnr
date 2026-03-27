@@ -48,6 +48,7 @@ pub struct Trace {
     project_id: Uuid,
     status: Option<String>,
     tags: Vec<String>,
+    trace_tags: Vec<String>,
     num_spans: i64,
     has_browser_session: Option<bool>,
     span_names: Option<Value>,
@@ -113,6 +114,9 @@ impl Trace {
     }
     pub fn tags(&self) -> &Vec<String> {
         &self.tags
+    }
+    pub fn trace_tags(&self) -> &Vec<String> {
+        &self.trace_tags
     }
     pub fn num_spans(&self) -> i64 {
         self.num_spans
@@ -186,7 +190,8 @@ impl Trace {
                 evaluate_string_filter(&user_id, &filter.operator, &filter.value)
             }
 
-            "tags" => evaluate_array_contains_filter(&self.tags, &filter.operator, &filter.value),
+            "tags" => evaluate_array_contains_filter(&self.trace_tags, &filter.operator, &filter.value),
+            "span_tags" => evaluate_array_contains_filter(&self.tags, &filter.operator, &filter.value),
             "span_name" => {
                 let target_name = filter.value.as_str().unwrap_or("");
                 let has_span = spans
@@ -263,13 +268,14 @@ pub async fn upsert_trace_statistics_batch(
                 cost,
                 status,
                 tags,
+                trace_tags,
                 num_spans,
                 has_browser_session,
                 span_names,
                 root_span_input,
                 root_span_output
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
             ON CONFLICT (project_id, id) DO UPDATE SET
                 start_time = LEAST(traces.start_time, EXCLUDED.start_time),
                 end_time = GREATEST(traces.end_time, EXCLUDED.end_time),
@@ -292,6 +298,7 @@ pub async fn upsert_trace_statistics_batch(
                     ELSE COALESCE(EXCLUDED.status, traces.status)
                 END,
                 tags = array(SELECT DISTINCT unnest(traces.tags || EXCLUDED.tags)),
+                trace_tags = COALESCE(traces.trace_tags, EXCLUDED.trace_tags),
                 num_spans = traces.num_spans + EXCLUDED.num_spans,
                 has_browser_session = COALESCE(EXCLUDED.has_browser_session, traces.has_browser_session),
                 -- `||` operator merges span_names objects to keep unique names
@@ -318,6 +325,7 @@ pub async fn upsert_trace_statistics_batch(
                 cost,
                 status,
                 tags,
+                trace_tags,
                 num_spans,
                 has_browser_session,
                 span_names,
@@ -344,6 +352,7 @@ pub async fn upsert_trace_statistics_batch(
         .bind(agg.total_cost)
         .bind(&agg.status)
         .bind(&agg.tags.iter().collect::<Vec<_>>())
+        .bind(&Vec::<String>::new())  // trace_tags: don't set during span ingestion
         .bind(agg.num_spans)
         .bind(agg.has_browser_session)
         .bind(&span_names_jsonb)

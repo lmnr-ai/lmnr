@@ -22,7 +22,7 @@ const CreateTag = ({ name }: CreateTagProps) => {
   );
 
   const { toast } = useToast();
-  const { tagClasses: tagClasses, mutateTagClass: mutateTagClass, mutate, tags: tags, spanId } = useTagsContext();
+  const { tagClasses, mutateTagClass, mutate, tags, mode } = useTagsContext();
 
   const handleCreateTagClass = async (color: string) => {
     try {
@@ -44,22 +44,36 @@ const CreateTag = ({ name }: CreateTagProps) => {
       });
 
       // attach tag right away
-      const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags`, {
+      let attachUrl: string;
+      let body: Record<string, string>;
+
+      if (mode.type === "span") {
+        attachUrl = `/api/projects/${params?.projectId}/spans/${mode.spanId}/tags`;
+        body = { name: data.name };
+      } else {
+        attachUrl = `/api/projects/${params?.projectId}/traces/${mode.traceId}/tags`;
+        body = { tagName: data.name };
+      }
+
+      const res = await fetch(attachUrl, {
         method: "POST",
-        body: JSON.stringify({
-          name: data.name,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
         toast({ variant: "destructive", title: "Error", description: "Failed to attach tag." });
         return;
       }
-      const tag = (await res.json()) as SpanTag;
 
-      await mutate([...tags, tag], {
-        revalidate: false,
-      });
+      if (mode.type === "span") {
+        const tag = (await res.json()) as SpanTag;
+        await mutate([...tags, tag], {
+          revalidate: false,
+        });
+      } else {
+        // Trace mode: revalidate to get fresh list
+        await mutate();
+      }
     } catch (e) {
       if (e instanceof Error) {
         toast({ variant: "destructive", title: "Error", description: e.message });
