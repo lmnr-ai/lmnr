@@ -114,15 +114,9 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
             revalidate: false,
           });
         } else {
-          // Trace mode: optimistically remove by name
-          await mutate(deleteTag(tag), {
-            optimisticData: [...tags.filter((l) => l.name !== tag.name)],
-            rollbackOnError: true,
-            populateCache: (updatedData, original) => [
-              ...(original ?? []).filter((item) => !updatedData.map((u) => u.name).includes(item.name)),
-            ],
-            revalidate: false,
-          });
+          // Trace mode: delete then revalidate to get the fresh string[] from API
+          await deleteTag(tag);
+          await mutate();
         }
       }
     } catch (e) {
