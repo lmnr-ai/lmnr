@@ -74,7 +74,8 @@ async function deleteProjectDataFromClickHouse(
     "default.events",
     "default.evaluation_scores",
     "default.evaluation_datapoints",
-    "default.tags",
+    "default.span_tags",
+    "default.trace_tags",
     "default.browser_session_events",
     "default.evaluator_scores",
   ];

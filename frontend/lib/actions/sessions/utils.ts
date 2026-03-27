@@ -18,13 +18,13 @@ const sessionsWhereColumnFilterConfig: ColumnFilterConfig = {
     ["session_id", createStringFilter],
     ["user_id", createStringFilter],
     [
-      "tags",
+      "span_tags",
       createCustomFilter(
         (filter, paramKey) => {
           if (filter.operator === Operator.Eq) {
-            return `has(tags, {${paramKey}:String})`;
+            return `has(span_tags, {${paramKey}:String})`;
           } else {
-            return `NOT has(tags, {${paramKey}:String})`;
+            return `NOT has(span_tags, {${paramKey}:String})`;
           }
         },
         (filter, paramKey) => ({ [paramKey]: filter.value })

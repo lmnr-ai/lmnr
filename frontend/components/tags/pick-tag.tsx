@@ -10,7 +10,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type SpanTag, type TagClass } from "@/lib/traces/types";
+import { type SpanTag, type TagClass, type TraceTag } from "@/lib/traces/types";
+
+type EntityTag = SpanTag | TraceTag;
 
 interface PickTagProps {
   setStep: Dispatch<SetStateAction<0 | 1>>;
@@ -19,8 +21,16 @@ interface PickTagProps {
 }
 const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
   const params = useParams();
-  const { tags, tagClasses, mutate, spanId } = useTagsContext();
+  const { tags, tagClasses, mutate, mode, entityId } = useTagsContext();
   const { toast } = useToast();
+
+  const tagsBaseUrl = useMemo(() => {
+    if (mode === "trace") {
+      return `/api/projects/${params?.projectId}/traces/${entityId}/tags`;
+    }
+    return `/api/projects/${params?.projectId}/spans/${entityId}/tags`;
+  }, [mode, entityId, params?.projectId]);
+
   const { selected, available, hasExactMatch } = useMemo(() => {
     const selectedNames = tags.map(({ name }) => name);
     const selected = tagClasses.filter((tag) => selectedNames.includes(tag.name));
@@ -42,7 +52,7 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
   const handleCheckTag = (tagClass: TagClass) => async (checked: CheckedState) => {
     try {
       if (checked) {
-        const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags`, {
+        const res = await fetch(tagsBaseUrl, {
           method: "POST",
           body: JSON.stringify({
             name: tagClass.name,
@@ -54,7 +64,7 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
           return;
         }
 
-        const data = (await res.json()) as SpanTag;
+        const data = (await res.json()) as EntityTag;
 
         await mutate([...tags, data], {
           revalidate: false,
@@ -67,14 +77,14 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
     }
   };
 
-  const deleteTag = async (tag: SpanTag) => {
-    await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags/${tag.id}`, {
+  const deleteTag = async (tag: EntityTag) => {
+    await fetch(`${tagsBaseUrl}/${tag.id}`, {
       method: "DELETE",
     });
     return [tag];
   };
 
-  const handleUncheckTag = (tag?: SpanTag) => async (checked: CheckedState) => {
+  const handleUncheckTag = (tag?: EntityTag) => async (checked: CheckedState) => {
     try {
       if (!checked && tag) {
         await mutate(deleteTag(tag), {
@@ -105,7 +115,7 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
 
       {(!isEmpty(selected) || !isEmpty(available)) && <DropdownMenuSeparator />}
 
-      {!isEmpty(selected) && <SelectedTags tags={selected} onCheck={handleUncheckTag} spanTags={tags} />}
+      {!isEmpty(selected) && <SelectedTags tags={selected} onCheck={handleUncheckTag} entityTags={tags} />}
 
       {!isEmpty(selected) && !isEmpty(available) && <DropdownMenuSeparator />}
 
@@ -157,17 +167,17 @@ const AvailableTags = ({
 const SelectedTags = ({
   tags: tags,
   onCheck,
-  spanTags: spanTags,
+  entityTags,
 }: {
   tags: TagClass[];
-  onCheck: (tag?: SpanTag) => (checked: CheckedState) => Promise<void>;
-  spanTags: SpanTag[];
+  onCheck: (tag?: EntityTag) => (checked: CheckedState) => Promise<void>;
+  entityTags: EntityTag[];
 }) => (
   <DropdownMenuGroup>
     {tags.map((tag) => (
       <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.name}>
         <Checkbox
-          onCheckedChange={onCheck(spanTags.find((s) => s.name === tag.name))}
+          onCheckedChange={onCheck(entityTags.find((s) => s.name === tag.name))}
           checked
           className="[&_svg]:!text-primary-foreground [&_svg]:!size-[10px]"
         />

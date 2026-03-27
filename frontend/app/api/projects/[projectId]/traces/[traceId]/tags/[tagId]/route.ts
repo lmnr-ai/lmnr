@@ -1,19 +1,19 @@
 import { type NextRequest } from "next/server";
 
-import { getSpanTags, removeTagFromCHSpan } from "@/lib/actions/tags";
+import { getTraceTags, removeTagFromCHTrace } from "@/lib/actions/tags";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
 export async function DELETE(
   _req: NextRequest,
-  props: { params: Promise<{ projectId: string; spanId: string; tagId: string }> }
+  props: { params: Promise<{ projectId: string; traceId: string; tagId: string }> }
 ): Promise<Response> {
   const params = await props.params;
   const projectId = params.projectId;
-  const spanId = params.spanId;
+  const traceId = params.traceId;
   const tagId = params.tagId;
 
-  const chTags = await getSpanTags({
-    spanId,
+  const chTags = await getTraceTags({
+    traceId,
     projectId,
   });
 
@@ -21,24 +21,24 @@ export async function DELETE(
 
   await clickhouseClient.exec({
     query: `
-      DELETE FROM span_tags
-      WHERE id = {id: UUID} AND span_id = {span_id: UUID} AND project_id = {project_id: UUID}
+      DELETE FROM trace_tags
+      WHERE id = {id: UUID} AND trace_id = {trace_id: UUID} AND project_id = {project_id: UUID}
     `,
     query_params: {
       id: tagId,
-      span_id: spanId,
+      trace_id: traceId,
       project_id: projectId,
     },
   });
 
-  // Remove the tag from the span's tags_array in ClickHouse
+  // Remove the tag from the trace's trace_tags array in ClickHouse
   if (deletedTagName) {
-    await removeTagFromCHSpan({
-      spanId,
+    await removeTagFromCHTrace({
+      traceId,
       projectId,
       tag: deletedTagName,
     });
   }
 
-  return new Response("Span label deleted successfully", { status: 200 });
+  return new Response("Trace tag deleted successfully", { status: 200 });
 }

@@ -70,8 +70,8 @@ export const filters: ColumnFilter[] = [
     dataType: "number",
   },
   {
-    key: "tags",
-    name: "Tags",
+    key: "span_tags",
+    name: "Span tags",
     dataType: "string",
   },
 ];
@@ -171,7 +171,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     cell: (row) => <Mono className="text-xs">{row.getValue() || "-"}</Mono>,
   },
   {
-    accessorFn: (row) => ("tags" in row ? row.tags : "-"),
+    accessorFn: (row) => ("spanTags" in row ? row.spanTags : "-"),
     cell: (row) => {
       const tags = row.getValue() as string[];
 
@@ -205,9 +205,9 @@ export const columns: ColumnDef<SessionRow, any>[] = [
       }
       return "-";
     },
-    header: "Tags",
-    accessorKey: "tags",
-    id: "tags",
+    header: "Span tags",
+    accessorKey: "spanTags",
+    id: "span_tags",
   },
 ];
 
@@ -224,5 +224,5 @@ export const defaultSessionsColumnOrder = [
   "total_tokens",
   "trace_count",
   "user_id",
-  "tags",
+  "span_tags",
 ];

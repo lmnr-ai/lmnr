@@ -49,7 +49,9 @@ pub struct CHTrace {
     pub top_span_name: String,
     pub top_span_type: u8,
     pub trace_type: u8,
-    pub tags: Vec<String>,
+    pub span_tags: Vec<String>,
+    #[serde(default)]
+    pub trace_tags: Vec<String>,
     pub num_spans: u64,
     pub has_browser_session: bool,
     pub span_names: Vec<String>,
@@ -89,7 +91,8 @@ impl CHTrace {
             top_span_name: trace.top_span_name().unwrap_or_default(),
             top_span_type: trace.top_span_type().unwrap_or(0) as u8,
             trace_type: trace.trace_type() as u8,
-            tags: trace.tags().clone(),
+            span_tags: trace.tags().clone(),
+            trace_tags: Vec::new(),
             num_spans: trace.num_spans() as u64,
             has_browser_session: trace.has_browser_session().unwrap_or(false),
             span_names: trace.span_names(),
@@ -123,7 +126,7 @@ pub struct TraceAggregation {
     pub user_id: Option<String>,
     pub status: Option<String>,
     pub metadata: Option<serde_json::Value>,
-    pub tags: HashSet<String>,
+    pub span_tags: HashSet<String>,
     pub num_spans: i32,
     pub top_span_id: Option<Uuid>,
     pub top_span_name: Option<String>,
@@ -161,7 +164,7 @@ impl TraceAggregation {
                         user_id: None,
                         status: None,
                         metadata: None,
-                        tags: HashSet::new(),
+                        span_tags: HashSet::new(),
                         num_spans: 0,
                         top_span_id: None,
                         top_span_name: None,
@@ -244,9 +247,9 @@ impl TraceAggregation {
                     .map(|name| entry.top_span_name = Some(name.clone()));
             }
 
-            // Collect unique tags
+            // Collect unique span tags
             for tag in span.attributes.tags() {
-                entry.tags.insert(tag);
+                entry.span_tags.insert(tag);
             }
 
             // Collect unique span names

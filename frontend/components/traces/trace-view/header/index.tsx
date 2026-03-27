@@ -5,6 +5,9 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
+import TagsContextProvider from "@/components/tags/tags-context";
+import TagsList from "@/components/tags/tags-list";
+import TagsTrigger from "@/components/tags/tags-trigger";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import SignalEventsPanel from "@/components/traces/trace-view/signal-events-panel";
@@ -278,6 +281,14 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           {trace && <ShareTraceButton projectId={projectId} />}
         </div>
       </div>
+      {trace && (
+        <TagsContextProvider traceId={traceId}>
+          <div className="flex gap-2 flex-wrap items-center">
+            <TagsTrigger />
+          </div>
+          <TagsList />
+        </TagsContextProvider>
+      )}
       {signalsPanelOpen && <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} />}
       <div className="flex items-center gap-2">
         <TraceViewSearch

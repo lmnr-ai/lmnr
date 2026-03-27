@@ -343,7 +343,7 @@ pub async fn upsert_trace_statistics_batch(
         .bind(agg.output_cost)
         .bind(agg.total_cost)
         .bind(&agg.status)
-        .bind(&agg.tags.iter().collect::<Vec<_>>())
+        .bind(&agg.span_tags.iter().collect::<Vec<_>>())
         .bind(agg.num_spans)
         .bind(agg.has_browser_session)
         .bind(&span_names_jsonb)

@@ -7,7 +7,9 @@ import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/co
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/lib/hooks/use-toast";
 import { defaultColors } from "@/lib/tags/colors";
-import { type SpanTag, type TagClass } from "@/lib/traces/types";
+import { type SpanTag, type TagClass, type TraceTag } from "@/lib/traces/types";
+
+type EntityTag = SpanTag | TraceTag;
 
 interface CreateTagProps {
   name: string;
@@ -22,7 +24,14 @@ const CreateTag = ({ name }: CreateTagProps) => {
   );
 
   const { toast } = useToast();
-  const { tagClasses: tagClasses, mutateTagClass: mutateTagClass, mutate, tags: tags, spanId } = useTagsContext();
+  const { tagClasses, mutateTagClass, mutate, tags, mode, entityId } = useTagsContext();
+
+  const tagsBaseUrl = useMemo(() => {
+    if (mode === "trace") {
+      return `/api/projects/${params?.projectId}/traces/${entityId}/tags`;
+    }
+    return `/api/projects/${params?.projectId}/spans/${entityId}/tags`;
+  }, [mode, entityId, params?.projectId]);
 
   const handleCreateTagClass = async (color: string) => {
     try {
@@ -44,7 +53,7 @@ const CreateTag = ({ name }: CreateTagProps) => {
       });
 
       // attach tag right away
-      const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags`, {
+      const res = await fetch(tagsBaseUrl, {
         method: "POST",
         body: JSON.stringify({
           name: data.name,
@@ -55,7 +64,7 @@ const CreateTag = ({ name }: CreateTagProps) => {
         toast({ variant: "destructive", title: "Error", description: "Failed to attach tag." });
         return;
       }
-      const tag = (await res.json()) as SpanTag;
+      const tag = (await res.json()) as EntityTag;
 
       await mutate([...tags, tag], {
         revalidate: false,

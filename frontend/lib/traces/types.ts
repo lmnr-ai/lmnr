@@ -12,6 +12,15 @@ export type SpanTag = {
   color?: string;
 };
 
+export type TraceTag = {
+  id: string;
+  createdAt: string;
+  traceId: string;
+  name: string;
+  email?: string;
+  color?: string;
+};
+
 export enum SpanType {
   DEFAULT = "DEFAULT",
   LLM = "LLM",
@@ -137,7 +146,8 @@ export type TraceRow = {
   metadata: Record<string, string>;
   userId?: string;
   status: string;
-  tags: string[];
+  spanTags: string[];
+  traceTags: string[];
   analysis_status?: string;
   analysis_preview?: string;
   analysis?: string;

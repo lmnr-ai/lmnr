@@ -43,16 +43,18 @@ const getSpansSuggestions = async (projectId: string): Promise<AutocompleteSugge
 };
 
 const getTracesSuggestions = async (projectId: string): Promise<AutocompleteSuggestion[]> => {
-  const [topSpanNames, spanNames, tags] = await Promise.all([
+  const [topSpanNames, spanNames, spanTags, traceTags] = await Promise.all([
     getSuggestions("spans", projectId, "top_span_names"),
     getSuggestions("spans", projectId, "names"),
     getSuggestions("spans", projectId, "tags"),
+    getSuggestions("spans", projectId, "trace_tags"),
   ]);
 
   return [
     ...topSpanNames.map((value) => ({ field: "top_span_name", value })),
     ...spanNames.map((value) => ({ field: "span_names", value })),
-    ...tags.map((value) => ({ field: "tags", value })),
+    ...spanTags.map((value) => ({ field: "span_tags", value })),
+    ...traceTags.map((value) => ({ field: "trace_tags", value })),
   ];
 };
 
@@ -111,7 +113,13 @@ const getAutocompleteQueries = (field: string): { queries: string[] } => {
     case "tags":
       return {
         queries: [
-          `SELECT arrayJoin(topK(512)(name)) as value FROM tags WHERE created_at >= now() - INTERVAL 7 days AND created_at < now() AND name != ''`,
+          `SELECT arrayJoin(topK(512)(name)) as value FROM span_tags WHERE created_at >= now() - INTERVAL 7 days AND created_at < now() AND name != ''`,
+        ],
+      };
+    case "trace_tags":
+      return {
+        queries: [
+          `SELECT arrayJoin(topK(512)(name)) as value FROM trace_tags WHERE created_at >= now() - INTERVAL 7 days AND created_at < now() AND name != ''`,
         ],
       };
     default:
