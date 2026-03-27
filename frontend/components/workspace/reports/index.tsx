@@ -59,33 +59,39 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
         headers={["Report", "Schedule", "Send to", ""]}
         colSpan={4}
       >
-        {reports?.map((report) => (
-          <SettingsTableRow key={report.id}>
-            <td className="px-4 text-sm font-medium max-w-0">
-              <span title={report.label} className="block truncate">
-                {report.label}
-              </span>
-            </td>
-            <td className="px-4 text-xs text-muted-foreground whitespace-nowrap">{formatSchedule(report.schedule)}</td>
-            <td className="px-4">
-              <TargetChips targets={report.targets} />
-            </td>
-            <td className="px-4 w-1/10">
-              <div className="flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setEditTarget(report);
-                    setSheetOpen(true);
-                  }}
-                >
-                  <Pen size={14} className="text-muted-foreground" />
-                </Button>
-              </div>
-            </td>
-          </SettingsTableRow>
-        ))}
+        {reports?.map((report) => {
+          // Only show the current user's own email target + all Slack targets
+          const visibleTargets = report.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
+          return (
+            <SettingsTableRow key={report.id}>
+              <td className="px-4 text-sm font-medium max-w-0">
+                <span title={report.label} className="block truncate">
+                  {report.label}
+                </span>
+              </td>
+              <td className="px-4 text-xs text-muted-foreground whitespace-nowrap">
+                {formatSchedule(report.schedule)}
+              </td>
+              <td className="px-4">
+                <TargetChips targets={visibleTargets} />
+              </td>
+              <td className="px-4 w-1/10">
+                <div className="flex justify-end">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setEditTarget(report);
+                      setSheetOpen(true);
+                    }}
+                  >
+                    <Pen size={14} className="text-muted-foreground" />
+                  </Button>
+                </div>
+              </td>
+            </SettingsTableRow>
+          );
+        })}
       </SettingsTable>
 
       <ManageReportSheet
