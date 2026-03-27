@@ -55,6 +55,9 @@ const ChartHeader = ({ chart, projectId }: ChartHeaderProps) => {
               config: settings.config,
             }),
           });
+          if (!response.ok) {
+            throw new Error(`Failed to duplicate chart: ${response.status}`);
+          }
           const created = await response.json() as DashboardChart;
           return [...(currentData || []), created];
         },
