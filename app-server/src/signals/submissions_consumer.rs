@@ -192,18 +192,9 @@ async fn process_batch(
             project_id,
             trace_id,
             message.run_id,
-            message.step,
-            message.internal_trace_id,
-            message.internal_span_id,
-            message.job_id,
             &signal.prompt,
-            &signal.name,
             &signal.structured_output_schema,
-            &llm_model(),
-            &llm_provider(),
             clickhouse.clone(),
-            queue.clone(),
-            config.internal_project_id,
         )
         .await
         {

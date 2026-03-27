@@ -73,18 +73,9 @@ impl MessageHandler for SignalJobRealtimeHandler {
             project_id,
             trace_id,
             message.run_id,
-            message.step,
-            message.internal_trace_id,
-            message.internal_span_id,
-            message.job_id,
             &signal.prompt,
-            &signal.name,
             &signal.structured_output_schema,
-            &llm_model(),
-            &llm_provider(),
             self.clickhouse.clone(),
-            self.queue.clone(),
-            self.config.internal_project_id,
         )
         .await
         {
