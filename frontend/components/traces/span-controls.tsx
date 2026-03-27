@@ -117,7 +117,7 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
               schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
             />
           </div>
-          <TagsContextProvider spanId={span.spanId}>
+          <TagsContextProvider mode={{ type: "span", spanId: span.spanId }}>
             <div className="flex gap-2 flex-wrap items-center">
               <TagsTrigger />
               <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} />

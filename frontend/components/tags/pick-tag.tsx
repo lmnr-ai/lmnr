@@ -19,7 +19,7 @@ interface PickTagProps {
 }
 const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
   const params = useParams();
-  const { tags, tagClasses, mutate, spanId } = useTagsContext();
+  const { tags, tagClasses, mutate, mode } = useTagsContext();
   const { toast } = useToast();
   const { selected, available, hasExactMatch } = useMemo(() => {
     const selectedNames = tags.map(({ name }) => name);
@@ -42,11 +42,20 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
   const handleCheckTag = (tagClass: TagClass) => async (checked: CheckedState) => {
     try {
       if (checked) {
-        const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags`, {
+        let attachUrl: string;
+        let body: Record<string, string>;
+
+        if (mode.type === "span") {
+          attachUrl = `/api/projects/${params?.projectId}/spans/${mode.spanId}/tags`;
+          body = { name: tagClass.name };
+        } else {
+          attachUrl = `/api/projects/${params?.projectId}/traces/${mode.traceId}/tags`;
+          body = { tagName: tagClass.name };
+        }
+
+        const res = await fetch(attachUrl, {
           method: "POST",
-          body: JSON.stringify({
-            name: tagClass.name,
-          }),
+          body: JSON.stringify(body),
         });
 
         if (!res.ok) {
@@ -54,11 +63,16 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
           return;
         }
 
-        const data = (await res.json()) as SpanTag;
-
-        await mutate([...tags, data], {
-          revalidate: false,
-        });
+        if (mode.type === "span") {
+          const data = (await res.json()) as SpanTag;
+          await mutate([...tags, data], {
+            revalidate: false,
+          });
+        } else {
+          // Trace mode: API returns updated tag names array
+          // Revalidate to get the fresh list
+          await mutate();
+        }
       }
     } catch (e) {
       if (e instanceof Error) {
@@ -68,7 +82,13 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
   };
 
   const deleteTag = async (tag: SpanTag) => {
-    const res = await fetch(`/api/projects/${params?.projectId}/spans/${spanId}/tags/${encodeURIComponent(tag.id)}`, {
+    let deleteUrl: string;
+    if (mode.type === "span") {
+      deleteUrl = `/api/projects/${params?.projectId}/spans/${mode.spanId}/tags/${tag.id}`;
+    } else {
+      deleteUrl = `/api/projects/${params?.projectId}/traces/${mode.traceId}/tags/${encodeURIComponent(tag.name)}`;
+    }
+    const res = await fetch(deleteUrl, {
       method: "DELETE",
     });
     if (!res.ok) {
@@ -84,14 +104,26 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
   const handleUncheckTag = (tag?: SpanTag) => async (checked: CheckedState) => {
     try {
       if (!checked && tag) {
-        await mutate(deleteTag(tag), {
-          optimisticData: [...tags.filter((l) => l.id !== tag.id)],
-          rollbackOnError: true,
-          populateCache: (updatedData, original) => [
-            ...(original ?? []).filter((item) => !updatedData.map((u) => u.id).includes(item.id)),
-          ],
-          revalidate: false,
-        });
+        if (mode.type === "span") {
+          await mutate(deleteTag(tag), {
+            optimisticData: [...tags.filter((l) => l.id !== tag.id)],
+            rollbackOnError: true,
+            populateCache: (updatedData, original) => [
+              ...(original ?? []).filter((item) => !updatedData.map((u) => u.id).includes(item.id)),
+            ],
+            revalidate: false,
+          });
+        } else {
+          // Trace mode: optimistically remove by name
+          await mutate(deleteTag(tag), {
+            optimisticData: [...tags.filter((l) => l.name !== tag.name)],
+            rollbackOnError: true,
+            populateCache: (updatedData, original) => [
+              ...(original ?? []).filter((item) => !updatedData.map((u) => u.name).includes(item.name)),
+            ],
+            revalidate: false,
+          });
+        }
       }
     } catch (e) {
       if (e instanceof Error) {

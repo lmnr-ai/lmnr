@@ -138,6 +138,7 @@ export type TraceRow = {
   userId?: string;
   status: string;
   tags: string[];
+  spanTags: string[];
   analysis_status?: string;
   analysis_preview?: string;
   analysis?: string;

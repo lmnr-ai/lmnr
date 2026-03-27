@@ -206,6 +206,47 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     size: 150,
   },
   {
+    accessorFn: (row) => row.spanTags,
+    cell: (row) => {
+      const tags = row.getValue() as string[];
+
+      if (tags?.length > 0) {
+        return (
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="truncate">
+                  {tags.map((tag) => (
+                    <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
+                      <span>{tag}</span>
+                    </Badge>
+                  ))}
+                </div>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent side="bottom" className="p-2 border max-w-sm">
+                  <div className="flex flex-wrap gap-1">
+                    {tags.map((tag) => (
+                      <Badge key={tag} className="rounded-3xl" variant="outline">
+                        <span>{tag}</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </TooltipContent>
+              </TooltipPortal>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
+      return "-";
+    },
+    header: "Span tags",
+    accessorKey: "spanTags",
+    id: "span_tags",
+    enableSorting: true,
+    meta: { sql: "span_tags" },
+  },
+  {
     accessorFn: (row) => row.tags,
     cell: (row) => {
       const tags = row.getValue() as string[];
@@ -242,7 +283,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     },
     header: "Tags",
     accessorKey: "tags",
-    id: "tags",
+    id: "trace_tags",
     enableSorting: true,
     meta: { sql: "tags" },
   },
@@ -358,6 +399,11 @@ export const filters: ColumnFilter[] = [
     })),
   },
   {
+    name: "Span tags",
+    dataType: "array",
+    key: "span_tags",
+  },
+  {
     name: "Tags",
     dataType: "array",
     key: "tags",
@@ -384,7 +430,8 @@ export const defaultTracesColumnOrder = [
   "duration",
   "cost",
   "total_tokens",
-  "tags",
+  "trace_tags",
+  "span_tags",
   "metadata",
   "session_id",
   "user_id",

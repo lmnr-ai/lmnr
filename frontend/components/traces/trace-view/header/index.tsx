@@ -1,22 +1,13 @@
-import { isEmpty } from "lodash";
-import {
-  ChevronDown,
-  ChevronsRight,
-  Copy,
-  Database,
-  Loader,
-  Maximize,
-  Plus,
-  Radio,
-  Sparkles,
-  Tag,
-} from "lucide-react";
+import { ChevronDown, ChevronsRight, Copy, Database, Loader, Maximize, Radio, Sparkles } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
+import TagsContextProvider from "@/components/tags/tags-context";
+import TagsList from "@/components/tags/tags-list";
+import TagsTrigger from "@/components/tags/tags-trigger";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -153,9 +144,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     return ps;
   }, [params.evaluationId, searchParams]);
 
-  // TODO: replace with real state
-  const [tags, setTags] = useState(["hello", "good bye"]);
-
   const signalCount = traceSignals.length;
 
   return (
@@ -231,36 +219,12 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         </div>
       </div>
       {signalsPanelOpen && <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} />}
-      <div className="flex flex-wrap gap-1">
-        {tags.map((tag) => (
-          <button
-            className="text-xs border rounded-full px-2 items-center flex gap-1 justify-center hover:bg-muted"
-            onClick={() => {
-              // TODO: open same modal as add button
-            }}
-          >
-            <div
-              className="size-[8px] bg-red-500 rounded-full shrink-0 basis-[8px]"
-              // TODO: color should come from db state
-            />
-            {tag}
-          </button>
-        ))}
-        {isEmpty(tags) ? (
-          <Button variant="outline" size="sm" className={cn("h-6 px-2 w-fit")}>
-            {isEmpty(tags) ? <Tag size={14} className="mr-1" /> : <Plus size={14} className="mr-1" />}
-            Tags
-          </Button>
-        ) : (
-          <Button
-            variant="lightSecondary"
-            size="sm"
-            className={cn("size-6 p-0 justify-center border-none rounded-full flex items-center")}
-          >
-            <Plus size={14} />
-          </Button>
-        )}
-      </div>
+      <TagsContextProvider mode={{ type: "trace", traceId }}>
+        <div className="flex flex-wrap gap-1 items-center">
+          <TagsList />
+          <TagsTrigger />
+        </div>
+      </TagsContextProvider>
       <div className="flex items-center gap-2">
         <TraceViewSearch
           spans={spans}

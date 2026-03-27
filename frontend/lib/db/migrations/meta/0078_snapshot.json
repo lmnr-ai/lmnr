@@ -1,6 +1,6 @@
 {
-  "id": "dc57f4fa-2062-4663-8fad-0fc6aa29b220",
-  "prevId": "e0300c10-68d9-41a5-8f5d-3ce17a1a83db",
+  "id": "2d5e1d12-a733-49e0-992a-842cb3abfe12",
+  "prevId": "a83f9636-7fc6-461f-a4e6-0fb254c2a00f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3607,6 +3607,13 @@
           "type": "text[]",
           "primaryKey": false,
           "notNull": false
+        },
+        "trace_tags": {
+          "name": "trace_tags",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'{}'::text[]"
         },
         "num_spans": {
           "name": "num_spans",
