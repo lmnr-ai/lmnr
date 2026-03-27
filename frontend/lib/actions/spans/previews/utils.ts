@@ -1,6 +1,8 @@
 import { isEmpty, isNil, isPlainObject, isString, last, mapValues } from "lodash";
 import Mustache from "mustache";
 
+import { deepParseJson } from "@/lib/actions/common/utils.ts";
+
 export const deepParseValue = (value: unknown): unknown => {
   if (!isString(value)) return value;
 
@@ -10,21 +12,6 @@ export const deepParseValue = (value: unknown): unknown => {
   } catch {
     return value;
   }
-};
-
-export const deepParseAllValues = (value: unknown): unknown => {
-  if (isString(value)) {
-    try {
-      return deepParseAllValues(JSON.parse(value));
-    } catch {
-      return value;
-    }
-  }
-
-  if (Array.isArray(value)) return value.map(deepParseAllValues);
-  if (isPlainObject(value)) return mapValues(value as Record<string, unknown>, deepParseAllValues);
-
-  return value;
 };
 
 export type PayloadClassification =
@@ -40,7 +27,7 @@ export const classifyPayload = (raw: unknown): PayloadClassification => {
   if (isString(parsed)) return parsed === "" ? { kind: "empty", preview: "" } : { kind: "primitive", preview: parsed };
   if (typeof parsed === "number" || typeof parsed === "boolean") return { kind: "primitive", preview: String(parsed) };
 
-  const deepParsed = deepParseAllValues(parsed);
+  const deepParsed = deepParseJson(parsed);
 
   if (Array.isArray(deepParsed)) {
     return isEmpty(deepParsed) ? { kind: "empty", preview: "" } : { kind: "object", data: deepParsed };
@@ -172,7 +159,7 @@ const addStringifyToObjects = (value: unknown): unknown => {
 };
 
 const prepareRenderTarget = (data: unknown): unknown => {
-  const deepParsed = deepParseAllValues(data);
+  const deepParsed = deepParseJson(data);
   return addStringifyToObjects(deepParsed);
 };
 
