@@ -23,6 +23,9 @@ export const PREVIEW_SPAN_TYPES = new Set(["LLM", "CACHED", "TOOL", "EXECUTOR", 
 
 export const PROVIDER_SPAN_TYPES = new Set(["LLM", "CACHED"]);
 
+/** Span types that go through the full preview generation pipeline (provider matching + LLM key generation). */
+const GENERATION_SPAN_TYPES = new Set(["LLM", "CACHED"]);
+
 const buildTimeConditions = (startDate?: string, endDate?: string): string[] =>
   [startDate ? "start_time >= {startDate: String}" : null, endDate ? "start_time <= {endDate: String}" : null].filter(
     (c): c is string => c !== null
@@ -66,23 +69,6 @@ interface ParsedSpan {
   fingerprint: string;
 }
 
-const extractFirstPrimitiveValue = (data: Record<string, unknown> | unknown[]): string | null => {
-  if (Array.isArray(data)) {
-    const first = data[0];
-    if (typeof first === "string") return first;
-    if (typeof first === "number") return String(first);
-    return null;
-  }
-
-  const keys = Object.keys(data);
-  if (keys.length === 0) return null;
-
-  const firstValue = data[keys[0]];
-  if (typeof firstValue === "string") return firstValue;
-  if (typeof firstValue === "number") return String(firstValue);
-  return null;
-};
-
 interface GetSpanPreviewsOptions {
   skipGeneration?: boolean;
 }
@@ -102,8 +88,15 @@ const tryProviderMatch = (
   return { rendered, key: match.key };
 };
 
+const toJsonPreview = (data: unknown): string => JSON.stringify(data).slice(0, 2000);
+
 /**
  * Classify raw spans into resolved previews and spans needing further processing.
+ *
+ * Only LLM/CACHED spans are candidates for the generation pipeline.
+ * All other span types resolve immediately with their raw output.
+ * When `skipGeneration` is true (e.g. shared traces), even LLM/CACHED spans
+ * resolve immediately with a JSON preview.
  */
 const classifyRawSpans = (
   rawSpans: Array<{ spanId: string; data: string; name: string }>,
@@ -114,6 +107,14 @@ const classifyRawSpans = (
   const needsProcessing: ParsedSpan[] = [];
 
   rawSpans.forEach((raw) => {
+    const spanType = spanTypes[raw.spanId] ?? "";
+
+    if (!GENERATION_SPAN_TYPES.has(spanType) || skipGeneration) {
+      const rawStr = typeof raw.data === "string" ? raw.data : JSON.stringify(raw.data);
+      resolved[raw.spanId] = rawStr.length > 1000 ? rawStr.slice(0, 1000) : rawStr;
+      return;
+    }
+
     const classification = classifyPayload(raw.data);
 
     switch (classification.kind) {
@@ -125,17 +126,12 @@ const classifyRawSpans = (
         resolved[raw.spanId] = "";
         return;
       case "object": {
-        if (skipGeneration) {
-          const providerMatch = tryProviderMatch(classification.data, spanTypes[raw.spanId] ?? "");
-          resolved[raw.spanId] = providerMatch?.rendered ?? extractFirstPrimitiveValue(classification.data);
-        } else {
-          needsProcessing.push({
-            spanId: raw.spanId,
-            name: raw.name,
-            parsedData: classification.data,
-            fingerprint: generateFingerprint(raw.name, classification.data),
-          });
-        }
+        needsProcessing.push({
+          spanId: raw.spanId,
+          name: raw.name,
+          parsedData: classification.data,
+          fingerprint: generateFingerprint(raw.name, classification.data),
+        });
         return;
       }
     }
@@ -152,8 +148,6 @@ const fillMissing = (previews: SpanPreviewResult, spanIds: string[]): SpanPrevie
     },
     { ...previews }
   );
-
-const toJsonPreview = (data: unknown): string => JSON.stringify(data).slice(0, 500);
 
 const applyCachedKeys = async (
   projectId: string,

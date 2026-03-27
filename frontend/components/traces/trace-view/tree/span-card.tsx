@@ -134,7 +134,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
                   </div>
                 </NoSpanTooltip>
               ) : (
-                <PreviewLoadingPlaceholder compact />
+                <PreviewLoadingPlaceholder />
               )
             ) : (
               <SpanStatsShield

@@ -44,9 +44,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
     span.spanType === "LLM" ||
     span.spanType === "CACHED" ||
     span.spanType === "EXECUTOR" ||
-    span.spanType === "EVALUATOR" ||
-    span.spanType === "TOOL" ||
-    hasSnippet;
+    span.spanType === "EVALUATOR";
 
   const isPending = span.pending;
   const isLoadingOutput = output === undefined;
@@ -118,7 +116,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
                     </div>
                   </NoSpanTooltip>
                 ) : (
-                  <PreviewLoadingPlaceholder compact />
+                  <PreviewLoadingPlaceholder />
                 )
               ) : (
                 <SpanStatsShield
@@ -135,7 +133,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
         </div>
 
         {isExpanded && (
-          <div className="px-3 w-full p-2 pt-0 flex flex-col gap-2 h-full flex-1">
+          <div className="px-2 w-full flex flex-col gap-2 h-full flex-1">
             {hasSnippet ? (
               <SnippetPreview inputSnippet={span.inputSnippet} outputSnippet={span.outputSnippet} variant="span" />
             ) : isLoadingOutput ? (
