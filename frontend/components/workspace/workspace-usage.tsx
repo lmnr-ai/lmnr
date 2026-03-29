@@ -12,9 +12,13 @@ import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-p
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { Feature } from "@/lib/features/features";
+import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
+
+import UsageLimitsSettings from "./usage-limits";
 
 interface WorkspaceUsageProps {
   workspaceStats: WorkspaceStats;
+  workspace: Workspace;
 }
 
 const TIER_USAGE_HINTS: Record<
@@ -69,7 +73,7 @@ const getUsageDescription = (tierName?: string): string => {
   return `${tierHint} ${tierHintOverages}`;
 };
 
-export default function WorkspaceUsage({ workspaceStats }: WorkspaceUsageProps) {
+export default function WorkspaceUsage({ workspaceStats, workspace }: WorkspaceUsageProps) {
   const { setMenu } = useWorkspaceMenuContext();
   const featureFlags = useFeatureFlags();
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
@@ -179,6 +183,8 @@ export default function WorkspaceUsage({ workspaceStats }: WorkspaceUsageProps) 
           </div>
         </SettingsSection>
       )}
+
+      {workspace.tierName !== WorkspaceTier.FREE && <UsageLimitsSettings workspaceId={workspace.id} />}
     </>
   );
 }

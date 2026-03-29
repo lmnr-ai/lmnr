@@ -12,10 +12,11 @@ import {
   alerts,
   userSubscriptionInfo,
   customModelCosts,
-  workspaceUsage,
   alertTargets,
   reportTargets,
   reports,
+  workspaceUsageLimits,
+  workspaceUsage,
   apiKeys,
   renderTemplates,
   labelingQueues,
@@ -45,12 +46,12 @@ import {
   agentMessages,
   eventClusterConfigs,
   eventClusters,
+  spanRenderingKeys,
   tagClasses,
   semanticEventDefinitions,
   semanticEventTriggerSpans,
   clusters,
   traces,
-  spanRenderingKeys,
 } from "./schema";
 
 export const rolloutSessionsRelations = relations(rolloutSessions, ({ one }) => ({
@@ -92,11 +93,11 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   projectApiKeys: many(projectApiKeys),
   eventClusterConfigs: many(eventClusterConfigs),
   eventClusters: many(eventClusters),
+  spanRenderingKeys: many(spanRenderingKeys),
   tagClasses: many(tagClasses),
   semanticEventDefinitions: many(semanticEventDefinitions),
   clusters: many(clusters),
   traces: many(traces),
-  spanRenderingKeys: many(spanRenderingKeys),
 }));
 
 export const sharedEvalsRelations = relations(sharedEvals, ({ one }) => ({
@@ -117,9 +118,10 @@ export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
   workspaceAddons: many(workspaceAddons),
   projects: many(projects),
   membersOfWorkspaces: many(membersOfWorkspaces),
-  workspaceUsages: many(workspaceUsage),
   reportTargets: many(reportTargets),
   reports: many(reports),
+  workspaceUsageLimits: many(workspaceUsageLimits),
+  workspaceUsages: many(workspaceUsage),
   workspaceInvitations: many(workspaceInvitations),
   subscriptionTier: one(subscriptionTiers, {
     fields: [workspaces.tierId],
@@ -184,13 +186,6 @@ export const customModelCostsRelations = relations(customModelCosts, ({ one }) =
   }),
 }));
 
-export const workspaceUsageRelations = relations(workspaceUsage, ({ one }) => ({
-  workspace: one(workspaces, {
-    fields: [workspaceUsage.workspaceId],
-    references: [workspaces.id],
-  }),
-}));
-
 export const alertTargetsRelations = relations(alertTargets, ({ one }) => ({
   alert: one(alerts, {
     fields: [alertTargets.alertId],
@@ -217,6 +212,20 @@ export const reportsRelations = relations(reports, ({ one, many }) => ({
   reportTargets: many(reportTargets),
   workspace: one(workspaces, {
     fields: [reports.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const workspaceUsageLimitsRelations = relations(workspaceUsageLimits, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceUsageLimits.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const workspaceUsageRelations = relations(workspaceUsage, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceUsage.workspaceId],
     references: [workspaces.id],
   }),
 }));
@@ -434,6 +443,13 @@ export const eventClusterConfigsRelations = relations(eventClusterConfigs, ({ on
 export const eventClustersRelations = relations(eventClusters, ({ one }) => ({
   project: one(projects, {
     fields: [eventClusters.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const spanRenderingKeysRelations = relations(spanRenderingKeys, ({ one }) => ({
+  project: one(projects, {
+    fields: [spanRenderingKeys.projectId],
     references: [projects.id],
   }),
 }));
