@@ -403,14 +403,10 @@ async fn check_soft_limits(
         // Only fire notification if we crossed the boundary on this specific increment.
         // Because cache.increment is atomic, we know that we are the one who crossed it.
         if new_value >= limit && previous_value < limit {
-            // Check if already notified in this billing cycle (persistent in PostgreSQL).
+            // Quick in-memory check to skip the DB call for the common case.
+            // The actual deduplication is done atomically in try_mark_warning_as_notified.
             if let Some(notified_at) = warning.last_notified_at {
                 if notified_at >= billing_start {
-                    log::debug!(
-                        "Soft limit already notified for workspace [{}] warning [{}] in current billing cycle",
-                        workspace_id,
-                        warning.id
-                    );
                     continue;
                 }
             }
@@ -422,6 +418,7 @@ async fn check_soft_limits(
                 warning.id,
                 usage_item,
                 limit,
+                billing_start,
             )
             .await;
         }
@@ -429,7 +426,8 @@ async fn check_soft_limits(
 }
 
 /// Send a soft limit notification to workspace owners via the notifications queue.
-/// Marks the warning as notified in PostgreSQL for persistent idempotency.
+/// Uses a conditional UPDATE as an atomic guard: only the first caller within
+/// a billing cycle will mark the row and proceed to send the notification.
 async fn send_soft_limit_notification(
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
@@ -437,16 +435,28 @@ async fn send_soft_limit_notification(
     warning_id: Uuid,
     usage_item: &str,
     limit_value: i64,
+    billing_start: DateTime<Utc>,
 ) {
-    // Mark as notified in PostgreSQL BEFORE sending, to prevent race conditions.
-    // Even if sending fails, we prefer skipping a notification over sending duplicates.
-    if let Err(e) = usage_warnings::mark_warning_as_notified(&db.pool, warning_id).await {
-        log::error!(
-            "Failed to mark warning [{}] as notified in DB: {:?}",
-            warning_id,
-            e
-        );
-        return;
+    // Atomic guard: conditionally mark as notified only if not already notified
+    // in this billing cycle. Returns true if this call won the race.
+    match usage_warnings::try_mark_warning_as_notified(&db.pool, warning_id, billing_start).await {
+        Ok(true) => {} // We won the race, proceed to send
+        Ok(false) => {
+            log::debug!(
+                "Soft limit notification already sent for workspace [{}] warning [{}]",
+                workspace_id,
+                warning_id
+            );
+            return;
+        }
+        Err(e) => {
+            log::error!(
+                "Failed to mark warning [{}] as notified in DB: {:?}",
+                warning_id,
+                e
+            );
+            return;
+        }
     }
 
     // Get workspace owner emails
