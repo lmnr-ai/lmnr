@@ -551,18 +551,33 @@ fn format_usage_item(usage_item: &str, limit_value: i64) -> (String, String) {
             ("Data ingestion".to_string(), formatted)
         }
         "signal_runs" => {
-            let s = limit_value.to_string();
-            let formatted = s
-                .as_bytes()
-                .rchunks(3)
-                .rev()
-                .map(|chunk| std::str::from_utf8(chunk).unwrap_or(""))
-                .collect::<Vec<&str>>()
-                .join(",");
+            let formatted = format_number_with_commas(limit_value);
             ("Signal runs".to_string(), formatted)
         }
         _ => (usage_item.to_string(), limit_value.to_string()),
     }
+}
+
+/// Format an integer with comma-separated thousands (e.g. 1000 -> "1,000").
+/// Handles negative numbers correctly (e.g. -1000 -> "-1,000").
+fn format_number_with_commas(n: i64) -> String {
+    let is_negative = n < 0;
+    let abs_str = n.unsigned_abs().to_string();
+    let digits = abs_str.as_bytes();
+
+    let mut result = String::with_capacity(abs_str.len() + abs_str.len() / 3 + 1);
+    if is_negative {
+        result.push('-');
+    }
+
+    for (i, &b) in digits.iter().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            result.push(',');
+        }
+        result.push(b as char);
+    }
+
+    result
 }
 
 fn render_usage_warning_email(
