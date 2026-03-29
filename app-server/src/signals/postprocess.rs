@@ -34,6 +34,12 @@ pub async fn process_event_notifications_and_clustering(
         db::alert_targets::get_targets_for_event(&db.pool, project_id, &event_name).await?;
 
     for target in &targets {
+        log::info!(
+            "Processing alert target: email: {:?}, channel_id: {:?}, integration_id: {:?}",
+            target.email,
+            target.channel_id,
+            target.integration_id
+        );
         let Ok(target_type) = target.r#type.parse::<TargetType>() else {
             log::warn!(
                 "Unknown alert target type '{}' for target {}",
