@@ -10,12 +10,11 @@ import { SettingsSection, SettingsSectionHeader } from "@/components/settings/se
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { type Workspace, WorkspaceTier, type WorkspaceWithProjects } from "@/lib/workspaces/types";
+import { type Workspace, type WorkspaceWithProjects } from "@/lib/workspaces/types";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import UsageLimitsSettings from "./usage-limits";
 
 interface RenameWorkspaceForm {
   name: string;
@@ -218,8 +217,6 @@ export default function WorkspaceSettings({ workspace, isOwner }: WorkspaceSetti
           </DialogContent>
         </Dialog>
       </SettingsSection>
-
-      {workspace.tierName !== WorkspaceTier.FREE && <UsageLimitsSettings workspaceId={workspace.id} />}
 
       <SettingsSection>
         <SettingsSectionHeader
