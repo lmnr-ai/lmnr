@@ -8,7 +8,13 @@ import { spanRenderingKeys } from "@/lib/db/migrations/schema";
 
 import { generatePreviewKeys } from "./prompts.ts";
 import { matchProviderKey } from "./provider-keys.ts";
-import { classifyPayload, generateFingerprint, validateMustacheKey } from "./utils.ts";
+import {
+  classifyPayload,
+  detectOutputStructure,
+  generateFingerprint,
+  type ProviderHint,
+  validateMustacheKey,
+} from "./utils.ts";
 
 export const GetSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: true }).extend({
   projectId: z.string(),
@@ -20,8 +26,6 @@ export const GetSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: true }).e
 export type SpanPreviewResult = Record<string, string | null>;
 
 export const PREVIEW_SPAN_TYPES = new Set(["LLM", "CACHED", "TOOL", "EXECUTOR", "EVALUATOR"]);
-
-export const PROVIDER_SPAN_TYPES = new Set(["LLM", "CACHED"]);
 
 /** Span types that go through the full preview generation pipeline (provider matching + LLM key generation). */
 const GENERATION_SPAN_TYPES = new Set(["LLM", "CACHED"]);
@@ -67,6 +71,7 @@ interface ParsedSpan {
   name: string;
   parsedData: Record<string, unknown> | unknown[];
   fingerprint: string;
+  provider: ProviderHint;
 }
 
 interface GetSpanPreviewsOptions {
@@ -75,11 +80,12 @@ interface GetSpanPreviewsOptions {
 
 const tryProviderMatch = (
   parsedData: Record<string, unknown> | unknown[],
-  spanType: string
+  spanType: string,
+  providerHint?: ProviderHint
 ): { rendered: string; key: string } | null => {
-  if (!PROVIDER_SPAN_TYPES.has(spanType)) return null;
+  if (!GENERATION_SPAN_TYPES.has(spanType)) return null;
 
-  const match = matchProviderKey(parsedData);
+  const match = matchProviderKey(parsedData, providerHint);
   if (!match) return null;
 
   const rendered = validateMustacheKey(match.key, match.data ?? parsedData);
@@ -95,13 +101,10 @@ const toJsonPreview = (data: unknown): string => JSON.stringify(data).slice(0, 2
  *
  * Only LLM/CACHED spans are candidates for the generation pipeline.
  * All other span types resolve immediately with their raw output.
- * When `skipGeneration` is true (e.g. shared traces), even LLM/CACHED spans
- * resolve immediately with a JSON preview.
  */
 const classifyRawSpans = (
   rawSpans: Array<{ spanId: string; data: string; name: string }>,
-  spanTypes: Record<string, string>,
-  skipGeneration: boolean
+  spanTypes: Record<string, string>
 ): { resolved: SpanPreviewResult; needsProcessing: ParsedSpan[] } => {
   const resolved: SpanPreviewResult = {};
   const needsProcessing: ParsedSpan[] = [];
@@ -109,7 +112,7 @@ const classifyRawSpans = (
   rawSpans.forEach((raw) => {
     const spanType = spanTypes[raw.spanId] ?? "";
 
-    if (!GENERATION_SPAN_TYPES.has(spanType) || skipGeneration) {
+    if (!GENERATION_SPAN_TYPES.has(spanType)) {
       const rawStr = typeof raw.data === "string" ? raw.data : JSON.stringify(raw.data);
       resolved[raw.spanId] = rawStr.length > 1000 ? rawStr.slice(0, 1000) : rawStr;
       return;
@@ -131,6 +134,7 @@ const classifyRawSpans = (
           name: raw.name,
           parsedData: classification.data,
           fingerprint: generateFingerprint(raw.name, classification.data),
+          provider: detectOutputStructure(classification.data),
         });
         return;
       }
@@ -178,8 +182,8 @@ const applyCachedKeys = async (
   parsedSpans.forEach((span) => {
     const cachedKey = fingerprintToKey.get(span.fingerprint);
     if (cachedKey) {
-      const isProviderType = PROVIDER_SPAN_TYPES.has(spanTypes[span.spanId] ?? "");
-      const match = isProviderType ? matchProviderKey(span.parsedData) : null;
+      const isProviderType = GENERATION_SPAN_TYPES.has(spanTypes[span.spanId] ?? "");
+      const match = isProviderType ? matchProviderKey(span.parsedData, span.provider) : null;
       const rendered = validateMustacheKey(cachedKey, match?.data ?? span.parsedData);
       if (rendered) {
         resolved[span.spanId] = rendered;
@@ -202,24 +206,21 @@ const applyProviderMatching = (
   spanTypes: Record<string, string>
 ): {
   resolved: SpanPreviewResult;
-  keysToSave: Array<{ fingerprint: string; key: string }>;
   needsLlm: ParsedSpan[];
 } => {
   const resolved: SpanPreviewResult = {};
-  const keysToSave: Array<{ fingerprint: string; key: string }> = [];
   const needsLlm: ParsedSpan[] = [];
 
   uncachedSpans.forEach((span) => {
-    const providerMatch = tryProviderMatch(span.parsedData, spanTypes[span.spanId] ?? "");
+    const providerMatch = tryProviderMatch(span.parsedData, spanTypes[span.spanId] ?? "", span.provider);
     if (providerMatch) {
       resolved[span.spanId] = providerMatch.rendered;
-      keysToSave.push({ fingerprint: span.fingerprint, key: providerMatch.key });
     } else {
       needsLlm.push(span);
     }
   });
 
-  return { resolved, keysToSave, needsLlm };
+  return { resolved, needsLlm };
 };
 
 const deduplicateByFingerprint = (
@@ -285,7 +286,6 @@ const generateAndApplyKeys = async (
       continue;
     }
 
-    // Only cache the key if it renders successfully for at least one span
     let keyProducedValidRender = false;
 
     for (const span of spans) {
@@ -344,9 +344,9 @@ export async function getSpanPreviews(
 
   const rawSpans = await fetchSpanData(projectId, traceId, spanIds, spanTypes, startDate, endDate);
 
-  const { resolved: classifiedPreviews, needsProcessing } = classifyRawSpans(rawSpans, spanTypes, skipGeneration);
+  const { resolved: classifiedPreviews, needsProcessing } = classifyRawSpans(rawSpans, spanTypes);
 
-  if (needsProcessing.length === 0 || skipGeneration) {
+  if (needsProcessing.length === 0) {
     return fillMissing(classifiedPreviews, spanIds);
   }
 
@@ -358,11 +358,21 @@ export async function getSpanPreviews(
     return fillMissing(cachedResult, spanIds);
   }
 
-  const { resolved: providerPreviews, keysToSave: providerKeys, needsLlm } = applyProviderMatching(uncached, spanTypes);
+  const { resolved: providerPreviews, needsLlm } = applyProviderMatching(uncached, spanTypes);
+
+  const providerResult = { ...cachedResult, ...providerPreviews };
+
+  if (skipGeneration || needsLlm.length === 0) {
+    // Shared traces: resolve remaining spans with JSON fallback, no LLM calls
+    for (const span of needsLlm) {
+      providerResult[span.spanId] = toJsonPreview(span.parsedData);
+    }
+    return fillMissing(providerResult, spanIds);
+  }
 
   const { resolved: llmPreviews, keysToSave: llmKeys } = await generateAndApplyKeys(needsLlm);
 
-  await saveRenderingKeys(projectId, [...providerKeys, ...llmKeys]);
+  await saveRenderingKeys(projectId, llmKeys);
 
-  return fillMissing({ ...cachedResult, ...providerPreviews, ...llmPreviews }, spanIds);
+  return fillMissing({ ...providerResult, ...llmPreviews }, spanIds);
 }
