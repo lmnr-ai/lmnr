@@ -83,8 +83,9 @@ pub fn decode_slack_token(
         .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
 }
 
-/// Split a mrkdwn string into chunks that each fit within `max_len` characters.
+/// Split a mrkdwn string into chunks that each fit within `max_len` bytes.
 /// Splits on newline boundaries to avoid breaking formatting mid-line.
+/// Uses `floor_char_boundary` to avoid panicking on multi-byte UTF-8 characters.
 fn split_mrkdwn_chunks(text: &str, max_len: usize) -> Vec<&str> {
     if text.len() <= max_len {
         return vec![text];
@@ -99,7 +100,8 @@ fn split_mrkdwn_chunks(text: &str, max_len: usize) -> Vec<&str> {
             break;
         }
 
-        let end = start + max_len;
+        // Snap to a valid UTF-8 char boundary so slicing never panics
+        let end = text.floor_char_boundary(start + max_len);
         let split_at = text[start..end]
             .rfind('\n')
             .map(|pos| start + pos + 1)

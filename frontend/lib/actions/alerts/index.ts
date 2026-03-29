@@ -29,6 +29,7 @@ const UpdateAlertSchema = z.object({
   type: z.enum(["SIGNAL_EVENT"]),
   sourceId: z.uuid(),
   targets: z.array(TargetSchema).min(1),
+  userEmail: z.string().optional(),
 });
 
 const DeleteAlertSchema = z.object({
@@ -122,7 +123,7 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
 }
 
 export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
-  const { alertId, projectId, name, type, sourceId, targets } = UpdateAlertSchema.parse(input);
+  const { alertId, projectId, name, type, sourceId, targets, userEmail } = UpdateAlertSchema.parse(input);
 
   return await db.transaction(async (tx) => {
     await tx
@@ -130,10 +131,28 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
       .set({ name, type, sourceId })
       .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)));
 
+    // Fetch existing email targets belonging to OTHER users so we can preserve them.
+    // The frontend only manages the current user's own email target + Slack targets.
+    const existingTargets = userEmail
+      ? await tx
+          .select({
+            id: alertTargets.id,
+            type: alertTargets.type,
+            integrationId: alertTargets.integrationId,
+            channelId: alertTargets.channelId,
+            channelName: alertTargets.channelName,
+            email: alertTargets.email,
+          })
+          .from(alertTargets)
+          .where(and(eq(alertTargets.alertId, alertId), eq(alertTargets.projectId, projectId)))
+      : [];
+
+    const otherUsersEmailTargets = existingTargets.filter((t) => t.type === "EMAIL" && t.email !== userEmail);
+
     await tx.delete(alertTargets).where(and(eq(alertTargets.alertId, alertId), eq(alertTargets.projectId, projectId)));
 
-    await tx.insert(alertTargets).values(
-      targets.map((t) => ({
+    const allTargets = [
+      ...targets.map((t) => ({
         alertId,
         projectId,
         type: t.type,
@@ -141,8 +160,19 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
         channelId: t.channelId ?? null,
         channelName: t.channelName ?? null,
         email: t.email ?? null,
-      }))
-    );
+      })),
+      ...otherUsersEmailTargets.map((t) => ({
+        alertId,
+        projectId,
+        type: t.type,
+        integrationId: t.integrationId ?? null,
+        channelId: t.channelId ?? null,
+        channelName: t.channelName ?? null,
+        email: t.email,
+      })),
+    ];
+
+    await tx.insert(alertTargets).values(allTargets);
 
     return { id: alertId };
   });
