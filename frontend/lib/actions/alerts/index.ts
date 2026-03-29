@@ -78,8 +78,9 @@ export async function getAlerts(projectId: string, userEmail?: string): Promise<
 
   const targetsByAlert = new Map<string, AlertTarget[]>();
   for (const t of targetRows) {
-    // Only include the current user's own email target; never expose other members' emails
-    if (t.type === "EMAIL" && userEmail && t.email !== userEmail) continue;
+    // Only include the current user's own email target; never expose other members' emails.
+    // If userEmail is unknown, strip all email targets as a safeguard.
+    if (t.type === "EMAIL" && (!userEmail || t.email !== userEmail)) continue;
     const list = targetsByAlert.get(t.alertId) ?? [];
     list.push({
       id: t.id,

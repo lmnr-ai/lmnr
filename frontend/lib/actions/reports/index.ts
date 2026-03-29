@@ -67,8 +67,9 @@ export async function getReports(workspaceId: string, userEmail?: string): Promi
 
   const targetsByReport = new Map<string, ReportTargetRow[]>();
   for (const t of targetRows) {
-    // Only include the current user's own email target; never expose other members' emails
-    if (t.type === REPORT_TARGET_TYPE.EMAIL && userEmail && t.email !== userEmail) continue;
+    // Only include the current user's own email target; never expose other members' emails.
+    // If userEmail is unknown, strip all email targets as a safeguard.
+    if (t.type === REPORT_TARGET_TYPE.EMAIL && (!userEmail || t.email !== userEmail)) continue;
     const list = targetsByReport.get(t.reportId) ?? [];
     list.push({
       id: t.id,

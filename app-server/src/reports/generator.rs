@@ -423,7 +423,7 @@ fn build_report_slack(report_data: &ReportData) -> serde_json::Value {
                     text.push_str(&format!(" – {}", event.summary));
                 }
                 text.push_str(&format!(
-                    " ({}) <https://lmnr.ai/project/{}/traces/{}|View trace>\n",
+                    " ({}) <https://laminar.sh/project/{}/traces/{}|View trace>\n",
                     event.timestamp, project.project_id, event.trace_id,
                 ));
             }
