@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use chrono::{DateTime, Months, Utc};
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -8,12 +9,13 @@ use crate::{
     cache::{
         Cache, CacheTrait,
         keys::{
-            PROJECT_CACHE_KEY, USAGE_WARNING_SENT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
+            PROJECT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
             WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
         },
     },
     ch::limits::{
-        get_workspace_bytes_ingested_by_project_ids, get_workspace_signal_runs_by_project_ids,
+        complete_months_elapsed, get_workspace_bytes_ingested_by_project_ids,
+        get_workspace_signal_runs_by_project_ids,
     },
     db::{self, DB, projects::ProjectWithWorkspaceBillingInfo, usage_warnings},
     mq::MessageQueue,
@@ -23,11 +25,6 @@ use crate::{
 // For workspaces over the limit, expire the cache after 24 hours,
 // so that it resets in the next billing period (+/- 1 day).
 const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
-
-/// TTL for the idempotency key preventing duplicate soft-limit notifications.
-/// Must be >= WORKSPACE_USAGE_TTL_SECONDS so that cache repopulation doesn't
-/// re-trigger notifications for thresholds already exceeded.
-const USAGE_WARNING_IDEMPOTENCY_TTL_SECONDS: u64 = 60 * 60 * 25; // 25 hours
 
 /// TTL for cached usage warnings per workspace. Keeps them fresh while
 /// avoiding a DB query on every ingestion batch.
@@ -52,6 +49,19 @@ fn get_effective_signal_runs_limit(project_info: &ProjectWithWorkspaceBillingInf
         return Some(project_info.signal_runs_limit);
     }
     project_info.custom_signal_runs_limit
+}
+
+/// Compute the start of the current billing period from workspace reset_time.
+fn current_billing_period_start(reset_time: DateTime<Utc>) -> DateTime<Utc> {
+    let now = Utc::now();
+    let months_elapsed = complete_months_elapsed(reset_time, now);
+    if months_elapsed > 0 {
+        reset_time
+            .checked_add_months(Months::new(months_elapsed))
+            .unwrap_or(reset_time)
+    } else {
+        reset_time
+    }
 }
 
 pub async fn get_workspace_bytes_limit_exceeded(
@@ -223,7 +233,9 @@ pub async fn update_workspace_bytes_ingested(
             }
         }
         Ok(None) | Err(_) => {
-            // Cache miss - recompute from ClickHouse and populate the cache
+            // Cache miss - recompute from ClickHouse and populate the cache.
+            // We don't fire soft-limit notifications on cache miss because we
+            // cannot detect boundary crossing without the previous value.
             let bytes_ingested = match get_workspace_bytes_ingested_by_project_ids(
                 clickhouse,
                 project_info.workspace_project_ids,
@@ -244,18 +256,6 @@ pub async fn update_workspace_bytes_ingested(
             cache
                 .insert_with_ttl::<i64>(&cache_key, bytes_ingested, WORKSPACE_USAGE_TTL_SECONDS)
                 .await?;
-            // On cache miss we can't detect boundary crossing atomically,
-            // but we still check if usage already exceeds any warning thresholds.
-            // The idempotency key in send_soft_limit_notification prevents duplicates.
-            check_exceeded_soft_limits(
-                db.clone(),
-                cache.clone(),
-                queue.clone(),
-                workspace_id,
-                "bytes",
-                bytes_ingested,
-            )
-            .await;
             None
         }
     };
@@ -268,6 +268,7 @@ pub async fn update_workspace_bytes_ingested(
             cache.clone(),
             queue,
             workspace_id,
+            project_info.reset_time,
             "bytes",
             new_bytes,
             previous_bytes,
@@ -349,15 +350,6 @@ pub async fn update_workspace_signal_runs_used(
             cache
                 .insert_with_ttl::<i64>(&cache_key, signal_runs, WORKSPACE_USAGE_TTL_SECONDS)
                 .await?;
-            check_exceeded_soft_limits(
-                db.clone(),
-                cache.clone(),
-                queue.clone(),
-                workspace_id,
-                "signal_runs",
-                signal_runs,
-            )
-            .await;
             None
         }
     };
@@ -370,6 +362,7 @@ pub async fn update_workspace_signal_runs_used(
             cache.clone(),
             queue,
             workspace_id,
+            project_info.reset_time,
             "signal_runs",
             new_runs,
             previous_runs,
@@ -386,6 +379,7 @@ async fn check_soft_limits(
     cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     workspace_id: Uuid,
+    reset_time: DateTime<Utc>,
     usage_item: &str,
     new_value: i64,
     previous_value: i64,
@@ -402,14 +396,27 @@ async fn check_soft_limits(
         }
     };
 
+    let billing_start = current_billing_period_start(reset_time);
+
     for warning in warnings.iter().filter(|w| w.usage_item == usage_item) {
         let limit = warning.limit_value;
         // Only fire notification if we crossed the boundary on this specific increment.
         // Because cache.increment is atomic, we know that we are the one who crossed it.
         if new_value >= limit && previous_value < limit {
+            // Check if already notified in this billing cycle (persistent in PostgreSQL).
+            if let Some(notified_at) = warning.last_notified_at {
+                if notified_at >= billing_start {
+                    log::debug!(
+                        "Soft limit already notified for workspace [{}] warning [{}] in current billing cycle",
+                        workspace_id,
+                        warning.id
+                    );
+                    continue;
+                }
+            }
+
             send_soft_limit_notification(
                 db.clone(),
-                cache.clone(),
                 queue.clone(),
                 workspace_id,
                 warning.id,
@@ -421,94 +428,25 @@ async fn check_soft_limits(
     }
 }
 
-/// On cache repopulation, check if usage already exceeds any warning thresholds.
-/// This catches the case where a threshold was crossed while the cache was expired.
-/// Relies on the idempotency key in send_soft_limit_notification to prevent duplicates.
-async fn check_exceeded_soft_limits(
-    db: Arc<DB>,
-    cache: Arc<Cache>,
-    queue: Arc<MessageQueue>,
-    workspace_id: Uuid,
-    usage_item: &str,
-    current_value: i64,
-) {
-    let warnings = match get_cached_usage_warnings(db.clone(), cache.clone(), workspace_id).await {
-        Ok(w) => w,
-        Err(e) => {
-            log::warn!(
-                "Failed to fetch usage warnings for workspace [{}]: {:?}",
-                workspace_id,
-                e
-            );
-            return;
-        }
-    };
-
-    for warning in warnings.iter().filter(|w| w.usage_item == usage_item) {
-        if current_value >= warning.limit_value {
-            send_soft_limit_notification(
-                db.clone(),
-                cache.clone(),
-                queue.clone(),
-                workspace_id,
-                warning.id,
-                usage_item,
-                warning.limit_value,
-            )
-            .await;
-        }
-    }
-}
-
 /// Send a soft limit notification to workspace owners via the notifications queue.
+/// Marks the warning as notified in PostgreSQL for persistent idempotency.
 async fn send_soft_limit_notification(
     db: Arc<DB>,
-    cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     workspace_id: Uuid,
     warning_id: Uuid,
     usage_item: &str,
     limit_value: i64,
 ) {
-    // Idempotency: use a cache key to prevent duplicate notifications for the same warning
-    let idempotency_key = format!(
-        "{USAGE_WARNING_SENT_CACHE_KEY}:{}:{}",
-        workspace_id, warning_id
-    );
-
-    // Check if we already sent this notification recently
-    match cache.exists(&idempotency_key).await {
-        Ok(true) => {
-            log::debug!(
-                "Soft limit notification already sent for workspace [{}] warning [{}]",
-                workspace_id,
-                warning_id
-            );
-            return;
-        }
-        Ok(false) => {}
-        Err(e) => {
-            log::warn!(
-                "Failed to check idempotency for soft limit notification: {:?}",
-                e
-            );
-            // Continue anyway – better to send a duplicate than miss a notification
-        }
-    }
-
-    // Mark as sent before sending to prevent race conditions
-    if let Err(e) = cache
-        .insert_with_ttl::<i64>(
-            &idempotency_key,
-            1,
-            USAGE_WARNING_IDEMPOTENCY_TTL_SECONDS,
-        )
-        .await
-    {
-        log::warn!(
-            "Failed to set idempotency key for soft limit notification: {:?}",
+    // Mark as notified in PostgreSQL BEFORE sending, to prevent race conditions.
+    // Even if sending fails, we prefer skipping a notification over sending duplicates.
+    if let Err(e) = usage_warnings::mark_warning_as_notified(&db.pool, warning_id).await {
+        log::error!(
+            "Failed to mark warning [{}] as notified in DB: {:?}",
+            warning_id,
             e
         );
+        return;
     }
 
     // Get workspace owner emails

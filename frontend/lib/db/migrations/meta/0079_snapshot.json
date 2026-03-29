@@ -4372,6 +4372,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "last_notified_at": {
+          "name": "last_notified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},

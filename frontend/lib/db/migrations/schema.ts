@@ -433,6 +433,7 @@ export const workspaceUsageWarnings = pgTable(
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
     limitValue: bigint("limit_value", { mode: "number" }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     foreignKey({

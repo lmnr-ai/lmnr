@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
@@ -9,15 +10,16 @@ pub struct UsageWarning {
     pub workspace_id: Uuid,
     pub usage_item: String,
     pub limit_value: i64,
+    pub last_notified_at: Option<DateTime<Utc>>,
 }
 
-/// Fetch all usage warnings for a workspace identified by a project ID.
+/// Fetch all usage warnings for a workspace.
 pub async fn get_usage_warnings_for_workspace(
     pool: &PgPool,
     workspace_id: Uuid,
 ) -> Result<Vec<UsageWarning>> {
     let warnings = sqlx::query_as::<_, UsageWarning>(
-        "SELECT id, workspace_id, usage_item, limit_value
+        "SELECT id, workspace_id, usage_item, limit_value, last_notified_at
          FROM workspace_usage_warnings
          WHERE workspace_id = $1
          ORDER BY usage_item, limit_value ASC",
@@ -27,6 +29,15 @@ pub async fn get_usage_warnings_for_workspace(
     .await?;
 
     Ok(warnings)
+}
+
+/// Mark a usage warning as notified by setting last_notified_at = NOW().
+pub async fn mark_warning_as_notified(pool: &PgPool, warning_id: Uuid) -> Result<()> {
+    sqlx::query("UPDATE workspace_usage_warnings SET last_notified_at = NOW() WHERE id = $1")
+        .bind(warning_id)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 /// Get owner email(s) for a workspace.
