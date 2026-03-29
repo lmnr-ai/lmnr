@@ -1,13 +1,11 @@
 import { ChevronDownIcon } from "@radix-ui/react-icons";
-import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { type ColumnDef } from "@tanstack/react-table";
 import { ChevronRightIcon } from "lucide-react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
-import { Badge } from "@/components/ui/badge.tsx";
+import TagsCell from "@/components/tags/tags-cell";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type SessionRow } from "@/lib/traces/types";
 import { getDurationString } from "@/lib/utils";
 
@@ -174,35 +172,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     accessorFn: (row) => ("tags" in row ? row.tags : "-"),
     cell: (row) => {
       const tags = row.getValue() as string[];
-
-      if (Array.isArray(tags) && tags?.length > 0) {
-        return (
-          <TooltipProvider delayDuration={100}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="truncate">
-                  {tags.map((tag) => (
-                    <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
-                      <span>{tag}</span>
-                    </Badge>
-                  ))}
-                </div>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent side="bottom" className="p-2 border max-w-sm">
-                  <div className="flex flex-wrap gap-1">
-                    {tags.map((tag) => (
-                      <Badge key={tag} className="rounded-3xl" variant="outline">
-                        <span>{tag}</span>
-                      </Badge>
-                    ))}
-                  </div>
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
+      if (Array.isArray(tags) && tags?.length > 0) return <TagsCell tags={tags} />;
       return "-";
     },
     header: "Tags",

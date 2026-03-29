@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
 import TraceViewNavigationProvider, { getTracesConfig } from "@/components/traces/trace-view/navigation-context";
@@ -113,12 +113,14 @@ function TracesContent() {
 
 export default function Traces() {
   const searchParams = useSearchParams();
+  const params = useParams();
+  const projectId = params?.projectId as string;
 
   const traceId = searchParams.get("traceId");
   const spanId = searchParams.get("spanId");
 
   return (
-    <TracesStoreProvider traceId={traceId} spanId={spanId}>
+    <TracesStoreProvider traceId={traceId} spanId={spanId} projectId={projectId}>
       <TracesContent />
     </TracesStoreProvider>
   );
