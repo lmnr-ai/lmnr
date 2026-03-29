@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Mail, Send } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import useSWR from "swr";
 
@@ -73,6 +73,26 @@ export default function ManageAlertSheet({
 
   const { toast } = useToast();
 
+  const { data: signalsData, isLoading: isLoadingSignals } = useSWR<{ items: SignalRow[] }>(
+    `/api/projects/${projectId}/signals?pageNumber=0&pageSize=100`,
+    swrFetcher
+  );
+
+  const editValues = useMemo<AlertFormValues | undefined>(() => {
+    if (!open || !alert) return undefined;
+
+    const signal = signalsData?.items?.find((s) => s.id === alert.sourceId);
+    const slackTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.SLACK);
+    const emailTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.EMAIL && t.email === userEmail);
+
+    return {
+      name: alert.name,
+      signalName: signal?.name ?? "",
+      channelId: slackTarget?.channelId ?? "",
+      emailEnabled: !!emailTarget,
+    };
+  }, [open, alert, signalsData, userEmail]);
+
   const {
     control,
     handleSubmit,
@@ -80,31 +100,14 @@ export default function ManageAlertSheet({
     reset,
     setValue,
     formState: { isSubmitting },
-  } = useForm<AlertFormValues>({ defaultValues: DEFAULT_VALUES });
+  } = useForm<AlertFormValues>({
+    defaultValues: DEFAULT_VALUES,
+    values: editValues,
+  });
 
   const signalName = watch("signalName");
   const channelId = watch("channelId");
   const emailEnabled = watch("emailEnabled");
-
-  const { data: signalsData, isLoading: isLoadingSignals } = useSWR<{ items: SignalRow[] }>(
-    open ? `/api/projects/${projectId}/signals?pageNumber=0&pageSize=100` : null,
-    swrFetcher
-  );
-
-  useEffect(() => {
-    if (!open || !alert || !signalsData) return;
-
-    const signal = signalsData.items?.find((s) => s.id === alert.sourceId);
-    const slackTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.SLACK);
-    const emailTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.EMAIL && t.email === userEmail);
-
-    reset({
-      name: alert.name,
-      signalName: signal?.name ?? "",
-      channelId: slackTarget?.channelId ?? "",
-      emailEnabled: !!emailTarget,
-    });
-  }, [open, alert, signalsData, reset, userEmail]);
 
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
@@ -188,7 +191,7 @@ export default function ManageAlertSheet({
   );
 
   const { data: channels, isLoading: isLoadingChannels } = useSWR<SlackChannel[]>(
-    open && selectedSignal && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
+    open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
     swrFetcher
   );
 
