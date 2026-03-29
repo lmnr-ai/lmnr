@@ -216,6 +216,7 @@ pub async fn finalize_runs(
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
 ) -> Result<(), HandlerError> {
     // Insert succeeded runs and update usage limits
     let succeeded_runs_ch: Vec<CHSignalRun> =
@@ -232,9 +233,10 @@ pub async fn finalize_runs(
             let db = db.clone();
             let clickhouse = clickhouse.clone();
             let cache = cache.clone();
+            let queue = queue.clone();
             async move {
                 if let Err(e) =
-                    update_workspace_signal_runs_used(db, clickhouse, cache, project_id, runs).await
+                    update_workspace_signal_runs_used(db, clickhouse, cache, queue, project_id, runs).await
                 {
                     log::error!("Failed to update workspace signal runs used: {}", e);
                 }

@@ -17,6 +17,7 @@ import {
   reports,
   workspaceUsageLimits,
   workspaceUsage,
+  workspaceUsageWarnings,
   apiKeys,
   renderTemplates,
   labelingQueues,
@@ -121,6 +122,7 @@ export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
   reportTargets: many(reportTargets),
   reports: many(reports),
   workspaceUsageLimits: many(workspaceUsageLimits),
+  workspaceUsageWarnings: many(workspaceUsageWarnings),
   workspaceUsages: many(workspaceUsage),
   workspaceInvitations: many(workspaceInvitations),
   subscriptionTier: one(subscriptionTiers, {
@@ -219,6 +221,13 @@ export const reportsRelations = relations(reports, ({ one, many }) => ({
 export const workspaceUsageLimitsRelations = relations(workspaceUsageLimits, ({ one }) => ({
   workspace: one(workspaces, {
     fields: [workspaceUsageLimits.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const workspaceUsageWarningsRelations = relations(workspaceUsageWarnings, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceUsageWarnings.workspaceId],
     references: [workspaces.id],
   }),
 }));

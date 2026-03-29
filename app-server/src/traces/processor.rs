@@ -221,6 +221,7 @@ pub async fn process_span_messages(
                 db.clone(),
                 clickhouse.clone(),
                 cache.clone(),
+                queue.clone(),
                 project_id,
                 bytes,
             )

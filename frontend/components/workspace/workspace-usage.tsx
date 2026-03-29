@@ -15,6 +15,7 @@ import { Feature } from "@/lib/features/features";
 import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
 
 import UsageLimitsSettings from "./usage-limits";
+import UsageWarningsSettings from "./usage-warnings";
 
 interface WorkspaceUsageProps {
   workspaceStats: WorkspaceStats;
@@ -184,6 +185,7 @@ export default function WorkspaceUsage({ workspaceStats, workspace }: WorkspaceU
         </SettingsSection>
       )}
 
+      {workspace.tierName !== WorkspaceTier.FREE && <UsageWarningsSettings workspaceId={workspace.id} />}
       {workspace.tierName !== WorkspaceTier.FREE && <UsageLimitsSettings workspaceId={workspace.id} />}
     </>
   );

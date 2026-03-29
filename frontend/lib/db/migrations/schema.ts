@@ -424,6 +424,27 @@ export const workspaceUsage = pgTable(
   ]
 );
 
+export const workspaceUsageWarnings = pgTable(
+  "workspace_usage_warnings",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    usageItem: text("usage_item").notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    limitValue: bigint("limit_value", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "workspace_usage_warnings_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+  ]
+);
+
 export const apiKeys = pgTable(
   "api_keys",
   {
