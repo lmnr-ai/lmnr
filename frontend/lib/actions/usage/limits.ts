@@ -23,6 +23,7 @@ interface ProjectBillingInfo {
   workspaceProjectIds: string[];
   bytesLimit: number;
   signalRunsLimit: number;
+  customSignalRunsLimit?: number | null;
 }
 
 interface BillingInfo {
@@ -31,6 +32,7 @@ interface BillingInfo {
   signalRunsLimit: number;
   resetTime: string;
   workspaceProjectIds: string[];
+  customSignalRunsLimit: number | null;
 }
 
 async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | null> {
@@ -44,6 +46,7 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
         signalRunsLimit: Number(cached.signalRunsLimit),
         resetTime: cached.resetTime,
         workspaceProjectIds: cached.workspaceProjectIds,
+        customSignalRunsLimit: cached.customSignalRunsLimit != null ? Number(cached.customSignalRunsLimit) : null,
       };
     }
   } catch {
@@ -69,10 +72,19 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
 
   const row = tierRows[0];
 
-  const projectRows = await db.query.projects.findMany({
-    where: eq(projects.workspaceId, row.workspaceId),
-    columns: { id: true },
-  });
+  const [projectRows, customLimitRows] = await Promise.all([
+    db.query.projects.findMany({
+      where: eq(projects.workspaceId, row.workspaceId),
+      columns: { id: true },
+    }),
+    db
+      .select({ limitValue: workspaceUsageLimits.limitValue })
+      .from(workspaceUsageLimits)
+      .where(
+        and(eq(workspaceUsageLimits.workspaceId, row.workspaceId), eq(workspaceUsageLimits.limitType, "signal_runs"))
+      )
+      .limit(1),
+  ]);
 
   return {
     workspaceId: row.workspaceId,
@@ -80,6 +92,7 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
     signalRunsLimit: Number(row.signalRunsLimit),
     resetTime: row.resetTime,
     workspaceProjectIds: projectRows.map((p) => p.id),
+    customSignalRunsLimit: customLimitRows.length > 0 ? Number(customLimitRows[0].limitValue) : null,
   };
 }
 
@@ -93,24 +106,18 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
     return;
   }
 
-  const { workspaceId, tierName, signalRunsLimit, resetTime, workspaceProjectIds } = info;
+  const { workspaceId, tierName, signalRunsLimit, resetTime, workspaceProjectIds, customSignalRunsLimit } = info;
   const isFree = tierName.trim().toLowerCase() === "free";
 
   let effectiveLimit: number;
   if (isFree) {
     effectiveLimit = signalRunsLimit;
   } else {
-    // For paid tiers, check for a custom signal_runs limit
-    const customLimits = await db
-      .select({ limitValue: workspaceUsageLimits.limitValue })
-      .from(workspaceUsageLimits)
-      .where(and(eq(workspaceUsageLimits.workspaceId, workspaceId), eq(workspaceUsageLimits.limitType, "signal_runs")))
-      .limit(1);
-
-    if (customLimits.length === 0) {
+    // For paid tiers, use the custom signal_runs limit if set
+    if (customSignalRunsLimit == null) {
       return; // No custom limit for paid tier, no enforcement
     }
-    effectiveLimit = Number(customLimits[0].limitValue);
+    effectiveLimit = customSignalRunsLimit;
   }
 
   // For free tier, signalRunsLimit=0 means "no limit configured on this tier"
