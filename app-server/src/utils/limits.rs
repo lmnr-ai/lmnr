@@ -25,7 +25,9 @@ use crate::{
 const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 
 /// TTL for the idempotency key preventing duplicate soft-limit notifications.
-const USAGE_WARNING_IDEMPOTENCY_TTL_SECONDS: u64 = 60 * 60; // 1 hour
+/// Must be >= WORKSPACE_USAGE_TTL_SECONDS so that cache repopulation doesn't
+/// re-trigger notifications for thresholds already exceeded.
+const USAGE_WARNING_IDEMPOTENCY_TTL_SECONDS: u64 = 60 * 60 * 25; // 25 hours
 
 /// TTL for cached usage warnings per workspace. Keeps them fresh while
 /// avoiding a DB query on every ingestion batch.
