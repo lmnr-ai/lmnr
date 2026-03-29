@@ -11,7 +11,7 @@ const TargetSchema = z.object({
   integrationId: z.uuid().optional(),
   channelId: z.string().optional(),
   channelName: z.string().optional(),
-  email: z.string().optional(),
+  email: z.email().optional(),
 });
 
 const CreateAlertSchema = z.object({

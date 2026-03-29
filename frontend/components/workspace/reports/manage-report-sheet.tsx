@@ -81,6 +81,7 @@ export default function ManageReportSheet({
     if (!report) return;
     setIsSaving(true);
 
+    let anyChangeCommitted = false;
     try {
       const emailChanged = emailEnabled !== currentEmailSubscribed;
       const slackChanged = channelId !== (currentSlackTarget?.channelId ?? "");
@@ -97,6 +98,7 @@ export default function ManageReportSheet({
           };
           throw new Error(error?.error ?? "Failed to update email subscription");
         }
+        anyChangeCommitted = true;
       }
 
       if (slackChanged && hasSlackIntegration) {
@@ -130,6 +132,7 @@ export default function ManageReportSheet({
             throw new Error(error?.error ?? "Failed to remove Slack channel");
           }
         }
+        anyChangeCommitted = true;
       }
 
       toast({
@@ -139,6 +142,9 @@ export default function ManageReportSheet({
       onSaved();
       onOpenChange(false);
     } catch (e) {
+      // Refresh cache if any change was committed before the failure,
+      // so the UI reflects the actual state in the database.
+      if (anyChangeCommitted) onSaved();
       toast({
         variant: "destructive",
         title: "Error",

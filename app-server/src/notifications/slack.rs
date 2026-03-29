@@ -147,6 +147,7 @@ fn format_event_identification_blocks(
     };
 
     if !info_entries.is_empty() {
+        const MAX_SECTION_TEXT_LEN: usize = 3000;
         let mut blocks = vec![json!({
             "type": "section",
             "text": {
@@ -155,13 +156,15 @@ fn format_event_identification_blocks(
             }
         })];
         for entry in &info_entries {
-            blocks.push(json!({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": entry
-                }
-            }));
+            for chunk in split_mrkdwn_chunks(entry, MAX_SECTION_TEXT_LEN) {
+                blocks.push(json!({
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": chunk
+                    }
+                }));
+            }
         }
         blocks.push(json!({
             "type": "actions",
