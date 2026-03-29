@@ -21,6 +21,25 @@ use crate::{
 // so that it resets in the next billing period (+/- 1 day).
 const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 
+/// Returns the effective bytes hard limit for a workspace, or None if no limit should be enforced.
+///
+/// - For free tier: always uses the tier limit (custom limits are not allowed).
+/// - For paid tiers: uses custom limit when set, else no limit is enforced.
+fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
+    if project_info.tier_name.trim().to_lowercase() == "free" {
+        return Some(project_info.bytes_limit);
+    }
+    project_info.custom_bytes_limit
+}
+
+/// Returns the effective signal runs hard limit for a workspace, or None if no limit should be enforced.
+fn get_effective_signal_runs_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
+    if project_info.tier_name.trim().to_lowercase() == "free" {
+        return Some(project_info.signal_runs_limit);
+    }
+    project_info.custom_signal_runs_limit
+}
+
 pub async fn get_workspace_bytes_limit_exceeded(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
@@ -29,10 +48,12 @@ pub async fn get_workspace_bytes_limit_exceeded(
 ) -> Result<bool> {
     let project_info =
         get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await?;
-    if project_info.tier_name.trim().to_lowercase() != "free" {
-        // Short-circuit for non-free tiers, as they are not subject to limits
-        return Ok(false);
-    }
+
+    let effective_limit = match get_effective_bytes_limit(&project_info) {
+        Some(limit) => limit,
+        None => return Ok(false),
+    };
+
     let workspace_id = project_info.workspace_id;
     let cache_key = format!("{WORKSPACE_BYTES_USAGE_CACHE_KEY}:{workspace_id}");
 
@@ -71,7 +92,7 @@ pub async fn get_workspace_bytes_limit_exceeded(
         }
     };
 
-    Ok(bytes_ingested >= project_info.bytes_limit)
+    Ok(bytes_ingested >= effective_limit)
 }
 
 pub async fn get_workspace_signal_runs_limit_exceeded(
@@ -82,10 +103,12 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
 ) -> Result<bool> {
     let project_info =
         get_workspace_info_for_project_id(db.clone(), cache.clone(), project_id).await?;
-    if project_info.tier_name.trim().to_lowercase() != "free" {
-        // Short-circuit for non-free tiers, as they are not subject to limits
-        return Ok(false);
-    }
+
+    let effective_limit = match get_effective_signal_runs_limit(&project_info) {
+        Some(limit) => limit,
+        None => return Ok(false),
+    };
+
     let workspace_id = project_info.workspace_id;
     let cache_key = format!("{WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:{workspace_id}");
 
@@ -126,10 +149,10 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     log::debug!(
         "Workspace signal runs check: {}/{}",
         signal_runs,
-        project_info.signal_runs_limit
+        effective_limit
     );
 
-    Ok(signal_runs >= project_info.signal_runs_limit)
+    Ok(signal_runs >= effective_limit)
 }
 
 #[instrument(skip(db, clickhouse, cache, project_id, bytes))]
@@ -156,8 +179,8 @@ pub async fn update_workspace_bytes_ingested(
                 ));
             }
         };
-    if project_info.tier_name.trim().to_lowercase() != "free" {
-        // We don't need to update the workspace usage cache for non-free tiers
+    if get_effective_bytes_limit(&project_info).is_none() {
+        // No limit to enforce, no need to track usage in cache
         return Ok(());
     }
     let workspace_id = project_info.workspace_id;
@@ -226,8 +249,8 @@ pub async fn update_workspace_signal_runs_used(
                 ));
             }
         };
-    if project_info.tier_name.trim().to_lowercase() != "free" {
-        // We don't need to update the workspace usage cache for non-free tiers
+    if get_effective_signal_runs_limit(&project_info).is_none() {
+        // No limit to enforce, no need to track usage in cache
         return Ok(());
     }
     let workspace_id = project_info.workspace_id;

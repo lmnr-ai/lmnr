@@ -56,7 +56,7 @@ export default function WorkspaceComponent({
             currentUserRole={currentUserRole}
           />
         )}
-        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} />}
+        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} workspace={workspace} />}
         {featureFlags[Feature.SUBSCRIPTION] && menu === "billing" && (
           <WorkspaceBilling
             workspace={workspace}
