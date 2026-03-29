@@ -242,8 +242,18 @@ pub async fn update_workspace_bytes_ingested(
             cache
                 .insert_with_ttl::<i64>(&cache_key, bytes_ingested, WORKSPACE_USAGE_TTL_SECONDS)
                 .await?;
-            // On cache miss we can't reliably detect boundary crossing,
-            // so we don't fire soft-limit notifications here.
+            // On cache miss we can't detect boundary crossing atomically,
+            // but we still check if usage already exceeds any warning thresholds.
+            // The idempotency key in send_soft_limit_notification prevents duplicates.
+            check_exceeded_soft_limits(
+                db.clone(),
+                cache.clone(),
+                queue.clone(),
+                workspace_id,
+                "bytes",
+                bytes_ingested,
+            )
+            .await;
             None
         }
     };
@@ -337,6 +347,15 @@ pub async fn update_workspace_signal_runs_used(
             cache
                 .insert_with_ttl::<i64>(&cache_key, signal_runs, WORKSPACE_USAGE_TTL_SECONDS)
                 .await?;
+            check_exceeded_soft_limits(
+                db.clone(),
+                cache.clone(),
+                queue.clone(),
+                workspace_id,
+                "signal_runs",
+                signal_runs,
+            )
+            .await;
             None
         }
     };
@@ -394,6 +413,45 @@ async fn check_soft_limits(
                 warning.id,
                 usage_item,
                 limit,
+            )
+            .await;
+        }
+    }
+}
+
+/// On cache repopulation, check if usage already exceeds any warning thresholds.
+/// This catches the case where a threshold was crossed while the cache was expired.
+/// Relies on the idempotency key in send_soft_limit_notification to prevent duplicates.
+async fn check_exceeded_soft_limits(
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
+    workspace_id: Uuid,
+    usage_item: &str,
+    current_value: i64,
+) {
+    let warnings = match get_cached_usage_warnings(db.clone(), cache.clone(), workspace_id).await {
+        Ok(w) => w,
+        Err(e) => {
+            log::warn!(
+                "Failed to fetch usage warnings for workspace [{}]: {:?}",
+                workspace_id,
+                e
+            );
+            return;
+        }
+    };
+
+    for warning in warnings.iter().filter(|w| w.usage_item == usage_item) {
+        if current_value >= warning.limit_value {
+            send_soft_limit_notification(
+                db.clone(),
+                cache.clone(),
+                queue.clone(),
+                workspace_id,
+                warning.id,
+                usage_item,
+                warning.limit_value,
             )
             .await;
         }
