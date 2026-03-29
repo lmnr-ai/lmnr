@@ -429,10 +429,12 @@ fn build_report_slack(report_data: &ReportData) -> serde_json::Value {
             }
         }
 
-        result.insert(
-            project.project_name.clone(),
-            serde_json::Value::String(text),
-        );
+        let mut key = project.project_name.clone();
+        if result.contains_key(&key) {
+            // If the project name is already in the map, add the project ID to the key
+            key = format!("{} ({})", key, &project.project_id.to_string()[..8]);
+        }
+        result.insert(key, serde_json::Value::String(text));
     }
 
     serde_json::Value::Object(result)
