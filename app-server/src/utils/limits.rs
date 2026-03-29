@@ -9,7 +9,7 @@ use crate::{
         Cache, CacheTrait,
         keys::{
             PROJECT_CACHE_KEY, USAGE_WARNING_SENT_CACHE_KEY, WORKSPACE_BYTES_USAGE_CACHE_KEY,
-            WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY,
+            WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY, WORKSPACE_USAGE_WARNINGS_CACHE_KEY,
         },
     },
     ch::limits::{
@@ -26,6 +26,10 @@ const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 
 /// TTL for the idempotency key preventing duplicate soft-limit notifications.
 const USAGE_WARNING_IDEMPOTENCY_TTL_SECONDS: u64 = 60 * 60; // 1 hour
+
+/// TTL for cached usage warnings per workspace. Keeps them fresh while
+/// avoiding a DB query on every ingestion batch.
+const USAGE_WARNINGS_CACHE_TTL_SECONDS: u64 = 5 * 60; // 5 minutes
 
 const USAGE_WARNING_FROM_EMAIL: &str = "Laminar <usage@mail.lmnr.ai>";
 
@@ -365,9 +369,7 @@ async fn check_soft_limits(
     new_value: i64,
     previous_value: i64,
 ) {
-    let warnings = match usage_warnings::get_usage_warnings_for_workspace(&db.pool, workspace_id)
-        .await
-    {
+    let warnings = match get_cached_usage_warnings(db.clone(), cache.clone(), workspace_id).await {
         Ok(w) => w,
         Err(e) => {
             log::warn!(
@@ -640,6 +642,39 @@ fn render_usage_warning_email(
         formatted_limit = html_escape(formatted_limit),
         meter_description = meter_description,
     )
+}
+
+/// Fetch usage warnings for a workspace, using a short-lived cache to avoid
+/// hitting the database on every ingestion batch.
+async fn get_cached_usage_warnings(
+    db: Arc<DB>,
+    cache: Arc<Cache>,
+    workspace_id: Uuid,
+) -> Result<Vec<usage_warnings::UsageWarning>> {
+    let cache_key = format!("{WORKSPACE_USAGE_WARNINGS_CACHE_KEY}:{workspace_id}");
+
+    if let Ok(Some(cached)) = cache
+        .get::<Vec<usage_warnings::UsageWarning>>(&cache_key)
+        .await
+    {
+        return Ok(cached);
+    }
+
+    let warnings =
+        usage_warnings::get_usage_warnings_for_workspace(&db.pool, workspace_id).await?;
+
+    if let Err(e) = cache
+        .insert_with_ttl(&cache_key, warnings.clone(), USAGE_WARNINGS_CACHE_TTL_SECONDS)
+        .await
+    {
+        log::warn!(
+            "Failed to cache usage warnings for workspace [{}]: {:?}",
+            workspace_id,
+            e
+        );
+    }
+
+    Ok(warnings)
 }
 
 async fn get_workspace_info_for_project_id(

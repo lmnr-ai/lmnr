@@ -20,3 +20,4 @@ pub const REPORT_SCHEDULER_LAST_CHECK_CACHE_KEY: &str = "report_scheduler_last_c
 pub const SIGNAL_BATCH_LOCK_CACHE_KEY: &str = "signal_batch_lock";
 pub const SIGNAL_BATCH_SUBMITTED_CACHE_KEY: &str = "signal_batch_submitted";
 pub const USAGE_WARNING_SENT_CACHE_KEY: &str = "usage_warning_sent";
+pub const WORKSPACE_USAGE_WARNINGS_CACHE_KEY: &str = "workspace_usage_warnings";

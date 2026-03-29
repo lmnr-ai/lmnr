@@ -2,9 +2,8 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
-import { cache, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
-import { projects, subscriptionTiers, workspaces, workspaceUsageWarnings } from "@/lib/db/migrations/schema";
+import { subscriptionTiers, workspaces, workspaceUsageWarnings } from "@/lib/db/migrations/schema";
 
 export const USAGE_WARNING_ITEMS = ["bytes", "signal_runs"] as const;
 export type UsageWarningItem = (typeof USAGE_WARNING_ITEMS)[number];
@@ -85,9 +84,6 @@ export async function addUsageWarning(input: z.infer<typeof AddUsageWarningSchem
       limitValue: workspaceUsageWarnings.limitValue,
     });
 
-  // Invalidate project cache so backend picks up new warnings
-  await invalidateProjectCacheForWorkspace(workspaceId);
-
   return result as WorkspaceUsageWarning;
 }
 
@@ -99,19 +95,4 @@ export async function removeUsageWarning(input: z.infer<typeof RemoveUsageWarnin
   await db
     .delete(workspaceUsageWarnings)
     .where(and(eq(workspaceUsageWarnings.workspaceId, workspaceId), eq(workspaceUsageWarnings.id, id)));
-
-  await invalidateProjectCacheForWorkspace(workspaceId);
-}
-
-async function invalidateProjectCacheForWorkspace(workspaceId: string): Promise<void> {
-  try {
-    const workspaceProjects = await db.query.projects.findMany({
-      where: eq(projects.workspaceId, workspaceId),
-      columns: { id: true },
-    });
-
-    await Promise.all(workspaceProjects.map((project) => cache.remove(`${PROJECT_CACHE_KEY}:${project.id}`)));
-  } catch (e) {
-    console.error("Error clearing project cache after usage warning change", e);
-  }
 }

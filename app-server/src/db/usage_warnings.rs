@@ -1,8 +1,9 @@
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-#[derive(FromRow, Debug, Clone)]
+#[derive(FromRow, Debug, Clone, Serialize, Deserialize)]
 pub struct UsageWarning {
     pub id: Uuid,
     pub workspace_id: Uuid,
