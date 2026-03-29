@@ -1,6 +1,6 @@
 {
-  "id": "dc57f4fa-2062-4663-8fad-0fc6aa29b220",
-  "prevId": "e0300c10-68d9-41a5-8f5d-3ce17a1a83db",
+  "id": "a83f9636-7fc6-461f-a4e6-0fb254c2a00f",
+  "prevId": "dc57f4fa-2062-4663-8fad-0fc6aa29b220",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3107,12 +3107,6 @@
           "notNull": true,
           "default": "now()"
         },
-        "clustering_key": {
-          "name": "clustering_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "mode": {
           "name": "mode",
           "type": "smallint",
@@ -3255,6 +3249,59 @@
           "columns": ["workspace_id"]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.span_rendering_keys": {
+      "name": "span_rendering_keys",
+      "schema": "",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schema_fingerprint": {
+          "name": "schema_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mustache_key": {
+          "name": "mustache_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "span_rendering_keys_project_id_fkey": {
+          "name": "span_rendering_keys_project_id_fkey",
+          "tableFrom": "span_rendering_keys",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "span_rendering_keys_pkey": {
+          "name": "span_rendering_keys_pkey",
+          "columns": ["project_id", "schema_fingerprint"]
+        }
+      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -3649,13 +3696,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "trace_tags": {
-          "name": "trace_tags",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'{}'::text[]"
         }
       },
       "indexes": {

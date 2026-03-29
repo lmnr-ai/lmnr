@@ -222,7 +222,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       <TagsContextProvider mode={{ type: "trace", traceId }}>
         <div className="flex flex-wrap gap-1 items-center">
           <TagsList />
-          <TagsTrigger />
+          <TagsTrigger isMinimal />
         </div>
       </TagsContextProvider>
       <div className="flex items-center gap-2">

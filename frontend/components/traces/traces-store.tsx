@@ -1,8 +1,9 @@
 import { parseISO } from "date-fns";
-import { createContext, type PropsWithChildren, useContext, useState } from "react";
+import { createContext, type PropsWithChildren, useContext, useEffect, useState } from "react";
 import { createStore, useStore } from "zustand";
 
 import { type TracesStatsDataPoint } from "@/lib/actions/traces/stats";
+import { type TagClass } from "@/lib/traces/types";
 
 export type TracesState = {
   traceId: string | null;
@@ -11,6 +12,7 @@ export type TracesState = {
   stats?: TracesStatsDataPoint[];
   isLoadingStats: boolean;
   chartContainerWidth: number | null;
+  tagClasses: TagClass[];
 };
 
 export type TracesActions = {
@@ -21,11 +23,13 @@ export type TracesActions = {
   incrementStat: (timestamp: string, isError: boolean) => void;
   setChartContainerWidth: (width: number) => void;
   isTraceInTimeRange: (timestamp: string) => boolean;
+  fetchTagClasses: (projectId: string) => Promise<void>;
 };
 
 export interface TracesProps {
   traceId: string | null;
   spanId: string | null;
+  projectId: string;
 }
 
 export type TracesStore = TracesState & TracesActions;
@@ -40,6 +44,7 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
     stats: undefined,
     isLoadingStats: false,
     chartContainerWidth: null,
+    tagClasses: [],
   };
 
   return createStore<TracesStore>()((set, get) => ({
@@ -86,6 +91,17 @@ export const createTracesStore = (initProps?: Partial<TracesProps>) => {
       return bucketIndex !== -1;
     },
 
+    fetchTagClasses: async (projectId: string) => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/tag-classes`);
+        if (!response.ok) return;
+        const data = (await response.json()) as TagClass[];
+        set({ tagClasses: data });
+      } catch {
+        // ignore - tag colors will fall back to default
+      }
+    },
+
     incrementStat: (timestamp: string, isError: boolean) => {
       const { stats } = get();
       if (!stats || stats?.length === 0) return;
@@ -126,6 +142,10 @@ export const useTracesStoreContext = <T,>(selector: (state: TracesStore) => T): 
 
 export const TracesStoreProvider = ({ children, ...props }: PropsWithChildren<TracesProps>) => {
   const [storeState] = useState(() => createTracesStore(props));
+
+  useEffect(() => {
+    storeState.getState().fetchTagClasses(props.projectId);
+  }, [storeState, props.projectId]);
 
   return <TracesContext.Provider value={storeState}>{children}</TracesContext.Provider>;
 };

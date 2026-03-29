@@ -40,8 +40,8 @@ SELECT
       WHEN trace_type = 0 THEN 'DEFAULT'
       ELSE 'DEFAULT'
     END AS trace_type,
-    arrayDistinct(tags) AS span_tags,
-    arrayDistinct(trace_tags) AS tags,
+    arrayDistinct(traces_replacing.tags) AS span_tags,
+    arrayDistinct(traces_replacing.trace_tags) AS tags,
     has_browser_session,
     arrayDistinct(span_names) span_names,
     root_span_input,

@@ -3,9 +3,9 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import TagsCell from "@/components/tags/tags-cell";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
-import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import JsonTooltip from "@/components/ui/json-tooltip";
 import Mono from "@/components/ui/mono";
@@ -209,35 +209,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorFn: (row) => row.spanTags,
     cell: (row) => {
       const tags = row.getValue() as string[];
-
-      if (tags?.length > 0) {
-        return (
-          <TooltipProvider delayDuration={100}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="truncate">
-                  {tags.map((tag) => (
-                    <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
-                      <span>{tag}</span>
-                    </Badge>
-                  ))}
-                </div>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent side="bottom" className="p-2 border max-w-sm">
-                  <div className="flex flex-wrap gap-1">
-                    {tags.map((tag) => (
-                      <Badge key={tag} className="rounded-3xl" variant="outline">
-                        <span>{tag}</span>
-                      </Badge>
-                    ))}
-                  </div>
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
+      if (tags?.length > 0) return <TagsCell tags={tags} />;
       return "-";
     },
     header: "Span tags",
@@ -250,35 +222,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorFn: (row) => row.tags,
     cell: (row) => {
       const tags = row.getValue() as string[];
-
-      if (tags?.length > 0) {
-        return (
-          <TooltipProvider delayDuration={100}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="truncate">
-                  {tags.map((tag) => (
-                    <Badge key={tag} className="rounded-3xl mr-1" variant="outline">
-                      <span>{tag}</span>
-                    </Badge>
-                  ))}
-                </div>
-              </TooltipTrigger>
-              <TooltipPortal>
-                <TooltipContent side="bottom" className="p-2 border max-w-sm">
-                  <div className="flex flex-wrap gap-1">
-                    {tags.map((tag) => (
-                      <Badge key={tag} className="rounded-3xl" variant="outline">
-                        <span>{tag}</span>
-                      </Badge>
-                    ))}
-                  </div>
-                </TooltipContent>
-              </TooltipPortal>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
+      if (tags?.length > 0) return <TagsCell tags={tags} />;
       return "-";
     },
     header: "Tags",
