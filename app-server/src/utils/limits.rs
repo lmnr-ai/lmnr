@@ -459,28 +459,34 @@ async fn send_soft_limit_notification(
         }
     }
 
-    // Build and send the notification. If any step fails, roll back last_notified_at
-    // so a future boundary crossing can retry delivery.
+    // Build and send the notification. If any step below fails, we intentionally
+    // do NOT roll back last_notified_at — clearing it would reopen the dedup window
+    // and allow duplicate notifications when the usage cache is rebuilt from
+    // eventually-consistent ClickHouse data. A missed notification from a transient
+    // failure is preferable to duplicate emails.
     let owner_emails =
         match usage_warnings::get_workspace_owner_emails(&db.pool, workspace_id).await {
             Ok(emails) => emails,
             Err(e) => {
                 log::error!(
-                    "Failed to get owner emails for workspace [{}]: {:?}",
+                    "CRITICAL: Failed to get owner emails for workspace [{}] after claiming \
+                     notification slot for warning [{}]. Notification will not be sent this \
+                     billing cycle: {:?}",
                     workspace_id,
+                    warning_id,
                     e
                 );
-                rollback_notification(&db, warning_id).await;
                 return;
             }
         };
 
     if owner_emails.is_empty() {
         log::warn!(
-            "No owner emails found for workspace [{}], skipping soft limit notification",
-            workspace_id
+            "No owner emails found for workspace [{}], skipping soft limit notification \
+             for warning [{}]. Notification slot consumed for this billing cycle.",
+            workspace_id,
+            warning_id
         );
-        rollback_notification(&db, warning_id).await;
         return;
     }
 
@@ -525,8 +531,12 @@ async fn send_soft_limit_notification(
         payload: match serde_json::to_value(&email_payload) {
             Ok(v) => v,
             Err(e) => {
-                log::error!("Failed to serialize email payload: {:?}", e);
-                rollback_notification(&db, warning_id).await;
+                log::error!(
+                    "CRITICAL: Failed to serialize email payload for warning [{}]. \
+                     Notification will not be sent this billing cycle: {:?}",
+                    warning_id,
+                    e
+                );
                 return;
             }
         },
@@ -539,11 +549,12 @@ async fn send_soft_limit_notification(
 
     if let Err(e) = notifications::push_to_notification_queue(notification_message, queue).await {
         log::error!(
-            "Failed to push soft limit notification for workspace [{}]: {:?}",
+            "CRITICAL: Failed to push soft limit notification for workspace [{}] warning [{}]. \
+             Notification will not be sent this billing cycle: {:?}",
             workspace_id,
+            warning_id,
             e
         );
-        rollback_notification(&db, warning_id).await;
     } else {
         log::info!(
             "Pushed soft limit notification for workspace [{}], item={}, limit={}",
@@ -554,16 +565,6 @@ async fn send_soft_limit_notification(
     }
 }
 
-/// Roll back last_notified_at when notification delivery fails.
-async fn rollback_notification(db: &Arc<DB>, warning_id: Uuid) {
-    if let Err(e) = usage_warnings::clear_warning_notification(&db.pool, warning_id).await {
-        log::error!(
-            "Failed to roll back last_notified_at for warning [{}]: {:?}",
-            warning_id,
-            e
-        );
-    }
-}
 
 fn format_usage_item(usage_item: &str, limit_value: i64) -> (String, String) {
     match usage_item {
