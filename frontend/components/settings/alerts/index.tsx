@@ -11,6 +11,7 @@ import SlackConnectionCard, { useSlackIntegration } from "@/components/slack/sla
 import { Button } from "@/components/ui/button";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useProjectContext } from "@/contexts/project-context";
+import { useUserContext } from "@/contexts/user-context";
 import { type AlertWithDetails } from "@/lib/actions/alerts/types";
 import { Feature } from "@/lib/features/features";
 import { swrFetcher } from "@/lib/utils";
@@ -34,6 +35,7 @@ export default function AlertsSettings({
   slackRedirectUri,
 }: AlertsSettingsProps) {
   const { workspace } = useProjectContext();
+  const { email: userEmail } = useUserContext();
   const featureFlags = useFeatureFlags();
 
   const isFreeTier = featureFlags[Feature.SUBSCRIPTION] && workspace?.tierName?.toLowerCase() === "free";
@@ -53,16 +55,16 @@ export default function AlertsSettings({
   if (isFreeTier) {
     return (
       <SettingsSection>
-        <SettingsSectionHeader title="Alerts" description="Configure Slack alerts for signal events." />
+        <SettingsSectionHeader title="Alerts" description="Configure alerts for signal events." />
         <div className="rounded-lg border border-border bg-muted/30 p-5 flex items-start gap-4">
           <div className="flex items-center justify-center h-9 w-9 rounded-md bg-muted text-muted-foreground shrink-0">
             <Lock className="h-5 w-5" />
           </div>
           <div className="space-y-3 flex-1">
             <div className="space-y-1.5">
-              <p className="text-sm font-medium">Upgrade to configure Slack alerts</p>
+              <p className="text-sm font-medium">Upgrade to configure alerts</p>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Slack notifications are available on paid plans. Upgrade your workspace to start receiving alerts.
+                Alerts are available on paid plans. Upgrade your workspace to start receiving notifications.
               </p>
             </div>
             <Link href={`/workspace/${workspaceId}?tab=billing`}>
@@ -76,23 +78,19 @@ export default function AlertsSettings({
     );
   }
 
-  if (!slackIntegration) {
-    return (
-      <SettingsSection>
-        <SettingsSectionHeader title="Alerts" description="Configure Slack alerts for signal events." />
-        <SlackConnectionCard
-          workspaceId={workspaceId}
-          slackClientId={slackClientId}
-          slackRedirectUri={slackRedirectUri}
-          returnPath={`/project/${projectId}/settings?tab=alerts`}
-        />
-      </SettingsSection>
-    );
-  }
-
   return (
     <SettingsSection>
-      <SettingsSectionHeader title="Alerts" description="Configure Slack alerts for signal events." />
+      <SettingsSectionHeader
+        title="Alerts"
+        description="Configure alerts for signal events. Notifications can be sent to Slack and email."
+      />
+
+      <SlackConnectionCard
+        workspaceId={workspaceId}
+        slackClientId={slackClientId}
+        slackRedirectUri={slackRedirectUri}
+        returnPath={`/project/${projectId}/settings?tab=alerts`}
+      />
 
       <div className="flex items-center justify-between">
         <Button
@@ -111,48 +109,52 @@ export default function AlertsSettings({
       <SettingsTable
         isLoading={isLoadingAlerts}
         isEmpty={isNil(alertsList) || isEmpty(alertsList)}
-        emptyMessage="No alerts configured. Create one to start receiving Slack notifications."
+        emptyMessage="No alerts configured. Create one to start receiving notifications."
         headers={["Name", "Send to", "Created", ""]}
         colSpan={4}
       >
-        {alertsList?.map((alert) => (
-          <SettingsTableRow key={alert.id}>
-            <td className="px-4 text-sm font-medium max-w-0">
-              <span title={alert.name} className="block truncate">
-                {alert.name}
-              </span>
-            </td>
-            <td className="px-4">
-              <TargetChips targets={alert.targets} />
-            </td>
-            <td className="px-4 text-xs text-muted-foreground">
-              <ClientTimestampFormatter timestamp={alert.createdAt} absolute />
-            </td>
-            <td className="px-4 w-1/10">
-              <div className="flex justify-end gap-4">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setEditTarget(alert);
-                    setSheetOpen(true);
-                  }}
-                >
-                  <Pen size={14} className="text-muted-foreground" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(alert)}>
-                  <Trash2 size={14} className="text-destructive" />
-                </Button>
-              </div>
-            </td>
-          </SettingsTableRow>
-        ))}
+        {alertsList?.map((alert) => {
+          // Only show the current user's own email target + all non-email targets
+          const visibleTargets = alert.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
+          return (
+            <SettingsTableRow key={alert.id}>
+              <td className="px-4 text-sm font-medium max-w-0">
+                <span title={alert.name} className="block truncate">
+                  {alert.name}
+                </span>
+              </td>
+              <td className="px-4">
+                <TargetChips targets={visibleTargets} />
+              </td>
+              <td className="px-4 text-xs text-muted-foreground">
+                <ClientTimestampFormatter timestamp={alert.createdAt} absolute />
+              </td>
+              <td className="px-4 w-1/10">
+                <div className="flex justify-end gap-4">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setEditTarget(alert);
+                      setSheetOpen(true);
+                    }}
+                  >
+                    <Pen size={14} className="text-muted-foreground" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(alert)}>
+                    <Trash2 size={14} className="text-destructive" />
+                  </Button>
+                </div>
+              </td>
+            </SettingsTableRow>
+          );
+        })}
       </SettingsTable>
 
       <ManageAlertSheet
         projectId={projectId}
         workspaceId={workspaceId}
-        integrationId={slackIntegration.id}
+        integrationId={slackIntegration?.id}
         alert={editTarget}
         open={sheetOpen}
         onOpenChange={(open) => {
@@ -164,6 +166,7 @@ export default function AlertsSettings({
           setSheetOpen(false);
           setEditTarget(null);
         }}
+        userEmail={userEmail}
       />
 
       <DeleteAlertDialog

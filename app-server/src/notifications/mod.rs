@@ -15,7 +15,7 @@ use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::worker::{HandlerError, MessageHandler};
 
 mod slack;
-pub use slack::{EventIdentificationPayload, SlackMessagePayload};
+pub use slack::{EventIdentificationPayload, ReportPayload, SlackMessagePayload};
 
 pub const NOTIFICATIONS_EXCHANGE: &str = "notifications";
 pub const NOTIFICATIONS_QUEUE: &str = "notifications";
@@ -25,6 +25,43 @@ pub const NOTIFICATIONS_ROUTING_KEY: &str = "notifications";
 pub enum NotificationType {
     Slack,
     Email,
+}
+
+/// The delivery channel for a notification target, as stored in the database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetType {
+    Email,
+    Slack,
+}
+
+impl std::str::FromStr for TargetType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "EMAIL" => Ok(Self::Email),
+            "SLACK" => Ok(Self::Slack),
+            other => Err(format!("unknown target type: {other}")),
+        }
+    }
+}
+
+impl std::fmt::Display for TargetType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Email => f.write_str("EMAIL"),
+            Self::Slack => f.write_str("SLACK"),
+        }
+    }
+}
+
+impl From<TargetType> for NotificationType {
+    fn from(t: TargetType) -> Self {
+        match t {
+            TargetType::Email => Self::Email,
+            TargetType::Slack => Self::Slack,
+        }
+    }
 }
 
 const LAMINAR_LOGO_PNG: &[u8] = include_bytes!("../../data/logo.png");
@@ -162,34 +199,30 @@ impl NotificationHandler {
     /// Returns `Ok(true)` if the Slack message was actually sent,
     /// `Ok(false)` if delivery was skipped (e.g. integration not found).
     async fn handle_slack(&self, message: &NotificationMessage) -> Result<bool, HandlerError> {
-        // Try new format (EventIdentificationPayload directly) first,
-        // then fall back to old format (SlackMessagePayload enum wrapper)
-        // for backward compatibility with in-flight messages.
-        let event_payload: EventIdentificationPayload =
-            serde_json::from_value::<EventIdentificationPayload>(message.payload.clone())
-                .or_else(|_| {
-                    let wrapped: SlackMessagePayload =
-                        serde_json::from_value(message.payload.clone())?;
-                    match wrapped {
-                        SlackMessagePayload::EventIdentification(inner) => Ok(inner),
-                    }
-                })
-                .map_err(|e: serde_json::Error| {
-                    anyhow::anyhow!("Failed to parse Slack payload: {}", e)
-                })?;
+        let slack_payload = serde_json::from_value::<EventIdentificationPayload>(
+            message.payload.clone(),
+        )
+        .map(SlackMessagePayload::EventIdentification)
+        .or_else(|_| {
+            serde_json::from_value::<slack::ReportPayload>(message.payload.clone())
+                .map(SlackMessagePayload::Report)
+        })
+        .or_else(|_| {
+            serde_json::from_value::<SlackMessagePayload>(message.payload.clone())
+        })
+        .map_err(|e| anyhow::anyhow!("Failed to parse Slack payload: {}", e))?;
 
-        let integration =
-            crate::db::slack_integrations::get_integration_by_id(
-                &self.db.pool,
-                &event_payload.integration_id,
-            )
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
+        let integration = crate::db::slack_integrations::get_integration_by_id(
+            &self.db.pool,
+            slack_payload.integration_id(),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
 
         let Some(integration) = integration else {
             log::warn!(
                 "Slack integration not found for integration_id: {}",
-                event_payload.integration_id
+                slack_payload.integration_id()
             );
             return Ok(false);
         };
@@ -200,9 +233,6 @@ impl NotificationHandler {
             &integration.token,
         )
         .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
-
-        // Wrap into SlackMessagePayload for message formatting
-        let slack_payload = SlackMessagePayload::EventIdentification(event_payload);
 
         let blocks = slack::format_message_blocks(
             &slack_payload,

@@ -18,9 +18,33 @@ pub struct EventIdentificationPayload {
     pub integration_id: Uuid,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ReportPayload {
+    pub report: serde_json::Value,
+    pub channel_id: String,
+    pub integration_id: Uuid,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub enum SlackMessagePayload {
     EventIdentification(EventIdentificationPayload),
+    Report(ReportPayload),
+}
+
+impl SlackMessagePayload {
+    pub fn channel_id(&self) -> &str {
+        match self {
+            Self::EventIdentification(p) => &p.channel_id,
+            Self::Report(p) => &p.channel_id,
+        }
+    }
+
+    pub fn integration_id(&self) -> &Uuid {
+        match self {
+            Self::EventIdentification(p) => &p.integration_id,
+            Self::Report(p) => &p.integration_id,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -59,6 +83,37 @@ pub fn decode_slack_token(
         .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
 }
 
+/// Split a mrkdwn string into chunks that each fit within `max_len` bytes.
+/// Splits on newline boundaries to avoid breaking formatting mid-line.
+/// Uses `floor_char_boundary` to avoid panicking on multi-byte UTF-8 characters.
+fn split_mrkdwn_chunks(text: &str, max_len: usize) -> Vec<&str> {
+    if text.len() <= max_len {
+        return vec![text];
+    }
+
+    let mut chunks = Vec::new();
+    let mut start = 0;
+
+    while start < text.len() {
+        if start + max_len >= text.len() {
+            chunks.push(&text[start..]);
+            break;
+        }
+
+        // Snap to a valid UTF-8 char boundary so slicing never panics
+        let end = text.floor_char_boundary(start + max_len);
+        let split_at = text[start..end]
+            .rfind('\n')
+            .map(|pos| start + pos + 1)
+            .unwrap_or(end);
+
+        chunks.push(&text[start..split_at]);
+        start = split_at;
+    }
+
+    chunks
+}
+
 fn format_event_identification_blocks(
     project_id: &str,
     trace_id: &str,
@@ -70,7 +125,7 @@ fn format_event_identification_blocks(
         project_id, trace_id
     );
 
-    let extracted_information_text = if let Some(info) = extracted_information {
+    let info_entries: Vec<String> = if let Some(info) = extracted_information {
         if let Some(obj) = info.as_object() {
             obj.iter()
                 .map(|(key, value)| {
@@ -78,49 +133,55 @@ fn format_event_identification_blocks(
                         serde_json::Value::String(s) => s.clone(),
                         serde_json::Value::Number(n) => n.to_string(),
                         serde_json::Value::Bool(b) => b.to_string(),
-                        serde_json::Value::Null => "".to_string(),
+                        serde_json::Value::Null => String::new(),
                         _ => serde_json::to_string_pretty(value).unwrap_or_default(),
                     };
-                    format!("*{}*:\n{}", key, formatted_value)
+                    format!("_{}_:\n{}", key, formatted_value)
                 })
-                .collect::<Vec<_>>()
-                .join("\n\n")
+                .collect()
         } else {
-            serde_json::to_string_pretty(&info).unwrap_or_default()
+            vec![serde_json::to_string_pretty(&info).unwrap_or_default()]
         }
     } else {
-        String::new()
+        vec![]
     };
 
-    if !extracted_information_text.is_empty() {
-        return json!([
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": format!("*Event*: `{}`", event_name)
-                }
-            },
-            {
-                "type": "markdown",
-                "text": extracted_information_text
-            },
-            {
-                "type": "actions",
-                "elements": [
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "View Trace",
-                            "emoji": true
-                        },
-                        "url": trace_link,
-                        "action_id": "view_trace"
-                    }
-                ]
+    if !info_entries.is_empty() {
+        const MAX_SECTION_TEXT_LEN: usize = 3000;
+        let mut blocks = vec![json!({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!("*Event*: `{}`", event_name)
             }
-        ]);
+        })];
+        for entry in &info_entries {
+            for chunk in split_mrkdwn_chunks(entry, MAX_SECTION_TEXT_LEN) {
+                blocks.push(json!({
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": chunk
+                    }
+                }));
+            }
+        }
+        blocks.push(json!({
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "View Trace",
+                        "emoji": true
+                    },
+                    "url": trace_link,
+                    "action_id": "view_trace"
+                }
+            ]
+        }));
+        return json!(blocks);
     }
 
     json!([
@@ -149,6 +210,64 @@ fn format_event_identification_blocks(
     ])
 }
 
+fn format_report_blocks(event_name: &str, report: &serde_json::Value) -> serde_json::Value {
+    let info_blocks: Vec<String> = if let Some(obj) = report.as_object() {
+        obj.iter()
+            .map(|(key, value)| {
+                let formatted_value = match value {
+                    serde_json::Value::String(s) => s.clone(),
+                    serde_json::Value::Number(n) => n.to_string(),
+                    serde_json::Value::Bool(b) => b.to_string(),
+                    serde_json::Value::Null => String::new(),
+                    _ => serde_json::to_string_pretty(value).unwrap_or_default(),
+                };
+                if key.is_empty() {
+                    formatted_value
+                } else {
+                    format!(":small_orange_diamond: *{}*:\n{}", key, formatted_value)
+                }
+            })
+            .collect()
+    } else {
+        vec![serde_json::to_string_pretty(report).unwrap_or_default()]
+    };
+
+    let mut blocks = vec![json!({
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": format!(":bar_chart: *{}*", event_name)
+        }
+    })];
+
+    if info_blocks.is_empty() {
+        return json!(blocks);
+    }
+
+    const MAX_SECTION_TEXT_LEN: usize = 3000;
+    for entry in &info_blocks {
+        for chunk in split_mrkdwn_chunks(entry, MAX_SECTION_TEXT_LEN) {
+            blocks.push(json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": chunk
+                }
+            }));
+        }
+        blocks.push(json!({"type": "divider"}));
+    }
+    if blocks
+        .last()
+        .map(|b| b.get("type").and_then(|t| t.as_str()) == Some("divider"))
+        == Some(true)
+    {
+        blocks.pop();
+    }
+
+    json!(blocks)
+}
+
 pub fn format_message_blocks(
     payload: &SlackMessagePayload,
     project_id: &str,
@@ -164,13 +283,14 @@ pub fn format_message_blocks(
                 event_payload.extracted_information.clone(),
             )
         }
+        SlackMessagePayload::Report(report_payload) => {
+            format_report_blocks(event_name, &report_payload.report)
+        }
     }
 }
 
 pub fn get_channel_id(payload: &SlackMessagePayload) -> &str {
-    match payload {
-        SlackMessagePayload::EventIdentification(event_payload) => &event_payload.channel_id,
-    }
+    payload.channel_id()
 }
 
 pub async fn send_message(
