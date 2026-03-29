@@ -53,6 +53,16 @@ pub async fn try_mark_warning_as_notified(
     Ok(result.rows_affected() > 0)
 }
 
+/// Roll back last_notified_at when notification delivery fails,
+/// so a future boundary crossing can retry.
+pub async fn clear_warning_notification(pool: &PgPool, warning_id: Uuid) -> Result<()> {
+    sqlx::query("UPDATE workspace_usage_warnings SET last_notified_at = NULL WHERE id = $1")
+        .bind(warning_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 /// Get owner email(s) for a workspace.
 pub async fn get_workspace_owner_emails(pool: &PgPool, workspace_id: Uuid) -> Result<Vec<String>> {
     let rows = sqlx::query_scalar::<_, String>(
