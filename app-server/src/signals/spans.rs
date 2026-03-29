@@ -78,7 +78,7 @@ fn truncate_value(value: &Value) -> Value {
 
     let truncated: String = value_str.chars().take(TRUNCATE_THRESHOLD).collect();
     let omitted = char_count - TRUNCATE_THRESHOLD;
-    Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
+    Value::String(format!("{}<truncated {} more chars>", truncated, omitted))
 }
 
 /// Truncate LLM input messages. If the input is an array of messages, each message's
@@ -112,7 +112,7 @@ fn truncate_value_strings(value: &Value) -> Value {
         Value::String(s) if s.chars().count() > LLM_MESSAGE_MAX_CHARS => {
             let truncated: String = s.chars().take(LLM_MESSAGE_MAX_CHARS).collect();
             let omitted = s.chars().count() - LLM_MESSAGE_MAX_CHARS;
-            Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
+            Value::String(format!("{}<truncated {} more chars>", truncated, omitted))
         }
         Value::Array(arr) => Value::Array(arr.iter().map(truncate_value_strings).collect()),
         Value::Object(map) => Value::Object(

@@ -9,7 +9,13 @@ LLM input messages that are too long are truncated to 3000 characters.
 
 Tool spans input and output are truncated if they are longer than 1024 characters.
 
-If the information that you need to perform proper identification is truncated, prefer using `regex_in_spans` to search for specific patterns within span content — this is much cheaper and faster than fetching full spans. Only use `get_full_spans` as a last resort when regex search is not feasible (e.g. you need to understand the full structure of a span's content). If you already have enough information to perform proper identification, do not call either tool.
+<truncation_rules>
+Truncated data is ALWAYS marked with the tag `<truncated N more chars>` at the end of the value. If a span's input or output does NOT contain this tag, the data is complete and fully included — do NOT use `regex_in_spans` or `get_full_spans` to re-fetch it.
+
+Only use tools to retrieve more data when the `<truncated N more chars>` tag is present and the truncated portion likely contains the information you need.
+</truncation_rules>
+
+If the information that you need to perform proper identification is in a truncated field, prefer using `regex_in_spans` to search for specific patterns — this is much more token-efficient than fetching full spans, because it returns only matching snippets instead of appending potentially large span content to the context. Only use `get_full_spans` as a last resort when regex search is not feasible (e.g. you need to understand the full structure of a span's content).
 {{fullTraceData}}
 </trace>";
 
@@ -26,7 +32,8 @@ EVERY SINGLE RESPONSE you produce MUST be a function call. You MUST NEVER output
 
 You have exactly three functions available:
 
-1. regex_in_spans — YOUR PREFERRED TOOL for finding specific information within span content. Use this FIRST whenever trace data is truncated or you need to locate specific patterns, keywords, values, or structures within spans. This performs regex pattern matching on span input/output and returns matching snippets with surrounding context. It is much cheaper and faster than fetching full spans.
+1. regex_in_spans — YOUR PREFERRED TOOL for finding specific information within span content. This is primarily a token-efficiency tool: instead of appending potentially large span data to the context, it lets you search for exactly what you need and returns only matching snippets. Use this FIRST whenever a span's data is truncated (marked with `<truncated N more chars>`).
+   IMPORTANT: Only use this on fields that ARE truncated. If a span's input or output does NOT contain the `<truncated N more chars>` tag, the data is already fully included — do NOT regex for it.
    REQUIRED argument: "searches" (array of search objects). Each search object requires:
      - "span_id" (string) — the span ID to search within (6-character hex string, e.g. "a1b2c3")
      - "regex" (string) — regular expression pattern to match
@@ -35,6 +42,7 @@ You have exactly three functions available:
    You can search multiple spans and patterns in a single call.
 
 2. get_full_spans — LAST RESORT ONLY. Call this ONLY when regex_in_spans cannot help — for example, when you need to understand the complete structure of a span's content and cannot formulate a regex to find what you need. This fetches the entire span content and is expensive. For LLM spans, only the last 2 messages are returned. In the trace skeleton it's indicated which spans have empty input or output, so you should not request full spans for spans that have empty input or output.
+   IMPORTANT: Do NOT use this on fields that are already fully included (i.e. no `<truncated N more chars>` tag).
    REQUIRED arguments: "reasoning" (string explaining why regex_in_spans is insufficient and you need the full span) and "span_ids" (array of span ID strings, e.g. ["a1b2c3", "d4e5f6"]). You MUST always provide both arguments.
 
 3. submit_identification — call this when you have made your final determination.
@@ -44,10 +52,10 @@ You have exactly three functions available:
      - "summary" (string) — a short summary of the identification result used for event clustering.
 
 <tool_selection_guidance>
-When you need more information from spans:
-- ALWAYS try regex_in_spans FIRST. Think about what specific string, keyword, or pattern you're looking for and craft a regex for it.
+- If a span field does NOT have the `<truncated N more chars>` tag, its data is COMPLETE. Do not call any tool to re-fetch it.
+- If a span field IS truncated and you need the missing data, ALWAYS try regex_in_spans FIRST. It is far more token-efficient: it returns only matching snippets instead of the entire span content.
 - ONLY use get_full_spans if you genuinely cannot formulate a regex (e.g. you need to read free-form content with no predictable pattern, or your regex search returned no results and you still need the data).
-- NEVER call get_full_spans just because it's simpler — regex_in_spans is the right default choice.
+- NEVER call get_full_spans just because it's simpler — regex_in_spans is the right default choice for truncated data.
 </tool_selection_guidance>
 
 NEVER omit required arguments. A function call without its required arguments is invalid and will cause a system error just like a plain text response.
@@ -76,9 +84,9 @@ Here's the developer's prompt that describes the information you need to extract
 
 REMINDER: Respond with a function call ONLY. Include ALL required arguments. No plain text."#;
 
-pub const REGEX_IN_SPANS_DESCRIPTION: &str = "Performs regex pattern matching within specific spans' input/output content. Returns matching snippets with surrounding context. Use this FIRST whenever you need to find specific patterns, keywords, or values within span data — it is much cheaper and faster than fetching full spans. You can search multiple spans and patterns in a single call.";
+pub const REGEX_IN_SPANS_DESCRIPTION: &str = "Performs regex pattern matching within specific spans' input/output content. Returns only matching snippets with surrounding context, making it far more token-efficient than fetching full spans. Use this when a span's data is truncated (indicated by the `<truncated N more chars>` tag) and you need to find specific patterns, keywords, or values in the truncated portion. Do NOT use this on data that is already fully included (no truncation tag). You can search multiple spans and patterns in a single call.";
 
-pub const GET_FULL_SPAN_INFO_DESCRIPTION: &str = "Retrieves complete information (full input, output, timing, etc.) for specific spans by their IDs. ONLY use this when regex_in_spans cannot help (e.g. you need to understand the full structure of a span's content). Prefer regex_in_spans for targeted searches. The compressed trace view may have truncated or omitted some data. For LLM spans, only the last 2 messages are returned. You MUST provide the required 'span_ids' and 'reasoning' arguments.";
+pub const GET_FULL_SPAN_INFO_DESCRIPTION: &str = "Retrieves complete information (full input, output, timing, etc.) for specific spans by their IDs. ONLY use this as a last resort when regex_in_spans cannot help (e.g. you need to understand the full structure of a span's content and cannot formulate a regex). Do NOT use this on fields that are already fully included (no `<truncated N more chars>` tag). For LLM spans, only the last 2 messages are returned. You MUST provide the required 'span_ids' and 'reasoning' arguments.";
 
 pub const SUBMIT_IDENTIFICATION_DESCRIPTION: &str = "REQUIRED: This is the ONLY valid way to complete your analysis — never respond with plain text. Submits the final identification result. You MUST always provide the required 'identified' boolean argument. When identified=true, you MUST also provide 'summary' (short string for event clustering) and 'data' (object matching the developer's schema). When identified=false, 'identified' is still required.";
 

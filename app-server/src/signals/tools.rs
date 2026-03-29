@@ -336,9 +336,7 @@ pub async fn regex_in_spans(
                     };
                 }
             };
-            let content = decode_json_content(raw);
-
-            match find_regex_matches(&content, &search.regex) {
+            match find_regex_matches(raw, &search.regex) {
                 Ok(matches) => RegexSearchResult {
                     span_id: search.span_id.clone(),
                     matches,
@@ -354,43 +352,6 @@ pub async fn regex_in_spans(
         .collect();
 
     Ok(results)
-}
-
-/// Parse raw JSON from ClickHouse into a plain-text representation where
-/// JSON string values are fully decoded (escape sequences like `\n`, `\"`,
-/// `\\` become their actual characters). This ensures the regex the agent
-/// writes matches the content as it appears in the trace view.
-///
-/// Non-string JSON values (objects, arrays, numbers, bools, null) are
-/// rendered in a readable format without re-escaping string contents.
-fn decode_json_content(raw: &str) -> String {
-    if raw.is_empty() {
-        return String::new();
-    }
-    match serde_json::from_str::<Value>(raw) {
-        Ok(value) => json_value_to_text(&value),
-        Err(_) => raw.to_string(),
-    }
-}
-
-fn json_value_to_text(value: &Value) -> String {
-    match value {
-        Value::String(s) => s.clone(),
-        Value::Null => "null".to_string(),
-        Value::Bool(b) => b.to_string(),
-        Value::Number(n) => n.to_string(),
-        Value::Array(arr) => {
-            let items: Vec<String> = arr.iter().map(json_value_to_text).collect();
-            format!("[{}]", items.join(", "))
-        }
-        Value::Object(map) => {
-            let pairs: Vec<String> = map
-                .iter()
-                .map(|(k, v)| format!("{}: {}", k, json_value_to_text(v)))
-                .collect();
-            format!("{{{}}}", pairs.join(", "))
-        }
-    }
 }
 
 fn find_regex_matches(
@@ -424,46 +385,11 @@ mod tests {
 
     #[test]
     fn test_regex_match_with_newlines_in_json_raw() {
-        // Raw ClickHouse content has literal \n escape sequences (backslash + n)
         let raw = r#"{"is_done":false,"success":null,"judgement":null,"error":null,"attachments":null,"images":null,"long_term_memory":null,"extracted_content":"Clicked a \"F2\nNew York, NY, USA\nThe AI pl...\"","include_extracted_content_only_once":false,"metadata":{"click_x":1112.5,"click_y":599.3828125},"include_in_memory":false}"#;
-        // The regex \n should match actual newlines after decode_json_content
-        let pattern = r"F2.*?\n.*?\n.*?AI pl\.\.\.";
+        let pattern = r"F2.*?\\n.*?\\n.*?AI pl\.\.\.";
 
-        let decoded = decode_json_content(raw);
-        let matches = find_regex_matches(&decoded, pattern).unwrap();
-
-        println!("Decoded content (around F2):");
-        if let Some(pos) = decoded.find("F2") {
-            let ctx_start = pos.saturating_sub(5);
-            let ctx_end = (pos + 60).min(decoded.len());
-            let slice = &decoded[ctx_start..ctx_end];
-            println!("  text: {:?}", slice);
-            println!("  bytes: {:?}", slice.as_bytes());
-        }
-
-        println!("Matches found: {}", matches.len());
-        for m in &matches {
-            println!("  snippet: {:?}", m.snippet);
-        }
-
+        let matches = find_regex_matches(raw, pattern).unwrap();
         assert!(!matches.is_empty(), "Expected at least one match");
-    }
-
-    #[test]
-    fn test_decode_json_content_converts_escapes() {
-        let raw = r#"{"msg":"hello\nworld"}"#;
-        let decoded = decode_json_content(raw);
-        // After decode, \n should be an actual newline character
-        assert!(decoded.contains('\n'));
-        assert!(decoded.contains("hello"));
-        assert!(decoded.contains("world"));
-    }
-
-    #[test]
-    fn test_decode_json_content_passthrough_invalid() {
-        let raw = "not valid json {{{";
-        let decoded = decode_json_content(raw);
-        assert_eq!(decoded, raw);
     }
 
     #[test]
