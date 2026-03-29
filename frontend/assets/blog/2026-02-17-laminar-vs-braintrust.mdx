@@ -170,7 +170,7 @@ Both platforms support evaluation workflows and datasets. The difference is phil
 
 Braintrust treats evaluation as the **centerpiece** of the AI development workflow. The idea is that you define what good looks like, run experiments systematically, and gate releases on eval results. This is a sound approach and it has worked well for teams like Notion and Zapier. The Playground, experiment comparison, CI/CD integration, and Loop all reinforce this loop.
 
-Laminar treats datasets, annotation, and evals as **extensions of observability** rather than a separate workflow. You can go from a failed trace to a curated dataset and then back into evals without switching contexts. Online evaluations trigger LLM-as-a-judge or Python script evaluators on each received span. The cycle is: observe, detect, label, evaluate, improve — all in one place.
+Laminar treats datasets, annotation, and evals as **extensions of observability** rather than a separate workflow. You can go from a failed trace to a curated dataset and then back into evals without switching contexts. The cycle is: observe, detect, label, evaluate, improve — all in one place.
 
 Neither approach is wrong. But if your primary pain is "my agent broke in production and I need to understand why, fast," Laminar's observability-first approach gets you to the answer faster. If your primary pain is "I need to systematically compare prompt variants before shipping," Braintrust's eval-first approach is purpose-built for that.
 
