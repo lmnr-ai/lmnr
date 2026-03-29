@@ -442,6 +442,11 @@ export const workspaceUsageWarnings = pgTable(
     })
       .onUpdate("cascade")
       .onDelete("cascade"),
+    unique("workspace_usage_warnings_workspace_id_usage_item_limit_value_unique").on(
+      table.workspaceId,
+      table.usageItem,
+      table.limitValue
+    ),
   ]
 );
 

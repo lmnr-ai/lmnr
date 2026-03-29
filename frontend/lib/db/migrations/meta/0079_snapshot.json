@@ -4387,7 +4387,13 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "workspace_usage_warnings_workspace_id_usage_item_limit_value_unique": {
+          "name": "workspace_usage_warnings_workspace_id_usage_item_limit_value_unique",
+          "nullsNotDistinct": false,
+          "columns": ["workspace_id", "usage_item", "limit_value"]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

@@ -70,6 +70,23 @@ export async function addUsageWarning(input: z.infer<typeof AddUsageWarningSchem
     throw new Error("Usage warnings are not available on the free tier.");
   }
 
+  // Check for duplicate warning with the same threshold
+  const existing = await db
+    .select({ id: workspaceUsageWarnings.id })
+    .from(workspaceUsageWarnings)
+    .where(
+      and(
+        eq(workspaceUsageWarnings.workspaceId, workspaceId),
+        eq(workspaceUsageWarnings.usageItem, usageItem),
+        eq(workspaceUsageWarnings.limitValue, limitValue)
+      )
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    throw new Error("A warning with this threshold already exists.");
+  }
+
   const [result] = await db
     .insert(workspaceUsageWarnings)
     .values({
