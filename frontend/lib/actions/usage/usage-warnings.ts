@@ -70,30 +70,15 @@ export async function addUsageWarning(input: z.infer<typeof AddUsageWarningSchem
     throw new Error("Usage warnings are not available on the free tier.");
   }
 
-  // Check for duplicate warning with the same threshold
-  const existing = await db
-    .select({ id: workspaceUsageWarnings.id })
-    .from(workspaceUsageWarnings)
-    .where(
-      and(
-        eq(workspaceUsageWarnings.workspaceId, workspaceId),
-        eq(workspaceUsageWarnings.usageItem, usageItem),
-        eq(workspaceUsageWarnings.limitValue, limitValue)
-      )
-    )
-    .limit(1);
-
-  if (existing.length > 0) {
-    throw new Error("A warning with this threshold already exists.");
-  }
-
-  const [result] = await db
+  // Atomic insert: ON CONFLICT DO NOTHING returns no rows if a duplicate exists.
+  const rows = await db
     .insert(workspaceUsageWarnings)
     .values({
       workspaceId,
       usageItem,
       limitValue,
     })
+    .onConflictDoNothing()
     .returning({
       id: workspaceUsageWarnings.id,
       workspaceId: workspaceUsageWarnings.workspaceId,
@@ -101,7 +86,11 @@ export async function addUsageWarning(input: z.infer<typeof AddUsageWarningSchem
       limitValue: workspaceUsageWarnings.limitValue,
     });
 
-  return result as WorkspaceUsageWarning;
+  if (rows.length === 0) {
+    throw new Error("A warning with this threshold already exists.");
+  }
+
+  return rows[0] as WorkspaceUsageWarning;
 }
 
 export async function removeUsageWarning(input: z.infer<typeof RemoveUsageWarningSchema>): Promise<void> {
