@@ -12,18 +12,19 @@ static WHITESPACE_CLASS_RE: LazyLock<Regex> =
 ///
 /// Normalization steps (in order):
 /// 1. Unescape literal escape sequences (`\n`, `\t`, `\r`)
-/// 2. Replace all whitespace-class characters with a single space
-/// 3. Strip ANSI escape codes
+/// 2. Strip ANSI escape codes
+/// 3. Replace all whitespace-class characters with a single space
 /// 4. NFC Unicode normalization
 pub fn preprocess_text(input: &str) -> String {
     // 1. Unescape literal two-char escape sequences (\n, \t, \r)
     let s = unescape_literal_sequences(input);
 
-    // 2. Replace whitespace-class characters with a single space
-    let s = WHITESPACE_CLASS_RE.replace_all(&s, " ");
-
-    // 3. Strip ANSI escape codes
+    // 2. Strip ANSI escape codes (before whitespace normalization so that
+    //    spaces formerly separated by ANSI bytes get properly collapsed)
     let s = ANSI_ESCAPE_RE.replace_all(&s, "");
+
+    // 3. Replace whitespace-class characters with a single space
+    let s = WHITESPACE_CLASS_RE.replace_all(&s, " ");
 
     // 4. NFC Unicode normalization
     let s: String = s.nfc().collect();
@@ -98,6 +99,14 @@ mod tests {
         let input = "\x1b[31mError:\x1b[0m something failed";
         let result = preprocess_text(input);
         assert_eq!(result, "Error: something failed");
+    }
+
+    #[test]
+    fn test_ansi_between_spaces_collapses() {
+        // ANSI code between two spaces: after stripping, the spaces must collapse
+        let input = "text \x1b[31m more";
+        let result = preprocess_text(input);
+        assert_eq!(result, "text more");
     }
 
     #[test]
