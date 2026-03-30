@@ -1,4 +1,5 @@
 use anyhow::Result;
+use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -88,6 +89,12 @@ pub fn decode_slack_token(
         .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
 }
 
+/// Convert standard markdown links `[text](url)` to Slack mrkdwn `<url|text>`.
+fn md_links_to_slack(text: &str) -> String {
+    let re = Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap();
+    re.replace_all(text, "<$2|$1>").into_owned()
+}
+
 fn format_event_identification_blocks(
     project_id: &str,
     trace_id: &str,
@@ -104,13 +111,13 @@ fn format_event_identification_blocks(
             obj.iter()
                 .map(|(key, value)| {
                     let formatted_value = match value {
-                        serde_json::Value::String(s) => s.clone(),
+                        serde_json::Value::String(s) => md_links_to_slack(s),
                         serde_json::Value::Number(n) => n.to_string(),
                         serde_json::Value::Bool(b) => b.to_string(),
                         serde_json::Value::Null => String::new(),
                         _ => serde_json::to_string_pretty(value).unwrap_or_default(),
                     };
-                    format!("_{}_:\n{}", key, formatted_value)
+                    format!("_{}_\n{}", key, formatted_value)
                 })
                 .collect()
         } else {
