@@ -547,6 +547,13 @@
       "when": 1774623258552,
       "tag": "0077_ordinary_christian_walker",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1774900000000,
+      "tag": "0078_add_signals_sample_rate",
+      "breakpoints": true
     }
   ]
 }

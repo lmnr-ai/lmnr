@@ -28,6 +28,7 @@ export type Signal = {
   projectId: string;
   prompt: string;
   structuredOutput: Record<string, unknown>;
+  sampleRate: number | null;
 };
 
 export const GetSignalsSchema = PaginationFiltersSchema.extend({
@@ -46,6 +47,7 @@ const CreateSignalSchema = z.object({
   name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
+  sampleRate: z.number().int().min(1).max(95).nullable().optional(),
 });
 
 const UpdateSignalSchema = z.object({
@@ -53,6 +55,7 @@ const UpdateSignalSchema = z.object({
   id: z.string(),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
+  sampleRate: z.number().int().min(1).max(95).nullable().optional(),
 });
 
 export const DeleteSignalSchema = z.object({
@@ -217,7 +220,7 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 }
 
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput } = CreateSignalSchema.parse(input);
+  const { projectId, name, prompt, structuredOutput, sampleRate: sampleRate } = CreateSignalSchema.parse(input);
 
   const [result] = await db
     .insert(signals)
@@ -226,6 +229,7 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
       name,
       prompt,
       structuredOutputSchema: structuredOutput,
+      sampleRate: sampleRate ?? null,
     })
     .returning();
 
@@ -233,11 +237,11 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput } = UpdateSignalSchema.parse(input);
+  const { projectId, id, prompt, structuredOutput, sampleRate: sampleRate } = UpdateSignalSchema.parse(input);
 
   const result = await db
     .update(signals)
-    .set({ prompt, structuredOutputSchema: structuredOutput })
+    .set({ prompt, structuredOutputSchema: structuredOutput, sampleRate: sampleRate ?? null })
     .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
     .returning();
 
