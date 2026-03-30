@@ -10,7 +10,6 @@ use crate::{
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{DB, signal_jobs::update_signal_job_stats},
-    mq::MessageQueue,
     signals::{
         SignalRun,
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
@@ -79,18 +78,9 @@ pub async fn process_run(
     project_id: Uuid,
     trace_id: Uuid,
     run_id: Uuid,
-    step: usize,
-    internal_trace_id: Uuid,
-    internal_span_id: Uuid,
-    job_id: Option<Uuid>,
     prompt: &str,
-    signal_name: &str,
     structured_output_schema: &serde_json::Value,
-    model: &str,
-    provider: &str,
     clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-    internal_project_id: Option<Uuid>,
 ) -> Result<ProcessRunResult, HandlerError> {
     let processing_start_time = Utc::now();
 

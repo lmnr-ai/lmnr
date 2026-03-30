@@ -1,41 +1,35 @@
 use anyhow::Result;
 use chrono::DateTime;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write;
 use uuid::Uuid;
 
 use crate::ch::spans::CHSpan;
 
-use super::utils::try_parse_json;
+use super::utils::{strip_noise, try_parse_json};
 
 const TRUNCATE_THRESHOLD: usize = 1024;
-const BASE64_IMAGE_PLACEHOLDER: &str = "[base64 image omitted]";
 /// Max chars to keep per message in LLM span inputs (~1K tokens).
 const LLM_MESSAGE_MAX_CHARS: usize = 3000;
 
-/// Compressed span identified by the last 4 hex chars of its UUID
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CompressedSpan {
     pub id: String,
     pub name: String,
     pub path: String,
-    #[serde(rename = "type")]
     pub span_type: String,
     pub start: String,
     pub duration: f64,
     pub total_cost: f64,
     pub total_tokens: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub input: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub output: Option<Value>,
-    #[serde(skip_serializing_if = "String::is_empty")]
+    pub input: String,
+    pub output: String,
+    pub input_truncated: bool,
+    pub output_truncated: bool,
     pub status: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub exception: Option<Value>,
+    pub exception: Option<String>,
 }
 
 const SPAN_SHORT_ID_LEN: usize = 6;
@@ -55,6 +49,23 @@ fn format_ns_timestamp(ns: i64) -> String {
         .unwrap_or_else(|| ns.to_string())
 }
 
+fn omit_or_empty(raw: &str) -> String {
+    let value = try_parse_json(raw);
+    if is_empty_value(&value) {
+        return "<empty>".to_string();
+    }
+    let char_count = raw.chars().count();
+    format!("<omitted {} chars>", char_count)
+}
+
+fn is_empty_value(value: &Value) -> bool {
+    match value {
+        Value::Null => true,
+        Value::String(s) => s.is_empty(),
+        _ => false,
+    }
+}
+
 /// Get span type string
 pub fn get_span_type(span_type: u8) -> &'static str {
     match span_type {
@@ -64,8 +75,8 @@ pub fn get_span_type(span_type: u8) -> &'static str {
     }
 }
 
-/// Truncate a value if its string representation exceeds TRUNCATE_THRESHOLD
-fn truncate_value(value: &Value) -> Value {
+/// Returns (truncated_value, was_truncated).
+fn truncate_value(value: &Value, truncated: &mut bool) -> Value {
     let value_str = match value {
         Value::String(s) => s.clone(),
         _ => serde_json::to_string(value).unwrap_or_default(),
@@ -76,113 +87,54 @@ fn truncate_value(value: &Value) -> Value {
         return value.clone();
     }
 
-    let truncated: String = value_str.chars().take(TRUNCATE_THRESHOLD).collect();
+    *truncated = true;
+    let kept: String = value_str.chars().take(TRUNCATE_THRESHOLD).collect();
     let omitted = char_count - TRUNCATE_THRESHOLD;
-    Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
+    Value::String(format!("{}<truncated {} more chars>", kept, omitted))
 }
 
-/// Truncate LLM input messages. If the input is an array of messages, each message's
-/// string fields are individually capped at LLM_MESSAGE_MAX_CHARS so that no single
-/// large message causes later messages to be lost.
-fn truncate_llm_input(value: &Value) -> Value {
+fn truncate_llm_input(value: &Value, truncated: &mut bool) -> Value {
     match value {
-        Value::Array(messages) => {
-            Value::Array(messages.iter().map(truncate_message_strings).collect())
-        }
+        Value::Array(messages) => Value::Array(
+            messages
+                .iter()
+                .map(|m| truncate_message_strings(m, truncated))
+                .collect(),
+        ),
         _ => value.clone(),
     }
 }
 
-/// Truncate large strings in a message, handling both plain string fields and
-/// multimodal content arrays (e.g. `[{"type":"text","text":"..."}]`).
-fn truncate_message_strings(message: &Value) -> Value {
+fn truncate_message_strings(message: &Value, truncated: &mut bool) -> Value {
     match message {
         Value::Object(map) => Value::Object(
             map.iter()
-                .map(|(k, v)| (k.clone(), truncate_value_strings(v)))
+                .map(|(k, v)| (k.clone(), truncate_value_strings(v, truncated)))
                 .collect(),
         ),
         _ => message.clone(),
     }
 }
 
-/// Recursively truncate any string that exceeds LLM_MESSAGE_MAX_CHARS.
-fn truncate_value_strings(value: &Value) -> Value {
+fn truncate_value_strings(value: &Value, truncated: &mut bool) -> Value {
     match value {
         Value::String(s) if s.chars().count() > LLM_MESSAGE_MAX_CHARS => {
-            let truncated: String = s.chars().take(LLM_MESSAGE_MAX_CHARS).collect();
+            *truncated = true;
+            let kept: String = s.chars().take(LLM_MESSAGE_MAX_CHARS).collect();
             let omitted = s.chars().count() - LLM_MESSAGE_MAX_CHARS;
-            Value::String(format!("{}... ({} chars truncated)", truncated, omitted))
+            Value::String(format!("{}<truncated {} more chars>", kept, omitted))
         }
-        Value::Array(arr) => Value::Array(arr.iter().map(truncate_value_strings).collect()),
+        Value::Array(arr) => Value::Array(
+            arr.iter()
+                .map(|v| truncate_value_strings(v, truncated))
+                .collect(),
+        ),
         Value::Object(map) => Value::Object(
             map.iter()
-                .map(|(k, v)| (k.clone(), truncate_value_strings(v)))
+                .map(|(k, v)| (k.clone(), truncate_value_strings(v, truncated)))
                 .collect(),
         ),
         other => other.clone(),
-    }
-}
-
-const RAW_BASE64_IMAGE_PREFIXES: &[&str] = &[
-    "/9j/",        // JPEG
-    "iVBORw0KGgo", // PNG
-    "R0lGODlh",    // GIF
-    "UklGR",       // WebP
-    "PHN2Zz",      // SVG
-];
-
-/// Minimum length for a raw base64 string to be considered an image.
-const RAW_BASE64_MIN_LEN: usize = 64;
-
-/// Check whether a string looks like raw base64-encoded image data.
-fn is_raw_base64_image(s: &str) -> bool {
-    s.len() >= RAW_BASE64_MIN_LEN
-        && RAW_BASE64_IMAGE_PREFIXES
-            .iter()
-            .any(|prefix| s.starts_with(prefix))
-}
-
-/// Replace base64 image data within a JSON value with a placeholder.
-///
-/// Detects both data URLs (`data:image/...;base64,...`) and raw base64 image
-/// strings identified by well-known magic byte prefixes (JPEG, PNG, GIF, WebP, SVG).
-pub fn replace_base64_images(value: &Value) -> Value {
-    match value {
-        Value::String(s) => {
-            if let Some(idx) = s.find("base64,") {
-                let prefix = &s[..idx + "base64,".len()];
-                if prefix.starts_with("data:image") {
-                    return Value::String(BASE64_IMAGE_PLACEHOLDER.to_string());
-                }
-            }
-            if is_raw_base64_image(s) {
-                return Value::String(BASE64_IMAGE_PLACEHOLDER.to_string());
-            }
-            value.clone()
-        }
-        Value::Array(arr) => Value::Array(arr.iter().map(replace_base64_images).collect()),
-        Value::Object(map) => Value::Object(
-            map.iter()
-                .map(|(k, v)| (k.clone(), replace_base64_images(v)))
-                .collect(),
-        ),
-        _ => value.clone(),
-    }
-}
-
-/// Remove `signature` and `thought_signature` fields from LLM span inputs and outputs.
-/// These fields contain large hash values that waste context and provide no analytical value.
-pub fn strip_signature_fields(value: &Value) -> Value {
-    match value {
-        Value::Object(map) => Value::Object(
-            map.iter()
-                .filter(|(k, _)| k.as_str() != "signature" && k.as_str() != "thought_signature")
-                .map(|(k, v)| (k.clone(), strip_signature_fields(v)))
-                .collect(),
-        ),
-        Value::Array(arr) => Value::Array(arr.iter().map(strip_signature_fields).collect()),
-        _ => value.clone(),
     }
 }
 
@@ -224,48 +176,52 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
                 span_uuid_to_short.get(&ch_span.parent_span_id).cloned()
             };
 
+            let mut input_truncated = false;
+            let mut output_truncated = false;
+
+            let is_tool = ch_span.span_type == 6;
+
             let (input, output) = if is_llm {
-                let input_data = truncate_llm_input(&strip_signature_fields(
-                    &replace_base64_images(&try_parse_json(&ch_span.input)),
-                ));
-                let output_data = strip_signature_fields(&try_parse_json(&ch_span.output));
+                let output_data = try_parse_json(&strip_noise(&ch_span.output));
+                let output = value_to_string(
+                    &truncate_value(&output_data, &mut output_truncated),
+                );
 
                 if seen_llm_paths.contains(&path) {
-                    // Subsequent LLM span at same path: only output
-                    (None, Some(output_data))
+                    ("<omitted>".to_string(), output)
                 } else {
-                    // First LLM span at this path: include truncated input and full output
                     seen_llm_paths.insert(path.clone());
-                    (Some(input_data), Some(output_data))
+                    let input_data = truncate_llm_input(
+                        &try_parse_json(&strip_noise(&ch_span.input)),
+                        &mut input_truncated,
+                    );
+                    (value_to_string(&input_data), output)
                 }
+            } else if is_tool {
+                let input_raw = try_parse_json(&strip_noise(&ch_span.input));
+                let output_raw = try_parse_json(&strip_noise(&ch_span.output));
+
+                let input = if is_empty_value(&input_raw) {
+                    "<empty>".to_string()
+                } else {
+                    value_to_string(&truncate_value(&input_raw, &mut input_truncated))
+                };
+
+                let output = if is_empty_value(&output_raw) {
+                    "<empty>".to_string()
+                } else {
+                    value_to_string(&truncate_value(&output_raw, &mut output_truncated))
+                };
+
+                (input, output)
             } else {
-                // Non-LLM span: truncate if needed
-                let input_data = try_parse_json(&ch_span.input);
-                let output_data = try_parse_json(&ch_span.output);
-
-                let truncated_input = truncate_value(&input_data);
-                let truncated_output = truncate_value(&output_data);
-
-                let input_opt = if truncated_input != Value::String("".to_string())
-                    && truncated_input != Value::Null
-                {
-                    Some(truncated_input)
-                } else {
-                    None
-                };
-
-                let output_opt = if truncated_output != Value::String("".to_string())
-                    && truncated_output != Value::Null
-                {
-                    Some(truncated_output)
-                } else {
-                    None
-                };
-
-                (input_opt, output_opt)
+                let input = omit_or_empty(&ch_span.input);
+                let output = omit_or_empty(&ch_span.output);
+                (input, output)
             };
 
-            let exception = extract_exception_from_events(&ch_span.events);
+            let exception =
+                extract_exception_from_events(&ch_span.events).map(|v| value_to_string(&v));
 
             CompressedSpan {
                 id: span_short_id(&ch_span.span_id),
@@ -278,6 +234,8 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
                 total_tokens: ch_span.total_tokens,
                 input,
                 output,
+                input_truncated,
+                output_truncated,
                 status: if ch_span.status == "<null>" || ch_span.status.is_empty() {
                     String::new()
                 } else {
@@ -290,33 +248,48 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
         .collect()
 }
 
-/// Create skeleton string representation of spans
-pub fn spans_to_skeleton_string(spans: &[CompressedSpan]) -> String {
-    let mut skeleton = String::from(
-        "legend: span_name (id, parent_id, type, duration_sec, cost_usd, total_tokens, is_input_empty, is_output_empty)\n",
-    );
-    for span in spans {
-        let cost = if span.total_cost > 0.0 {
-            format!("{:.5}", span.total_cost)
-        } else {
-            "0".to_string()
-        };
-
-        let parent_str = span.parent.as_deref().unwrap_or("None");
-        skeleton.push_str(&format!(
-            "- {} ({}, {}, {}, {:.1}, {}, {}, {}, {})\n",
-            span.name,
-            span.id,
-            parent_str,
-            span.span_type,
-            span.duration,
-            cost,
-            span.total_tokens,
-            span.input.is_none(),
-            span.output.is_none()
-        ));
+fn value_to_string(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        _ => serde_json::to_string(value).unwrap_or_default(),
     }
-    skeleton
+}
+
+fn spans_to_string(spans: &[CompressedSpan]) -> String {
+    let mut out = String::new();
+    for span in spans {
+        let is_llm = span.span_type == "llm";
+        let _ = writeln!(out, "- id: {}", span.id);
+        let _ = writeln!(out, "  name: {}", span.name);
+        let _ = writeln!(out, "  path: {}", span.path);
+        let _ = writeln!(out, "  type: {}", span.span_type);
+        let _ = writeln!(out, "  start: {}", span.start);
+        let _ = writeln!(out, "  duration: {:.1}s", span.duration);
+        if is_llm {
+            let _ = writeln!(out, "  total_cost: {}", span.total_cost);
+            let _ = writeln!(out, "  total_tokens: {}", span.total_tokens);
+        }
+        if let Some(parent) = &span.parent {
+            let _ = writeln!(out, "  parent: {}", parent);
+        } else {
+            let _ = writeln!(out, "  parent: <it_is_the_root_span>");
+        }
+        if !span.status.is_empty() {
+            let _ = writeln!(out, "  status: {}", span.status);
+        }
+        if span.input_truncated {
+            let _ = writeln!(out, "  input_truncated: true");
+        }
+        if span.output_truncated {
+            let _ = writeln!(out, "  output_truncated: true");
+        }
+        if let Some(exception) = &span.exception {
+            let _ = writeln!(out, "  exception: {}", exception);
+        }
+        let _ = writeln!(out, "  input: {}", span.input);
+        let _ = writeln!(out, "  output: {}", span.output);
+    }
+    out
 }
 
 // TODO: move these two functions to CH Query engine for better integration
@@ -401,13 +374,12 @@ pub async fn get_trace_span_ids_and_end_time(
     Ok(spans)
 }
 
-/// Get trace structure as a formatted string with skeleton and YAML
+/// Get trace structure as YAML of all compressed spans
 pub async fn get_trace_structure_as_string(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
     trace_id: Uuid,
 ) -> Result<String> {
-    // Fetch raw spans
     let ch_spans = get_trace_spans(clickhouse, project_id, trace_id).await?;
 
     if ch_spans.is_empty() {
@@ -417,26 +389,11 @@ pub async fn get_trace_structure_as_string(
         ));
     }
 
-    // Compress spans
     let compressed_spans = compress_span_content(&ch_spans);
+    let trace_str = spans_to_string(&compressed_spans);
 
-    // Create skeleton view
-    let trace_skeleton = spans_to_skeleton_string(&compressed_spans);
-
-    // Filter to only LLM and Tool spans for detailed view
-    let filtered_spans: Vec<&CompressedSpan> = compressed_spans
-        .iter()
-        .filter(|span| span.span_type != "default")
-        .collect();
-
-    // Convert to YAML
-    let trace_yaml = serde_yaml::to_string(&filtered_spans)?;
-
-    // Build final string
-    let trace_string = format!(
-        "Here is the skeleton view of the trace:\n<trace_skeleton>\n{}</trace_skeleton>\n\nHere are the detailed views of LLM and Tool spans:\n<spans>\n{}</spans>\n",
-        trace_skeleton, trace_yaml
-    );
-
-    Ok(trace_string)
+    Ok(format!(
+        "Here are all spans of the trace:\n<spans>\n{}</spans>\n",
+        trace_str
+    ))
 }
