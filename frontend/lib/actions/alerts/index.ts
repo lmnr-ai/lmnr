@@ -8,7 +8,7 @@ import { type AlertTarget, type AlertType, type AlertWithDetails } from "./types
 
 const TargetSchema = z.object({
   type: z.string(),
-  integrationId: z.uuid().optional(),
+  integrationId: z.guid().optional(),
   channelId: z.string().optional(),
   channelName: z.string().optional(),
   email: z.email().optional(),
