@@ -8,10 +8,14 @@ use sodiumoxide::{
 };
 use uuid::Uuid;
 
+use crate::reports::email_template::ReportData;
+
 const SLACK_API_BASE: &str = "https://slack.com/api";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EventIdentificationPayload {
+    pub project_id: Uuid,
+    pub trace_id: Uuid,
     pub event_name: String,
     pub extracted_information: Option<serde_json::Value>,
     pub channel_id: String,
@@ -20,7 +24,8 @@ pub struct EventIdentificationPayload {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ReportPayload {
-    pub report: serde_json::Value,
+    pub title: String,
+    pub report: ReportData,
     pub channel_id: String,
     pub integration_id: Uuid,
 }
@@ -210,87 +215,90 @@ fn format_event_identification_blocks(
     ])
 }
 
-fn format_report_blocks(event_name: &str, report: &serde_json::Value) -> serde_json::Value {
-    let info_blocks: Vec<String> = if let Some(obj) = report.as_object() {
-        obj.iter()
-            .map(|(key, value)| {
-                let formatted_value = match value {
-                    serde_json::Value::String(s) => s.clone(),
-                    serde_json::Value::Number(n) => n.to_string(),
-                    serde_json::Value::Bool(b) => b.to_string(),
-                    serde_json::Value::Null => String::new(),
-                    _ => serde_json::to_string_pretty(value).unwrap_or_default(),
-                };
-                if key.is_empty() {
-                    formatted_value
-                } else {
-                    format!(":small_orange_diamond: *{}*:\n{}", key, formatted_value)
-                }
-            })
-            .collect()
-    } else {
-        vec![serde_json::to_string_pretty(report).unwrap_or_default()]
-    };
+fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
+    let report = &payload.report;
+    let project_count = report.projects.len();
 
-    let mut blocks = vec![json!({
-        "type": "section",
-        "text": {
-            "type": "mrkdwn",
-            "text": format!(":bar_chart: *{}*", event_name)
-        }
-    })];
+    let overview = format!(
+        "{} – {}\n{} event{} across {} project{}",
+        report.period_start,
+        report.period_end,
+        report.total_events,
+        if report.total_events == 1 { "" } else { "s" },
+        project_count,
+        if project_count == 1 { "" } else { "s" },
+    );
 
-    if info_blocks.is_empty() {
-        return json!(blocks);
-    }
+    let mut blocks = vec![
+        json!({
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": format!(":bar_chart: *{}*", payload.title) }
+        }),
+        json!({
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": overview }
+        }),
+    ];
 
     const MAX_SECTION_TEXT_LEN: usize = 3000;
-    for entry in &info_blocks {
-        for chunk in split_mrkdwn_chunks(entry, MAX_SECTION_TEXT_LEN) {
+
+    for project in &report.projects {
+        let mut text = String::new();
+
+        let project_total: u64 = project.signal_event_counts.values().sum();
+        text.push_str(&format!("\nTotal events: *{}*\n", project_total));
+        for (name, count) in &project.signal_event_counts {
+            text.push_str(&format!("• {}: *{}*\n", name, count));
+        }
+
+        if !project.ai_summary.is_empty() {
+            text.push_str(&format!("\n\nSummary: _{}_\n", project.ai_summary));
+        }
+
+        if !project.noteworthy_events.is_empty() {
+            text.push_str("\nNoteworthy Events:\n");
+            for event in &project.noteworthy_events {
+                text.push_str(&format!("• `{}`", event.signal_name));
+                if !event.summary.is_empty() {
+                    text.push_str(&format!(" – {}", event.summary));
+                }
+                text.push_str(&format!(
+                    " ({}) <https://laminar.sh/project/{}/traces/{}|View trace>\n",
+                    event.timestamp, project.project_id, event.trace_id,
+                ));
+            }
+        }
+
+        blocks.push(json!({"type": "divider"}));
+        blocks.push(json!({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!(":small_orange_diamond: *{}*", project.project_name)
+            }
+        }));
+
+        for chunk in split_mrkdwn_chunks(&text, MAX_SECTION_TEXT_LEN) {
             blocks.push(json!({
                 "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": chunk
-                }
+                "text": { "type": "mrkdwn", "text": chunk }
             }));
         }
-        blocks.push(json!({"type": "divider"}));
-    }
-    if blocks
-        .last()
-        .map(|b| b.get("type").and_then(|t| t.as_str()) == Some("divider"))
-        == Some(true)
-    {
-        blocks.pop();
     }
 
     json!(blocks)
 }
 
-pub fn format_message_blocks(
-    payload: &SlackMessagePayload,
-    project_id: &str,
-    trace_id: &str,
-    event_name: &str,
-) -> serde_json::Value {
+pub fn format_message_blocks(payload: &SlackMessagePayload) -> serde_json::Value {
     match payload {
-        SlackMessagePayload::EventIdentification(event_payload) => {
-            format_event_identification_blocks(
-                project_id,
-                trace_id,
-                event_name,
-                event_payload.extracted_information.clone(),
-            )
-        }
-        SlackMessagePayload::Report(report_payload) => {
-            format_report_blocks(event_name, &report_payload.report)
-        }
+        SlackMessagePayload::EventIdentification(p) => format_event_identification_blocks(
+            &p.project_id.to_string(),
+            &p.trace_id.to_string(),
+            &p.event_name,
+            p.extracted_information.clone(),
+        ),
+        SlackMessagePayload::Report(p) => format_report_blocks(p),
     }
-}
-
-pub fn get_channel_id(payload: &SlackMessagePayload) -> &str {
-    payload.channel_id()
 }
 
 pub async fn send_message(

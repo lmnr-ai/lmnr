@@ -81,27 +81,17 @@ pub struct EmailPayload {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NotificationMessage {
-    pub project_id: Uuid,
-    pub trace_id: Uuid,
     #[serde(rename = "type")]
     pub notification_type: NotificationType,
-    pub event_name: String,
     /// The notification payload. For both Slack and Email this is the inner struct
     /// (e.g. `EventIdentificationPayload` or `EmailPayload`) — no enum wrapper.
     /// The handler wraps it as needed for delivery and logs it directly to ClickHouse.
     pub payload: serde_json::Value,
-    /// Metadata for notification logging.
-    /// Fields below use `serde(default)` for backward compatibility with in-flight
-    /// messages enqueued before this schema change.
-    #[serde(default)]
+    pub project_id: Uuid,
     pub workspace_id: Uuid,
-    #[serde(default)]
     pub definition_type: String,
-    #[serde(default)]
     pub definition_id: Uuid,
-    #[serde(default)]
     pub target_id: Uuid,
-    #[serde(default)]
     pub target_type: String,
 }
 
@@ -125,10 +115,10 @@ pub async fn push_to_notification_queue(
         .await?;
 
     log::debug!(
-        "Pushed notification message to queue: project_id={}, trace_id={}, event_name={}",
-        message.project_id,
-        message.trace_id,
-        message.event_name
+        "Pushed notification message to queue: workspace_id={}, definition_type={}, target_id={}",
+        message.workspace_id,
+        message.definition_type,
+        message.target_id
     );
 
     Ok(())
@@ -199,18 +189,14 @@ impl NotificationHandler {
     /// Returns `Ok(true)` if the Slack message was actually sent,
     /// `Ok(false)` if delivery was skipped (e.g. integration not found).
     async fn handle_slack(&self, message: &NotificationMessage) -> Result<bool, HandlerError> {
-        let slack_payload = serde_json::from_value::<EventIdentificationPayload>(
-            message.payload.clone(),
-        )
-        .map(SlackMessagePayload::EventIdentification)
-        .or_else(|_| {
-            serde_json::from_value::<slack::ReportPayload>(message.payload.clone())
-                .map(SlackMessagePayload::Report)
-        })
-        .or_else(|_| {
-            serde_json::from_value::<SlackMessagePayload>(message.payload.clone())
-        })
-        .map_err(|e| anyhow::anyhow!("Failed to parse Slack payload: {}", e))?;
+        let slack_payload =
+            serde_json::from_value::<EventIdentificationPayload>(message.payload.clone())
+                .map(SlackMessagePayload::EventIdentification)
+                .or_else(|_| {
+                    serde_json::from_value::<slack::ReportPayload>(message.payload.clone())
+                        .map(SlackMessagePayload::Report)
+                })
+                .map_err(|e| anyhow::anyhow!("Failed to parse Slack payload: {}", e))?;
 
         let integration = crate::db::slack_integrations::get_integration_by_id(
             &self.db.pool,
@@ -234,22 +220,17 @@ impl NotificationHandler {
         )
         .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
 
-        let blocks = slack::format_message_blocks(
-            &slack_payload,
-            &message.project_id.to_string(),
-            &message.trace_id.to_string(),
-            &message.event_name,
-        );
+        let channel_id = slack_payload.channel_id();
 
-        let channel_id = slack::get_channel_id(&slack_payload);
+        let blocks = slack::format_message_blocks(&slack_payload);
 
         slack::send_message(&self.slack_client, &decrypted_token, channel_id, blocks)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
 
         log::debug!(
-            "Successfully sent Slack notification for trace_id={}",
-            message.trace_id
+            "Successfully sent Slack notification for target_id={}",
+            message.target_id
         );
 
         Ok(true)

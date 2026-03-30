@@ -57,6 +57,8 @@ pub async fn process_event_notifications_and_clustering(
                     continue;
                 };
                 let payload = EventIdentificationPayload {
+                    project_id,
+                    trace_id,
                     event_name: event_name.to_string(),
                     extracted_information: Some(attributes.clone()),
                     channel_id: channel_id.clone(),
@@ -86,11 +88,9 @@ pub async fn process_event_notifications_and_clustering(
         };
 
         let notification_message = notifications::NotificationMessage {
-            project_id,
-            trace_id,
             notification_type: target_type.into(),
-            event_name: event_name.to_string(),
             payload: message_payload,
+            project_id,
             workspace_id: target.workspace_id,
             definition_type: "ALERT".to_string(),
             definition_id: target.alert_id,
