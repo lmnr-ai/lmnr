@@ -70,10 +70,8 @@ pub async fn process_event_notifications_and_clustering(
                 let Some(ref email) = target.email else {
                     continue;
                 };
-                let trace_link = format!(
-                    "https://laminar.sh/project/{}/traces/{}",
-                    project_id, trace_id
-                );
+                let trace_link =
+                    format!("https://lmnr.ai/project/{}/traces/{}", project_id, trace_id);
                 let subject = format!("Alert: {}", event_name);
                 let html = render_alert_email(&event_name, &attributes, &trace_link);
                 let payload = EmailPayload {
