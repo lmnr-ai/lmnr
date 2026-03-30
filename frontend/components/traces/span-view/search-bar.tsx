@@ -16,7 +16,7 @@ interface SpanViewSearchBarProps {
 const SpanViewSearchBar = ({ open, setOpen, ref }: SpanViewSearchBarProps) => {
   const searchState = useSpanSearchState();
 
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState(searchState?.searchTerm ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const searchTerm = searchState?.searchTerm ?? "";
