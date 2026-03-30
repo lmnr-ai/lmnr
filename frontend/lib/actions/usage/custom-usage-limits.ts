@@ -2,11 +2,10 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
-import { cache, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
-import { projects, workspaceUsageLimits } from "@/lib/db/migrations/schema";
+import { workspaceUsageLimits } from "@/lib/db/migrations/schema";
 
-import { isFreeTierWorkspace } from "./utils";
+import { invalidateProjectCacheForWorkspace, isFreeTierWorkspace } from "./utils";
 
 export const USAGE_LIMIT_TYPES = ["bytes", "signal_runs"] as const;
 export type UsageLimitType = (typeof USAGE_LIMIT_TYPES)[number];
@@ -99,17 +98,4 @@ export async function removeUsageLimit(input: z.infer<typeof RemoveUsageLimitSch
     .where(and(eq(workspaceUsageLimits.workspaceId, workspaceId), eq(workspaceUsageLimits.limitType, limitType)));
 
   await invalidateProjectCacheForWorkspace(workspaceId);
-}
-
-async function invalidateProjectCacheForWorkspace(workspaceId: string): Promise<void> {
-  try {
-    const workspaceProjects = await db.query.projects.findMany({
-      where: eq(projects.workspaceId, workspaceId),
-      columns: { id: true },
-    });
-
-    await Promise.all(workspaceProjects.map((project) => cache.remove(`${PROJECT_CACHE_KEY}:${project.id}`)));
-  } catch (e) {
-    console.error("Error clearing project cache after usage limit change", e);
-  }
 }

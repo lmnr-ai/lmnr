@@ -5,7 +5,7 @@ import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { db } from "@/lib/db/drizzle";
 import { workspaceUsageWarnings } from "@/lib/db/migrations/schema";
 
-import { isFreeTierWorkspace } from "./utils";
+import { invalidateProjectCacheForWorkspace, isFreeTierWorkspace } from "./utils";
 
 export const USAGE_WARNING_ITEMS = ["bytes", "signal_runs"] as const;
 export type UsageWarningItem = (typeof USAGE_WARNING_ITEMS)[number];
@@ -81,6 +81,8 @@ export async function addUsageWarning(input: z.infer<typeof AddUsageWarningSchem
     throw new Error("A warning with this threshold already exists.");
   }
 
+  await invalidateProjectCacheForWorkspace(workspaceId);
+
   return rows[0] as WorkspaceUsageWarning;
 }
 
@@ -92,4 +94,6 @@ export async function removeUsageWarning(input: z.infer<typeof RemoveUsageWarnin
   await db
     .delete(workspaceUsageWarnings)
     .where(and(eq(workspaceUsageWarnings.workspaceId, workspaceId), eq(workspaceUsageWarnings.id, id)));
+
+  await invalidateProjectCacheForWorkspace(workspaceId);
 }

@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 
+import { cache, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
-import { subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
 
 export const isFreeTierWorkspace = async (workspaceId: string): Promise<boolean> => {
   const result = await db
@@ -12,4 +13,17 @@ export const isFreeTierWorkspace = async (workspaceId: string): Promise<boolean>
     .limit(1);
 
   return result.length > 0 && result[0].tierName.toLowerCase() === "free";
+};
+
+export const invalidateProjectCacheForWorkspace = async (workspaceId: string): Promise<void> => {
+  try {
+    const workspaceProjects = await db.query.projects.findMany({
+      where: eq(projects.workspaceId, workspaceId),
+      columns: { id: true },
+    });
+
+    await Promise.all(workspaceProjects.map((project) => cache.remove(`${PROJECT_CACHE_KEY}:${project.id}`)));
+  } catch (e) {
+    console.error("Error clearing project cache after usage limit change", e);
+  }
 };
