@@ -9,16 +9,16 @@
 [Laminar](https://laminar.sh) is an open-source observability platform purpose-built for AI agents.
 
 - [x] Tracing. [Docs](https://docs.laminar.sh/tracing/introduction)
-    - [x] OpenTelemetry-native powerful tracing SDK - 1 line of code to automatically trace **Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more**.
+    - [x] Powerful, OpenTelemetry-native tracing SDK — 1 line of code to automatically trace **Vercel AI SDK, Browser Use, Stagehand, LangChain, OpenAI, Anthropic, Gemini, and more**.
 - [x] Evals. [Docs](https://docs.laminar.sh/evaluations/introduction)
-    - [x] Unopinionated, extensible SDK and CLI for running evals locally or in CI/CD pipeline.
+    - [x] Unopinionated, extensible SDK and CLI for running evals locally or in a CI/CD pipeline.
     - [x] UI for visualizing evals and comparing results.
 - [x] AI monitoring. [Docs](https://docs.laminar.sh/signals)
     - [x] Define events with natural language descriptions to track issues, logical errors, and custom behavior of your agent.
 - [x] SQL access to all data. [Docs](https://docs.laminar.sh/platform/sql-editor)
     - [x] Query traces, metrics, and events with a built-in SQL editor. Bulk create datasets from queries. Available via API.
 - [x] Dashboards. [Docs](https://docs.laminar.sh/custom-dashboards/overview)
-    - [x] Powerful dashboard builder for traces, metrics, and events with support of custom SQL queries.
+    - [x] Powerful dashboard builder for traces, metrics, and events with support for custom SQL queries.
 - [x] Data annotation & Datasets. [Docs](https://docs.laminar.sh/datasets/introduction)
     - [x] Custom data rendering UI for fast data annotation and dataset creation for evals.
 - [x] Extremely high performance.
@@ -31,27 +31,26 @@
 
 ## Documentation
 
-Check out full documentation here [docs.laminar.sh](https://docs.laminar.sh).
+Check out the full documentation at [docs.laminar.sh](https://docs.laminar.sh).
 
 ## Getting started
 
-The fastest and easiest way to get started is with our managed platform -> [laminar.sh](https://laminar.sh)
+The fastest way to get started is with the managed platform at [laminar.sh](https://laminar.sh).
 
 ### Self-hosting with Docker compose
 
-Laminar is very easy to self-host locally. For a quick start, clone the repo and start the services with docker compose:
+To self-host locally, clone the repo and start the services with Docker Compose:
 ```sh
 git clone https://github.com/lmnr-ai/lmnr
 cd lmnr
 docker compose up -d
 ```
 
-This will spin up a lightweight but full-featured version of the stack. This is good for a quickstart 
-or for lightweight usage. You can access the UI at http://localhost:5667 in your browser.
+This spins up a lightweight, full-featured version of the stack. Access the UI at http://localhost:5667.
 
-You will also need to properly configure the SDK, with `baseUrl` and correct ports. See [guide on self-hosting](https://docs.laminar.sh/hosting-options#self-hosted-docker-compose).
+You will also need to configure the SDK with the correct `baseUrl` and ports. See the [self-hosting guide](https://docs.laminar.sh/hosting-options#self-hosted-docker-compose).
 
-For production environment, we recommend using our [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
+For a production environment, we recommend the [managed platform](https://laminar.sh) or `docker compose -f docker-compose-full.yml up -d`.
 
 ### Enabling the Signals feature
 
@@ -77,7 +76,7 @@ Laminar offers four pricing tiers on the [managed platform](https://laminar.sh/p
 | **Support** | Community | Email | Slack | Dedicated |
 | **On-premise** | - | - | - | Yes |
 
-Self-hosting is always free. See the [Self-hosting with Docker compose](#self-hosting-with-docker-compose) section above to get started.
+Self-hosting is always free. See [Self-hosting with Docker compose](#self-hosting-with-docker-compose) above.
 
 ## Contributing
 
@@ -92,9 +91,9 @@ First, [create a project](https://laminar.sh/projects) and generate a project AP
 npm add @lmnr-ai/lmnr
 ```
 
-It will install Laminar TS SDK and all instrumentation packages (OpenAI, Anthropic, LangChain ...)
+This installs the Laminar TS SDK and all instrumentation packages (OpenAI, Anthropic, LangChain, etc.).
 
-To start tracing LLM calls just add
+To start tracing LLM calls, add:
 ```typescript
 import { Laminar } from '@lmnr-ai/lmnr';
 Laminar.initialize({ projectApiKey: process.env.LMNR_PROJECT_API_KEY });
@@ -126,10 +125,10 @@ First, [create a project](https://laminar.sh/projects) and generate a project AP
 ```sh
 pip install --upgrade 'lmnr[all]'
 ```
-It will install Laminar Python SDK and all instrumentation packages. See list of all instruments [here](https://docs.laminar.sh/installation)
+This installs the Laminar Python SDK and all instrumentation packages. See the full list of supported instruments [here](https://docs.laminar.sh/installation).
 
 
-To start tracing LLM calls just add
+To start tracing LLM calls, add:
 ```python
 from lmnr import Laminar
 Laminar.initialize(project_api_key="<LMNR_PROJECT_API_KEY>")
