@@ -1,16 +1,22 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { useParams } from "next/navigation";
 import { useMemo } from "react";
+import useSWR from "swr";
 
-import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { type TagClass } from "@/lib/traces/types";
+import { cn, swrFetcher } from "@/lib/utils";
 
 interface TagsCellProps {
   tags: string[];
 }
 
 const TagsCell = ({ tags }: TagsCellProps) => {
-  const tagClasses = useTracesStoreContext((state) => state.tagClasses);
+  const { projectId } = useParams();
+  const { data: tagClasses = [] } = useSWR<TagClass[]>(
+    projectId ? `/api/projects/${projectId}/tag-classes` : null,
+    swrFetcher
+  );
 
   const resolvedTags = useMemo(
     () =>
