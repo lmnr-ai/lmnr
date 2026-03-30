@@ -50,6 +50,7 @@ import {
   semanticEventTriggerSpans,
   clusters,
   traces,
+  spanRenderingKeys,
 } from "./schema";
 
 export const rolloutSessionsRelations = relations(rolloutSessions, ({ one }) => ({
@@ -95,6 +96,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   semanticEventDefinitions: many(semanticEventDefinitions),
   clusters: many(clusters),
   traces: many(traces),
+  spanRenderingKeys: many(spanRenderingKeys),
 }));
 
 export const sharedEvalsRelations = relations(sharedEvals, ({ one }) => ({

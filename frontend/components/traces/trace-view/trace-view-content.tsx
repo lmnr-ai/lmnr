@@ -1,6 +1,6 @@
 import { get, isNil } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import Chat from "@/components/traces/trace-view/chat";
@@ -74,9 +74,7 @@ export default function TraceViewContent({
     isTraceLoading,
     setIsTraceLoading,
     setIsSpansLoading,
-    traceError,
     setTraceError,
-    spansError,
     setSpansError,
   } = useTraceViewStore(
     (state) => ({
@@ -90,9 +88,7 @@ export default function TraceViewContent({
       isSpansLoading: state.isSpansLoading,
       setIsSpansLoading: state.setIsSpansLoading,
       setIsTraceLoading: state.setIsTraceLoading,
-      traceError: state.traceError,
       setTraceError: state.setTraceError,
-      spansError: state.spansError,
       setSpansError: state.setSpansError,
     }),
     shallow
@@ -180,11 +176,14 @@ export default function TraceViewContent({
     [setSelectedSpan, searchParams, setSpanPath, router, pathName]
   );
 
+  const [traceSearchTerm, setTraceSearchTerm] = useState("");
+
   const fetchSpans = useCallback(
     async (search: string, filters: Filter[]) => {
       try {
         setIsSpansLoading(true);
         setSpansError(undefined);
+        setTraceSearchTerm(search);
 
         const params = new URLSearchParams();
         if (search) {
@@ -297,8 +296,10 @@ export default function TraceViewContent({
     handleFetchTrace();
   }, [handleFetchTrace]);
 
+  const initialSearch = searchParams.get("search") ?? "";
+
   useEffect(() => {
-    fetchSpans("", []);
+    fetchSpans(initialSearch, []);
 
     return () => {
       setSpans([]);
@@ -333,7 +334,12 @@ export default function TraceViewContent({
       ) : selectedSpan.spanType === SpanType.HUMAN_EVALUATOR ? (
         <HumanEvaluatorSpanView traceId={selectedSpan.traceId} spanId={selectedSpan.spanId} key={selectedSpan.spanId} />
       ) : (
-        <SpanView key={selectedSpan.spanId} spanId={selectedSpan.spanId} traceId={traceId} />
+        <SpanView
+          key={selectedSpan.spanId}
+          spanId={selectedSpan.spanId}
+          traceId={traceId}
+          initialSearchTerm={traceSearchTerm}
+        />
       )}
     </div>
   );

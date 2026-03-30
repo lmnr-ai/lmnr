@@ -1,26 +1,25 @@
 import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { useMemo, useRef } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
+import { SnippetPreview } from "@/components/traces/snippet-preview";
+import { ContentPreview } from "@/components/traces/trace-view/content-preview";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
-import { type PathInfo } from "@/components/traces/trace-view/store/utils";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
-import { Button } from "@/components/ui/button";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
-import { Skeleton } from "../../../ui/skeleton";
 import { NoSpanTooltip } from "../../no-span-tooltip";
 import SpanTypeIcon from "../../span-type-icon";
-import Markdown from "../list/markdown";
+import { PreviewLoadingPlaceholder } from "../preview-loading-placeholder";
 import { SpanDisplayTooltip } from "../span-display-tooltip";
 import { SpanStatsShield } from "../span-stats-shield";
 import { BranchConnector } from "./branch-connector";
 
 const ROW_HEIGHT = 32;
-const SQUARE_SIZE = 20;
+const SQUARE_SIZE = 22;
 const SQUARE_ICON_SIZE = 14;
 
 interface SpanCardProps {
@@ -28,23 +27,10 @@ interface SpanCardProps {
   branchMask: boolean[];
   output: any | undefined;
   depth: number;
-  pathInfo: PathInfo;
   onSpanSelect?: (span?: TraceViewSpan) => void;
-  onOpenSettings?: (span: TraceViewSpan & { pathInfo: PathInfo }) => void;
 }
 
-const generateSpanPathKeyFromPathInfo = (span: TraceViewSpan, pathInfo: PathInfo): string => {
-  if (!pathInfo) {
-    return span.name;
-  }
-
-  const pathSegments = pathInfo.full.map((item) => item.name);
-  pathSegments.push(span.name);
-
-  return pathSegments.join(", ");
-};
-
-export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathInfo, onOpenSettings }: SpanCardProps) {
+export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: SpanCardProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   const { selectedSpan, spans, toggleCollapse, showTreeContent } = useTraceViewBaseStore((state) => ({
@@ -66,18 +52,18 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
   const llmMetrics = getLLMMetrics(span);
   const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
 
-  const spanPathKey = useMemo(() => generateSpanPathKeyFromPathInfo(span, pathInfo), [span, pathInfo]);
-
-  const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
+  const hasSnippet = !!(span.inputSnippet || span.outputSnippet);
 
   const hasChildren = childSpans && childSpans.length > 0;
   const isExpandable =
-    hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true));
+    hasChildren || ((span.spanType === "LLM" || span.spanType === "CACHED") && (showTreeContent ?? true)) || hasSnippet;
 
   const isSelected = useMemo(() => selectedSpan?.spanId === span.spanId, [selectedSpan?.spanId, span.spanId]);
 
   const showContent =
-    (showTreeContent ?? true) && !span.collapsed && (span.spanType === "LLM" || span.spanType === "CACHED");
+    (showTreeContent ?? true) &&
+    !span.collapsed &&
+    (span.spanType === "LLM" || span.spanType === "CACHED" || hasSnippet);
 
   const isLoadingOutput = output === undefined;
 
@@ -148,7 +134,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
                   </div>
                 </NoSpanTooltip>
               ) : (
-                <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
+                <PreviewLoadingPlaceholder />
               )
             ) : (
               <SpanStatsShield
@@ -171,28 +157,23 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth, pathIn
               </button>
             )}
             <div className="grow" />
-            <Button
-              disabled={isLoadingOutput}
-              variant="ghost"
-              className="hidden py-0 px-[3px] h-5 group-hover:block hover:bg-muted animate-in fade-in duration-200"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenSettings?.({ ...span, pathInfo });
-              }}
-            >
-              <Settings className="size-3.5 text-secondary-foreground" />
-            </Button>
           </div>
 
           {showContent && (
             <div className="px-2 pt-0">
-              {isLoadingOutput && (
-                <div className="w-full pb-2">
-                  <Skeleton className="h-12 w-full" />
+              {hasSnippet ? (
+                <div className="pb-2">
+                  <SnippetPreview inputSnippet={span.inputSnippet} outputSnippet={span.outputSnippet} variant="span" />
                 </div>
-              )}
-              {!isLoadingOutput && !isNil(output) && (
-                <Markdown className="max-h-48" output={output} defaultValue={savedTemplate} />
+              ) : (
+                <>
+                  {isLoadingOutput && (
+                    <div className="w-full pb-2">
+                      <PreviewLoadingPlaceholder />
+                    </div>
+                  )}
+                  {!isLoadingOutput && !isNil(output) && output !== "" && <ContentPreview output={output} scrollable />}
+                </>
               )}
             </div>
           )}

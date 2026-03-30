@@ -7,7 +7,6 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use super::trigger::get_signal_triggers_cached;
-use crate::ch::spans::CHSpanV2;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     cache::{
@@ -133,29 +132,6 @@ pub async fn process_span_messages(
             "Failed to insert spans to Clickhouse: {:?}",
             e
         )));
-    }
-
-    let do_write_spans_v2 = std::env::var("WRITE_SPANS_V2").is_ok_and(|s| {
-        let val = s.trim().to_lowercase();
-        val == "true" || val == "1"
-    });
-
-    if do_write_spans_v2 {
-        let ch_spans_v2: Vec<CHSpanV2> = ch_spans.into_iter().map(CHSpanV2::from).collect();
-
-        // If any of these fail, they will trigger an alarm. Later, we can ingest by searching for this
-        // log using regex log search and manually backfill failing spans
-        if let Err(e) = ch.insert_batch(&ch_spans_v2, config).await {
-            let project_id_span_id_pairs = ch_spans_v2
-                .iter()
-                .map(|s| format!("[{} {}]", s.project_id, s.span_id))
-                .join(" ");
-            log::error!(
-                "Failed to record spans v2 to clickhouse. Project span pairs: {}. Error: {:?}",
-                project_id_span_id_pairs,
-                e
-            );
-        }
     }
 
     // Check signal triggers AFTER spans are inserted into ClickHouse

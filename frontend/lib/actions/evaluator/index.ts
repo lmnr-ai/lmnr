@@ -5,8 +5,8 @@ import { db } from "@/lib/db/drizzle";
 import { evaluators } from "@/lib/db/migrations/schema";
 
 export const UpdateEvaluatorSchema = z.object({
-  projectId: z.string(),
-  evaluatorId: z.string(),
+  projectId: z.guid(),
+  evaluatorId: z.guid(),
   name: z.string().min(1, { error: "Name is required" }).max(255, { error: "Name must be less than 255 characters" }),
   definition: z.object({
     function_code: z.string().min(1, { error: "Function code is required" }),

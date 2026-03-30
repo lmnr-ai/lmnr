@@ -287,7 +287,10 @@ pub async fn upsert_trace_statistics_batch(
                 input_cost = traces.input_cost + EXCLUDED.input_cost,
                 output_cost = traces.output_cost + EXCLUDED.output_cost,
                 cost = traces.cost + EXCLUDED.cost,
-                status = COALESCE(EXCLUDED.status, traces.status),
+                status = CASE
+                    WHEN traces.status = 'error' OR EXCLUDED.status = 'error' THEN 'error'
+                    ELSE COALESCE(EXCLUDED.status, traces.status)
+                END,
                 tags = array(SELECT DISTINCT unnest(traces.tags || EXCLUDED.tags)),
                 num_spans = traces.num_spans + EXCLUDED.num_spans,
                 has_browser_session = COALESCE(EXCLUDED.has_browser_session, traces.has_browser_session),

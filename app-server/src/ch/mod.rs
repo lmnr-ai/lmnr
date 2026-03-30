@@ -2,7 +2,7 @@ pub mod browser_events;
 pub mod cloud;
 pub mod data_plane;
 pub mod datapoints;
-
+pub mod evaluation_datapoints;
 pub mod limits;
 pub mod logs;
 pub mod notification_logs;
@@ -26,7 +26,6 @@ use crate::db::workspaces::WorkspaceDeployment;
 #[derive(Serialize, Clone, Copy, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Table {
-    SpansV2,
     Spans,
     Traces,
     NotificationLogs,
@@ -35,7 +34,6 @@ pub enum Table {
 impl Table {
     pub const fn as_str(&self) -> &'static str {
         match self {
-            Table::SpansV2 => "spans_v2",
             Table::Spans => "spans",
             Table::Traces => "traces_replacing",
             Table::NotificationLogs => "notification_logs",

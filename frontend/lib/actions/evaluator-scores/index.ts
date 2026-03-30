@@ -5,8 +5,8 @@ import { db } from "@/lib/db/drizzle";
 import { evaluatorScores } from "@/lib/db/migrations/schema";
 
 const GetEvaluatorScoresSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
+  spanId: z.guid(),
+  projectId: z.guid(),
 });
 
 export const getEvaluatorScores = async (input: z.infer<typeof GetEvaluatorScoresSchema>) => {

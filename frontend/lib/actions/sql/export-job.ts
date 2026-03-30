@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { datasets } from "@/lib/db/migrations/schema";
@@ -7,8 +7,8 @@ import { datasets } from "@/lib/db/migrations/schema";
 import { validateQuery } from "./validate-query";
 
 export const CreateExportJobSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
   sqlQuery: z.string().min(1, "SQL query is required"),
   config: z
     .object({
@@ -84,6 +84,8 @@ export async function createExportJob(input: z.infer<typeof CreateExportJobSchem
   return {
     message: "Export job started successfully",
     jobId: exportResult.jobId || null,
-    warnings: validationResult.error ? [`Query was validated and may have been modified: ${validationResult.error}`] : undefined,
+    warnings: validationResult.error
+      ? [`Query was validated and may have been modified: ${validationResult.error}`]
+      : undefined,
   };
 }

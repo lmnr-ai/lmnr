@@ -41,33 +41,33 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
   }
 
   return (
-    <Tabs className="flex flex-col h-full w-full" defaultValue="span-input">
-      <div className="flex-none">
-        <div className="flex flex-col px-4 pt-2 gap-1">
-          <div className="flex flex-col gap-1">
-            <div className="flex flex-none items-center space-x-2">
-              <SpanTypeIcon spanType={span.spanType} />
-              <div className="text-xl items-center font-medium truncate">{span.name}</div>
-            </div>
-            <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
+    <div className="flex flex-col h-full w-full overflow-hidden">
+      <div className="flex flex-col px-2 pt-2 gap-1">
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-none items-center space-x-2">
+            <SpanTypeIcon spanType={span.spanType} />
+            <div className="text-base items-center font-medium truncate">{span.name}</div>
           </div>
-          <div className="flex flex-col gap-1.5 py-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <SpanStatsShields span={span} variant="outline" />
-              <div className="text-xs font-mono rounded-md py-0.5 px-2 border border-muted">
-                {new Date(span.startTime).toLocaleString()}
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <ModelIndicator attributes={span.attributes} />
-              <ToolList tools={extractToolsFromAttributes(span.attributes)} />
-              <StructuredOutputSchema
-                schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
-              />
-            </div>
-          </div>
-          {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
+          <MonoWithCopy className="text-muted-foreground">{span.spanId}</MonoWithCopy>
         </div>
+        <div className="flex flex-col gap-1.5 py-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <SpanStatsShields span={span} variant="outline" />
+            <div className="text-xs font-mono rounded-md py-0.5 px-2 border border-muted">
+              {new Date(span.startTime).toLocaleString()}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <ModelIndicator attributes={span.attributes} />
+            <ToolList tools={extractToolsFromAttributes(span.attributes)} />
+            <StructuredOutputSchema
+              schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
+            />
+          </div>
+        </div>
+        {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}
+      </div>
+      <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue="span-input">
         <div className="px-2 pb-2 mt-2 border-b w-full">
           <TabsList className="border-none text-xs h-7">
             <TabsTrigger value="span-input" className="text-xs">
@@ -84,33 +84,33 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
             </TabsTrigger>
           </TabsList>
         </div>
-      </div>
-      <div className="grow flex overflow-hidden">
-        <TabsContent value="span-input" className="w-full h-full">
-          <SpanContent span={span} type="input" />
-        </TabsContent>
-        <TabsContent value="span-output" className="w-full h-full">
-          <SpanContent span={span} type="output" />
-        </TabsContent>
-        <TabsContent value="attributes" className="w-full h-full">
-          <ContentRenderer
-            className="rounded-none border-0"
-            codeEditorClassName="rounded-none border-none bg-background contain-strict"
-            readOnly
-            value={JSON.stringify(span.attributes)}
-            defaultMode="yaml"
-          />
-        </TabsContent>
-        <TabsContent value="events" className="w-full h-full">
-          <ContentRenderer
-            className="rounded-none border-0"
-            codeEditorClassName="rounded-none border-none bg-background contain-strict"
-            readOnly
-            value={JSON.stringify(span.events)}
-            defaultMode="yaml"
-          />
-        </TabsContent>
-      </div>
-    </Tabs>
+        <div className="grow flex overflow-hidden">
+          <TabsContent value="span-input" className="w-full h-full">
+            <SpanContent span={span} type="input" />
+          </TabsContent>
+          <TabsContent value="span-output" className="w-full h-full">
+            <SpanContent span={span} type="output" />
+          </TabsContent>
+          <TabsContent value="attributes" className="w-full h-full">
+            <ContentRenderer
+              className="rounded-none border-0"
+              codeEditorClassName="rounded-none border-none bg-background contain-strict"
+              readOnly
+              value={JSON.stringify(span.attributes)}
+              defaultMode="yaml"
+            />
+          </TabsContent>
+          <TabsContent value="events" className="w-full h-full">
+            <ContentRenderer
+              className="rounded-none border-0"
+              codeEditorClassName="rounded-none border-none bg-background contain-strict"
+              readOnly
+              value={JSON.stringify(span.events)}
+              defaultMode="yaml"
+            />
+          </TabsContent>
+        </div>
+      </Tabs>
+    </div>
   );
 }

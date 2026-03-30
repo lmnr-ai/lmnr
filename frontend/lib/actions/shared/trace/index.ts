@@ -7,7 +7,7 @@ import { db } from "@/lib/db/drizzle";
 import { sharedTraces } from "@/lib/db/migrations/schema";
 
 export const GetSharedTraceSchema = z.object({
-  traceId: z.string(),
+  traceId: z.guid(),
 });
 
 export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>): Promise<TraceViewTrace | undefined> {

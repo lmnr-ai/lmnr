@@ -251,9 +251,8 @@ const createQueueStore = (queue: LabelingQueue) =>
       const options = field.options;
       if (field.type === "number" && options && "min" in options) {
         const { min = 1, max = 5 } = options;
-        const targetValue = min - 1 + optionNumber;
-        if (targetValue >= min && targetValue <= max) {
-          updateTargetField(field.key, targetValue);
+        if (optionNumber >= min && optionNumber <= max) {
+          updateTargetField(field.key, optionNumber);
         }
       } else if (field.type === "enum" && Array.isArray(field.options)) {
         const optionIndex = optionNumber - 1;

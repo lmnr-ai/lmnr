@@ -10,16 +10,16 @@ import { projects, workspaceDeployments } from "@/lib/db/migrations/schema.ts";
 import { DeploymentType } from "@/lib/workspaces/types.ts";
 
 const GenerateDeploymentKeysSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
 });
 
 const VerifyDeploymentSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   dataPlaneUrl: z.string(),
 });
 
 const UpdateDeploymentSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   dataPlaneUrl: z.string().optional(),
   mode: z.enum(DeploymentType),
 });

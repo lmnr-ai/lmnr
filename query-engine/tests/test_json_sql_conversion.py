@@ -219,6 +219,62 @@ LIMIT 5"""
         sql = convert_json_to_sql(query_json)
         assert "(countIf(path LIKE '--%'))" in sql
 
+    def test_metric_alias_does_not_shadow_filter_column(self):
+        """Test that aggregating and filtering the same column does not produce
+        an alias that shadows the column name, which would cause ClickHouse
+        ILLEGAL_AGGREGATION errors (LAM-1394)."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "avg", "column": "total_tokens"}],
+            "dimensions": [],
+            "filters": [
+                {"field": "total_tokens", "op": "gt", "number_value": 0},
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"},
+            ],
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        # The alias must NOT be the bare column name "total_tokens"
+        assert "AS `total_tokens`" not in sql
+        # It should use fn_column pattern instead
+        assert "avg(total_tokens) AS `avg_total_tokens`" in sql
+        # The filter should reference the original column without conflict
+        assert "total_tokens > 0" in sql
+
+    def test_metric_with_explicit_alias_preserves_alias(self):
+        """Test that an explicit alias is used as-is, even if it matches the column name."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "sum", "column": "cost", "alias": "total_cost"}],
+            "dimensions": [],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"},
+            ],
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "sum(cost) AS `total_cost`" in sql
+
+    def test_metric_without_alias_uses_fn_column_pattern(self):
+        """Test that metrics without an explicit alias default to fn_column."""
+        query_json = {
+            "table": "spans",
+            "metrics": [{"fn": "max", "column": "latency"}],
+            "dimensions": ["name"],
+            "filters": [
+                {"field": "start_time", "op": "gte", "string_value": "{start_time:DateTime64}"},
+                {"field": "start_time", "op": "lte", "string_value": "{end_time:DateTime64}"},
+            ],
+        }
+
+        sql = convert_json_to_sql(query_json)
+
+        assert "max(latency) AS `max_latency`" in sql
+
     def test_empty_query_validation(self):
         """Test that queries with no metrics, dimensions, or time_range are rejected"""
         query_json = {

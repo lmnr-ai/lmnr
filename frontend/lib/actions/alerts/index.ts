@@ -15,26 +15,26 @@ const TargetSchema = z.object({
 });
 
 const CreateAlertSchema = z.object({
-  projectId: z.uuid(),
+  projectId: z.guid(),
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT"]),
-  sourceId: z.uuid(),
+  sourceId: z.guid(),
   targets: z.array(TargetSchema).min(1),
 });
 
 const UpdateAlertSchema = z.object({
-  alertId: z.uuid(),
-  projectId: z.uuid(),
+  alertId: z.guid(),
+  projectId: z.guid(),
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT"]),
-  sourceId: z.uuid(),
+  sourceId: z.guid(),
   targets: z.array(TargetSchema).min(1),
   userEmail: z.string().optional(),
 });
 
 const DeleteAlertSchema = z.object({
-  alertId: z.uuid(),
-  projectId: z.uuid(),
+  alertId: z.guid(),
+  projectId: z.guid(),
 });
 
 export async function getAlerts(projectId: string, userEmail?: string): Promise<AlertWithDetails[]> {

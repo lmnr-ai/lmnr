@@ -17,7 +17,7 @@ use crate::{
         },
         queue::{SignalMessage, push_to_realtime_queue},
         response_processor::{finalize_runs, process_provider_responses},
-        utils::{InternalSpan, emit_internal_span},
+        utils::{InternalSpan, emit_internal_span, request_to_span_input},
     },
     worker::{HandlerError, MessageHandler},
 };
@@ -132,16 +132,21 @@ impl MessageHandler for SignalJobRealtimeHandler {
 }
 
 impl SignalJobRealtimeHandler {
-    fn build_submit_span(message: &SignalMessage, config: &SignalWorkerConfig, error: Option<String>) -> InternalSpan {
+    fn build_submit_span(
+        message: &SignalMessage,
+        config: &SignalWorkerConfig,
+        input: serde_json::Value,
+        error: Option<String>,
+    ) -> InternalSpan {
         InternalSpan {
-            name: format!("step_{}.submit_request", message.step),
+            name: format!("step_{}.submit_realtime_request", message.step),
             trace_id: message.internal_trace_id,
             run_id: message.run_id,
             signal_name: message.signal.name.clone(),
             parent_span_id: Some(message.internal_span_id),
             span_type: SpanType::LLM,
             start_time: message.request_start_time,
-            input: None,
+            input: Some(input),
             output: None,
             input_tokens: None,
             input_cached_tokens: None,
@@ -162,6 +167,8 @@ impl SignalJobRealtimeHandler {
         message: SignalMessage,
         backoff: ExponentialBackoff,
     ) {
+        let span_input = request_to_span_input(&request);
+
         let model_str = llm_model();
         let llm_client = self.llm_client.clone();
         let req_clone = request.clone();
@@ -181,7 +188,11 @@ impl SignalJobRealtimeHandler {
 
         match backoff::future::retry(backoff, generate_fn).await {
             Ok(response) => {
-                emit_internal_span(self.queue.clone(), Self::build_submit_span(&message, &self.config, None)).await;
+                emit_internal_span(
+                    self.queue.clone(),
+                    Self::build_submit_span(&message, &self.config, span_input.clone(), None),
+                )
+                .await;
                 let inline_response = ProviderInlineResponse {
                     response: Some(response),
                     error: None,
@@ -294,7 +305,12 @@ impl SignalJobRealtimeHandler {
                 log::error!("[SIGNAL JOB] Realtime API error after backoff: {:?}", e);
                 emit_internal_span(
                     self.queue.clone(),
-                    Self::build_submit_span(&message, &self.config, Some(format!("{}", e))),
+                    Self::build_submit_span(
+                        &message,
+                        &self.config,
+                        span_input,
+                        Some(format!("{}", e)),
+                    ),
                 )
                 .await;
 

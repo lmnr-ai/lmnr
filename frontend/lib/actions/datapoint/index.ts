@@ -5,15 +5,15 @@ import { executeQuery } from "@/lib/actions/sql";
 import { createDatapoints, type DatapointResult } from "@/lib/clickhouse/datapoints";
 
 const GetDatapointSchema = z.object({
-  projectId: z.string(),
-  datapointId: z.string(),
-  datasetId: z.string(),
+  projectId: z.guid(),
+  datapointId: z.guid(),
+  datasetId: z.guid(),
 });
 
 const UpdateDatapointSchema = z.object({
-  projectId: z.string(),
-  datapointId: z.string(),
-  datasetId: z.string(),
+  projectId: z.guid(),
+  datapointId: z.guid(),
+  datasetId: z.guid(),
   data: z.any(),
   target: z.any().nullable(),
   metadata: z.record(z.string(), z.any()),

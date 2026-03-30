@@ -14,20 +14,20 @@ export type SignalClusterConfig = {
 };
 
 export const GetClusterConfigSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   eventName: z.string(),
   eventSource: z.enum(["SEMANTIC", "CODE"]).optional().default("SEMANTIC"),
 });
 
 export const CreateClusterConfigSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   eventName: z.string(),
   valueTemplate: z.string().min(1, "Value template is required"),
   eventSource: z.enum(["SEMANTIC", "CODE"]).optional().default("SEMANTIC"),
 });
 
 export const DeleteClusterConfigSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   eventName: z.string(),
   eventSource: z.enum(["SEMANTIC", "CODE"]).optional().default("SEMANTIC"),
 });

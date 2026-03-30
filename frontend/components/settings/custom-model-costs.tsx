@@ -343,48 +343,75 @@ export default function CustomModelCosts() {
     previousProvider?: string;
   }): Promise<boolean> => {
     const { id, provider, model, costs, previousModel, previousProvider } = params;
-    const res = await fetch(`/api/projects/${projectId}/custom-model-costs`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, provider, model, costs, previousModel, previousProvider }),
-    });
-    if (res.ok) {
-      mutate();
-      toast({ title: id ? `Model cost updated for ${model}` : `Model cost saved for ${model}` });
-      return true;
-    }
-    if (res.status === 409) {
-      const body = await res.json();
-      toast({ variant: "destructive", title: body.error ?? "A cost entry for this provider and model already exists" });
+    try {
+      const res = await fetch(`/api/projects/${projectId}/custom-model-costs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, provider, model, costs, previousModel, previousProvider }),
+      });
+      if (res.ok) {
+        mutate();
+        toast({ title: id ? `Model cost updated for ${model}` : `Model cost saved for ${model}` });
+        return true;
+      }
+      const errMessage = await res
+        .json()
+        .then((d) => d?.error)
+        .catch(() => null);
+      if (res.status === 409) {
+        toast({
+          variant: "destructive",
+          title: errMessage ?? "A cost entry for this provider and model already exists",
+        });
+        return false;
+      }
+      toast({ variant: "destructive", title: errMessage ?? "Failed to save model cost" });
+      return false;
+    } catch {
+      toast({ variant: "destructive", title: "Failed to save model cost" });
       return false;
     }
-    toast({ variant: "destructive", title: "Failed to save model cost" });
-    return false;
   };
 
   const deleteCost = async (id: string) => {
-    const res = await fetch(`/api/projects/${projectId}/custom-model-costs?id=${id}`, {
-      method: "DELETE",
-    });
-    if (res.ok) {
-      mutate();
-      toast({ title: "Model cost deleted" });
-    } else {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/custom-model-costs?id=${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        mutate();
+        toast({ title: "Model cost deleted" });
+      } else {
+        const errMessage = await res
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        toast({ variant: "destructive", title: errMessage ?? "Failed to delete model cost" });
+      }
+    } catch {
       toast({ variant: "destructive", title: "Failed to delete model cost" });
     }
   };
 
   const copyCosts = async (targetProjectId: string): Promise<boolean> => {
-    const res = await fetch(`/api/projects/${projectId}/custom-model-costs/copy`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetProjectId }),
-    });
-    if (res.ok) {
-      mutate();
-      toast({ title: "Model costs copied to project" });
-      return true;
-    } else {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/custom-model-costs/copy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetProjectId }),
+      });
+      if (res.ok) {
+        mutate();
+        toast({ title: "Model costs copied to project" });
+        return true;
+      }
+      const errMessage = await res
+        .json()
+        .then((d) => d?.error)
+        .catch(() => null);
+      toast({ variant: "destructive", title: errMessage ?? "Failed to copy model costs" });
+      return false;
+    } catch {
       toast({ variant: "destructive", title: "Failed to copy model costs" });
       return false;
     }

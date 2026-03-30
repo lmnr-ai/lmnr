@@ -3,49 +3,18 @@ use std::{collections::HashMap, sync::Arc};
 use actix_web::{HttpResponse, post, web};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
     db::spans::{Span, SpanType},
     mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload},
-    quickwit::{SPANS_INDEX_ID, client::QuickwitClient},
-    routes::{ResponseResult, error::Error},
+    quickwit::client::QuickwitClient,
+    routes::ResponseResult,
+    search::snippets::SearchSpanHit,
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
-
-const DEFAULT_SEARCH_MAX_HITS: usize = 500;
-const DEFAULT_SEARCH_TIME_RANGE: chrono::Duration = chrono::Duration::days(7);
-// TODO: maybe remove all punctuation similar to the default tokenizer in the index?
-const QUICKWIT_RESERVED_CHARACTERS: &[char] = &['?', '`', '~', '!', '\\'];
-// Quickwit documentation is very brief on this, it lists all of the reserved characters
-// with a note that you can escape them with a backslash. However, some of them break
-// the query parsing when escaped, so we need to remove them.
-const QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS: &[char] = &[
-    '"', ':', '^', '{', '}', '[', ']', '(', ')',
-    // The below characters won't break parsing but change the meaning of the query
-    // even when escaped, so safest to remove them.
-    '+', '\u{002D}', // - hyphen-minus
-    '\u{2013}', // – en dash
-    '\u{2014}', // — em dash
-];
-
-/// Escape special characters for Quickwit query syntax
-fn escape_quickwit_query(query: &str) -> String {
-    query
-        .chars()
-        .flat_map(|c| {
-            if QUICKWIT_RESERVED_CHARACTERS.contains(&c) {
-                vec!['\\', c]
-            } else if QUICKWIT_RESERVED_UNESCAPABLE_CHARACTERS.contains(&c) {
-                vec![' ']
-            } else {
-                vec![c]
-            }
-        })
-        .collect()
-}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -135,23 +104,10 @@ pub struct SearchSpansRequest {
     pub search_query: String,
     pub start_time: Option<DateTime<Utc>>,
     pub end_time: Option<DateTime<Utc>>,
-    #[serde(default)]
-    pub search_in: Option<Vec<String>>,
     pub limit: usize,
     pub offset: usize,
-}
-
-const QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS: [&str; 2] = ["input", "output"];
-
-#[derive(Serialize, Deserialize)]
-struct QuickwitHit {
-    trace_id: String,
-    span_id: String,
-}
-
-#[derive(Serialize, Deserialize)]
-struct QuickwitResponse {
-    hits: Vec<QuickwitHit>,
+    #[serde(default)]
+    pub get_snippets: bool,
 }
 
 #[post("spans/search")]
@@ -159,110 +115,37 @@ pub async fn search_spans(
     project_id: web::Path<Uuid>,
     request: web::Json<SearchSpansRequest>,
     quickwit_client: web::Data<Option<QuickwitClient>>,
+    clickhouse: web::Data<clickhouse::Client>,
 ) -> ResponseResult {
     let project_id = project_id.into_inner();
     let request = request.into_inner();
 
     let trimmed_query = request.search_query.trim();
     if trimmed_query.is_empty() {
-        return Ok(HttpResponse::Ok().json(Vec::<String>::new()));
+        return Ok(HttpResponse::Ok().json(Vec::<SearchSpanHit>::new()));
     }
 
-    // Escape characters reserved by quickwit
-    let escaped_query = escape_quickwit_query(trimmed_query);
-
-    // If Quickwit is not available, return empty results (graceful degradation)
     let quickwit_client = match quickwit_client.as_ref() {
         Some(client) => client,
         None => {
             log::warn!("Quickwit search requested but Quickwit client is not available");
-            return Ok(HttpResponse::Ok().json(Vec::<String>::new()));
+            return Ok(HttpResponse::Ok().json(Vec::<SearchSpanHit>::new()));
         }
     };
 
-    let mut query_parts = vec![
-        format!("project_id:{}", project_id),
-        format!("({})", escaped_query),
-    ];
+    let results = crate::search::search_spans(
+        quickwit_client,
+        &clickhouse,
+        project_id,
+        trimmed_query,
+        request.trace_id.as_deref(),
+        request.limit,
+        request.offset,
+        request.start_time,
+        request.end_time,
+        request.get_snippets,
+    )
+    .await?;
 
-    let sort_by = "start_time";
-
-    if let Some(trace_id) = request.trace_id {
-        query_parts.push(format!("trace_id:{}", trace_id));
-    }
-
-    let query_string = query_parts.join(" AND ");
-
-    let mut search_body = json!({
-        "query": query_string,
-        "sort_by": sort_by,
-    });
-
-    // Handle search fields
-    let search_fields = if let Some(search_in) = request.search_in {
-        if search_in.is_empty() {
-            QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
-        } else {
-            let valid_fields: Vec<&str> = QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS
-                .iter()
-                .filter(|&&f| search_in.iter().any(|requested| requested == f))
-                .cloned()
-                .collect();
-
-            if valid_fields.is_empty() {
-                QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
-            } else {
-                valid_fields
-            }
-        }
-    } else {
-        QUICKWIT_SPANS_DEFAULT_SEARCH_FIELDS.to_vec()
-    };
-
-    // Quickwit expects search_field as a comma-separated string, not an array
-    let search_field_str = search_fields.join(",");
-    search_body["search_field"] = serde_json::Value::String(search_field_str);
-
-    // Handle pagination
-    if request.limit != 0 {
-        search_body["max_hits"] = serde_json::Value::Number(request.limit.into())
-    } else {
-        search_body["max_hits"] = serde_json::Value::Number(DEFAULT_SEARCH_MAX_HITS.into());
-    }
-
-    if request.offset != 0 {
-        search_body["start_offset"] = serde_json::Value::Number(request.offset.into());
-    }
-
-    // Handle timestamps, defaults to last week if not provided
-    if let Some(s) = request.start_time {
-        search_body["start_timestamp"] = serde_json::Value::Number(s.timestamp().into());
-    } else {
-        search_body["start_timestamp"] =
-            serde_json::Value::Number((Utc::now() - DEFAULT_SEARCH_TIME_RANGE).timestamp().into());
-    }
-    if let Some(e) = request.end_time {
-        search_body["end_timestamp"] = serde_json::Value::Number(e.timestamp().into());
-    }
-
-    let hits = search_index(quickwit_client, &SPANS_INDEX_ID, search_body).await?;
-    Ok(HttpResponse::Ok().json(hits))
-}
-
-async fn search_index(
-    client: &QuickwitClient,
-    index_id: &str,
-    body: serde_json::Value,
-) -> Result<Vec<QuickwitHit>, Error> {
-    let response_value = client.search_index(index_id, body).await.map_err(|e| {
-        log::error!("Quickwit search error (index {}): {:?}", index_id, e);
-        Error::InternalAnyhowError(anyhow::anyhow!("Failed to search spans"))
-    })?;
-
-    let quickwit_response: QuickwitResponse =
-        serde_json::from_value(response_value).map_err(|e| {
-            Error::InternalAnyhowError(anyhow::anyhow!("Failed to parse Quickwit response: {}", e))
-        })?;
-
-    Ok(quickwit_response.hits)
+    Ok(HttpResponse::Ok().json(results))
 }

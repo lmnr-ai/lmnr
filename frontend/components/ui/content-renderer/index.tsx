@@ -251,7 +251,7 @@ const PureContentRenderer = ({
 
   return (
     <div
-      className={cn("size-full min-h-7 flex flex-col border relative", className)}
+      className={cn("size-full min-h-7 flex flex-col border relative overflow-hidden", className)}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >

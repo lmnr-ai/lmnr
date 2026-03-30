@@ -2,15 +2,14 @@ import { clamp, has } from "lodash";
 import { createContext, useContext } from "react";
 import { type StoreApi, useStore } from "zustand";
 
+import { type SnippetInfo } from "@/lib/actions/traces/search";
 import { type SpanEvent } from "@/lib/events/types";
 import { SPAN_KEYS } from "@/lib/lang-graph/types";
 import { type SpanType } from "@/lib/traces/types";
 
 import {
-  buildSpanNameMap,
   computePathInfoMap,
   type CondensedTimelineData,
-  groupIntoSections,
   transformSpansToCondensedTimeline,
   transformSpansToTree,
   type TreeSpan,
@@ -48,6 +47,8 @@ export type TraceViewSpan = {
     cacheReadInputTokens?: number;
     hasLLMDescendants: boolean;
   };
+  inputSnippet?: SnippetInfo;
+  outputSnippet?: SnippetInfo;
 };
 
 export type TraceViewListSpan = {
@@ -66,6 +67,8 @@ export type TraceViewListSpan = {
     display: Array<{ spanId: string; name: string; count?: number }>;
     full: Array<{ spanId: string; name: string }>;
   } | null;
+  inputSnippet?: SnippetInfo;
+  outputSnippet?: SnippetInfo;
 };
 
 export type TraceViewTrace = {
@@ -109,7 +112,6 @@ export interface BaseTraceViewState {
   sessionStartTime?: number;
   tab: "tree" | "reader";
   hasBrowserSession: boolean;
-  spanTemplates: Record<string, string>;
   showTreeContent: boolean;
   condensedTimelineEnabled: boolean;
   condensedTimelineVisibleSpanIds: Set<string>;
@@ -162,8 +164,6 @@ export interface BaseTraceViewActions {
   setHasBrowserSession: (hasBrowserSession: boolean) => void;
   toggleCollapse: (spanId: string) => void;
   updateTraceVisibility: (visibility: "private" | "public") => void;
-  saveSpanTemplate: (spanPathKey: string, template: string) => void;
-  deleteSpanTemplate: (spanPathKey: string) => void;
   setShowTreeContent: (show: boolean) => void;
   incrementSessionTime: (increment: number, maxTime: number) => boolean;
 
@@ -191,10 +191,7 @@ export interface BaseTraceViewActions {
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
   getListData: () => TraceViewListSpan[];
-  getSpanNameInfo: (spanId: string) => { name: string; count?: number } | undefined;
   getHasLangGraph: () => boolean;
-  getSpanBranch: <T extends { spanId: string; parentSpanId?: string }>(span: T) => T[];
-  getSpanTemplate: (spanPathKey: string) => string | undefined;
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
 }
 
@@ -225,7 +222,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     langGraph: false,
     spanPath: null,
     hasBrowserSession: options?.initialTrace?.hasBrowserSession || false,
-    spanTemplates: {},
     showTreeContent: true,
     condensedTimelineEnabled: true,
     condensedTimelineVisibleSpanIds: new Set(),
@@ -313,6 +309,8 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         totalCost: span.totalCost,
         pending: span.pending,
         pathInfo: pathInfoMap.get(span.spanId) ?? null,
+        inputSnippet: span.inputSnippet,
+        outputSnippet: span.outputSnippet,
       }));
 
       return lightweightListSpans;
@@ -356,21 +354,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       set({ sessionTime: newTime } as Partial<T>);
       return newTime >= maxTime;
     },
-    saveSpanTemplate: (spanPathKey: string, template: string) => {
-      set(
-        (state) =>
-          ({
-            spanTemplates: { ...state.spanTemplates, [spanPathKey]: template },
-          }) as Partial<T>
-      );
-    },
-    deleteSpanTemplate: (spanPathKey: string) => {
-      set((state) => {
-        const newTemplates = { ...state.spanTemplates };
-        delete newTemplates[spanPathKey];
-        return { spanTemplates: newTemplates } as Partial<T>;
-      });
-    },
     setShowTreeContent: (showTreeContent: boolean) => set({ showTreeContent } as Partial<T>),
     setCondensedTimelineEnabled: (enabled: boolean) => set({ condensedTimelineEnabled: enabled } as Partial<T>),
     setCondensedTimelineVisibleSpanIds: (ids: Set<string>) =>
@@ -402,52 +385,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       !!get().spans.find(
         (s) => s.attributes && has(s.attributes, SPAN_KEYS.NODES) && has(s.attributes, SPAN_KEYS.EDGES)
       ),
-    getSpanBranch: <U extends { spanId: string; parentSpanId?: string }>(span: U): U[] => {
-      const spans = get().spans as unknown as U[];
-      const spanMap = new Map(spans.map((s) => [s.spanId, s]));
-
-      const parentChain: U[] = [];
-      let currentSpanId: string | undefined = span.parentSpanId;
-
-      while (currentSpanId) {
-        const parentSpan = spanMap.get(currentSpanId);
-        if (!parentSpan) break;
-        parentChain.unshift(parentSpan);
-        currentSpanId = parentSpan.parentSpanId;
-      }
-
-      const descendantPath: U[] = [span];
-      let currentId = span.spanId;
-
-      while (true) {
-        const children = spans.filter((s) => s.parentSpanId === currentId);
-        if (children.length === 0) break;
-
-        const firstChild = children[0];
-        descendantPath.push(firstChild);
-        currentId = firstChild.spanId;
-      }
-
-      return [...parentChain, ...descendantPath];
-    },
-    getSpanNameInfo: (spanId: string) => {
-      const spans = get().spans;
-      const listSpans = spans.filter((span) => span.spanType !== "DEFAULT");
-      const spanMap = new Map(
-        spans.map((span) => [
-          span.spanId,
-          {
-            spanId: span.spanId,
-            name: span.name,
-            parentSpanId: span.parentSpanId,
-          },
-        ])
-      );
-      const sections = groupIntoSections(listSpans);
-      const spanNameMap = buildSpanNameMap(sections, spanMap);
-      return spanNameMap.get(spanId);
-    },
-    getSpanTemplate: (spanPathKey: string) => get().spanTemplates[spanPathKey],
     getSpanAttribute: (spanId: string, attributeKey: string) => {
       const span = get().spans.find((s) => s.spanId === spanId);
       return span?.attributes?.[attributeKey];

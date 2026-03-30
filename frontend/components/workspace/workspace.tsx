@@ -19,7 +19,7 @@ import WorkspaceUsers from "./workspace-users";
 interface WorkspaceProps {
   invitations: WorkspaceInvitation[];
   workspace: WorkspaceWithOptionalUsers;
-  workspaceStats: WorkspaceStats;
+  workspaceStats: WorkspaceStats | null;
   isOwner: boolean;
   currentUserRole: WorkspaceRole;
   subscription: SubscriptionDetails | null;
