@@ -9,7 +9,7 @@ use crate::ch::spans::CHSpan;
 use super::spans::{extract_exception_from_events, get_span_type, span_short_id};
 use super::utils::{nanoseconds_to_iso, strip_noise, try_parse_json};
 use crate::signals::prompts::{
-    GET_FULL_SPAN_INFO_DESCRIPTION, REGEX_IN_SPANS_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION,
+    GET_FULL_SPAN_INFO_DESCRIPTION, SEARCH_IN_SPANS_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION,
 };
 use crate::signals::provider::models::{ProviderFunctionDeclaration, ProviderTool};
 
@@ -45,14 +45,14 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
 
     let function_declarations = vec![
         ProviderFunctionDeclaration {
-            name: "regex_in_spans".to_string(),
-            description: REGEX_IN_SPANS_DESCRIPTION.to_string(),
+            name: "search_in_spans".to_string(),
+            description: SEARCH_IN_SPANS_DESCRIPTION.to_string(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
                     "searches": {
                         "type": "array",
-                        "description": "REQUIRED. List of regex search operations to perform.",
+                        "description": "REQUIRED. List of search operations to perform.",
                         "items": {
                             "type": "object",
                             "properties": {
@@ -60,9 +60,13 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
                                     "type": "string",
                                     "description": "The span ID (6-character hex string, e.g. 'a1b2c3') to search within."
                                 },
+                                "literal": {
+                                    "type": "string",
+                                    "description": "REQUIRED. Plain text substring to search for. This is tried first and handles most searches. No escaping needed — just the exact text you want to find."
+                                },
                                 "regex": {
                                     "type": "string",
-                                    "description": "Regular expression pattern to match against the span's content. Uses standard regex syntax."
+                                    "description": "Optional regex pattern used as fallback if the literal search finds nothing. Only provide this when you need pattern matching (e.g. wildcards, alternation). Write the regex as you would in a regex tester — JSON escaping is handled automatically."
                                 },
                                 "search_in": {
                                     "type": "string",
@@ -71,10 +75,10 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
                                 },
                                 "reasoning": {
                                     "type": "string",
-                                    "description": "Explanation of why this search is needed and what the agent expects to learn from the results."
+                                    "description": "Explanation of why this search is needed."
                                 }
                             },
-                            "required": ["span_id", "regex", "search_in", "reasoning"]
+                            "required": ["span_id", "literal", "search_in", "reasoning"]
                         }
                     }
                 },
@@ -89,7 +93,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
                 "properties": {
                     "reasoning": {
                         "type": "string",
-                        "description": "REQUIRED. Explain why regex_in_spans is insufficient and why these spans need full details."
+                        "description": "REQUIRED. Explain why search_in_spans is insufficient and why these spans need full details."
                     },
                     "span_ids": {
                         "type": "array",
@@ -226,37 +230,40 @@ pub async fn get_full_spans(
     Ok(result_spans)
 }
 
-const CONTEXT_PADDING: usize = 50;
-const MAX_MATCHES_PER_SEARCH: usize = 20;
+const CONTEXT_PADDING: usize = 100;
+const MAX_MATCHES_PER_SEARCH: usize = 10;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegexSearchRequest {
+pub struct SpanSearchRequest {
     pub span_id: String,
-    pub regex: String,
+    pub literal: String,
+    #[serde(default)]
+    pub regex: Option<String>,
     pub search_in: String,
     pub reasoning: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct RegexSearchResult {
+pub struct SpanSearchResult {
     pub span_id: String,
-    pub matches: Vec<RegexMatch>,
+    pub matches: Vec<SearchMatch>,
+    pub matched_by: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct RegexMatch {
+pub struct SearchMatch {
     pub snippet: String,
     pub offset: usize,
 }
 
-pub async fn regex_in_spans(
+pub async fn search_in_spans(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
     trace_id: Uuid,
-    searches: Vec<RegexSearchRequest>,
-) -> Result<Vec<RegexSearchResult>> {
+    searches: Vec<SpanSearchRequest>,
+) -> Result<Vec<SpanSearchResult>> {
     let unique_span_ids: Vec<String> = searches
         .iter()
         .map(|s| s.span_id.clone())
@@ -265,7 +272,7 @@ pub async fn regex_in_spans(
         .collect();
 
     log::info!(
-        "regex_in_spans: {} searches across {} unique spans in trace {}",
+        "search_in_spans: {} searches across {} unique spans in trace {}",
         searches.len(),
         unique_span_ids.len(),
         trace_id
@@ -280,9 +287,10 @@ pub async fn regex_in_spans(
     if hex_literals.is_empty() {
         return Ok(searches
             .iter()
-            .map(|s| RegexSearchResult {
+            .map(|s| SpanSearchResult {
                 span_id: s.span_id.clone(),
                 matches: vec![],
+                matched_by: String::new(),
                 error: Some("Invalid span_id format".to_string()),
             })
             .collect());
@@ -310,9 +318,10 @@ pub async fn regex_in_spans(
         .iter()
         .map(|search| {
             let Some(ch_span) = span_map.get(&search.span_id.to_lowercase()) else {
-                return RegexSearchResult {
+                return SpanSearchResult {
                     span_id: search.span_id.clone(),
                     matches: vec![],
+                    matched_by: String::new(),
                     error: Some("Span not found".to_string()),
                 };
             };
@@ -323,17 +332,43 @@ pub async fn regex_in_spans(
             };
             let content = strip_noise(raw);
 
-            match find_regex_matches(&content, &search.regex) {
-                Ok(matches) => RegexSearchResult {
+            let literal_matches = find_literal_matches(&content, &search.literal);
+            if !literal_matches.is_empty() {
+                return SpanSearchResult {
                     span_id: search.span_id.clone(),
-                    matches,
+                    matches: literal_matches,
+                    matched_by: "literal".to_string(),
                     error: None,
-                },
-                Err(e) => RegexSearchResult {
-                    span_id: search.span_id.clone(),
-                    matches: vec![],
-                    error: Some(e),
-                },
+                };
+            }
+
+            if let Some(pattern) = &search.regex {
+                match find_regex_matches(&content, pattern) {
+                    Ok(matches) if !matches.is_empty() => {
+                        return SpanSearchResult {
+                            span_id: search.span_id.clone(),
+                            matches,
+                            matched_by: "regex".to_string(),
+                            error: None,
+                        };
+                    }
+                    Err(e) => {
+                        return SpanSearchResult {
+                            span_id: search.span_id.clone(),
+                            matches: vec![],
+                            matched_by: String::new(),
+                            error: Some(format!("Literal: no matches. Regex error: {}", e)),
+                        };
+                    }
+                    _ => {}
+                }
+            }
+
+            SpanSearchResult {
+                span_id: search.span_id.clone(),
+                matches: vec![],
+                matched_by: String::new(),
+                error: Some("No matches found".to_string()),
             }
         })
         .collect();
@@ -341,10 +376,30 @@ pub async fn regex_in_spans(
     Ok(results)
 }
 
+fn find_literal_matches(content: &str, literal: &str) -> Vec<SearchMatch> {
+    if literal.is_empty() {
+        return vec![];
+    }
+    content
+        .match_indices(literal)
+        .take(MAX_MATCHES_PER_SEARCH)
+        .map(|(offset, _)| {
+            let start = offset.saturating_sub(CONTEXT_PADDING);
+            let end = (offset + literal.len() + CONTEXT_PADDING).min(content.len());
+            let start = content.floor_char_boundary(start);
+            let end = content.ceil_char_boundary(end);
+            SearchMatch {
+                snippet: content[start..end].to_string(),
+                offset,
+            }
+        })
+        .collect()
+}
+
 fn find_regex_matches(
     content: &str,
     pattern: &str,
-) -> std::result::Result<Vec<RegexMatch>, String> {
+) -> std::result::Result<Vec<SearchMatch>, String> {
     let re = Regex::new(pattern).map_err(|e| format!("Invalid regex: {}", e))?;
 
     let matches = re
@@ -353,10 +408,9 @@ fn find_regex_matches(
         .map(|m| {
             let start = m.start().saturating_sub(CONTEXT_PADDING);
             let end = (m.end() + CONTEXT_PADDING).min(content.len());
-            // Snap to char boundaries to avoid panics on multi-byte UTF-8
             let start = content.floor_char_boundary(start);
             let end = content.ceil_char_boundary(end);
-            RegexMatch {
+            SearchMatch {
                 snippet: content[start..end].to_string(),
                 offset: m.start(),
             }
@@ -427,5 +481,51 @@ mod tests {
         let pattern = r"hello";
         let matches = find_regex_matches(content, pattern).unwrap();
         assert_eq!(matches.len(), 1);
+    }
+
+    #[test]
+    fn test_literal_simple_match() {
+        let content = "hello world foo bar";
+        let matches = find_literal_matches(content, "world");
+        assert_eq!(matches.len(), 1);
+        assert!(matches[0].snippet.contains("world"));
+    }
+
+    #[test]
+    fn test_literal_no_match() {
+        let content = "hello world";
+        let matches = find_literal_matches(content, "xyz");
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_literal_multiple_matches() {
+        let content = "foo bar foo baz foo";
+        let matches = find_literal_matches(content, "foo");
+        assert_eq!(matches.len(), 3);
+    }
+
+    #[test]
+    fn test_literal_empty_pattern() {
+        let content = "hello world";
+        let matches = find_literal_matches(content, "");
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_literal_with_brackets() {
+        let content = r#"{"index": "[3352] Summer 2025 checkbox"}"#;
+        let matches = find_literal_matches(content, "[3352]");
+        assert_eq!(matches.len(), 1);
+        assert!(matches[0].snippet.contains("[3352]"));
+    }
+
+    #[test]
+    fn test_literal_context_padding() {
+        let content = "aaaaaaaaaa_PREFIX_match_here_SUFFIX_bbbbbbbbbb";
+        let matches = find_literal_matches(content, "match_here");
+        assert_eq!(matches.len(), 1);
+        assert!(matches[0].snippet.contains("PREFIX"));
+        assert!(matches[0].snippet.contains("SUFFIX"));
     }
 }

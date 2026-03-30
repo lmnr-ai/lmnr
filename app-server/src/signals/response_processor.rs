@@ -26,7 +26,7 @@ use crate::{
         },
         queue::SignalMessage,
         spans::{get_trace_span_ids_and_end_time, span_short_id},
-        tools::{RegexSearchRequest, get_full_spans, regex_in_spans},
+        tools::{SpanSearchRequest, get_full_spans, search_in_spans},
         utils::{
             InternalSpan, emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links,
         },
@@ -607,8 +607,8 @@ pub async fn handle_tool_call(
     clickhouse: clickhouse::Client,
 ) -> StepResult {
     match function_call.name.as_str() {
-        "regex_in_spans" => {
-            let searches: Vec<RegexSearchRequest> = function_call
+        "search_in_spans" | "regex_in_spans" => {
+            let searches: Vec<SpanSearchRequest> = function_call
                 .args
                 .as_ref()
                 .and_then(|args| args.get("searches"))
@@ -623,7 +623,7 @@ pub async fn handle_tool_call(
                 };
             }
 
-            match regex_in_spans(
+            match search_in_spans(
                 clickhouse,
                 signal_message.project_id,
                 run.trace_id,
