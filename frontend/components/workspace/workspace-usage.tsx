@@ -18,7 +18,7 @@ import UsageLimitsSettings from "./usage-limits";
 import UsageWarningsSettings from "./usage-warnings";
 
 interface WorkspaceUsageProps {
-  workspaceStats: WorkspaceStats;
+  workspaceStats: WorkspaceStats | null;
   workspace: Workspace;
 }
 
