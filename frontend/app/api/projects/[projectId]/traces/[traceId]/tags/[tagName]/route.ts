@@ -20,22 +20,19 @@ export async function DELETE(
     .where(and(eq(traces.id, traceId), eq(traces.projectId, projectId)));
 
   // Update ClickHouse: remove tag from trace_tags array
-  clickhouseClient
-    .command({
-      query: `
+  // With mutations_sync=0, this returns immediately while the mutation runs in the background.
+  await clickhouseClient.command({
+    query: `
       ALTER TABLE traces_replacing
       UPDATE trace_tags = arrayFilter(x -> x != {tagName:String}, trace_tags)
       WHERE id = {traceId:UUID} AND project_id = {projectId:UUID}
     `,
-      query_params: {
-        tagName,
-        traceId,
-        projectId,
-      },
-    })
-    .catch((error) => {
-      console.error("Error removing trace_tag from ClickHouse", error);
-    });
+    query_params: {
+      tagName,
+      traceId,
+      projectId,
+    },
+  });
 
   return new Response("Trace tag deleted successfully", { status: 200 });
 }

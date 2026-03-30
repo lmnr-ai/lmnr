@@ -3656,13 +3656,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "trace_tags": {
-          "name": "trace_tags",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'{}'::text[]"
         }
       },
       "indexes": {
