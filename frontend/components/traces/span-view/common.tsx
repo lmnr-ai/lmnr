@@ -288,6 +288,7 @@ export const MessageWrapper = ({
   }, [checkOverflow]);
 
   const isCapped = !isExpanded && isOverflowing;
+  const showToggle = isOverflowing || isExpanded;
 
   return (
     <div className="relative border rounded">
@@ -295,25 +296,23 @@ export const MessageWrapper = ({
       <div ref={containerRef} className="overflow-hidden" style={!isExpanded ? { maxHeight } : undefined}>
         <div className="flex flex-col divide-y">{children}</div>
       </div>
-      {isCapped && (
+      {showToggle && (
         <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b">
+          {!isExpanded && (
+            <div
+              className="w-full pointer-events-none"
+              style={{
+                height: isCapped ? 48 : 24,
+                marginTop: isCapped ? -48 : 0,
+                background: "linear-gradient(to bottom, transparent, hsl(var(--secondary)))",
+              }}
+            />
+          )}
           <button
-            onClick={() => setIsExpanded(true)}
-            className="w-full flex items-center justify-center gap-1 py-1 bg-background/40 text-xs text-secondary-foreground cursor-pointer rounded-b transition-colors"
+            onClick={() => setIsExpanded((prev) => !prev)}
+            className="py-1.5 bg-secondary w-full flex items-center justify-center gap-1 text-xs text-secondary-foreground cursor-pointer rounded-b transition-colors -mt-2"
           >
-            <ChevronDown className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-      {isExpanded && isOverflowing && (
-        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b">
-          <button
-            onClick={() => setIsExpanded(false)}
-            className="w-full flex items-center justify-center gap-1 pb-2 bg-background/40 text-xs text-secondary-foreground cursor-pointer rounded-b transition-colors"
-          >
-            <span className="bg-background">
-              <ChevronUp className="w-3.5 h-3.5 p-1" />
-            </span>
+            {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
           </button>
         </div>
       )}
