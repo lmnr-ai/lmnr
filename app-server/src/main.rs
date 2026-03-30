@@ -1145,6 +1145,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::BrowserEvents,
                             num_browser_events_workers as usize,
@@ -1152,6 +1153,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
                                 cache: cache.clone(),
+                                queue: queue.clone(),
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1376,6 +1378,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Logs,
                             num_logs_workers as usize,
@@ -1383,6 +1386,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 cache: cache.clone(),
                                 clickhouse: clickhouse.clone(),
+                                queue: queue.clone(),
                             },
                             QueueConfig::new(LOGS_QUEUE, LOGS_EXCHANGE, LOGS_ROUTING_KEY),
                         );

@@ -17,6 +17,7 @@ use crate::{
     ch::browser_events::{BrowserEventCHRow, insert_browser_events},
     db::DB,
     features::{Feature, is_feature_enabled},
+    mq::MessageQueue,
     utils::limits::update_workspace_bytes_ingested,
     worker::HandlerError,
 };
@@ -32,6 +33,7 @@ pub struct BrowserEventHandler {
     pub db: Arc<DB>,
     pub clickhouse: clickhouse::Client,
     pub cache: Arc<Cache>,
+    pub queue: Arc<MessageQueue>,
     pub config: BatchingConfig,
 }
 
@@ -121,6 +123,7 @@ impl BrowserEventHandler {
                     self.db.clone(),
                     self.clickhouse.clone(),
                     self.cache.clone(),
+                    self.queue.clone(),
                     project_id,
                     bytes,
                 )
