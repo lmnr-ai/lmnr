@@ -43,22 +43,19 @@ export async function POST(
     .returning({ traceTags: traces.traceTags });
 
   // Update ClickHouse: append tag to trace_tags array
-  clickhouseClient
-    .command({
-      query: `
+  // With mutations_sync=0, this returns immediately while the mutation runs in the background.
+  await clickhouseClient.command({
+    query: `
       ALTER TABLE traces_replacing
       UPDATE trace_tags = arrayDistinct(arrayConcat(trace_tags, [{tagName:String}]))
       WHERE id = {traceId:UUID} AND project_id = {projectId:UUID}
     `,
-      query_params: {
-        tagName,
-        traceId,
-        projectId,
-      },
-    })
-    .catch((error) => {
-      console.error("Error updating trace_tags in ClickHouse", error);
-    });
+    query_params: {
+      tagName,
+      traceId,
+      projectId,
+    },
+  });
 
   const updatedTags = result[0]?.traceTags ?? [];
   return Response.json(updatedTags);
