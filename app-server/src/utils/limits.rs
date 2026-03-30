@@ -206,14 +206,6 @@ pub async fn update_workspace_bytes_ingested(
         };
 
     let workspace_id = project_info.workspace_id;
-    let is_free = project_info.tier_name.trim().to_lowercase() == "free";
-    let has_hard_limit = get_effective_bytes_limit(&project_info).is_some();
-
-    // We need usage tracking if there is a hard limit, or if this is a paid workspace
-    // (paid workspaces may have soft limits even without hard limits).
-    if !has_hard_limit && is_free {
-        return Ok(());
-    }
 
     let cache_key = format!("{WORKSPACE_BYTES_USAGE_CACHE_KEY}:{workspace_id}");
 
@@ -306,29 +298,21 @@ pub async fn update_workspace_signal_runs_used(
         };
 
     let workspace_id = project_info.workspace_id;
-    let is_free = project_info.tier_name.trim().to_lowercase() == "free";
-    let has_hard_limit = get_effective_signal_runs_limit(&project_info).is_some();
-
-    if !has_hard_limit && is_free {
-        return Ok(());
-    }
 
     let cache_key = format!("{WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:{workspace_id}");
 
     let new_value = match cache.get::<i64>(&cache_key).await {
-        Ok(Some(_)) => {
-            match cache.increment(&cache_key, runs as i64).await {
-                Ok(new_val) => Some(new_val),
-                Err(e) => {
-                    log::error!(
-                        "Failed to increment workspace signal runs cache for project [{}]: {:?}",
-                        project_id,
-                        e
-                    );
-                    None
-                }
+        Ok(Some(_)) => match cache.increment(&cache_key, runs as i64).await {
+            Ok(new_val) => Some(new_val),
+            Err(e) => {
+                log::error!(
+                    "Failed to increment workspace signal runs cache for project [{}]: {:?}",
+                    project_id,
+                    e
+                );
+                None
             }
-        }
+        },
         Ok(None) | Err(_) => {
             let signal_runs = match get_workspace_signal_runs_by_project_ids(
                 clickhouse,
@@ -565,7 +549,6 @@ async fn send_soft_limit_notification(
     }
 }
 
-
 fn format_usage_item(usage_item: &str, limit_value: i64) -> (String, String) {
     match usage_item {
         "bytes" => {
@@ -685,11 +668,14 @@ async fn get_cached_usage_warnings(
         return Ok(cached);
     }
 
-    let warnings =
-        usage_warnings::get_usage_warnings_for_workspace(&db.pool, workspace_id).await?;
+    let warnings = usage_warnings::get_usage_warnings_for_workspace(&db.pool, workspace_id).await?;
 
     if let Err(e) = cache
-        .insert_with_ttl(&cache_key, warnings.clone(), USAGE_WARNINGS_CACHE_TTL_SECONDS)
+        .insert_with_ttl(
+            &cache_key,
+            warnings.clone(),
+            USAGE_WARNINGS_CACHE_TTL_SECONDS,
+        )
         .await
     {
         log::warn!(
