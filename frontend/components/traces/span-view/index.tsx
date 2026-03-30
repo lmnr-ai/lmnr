@@ -21,6 +21,7 @@ import { SpanViewSkeleton } from "./skeleton";
 interface SpanViewProps {
   spanId: string;
   traceId: string;
+  initialSearchTerm?: string;
 }
 
 const swrFetcher = async (url: string) => {
@@ -114,9 +115,9 @@ const SpanViewTabs = ({
   );
 };
 
-export function SpanView({ spanId, traceId }: SpanViewProps) {
+export function SpanView({ spanId, traceId, initialSearchTerm }: SpanViewProps) {
   const { projectId } = useParams();
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(!!initialSearchTerm);
   const {
     data: span,
     isLoading,
@@ -172,7 +173,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
 
   if (span) {
     return (
-      <SpanSearchProvider>
+      <SpanSearchProvider initialSearchTerm={initialSearchTerm}>
         <SpanControls span={span}>
           <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
         </SpanControls>
