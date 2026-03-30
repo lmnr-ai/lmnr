@@ -377,6 +377,7 @@ function QueueInner() {
               <div className="flex flex-1 min-h-fit overflow-hidden">
                 <ContentRenderer
                   codeEditorClassName="rounded-b"
+                  presetKey={`labeling-queue-payload-${storeQueue?.id}`}
                   className={cn("rounded", {
                     "border border-destructive/75": !isValid,
                   })}

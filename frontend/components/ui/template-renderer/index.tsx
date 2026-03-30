@@ -69,21 +69,18 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
     swrFetcher
   );
 
-  const {
-    isDialogOpen,
-    isDeleteDialogOpen,
-    setIsDialogOpen,
-    setIsDeleteDialogOpen,
-    setPresetTemplate,
-    getPresetTemplate,
-  } = useTemplateRenderer();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [savedFormState, setSavedFormState] = useState<ManageTemplateForm | null>(null);
+
+  const { setPresetTemplate, getPresetTemplate } = useTemplateRenderer();
 
   const methods = useForm<ManageTemplateForm>({
     resolver: zodResolver(manageTemplateSchema),
     defaultValues: defaultTemplateValues,
   });
 
-  const { reset, control } = methods;
+  const { reset, control, getValues } = methods;
 
   const template = useWatch({
     control,
@@ -171,13 +168,26 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
   };
 
   const handleEditTemplate = useCallback(() => {
+    setSavedFormState(getValues());
     setIsDialogOpen(true);
-  }, [setIsDialogOpen]);
+  }, [getValues]);
 
   const handleCreateTemplate = useCallback(() => {
+    setSavedFormState(getValues());
     reset({ ...defaultTemplateValues, testData: data });
     setIsDialogOpen(true);
-  }, [data, reset, setIsDialogOpen]);
+  }, [data, reset, getValues]);
+
+  const handleDialogOpenChange = useCallback(
+    (open: boolean) => {
+      setIsDialogOpen(open);
+      if (!open && savedFormState) {
+        reset(savedFormState);
+        setSavedFormState(null);
+      }
+    },
+    [savedFormState, reset]
+  );
 
   const currentTemplateCode = template?.code ?? defaultTemplateValues.code;
 
@@ -187,7 +197,7 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
 
   return (
     <FormProvider {...methods}>
-      <div className="flex flex-col bg-background w-full group/renderer relative">
+      <div className="flex flex-col bg-background w-full h-full group/renderer relative">
         <div className="flex items-center gap-2 p-2 absolute top-2 right-0 z-30">
           <Select value={template?.id} onValueChange={handleTemplateSelect} onOpenChange={setIsSelectOpen}>
             <SelectTrigger
@@ -245,7 +255,7 @@ export default function TemplateRenderer({ data, presetKey = null }: TemplateRen
           <JsxRenderer className="rounded-none" code={currentTemplateCode} data={data} />
         </div>
 
-        <ManageTemplateDialog testData={data} open={isDialogOpen} onOpenChange={setIsDialogOpen} />
+        <ManageTemplateDialog testData={data} open={isDialogOpen} onOpenChange={handleDialogOpenChange} />
 
         {template && (
           <ConfirmDialog
