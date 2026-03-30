@@ -124,11 +124,11 @@ const ManageTemplateDialog = ({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(submit)} className="flex flex-col flex-1 overflow-hidden">
-          <div className="grid grid-cols-2 gap-4 p-4 flex-1 overflow-hidden">
-            <div className="min-h-0">
+          <div className="flex gap-4 p-4 flex-1 overflow-hidden">
+            <div className="min-h-0 flex-1 min-w-0">
               <JsxRenderer code={watch("code")} data={watch("testData")} />
             </div>
-            <div className="min-h-0 flex flex-col">
+            <div className="min-h-0 flex-1 min-w-0 flex flex-col">
               <div className="mb-4">
                 <Label htmlFor="template-name">Name</Label>
                 <Controller

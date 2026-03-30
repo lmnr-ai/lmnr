@@ -37,6 +37,10 @@ const createIframeContent = (templateCode: string, data: any): string => {
       box-sizing: border-box; 
     }
     
+    html, body, #root {
+      height: 100%;
+    }
+    
     body { 
       margin: 0; 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -60,7 +64,6 @@ const createIframeContent = (templateCode: string, data: any): string => {
         this.root = document.getElementById('root');
         this.data = ${serializedData};
         this.templateCode = \`${escapedTemplateCode}\`;
-        this.unobserve = null;
       }
       
       showError(message, details = '') {
@@ -89,13 +92,14 @@ const createIframeContent = (templateCode: string, data: any): string => {
           const tailwind = presetTailwind.default || presetTailwind;
           const autoprefix = presetAutoprefix.default || presetAutoprefix;
           const { install, observe } = core;
-          install({ presets: [tailwind(), autoprefix()] });
+          const tw = install({ presets: [tailwind(), autoprefix()] });
 
           return {
             preact: preactModule,
             preactHooks: preactHooksModule,
             babel: babelModule.default || babelModule,
-            twindObserve: observe
+            twindObserve: observe,
+            tw
           };
         } catch (error) {
           throw new Error(\`Failed to load dependencies: \${error.message}\`);
@@ -119,7 +123,7 @@ const createIframeContent = (templateCode: string, data: any): string => {
         }
       }
       
-      executeTemplate(compiledCode, preact, preactHooks, twindObserve) {
+      executeTemplate(compiledCode, preact, preactHooks, twindObserve, tw) {
         try {
           const { render, h, Fragment } = preact;
           const { useState, useEffect, useMemo, useRef, useCallback, useContext } = preactHooks;
@@ -148,12 +152,8 @@ const createIframeContent = (templateCode: string, data: any): string => {
           
           this.root.innerHTML = '';
           
-          // Start or refresh Twind DOM observer to process Tailwind classes
-          if (this.unobserve) {
-            try { this.unobserve(); } catch {}
-          }
           try {
-            this.unobserve = twindObserve(this.root);
+            twindObserve(tw, this.root);
           } catch {}
 
           render(element, this.root);
@@ -165,9 +165,9 @@ const createIframeContent = (templateCode: string, data: any): string => {
       
       async render() {
         try {
-          const { preact, preactHooks, babel, twindObserve } = await this.loadDependencies();
+          const { preact, preactHooks, babel, twindObserve, tw } = await this.loadDependencies();
           const compiledCode = this.compileTemplate(babel);
-          this.executeTemplate(compiledCode, preact, preactHooks, twindObserve);
+          this.executeTemplate(compiledCode, preact, preactHooks, twindObserve, tw);
           
         } catch (error) {
           this.showError(
@@ -237,18 +237,7 @@ const parseData = (data: any): any => {
   }
 };
 
-const JsxRenderer = ({
-  code,
-  data,
-  className,
-  // height according to message in span view
-  height = 372,
-}: {
-  code: string;
-  data: any;
-  className?: string;
-  height?: number;
-}) => {
+const JsxRenderer = ({ code, data, className }: { code: string; data: any; className?: string }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -270,15 +259,10 @@ const JsxRenderer = ({
     <iframe
       ref={iframeRef}
       className={cn("w-full h-full border", className)}
-      style={{
-        contain: "layout style",
-        isolation: "isolate",
-        height,
-      }}
       sandbox="allow-scripts allow-same-origin"
       title="Template Preview"
       referrerPolicy="no-referrer"
-      loading="lazy"
+      loading="eager"
       aria-label="Template preview"
     />
   );
