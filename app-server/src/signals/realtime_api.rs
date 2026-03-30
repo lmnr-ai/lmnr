@@ -17,7 +17,7 @@ use crate::{
         },
         queue::{SignalMessage, push_to_realtime_queue},
         response_processor::{finalize_runs, process_provider_responses},
-        utils::{InternalSpan, emit_internal_span, request_to_span_input},
+        utils::{InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr},
     },
     worker::{HandlerError, MessageHandler},
 };
@@ -127,6 +127,7 @@ impl SignalJobRealtimeHandler {
         message: &SignalMessage,
         config: &SignalWorkerConfig,
         input: serde_json::Value,
+        tools: Option<serde_json::Value>,
         error: Option<String>,
     ) -> InternalSpan {
         InternalSpan {
@@ -149,6 +150,7 @@ impl SignalJobRealtimeHandler {
             error,
             provider_batch_id: None,
             metadata: None,
+            tools,
         }
     }
 
@@ -159,6 +161,7 @@ impl SignalJobRealtimeHandler {
         backoff: ExponentialBackoff,
     ) {
         let span_input = request_to_span_input(&request);
+        let span_tools = request_to_tools_attr(&request);
 
         let model_str = llm_model();
         let llm_client = self.llm_client.clone();
@@ -181,7 +184,7 @@ impl SignalJobRealtimeHandler {
             Ok(response) => {
                 emit_internal_span(
                     self.queue.clone(),
-                    Self::build_submit_span(&message, &self.config, span_input.clone(), None),
+                    Self::build_submit_span(&message, &self.config, span_input.clone(), span_tools.clone(), None),
                 )
                 .await;
                 let inline_response = ProviderInlineResponse {
@@ -300,6 +303,7 @@ impl SignalJobRealtimeHandler {
                         &message,
                         &self.config,
                         span_input,
+                        span_tools,
                         Some(format!("{}", e)),
                     ),
                 )

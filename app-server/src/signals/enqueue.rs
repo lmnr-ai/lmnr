@@ -72,6 +72,7 @@ async fn create_signal_run_and_message(
             error: None,
             provider_batch_id: None,
             metadata: Some(input_map),
+            tools: None,
         },
     )
     .await;

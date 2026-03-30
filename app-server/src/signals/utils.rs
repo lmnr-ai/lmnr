@@ -27,6 +27,28 @@ pub fn request_to_span_input(request: &ProviderRequest) -> Value {
     serde_json::json!(contents)
 }
 
+/// Convert ProviderRequest tools into the `ai.prompt.tools` attribute format.
+pub fn request_to_tools_attr(request: &ProviderRequest) -> Option<Value> {
+    let tools = request.tools.as_ref()?;
+    let tool_array: Vec<Value> = tools
+        .iter()
+        .flat_map(|t| &t.function_declarations)
+        .map(|f| {
+            serde_json::json!({
+                "type": "function",
+                "name": f.name,
+                "description": f.description,
+                "parameters": f.parameters,
+            })
+        })
+        .collect();
+    if tool_array.is_empty() {
+        None
+    } else {
+        Some(Value::Array(tool_array))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct InternalSpan {
     pub name: String,
@@ -49,6 +71,7 @@ pub struct InternalSpan {
     pub error: Option<String>,
     pub provider_batch_id: Option<String>,
     pub metadata: Option<HashMap<String, Value>>,
+    pub tools: Option<Value>,
 }
 
 /// Try to parse JSON string, return the parsed value or the original string
@@ -197,6 +220,10 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
                 value,
             );
         }
+    }
+
+    if let Some(tools) = span.tools {
+        attrs.insert("ai.prompt.tools".to_string(), tools);
     }
 
     attrs.insert(

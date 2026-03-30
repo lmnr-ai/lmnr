@@ -32,7 +32,7 @@ use crate::{
     db::spans::SpanType,
     signals::{
         common::{ProcessRunResult, handle_failed_runs, process_run},
-        utils::{InternalSpan, emit_internal_span, request_to_span_input},
+        utils::{InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr},
     },
 };
 
@@ -293,6 +293,9 @@ async fn emit_submit_spans(
                 error: error.clone(),
                 provider_batch_id: batch_id.clone(),
                 metadata: None,
+                tools: requests
+                    .get(i)
+                    .and_then(|r| request_to_tools_attr(&r.request)),
             },
         )
         .await;

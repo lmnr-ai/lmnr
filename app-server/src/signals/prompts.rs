@@ -66,9 +66,8 @@ There are no other valid response formats. ONLY function calls are accepted.
 </critical_output_requirements>
 
 <span_reference_format>
-If it's useful to reference specific spans in your response (for example, to help developers understand the flow of the trace), use the <span> xml tag format to help developers locate the relevant data in their trace.
+When you want to reference specific spans in your response (for example, to help developers understand the flow of the trace), use the <span> tag with the following format:
 
-Format:
 <span id='<span_id>' name='<span_name>' />
 
 For example:
