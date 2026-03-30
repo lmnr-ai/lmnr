@@ -124,7 +124,7 @@ fn format_event_identification_blocks(
         const MAX_SECTION_TEXT_LEN: usize = 3000;
         let mut combined = String::new();
         for entry in &info_entries {
-            if combined.len() + entry.len() + 1 > MAX_SECTION_TEXT_LEN {
+            if combined.len() + entry.len() + 2 > MAX_SECTION_TEXT_LEN {
                 break;
             }
             if !combined.is_empty() {
