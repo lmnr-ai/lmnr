@@ -26,6 +26,7 @@ pub struct CompressedSpan {
     pub total_tokens: i64,
     pub input: String,
     pub output: String,
+    pub input_truncated: bool,
     pub output_truncated: bool,
     pub status: String,
     pub parent: Option<String>,
@@ -238,35 +239,37 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
                 span_uuid_to_short.get(&ch_span.parent_span_id).cloned()
             };
 
+            let mut input_truncated = false;
             let mut output_truncated = false;
 
             let is_tool = ch_span.span_type == 6;
 
             let (input, output) = if is_llm {
                 let output_data = strip_signature_fields(&try_parse_json(&ch_span.output));
+                let output = value_to_string(
+                    &truncate_value(&output_data, &mut output_truncated),
+                );
 
                 if seen_llm_paths.contains(&path) {
-                    ("<omitted>".to_string(), value_to_string(&output_data))
+                    ("<omitted>".to_string(), output)
                 } else {
                     seen_llm_paths.insert(path.clone());
-                    let mut _unused = false;
                     let input_data = truncate_llm_input(
                         &strip_signature_fields(&replace_base64_images(&try_parse_json(
                             &ch_span.input,
                         ))),
-                        &mut _unused,
+                        &mut input_truncated,
                     );
-                    (value_to_string(&input_data), value_to_string(&output_data))
+                    (value_to_string(&input_data), output)
                 }
             } else if is_tool {
                 let input_raw = try_parse_json(&ch_span.input);
                 let output_raw = try_parse_json(&ch_span.output);
 
-                let mut _unused = false;
                 let input = if is_empty_value(&input_raw) {
                     "<empty>".to_string()
                 } else {
-                    value_to_string(&truncate_value(&input_raw, &mut _unused))
+                    value_to_string(&truncate_value(&input_raw, &mut input_truncated))
                 };
 
                 let output = if is_empty_value(&output_raw) {
@@ -296,6 +299,7 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
                 total_tokens: ch_span.total_tokens,
                 input,
                 output,
+                input_truncated,
                 output_truncated,
                 status: if ch_span.status == "<null>" || ch_span.status.is_empty() {
                     String::new()
@@ -337,6 +341,9 @@ fn spans_to_string(spans: &[CompressedSpan]) -> String {
         }
         if !span.status.is_empty() {
             let _ = writeln!(out, "  status: {}", span.status);
+        }
+        if span.input_truncated {
+            let _ = writeln!(out, "  input_truncated: true");
         }
         if span.output_truncated {
             let _ = writeln!(out, "  output_truncated: true");

@@ -8,7 +8,8 @@ Below are all spans of the trace in YAML format.
 - Tool span inputs and outputs longer than 1024 characters are truncated.
 - LLM span outputs longer than 1024 characters are truncated.
 - Default spans have their inputs/outputs omitted as `<omitted N chars>`.
-- `<empty>` means the field is genuinely empty. Do NOT call retrieval tools on `<empty>` fields.
+- `<empty>` means the field is genuinely empty. Do NOT call retrieval tools on `<empty>` or `<omitted>` fields.
+- When a field is truncated, the span will have `input_truncated: true` and/or `output_truncated: true`. If these flags are absent, the data is COMPLETE — do NOT call tools to re-fetch it.
 - Prefer `regex_in_spans` over `get_full_spans` — it is far more token-efficient, returning only matching snippets instead of entire span content.
 </data_conventions>
 
@@ -38,7 +39,7 @@ You have exactly three tools available:
    You can search multiple spans and patterns in a single call.
 
 2. get_full_spans — LAST RESORT ONLY. Call this ONLY when regex_in_spans cannot help — for example, when you need to understand the complete structure of a span's content and cannot formulate a regex to find what you need. This fetches the entire span content and is expensive. For LLM spans, only the last 2 messages are returned. Do NOT use this on `<empty>` or `<omitted>` fields — there is nothing to fetch.
-   IMPORTANT: Do NOT use this on outputs that are already complete (no `output_truncated: true`).
+   IMPORTANT: Do NOT use this on fields that are already complete (no `input_truncated: true` or `output_truncated: true`).
    REQUIRED arguments: "reasoning" (string explaining why regex_in_spans is insufficient and you need the full span) and "span_ids" (array of span ID strings, e.g. ["a1b2c3", "d4e5f6"]). You MUST always provide both arguments.
 
 3. submit_identification — call this when you have made your final determination.
@@ -79,7 +80,7 @@ REMINDER: Respond with a function call ONLY. Include ALL required arguments. No 
 
 pub const REGEX_IN_SPANS_DESCRIPTION: &str = "Performs regex pattern matching within specific spans' input/output content. Returns only matching snippets with surrounding context, making it far more token-efficient than fetching full spans. Use this ONLY when you don't have enough data because it's truncated. If flags `output_truncated` or `input_truncated` are absent, the data is complete — do NOT regex for it. You can search multiple spans and patterns in a single call.";
 
-pub const GET_FULL_SPAN_INFO_DESCRIPTION: &str = "Retrieves complete information (full input, output, timing, etc.) for specific spans by their IDs. ONLY use this as a last resort when regex_in_spans cannot help (e.g. you need to understand the full structure of a span's content and cannot formulate a regex). Do NOT use this when `output_truncated` is absent — the data is already complete. For LLM spans, only the last 2 messages are returned. You MUST provide the required 'span_ids' and 'reasoning' arguments.";
+pub const GET_FULL_SPAN_INFO_DESCRIPTION: &str = "Retrieves complete information (full input, output, timing, etc.) for specific spans by their IDs. ONLY use this as a last resort when regex_in_spans cannot help (e.g. you need to understand the full structure of a span's content and cannot formulate a regex). Do NOT use this when `input_truncated`/`output_truncated` flags are absent — the data is already complete. For LLM spans, only the last 2 messages are returned. You MUST provide the required 'span_ids' and 'reasoning' arguments.";
 
 pub const SUBMIT_IDENTIFICATION_DESCRIPTION: &str = "REQUIRED: This is the ONLY valid way to complete your analysis — never respond with plain text. Submits the final identification result. You MUST always provide the required 'identified' boolean argument. When identified=true, you MUST also provide 'summary' (short string for event clustering) and 'data' (object matching the developer's schema). When identified=false, 'identified' is still required.";
 
