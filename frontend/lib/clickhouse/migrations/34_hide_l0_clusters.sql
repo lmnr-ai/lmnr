@@ -25,9 +25,9 @@ SELECT * FROM (
             arrayDistinct(groupArray(e.cluster_id)) AS clusters
         FROM events_to_clusters e FINAL
         JOIN signal_event_clusters c FINAL ON e.project_id = c.project_id AND e.cluster_id = c.id AND c.level > 0
-        PREWHERE project_id = {project_id:UUID}
+        PREWHERE e.project_id = {project_id:UUID}
         GROUP BY
-            project_id,
+            e.project_id,
             event_id
     ) AS ca ON (signal_events.project_id = ca.project_id) AND (signal_events.id = ca.event_id)
 WHERE signal_events.project_id = {project_id:UUID});
