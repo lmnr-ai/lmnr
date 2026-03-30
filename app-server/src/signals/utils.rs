@@ -103,51 +103,54 @@ pub fn extract_batch_id_from_operation(operation_name: &str) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("Invalid operation name format: {}", operation_name))
 }
 
-/// Replaces `<span>` XML tags with markdown URLs in a JSON value.
-/// Converts short span IDs (last 4 hex chars of UUID) to full UUIDs using span_ids_map.
+/// Replaces span references with markdown URLs in a JSON value.
+/// Handles both proper `<span>` XML tags and informal `span abc123` references.
 ///
-/// Format: `<span id='a1b2' name='openai.chat' reference_text='...' />`
-/// Becomes: `[openai.chat](https://www.laminar.sh/project/{project_id}/traces/{trace_id}?spanId={uuid})`
+/// Converts short span IDs (last 6 hex chars of UUID) to full UUIDs using span_ids_map.
 ///
-/// # Arguments
-/// * `attributes` - JSON value that may contain span tags in its string values
-/// * `span_ids_map` - Maps short IDs (4-char hex suffixes) to full span UUIDs
-/// * `project_id` - Project UUID
-/// * `trace_id` - Trace UUID
-///
-/// # Returns
-/// JSON value with span tags replaced by markdown links
+/// Formats handled:
+/// - `<span id='a1b2c3' name='openai.chat' />` → `[openai.chat](...?spanId=...)`
+/// - `span a1b2c3` or `(span a1b2c3)` → `[span a1b2c3](...?spanId=...)`
 pub fn replace_span_tags_with_links(
     attributes: Value,
     span_ids_map: &HashMap<String, Uuid>,
     project_id: Uuid,
     trace_id: Uuid,
 ) -> Result<Value> {
-    // Convert to JSON string
     let json_str = serde_json::to_string(&attributes)?;
 
-    // Pattern to match <span id='...' name='...' ... />
-    let pattern = Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#)?;
+    // 1. Replace proper <span id='...' name='...' /> XML tags
+    let xml_pattern =
+        Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#)?;
 
-    // Replace all span tags
-    let replaced_str = pattern.replace_all(&json_str, |caps: &regex::Captures| {
+    let after_xml = xml_pattern.replace_all(&json_str, |caps: &regex::Captures| {
         let short_id = &caps[1];
         let span_name = &caps[2];
-
-        // Look up the full UUID from the short ID
         let real_span_id = span_ids_map
             .get(short_id)
             .map(|uuid| uuid.to_string())
             .unwrap_or_else(|| short_id.to_string());
-
         format!(
             "[{}](https://www.laminar.sh/project/{}/traces/{}?spanId={})",
             span_name, project_id, trace_id, real_span_id
         )
     });
 
-    // Parse back to Value
-    let result: Value = serde_json::from_str(&replaced_str)?;
+    // 2. Replace informal "span <hex_id>" references (only for known span IDs)
+    let informal_pattern = Regex::new(r"\bspan\s+([0-9a-fA-F]{6})\b")?;
+
+    let after_informal = informal_pattern.replace_all(&after_xml, |caps: &regex::Captures| {
+        let short_id = caps[1].to_lowercase();
+        match span_ids_map.get(&short_id) {
+            Some(uuid) => format!(
+                "[span {}](https://www.laminar.sh/project/{}/traces/{}?spanId={})",
+                short_id, project_id, trace_id, uuid
+            ),
+            None => caps[0].to_string(),
+        }
+    });
+
+    let result: Value = serde_json::from_str(&after_informal)?;
     Ok(result)
 }
 
