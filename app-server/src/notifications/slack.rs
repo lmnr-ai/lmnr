@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use anyhow::Result;
 use regex::Regex;
 use reqwest::Client;
@@ -91,8 +93,9 @@ pub fn decode_slack_token(
 
 /// Convert standard markdown links `[text](url)` to Slack mrkdwn `<url|text>`.
 fn md_links_to_slack(text: &str) -> String {
-    let re = Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap();
-    re.replace_all(text, "<$2|$1>").into_owned()
+    static RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap());
+    RE.replace_all(text, "<$2|$1>").into_owned()
 }
 
 fn format_event_identification_blocks(
