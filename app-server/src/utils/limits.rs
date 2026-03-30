@@ -509,9 +509,7 @@ async fn send_soft_limit_notification(
 
     let notification_message = NotificationMessage {
         project_id: Uuid::nil(),
-        trace_id: Uuid::nil(),
         notification_type: NotificationType::Email,
-        event_name: format!("usage_warning_{}", usage_item),
         payload: match serde_json::to_value(&email_payload) {
             Ok(v) => v,
             Err(e) => {
