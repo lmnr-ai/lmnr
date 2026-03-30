@@ -1,13 +1,13 @@
 import { tool } from "ai";
 import { and, desc, eq } from "drizzle-orm";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { db } from "@/lib/db/drizzle";
 import { tracesAgentChats, tracesAgentMessages } from "@/lib/db/migrations/schema";
 
 export const ChatMessageSchema = z.object({
-  traceId: z.string().describe("The trace ID"),
-  projectId: z.string().describe("The project ID"),
+  traceId: z.guid().describe("The trace ID"),
+  projectId: z.guid().describe("The project ID"),
   messages: z
     .array(
       z.object({
@@ -31,8 +31,8 @@ export const ChatMessageSchema = z.object({
 });
 
 export const GetChatMessagesSchema = z.object({
-  traceId: z.string().describe("The trace ID"),
-  projectId: z.string().describe("The project ID"),
+  traceId: z.guid().describe("The trace ID"),
+  projectId: z.guid().describe("The project ID"),
 });
 
 export async function getChatMessages(input: z.infer<typeof GetChatMessagesSchema>) {
@@ -110,7 +110,7 @@ export async function createGetSpansDataTool(projectId: string, traceId: string,
   return tool({
     description: "Get spans data for the current trace to analyze performance, errors, and execution flow",
     inputSchema: z.object({
-      traceId: z.string().describe("The trace ID to get spans for"),
+      traceId: z.guid().describe("The trace ID to get spans for"),
       filters: z
         .object({
           spanType: z.string().optional().describe("Filter by span type (LLM or DEFAULT)"),

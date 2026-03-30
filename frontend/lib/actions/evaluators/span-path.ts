@@ -5,7 +5,7 @@ import { db } from "@/lib/db/drizzle";
 import { evaluators, evaluatorSpanPaths } from "@/lib/db/migrations/schema";
 
 export const GetEvaluatorsBySpanPathSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   spanPath: z
     .array(z.string().min(1, { error: "Span path elements cannot be empty" }))
     .min(1, { error: "Span path must contain at least one element" }),

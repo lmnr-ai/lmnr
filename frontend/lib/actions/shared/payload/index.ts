@@ -6,7 +6,7 @@ import { sharedPayloads } from "@/lib/db/migrations/schema";
 import { downloadS3ObjectHttp } from "@/lib/s3";
 
 export const GetSharedPayloadSchema = z.object({
-  payloadId: z.string(),
+  payloadId: z.guid(),
   payloadType: z.string().nullable(),
 });
 

@@ -7,7 +7,7 @@ import { labelingQueueItems, labelingQueues } from "@/lib/db/migrations/schema";
 import { generateUuid } from "@/lib/utils";
 
 export const MoveQueueSchema = z.object({
-  queueId: z.string(),
+  queueId: z.guid(),
   refDate: z.string(),
   refId: z.string(),
   direction: z.enum(["next", "prev"]),
@@ -16,7 +16,7 @@ export const MoveQueueSchema = z.object({
 export const MoveQueueRequestSchema = MoveQueueSchema.pick({ refDate: true, refId: true, direction: true });
 
 export const PushQueueItemSchema = z.object({
-  queueId: z.string(),
+  queueId: z.guid(),
   items: z.array(
     z.object({
       createdAt: z.string().optional(),
@@ -27,9 +27,9 @@ export const PushQueueItemSchema = z.object({
       }),
       metadata: z.object({
         source: z.enum(["span", "datapoint"]).optional(),
-        datasetId: z.string().optional(),
-        traceId: z.string().optional(),
-        id: z.string().optional(),
+        datasetId: z.guid().optional(),
+        traceId: z.guid().optional(),
+        id: z.guid().optional(),
       }),
     })
   ),
@@ -38,14 +38,14 @@ export const PushQueueItemSchema = z.object({
 export const PushQueueItemsRequestSchema = PushQueueItemSchema.shape.items;
 
 export const RemoveQueueItemSchema = z.object({
-  queueId: z.string(),
-  id: z.string(),
+  queueId: z.guid(),
+  id: z.guid(),
   skip: z.boolean().optional(),
-  datasetId: z.string().optional(),
+  datasetId: z.guid().optional(),
   data: z.any(),
   target: z.any(),
   metadata: z.record(z.string(), z.any()),
-  projectId: z.string(),
+  projectId: z.guid(),
 });
 
 export const RemoveQueueItemRequestSchema = RemoveQueueItemSchema.omit({ queueId: true, projectId: true });
@@ -179,8 +179,8 @@ export async function removeQueueItem(input: z.infer<typeof RemoveQueueItemSchem
 }
 
 export const UpdateQueueAnnotationSchemaSchema = z.object({
-  projectId: z.string(),
-  queueId: z.string(),
+  projectId: z.guid(),
+  queueId: z.guid(),
   annotationSchema: z.record(z.string(), z.unknown()).nullable(),
 });
 

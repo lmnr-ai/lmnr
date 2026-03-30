@@ -1,5 +1,5 @@
 import { sample } from "lodash";
-import z from "zod";
+import { z } from "zod/v4";
 
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
@@ -7,8 +7,8 @@ import { tagClasses } from "@/lib/db/migrations/schema";
 import { defaultColors } from "@/lib/tags/colors";
 
 const AddSpanTagSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
+  spanId: z.guid(),
+  projectId: z.guid(),
   name: z.string(),
 });
 
@@ -17,8 +17,8 @@ const AddSpanTagReturnSchema = AddSpanTagSchema.extend({
 });
 
 const GetSpanTagsSchema = z.object({
-  projectId: z.string(),
-  spanId: z.string(),
+  projectId: z.guid(),
+  spanId: z.guid(),
 });
 
 export const addSpanTag = async (
@@ -46,8 +46,8 @@ export const addSpanTag = async (
 };
 
 const AddTagToSpanSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
+  spanId: z.guid(),
+  projectId: z.guid(),
   tag: z.string(),
 });
 
@@ -73,8 +73,8 @@ export const addTagToCHSpan = async (input: z.infer<typeof AddTagToSpanSchema>):
 };
 
 const RemoveTagFromSpanSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
+  spanId: z.guid(),
+  projectId: z.guid(),
   tag: z.string(),
 });
 
@@ -133,7 +133,7 @@ export const getSpanTags = async (
 };
 
 const CreateOrUpdateTagClassSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   name: z.string(),
   color: z.string().optional(),
 });

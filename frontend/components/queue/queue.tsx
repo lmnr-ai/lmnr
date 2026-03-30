@@ -126,7 +126,16 @@ function QueueInner() {
           body: JSON.stringify({ refDate, refId, direction }),
         });
         if (!response.ok) {
-          toast({ variant: "destructive", title: "Error", description: "Failed to move queue. Please try again." });
+          const errMessage = await response
+            .json()
+            .then((d) => d?.error)
+            .catch(() => null);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: errMessage ?? "Failed to move queue. Please try again.",
+          });
+          return;
         }
         const data = (await response.json()) as LabelingQueueItem & {
           count: number;
@@ -171,10 +180,14 @@ function QueueInner() {
           }),
         });
         if (!response.ok) {
+          const errMessage = await response
+            .json()
+            .then((d) => d?.error)
+            .catch(() => null);
           toast({
             variant: "destructive",
             title: "Error",
-            description: "Failed to remove from queue. Please try again.",
+            description: errMessage ?? "Failed to remove from queue. Please try again.",
           });
           setIsLoading(false);
           return;

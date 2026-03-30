@@ -17,8 +17,8 @@ import {
 } from "./utils.ts";
 
 export const GetSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: true }).extend({
-  projectId: z.string(),
-  traceId: z.string(),
+  projectId: z.guid(),
+  traceId: z.guid(),
   spanIds: z.array(z.string()).min(1),
   spanTypes: z.record(z.string(), z.string()),
 });

@@ -32,42 +32,42 @@ export type Signal = {
 
 export const GetSignalsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
 });
 
 const GetSignalSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
+  projectId: z.guid(),
+  id: z.guid(),
 });
 
 const CreateSignalSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   name: z.string().min(1, "Name is required").max(255, { error: "Name must be less than 255 characters" }),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
 });
 
 const UpdateSignalSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
+  projectId: z.guid(),
+  id: z.guid(),
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
 });
 
 export const DeleteSignalSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
+  projectId: z.guid(),
+  id: z.guid(),
 });
 
 const DeleteSignalsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   ids: z.array(z.string()).min(1, "At least one signal ID is required"),
 });
 
 const GetLastEventSchema = z.object({
-  projectId: z.string(),
-  signalId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
 });
 
 export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {

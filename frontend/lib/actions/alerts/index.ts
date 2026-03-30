@@ -7,15 +7,15 @@ import { alerts, alertTargets, projects } from "@/lib/db/migrations/schema";
 import { type AlertTarget, type AlertType, type AlertWithDetails } from "./types";
 
 const CreateAlertSchema = z.object({
-  projectId: z.uuid(),
+  projectId: z.guid(),
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT"]),
-  sourceId: z.uuid(),
+  sourceId: z.guid(),
   targets: z
     .array(
       z.object({
         type: z.string(),
-        integrationId: z.uuid(),
+        integrationId: z.guid(),
         channelId: z.string().optional(),
         channelName: z.string().optional(),
       })
@@ -24,16 +24,16 @@ const CreateAlertSchema = z.object({
 });
 
 const UpdateAlertSchema = z.object({
-  alertId: z.uuid(),
-  projectId: z.uuid(),
+  alertId: z.guid(),
+  projectId: z.guid(),
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT"]),
-  sourceId: z.uuid(),
+  sourceId: z.guid(),
   targets: z
     .array(
       z.object({
         type: z.string(),
-        integrationId: z.uuid(),
+        integrationId: z.guid(),
         channelId: z.string().optional(),
         channelName: z.string().optional(),
       })
@@ -42,8 +42,8 @@ const UpdateAlertSchema = z.object({
 });
 
 const DeleteAlertSchema = z.object({
-  alertId: z.uuid(),
-  projectId: z.uuid(),
+  alertId: z.guid(),
+  projectId: z.guid(),
 });
 
 export async function getAlerts(projectId: string): Promise<AlertWithDetails[]> {
