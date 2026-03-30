@@ -55,6 +55,7 @@ function TracesTableContent() {
     setTraceId: onRowClick,
     setShowChatInitial,
     fetchStats,
+    fetchTagClasses,
     incrementStat,
     chartContainerWidth,
     setChartContainerWidth,
@@ -64,6 +65,7 @@ function TracesTableContent() {
     setTraceId: state.setTraceId,
     setShowChatInitial: state.setShowChatInitial,
     fetchStats: state.fetchStats,
+    fetchTagClasses: state.fetchTagClasses,
     incrementStat: state.incrementStat,
     chartContainerWidth: state.chartContainerWidth,
     setChartContainerWidth: state.setChartContainerWidth,
@@ -266,6 +268,10 @@ function TracesTableContent() {
       fetchStats(statsUrl);
     }
   }, [statsUrl, fetchStats]);
+
+  useEffect(() => {
+    fetchTagClasses(`/api/projects/${projectId}/tag-classes`);
+  }, [projectId, fetchTagClasses]);
 
   const updateRealtimeTrace = useCallback(
     (traceData: TraceRow) => {

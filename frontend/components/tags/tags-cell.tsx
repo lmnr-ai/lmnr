@@ -1,9 +1,9 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
+import { useMemo } from "react";
 
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-const DEFAULT_TAG_COLOR = "rgb(190, 194, 200)";
+import { cn } from "@/lib/utils";
 
 interface TagsCellProps {
   tags: string[];
@@ -12,10 +12,14 @@ interface TagsCellProps {
 const TagsCell = ({ tags }: TagsCellProps) => {
   const tagClasses = useTracesStoreContext((state) => state.tagClasses);
 
-  const resolvedTags = tags.map((name) => {
-    const tc = tagClasses.find((c) => c.name === name);
-    return { name, color: tc?.color ?? DEFAULT_TAG_COLOR };
-  });
+  const resolvedTags = useMemo(
+    () =>
+      tags.map((name) => {
+        const tc = tagClasses.find((c) => c.name === name);
+        return { name, color: tc?.color };
+      }),
+    [tags, tagClasses]
+  );
 
   const count = resolvedTags.length;
 
@@ -28,8 +32,8 @@ const TagsCell = ({ tags }: TagsCellProps) => {
               {resolvedTags.map((tag) => (
                 <div
                   key={tag.name}
-                  className="size-4 rounded-full border-2 border-secondary"
-                  style={{ backgroundColor: tag.color }}
+                  className={cn("size-4 rounded-full border-2 border-secondary", !tag.color && "bg-gray-300")}
+                  style={tag.color ? { backgroundColor: tag.color } : undefined}
                 />
               ))}
             </div>
@@ -43,7 +47,10 @@ const TagsCell = ({ tags }: TagsCellProps) => {
             <div className="flex flex-col gap-1 items-start">
               {resolvedTags.map((tag) => (
                 <div key={tag.name} className="flex flex-row items-center gap-2">
-                  <div className="size-3 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                  <div
+                    className={cn("size-3 rounded-full flex-shrink-0", !tag.color && "bg-gray-300")}
+                    style={tag.color ? { backgroundColor: tag.color } : undefined}
+                  />
                   <span className="text-sm">{tag.name}</span>
                 </div>
               ))}
