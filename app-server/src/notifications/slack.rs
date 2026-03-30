@@ -88,37 +88,6 @@ pub fn decode_slack_token(
         .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
 }
 
-/// Split a mrkdwn string into chunks that each fit within `max_len` bytes.
-/// Splits on newline boundaries to avoid breaking formatting mid-line.
-/// Uses `floor_char_boundary` to avoid panicking on multi-byte UTF-8 characters.
-fn split_mrkdwn_chunks(text: &str, max_len: usize) -> Vec<&str> {
-    if text.len() <= max_len {
-        return vec![text];
-    }
-
-    let mut chunks = Vec::new();
-    let mut start = 0;
-
-    while start < text.len() {
-        if start + max_len >= text.len() {
-            chunks.push(&text[start..]);
-            break;
-        }
-
-        // Snap to a valid UTF-8 char boundary so slicing never panics
-        let end = text.floor_char_boundary(start + max_len);
-        let split_at = text[start..end]
-            .rfind('\n')
-            .map(|pos| start + pos + 1)
-            .unwrap_or(end);
-
-        chunks.push(&text[start..split_at]);
-        start = split_at;
-    }
-
-    chunks
-}
-
 fn format_event_identification_blocks(
     project_id: &str,
     trace_id: &str,
@@ -153,24 +122,29 @@ fn format_event_identification_blocks(
 
     if !info_entries.is_empty() {
         const MAX_SECTION_TEXT_LEN: usize = 3000;
-        let mut blocks = vec![json!({
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": format!("*Event*: `{}`", event_name)
-            }
-        })];
+        let mut combined = String::new();
         for entry in &info_entries {
-            for chunk in split_mrkdwn_chunks(entry, MAX_SECTION_TEXT_LEN) {
-                blocks.push(json!({
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": chunk
-                    }
-                }));
+            if combined.len() + entry.len() + 1 > MAX_SECTION_TEXT_LEN {
+                break;
             }
+            if !combined.is_empty() {
+                combined.push_str("\n\n");
+            }
+            combined.push_str(entry);
         }
+        let mut blocks = vec![
+            json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("*Event*: `{}`", event_name)
+                }
+            }),
+            json!({
+                "type": "section",
+                "text": { "type": "mrkdwn", "text": combined }
+            }),
+        ];
         blocks.push(json!({
             "type": "actions",
             "elements": [
@@ -258,14 +232,18 @@ fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
         if !project.noteworthy_events.is_empty() {
             text.push_str("\nNoteworthy Events:\n");
             for event in &project.noteworthy_events {
-                text.push_str(&format!("• `{}`", event.signal_name));
-                if !event.summary.is_empty() {
-                    text.push_str(&format!(" – {}", event.summary));
+                let entry = format!(
+                    "• `{}` – {} ({}) <https://laminar.sh/project/{}/traces/{}|View trace>\n",
+                    event.signal_name,
+                    event.summary,
+                    event.timestamp,
+                    project.project_id,
+                    event.trace_id,
+                );
+                if text.len() + entry.len() > MAX_SECTION_TEXT_LEN {
+                    break;
                 }
-                text.push_str(&format!(
-                    " ({}) <https://laminar.sh/project/{}/traces/{}|View trace>\n",
-                    event.timestamp, project.project_id, event.trace_id,
-                ));
+                text.push_str(&entry);
             }
         }
 
@@ -277,13 +255,10 @@ fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
                 "text": format!(":small_orange_diamond: *{}*", project.project_name)
             }
         }));
-
-        for chunk in split_mrkdwn_chunks(&text, MAX_SECTION_TEXT_LEN) {
-            blocks.push(json!({
-                "type": "section",
-                "text": { "type": "mrkdwn", "text": chunk }
-            }));
-        }
+        blocks.push(json!({
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": text }
+        }));
     }
 
     json!(blocks)
