@@ -607,7 +607,7 @@ pub async fn handle_tool_call(
     clickhouse: clickhouse::Client,
 ) -> StepResult {
     match function_call.name.as_str() {
-        "search_in_spans" | "regex_in_spans" => {
+        "search_in_spans" => {
             let searches: Vec<SpanSearchRequest> = function_call
                 .args
                 .as_ref()

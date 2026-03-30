@@ -10,7 +10,6 @@ use crate::{
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{DB, signal_jobs::update_signal_job_stats},
-    mq::MessageQueue,
     signals::{
         SignalRun,
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
