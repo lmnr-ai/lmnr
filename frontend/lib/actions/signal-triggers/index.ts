@@ -18,29 +18,29 @@ export type Trigger = {
 };
 
 export const GetSignalTriggersSchema = z.object({
-  projectId: z.string(),
-  signalId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
   ...FiltersSchema.shape,
 });
 
 export const CreateSignalTriggerSchema = z.object({
-  projectId: z.string(),
-  signalId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
   filters: z.array(FilterSchema),
   mode: z.number().int().min(0).max(1).default(0),
 });
 
 export const UpdateSignalTriggerSchema = z.object({
-  projectId: z.string(),
-  signalId: z.string(),
-  triggerId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
+  triggerId: z.guid(),
   filters: z.array(FilterSchema),
   mode: z.number().int().min(0).max(1).optional(),
 });
 
 export const DeleteSignalTriggersSchema = z.object({
-  projectId: z.string(),
-  signalId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
   triggerIds: z.array(z.string()).min(1, "At least one trigger ID is required"),
 });
 

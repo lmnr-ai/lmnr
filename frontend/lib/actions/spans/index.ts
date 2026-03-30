@@ -24,21 +24,21 @@ import { DEFAULT_SEARCH_MAX_HITS } from "../traces/utils";
 
 export const GetSpansSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
 });
 
 export const GetTraceSpansSchema = FiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
-  traceId: z.string(),
+  projectId: z.guid(),
+  traceId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
 });
 
 export const DeleteSpansSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   spanIds: z.array(z.string()).min(1),
 });
 

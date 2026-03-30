@@ -9,8 +9,8 @@ import { buildEventsCountQueryWithParams, buildEventsQueryWithParams } from "./u
 
 export const GetEventsPaginatedSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
-  signalId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
   clusterId: z.array(z.string()).optional(),
   unclustered: z.coerce.boolean().optional(),
 });

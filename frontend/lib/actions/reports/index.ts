@@ -13,14 +13,14 @@ import {
 } from "./types";
 
 const OptInSchema = z.object({
-  reportId: z.uuid(),
-  workspaceId: z.uuid(),
+  reportId: z.guid(),
+  workspaceId: z.guid(),
   email: z.email(),
 });
 
 const OptOutSchema = z.object({
-  reportId: z.uuid(),
-  workspaceId: z.uuid(),
+  reportId: z.guid(),
+  workspaceId: z.guid(),
   email: z.email(),
 });
 

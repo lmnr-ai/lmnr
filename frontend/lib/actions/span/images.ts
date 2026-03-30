@@ -4,8 +4,8 @@ import { transformMessages } from "@/lib/actions/trace/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
 export const GetSpanImagesSchema = z.object({
-  projectId: z.string(),
-  traceId: z.string(),
+  projectId: z.guid(),
+  traceId: z.guid(),
   spanIds: z.array(z.string()),
 });
 

@@ -7,8 +7,8 @@ import { extractGeminiSystemMessage, parseGeminiInput } from "@/lib/spans/types/
 import { LangChainMessagesSchema } from "@/lib/spans/types/langchain";
 import { OpenAIMessagesSchema } from "@/lib/spans/types/openai";
 export const GetSystemMessagesSchema = z.object({
-  projectId: z.string(),
-  traceId: z.string(),
+  projectId: z.guid(),
+  traceId: z.guid(),
   paths: z.array(z.array(z.string())), // Array of path arrays
 });
 

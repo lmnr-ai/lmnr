@@ -7,7 +7,7 @@ import { db } from "@/lib/db/drizzle.ts";
 import { sharedTraces } from "@/lib/db/migrations/schema.ts";
 
 export const GetSharedSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: true }).extend({
-  traceId: z.string(),
+  traceId: z.guid(),
   spanIds: z.array(z.string()).min(1),
   spanTypes: z.record(z.string(), z.string()),
 });

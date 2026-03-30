@@ -8,8 +8,8 @@ import { buildSignalRunsQueryWithParams } from "./utils";
 
 export const GetSignalRunsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
-  signalId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
 });
 
 export type SignalRun = {

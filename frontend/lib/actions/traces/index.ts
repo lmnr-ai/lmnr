@@ -22,7 +22,7 @@ const EVENTS_TRACE_VIEW_WIDTH = "events-trace-view-width";
 
 export const GetTracesSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
+  projectId: z.guid(),
   traceType: z
     .enum(["DEFAULT", "EVALUATION", "EVENT", "PLAYGROUND"])
     .nullable()
@@ -35,12 +35,12 @@ export const GetTracesSchema = PaginationFiltersSchema.extend({
 });
 
 export const DeleteTracesSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   traceIds: z.array(z.string()).min(1),
 });
 
 export const GetTracesByIdsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   traceIds: z.array(z.string()).min(1),
 });
 

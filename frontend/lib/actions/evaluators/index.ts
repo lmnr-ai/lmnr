@@ -26,7 +26,7 @@ export interface EvaluatorScore {
 }
 
 export const GetEvaluatorsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   pageSize: z
     .string()
     .nullable()
@@ -40,14 +40,14 @@ export const GetEvaluatorsSchema = z.object({
 });
 
 export const CreateEvaluatorSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   name: z.string().min(1, { error: "Name is required" }).max(255, { error: "Name must be less than 255 characters" }),
   evaluatorType: z.string().min(1, { error: "Evaluator type is required" }),
   definition: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
 export const DeleteEvaluatorsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   evaluatorIds: z.array(z.string()).min(1, { error: "At least one evaluator ID is required" }),
 });
 

@@ -14,17 +14,17 @@ export type Playground = {
 };
 
 export const GetPlaygroundsSchema = PaginationFiltersSchema.extend({
-  projectId: z.string(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
 });
 
 export const CreatePlaygroundSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   name: z.string().min(1, "Name is required"),
 });
 
 export const DeletePlaygroundsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   playgroundIds: z.array(z.string()).min(1, "At least one playground id is required"),
 });
 
