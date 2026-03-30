@@ -74,7 +74,7 @@ export default function ManageAlertSheet({
   const { toast } = useToast();
 
   const { data: signalsData, isLoading: isLoadingSignals } = useSWR<{ items: SignalRow[] }>(
-    `/api/projects/${projectId}/signals?pageNumber=0&pageSize=100`,
+    open ? `/api/projects/${projectId}/signals?pageNumber=0&pageSize=100` : null,
     swrFetcher
   );
 
