@@ -84,7 +84,7 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
   const deleteTag = async (tag: SpanTag) => {
     let deleteUrl: string;
     if (mode.type === "span") {
-      deleteUrl = `/api/projects/${params?.projectId}/spans/${mode.spanId}/tags/${tag.id}`;
+      deleteUrl = `/api/projects/${params?.projectId}/spans/${mode.spanId}/tags/${encodeURIComponent(tag.id)}`;
     } else {
       deleteUrl = `/api/projects/${params?.projectId}/traces/${mode.traceId}/tags/${encodeURIComponent(tag.name)}`;
     }
