@@ -147,3 +147,37 @@ Use the nuqs library to handle url param state when possible. Avoid using a useE
 ### Use Zustand shallow to avoid unnecessary rerenders
 
 Pass shallow as the equality function to useStore when applicable. That way even with a new selector reference each render, Zustand compares the result shallowly and won't re-render if the contents are the same.
+
+### Error handling
+
+**Client-side fetch calls** (in `"use client"` components): Always wrap `fetch` calls in `try/catch`. Check `res.ok` before using the response. On error, show a toast notification to the user via `useToast()`. Extract the error message from the response JSON when available, falling back to a generic message.
+
+```typescript
+try {
+  const res = await fetch(`/api/projects/${projectId}/resource`, { method: "POST", body: JSON.stringify(data) });
+  if (!res.ok) {
+    const errMessage = await res.json().then((d) => d?.error).catch(() => null);
+    toast({ variant: "destructive", title: errMessage ?? "Something went wrong" });
+    return;
+  }
+  // handle success
+} catch {
+  toast({ variant: "destructive", title: "Something went wrong" });
+}
+```
+
+**API route handlers** (`app/api/**/route.ts`): Wrap the handler body in `try/catch`. Distinguish `ZodError` (return 400 with `prettifyError()`) from other errors (return 500). Always return a JSON response with an `error` field.
+
+```typescript
+try {
+  const result = await someAction(input);
+  return Response.json(result);
+} catch (error) {
+  if (error instanceof ZodError) {
+    return Response.json({ error: prettifyError(error) }, { status: 400 });
+  }
+  return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
+}
+```
+
+**Server components** (`page.tsx`): Let database/fetch errors propagate to the nearest `error.tsx` error boundary — do **not** catch them and convert to `notFound()`. Only use `try/catch` or `.catch()` when you need a specific fallback value for optional data. Use `notFound()` only for genuinely missing resources (i.e. when a query returns `null`/`undefined`).
