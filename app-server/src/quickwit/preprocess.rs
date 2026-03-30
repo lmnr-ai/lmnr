@@ -15,7 +15,6 @@ static WHITESPACE_CLASS_RE: LazyLock<Regex> =
 /// 2. Replace all whitespace-class characters with a single space
 /// 3. Strip ANSI escape codes
 /// 4. NFC Unicode normalization
-/// 5. Collapse runs of spaces and trim
 pub fn preprocess_text(input: &str) -> String {
     // 1. Unescape literal two-char escape sequences (\n, \t, \r)
     let s = unescape_literal_sequences(input);
@@ -28,9 +27,6 @@ pub fn preprocess_text(input: &str) -> String {
 
     // 4. NFC Unicode normalization
     let s: String = s.nfc().collect();
-
-    // 5. Collapse runs of spaces and trim
-    let s = collapse_spaces(&s);
 
     s
 }
@@ -63,31 +59,6 @@ fn unescape_literal_sequences(input: &str) -> String {
     result
 }
 
-/// Collapse multiple consecutive spaces into one and trim leading/trailing.
-fn collapse_spaces(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
-    let mut prev_space = true; // treat start as space to trim leading
-
-    for ch in input.chars() {
-        if ch == ' ' {
-            if !prev_space {
-                result.push(' ');
-            }
-            prev_space = true;
-        } else {
-            result.push(ch);
-            prev_space = false;
-        }
-    }
-
-    // Trim trailing space
-    if result.ends_with(' ') {
-        result.pop();
-    }
-
-    result
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,7 +69,7 @@ mod tests {
         // which then gets normalized to a space.
         let input = r"\nLet me validate";
         let result = preprocess_text(input);
-        assert_eq!(result, "Let me validate");
+        assert_eq!(result, " Let me validate");
     }
 
     #[test]
@@ -138,13 +109,6 @@ mod tests {
     }
 
     #[test]
-    fn test_collapse_spaces_and_trim() {
-        let input = "  hello   world   ";
-        let result = preprocess_text(input);
-        assert_eq!(result, "hello world");
-    }
-
-    #[test]
     fn test_preserves_punctuation() {
         let input = "user,name hello.world foo-bar";
         let result = preprocess_text(input);
@@ -170,7 +134,7 @@ mod tests {
         // Test with actual ANSI escape bytes combined with literal \n
         let input = "\x1b[32m\\nLet me validate\x1b[0m this";
         let result = preprocess_text(input);
-        assert_eq!(result, "Let me validate this");
+        assert_eq!(result, " Let me validate this");
     }
 
     #[test]
@@ -180,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_only_whitespace() {
-        assert_eq!(preprocess_text("   \n\t  "), "");
+        assert_eq!(preprocess_text("   \n\t  "), " ");
     }
 
     #[test]
@@ -203,6 +167,6 @@ mod tests {
         // The original issue: "\nLet me validate..." produces "nlet" tokens
         let input = "\\nLet me validate the input\\nThen process it";
         let result = preprocess_text(input);
-        assert_eq!(result, "Let me validate the input Then process it");
+        assert_eq!(result, " Let me validate the input Then process it");
     }
 }
