@@ -1,4 +1,7 @@
+use std::sync::LazyLock;
+
 use anyhow::Result;
+use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -8,10 +11,14 @@ use sodiumoxide::{
 };
 use uuid::Uuid;
 
+use crate::reports::email_template::ReportData;
+
 const SLACK_API_BASE: &str = "https://slack.com/api";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EventIdentificationPayload {
+    pub project_id: Uuid,
+    pub trace_id: Uuid,
     pub event_name: String,
     pub extracted_information: Option<serde_json::Value>,
     pub channel_id: String,
@@ -20,7 +27,8 @@ pub struct EventIdentificationPayload {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ReportPayload {
-    pub report: serde_json::Value,
+    pub title: String,
+    pub report: ReportData,
     pub channel_id: String,
     pub integration_id: Uuid,
 }
@@ -83,35 +91,11 @@ pub fn decode_slack_token(
         .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
 }
 
-/// Split a mrkdwn string into chunks that each fit within `max_len` bytes.
-/// Splits on newline boundaries to avoid breaking formatting mid-line.
-/// Uses `floor_char_boundary` to avoid panicking on multi-byte UTF-8 characters.
-fn split_mrkdwn_chunks(text: &str, max_len: usize) -> Vec<&str> {
-    if text.len() <= max_len {
-        return vec![text];
-    }
-
-    let mut chunks = Vec::new();
-    let mut start = 0;
-
-    while start < text.len() {
-        if start + max_len >= text.len() {
-            chunks.push(&text[start..]);
-            break;
-        }
-
-        // Snap to a valid UTF-8 char boundary so slicing never panics
-        let end = text.floor_char_boundary(start + max_len);
-        let split_at = text[start..end]
-            .rfind('\n')
-            .map(|pos| start + pos + 1)
-            .unwrap_or(end);
-
-        chunks.push(&text[start..split_at]);
-        start = split_at;
-    }
-
-    chunks
+/// Convert standard markdown links `[text](url)` to Slack mrkdwn `<url|text>`.
+fn md_links_to_slack(text: &str) -> String {
+    static RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap());
+    RE.replace_all(text, "<$2|$1>").into_owned()
 }
 
 fn format_event_identification_blocks(
@@ -130,13 +114,13 @@ fn format_event_identification_blocks(
             obj.iter()
                 .map(|(key, value)| {
                     let formatted_value = match value {
-                        serde_json::Value::String(s) => s.clone(),
+                        serde_json::Value::String(s) => md_links_to_slack(s),
                         serde_json::Value::Number(n) => n.to_string(),
                         serde_json::Value::Bool(b) => b.to_string(),
                         serde_json::Value::Null => String::new(),
                         _ => serde_json::to_string_pretty(value).unwrap_or_default(),
                     };
-                    format!("_{}_:\n{}", key, formatted_value)
+                    format!("_{}_\n{}", key, formatted_value)
                 })
                 .collect()
         } else {
@@ -148,24 +132,29 @@ fn format_event_identification_blocks(
 
     if !info_entries.is_empty() {
         const MAX_SECTION_TEXT_LEN: usize = 3000;
-        let mut blocks = vec![json!({
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": format!("*Event*: `{}`", event_name)
-            }
-        })];
+        let mut combined = String::new();
         for entry in &info_entries {
-            for chunk in split_mrkdwn_chunks(entry, MAX_SECTION_TEXT_LEN) {
-                blocks.push(json!({
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": chunk
-                    }
-                }));
+            if combined.len() + entry.len() + 2 > MAX_SECTION_TEXT_LEN {
+                break;
             }
+            if !combined.is_empty() {
+                combined.push_str("\n\n");
+            }
+            combined.push_str(entry);
         }
+        let mut blocks = vec![
+            json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("*Event*: `{}`", event_name)
+                }
+            }),
+            json!({
+                "type": "section",
+                "text": { "type": "mrkdwn", "text": combined }
+            }),
+        ];
         blocks.push(json!({
             "type": "actions",
             "elements": [
@@ -210,87 +199,91 @@ fn format_event_identification_blocks(
     ])
 }
 
-fn format_report_blocks(event_name: &str, report: &serde_json::Value) -> serde_json::Value {
-    let info_blocks: Vec<String> = if let Some(obj) = report.as_object() {
-        obj.iter()
-            .map(|(key, value)| {
-                let formatted_value = match value {
-                    serde_json::Value::String(s) => s.clone(),
-                    serde_json::Value::Number(n) => n.to_string(),
-                    serde_json::Value::Bool(b) => b.to_string(),
-                    serde_json::Value::Null => String::new(),
-                    _ => serde_json::to_string_pretty(value).unwrap_or_default(),
-                };
-                if key.is_empty() {
-                    formatted_value
-                } else {
-                    format!(":small_orange_diamond: *{}*:\n{}", key, formatted_value)
-                }
-            })
-            .collect()
-    } else {
-        vec![serde_json::to_string_pretty(report).unwrap_or_default()]
-    };
+fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
+    let report = &payload.report;
+    let project_count = report.projects.len();
 
-    let mut blocks = vec![json!({
-        "type": "section",
-        "text": {
-            "type": "mrkdwn",
-            "text": format!(":bar_chart: *{}*", event_name)
-        }
-    })];
+    let overview = format!(
+        "{} – {}\n{} event{} across {} project{}",
+        report.period_start,
+        report.period_end,
+        report.total_events,
+        if report.total_events == 1 { "" } else { "s" },
+        project_count,
+        if project_count == 1 { "" } else { "s" },
+    );
 
-    if info_blocks.is_empty() {
-        return json!(blocks);
-    }
+    let mut blocks = vec![
+        json!({
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": format!(":bar_chart: *{}*", payload.title) }
+        }),
+        json!({
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": overview }
+        }),
+    ];
 
     const MAX_SECTION_TEXT_LEN: usize = 3000;
-    for entry in &info_blocks {
-        for chunk in split_mrkdwn_chunks(entry, MAX_SECTION_TEXT_LEN) {
-            blocks.push(json!({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": chunk
-                }
-            }));
+
+    for project in &report.projects {
+        let mut text = String::new();
+
+        let project_total: u64 = project.signal_event_counts.values().sum();
+        text.push_str(&format!("\nTotal events: *{}*\n", project_total));
+        for (name, count) in &project.signal_event_counts {
+            text.push_str(&format!("• {}: *{}*\n", name, count));
         }
+
+        if !project.ai_summary.is_empty() {
+            text.push_str(&format!("\n\nSummary: _{}_\n", project.ai_summary));
+        }
+
+        if !project.noteworthy_events.is_empty() {
+            text.push_str("\nNoteworthy Events:\n");
+            for event in &project.noteworthy_events {
+                let entry = format!(
+                    "• `{}` – {} ({}) <https://laminar.sh/project/{}/traces/{}|View trace>\n",
+                    event.signal_name,
+                    event.summary,
+                    event.timestamp,
+                    project.project_id,
+                    event.trace_id,
+                );
+                if text.len() + entry.len() > MAX_SECTION_TEXT_LEN {
+                    break;
+                }
+                text.push_str(&entry);
+            }
+        }
+
         blocks.push(json!({"type": "divider"}));
-    }
-    if blocks
-        .last()
-        .map(|b| b.get("type").and_then(|t| t.as_str()) == Some("divider"))
-        == Some(true)
-    {
-        blocks.pop();
+        blocks.push(json!({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!(":small_orange_diamond: *{}*", project.project_name)
+            }
+        }));
+        blocks.push(json!({
+            "type": "section",
+            "text": { "type": "mrkdwn", "text": text }
+        }));
     }
 
     json!(blocks)
 }
 
-pub fn format_message_blocks(
-    payload: &SlackMessagePayload,
-    project_id: &str,
-    trace_id: &str,
-    event_name: &str,
-) -> serde_json::Value {
+pub fn format_message_blocks(payload: &SlackMessagePayload) -> serde_json::Value {
     match payload {
-        SlackMessagePayload::EventIdentification(event_payload) => {
-            format_event_identification_blocks(
-                project_id,
-                trace_id,
-                event_name,
-                event_payload.extracted_information.clone(),
-            )
-        }
-        SlackMessagePayload::Report(report_payload) => {
-            format_report_blocks(event_name, &report_payload.report)
-        }
+        SlackMessagePayload::EventIdentification(p) => format_event_identification_blocks(
+            &p.project_id.to_string(),
+            &p.trace_id.to_string(),
+            &p.event_name,
+            p.extracted_information.clone(),
+        ),
+        SlackMessagePayload::Report(p) => format_report_blocks(p),
     }
-}
-
-pub fn get_channel_id(payload: &SlackMessagePayload) -> &str {
-    payload.channel_id()
 }
 
 pub async fn send_message(

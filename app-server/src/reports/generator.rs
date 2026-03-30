@@ -241,7 +241,6 @@ async fn process_report_trigger(
     };
 
     let email_report = render_report_email(&report_data);
-    let slack_report = build_report_slack(&report_data);
 
     // Fetch all notification targets
     let targets = get_report_targets(&db.pool, &report_id, &workspace_id)
@@ -257,7 +256,7 @@ async fn process_report_trigger(
         return Ok(());
     }
 
-    let subject = format!("{} – {}", report_name, workspace_name);
+    let title = format!("{} – {}", report_name, workspace_name);
 
     // Push notifications to all targets
     let mut processed = 0;
@@ -288,7 +287,7 @@ async fn process_report_trigger(
                 let payload = EmailPayload {
                     from: REPORT_FROM_EMAIL.to_string(),
                     to: vec![email.clone()],
-                    subject: subject.clone(),
+                    subject: title.clone(),
                     html: email_report.clone(),
                     inline_logo: true,
                 };
@@ -302,7 +301,8 @@ async fn process_report_trigger(
                     continue;
                 };
                 let payload = ReportPayload {
-                    report: slack_report.clone(),
+                    title: title.clone(),
+                    report: report_data.clone(),
                     channel_id: channel_id.clone(),
                     integration_id,
                 };
@@ -314,11 +314,9 @@ async fn process_report_trigger(
         processed += 1;
 
         let notification_message = NotificationMessage {
-            project_id: Uuid::nil(),
-            trace_id: Uuid::nil(),
             notification_type: target_type.into(),
-            event_name: subject.clone(),
             payload: message_payload,
+            project_id: Uuid::nil(),
             workspace_id,
             definition_type: "REPORT".to_string(),
             definition_id: report_id,
@@ -373,69 +371,6 @@ async fn process_report_trigger(
     );
 
     Ok(())
-}
-
-/// Build a flat JSON object with mrkdwn-formatted string values for Slack display.
-///
-/// The Slack renderer in `format_report_blocks` iterates over top-level keys
-/// and renders each as `*key*:\nvalue`. By keeping every value a plain `String`
-/// we get clean mrkdwn output instead of dumped JSON.
-/// `serde_json` has `preserve_order` enabled, so insertion order is preserved.
-fn build_report_slack(report_data: &ReportData) -> serde_json::Value {
-    let mut result = serde_json::Map::new();
-
-    let project_count = report_data.projects.len();
-    result.insert(
-        "".to_string(),
-        serde_json::Value::String(format!(
-            "{} – {}\n{} event{} across {} project{}",
-            report_data.period_start,
-            report_data.period_end,
-            report_data.total_events,
-            if report_data.total_events == 1 {
-                ""
-            } else {
-                "s"
-            },
-            project_count,
-            if project_count == 1 { "" } else { "s" },
-        )),
-    );
-
-    for project in &report_data.projects {
-        let mut text = String::new();
-
-        let project_total: u64 = project.signal_event_counts.values().sum();
-        text.push_str(&format!("\nTotal events: *{}*\n", project_total));
-        for (name, count) in &project.signal_event_counts {
-            text.push_str(&format!("• {}: *{}*\n", name, count));
-        }
-
-        if !project.ai_summary.is_empty() {
-            text.push_str(&format!("\n\nSummary: _{}_\n", project.ai_summary));
-        }
-
-        if !project.noteworthy_events.is_empty() {
-            text.push_str("\nNoteworthy Events:\n");
-            for event in &project.noteworthy_events {
-                text.push_str(&format!("• `{}`", event.signal_name));
-                if !event.summary.is_empty() {
-                    text.push_str(&format!(" – {}", event.summary));
-                }
-                text.push_str(&format!(
-                    " ({}) <https://laminar.sh/project/{}/traces/{}|View trace>\n",
-                    event.timestamp, project.project_id, event.trace_id,
-                ));
-            }
-        }
-
-        result.insert(
-            project.project_name.clone(),
-            serde_json::Value::String(text),
-        );
-    }
-
-    serde_json::Value::Object(result)
 }
 
 /// Build the tool definition for the report summary LLM call.

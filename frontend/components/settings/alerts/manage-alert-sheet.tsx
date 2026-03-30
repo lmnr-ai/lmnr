@@ -73,6 +73,11 @@ export default function ManageAlertSheet({
 
   const { toast } = useToast();
 
+  const { data: signalsData, isLoading: isLoadingSignals } = useSWR<{ items: SignalRow[] }>(
+    open ? `/api/projects/${projectId}/signals?pageNumber=0&pageSize=100` : null,
+    swrFetcher
+  );
+
   const {
     control,
     handleSubmit,
@@ -85,11 +90,6 @@ export default function ManageAlertSheet({
   const signalName = watch("signalName");
   const channelId = watch("channelId");
   const emailEnabled = watch("emailEnabled");
-
-  const { data: signalsData, isLoading: isLoadingSignals } = useSWR<{ items: SignalRow[] }>(
-    open ? `/api/projects/${projectId}/signals?pageNumber=0&pageSize=100` : null,
-    swrFetcher
-  );
 
   useEffect(() => {
     if (!open || !alert || !signalsData) return;
@@ -188,7 +188,7 @@ export default function ManageAlertSheet({
   );
 
   const { data: channels, isLoading: isLoadingChannels } = useSWR<SlackChannel[]>(
-    open && selectedSignal && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
+    open && hasSlackIntegration ? `/api/workspaces/${workspaceId}/slack/channels` : null,
     swrFetcher
   );
 
