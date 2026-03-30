@@ -3,7 +3,6 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useMemo } from "react";
 
-import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
 import TagsContextProvider from "@/components/tags/tags-context";
 import TagsList from "@/components/tags/tags-list";
 import TagsTrigger from "@/components/tags/tags-trigger";
@@ -96,7 +95,7 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
           {!isAlwaysSelectSpan && (
             <Button
               variant="ghost"
-              className="ml-auto px-0.5 h-6 w-6 flex-shrink-0"
+              className="ml-auto px-0.5 h-6 w-6 shrink-0"
               onClick={() => setSelectedSpan(undefined)}
             >
               <X className="w-4 h-4" />
@@ -124,7 +123,6 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
               <ExportSpansPopover span={span} />
             </div>
             <TagsList />
-            <EvaluatorScoresList spanId={span.spanId} />
           </TagsContextProvider>
         </div>
 

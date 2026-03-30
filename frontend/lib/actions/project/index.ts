@@ -76,7 +76,6 @@ async function deleteProjectDataFromClickHouse(
     "default.evaluation_datapoints",
     "default.tags",
     "default.browser_session_events",
-    "default.evaluator_scores",
   ];
 
   const deletionPromises = tables.map(async (table) => {
