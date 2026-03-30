@@ -228,6 +228,8 @@ pub async fn update_workspace_bytes_ingested(
             // Cache miss - recompute from ClickHouse and populate the cache.
             // We don't fire soft-limit notifications on cache miss because we
             // cannot detect boundary crossing without the previous value.
+            // We add the current batch size to the ClickHouse value so the cache
+            // reflects the true total (ClickHouse may not have replicated this batch yet).
             let bytes_ingested = match get_workspace_bytes_ingested_by_project_ids(
                 clickhouse,
                 project_info.workspace_project_ids,
@@ -245,8 +247,9 @@ pub async fn update_workspace_bytes_ingested(
                     0
                 }
             };
+            let seeded_value = bytes_ingested + bytes as i64;
             cache
-                .insert_with_ttl::<i64>(&cache_key, bytes_ingested, WORKSPACE_USAGE_TTL_SECONDS)
+                .insert_with_ttl::<i64>(&cache_key, seeded_value, WORKSPACE_USAGE_TTL_SECONDS)
                 .await?;
             None
         }
@@ -314,6 +317,9 @@ pub async fn update_workspace_signal_runs_used(
             }
         },
         Ok(None) | Err(_) => {
+            // Cache miss - recompute from ClickHouse and populate the cache.
+            // We add the current batch size to the ClickHouse value so the cache
+            // reflects the true total (ClickHouse may not have replicated this batch yet).
             let signal_runs = match get_workspace_signal_runs_by_project_ids(
                 clickhouse,
                 project_info.workspace_project_ids,
@@ -331,8 +337,9 @@ pub async fn update_workspace_signal_runs_used(
                     0
                 }
             };
+            let seeded_value = signal_runs + runs as i64;
             cache
-                .insert_with_ttl::<i64>(&cache_key, signal_runs, WORKSPACE_USAGE_TTL_SECONDS)
+                .insert_with_ttl::<i64>(&cache_key, seeded_value, WORKSPACE_USAGE_TTL_SECONDS)
                 .await?;
             None
         }
