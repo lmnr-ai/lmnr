@@ -46,15 +46,11 @@ function TriggersTableContent() {
   const { toast } = useToast();
   const params = useParams<{ projectId: string }>();
 
-  const {
-    signal,
-    triggersFilters: storeTriggersFilters,
-    setTriggersFilters,
-  } = useSignalStoreContext((state) => ({
+  const { signal } = useSignalStoreContext((state) => ({
     signal: state.signal,
-    triggersFilters: state.triggersFilters,
-    setTriggersFilters: state.setTriggersFilters,
   }));
+
+  const [storeTriggersFilters, setTriggersFilters] = useState<Filter[]>([]);
 
   const triggersUrl = useMemo(() => {
     const urlParams = new URLSearchParams();

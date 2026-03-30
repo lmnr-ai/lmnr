@@ -212,7 +212,8 @@ const createCustomFilter =
 const buildColumnFilters = (filters: Filter[], config: ColumnFilterConfig): ConditionResult => {
   const results = filters
     .map((filter, index) => {
-      const paramKey = `${filter.column}_${index}`;
+      const safeColumn = filter.column.replace(/[^a-zA-Z0-9_]/g, "_");
+      const paramKey = `${safeColumn}_${index}`;
       const processor = config.processors.get(filter.column) || config.defaultProcessor;
 
       return processor ? processor(filter, paramKey) : null;
@@ -350,7 +351,11 @@ const buildSelectQuery = (options: SelectQueryOptions): QueryResult => {
   };
 };
 
+/** Escape a ClickHouse identifier with backticks (doubles embedded backticks). */
+const backtickEscape = (id: string): string => `\`${id.replace(/`/g, "``")}\``;
+
 export {
+  backtickEscape,
   buildColumnFilters,
   buildSelectQuery,
   buildTimeRangeWithFill,

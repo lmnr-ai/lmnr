@@ -31,6 +31,28 @@ pub struct ProviderGenerationConfig {
     pub top_k: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_output_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_config: Option<ProviderThinkingConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderThinkingConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_thoughts: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_level: Option<ProviderThinkingLevel>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ProviderThinkingLevel {
+    #[default]
+    ThinkingLevelUnspecified,
+    Minimal,
+    Low,
+    Medium,
+    High,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,6 +73,10 @@ pub struct ProviderPart {
     pub function_call: Option<ProviderFunctionCall>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub function_response: Option<ProviderFunctionResponse>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thought: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,8 +1,9 @@
-import { google } from "@ai-sdk/google";
 import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { convertToModelMessages, smoothStream, stepCountIs, streamText, tool, type UIMessage } from "ai";
 import YAML from "yaml";
 import { z } from "zod";
+
+import { getLanguageModel } from "@/lib/ai/model";
 
 import { findOrCreateChatSession, saveChatMessage } from "./messages";
 import { TraceChatPrompt } from "./prompt";
@@ -39,7 +40,7 @@ export const streamTraceChat = observe(
     const systemPrompt = TraceChatPrompt.replace("{{fullTraceData}}", traceString);
 
     const result = streamText({
-      model: google("gemini-2.5-flash"),
+      model: getLanguageModel("default"),
       messages: convertToModelMessages(uiMessages as UIMessage[]),
       stopWhen: stepCountIs(10),
       maxRetries: 5,

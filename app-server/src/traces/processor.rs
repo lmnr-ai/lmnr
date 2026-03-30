@@ -20,7 +20,7 @@ use crate::{
     },
     db::{
         DB,
-        spans::Span,
+        spans::{Span, SpanType},
         trace::{Trace, upsert_trace_statistics_batch},
         workspaces::WorkspaceDeployment,
     },
@@ -31,7 +31,6 @@ use crate::{
         IndexerQueuePayload, QuickwitIndexedEvent, QuickwitIndexedSpan,
         producer::publish_for_indexing,
     },
-    signals::provider::always_use_realtime,
     traces::{
         provider::convert_span_to_provider_format,
         realtime::{send_span_updates, send_trace_updates},
@@ -42,6 +41,7 @@ use crate::{
 };
 
 const SIGNAL_TRIGGER_LOCK_TTL_SECONDS: u64 = 3600; // 1 hour
+const MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES: usize = 5120; // 5KB
 
 #[instrument(skip(messages, db, clickhouse, cache, queue, pubsub, ch, config))]
 pub async fn process_span_messages(
@@ -88,7 +88,7 @@ pub async fn process_span_messages(
     let trace_aggregations = TraceAggregation::from_spans(&spans, &span_usage_vec);
 
     // Upsert trace statistics in PostgreSQL
-    match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
+    let updated_traces = match upsert_trace_statistics_batch(&db.pool, &trace_aggregations).await {
         Ok(updated_traces) => {
             let ch_traces: Vec<CHTrace> = updated_traces
                 .iter()
@@ -105,26 +105,13 @@ pub async fn process_span_messages(
 
             send_trace_updates(&updated_traces, &pubsub).await;
 
-            if is_feature_enabled(Feature::Signals) {
-                let traces_by_project = group_traces_by_project(&updated_traces);
-                for (project_id, project_traces) in &traces_by_project {
-                    check_and_push_signals(
-                        *project_id,
-                        project_traces,
-                        &spans,
-                        db.clone(),
-                        cache.clone(),
-                        clickhouse.clone(),
-                        queue.clone(),
-                    )
-                    .await;
-                }
-            }
+            Some(updated_traces)
         }
         Err(e) => {
             log::error!("Failed to upsert trace statistics to PostgreSQL: {:?}", e);
+            None
         }
-    }
+    };
 
     // Build CHSpans with embedded events and insert to ClickHouse
     let ch_spans: Vec<CHSpan> = spans
@@ -147,6 +134,26 @@ pub async fn process_span_messages(
         )));
     }
 
+    // Check signal triggers AFTER spans are inserted into ClickHouse
+    // so the signal agent can see the trace data when processing.
+    if let Some(updated_traces) = &updated_traces {
+        if is_feature_enabled(Feature::Signals) {
+            let traces_by_project = group_traces_by_project(updated_traces);
+            for (project_id, project_traces) in &traces_by_project {
+                check_and_push_signals(
+                    *project_id,
+                    project_traces,
+                    &spans,
+                    db.clone(),
+                    cache.clone(),
+                    clickhouse.clone(),
+                    queue.clone(),
+                )
+                .await;
+            }
+        }
+    }
+
     // Send realtime span updates
     let recordable: Vec<&Span> = spans
         .iter()
@@ -157,7 +164,14 @@ pub async fn process_span_messages(
     send_span_updates(&spans_for_realtime, &pubsub).await;
 
     // Index spans and events in Quickwit
-    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable.iter().map(|s| (*s).into()).collect();
+    // Non-LLM spans are only indexed if their size is <= 5KB
+    let quickwit_spans: Vec<QuickwitIndexedSpan> = recordable
+        .iter()
+        .filter(|s| {
+            s.span_type == SpanType::LLM || s.size_bytes <= MAX_NON_LLM_SPAN_INDEX_SIZE_BYTES
+        })
+        .map(|s| (*s).into())
+        .collect();
     let quickwit_events: Vec<QuickwitIndexedEvent> = recordable
         .iter()
         .flat_map(|s| s.events.iter().map(|e| e.into()))
@@ -321,9 +335,6 @@ async fn check_and_push_signals(
                 continue;
             }
 
-            // TODO: fetch a trigger config whether to process in realtime from Trigger definition
-            let should_use_realtime = false;
-
             // Lock acquired - enqueue signal trigger run
             if let Err(e) = crate::signals::enqueue::enqueue_signal_trigger_run(
                 trace.id(),
@@ -332,7 +343,7 @@ async fn check_and_push_signals(
                 trigger.signal.clone(),
                 clickhouse.clone(),
                 queue.clone(),
-                always_use_realtime() || should_use_realtime,
+                trigger.mode.as_u8(),
             )
             .await
             {

@@ -31,8 +31,24 @@ function truncateValue(value: unknown): unknown {
   return `${start}...(${omitted} chars omitted)...${end}`;
 }
 
+const RAW_BASE64_IMAGE_PREFIXES = [
+  "/9j/", // JPEG
+  "iVBORw0KGgo", // PNG
+  "R0lGODlh", // GIF
+  "UklGR", // WebP
+  "PHN2Zz", // SVG
+];
+
+const RAW_BASE64_MIN_LEN = 64;
+
+function isRawBase64Image(s: string): boolean {
+  return s.length >= RAW_BASE64_MIN_LEN && RAW_BASE64_IMAGE_PREFIXES.some((prefix) => s.startsWith(prefix));
+}
+
 /**
- * Recursively replace data:image base64 URLs with a placeholder.
+ * Recursively replace base64 image data with a placeholder.
+ * Detects both data URLs (`data:image/...;base64,...`) and raw base64 image
+ * strings identified by well-known magic byte prefixes (JPEG, PNG, GIF, WebP, SVG).
  */
 function replaceBase64Images(value: unknown): unknown {
   if (typeof value === "string") {
@@ -42,6 +58,9 @@ function replaceBase64Images(value: unknown): unknown {
       if (prefix.startsWith("data:image")) {
         return BASE64_IMAGE_PLACEHOLDER;
       }
+    }
+    if (isRawBase64Image(value)) {
+      return BASE64_IMAGE_PLACEHOLDER;
     }
     return value;
   }
@@ -86,6 +105,8 @@ interface SpanInfo {
   end: string;
   status: string;
   parent: string;
+  totalCost: number;
+  totalTokens: number;
 }
 
 // Full span with input/output details
@@ -107,7 +128,9 @@ const fetchSpanInfos = async (projectId: string, traceId: string): Promise<SpanI
         start_time as start,
         end_time as end,
         status,
-        parent_span_id as parent
+        parent_span_id as parent,
+        total_cost as totalCost,
+        total_tokens as totalTokens
       FROM spans
       WHERE trace_id = {trace_id: UUID}
       ORDER BY start_time ASC
@@ -140,6 +163,8 @@ const fetchSpans = async (projectId: string, traceId: string, spanIds: string[])
         end_time as end,
         status,
         parent_span_id as parent,
+        total_cost as totalCost,
+        total_tokens as totalTokens,
         input,
         output
       FROM spans
@@ -213,16 +238,20 @@ function calculateDuration(start: string, end: string): number {
 /** Format a ClickHouse DateTime64 string to a readable UTC string. */
 function formatUtcTimestamp(chTimestamp: string): string {
   const d = new Date(chTimestamp + "Z"); // CH returns UTC without the Z suffix
-  return d.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
+  return d
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d{3}Z$/, " UTC");
 }
 
 function spanInfosToSkeletonString(spanInfos: SpanInfo[], spanIdToSeqId: Record<string, number>): string {
-  let result = "legend: span_name (id, parent_id, type)\n";
+  let result = "legend: span_name (id, parent_id, type, duration_sec, cost_usd, total_tokens)\n";
   for (let i = 0; i < spanInfos.length; i++) {
     const info = spanInfos[i];
     const seqId = i + 1;
     const parentSeqId = info.parent ? (spanIdToSeqId[info.parent] ?? null) : null;
-    result += `- ${info.name} (${seqId}, ${parentSeqId ?? "null"}, ${info.type})\n`;
+    const duration = calculateDuration(info.start, info.end);
+    result += `- ${info.name} (${seqId}, ${parentSeqId ?? "null"}, ${info.type}, ${duration.toFixed(3)}, ${info.totalCost.toFixed(6)}, ${info.totalTokens})\n`;
   }
   return result;
 }
@@ -234,6 +263,8 @@ interface DetailedSpanView {
   type: string;
   start: string;
   duration: number;
+  totalCost: number;
+  totalTokens: number;
   parent: number | null;
   status?: string;
   input?: unknown;
@@ -283,6 +314,8 @@ export const getTraceStructureAsString = async (projectId: string, traceId: stri
       type: info.type.toLowerCase(),
       start: formatUtcTimestamp(info.start),
       duration: calculateDuration(info.start, info.end),
+      totalCost: info.totalCost,
+      totalTokens: info.totalTokens,
       parent: parentSeqId,
     };
 
@@ -296,14 +329,10 @@ export const getTraceStructureAsString = async (projectId: string, traceId: stri
     if (!seenPaths.has(info.path)) {
       seenPaths.add(info.path);
       // Truncate tool span input; strip base64 images and truncate LLM input
-      spanView.input = isTool
-        ? truncateValue(span.input)
-        : truncateLlmInput(replaceBase64Images(span.input));
+      spanView.input = isTool ? truncateValue(span.input) : truncateLlmInput(replaceBase64Images(span.input));
     }
     // Truncate tool span output; strip base64 images from LLM output
-    spanView.output = isTool
-      ? truncateValue(span.output)
-      : replaceBase64Images(span.output);
+    spanView.output = isTool ? truncateValue(span.output) : replaceBase64Images(span.output);
 
     if (span.exception) {
       spanView.exception = span.exception;

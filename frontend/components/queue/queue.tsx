@@ -7,7 +7,6 @@ import { useParams } from "next/navigation";
 import React, { type KeyboardEvent, useCallback, useEffect, useMemo } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
-import { ResizableWrapper } from "@/components/traces/span-view/common";
 import { Button } from "@/components/ui/button";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import DatasetSelect from "@/components/ui/dataset-select";
@@ -40,8 +39,6 @@ function QueueInner() {
     setDataset,
     getTarget,
     annotationSchema,
-    height,
-    setHeight,
   } = useQueueStore((state) => ({
     currentItem: state.currentItem,
     queue: state.queue,
@@ -55,8 +52,6 @@ function QueueInner() {
     setDataset: state.setDataset,
     getTarget: state.getTarget,
     annotationSchema: state.annotationSchema,
-    height: state.height,
-    setHeight: state.setHeight,
   }));
 
   const states = useMemo(() => {
@@ -303,16 +298,14 @@ function QueueInner() {
                 )}
               </div>
               <div className="flex flex-1 overflow-hidden mt-2">
-                <ResizableWrapper height={height} onHeightChange={setHeight}>
-                  <ContentRenderer
-                    presetKey={`labeling-queue-${storeQueue?.id}`}
-                    codeEditorClassName="rounded-b"
-                    className="rounded"
-                    defaultMode="json"
-                    readOnly
-                    value={JSON.stringify(currentItem?.payload, null, 2)}
-                  />
-                </ResizableWrapper>
+                <ContentRenderer
+                  presetKey={`labeling-queue-${storeQueue?.id}`}
+                  codeEditorClassName="rounded-b"
+                  className="rounded"
+                  defaultMode="json"
+                  readOnly
+                  value={JSON.stringify(currentItem?.payload, null, 2)}
+                />
               </div>
             </>
           ) : (

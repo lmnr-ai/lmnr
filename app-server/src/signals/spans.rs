@@ -24,6 +24,8 @@ pub struct CompressedSpan {
     pub span_type: String,
     pub start: String,
     pub duration: f64,
+    pub total_cost: f64,
+    pub total_tokens: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -122,9 +124,29 @@ fn truncate_value_strings(value: &Value) -> Value {
     }
 }
 
+const RAW_BASE64_IMAGE_PREFIXES: &[&str] = &[
+    "/9j/",        // JPEG
+    "iVBORw0KGgo", // PNG
+    "R0lGODlh",    // GIF
+    "UklGR",       // WebP
+    "PHN2Zz",      // SVG
+];
+
+/// Minimum length for a raw base64 string to be considered an image.
+const RAW_BASE64_MIN_LEN: usize = 64;
+
+/// Check whether a string looks like raw base64-encoded image data.
+fn is_raw_base64_image(s: &str) -> bool {
+    s.len() >= RAW_BASE64_MIN_LEN
+        && RAW_BASE64_IMAGE_PREFIXES
+            .iter()
+            .any(|prefix| s.starts_with(prefix))
+}
+
 /// Replace base64 image data within a JSON value with a placeholder.
 ///
-/// Detects data URLs of the form `data:image/...;base64,...` anywhere in the JSON tree.
+/// Detects both data URLs (`data:image/...;base64,...`) and raw base64 image
+/// strings identified by well-known magic byte prefixes (JPEG, PNG, GIF, WebP, SVG).
 pub fn replace_base64_images(value: &Value) -> Value {
     match value {
         Value::String(s) => {
@@ -133,6 +155,9 @@ pub fn replace_base64_images(value: &Value) -> Value {
                 if prefix.starts_with("data:image") {
                     return Value::String(BASE64_IMAGE_PLACEHOLDER.to_string());
                 }
+            }
+            if is_raw_base64_image(s) {
+                return Value::String(BASE64_IMAGE_PLACEHOLDER.to_string());
             }
             value.clone()
         }
@@ -249,6 +274,8 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
                 span_type: get_span_type(ch_span.span_type).to_string(),
                 start: format_ns_timestamp(ch_span.start_time),
                 duration: duration_secs,
+                total_cost: ch_span.total_cost,
+                total_tokens: ch_span.total_tokens,
                 input,
                 output,
                 status: if ch_span.status == "<null>" || ch_span.status.is_empty() {
@@ -265,12 +292,28 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
 
 /// Create skeleton string representation of spans
 pub fn spans_to_skeleton_string(spans: &[CompressedSpan]) -> String {
-    let mut skeleton = String::from("legend: span_name (id, parent_id, type)\n");
+    let mut skeleton = String::from(
+        "legend: span_name (id, parent_id, type, duration_sec, cost_usd, total_tokens, is_input_empty, is_output_empty)\n",
+    );
     for span in spans {
+        let cost = if span.total_cost > 0.0 {
+            format!("{:.5}", span.total_cost)
+        } else {
+            "0".to_string()
+        };
+
         let parent_str = span.parent.as_deref().unwrap_or("None");
         skeleton.push_str(&format!(
-            "- {} ({}, {}, {})\n",
-            span.name, span.id, parent_str, span.span_type
+            "- {} ({}, {}, {}, {:.1}, {}, {}, {}, {})\n",
+            span.name,
+            span.id,
+            parent_str,
+            span.span_type,
+            span.duration,
+            cost,
+            span.total_tokens,
+            span.input.is_none(),
+            span.output.is_none()
         ));
     }
     skeleton

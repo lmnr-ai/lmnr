@@ -7,7 +7,7 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::cache::Cache;
-use crate::data_plane::get_workspace_deployment;
+use crate::data_plane::{get_workspace_deployment, get_workspace_deployment_for_workspace};
 use crate::db::workspaces::DeploymentMode;
 
 use super::cloud::CloudClickhouse;
@@ -24,7 +24,6 @@ pub struct ClickhouseService {
 }
 
 impl ClickhouseService {
-    #[allow(dead_code)]
     pub fn new(
         clickhouse: clickhouse::Client,
         pool: PgPool,
@@ -41,7 +40,6 @@ impl ClickhouseService {
 
     /// Insert a batch of items, routing to ClickHouse or data plane based on deployment mode.
     #[instrument(skip(self, items))]
-    #[allow(dead_code)]
     pub async fn insert_batch<T: ClickhouseInsertable>(
         &self,
         project_id: Uuid,
@@ -52,6 +50,29 @@ impl ClickhouseService {
         }
 
         let config = get_workspace_deployment(&self.pool, self.cache.clone(), project_id).await?;
+
+        match config.mode {
+            DeploymentMode::CLOUD => self.cloud.insert_batch(items, None).await,
+            DeploymentMode::HYBRID => self.data_plane.insert_batch(items, Some(&config)).await,
+        }
+    }
+
+    /// Insert a batch of items using workspace_id for deployment routing.
+    ///
+    /// Use this when project_id is not available (e.g. workspace-level operations like reports).
+    #[instrument(skip(self, items))]
+    pub async fn insert_batch_for_workspace<T: ClickhouseInsertable>(
+        &self,
+        workspace_id: Uuid,
+        items: &[T],
+    ) -> Result<()> {
+        if items.is_empty() {
+            return Ok(());
+        }
+
+        let config =
+            get_workspace_deployment_for_workspace(&self.pool, self.cache.clone(), workspace_id)
+                .await?;
 
         match config.mode {
             DeploymentMode::CLOUD => self.cloud.insert_batch(items, None).await,

@@ -3,11 +3,11 @@
 import { createContext, type Dispatch, type PropsWithChildren, type SetStateAction, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
 
-import { calculateOptimalInterval, getTargetBarsForWidth } from "@/components/charts/time-series-chart/utils";
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { type ClusterStatsDataPoint, type EventCluster, UNCLUSTERED_ID } from "@/lib/actions/clusters";
 import { type Filter } from "@/lib/actions/common/filters.ts";
+import { type Trigger } from "@/lib/actions/signal-triggers";
 import { type Signal } from "@/lib/actions/signals";
 import { type EventRow } from "@/lib/events/types";
 
@@ -24,8 +24,6 @@ export type SignalState = {
   selectedEvent: EventRow | null;
   runsFilters: Filter[];
   jobsFilters: Filter[];
-  triggersFilters: Filter[];
-  initialTraceViewWidth?: number;
   lastEvent?: {
     id: string;
     timestamp: string;
@@ -41,10 +39,7 @@ export type SignalState = {
 };
 
 export type FetchClusterStatsParams = {
-  pastHours: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  chartWidth: number | null;
+  statsUrl: string | null;
   abortSignal?: AbortSignal;
 };
 
@@ -56,21 +51,19 @@ export type SignalActions = {
   setSignal: (eventDefinition?: SignalState["signal"]) => void;
   setRunsFilters: Dispatch<SetStateAction<Filter[]>>;
   setJobsFilters: Dispatch<SetStateAction<Filter[]>>;
-  setTriggersFilters: Dispatch<SetStateAction<Filter[]>>;
   // Cluster actions
   fetchClusters: () => Promise<void>;
   fetchClusterStats: (params: FetchClusterStatsParams) => Promise<void>;
 };
 
 export interface EventsProps {
-  signal: Signal;
+  signal: Signal & { triggers?: Trigger[] };
   traceId?: string | null;
   spanId?: string | null;
   lastEvent?: {
     id: string;
     timestamp: string;
   };
-  initialTraceViewWidth?: number;
 }
 
 export type Store = SignalState & SignalActions;
@@ -179,9 +172,7 @@ export const createSignalStore = (initProps: EventsProps) =>
     selectedEvent: null,
     runsFilters: [],
     jobsFilters: [],
-    triggersFilters: [],
     lastEvent: initProps.lastEvent,
-    initialTraceViewWidth: initProps.initialTraceViewWidth,
     // Cluster state
     rawClusters: [],
     clusterTree: [],
@@ -194,6 +185,7 @@ export const createSignalStore = (initProps: EventsProps) =>
       ...initProps.signal,
       prompt: initProps.signal.prompt,
       schemaFields: jsonSchemaToSchemaFields(initProps.signal.structuredOutput as Record<string, unknown>),
+      triggers: (initProps.signal.triggers ?? []).map((t) => ({ id: t.id, filters: t.filters, mode: t.mode ?? 0 })),
     },
     setSignal: (signal) => set({ signal }),
     setTraceId: (traceId) => set({ traceId }),
@@ -206,10 +198,6 @@ export const createSignalStore = (initProps: EventsProps) =>
     setJobsFilters: (filters) =>
       set((state) => ({
         jobsFilters: typeof filters === "function" ? filters(state.jobsFilters) : filters,
-      })),
-    setTriggersFilters: (filters) =>
-      set((state) => ({
-        triggersFilters: typeof filters === "function" ? filters(state.triggersFilters) : filters,
       })),
     fetchEvents: async (params: URLSearchParams) => {
       const { signal } = get();
@@ -258,43 +246,16 @@ export const createSignalStore = (initProps: EventsProps) =>
         set({ isClustersLoading: false });
       }
     },
-    fetchClusterStats: async ({ pastHours, startDate, endDate, chartWidth, abortSignal }: FetchClusterStatsParams) => {
-      if (!pastHours && !startDate) {
+    fetchClusterStats: async ({ statsUrl, abortSignal }: FetchClusterStatsParams) => {
+      if (!statsUrl) {
         set({ clusterStatsData: [], isClusterStatsLoading: false });
         return;
       }
 
-      const { signal } = get();
-
-      const width = chartWidth ?? 800;
-      const targetBars = getTargetBarsForWidth(width);
-      let range: { start: Date; end: Date } | null = null;
-      if (pastHours && pastHours !== "all") {
-        const hours = parseInt(pastHours);
-        if (!isNaN(hours)) {
-          range = { start: new Date(Date.now() - hours * 60 * 60 * 1000), end: new Date() };
-        }
-      } else if (startDate && endDate) {
-        range = { start: new Date(startDate), end: new Date(endDate) };
-      }
-      const interval = range
-        ? calculateOptimalInterval(range.start, range.end, targetBars)
-        : { value: 1, unit: "hour" as const };
-
       set({ isClusterStatsLoading: true });
 
-      const urlParams = new URLSearchParams();
-      if (pastHours) urlParams.set("pastHours", pastHours);
-      if (startDate) urlParams.set("startDate", startDate);
-      if (endDate) urlParams.set("endDate", endDate);
-      urlParams.set("intervalValue", interval.value.toString());
-      urlParams.set("intervalUnit", interval.unit);
-
       try {
-        const res = await fetch(
-          `/api/projects/${signal.projectId}/signals/${signal.id}/events/clusters/stats?${urlParams.toString()}`,
-          { signal: abortSignal }
-        );
+        const res = await fetch(statsUrl, { signal: abortSignal });
         if (!res.ok) throw new Error("Failed to fetch cluster event counts");
         const data = (await res.json()) as {
           items: ClusterStatsDataPoint[];

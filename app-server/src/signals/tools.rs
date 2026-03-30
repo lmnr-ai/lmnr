@@ -10,8 +10,8 @@ use super::spans::{
     strip_signature_fields,
 };
 use super::utils::{nanoseconds_to_iso, try_parse_json};
-use crate::signals::provider::models::{ProviderFunctionDeclaration, ProviderTool};
 use crate::signals::prompts::{GET_FULL_SPAN_INFO_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION};
+use crate::signals::provider::models::{ProviderFunctionDeclaration, ProviderTool};
 
 /// Full span info returned by get_full_spans tool
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,13 +50,17 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
+                    "reasoning": {
+                        "type": "string",
+                        "description": "REQUIRED. Explain why these spans need full details and how the additional information will help extract the signal event."
+                    },
                     "span_ids": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "REQUIRED. List of span IDs (6-character hex strings, e.g. 'a1b2c3') to fetch full information for. You MUST always provide this argument."
                     }
                 },
-                "required": ["span_ids"]
+                "required": ["reasoning", "span_ids"]
             }),
         },
         ProviderFunctionDeclaration {
@@ -87,6 +91,15 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
 
     ProviderTool {
         function_declarations,
+    }
+}
+
+/// For LLM span inputs (JSON arrays of messages), keep only the last `n` messages.
+/// Returns the value unchanged if it's not an array or has fewer than `n` elements.
+fn truncate_messages(value: Value, n: usize) -> Value {
+    match value {
+        Value::Array(arr) if arr.len() > n => Value::Array(arr[arr.len() - n..].to_vec()),
+        other => other,
     }
 }
 
@@ -150,6 +163,15 @@ pub async fn get_full_spans(
 
             let exception = extract_exception_from_events(&ch_span.events);
 
+            let is_llm = ch_span.span_type == 1;
+            let input =
+                strip_signature_fields(&replace_base64_images(&try_parse_json(&ch_span.input)));
+            let input = if is_llm {
+                truncate_messages(input, 2)
+            } else {
+                input
+            };
+
             SpanInfo {
                 id: span_short_id(&ch_span.span_id),
                 name: ch_span.name.clone(),
@@ -157,9 +179,7 @@ pub async fn get_full_spans(
                 start: nanoseconds_to_iso(ch_span.start_time),
                 end: nanoseconds_to_iso(ch_span.end_time),
                 status: ch_span.status.clone(),
-                input: strip_signature_fields(&replace_base64_images(&try_parse_json(
-                    &ch_span.input,
-                ))),
+                input,
                 output: strip_signature_fields(&replace_base64_images(&try_parse_json(
                     &ch_span.output,
                 ))),

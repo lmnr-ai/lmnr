@@ -1,4 +1,4 @@
-import { ChevronDown, Copy, Database, Loader, PlayCircle } from "lucide-react";
+import { ChevronDown, Copy, Database, Loader, PlayCircle, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useMemo } from "react";
@@ -10,6 +10,7 @@ import TagsTrigger from "@/components/tags/tags-trigger";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
+import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { useOpenInSql } from "@/components/traces/trace-view/use-open-in-sql.tsx";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,8 @@ interface SpanControlsProps {
 
 export function SpanControls({ children, span }: PropsWithChildren<SpanControlsProps>) {
   const { projectId } = useParams();
+  const setSelectedSpan = useTraceViewBaseStore((state) => state.setSelectedSpan);
+  const isAlwaysSelectSpan = useTraceViewBaseStore((state) => state.isAlwaysSelectSpan);
 
   const errorEventAttributes = useMemo(
     () => span.events?.find((e) => e.name === "exception")?.attributes as ErrorEventAttributes,
@@ -80,17 +83,24 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
             </DropdownMenuContent>
           </DropdownMenu>
           {span.spanType === SpanType.LLM && (
-            <>
-              <Link
-                href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
-                passHref
-              >
-                <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
-                  <PlayCircle className="mr-1" size={14} />
-                  Experiment in playground
-                </Button>
-              </Link>
-            </>
+            <Link
+              href={{ pathname: `/project/${projectId}/playgrounds/create`, query: { spanId: span.spanId } }}
+              passHref
+            >
+              <Button variant="outlinePrimary" className="px-1.5 text-xs h-6 font-mono bg-primary/10">
+                <PlayCircle className="mr-1" size={14} />
+                Experiment in playground
+              </Button>
+            </Link>
+          )}
+          {!isAlwaysSelectSpan && (
+            <Button
+              variant="ghost"
+              className="ml-auto px-0.5 h-6 w-6 flex-shrink-0"
+              onClick={() => setSelectedSpan(undefined)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
           )}
         </div>
         <div className="flex flex-col flex-wrap gap-1.5">

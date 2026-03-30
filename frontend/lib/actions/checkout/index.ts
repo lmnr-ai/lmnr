@@ -214,7 +214,22 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
 
   const usage = await getWorkspaceUsage(workspaceId);
 
-  const newBytesOverage = Math.max(0, usage.totalBytesIngested - newTierConfig.includedBytes);
+  const newMegabytesOverage = Math.max(0, usage.totalBytesIngested - newTierConfig.includedBytes) / 1024 / 1024;
+
+  // Stripe limits this number to up to 15 digits with up to 12 decimal places.
+  // We round off to 5 decimal places.
+  let newMegabytesOverageStr = newMegabytesOverage.toFixed(5);
+  // If with decimal point it's longer than 16 chars (15 digits + 1 decimal point), try rounding to integer.
+  if (newMegabytesOverageStr.length > 16) {
+    newMegabytesOverageStr = Math.floor(newMegabytesOverage).toString();
+  }
+  // If still longer than 15 chars (no decimal point), report 10^15 - 1.
+  // This is practically unlikely, as it would mean ~999M petabytes.
+  if (newMegabytesOverageStr.length > 15) {
+    console.error(`CRITICAL: too large number of megabytes for workspace ${workspaceId}: ${newMegabytesOverage}`);
+    newMegabytesOverageStr = (10 ** 15 - 1).toString();
+  }
+
   const newSignalRunsOverage = Math.max(0, usage.totalSignalRuns - newTierConfig.includedSignalRuns);
 
   const subscription = await s.subscriptions.retrieve(workspace[0].subscriptionId);
@@ -224,18 +239,18 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   const newPrices = await s.prices.list({
     lookup_keys: [
       newTierConfig.lookupKey,
-      newTierConfig.overageBytesLookupKey,
+      newTierConfig.overageMegabytesLookupKey,
       newTierConfig.overageSignalRunsLookupKey,
     ],
   });
 
   const newFlatPrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.lookupKey);
-  const newBytesOveragePrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.overageBytesLookupKey);
+  const newMegabytesOveragePrice = newPrices.data.find((p) => p.lookup_key === newTierConfig.overageMegabytesLookupKey);
   const newSignalRunsOveragePrice = newPrices.data.find(
     (p) => p.lookup_key === newTierConfig.overageSignalRunsLookupKey
   );
 
-  if (!newFlatPrice || !newBytesOveragePrice || !newSignalRunsOveragePrice) {
+  if (!newFlatPrice || !newMegabytesOveragePrice || !newSignalRunsOveragePrice) {
     throw new Error("Could not resolve new tier prices in Stripe");
   }
 
@@ -249,7 +264,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
   await s.subscriptions.update(workspace[0].subscriptionId, {
     items: [
       ...oldUsageItems.map((item) => ({ id: item.id, deleted: true as const })),
-      { price: newBytesOveragePrice.id },
+      { price: newMegabytesOveragePrice.id },
       { price: newSignalRunsOveragePrice.id },
     ],
     proration_behavior: "none",
@@ -275,7 +290,7 @@ export const switchTier = async (input: z.infer<typeof SwitchTierSchema>): Promi
       timestamp,
       payload: {
         stripe_customer_id: stripeCustomerId,
-        [METER_EVENT_NAMES.overageBytes.payloadKey]: String(newBytesOverage),
+        [METER_EVENT_NAMES.overageBytes.payloadKey]: newMegabytesOverageStr,
       },
     }),
     s.billing.meterEvents.create({

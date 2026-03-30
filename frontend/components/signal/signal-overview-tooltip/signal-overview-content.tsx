@@ -4,6 +4,7 @@ import { ArrowRight, Pencil } from "lucide-react";
 
 import TabButton from "@/components/signal/signal-overview-tooltip/tab-button";
 import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet";
+import { getColumnName, getOperatorLabel } from "@/components/signals/trigger-filter-field";
 
 interface SignalOverviewContentProps {
   signal: Omit<ManageSignalForm, "id"> & { id: string };
@@ -25,19 +26,28 @@ export default function SignalOverviewContent({
         <span className="text-xs text-muted-foreground">Input</span>
         <div className="flex flex-col gap-1">
           <TabButton
-            tab="triggers"
-            activeTab={activeTab}
-            onClick={() => onTabChange("triggers")}
-            title="Triggers"
-            description="Automatically run this signal"
-          />
-          <TabButton
             tab="jobs"
             activeTab={activeTab}
             onClick={() => onTabChange("jobs")}
             title="Jobs"
             description="Run this signal on past traces"
           />
+          {signal.triggers.length > 0 && (
+            <div className="px-3 pt-1.5 pb-2 rounded border border-border/50">
+              <span className="text-xs font-medium">
+                {signal.triggers.length} {signal.triggers.length === 1 ? "trigger" : "triggers"}
+              </span>
+              <div className="mt-1 space-y-1">
+                {signal.triggers.map((trigger, i) => (
+                  <div key={trigger.id ?? i} className="text-xs text-muted-foreground">
+                    {trigger.filters
+                      .map((f) => `${getColumnName(f.column)} ${getOperatorLabel(f.column, f.operator)} ${f.value}`)
+                      .join(" & ")}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -2,14 +2,13 @@
 
 import type { Row } from "@tanstack/react-table";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Resizable } from "re-resizable";
 import { useCallback, useEffect, useState } from "react";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import ConfirmSignalJobDialog from "@/components/signal/create-signal-job/confirm-signal-job-dialog";
 import SelectionBanner from "@/components/signal/create-signal-job/selection-banner.tsx";
 import { useSignalStoreContext } from "@/components/signal/store.tsx";
-import TraceView from "@/components/traces/trace-view";
+import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import {
   columns,
   defaultTracesColumnOrder,
@@ -23,9 +22,9 @@ import { useInfiniteScroll, useSelection } from "@/components/ui/infinite-datata
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store.tsx";
 import ColumnsMenu from "@/components/ui/infinite-datatable/ui/columns-menu.tsx";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
+import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import type { Filter } from "@/lib/actions/common/filters.ts";
-import { setEventsTraceViewWidthCookie } from "@/lib/actions/traces/cookies";
-import { useResizableTraceViewWidth } from "@/lib/hooks/use-resizable-trace-view-width";
+import { Feature } from "@/lib/features/features";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import type { TraceRow } from "@/lib/traces/types.ts";
 
@@ -40,9 +39,11 @@ const CreateSignalJobContent = () => {
 
   const signal = useSignalStoreContext((state) => state.signal);
   const { rowSelection, onRowSelectionChange } = useSelection();
+  const featureFlags = useFeatureFlags();
 
   const [isCreating, setIsCreating] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [jobMode, setJobMode] = useState(featureFlags[Feature.BATCH_SIGNALS] ? 0 : 1);
   const [filters, setFilters] = useState<{ filters: Filter[]; search: string }>({ filters: [], search: "" });
   const [dateRange, setDateRange] = useState<{
     pastHours?: string;
@@ -57,18 +58,12 @@ const CreateSignalJobContent = () => {
   const [traceCount, setTraceCount] = useState(0);
   const [selectionMode, setSelectionMode] = useState<"none" | "page" | "all">("none");
 
-  const { traceId, spanId, setTraceId, setSpanId, initialTraceViewWidth } = useSignalStoreContext((state) => ({
+  const { traceId, spanId, setTraceId, setSpanId } = useSignalStoreContext((state) => ({
     traceId: state.traceId,
     spanId: state.spanId,
     setTraceId: state.setTraceId,
     setSpanId: state.setSpanId,
-    initialTraceViewWidth: state.initialTraceViewWidth,
   }));
-
-  const { width: defaultTraceViewWidth, handleResizeStop } = useResizableTraceViewWidth({
-    initialWidth: initialTraceViewWidth,
-    onSaveWidth: setEventsTraceViewWidthCookie,
-  });
 
   const fetchTraces = useCallback(
     async (pageNumber: number) => {
@@ -214,6 +209,7 @@ const CreateSignalJobContent = () => {
           endDate: dateRange.endDate,
           traceIds: selectedTraceIds,
           tracesCount: selectedCount,
+          mode: jobMode,
         }),
       });
 
@@ -249,6 +245,7 @@ const CreateSignalJobContent = () => {
     dateRange.pastHours,
     dateRange.startDate,
     dateRange.endDate,
+    jobMode,
     router,
     toast,
   ]);
@@ -265,6 +262,8 @@ const CreateSignalJobContent = () => {
         isCreating={isCreating}
         onConfirm={handleCreateSignalJob}
         traceCount={selectionMode === "all" ? traceCount : selectedCount}
+        mode={jobMode}
+        onModeChange={setJobMode}
       />
       <Header
         path={[
@@ -345,31 +344,20 @@ const CreateSignalJobContent = () => {
         </InfiniteDataTable>
       </div>
       {traceId && (
-        <div className="absolute top-0 right-0 bottom-0 bg-background border-l z-60 flex pointer-events-auto">
-          <Resizable
-            onResizeStop={handleResizeStop}
-            enable={{
-              left: true,
-            }}
-            size={{
-              width: defaultTraceViewWidth,
-            }}
-          >
-            <TraceView
-              spanId={spanId || undefined}
-              key={traceId}
-              onClose={() => {
-                const params = new URLSearchParams(searchParams);
-                params.delete("traceId");
-                params.delete("spanId");
-                router.push(`${pathName}?${params.toString()}`);
-                setTraceId(null);
-                setSpanId(null);
-              }}
-              traceId={traceId}
-            />
-          </Resizable>
-        </div>
+        <TraceViewSidePanel
+          className="z-60 pointer-events-auto"
+          spanId={spanId || undefined}
+          key={traceId}
+          onClose={() => {
+            const params = new URLSearchParams(searchParams);
+            params.delete("traceId");
+            params.delete("spanId");
+            router.push(`${pathName}?${params.toString()}`);
+            setTraceId(null);
+            setSpanId(null);
+          }}
+          traceId={traceId}
+        />
       )}
     </>
   );

@@ -47,7 +47,7 @@ export default function ViewDropdown() {
   const contentVisible = showTreeContent ?? true;
 
   return (
-    <div className="flex item-center">
+    <div className="flex items-center min-w-0">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -83,12 +83,16 @@ export default function ViewDropdown() {
         <button
           onClick={() => setShowTreeContent(!contentVisible)}
           className={cn(
-            "flex items-center h-6 px-1.5 text-xs border rounded-md rounded-l-none text-muted-foreground",
+            "flex items-center h-6 px-1.5 text-xs border rounded-md rounded-l-none text-muted-foreground overflow-hidden",
             contentVisible ? "text-white hover:bg-muted" : "border-input hover:bg-secondary/50"
           )}
         >
-          {contentVisible ? <Eye size={14} className="mr-1" /> : <EyeOff size={14} className="mr-1" />}
-          <span>Content</span>
+          {contentVisible ? (
+            <Eye size={14} className="flex-shrink-0" />
+          ) : (
+            <EyeOff size={14} className="flex-shrink-0" />
+          )}
+          <span className="ml-1 truncate">Content</span>
         </button>
       )}
     </div>

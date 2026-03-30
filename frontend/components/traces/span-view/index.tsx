@@ -8,14 +8,15 @@ import useSWR from "swr";
 import { SpanControls } from "@/components/traces/span-controls";
 import SpanViewSearchBar from "@/components/traces/span-view/search-bar.tsx";
 import SpanContent from "@/components/traces/span-view/span-content";
-import { SpanSearchProvider, useSpanSearchContext } from "@/components/traces/span-view/span-search-context";
-import { SpanViewStateProvider } from "@/components/traces/span-view/span-view-store";
+import SpanOverview from "@/components/traces/span-view/span-overview";
+import { SpanSearchProvider } from "@/components/traces/span-view/span-search-context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
-import { Skeleton } from "@/components/ui/skeleton";
-import { type Span } from "@/lib/traces/types";
+import { spanViewTheme } from "@/components/ui/content-renderer/utils";
+import { type Span, SpanType } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
+import { SpanViewSkeleton } from "./skeleton";
 
 interface SpanViewProps {
   spanId: string;
@@ -46,12 +47,21 @@ const SpanViewTabs = ({
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
 }) => {
-  const searchContext = useSpanSearchContext();
+  const isLLM = span.spanType === SpanType.LLM;
 
   return (
-    <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue="span-input" tabIndex={0}>
+    <Tabs
+      className="flex flex-col grow overflow-hidden gap-0"
+      defaultValue={isLLM ? "overview" : "span-input"}
+      tabIndex={0}
+    >
       <div className="px-2 pb-2 mt-2 border-b w-full">
         <TabsList className="border-none text-xs h-7">
+          {isLLM && (
+            <TabsTrigger value="overview" className="text-xs">
+              Overview
+            </TabsTrigger>
+          )}
           <TabsTrigger value="span-input" className="text-xs">
             Span Input
           </TabsTrigger>
@@ -68,6 +78,11 @@ const SpanViewTabs = ({
       </div>
       <SpanViewSearchBar ref={searchRef} open={searchOpen} setOpen={setSearchOpen} />
       <div className="grow flex overflow-hidden">
+        {isLLM && (
+          <TabsContent value="overview" className="w-full h-full">
+            <SpanOverview span={span} />
+          </TabsContent>
+        )}
         <TabsContent value="span-input" className="w-full h-full">
           <SpanContent span={span} type="input" />
         </TabsContent>
@@ -81,7 +96,7 @@ const SpanViewTabs = ({
             readOnly
             value={JSON.stringify(span.attributes)}
             defaultMode="yaml"
-            searchTerm={searchContext?.searchTerm || ""}
+            customTheme={spanViewTheme}
           />
         </TabsContent>
         <TabsContent value="events" className="w-full h-full">
@@ -91,7 +106,7 @@ const SpanViewTabs = ({
             readOnly
             value={JSON.stringify(span.events)}
             defaultMode="yaml"
-            searchTerm={searchContext?.searchTerm || ""}
+            customTheme={spanViewTheme}
           />
         </TabsContent>
       </div>
@@ -126,13 +141,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col space-y-2 p-2">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-      </div>
-    );
+    return <SpanViewSkeleton />;
   }
 
   if (error) {
@@ -163,18 +172,11 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
 
   if (span) {
     return (
-      <SpanViewStateProvider>
-        <SpanSearchProvider>
-          <SpanControls span={span}>
-            <SpanViewTabs
-              span={span}
-              searchRef={searchRef}
-              searchOpen={searchOpen}
-              setSearchOpen={setSearchOpen}
-            />
-          </SpanControls>
-        </SpanSearchProvider>
-      </SpanViewStateProvider>
+      <SpanSearchProvider>
+        <SpanControls span={span}>
+          <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
+        </SpanControls>
+      </SpanSearchProvider>
     );
   }
 }

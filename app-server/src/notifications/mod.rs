@@ -8,8 +8,10 @@ use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::ch::notification_logs::CHNotificationLog;
+use crate::ch::service::ClickhouseService;
 use crate::db::DB;
-use crate::mq::{MessageQueue, MessageQueueTrait, utils::mq_max_payload};
+use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::worker::{HandlerError, MessageHandler};
 
 mod slack;
@@ -47,31 +49,34 @@ pub struct NotificationMessage {
     #[serde(rename = "type")]
     pub notification_type: NotificationType,
     pub event_name: String,
+    /// The notification payload. For both Slack and Email this is the inner struct
+    /// (e.g. `EventIdentificationPayload` or `EmailPayload`) — no enum wrapper.
+    /// The handler wraps it as needed for delivery and logs it directly to ClickHouse.
     pub payload: serde_json::Value,
+    /// Metadata for notification logging.
+    /// Fields below use `serde(default)` for backward compatibility with in-flight
+    /// messages enqueued before this schema change.
+    #[serde(default)]
+    pub workspace_id: Uuid,
+    #[serde(default)]
+    pub definition_type: String,
+    #[serde(default)]
+    pub definition_id: Uuid,
+    #[serde(default)]
+    pub target_id: Uuid,
+    #[serde(default)]
+    pub target_type: String,
 }
 
 /// Push a notification message to the notification queue.
 ///
-/// Returns `HandlerError::Permanent` for payload size violations (retrying won't help)
-/// and `HandlerError::Transient` for publish failures (may be a temporary MQ issue).
+/// Returns a plain `anyhow::Result` – callers on the handler side are responsible
+/// for checking payload size and mapping errors to `HandlerError` variants.
 pub async fn push_to_notification_queue(
     message: NotificationMessage,
     queue: Arc<MessageQueue>,
-) -> Result<(), HandlerError> {
-    let serialized = serde_json::to_vec(&message)
-        .map_err(|e| HandlerError::permanent(anyhow::anyhow!("Failed to serialize notification: {}", e)))?;
-
-    if serialized.len() >= mq_max_payload() {
-        log::warn!(
-            "[Notifications] MQ payload limit exceeded. payload size: [{}], event_name: [{}]",
-            serialized.len(),
-            message.event_name,
-        );
-        return Err(HandlerError::permanent(anyhow::anyhow!(
-            "Notification payload size ({} bytes) exceeds MQ limit",
-            serialized.len()
-        )));
-    }
+) -> anyhow::Result<()> {
+    let serialized = serde_json::to_vec(&message)?;
 
     queue
         .publish(
@@ -80,8 +85,7 @@ pub async fn push_to_notification_queue(
             NOTIFICATIONS_ROUTING_KEY,
             None,
         )
-        .await
-        .map_err(|e| HandlerError::transient(e))?;
+        .await?;
 
     log::debug!(
         "Pushed notification message to queue: project_id={}, trace_id={}, event_name={}",
@@ -98,14 +102,21 @@ pub struct NotificationHandler {
     pub db: Arc<DB>,
     pub slack_client: reqwest::Client,
     pub resend: Option<Arc<Resend>>,
+    pub ch_service: Arc<ClickhouseService>,
 }
 
 impl NotificationHandler {
-    pub fn new(db: Arc<DB>, slack_client: reqwest::Client, resend: Option<Arc<Resend>>) -> Self {
+    pub fn new(
+        db: Arc<DB>,
+        slack_client: reqwest::Client,
+        resend: Option<Arc<Resend>>,
+        ch_service: Arc<ClickhouseService>,
+    ) -> Self {
         Self {
             db,
             slack_client,
             resend,
+            ch_service,
         }
     }
 }
@@ -115,63 +126,108 @@ impl MessageHandler for NotificationHandler {
     type Message = NotificationMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        match message.notification_type {
-            NotificationType::Slack => self.handle_slack(message).await,
-            NotificationType::Email => self.handle_email(message).await,
-        }
-    }
-}
-
-impl NotificationHandler {
-    async fn handle_slack(&self, message: NotificationMessage) -> Result<(), HandlerError> {
-        let slack_payload: SlackMessagePayload = serde_json::from_value(message.payload.clone())
-            .map_err(|e| anyhow::anyhow!("Failed to parse SlackMessagePayload: {}", e))?;
-
-        let integration_id = match &slack_payload {
-            SlackMessagePayload::EventIdentification(payload) => payload.integration_id,
+        let delivered = match message.notification_type {
+            NotificationType::Slack => self.handle_slack(&message).await?,
+            NotificationType::Email => self.handle_email(&message).await?,
         };
 
-        let integration =
-            crate::db::slack_integrations::get_integration_by_id(&self.db.pool, &integration_id)
+        if delivered {
+            let now_ms = chrono::Utc::now().timestamp_millis();
+            let log_entry = CHNotificationLog {
+                id: Uuid::new_v4(),
+                workspace_id: message.workspace_id,
+                project_id: message.project_id,
+                definition_type: message.definition_type,
+                definition_id: message.definition_id,
+                target_id: message.target_id,
+                target_type: message.target_type,
+                payload: message.payload.to_string(),
+                created_at: now_ms,
+            };
+
+            if let Err(e) = self
+                .ch_service
+                .insert_batch_for_workspace(message.workspace_id, &[log_entry])
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
-
-        if let Some(integration) = integration {
-            let decrypted_token = slack::decode_slack_token(
-                &integration.team_id,
-                &integration.nonce_hex,
-                &integration.token,
-            )
-            .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
-
-            let blocks = slack::format_message_blocks(
-                &slack_payload,
-                &message.project_id.to_string(),
-                &message.trace_id.to_string(),
-                &message.event_name,
-            );
-
-            let channel_id = slack::get_channel_id(&slack_payload);
-
-            slack::send_message(&self.slack_client, &decrypted_token, channel_id, blocks)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
-
-            log::debug!(
-                "Successfully sent Slack notification for trace_id={}",
-                message.trace_id
-            );
-        } else {
-            log::warn!(
-                "Slack integration not found for integration_id: {}",
-                integration_id
-            );
+            {
+                log::error!("Failed to insert notification log: {:?}", e);
+            }
         }
 
         Ok(())
     }
+}
 
-    async fn handle_email(&self, message: NotificationMessage) -> Result<(), HandlerError> {
+impl NotificationHandler {
+    /// Returns `Ok(true)` if the Slack message was actually sent,
+    /// `Ok(false)` if delivery was skipped (e.g. integration not found).
+    async fn handle_slack(&self, message: &NotificationMessage) -> Result<bool, HandlerError> {
+        // Try new format (EventIdentificationPayload directly) first,
+        // then fall back to old format (SlackMessagePayload enum wrapper)
+        // for backward compatibility with in-flight messages.
+        let event_payload: EventIdentificationPayload =
+            serde_json::from_value::<EventIdentificationPayload>(message.payload.clone())
+                .or_else(|_| {
+                    let wrapped: SlackMessagePayload =
+                        serde_json::from_value(message.payload.clone())?;
+                    match wrapped {
+                        SlackMessagePayload::EventIdentification(inner) => Ok(inner),
+                    }
+                })
+                .map_err(|e: serde_json::Error| {
+                    anyhow::anyhow!("Failed to parse Slack payload: {}", e)
+                })?;
+
+        let integration =
+            crate::db::slack_integrations::get_integration_by_id(
+                &self.db.pool,
+                &event_payload.integration_id,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
+
+        let Some(integration) = integration else {
+            log::warn!(
+                "Slack integration not found for integration_id: {}",
+                event_payload.integration_id
+            );
+            return Ok(false);
+        };
+
+        let decrypted_token = slack::decode_slack_token(
+            &integration.team_id,
+            &integration.nonce_hex,
+            &integration.token,
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
+
+        // Wrap into SlackMessagePayload for message formatting
+        let slack_payload = SlackMessagePayload::EventIdentification(event_payload);
+
+        let blocks = slack::format_message_blocks(
+            &slack_payload,
+            &message.project_id.to_string(),
+            &message.trace_id.to_string(),
+            &message.event_name,
+        );
+
+        let channel_id = slack::get_channel_id(&slack_payload);
+
+        slack::send_message(&self.slack_client, &decrypted_token, channel_id, blocks)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
+
+        log::debug!(
+            "Successfully sent Slack notification for trace_id={}",
+            message.trace_id
+        );
+
+        Ok(true)
+    }
+
+    /// Returns `Ok(true)` if the email was actually sent to at least one recipient,
+    /// `Ok(false)` if delivery was skipped (e.g. Resend not configured, no recipients).
+    async fn handle_email(&self, message: &NotificationMessage) -> Result<bool, HandlerError> {
         let resend = match &self.resend {
             Some(r) => r.clone(),
             None => {
@@ -179,7 +235,7 @@ impl NotificationHandler {
                     "[Notifications] Resend client not configured (RESEND_API_KEY not set), \
                      skipping email notification"
                 );
-                return Ok(());
+                return Ok(false);
             }
         };
 
@@ -188,7 +244,7 @@ impl NotificationHandler {
 
         if email_payload.to.is_empty() {
             log::warn!("[Notifications] Email notification has no recipients, skipping");
-            return Ok(());
+            return Ok(false);
         }
 
         let mut send_failures = 0;
@@ -243,7 +299,7 @@ impl NotificationHandler {
             );
         }
 
-        Ok(())
+        Ok(true)
     }
 }
 

@@ -3,6 +3,7 @@ import { CheckCircle2, Clock3, XCircle } from "lucide-react";
 import React from "react";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
+import { Badge } from "@/components/ui/badge";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import Mono from "@/components/ui/mono.tsx";
 
@@ -15,6 +16,7 @@ export interface SignalJobRow {
   failedTraces: number;
   createdAt: string;
   updatedAt: string;
+  mode: number;
 }
 
 export const signalJobsColumns: ColumnDef<SignalJobRow, any>[] = [
@@ -23,6 +25,20 @@ export const signalJobsColumns: ColumnDef<SignalJobRow, any>[] = [
     header: "Job ID",
     id: "id",
     cell: (row) => <Mono>{String(row.getValue())}</Mono>,
+    size: 120,
+  },
+  {
+    accessorFn: (row) => row.mode,
+    header: "Mode",
+    id: "mode",
+    cell: ({ row }) => {
+      const mode = row.original.mode;
+      return (
+        <Badge variant="outline" className="text-xs">
+          {mode === 1 ? "Realtime" : "Batch"}
+        </Badge>
+      );
+    },
     size: 120,
   },
   {

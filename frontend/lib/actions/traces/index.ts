@@ -4,8 +4,12 @@ import { z } from "zod/v4";
 import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { searchSpans } from "@/lib/actions/traces/search";
-import { buildTracesCountQueryWithParams, buildTracesQueryWithParams } from "@/lib/actions/traces/utils";
+import { searchSpans, type SpanSearchHit } from "@/lib/actions/traces/search";
+import {
+  buildTracesCountQueryWithParams,
+  buildTracesQueryWithParams,
+  type CustomColumn,
+} from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
@@ -26,6 +30,8 @@ export const GetTracesSchema = PaginationFiltersSchema.extend({
     .transform((val) => val || "DEFAULT"),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
+  sortSql: z.string().optional(),
+  customColumns: z.string().optional(),
 });
 
 export const DeleteTracesSchema = z.object({
@@ -50,6 +56,10 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     search,
     searchIn,
     filter: inputFilters,
+    sortBy,
+    sortSql,
+    sortDirection,
+    customColumns: customColumnsJson,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
@@ -57,13 +67,14 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
 
-  const spanHits: { trace_id: string; span_id: string }[] = search
+  const spanHits: SpanSearchHit[] = search
     ? await searchSpans({
         projectId,
         traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
+        getSnippets: true,
       })
     : [];
   const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
@@ -78,6 +89,25 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     }
   }
 
+  // Parse and validate custom columns from JSON
+  let customColumns: CustomColumn[] | undefined;
+  if (customColumnsJson) {
+    try {
+      const parsed = JSON.parse(customColumnsJson);
+      const CustomColumnSchema = z.array(
+        z.object({
+          id: z.string().min(1),
+          sql: z.string().min(1),
+          filterSql: z.string().optional(),
+          dbType: z.string().optional(),
+        })
+      );
+      customColumns = CustomColumnSchema.parse(parsed);
+    } catch {
+      // ignore malformed custom columns
+    }
+  }
+
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
     projectId,
     traceType,
@@ -88,6 +118,10 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     startTime,
     endTime,
     pastHours,
+    sortBy,
+    sortSql,
+    sortDirection: sortDirection as "ASC" | "DESC" | undefined,
+    customColumns,
   });
 
   const items = await executeQuery<TraceRow>({ query: mainQuery, parameters: mainParams, projectId });
@@ -100,6 +134,23 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       const indexB = traceIdIndexMap.get(b.id) ?? Infinity;
       return indexA - indexB;
     });
+
+    const snippetMap = new Map<string, SpanSearchHit>();
+    const snippetsCountMap = new Map<string, number>();
+    for (const hit of spanHits) {
+      snippetsCountMap.set(hit.trace_id, (snippetsCountMap.get(hit.trace_id) ?? 0) + 1);
+      if (!snippetMap.has(hit.trace_id) && (hit.input_snippet || hit.output_snippet)) {
+        snippetMap.set(hit.trace_id, hit);
+      }
+    }
+    for (const item of items) {
+      const hit = snippetMap.get(item.id);
+      if (hit) {
+        item.inputSnippet = hit.input_snippet;
+        item.outputSnippet = hit.output_snippet;
+      }
+      item.snippetsCount = snippetsCountMap.get(item.id) ?? 0;
+    }
   }
 
   return {

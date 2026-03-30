@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use anyhow::Result;
 use chrono::Utc;
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
@@ -80,7 +83,50 @@ impl CHEvaluationDatapoint {
                 .map(|output| json_value_to_string(&output))
                 .unwrap_or_default(),
             group_id: group_name.clone(),
-            scores: json_value_to_string(&serde_json::to_value(result.scores).unwrap_or_default()),
+            scores: json_value_to_string(
+                &serde_json::to_value(
+                    result
+                        .scores
+                        .iter()
+                        .filter_map(|(k, v)| v.map(|num| (k, num)))
+                        .collect::<HashMap<_, _>>(),
+                )
+                .unwrap_or_default(),
+            ),
         }
+    }
+}
+
+pub async fn ch_insert_evaluation_datapoints(
+    clickhouse: clickhouse::Client,
+    eval_dps: &[CHEvaluationDatapoint],
+) -> Result<()> {
+    if eval_dps.is_empty() {
+        return Ok(());
+    }
+
+    let ch_insert = clickhouse
+        .insert::<CHEvaluationDatapoint>("evaluation_datapoints")
+        .await;
+
+    match ch_insert {
+        Ok(mut ch_insert) => {
+            for eval_dp in eval_dps {
+                ch_insert.write(eval_dp).await?;
+            }
+
+            let ch_insert_end_res = ch_insert.end().await;
+            match ch_insert_end_res {
+                Ok(_) => Ok(()),
+                Err(e) => Err(anyhow::anyhow!(
+                    "Clickhouse evaluation_datapoints batch insertion failed: {:?}",
+                    e
+                )),
+            }
+        }
+        Err(e) => Err(anyhow::anyhow!(
+            "Failed to insert evaluation_datapoints batch into Clickhouse: {:?}",
+            e
+        )),
     }
 }

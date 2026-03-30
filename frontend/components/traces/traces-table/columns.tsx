@@ -3,6 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { Badge } from "@/components/ui/badge.tsx";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
@@ -27,6 +28,21 @@ const detailedFormat = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 8,
 });
 
+export const PREVIEW_COLUMN: ColumnDef<TraceRow, any> = {
+  id: "preview",
+  header: "Preview",
+  enableResizing: true,
+  size: 420,
+  cell: (row) => (
+    <SnippetPreview
+      inputSnippet={row.row.original.inputSnippet}
+      outputSnippet={row.row.original.outputSnippet}
+      snippetsCount={row.row.original.snippetsCount}
+      variant="table"
+    />
+  ),
+};
+
 export const columns: ColumnDef<TraceRow, any>[] = [
   {
     cell: (row) => (
@@ -41,6 +57,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorFn: (row) => (row.status === "error" ? "error" : row.analysis_status),
     header: () => <div />,
     id: "status",
+    enableSorting: true,
+    meta: { sql: "status" },
     size: 40,
   },
   {
@@ -49,11 +67,14 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorKey: "id",
     id: "id",
     size: 150,
+    meta: { sql: "id" },
   },
   {
     accessorKey: "topSpanType",
     header: "Root span",
     id: "top_span_type",
+    enableSorting: true,
+    meta: { sql: "top_span_type" },
     cell: (row) => {
       const topSpanId = row.row.original.topSpanId;
       const hasTopSpan = !!topSpanId && topSpanId !== "00000000-0000-0000-0000-000000000000";
@@ -93,6 +114,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorKey: "rootSpanInput",
     header: "Root input",
     id: "root_span_input",
+    enableSorting: true,
+    meta: { sql: "root_span_input" },
     size: 150,
   },
   {
@@ -100,6 +123,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorKey: "rootSpanOutput",
     header: "Root output",
     id: "root_span_output",
+    enableSorting: true,
+    meta: { sql: "root_span_output" },
     size: 150,
   },
   {
@@ -107,6 +132,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     header: "Timestamp",
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     id: "start_time",
+    enableSorting: true,
+    meta: { sql: "start_time" },
     size: 150,
   },
   {
@@ -121,12 +148,16 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     },
     header: "Duration",
     id: "duration",
+    enableSorting: true,
+    meta: { sql: "duration" },
     size: 80,
   },
   {
     accessorFn: (row) => row.totalCost,
     header: "Cost",
     id: "cost",
+    enableSorting: true,
+    meta: { sql: "total_cost" },
     cell: (row) => {
       if (row.getValue() > 0) {
         return (
@@ -162,6 +193,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorFn: (row) => row.totalTokens ?? "-",
     header: "Tokens",
     id: "total_tokens",
+    enableSorting: true,
+    meta: { sql: "total_tokens" },
     cell: (row) => (
       <div className="truncate">
         {`${row.row.original.inputTokens ?? "-"}`}
@@ -210,11 +243,15 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     header: "Tags",
     accessorKey: "tags",
     id: "tags",
+    enableSorting: true,
+    meta: { sql: "tags" },
   },
   {
     accessorFn: (row) => row.metadata,
     header: "Metadata",
     id: "metadata",
+    enableSorting: true,
+    meta: { sql: "metadata" },
     cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
     size: 100,
   },
@@ -223,12 +260,16 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     header: "Session ID",
     accessorKey: "sessionId",
     id: "session_id",
+    enableSorting: true,
+    meta: { sql: "session_id" },
   },
   {
     cell: (row) => <Mono className="text-xs">{row.getValue()}</Mono>,
     header: "User ID",
     accessorKey: "userId",
     id: "user_id",
+    enableSorting: true,
+    meta: { sql: "user_id" },
   },
 ];
 

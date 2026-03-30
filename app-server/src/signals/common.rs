@@ -3,23 +3,27 @@ use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::{
-    ch::signal_run_messages::{
-        CHSignalRunMessage, delete_signal_run_messages, get_signal_run_messages,
+    ch::{
+        signal_run_messages::{
+            CHSignalRunMessage, delete_signal_run_messages, get_signal_run_messages,
+        },
+        signal_runs::{CHSignalRun, insert_signal_runs},
     },
-    ch::signal_runs::{CHSignalRun, insert_signal_runs},
-    db::DB,
-    db::signal_jobs::update_signal_job_stats,
-    db::spans::SpanType,
+    db::{DB, signal_jobs::update_signal_job_stats},
     mq::MessageQueue,
-    signals::SignalRun,
-    signals::prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
-    signals::provider::models::{
-        ProviderContent as Content, ProviderGenerationConfig, ProviderPart as Part,
-        ProviderRequest, ProviderRequestItem,
+    signals::{
+        SignalRun,
+        prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
+        provider::{
+            ProviderThinkingConfig, ProviderThinkingLevel,
+            models::{
+                ProviderContent as Content, ProviderGenerationConfig, ProviderPart as Part,
+                ProviderRequest, ProviderRequestItem,
+            },
+        },
+        spans::get_trace_structure_as_string,
+        tools::build_tool_definitions,
     },
-    signals::spans::get_trace_structure_as_string,
-    signals::tools::build_tool_definitions,
-    signals::utils::{InternalSpan, emit_internal_span},
     worker::HandlerError,
 };
 
@@ -205,6 +209,10 @@ pub async fn process_run(
             tools: Some(tools),
             generation_config: Some(ProviderGenerationConfig {
                 temperature: Some(1.0),
+                thinking_config: Some(ProviderThinkingConfig {
+                    include_thoughts: Some(true),
+                    thinking_level: Some(ProviderThinkingLevel::Low),
+                }),
                 ..Default::default()
             }),
         },
@@ -213,37 +221,6 @@ pub async fn process_run(
             "trace_id": trace_id,
         })),
     };
-
-    // Emit internal tracing span
-    let mut contents_with_sys = contents.clone();
-    if let Some(mut sys) = system_instruction.clone() {
-        sys.role = Some("system".to_string());
-        contents_with_sys.insert(0, sys);
-    }
-    emit_internal_span(
-        queue.clone(),
-        InternalSpan {
-            name: format!("step_{}.submit_request", step),
-            trace_id: internal_trace_id,
-            run_id,
-            signal_name: signal_name.to_string(),
-            parent_span_id: Some(internal_span_id),
-            span_type: SpanType::LLM,
-            start_time: processing_start_time,
-            input: Some(serde_json::json!(contents_with_sys)),
-            output: None,
-            input_tokens: None,
-            input_cached_tokens: None,
-            output_tokens: None,
-            model: model.to_string(),
-            provider: provider.to_string(),
-            internal_project_id,
-            job_id,
-            error: None,
-            provider_batch_id: None,
-        },
-    )
-    .await;
 
     Ok(ProcessRunResult {
         request,

@@ -2,19 +2,33 @@ import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { type TimeRange } from "@/lib/clickhouse/utils";
 import { fetcherJSON } from "@/lib/utils";
 
+export interface SnippetInfo {
+  text: string;
+  highlight: [number, number];
+}
+
+export interface SpanSearchHit {
+  trace_id: string;
+  span_id: string;
+  input_snippet?: SnippetInfo;
+  output_snippet?: SnippetInfo;
+}
+
 export const searchSpans = async ({
   projectId,
   traceId,
   searchQuery,
   timeRange,
   searchType,
+  getSnippets,
 }: {
   projectId: string;
   traceId?: string;
   searchQuery: string;
   timeRange?: TimeRange;
   searchType?: SpanSearchType[];
-}): Promise<{ trace_id: string; span_id: string }[]> => {
+  getSnippets?: boolean;
+}): Promise<SpanSearchHit[]> => {
   const trimmedQuery = searchQuery.trim();
   if (!trimmedQuery) {
     return [];
@@ -41,13 +55,14 @@ export const searchSpans = async ({
     startTime,
     endTime,
     searchIn: searchType?.map((t) => t.toString()),
+    getSnippets: getSnippets ?? false,
     // Pagination is currently disabled (defaults on app-server side): API paginates by traces, search engine by spans
     limit: 0,
     offset: 0,
   };
 
   try {
-    return await fetcherJSON<{ trace_id: string; span_id: string }[]>(`/projects/${projectId}/spans/search`, {
+    return await fetcherJSON<SpanSearchHit[]>(`/projects/${projectId}/spans/search`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
