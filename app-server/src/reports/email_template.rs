@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// A noteworthy signal event highlighted by the AI summary, shown with full details.
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NoteworthyEvent {
     pub signal_name: String,
     pub summary: String,
@@ -11,6 +13,7 @@ pub struct NoteworthyEvent {
 }
 
 /// Data for a single project section in the report
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProjectReportData {
     pub project_name: String,
     pub project_id: Uuid,
@@ -23,6 +26,7 @@ pub struct ProjectReportData {
 }
 
 /// Full report data for rendering
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ReportData {
     pub workspace_id: Uuid,
     pub workspace_name: String,
@@ -204,7 +208,7 @@ pub fn render_report_email(data: &ReportData) -> String {
     )
 }
 
-fn html_escape(s: &str) -> String {
+pub fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")

@@ -336,7 +336,7 @@ export const alertTargets = pgTable(
     alertId: uuid("alert_id").notNull(),
     projectId: uuid("project_id").notNull(),
     type: text().notNull(),
-    integrationId: uuid("integration_id").notNull(),
+    integrationId: uuid("integration_id"),
     channelId: text("channel_id"),
     channelName: text("channel_name"),
     email: text(),
