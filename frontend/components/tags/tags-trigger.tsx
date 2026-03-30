@@ -8,15 +8,14 @@ import { DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "../ui/button";
 import { useTagsContext } from "./tags-context";
 
-interface TagsProps {
-  isMinimal?: boolean;
+interface TagsTriggerProps {
   children?: ReactNode;
 }
 
-const Tags = ({ isMinimal = false, children }: TagsProps) => {
+const TagsTrigger = ({ children }: TagsTriggerProps) => {
   const { tags } = useTagsContext();
 
-  const variant = !isNil(children) ? "children" : tags.length !== 0 && isMinimal ? "minimal" : "regular";
+  const variant = !isNil(children) ? "children" : tags.length !== 0 ? "minimal" : "regular";
 
   const trigger = (() => {
     switch (variant) {
@@ -48,4 +47,4 @@ const Tags = ({ isMinimal = false, children }: TagsProps) => {
   );
 };
 
-export default Tags;
+export default TagsTrigger;

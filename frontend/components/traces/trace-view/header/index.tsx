@@ -5,9 +5,7 @@ import { memo, useCallback, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import TagsContextProvider from "@/components/tags/tags-context";
-import TagsList from "@/components/tags/tags-list";
-import TagsTrigger from "@/components/tags/tags-trigger";
+import TagsInline from "@/components/tags/tags-inline";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -219,12 +217,9 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         </div>
       </div>
       {signalsPanelOpen && <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} />}
-      <TagsContextProvider mode={{ type: "trace", traceId }}>
-        <div className="flex flex-wrap gap-1 items-center">
-          <TagsList />
-          <TagsTrigger isMinimal />
-        </div>
-      </TagsContextProvider>
+      <div className="flex flex-wrap gap-1 items-center">
+        <TagsInline mode={{ type: "trace", traceId }} />
+      </div>
       <div className="flex items-center gap-2">
         <TraceViewSearch
           spans={spans}
