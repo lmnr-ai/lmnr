@@ -4,7 +4,9 @@ import { z } from "zod/v4";
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { cache, PROJECT_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
-import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
+import { projects, workspaceUsageLimits } from "@/lib/db/migrations/schema";
+
+import { isFreeTierWorkspace } from "./utils";
 
 export const USAGE_LIMIT_TYPES = ["bytes", "signal_runs"] as const;
 export type UsageLimitType = (typeof USAGE_LIMIT_TYPES)[number];
@@ -47,17 +49,6 @@ export async function getUsageLimits(input: z.infer<typeof GetUsageLimitsSchema>
     .where(eq(workspaceUsageLimits.workspaceId, workspaceId));
 
   return limits as WorkspaceUsageLimit[];
-}
-
-async function isFreeTierWorkspace(workspaceId: string): Promise<boolean> {
-  const result = await db
-    .select({ tierName: subscriptionTiers.name })
-    .from(workspaces)
-    .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
-    .where(eq(workspaces.id, workspaceId))
-    .limit(1);
-
-  return result.length > 0 && result[0].tierName.toLowerCase() === "free";
 }
 
 export async function setUsageLimit(input: z.infer<typeof SetUsageLimitSchema>): Promise<WorkspaceUsageLimit> {

@@ -3,7 +3,9 @@ import { z } from "zod/v4";
 
 import { checkUserWorkspaceRole } from "@/lib/actions/workspace/utils";
 import { db } from "@/lib/db/drizzle";
-import { subscriptionTiers, workspaces, workspaceUsageWarnings } from "@/lib/db/migrations/schema";
+import { workspaceUsageWarnings } from "@/lib/db/migrations/schema";
+
+import { isFreeTierWorkspace } from "./utils";
 
 export const USAGE_WARNING_ITEMS = ["bytes", "signal_runs"] as const;
 export type UsageWarningItem = (typeof USAGE_WARNING_ITEMS)[number];
@@ -48,17 +50,6 @@ export async function getUsageWarnings(
     .where(eq(workspaceUsageWarnings.workspaceId, workspaceId));
 
   return warnings as WorkspaceUsageWarning[];
-}
-
-async function isFreeTierWorkspace(workspaceId: string): Promise<boolean> {
-  const result = await db
-    .select({ tierName: subscriptionTiers.name })
-    .from(workspaces)
-    .innerJoin(subscriptionTiers, eq(workspaces.tierId, subscriptionTiers.id))
-    .where(eq(workspaces.id, workspaceId))
-    .limit(1);
-
-  return result.length > 0 && result[0].tierName.toLowerCase() === "free";
 }
 
 export async function addUsageWarning(input: z.infer<typeof AddUsageWarningSchema>): Promise<WorkspaceUsageWarning> {

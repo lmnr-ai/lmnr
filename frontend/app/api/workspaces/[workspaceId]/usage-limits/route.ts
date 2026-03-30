@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getUsageLimits, removeUsageLimit, setUsageLimit } from "@/lib/actions/usage/usage-limits";
+import { getUsageLimits, removeUsageLimit, setUsageLimit } from "@/lib/actions/usage/custom-usage-limits";
 
 export async function GET(_req: NextRequest, props: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
   try {

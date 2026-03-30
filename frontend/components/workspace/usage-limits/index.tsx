@@ -5,7 +5,7 @@ import { useCallback } from "react";
 import useSWR from "swr";
 
 import { SettingsSection, SettingsSectionHeader } from "@/components/settings/settings-section";
-import { type WorkspaceUsageLimit } from "@/lib/actions/usage/usage-limits";
+import { type WorkspaceUsageLimit } from "@/lib/actions/usage/custom-usage-limits";
 import { swrFetcher } from "@/lib/utils";
 
 import UsageLimitRow from "./usage-limit-row";
