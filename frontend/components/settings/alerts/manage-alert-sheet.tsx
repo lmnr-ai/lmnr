@@ -73,11 +73,6 @@ export default function ManageAlertSheet({
 
   const { toast } = useToast();
 
-  const { data: signalsData, isLoading: isLoadingSignals } = useSWR<{ items: SignalRow[] }>(
-    open ? `/api/projects/${projectId}/signals?pageNumber=0&pageSize=100` : null,
-    swrFetcher
-  );
-
   const {
     control,
     handleSubmit,
@@ -91,20 +86,45 @@ export default function ManageAlertSheet({
   const channelId = watch("channelId");
   const emailEnabled = watch("emailEnabled");
 
+  const resetFormFromSignals = useCallback(
+    (data: { items: SignalRow[] }) => {
+      if (!alert) {
+        reset(DEFAULT_VALUES);
+        return;
+      }
+
+      const signal = data.items?.find((s) => s.id === alert.sourceId);
+      const slackTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.SLACK);
+      const emailTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.EMAIL && t.email === userEmail);
+
+      reset({
+        name: alert.name,
+        signalName: signal?.name ?? "",
+        channelId: slackTarget?.channelId ?? "",
+        emailEnabled: !!emailTarget,
+      });
+    },
+    [alert, reset, userEmail]
+  );
+
+  const {
+    data: signalsData,
+    isLoading: isLoadingSignals,
+    isValidating: isValidatingSignals,
+  } = useSWR<{ items: SignalRow[] }>(
+    open ? `/api/projects/${projectId}/signals?pageNumber=0&pageSize=100` : null,
+    swrFetcher,
+    {
+      onSuccess: resetFormFromSignals,
+    }
+  );
+
+  const isSignalsReady = !!signalsData && !isLoadingSignals && !isValidatingSignals;
+
   useEffect(() => {
-    if (!open || !alert || !signalsData) return;
-
-    const signal = signalsData.items?.find((s) => s.id === alert.sourceId);
-    const slackTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.SLACK);
-    const emailTarget = alert.targets.find((t) => t.type === ALERT_TARGET_TYPE.EMAIL && t.email === userEmail);
-
-    reset({
-      name: alert.name,
-      signalName: signal?.name ?? "",
-      channelId: slackTarget?.channelId ?? "",
-      emailEnabled: !!emailTarget,
-    });
-  }, [open, alert, signalsData, reset, userEmail]);
+    if (!open || !isSignalsReady) return;
+    resetFormFromSignals(signalsData);
+  }, [open, isSignalsReady, signalsData, resetFormFromSignals]);
 
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
@@ -332,6 +352,8 @@ export default function ManageAlertSheet({
     }
   }, [workspaceId, channelId, signalName, toast]);
 
+  const isSignalsSectionLoading = isLoadingSignals || isValidatingSignals;
+
   const sheetContent = (
     <SheetContent side="right" className="min-w-[50vw] w-full flex flex-col gap-0 focus:outline-none">
       <SheetHeader className="py-4 px-4 border-b">
@@ -350,6 +372,7 @@ export default function ManageAlertSheet({
                   <Input
                     {...field}
                     placeholder="e.g. High error rate alert"
+                    disabled={isSignalsSectionLoading}
                     className={cn(fieldState.error && "border-destructive focus-visible:ring-destructive")}
                   />
                   {fieldState.error && <p className="text-xs text-destructive">{fieldState.error.message}</p>}
@@ -365,7 +388,7 @@ export default function ManageAlertSheet({
                 <div className="grid gap-2">
                   <Label>Signal</Label>
                   <p className="text-xs text-muted-foreground">Choose the signal that will trigger alert.</p>
-                  {isLoadingSignals ? (
+                  {isSignalsSectionLoading ? (
                     <Skeleton className="h-7 w-full" />
                   ) : (
                     <>
