@@ -28,7 +28,7 @@ const UpdateAlertSchema = z.object({
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT"]),
   sourceId: z.guid(),
-  targets: z.array(TargetSchema).min(1),
+  targets: z.array(TargetSchema),
   userEmail: z.string().optional(),
 });
 
@@ -175,7 +175,9 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
       })),
     ];
 
-    await tx.insert(alertTargets).values(allTargets);
+    if (allTargets.length > 0) {
+      await tx.insert(alertTargets).values(allTargets);
+    }
 
     return { id: alertId };
   });

@@ -118,7 +118,7 @@ export default function AlertsSettings({
           const visibleTargets = alert.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
           return (
             <SettingsTableRow key={alert.id}>
-              <td className="px-4 text-sm font-medium">
+              <td className="px-4 text-sm font-medium max-w-36">
                 <span title={alert.name} className="block truncate">
                   {alert.name}
                 </span>

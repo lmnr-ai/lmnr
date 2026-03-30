@@ -10,6 +10,7 @@ import { ChartSkeleton } from "@/components/charts/time-series-chart/skeleton";
 import { type TimeSeriesDataPoint } from "@/components/charts/time-series-chart/types";
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -214,6 +215,11 @@ export default function ManageAlertSheet({
 
   const selectedChannel = useMemo(() => channels?.find((ch) => ch.id === channelId), [channels, channelId]);
 
+  const channelItems = useMemo(
+    () => (channels ?? []).map((ch) => ({ value: ch.id, label: `#${ch.name}` })),
+    [channels]
+  );
+
   const resetForm = useCallback(() => {
     reset(DEFAULT_VALUES);
     setDateRange({ pastHours: "168" });
@@ -259,7 +265,7 @@ export default function ManageAlertSheet({
         });
       }
 
-      if (targets.length === 0) {
+      if (!isEditMode && targets.length === 0) {
         toast({
           variant: "destructive",
           title: "Error",
@@ -466,18 +472,14 @@ export default function ManageAlertSheet({
                         ) : (
                           <>
                             <div className="flex gap-2">
-                              <Select value={field.value} onValueChange={field.onChange}>
-                                <SelectTrigger className={cn("flex-1", fieldState.error && "border-destructive")}>
-                                  <SelectValue placeholder="Select a channel (optional)" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {channels?.map((ch) => (
-                                    <SelectItem key={ch.id} value={ch.id}>
-                                      #{ch.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <Combobox
+                                items={channelItems}
+                                value={field.value || null}
+                                setValue={(v) => field.onChange(v ?? "")}
+                                placeholder="Select a channel (optional)"
+                                noMatchText="No channels found."
+                                triggerClassName={cn("flex-1 h-7 text-xs", fieldState.error && "border-destructive")}
+                              />
                               <Button
                                 type="button"
                                 variant="outline"
@@ -518,7 +520,7 @@ export default function ManageAlertSheet({
           </div>
         </ScrollArea>
         <div className="flex justify-end px-4 py-3 border-t">
-          <Button type="submit" disabled={isSubmitting || (!emailEnabled && !channelId)}>
+          <Button type="submit" disabled={isSubmitting || (!isEditMode && !emailEnabled && !channelId)}>
             <Loader2 className={cn("mr-2 hidden", { "animate-spin block": isSubmitting })} size={16} />
             {isEditMode ? "Save" : "Create"}
           </Button>

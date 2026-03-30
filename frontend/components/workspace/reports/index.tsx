@@ -64,7 +64,7 @@ export default function WorkspaceReports({ workspaceId, slackClientId, slackRedi
           const visibleTargets = report.targets.filter((t) => t.type !== "EMAIL" || t.email === userEmail);
           return (
             <SettingsTableRow key={report.id}>
-              <td className="px-4 text-sm font-medium">
+              <td className="px-4 text-sm font-medium max-w-48">
                 <span title={report.label} className="block truncate">
                   {report.label}
                 </span>

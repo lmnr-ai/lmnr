@@ -38,7 +38,7 @@ export default function TargetChips({ targets }: { targets: TargetChipItem[] }) 
   }
 
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex gap-1.5">
       {Array.from(grouped.entries()).map(([type, items]) =>
         items.map((target) => (
           <Badge key={target.id} variant="outline" className="font-normal text-xs whitespace-nowrap">

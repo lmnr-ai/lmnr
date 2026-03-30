@@ -6,9 +6,9 @@ import useSWR from "swr";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { REPORT_TARGET_TYPE, type ReportWithDetails } from "@/lib/actions/reports/types";
@@ -69,6 +69,11 @@ export default function ManageReportSheet({
   );
 
   const selectedChannel = useMemo(() => channels?.find((ch) => ch.id === channelId), [channels, channelId]);
+
+  const channelItems = useMemo(
+    () => (channels ?? []).map((ch) => ({ value: ch.id, label: `#${ch.name}` })),
+    [channels]
+  );
 
   const hasChanges = useMemo(() => {
     if (!report) return false;
@@ -203,29 +208,14 @@ export default function ManageReportSheet({
                       {isLoadingChannels ? (
                         <div className="h-7 w-full bg-muted animate-pulse rounded" />
                       ) : (
-                        <Select value={channelId} onValueChange={setChannelId}>
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="Select a channel (optional)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {channels?.map((ch) => (
-                              <SelectItem key={ch.id} value={ch.id}>
-                                #{ch.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      {channelId && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="w-fit text-xs text-muted-foreground"
-                          onClick={() => setChannelId("")}
-                        >
-                          Remove Slack channel
-                        </Button>
+                        <Combobox
+                          items={channelItems}
+                          value={channelId || null}
+                          setValue={(v) => setChannelId(v ?? "")}
+                          placeholder="Select a channel (optional)"
+                          noMatchText="No channels found."
+                          triggerClassName="h-7 text-xs"
+                        />
                       )}
                     </div>
                   )}
