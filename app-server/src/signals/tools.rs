@@ -6,11 +6,8 @@ use uuid::Uuid;
 
 use crate::ch::spans::CHSpan;
 
-use super::spans::{
-    extract_exception_from_events, get_span_type, replace_base64_images, span_short_id,
-    strip_signature_fields,
-};
-use super::utils::{nanoseconds_to_iso, try_parse_json};
+use super::spans::{extract_exception_from_events, get_span_type, span_short_id};
+use super::utils::{nanoseconds_to_iso, strip_noise, try_parse_json};
 use crate::signals::prompts::{
     GET_FULL_SPAN_INFO_DESCRIPTION, REGEX_IN_SPANS_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION,
 };
@@ -204,8 +201,7 @@ pub async fn get_full_spans(
             let exception = extract_exception_from_events(&ch_span.events);
 
             let is_llm = ch_span.span_type == 1;
-            let input =
-                strip_signature_fields(&replace_base64_images(&try_parse_json(&ch_span.input)));
+            let input = try_parse_json(&strip_noise(&ch_span.input));
             let input = if is_llm {
                 truncate_messages(input, 2)
             } else {
@@ -220,9 +216,7 @@ pub async fn get_full_spans(
                 end: nanoseconds_to_iso(ch_span.end_time),
                 status: ch_span.status.clone(),
                 input,
-                output: strip_signature_fields(&replace_base64_images(&try_parse_json(
-                    &ch_span.output,
-                ))),
+                output: try_parse_json(&strip_noise(&ch_span.output)),
                 parent,
                 exception,
             }
@@ -325,18 +319,11 @@ pub async fn regex_in_spans(
 
             let raw = match search.search_in.as_str() {
                 "input" => &ch_span.input,
-                "output" => &ch_span.output,
-                _ => {
-                    return RegexSearchResult {
-                        span_id: search.span_id.clone(),
-                        matches: vec![],
-                        error: Some(
-                            "Invalid search_in value, must be 'input' or 'output'".to_string(),
-                        ),
-                    };
-                }
+                _ => &ch_span.output,
             };
-            match find_regex_matches(raw, &search.regex) {
+            let content = strip_noise(raw);
+
+            match find_regex_matches(&content, &search.regex) {
                 Ok(matches) => RegexSearchResult {
                     span_id: search.span_id.clone(),
                     matches,

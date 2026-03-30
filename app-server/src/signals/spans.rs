@@ -8,10 +8,9 @@ use uuid::Uuid;
 
 use crate::ch::spans::CHSpan;
 
-use super::utils::try_parse_json;
+use super::utils::{strip_noise, try_parse_json};
 
 const TRUNCATE_THRESHOLD: usize = 1024;
-const BASE64_IMAGE_PLACEHOLDER: &str = "[base64 image omitted]";
 /// Max chars to keep per message in LLM span inputs (~1K tokens).
 const LLM_MESSAGE_MAX_CHARS: usize = 3000;
 
@@ -139,68 +138,6 @@ fn truncate_value_strings(value: &Value, truncated: &mut bool) -> Value {
     }
 }
 
-const RAW_BASE64_IMAGE_PREFIXES: &[&str] = &[
-    "/9j/",        // JPEG
-    "iVBORw0KGgo", // PNG
-    "R0lGODlh",    // GIF
-    "UklGR",       // WebP
-    "PHN2Zz",      // SVG
-];
-
-/// Minimum length for a raw base64 string to be considered an image.
-const RAW_BASE64_MIN_LEN: usize = 64;
-
-/// Check whether a string looks like raw base64-encoded image data.
-fn is_raw_base64_image(s: &str) -> bool {
-    s.len() >= RAW_BASE64_MIN_LEN
-        && RAW_BASE64_IMAGE_PREFIXES
-            .iter()
-            .any(|prefix| s.starts_with(prefix))
-}
-
-/// Replace base64 image data within a JSON value with a placeholder.
-///
-/// Detects both data URLs (`data:image/...;base64,...`) and raw base64 image
-/// strings identified by well-known magic byte prefixes (JPEG, PNG, GIF, WebP, SVG).
-pub fn replace_base64_images(value: &Value) -> Value {
-    match value {
-        Value::String(s) => {
-            if let Some(idx) = s.find("base64,") {
-                let prefix = &s[..idx + "base64,".len()];
-                if prefix.starts_with("data:image") {
-                    return Value::String(BASE64_IMAGE_PLACEHOLDER.to_string());
-                }
-            }
-            if is_raw_base64_image(s) {
-                return Value::String(BASE64_IMAGE_PLACEHOLDER.to_string());
-            }
-            value.clone()
-        }
-        Value::Array(arr) => Value::Array(arr.iter().map(replace_base64_images).collect()),
-        Value::Object(map) => Value::Object(
-            map.iter()
-                .map(|(k, v)| (k.clone(), replace_base64_images(v)))
-                .collect(),
-        ),
-        _ => value.clone(),
-    }
-}
-
-/// Remove `signature` and `thought_signature` fields from LLM span inputs and outputs.
-/// These fields contain large hash values that waste context and provide no analytical value.
-pub fn strip_signature_fields(value: &Value) -> Value {
-    match value {
-        Value::Object(map) => Value::Object(
-            map.iter()
-                .filter(|(k, _)| k.as_str() != "signature" && k.as_str() != "thought_signature")
-                .map(|(k, v)| (k.clone(), strip_signature_fields(v)))
-                .collect(),
-        ),
-        Value::Array(arr) => Value::Array(arr.iter().map(strip_signature_fields).collect()),
-        _ => value.clone(),
-    }
-}
-
 /// Extract exception attributes from span events.
 /// Events are stored as `(timestamp, name, attributes)` tuples; we look for `name == "exception"`.
 pub fn extract_exception_from_events(events: &[(i64, String, String)]) -> Option<Value> {
@@ -245,7 +182,7 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
             let is_tool = ch_span.span_type == 6;
 
             let (input, output) = if is_llm {
-                let output_data = strip_signature_fields(&try_parse_json(&ch_span.output));
+                let output_data = try_parse_json(&strip_noise(&ch_span.output));
                 let output = value_to_string(
                     &truncate_value(&output_data, &mut output_truncated),
                 );
@@ -255,16 +192,14 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
                 } else {
                     seen_llm_paths.insert(path.clone());
                     let input_data = truncate_llm_input(
-                        &strip_signature_fields(&replace_base64_images(&try_parse_json(
-                            &ch_span.input,
-                        ))),
+                        &try_parse_json(&strip_noise(&ch_span.input)),
                         &mut input_truncated,
                     );
                     (value_to_string(&input_data), output)
                 }
             } else if is_tool {
-                let input_raw = try_parse_json(&ch_span.input);
-                let output_raw = try_parse_json(&ch_span.output);
+                let input_raw = try_parse_json(&strip_noise(&ch_span.input));
+                let output_raw = try_parse_json(&strip_noise(&ch_span.output));
 
                 let input = if is_empty_value(&input_raw) {
                     "<empty>".to_string()

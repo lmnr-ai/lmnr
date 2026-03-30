@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::Utc;
 use regex::Regex;
 use serde_json::Value;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, sync::LazyLock};
 use uuid::Uuid;
 
 use crate::{
@@ -15,6 +15,22 @@ use crate::{
     signals::provider::models::ProviderRequest,
     traces::{OBSERVATIONS_EXCHANGE, OBSERVATIONS_ROUTING_KEY, spans::SpanAttributes},
 };
+
+static BASE64_IMAGE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?:/9j/|iVBORw0KGgo|R0lGODlh|UklGR|PHN2Zz)[A-Za-z0-9+/=_-]{64,}"#).unwrap()
+});
+
+static SIGNATURE_FIELD_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"("(?:signature|thought_signature)")\s*:\s*"[^"]*""#).unwrap());
+
+/// Strip base64 images and signature/thought_signature values from raw
+/// ClickHouse span content using regex
+pub fn strip_noise(raw: &str) -> String {
+    let without_images = BASE64_IMAGE_RE.replace_all(raw, "[base64 image omitted]");
+    SIGNATURE_FIELD_RE
+        .replace_all(&without_images, r#"$1:"[signature omitted]""#)
+        .into_owned()
+}
 
 /// Build the span input value from a ProviderRequest by combining contents
 /// with the system instruction (relabeled as role "system") prepended.
@@ -305,4 +321,69 @@ pub async fn emit_internal_span(queue: Arc<MessageQueue>, span: InternalSpan) ->
     }
 
     span_id
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_noise_png_base64() {
+        let raw = r#"{{"text":"hello","random_key":"iVBORw0KGgoAAAANSUhEUgAAB4AAAAPhCAIAAACXJyV9AAAQAElEQVR4nOzdBUAU2x7H8WMQiohdYHd3XLs777W7sLtbr93Y3d3dnddALBRQMVFETEBs8B3Y-_Yuu7Dswg4Cfj-P5505zM7uzs7Msr9z9j_x_f3fCQAAAAAAAAAADGBhkdjwheMLAAAAAAAAAAAUQAANAAAAAAAAAFAEAT","next":"world"}}"#;
+        let result = strip_noise(&raw);
+        assert!(result.contains("[base64 image omitted]"));
+        assert!(!result.contains("iVBORw0KGgo"));
+        assert!(result.contains("hello"));
+        assert!(result.contains("world"));
+    }
+
+    #[test]
+    fn test_strip_noise_url_safe_base64() {
+        let raw = r#"{"data":"/9j/4AAQSkZJRgABAQ-_Yuu7Dswg4Cfj-P5505zM7uzs7Msr9z9j_x_f3fCQAAAAAAAAAADGBhkdjwheMLAAAAAAAAAAAUQAANAAAAAAAAAFAE"}"#;
+        let result = strip_noise(raw);
+        assert!(result.contains("[base64 image omitted]"));
+        assert!(!result.contains("Yuu7Dswg4Cfj"));
+    }
+
+    #[test]
+    fn test_strip_noise_raw_base64_with_trailing_url_safe_chars() {
+        let prefix = "/9j/".to_string();
+        let standard = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let url_safe_tail = "-_Yuu7Dswg4Cfj-P5505zM7uzs";
+        let raw = format!(r#"{{"img":"{}{}{}"}}"#, prefix, standard, url_safe_tail);
+        let result = strip_noise(&raw);
+        assert!(result.contains("[base64 image omitted]"));
+        assert!(!result.contains(url_safe_tail));
+    }
+
+    #[test]
+    fn test_strip_noise_signature_fields() {
+        let raw = r#"{"content":"hi","signature":"abc123longHashValue","thought_signature":"def456anotherHash"}"#;
+        let result = strip_noise(raw);
+        assert!(result.contains(r#""signature":"[signature omitted]""#));
+        assert!(result.contains(r#""thought_signature":"[signature omitted]""#));
+        assert!(result.contains("hi"));
+        assert!(!result.contains("abc123longHashValue"));
+        assert!(!result.contains("def456anotherHash"));
+    }
+
+    #[test]
+    fn test_strip_noise_no_false_positives() {
+        let raw = r#"{"message":"hello world","count":42}"#;
+        let result = strip_noise(raw);
+        assert_eq!(result, raw);
+    }
+
+    #[test]
+    fn test_strip_noise_multimodal_content() {
+        let long_b64 = "A".repeat(200);
+        let raw = format!(
+            r#"{{"text":"Current screenshot:"}},{{"inline_data":{{"data":"/9j/{}"}}}}"#,
+            long_b64
+        );
+        let result = strip_noise(&raw);
+        assert!(result.contains("[base64 image omitted]"));
+        assert!(result.contains("Current screenshot:"));
+        assert!(!result.contains(&long_b64));
+    }
 }
