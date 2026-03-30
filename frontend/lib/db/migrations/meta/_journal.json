@@ -552,7 +552,7 @@
       "idx": 78,
       "version": "7",
       "when": 1774900000000,
-      "tag": "0078_add_signals_sample_rate",
+      "tag": "0078_add_signals_sampling_percent",
       "breakpoints": true
     }
   ]
