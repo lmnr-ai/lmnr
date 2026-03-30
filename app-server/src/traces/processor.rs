@@ -283,7 +283,7 @@ async fn check_and_push_signals(
 
     // Lazily fetch pre-computed sampling factors only if any trigger has sampling enabled
     let any_has_sampling = triggers.iter().any(|t| t.signal.sample_rate.is_some());
-    let mut sampling_factors = if any_has_sampling {
+    let sampling_factors = if any_has_sampling {
         match get_sampling_factors_cached(cache.clone(), &clickhouse, project_id).await {
             Ok(factors) => Some(factors),
             Err(e) => {
