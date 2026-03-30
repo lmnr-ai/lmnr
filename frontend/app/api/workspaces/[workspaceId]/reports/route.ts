@@ -29,8 +29,16 @@ export async function POST(request: NextRequest, props: { params: Promise<{ work
   const { workspaceId } = await props.params;
 
   try {
+    const session = await getServerSession(authOptions);
+    const email = session?.user?.email;
+    if (!email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
-    const result = await optInReport({ ...body, workspaceId });
+    if (body.email && body.email !== email) {
+      return NextResponse.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
+    }
+    const result = await optInReport({ ...body, workspaceId, email });
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);
@@ -48,8 +56,16 @@ export async function DELETE(request: NextRequest, props: { params: Promise<{ wo
   const { workspaceId } = await props.params;
 
   try {
+    const session = await getServerSession(authOptions);
+    const email = session?.user?.email;
+    if (!email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
-    const result = await optOutReport({ ...body, workspaceId });
+    if (body.email && body.email !== email) {
+      return NextResponse.json({ error: "Cannot manage report subscriptions for other users." }, { status: 403 });
+    }
+    const result = await optOutReport({ ...body, workspaceId, email });
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);

@@ -29,7 +29,16 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
   const { projectId } = await props.params;
 
   try {
+    const session = await getServerSession(authOptions);
+    const userEmail = session?.user?.email;
+    if (!userEmail) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
+    const emailTargets = (body.targets ?? []).filter((t: { type: string; email?: string }) => t.type === "EMAIL");
+    if (emailTargets.some((t: { email?: string }) => t.email && t.email !== userEmail)) {
+      return NextResponse.json({ error: "Cannot create alert targets for other users' emails." }, { status: 403 });
+    }
     const result = await createAlert({ ...body, projectId });
     return NextResponse.json(result);
   } catch (error) {
