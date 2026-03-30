@@ -1,3 +1,7 @@
+import { get, has, isPlainObject } from "lodash";
+
+import { type ProviderHint } from "./utils.ts";
+
 export type ProviderKeyMatch = {
   key: string;
   /** When set, use this instead of the original data for Mustache rendering. */
@@ -6,73 +10,59 @@ export type ProviderKeyMatch = {
 
 type Obj = Record<string, unknown>;
 
-const isObj = (val: unknown): val is Obj => val !== null && typeof val === "object" && !Array.isArray(val);
-
-const has = (obj: Obj, key: string): boolean => key in obj;
-
 const unwrapSingle = (data: unknown): unknown => (Array.isArray(data) && data.length === 1 ? data[0] : data);
 
-const nested = (obj: Obj, ...path: string[]): Obj | null => {
-  let cur: unknown = obj;
-  for (const key of path) {
-    if (!isObj(cur) || !has(cur, key)) return null;
-    cur = cur[key];
+const peekInner = (data: unknown, wrapperKey?: string): Obj | null => {
+  if (wrapperKey && isPlainObject(data)) {
+    const first = get(data, [wrapperKey, 0]);
+    return isPlainObject(first) ? (first as Obj) : null;
   }
-  return isObj(cur) ? cur : null;
+  const item = Array.isArray(data) ? data[0] : data;
+  return isPlainObject(item) ? (item as Obj) : null;
 };
 
-const firstItem = (obj: Obj, key: string): unknown | null => {
-  if (!has(obj, key) || !Array.isArray(obj[key])) return null;
-  const arr = obj[key] as unknown[];
-  return arr.length > 0 ? arr[0] : null;
+const hasOpenAIToolCalls = (choice: Obj): boolean => {
+  const tcs = get(choice, "message.tool_calls");
+  return Array.isArray(tcs) && tcs.some((tc) => isPlainObject(get(tc, "function")));
 };
 
-const hasOpenAIToolCalls = (obj: Obj): boolean => {
-  const msg = nested(obj, "message");
-  if (!msg || !Array.isArray(msg.tool_calls)) return false;
-  return (msg.tool_calls as unknown[]).some((tc) => isObj(tc) && isObj(tc.function as unknown));
+const hasMessageContent = (choice: Obj): boolean => {
+  const content = get(choice, "message.content");
+  return content === null || typeof content === "string";
 };
 
-const hasMessageContent = (obj: Obj): boolean => {
-  const msg = nested(obj, "message");
-  return msg !== null && has(msg, "content");
+const hasGeminiFunctionCall = (candidate: Obj): boolean => {
+  const parts = get(candidate, "content.parts");
+  return Array.isArray(parts) && parts.some((p) => isPlainObject(get(p, "function_call")));
 };
 
-const hasGeminiFunctionCall = (obj: Obj): boolean => {
-  const content = nested(obj, "content");
-  if (!content || !Array.isArray(content.parts)) return false;
-  return (content.parts as unknown[]).some(
-    (p) => isObj(p) && has(p, "function_call") && isObj(p.function_call as unknown)
-  );
-};
+const hasGeminiText = (candidate: Obj): boolean =>
+  !hasGeminiFunctionCall(candidate) && typeof get(candidate, "content.parts.0.text") === "string";
 
-const hasGeminiText = (obj: Obj): boolean => {
-  const content = nested(obj, "content");
-  if (!content || !Array.isArray(content.parts) || (content.parts as unknown[]).length === 0) return false;
-  return !hasGeminiFunctionCall(obj);
-};
-
-const hasAnthropicTextContent = (obj: Obj): boolean => {
-  if (!has(obj, "content")) return false;
-  const content = obj.content;
-  if (Array.isArray(content) && content.length > 0) {
-    const first = content[0];
-    return isObj(first) && first.type === "text" && has(first, "text");
-  }
-  return typeof content === "string" && has(obj, "role");
-};
-
-const isLangChainAssistant = (obj: Obj): boolean => {
-  const role = obj.role;
-  return (role === "assistant" || role === "ai") && has(obj, "content");
+const hasAnthropicTextContent = (msg: Obj): boolean => {
+  const content = msg.content;
+  if (Array.isArray(content)) return typeof get(content, "0.text") === "string" && get(content, "0.type") === "text";
+  return typeof content === "string" && has(msg, "role");
 };
 
 const hasMixedToolContent = (msg: Obj): boolean => {
-  if (!has(msg, "content") || !Array.isArray(msg.content)) return false;
-  return (msg.content as unknown[]).some(
-    (item) => isObj(item) && (item.type === "tool_call" || item.type === "tool_use")
+  const content = msg.content;
+  return (
+    Array.isArray(content) && content.some((i) => isPlainObject(i) && (i.type === "tool_call" || i.type === "tool_use"))
   );
 };
+
+const isLangChainAssistant = (msg: Obj): boolean => {
+  if (msg.role !== "assistant" && msg.role !== "ai") return false;
+  const content = msg.content;
+  if (typeof content === "string") return true;
+  if (Array.isArray(content)) return get(content, "0.type") === "text" && typeof get(content, "0.text") === "string";
+  return false;
+};
+
+// ---------------------------------------------------------------------------
+// Transform helpers — truncate tool-call arguments for compact display
+// ---------------------------------------------------------------------------
 
 const MAX_ARGS_LENGTH = 80;
 const truncate = (str: string, max: number): string => (str.length > max ? str.slice(0, max) + "…" : str);
@@ -81,10 +71,11 @@ const toStr = (val: unknown): string => truncate(typeof val === "string" ? val :
 const stringifyMixedArgs = (data: Obj): Obj => ({
   ...data,
   content: (data.content as unknown[]).map((item) => {
-    if (!isObj(item)) return item;
-    if (item.type === "tool_call" && has(item, "arguments")) return { ...item, arguments: toStr(item.arguments) };
-    if (item.type === "tool_use" && has(item, "input")) return { ...item, input: toStr(item.input) };
-    return item;
+    if (!isPlainObject(item)) return item;
+    const obj = item as Obj;
+    if (obj.type === "tool_call" && has(obj, "arguments")) return { ...obj, arguments: toStr(obj.arguments) };
+    if (obj.type === "tool_use" && has(obj, "input")) return { ...obj, input: toStr(obj.input) };
+    return obj;
   }),
 });
 
@@ -95,44 +86,35 @@ const stringifyOpenAIToolCalls = (choice: Obj): Obj => {
     message: {
       ...msg,
       tool_calls: (msg.tool_calls as unknown[]).map((tc) => {
-        if (!isObj(tc) || !isObj(tc.function as unknown)) return tc;
-        const fn = tc.function as Obj;
-        return { ...tc, function: { ...fn, arguments: toStr(fn.arguments) } };
+        const fn = get(tc, "function") as Obj | undefined;
+        if (!fn) return tc;
+        return { ...(tc as Obj), function: { ...fn, arguments: toStr(fn.arguments) } };
       }),
     },
   };
 };
 
-const stringifyGeminiToolCalls = (item: Obj): Obj => {
-  const content = item.content as Obj;
+const stringifyGeminiToolCalls = (candidate: Obj): Obj => {
+  const content = candidate.content as Obj;
   return {
-    ...item,
+    ...candidate,
     content: {
       ...content,
       parts: (content.parts as unknown[]).map((p) => {
-        if (!isObj(p) || !isObj(p.function_call as unknown)) return p;
-        const fc = p.function_call as Obj;
-        return { ...p, function_call: { ...fc, args: toStr(fc.args) } };
+        const fc = get(p, "function_call") as Obj | undefined;
+        if (!fc) return p;
+        return { ...(p as Obj), function_call: { ...fc, args: toStr(fc.args) } };
       }),
     },
   };
 };
 
 const mapItems = (data: unknown, fn: (obj: Obj) => Obj): unknown =>
-  Array.isArray(data) ? data.map((c) => (isObj(c) ? fn(c) : c)) : isObj(data) ? fn(data) : data;
-
-// ---------------------------------------------------------------------------
-// Helpers to peek at first inner item (bare obj, root array, or outer wrapper)
-// ---------------------------------------------------------------------------
-
-const peekInner = (data: unknown, wrapperKey?: string): Obj | null => {
-  if (wrapperKey && isObj(data) && has(data, wrapperKey)) {
-    const first = firstItem(data, wrapperKey);
-    return isObj(first) ? first : null;
-  }
-  const item = Array.isArray(data) ? data[0] : data;
-  return isObj(item) ? item : null;
-};
+  Array.isArray(data)
+    ? data.map((c) => (isPlainObject(c) ? fn(c as Obj) : c))
+    : isPlainObject(data)
+      ? fn(data as Obj)
+      : data;
 
 // ---------------------------------------------------------------------------
 // Mustache key templates
@@ -153,6 +135,7 @@ const MIXED_TOOL_USE_KEY =
 // ---------------------------------------------------------------------------
 
 interface ProviderPattern {
+  provider: ProviderHint;
   test: (data: unknown) => boolean;
   resolve: (data: unknown) => ProviderKeyMatch;
 }
@@ -160,14 +143,18 @@ interface ProviderPattern {
 const patterns: ProviderPattern[] = [
   // --- OpenAI tool calls ---
   {
+    provider: "openai",
     test: (data) => {
       const inner = peekInner(data, "choices") ?? peekInner(data);
       return inner !== null && hasOpenAIToolCalls(inner);
     },
     resolve: (data) => {
-      const transformed = mapItems(isObj(data) && has(data, "choices") ? data.choices : data, stringifyOpenAIToolCalls);
-      if (isObj(data) && has(data, "choices"))
-        return { key: `{{#choices}}${OAI_TC_INNER}{{/choices}}`, data: { ...data, choices: transformed } };
+      const transformed = mapItems(
+        isPlainObject(data) && has(data, "choices") ? (data as Obj).choices : data,
+        stringifyOpenAIToolCalls
+      );
+      if (isPlainObject(data) && has(data, "choices"))
+        return { key: `{{#choices}}${OAI_TC_INNER}{{/choices}}`, data: { ...(data as Obj), choices: transformed } };
       if (Array.isArray(data)) return { key: `{{#.}}${OAI_TC_INNER}{{/.}}`, data: transformed };
       return { key: OAI_TC_INNER, data: transformed };
     },
@@ -175,19 +162,20 @@ const patterns: ProviderPattern[] = [
 
   // --- Gemini tool calls ---
   {
+    provider: "gemini",
     test: (data) => {
       const inner = peekInner(data, "candidates") ?? peekInner(data);
       return inner !== null && hasGeminiFunctionCall(inner);
     },
     resolve: (data) => {
       const transformed = mapItems(
-        isObj(data) && has(data, "candidates") ? data.candidates : data,
+        isPlainObject(data) && has(data, "candidates") ? (data as Obj).candidates : data,
         stringifyGeminiToolCalls
       );
-      if (isObj(data) && has(data, "candidates"))
+      if (isPlainObject(data) && has(data, "candidates"))
         return {
           key: `{{#candidates.0.content.parts}}{{#function_call}}\n- \`{{{name}}}({{{args}}})\`{{/function_call}}{{/candidates.0.content.parts}}`,
-          data: { ...data, candidates: transformed },
+          data: { ...(data as Obj), candidates: transformed },
         };
       if (Array.isArray(data)) return { key: `{{#.}}${GEMINI_TC_INNER}{{/.}}`, data: transformed };
       return { key: GEMINI_TC_INNER, data: transformed };
@@ -196,12 +184,13 @@ const patterns: ProviderPattern[] = [
 
   // --- OpenAI/Azure text ---
   {
+    provider: "openai",
     test: (data) => {
       const inner = peekInner(data, "choices") ?? peekInner(data);
       return inner !== null && hasMessageContent(inner);
     },
     resolve: (data) => {
-      if (isObj(data) && has(data, "choices")) return { key: "{{choices.0.message.content}}" };
+      if (isPlainObject(data) && has(data, "choices")) return { key: "{{choices.0.message.content}}" };
       if (Array.isArray(data)) return { key: "{{#.}}{{message.content}}{{/.}}" };
       return { key: "{{message.content}}" };
     },
@@ -209,13 +198,14 @@ const patterns: ProviderPattern[] = [
 
   // --- Mixed content (text + tool_call / tool_use in content array) ---
   {
+    provider: "anthropic",
     test: (data) => {
       const msg = unwrapSingle(data);
-      return isObj(msg) && hasMixedToolContent(msg);
+      return isPlainObject(msg) && hasMixedToolContent(msg as Obj);
     },
     resolve: (data) => {
       const msg = unwrapSingle(data) as Obj;
-      const hasToolCall = (msg.content as unknown[]).some((i) => isObj(i) && i.type === "tool_call");
+      const hasToolCall = (msg.content as unknown[]).some((i) => isPlainObject(i) && (i as Obj).type === "tool_call");
       return {
         key: hasToolCall ? MIXED_TOOL_CALL_KEY : MIXED_TOOL_USE_KEY,
         data: stringifyMixedArgs(msg),
@@ -223,11 +213,12 @@ const patterns: ProviderPattern[] = [
     },
   },
 
-  // --- Anthropic ---
+  // --- Anthropic text ---
   {
+    provider: "anthropic",
     test: (data) => {
       const inner = Array.isArray(data) ? data[0] : data;
-      return isObj(inner) && hasAnthropicTextContent(inner);
+      return isPlainObject(inner) && hasAnthropicTextContent(inner as Obj);
     },
     resolve: (data) => {
       if (Array.isArray(data)) {
@@ -244,12 +235,13 @@ const patterns: ProviderPattern[] = [
 
   // --- Gemini text ---
   {
+    provider: "gemini",
     test: (data) => {
       const inner = peekInner(data, "candidates") ?? peekInner(data);
       return inner !== null && hasGeminiText(inner);
     },
     resolve: (data) => {
-      if (isObj(data) && has(data, "candidates")) return { key: "{{candidates.0.content.parts.0.text}}" };
+      if (isPlainObject(data) && has(data, "candidates")) return { key: "{{candidates.0.content.parts.0.text}}" };
       if (Array.isArray(data)) return { key: "{{#.}}{{content.parts.0.text}}{{/.}}" };
       return { key: "{{content.parts.0.text}}" };
     },
@@ -257,22 +249,31 @@ const patterns: ProviderPattern[] = [
 
   // --- LangChain ---
   {
+    provider: "langchain",
     test: (data) => {
       const inner = unwrapSingle(data);
-      return isObj(inner) && isLangChainAssistant(inner);
+      return isPlainObject(inner) && isLangChainAssistant(inner as Obj);
     },
     resolve: (data) => {
       const inner = unwrapSingle(data) as Obj;
       if (Array.isArray(inner.content)) {
         const first = (inner.content as unknown[])[0];
-        if (isObj(first) && first.type === "text") return { key: "{{content.0.text}}" };
+        if (isPlainObject(first) && (first as Obj).type === "text") return { key: "{{content.0.text}}" };
       }
       return { key: "{{content}}" };
     },
   },
 ];
 
-export const matchProviderKey = (data: unknown): ProviderKeyMatch | null => {
+export const matchProviderKey = (data: unknown, providerHint?: ProviderHint): ProviderKeyMatch | null => {
+  if (providerHint && providerHint !== "unknown") {
+    for (const pattern of patterns) {
+      if (pattern.provider === providerHint && pattern.test(data)) {
+        return pattern.resolve(data);
+      }
+    }
+  }
+
   for (const pattern of patterns) {
     if (pattern.test(data)) {
       return pattern.resolve(data);

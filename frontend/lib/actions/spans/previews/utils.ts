@@ -2,6 +2,10 @@ import { isEmpty, isNil, isPlainObject, isString, last, mapValues } from "lodash
 import Mustache from "mustache";
 
 import { deepParseJson } from "@/lib/actions/common/utils.ts";
+import { AnthropicOutputMessageSchema, AnthropicOutputMessagesSchema } from "@/lib/spans/types/anthropic";
+import { GeminiOutputSchema } from "@/lib/spans/types/gemini";
+import { LangChainAssistantMessageSchema, LangChainMessagesSchema } from "@/lib/spans/types/langchain";
+import { OpenAIOutputSchema } from "@/lib/spans/types/openai";
 
 export const deepParseValue = (value: unknown): unknown => {
   if (!isString(value)) return value;
@@ -40,6 +44,21 @@ export const classifyPayload = (raw: unknown): PayloadClassification => {
   }
 
   return { kind: "raw", preview: String(deepParsed) };
+};
+
+export type ProviderHint = "openai" | "anthropic" | "gemini" | "langchain" | "unknown";
+
+export const detectOutputStructure = (data: unknown): ProviderHint => {
+  if (OpenAIOutputSchema.safeParse(data).success) return "openai";
+  if (GeminiOutputSchema.safeParse(data).success) return "gemini";
+  if (AnthropicOutputMessageSchema.safeParse(data).success) return "anthropic";
+  if (AnthropicOutputMessagesSchema.safeParse(data).success) return "anthropic";
+
+  // LangChain has no dedicated output schema — check for assistant message(s)
+  if (LangChainAssistantMessageSchema.safeParse(data).success) return "langchain";
+  if (Array.isArray(data) && LangChainMessagesSchema.safeParse(data).success) return "langchain";
+
+  return "unknown";
 };
 
 const describeShape = (value: unknown): string => {
@@ -172,13 +191,5 @@ export const validateMustacheKey = (key: string, data: unknown): string | null =
     return rendered;
   } catch {
     return null;
-  }
-};
-
-export const renderMustachePreview = (key: string, data: unknown): string => {
-  try {
-    return unescapeHtml(Mustache.render(key, prepareRenderTarget(data)));
-  } catch {
-    return "";
   }
 };
