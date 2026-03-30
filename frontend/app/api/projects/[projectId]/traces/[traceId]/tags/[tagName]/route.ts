@@ -8,8 +8,8 @@ export async function DELETE(
   _req: Request,
   props: { params: Promise<{ projectId: string; traceId: string; tagName: string }> }
 ): Promise<Response> {
-  const { projectId, traceId, tagName: rawTagName } = await props.params;
-  const tagName = decodeURIComponent(rawTagName);
+  // Next.js auto-decodes dynamic route params, so no decodeURIComponent needed
+  const { projectId, traceId, tagName } = await props.params;
 
   // Update PostgreSQL: remove the tag from the array
   await db
