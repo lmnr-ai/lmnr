@@ -259,10 +259,14 @@ const JsxRenderer = ({ code, data, className }: { code: string; data: any; class
     <iframe
       ref={iframeRef}
       className={cn("w-full h-full border", className)}
+      style={{
+        contain: "layout style",
+        isolation: "isolate",
+      }}
       sandbox="allow-scripts allow-same-origin"
       title="Template Preview"
       referrerPolicy="no-referrer"
-      loading="eager"
+      loading="lazy"
       aria-label="Template preview"
     />
   );
