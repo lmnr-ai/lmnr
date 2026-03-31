@@ -1,10 +1,12 @@
 "use client";
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { shallow } from "zustand/shallow";
 
 import SearchInput from "@/components/common/search-input";
 import { filters } from "@/components/traces/sessions-table/columns";
+import { SessionsStoreProvider, useSessionsStoreContext } from "@/components/traces/sessions-table/sessions-store";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
@@ -22,7 +24,9 @@ const FETCH_SIZE = 50;
 export default function SessionsTable() {
   return (
     <DataTableStateProvider storageKey="sessions-table" uniqueKey="sessionId">
-      <SessionsTableContent />
+      <SessionsStoreProvider>
+        <SessionsTableContent />
+      </SessionsStoreProvider>
     </DataTableStateProvider>
   );
 }
@@ -45,29 +49,45 @@ function SessionsTableContent() {
 
   const { setNavigationRefList } = useTraceViewNavigation();
 
-  // TODO: let's move all this into a new sessions store, really rethink how all this works, follow existing store patterns we use across our other features.
-  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
-  const [loadingSessions, setLoadingSessions] = useState<Set<string>>(new Set());
-  const [sessionTraces, setSessionTraces] = useState<Record<string, TraceRow[]>>({});
-  const [sessionTimelines, setSessionTimelines] = useState<Record<string, TraceTimelineItem[]>>({});
+  const { expandedSessions, loadingSessions, sessionTraces, sessionTimelines } = useSessionsStoreContext(
+    (state) => ({
+      expandedSessions: state.expandedSessions,
+      loadingSessions: state.loadingSessions,
+      sessionTraces: state.sessionTraces,
+      sessionTimelines: state.sessionTimelines,
+    }),
+    shallow
+  );
+
+  const {
+    toggleSessionExpanded,
+    collapseSession,
+    setLoadingSession,
+    setSessionTraces,
+    mergeSessionTimelines,
+    resetExpandState,
+  } = useSessionsStoreContext((state) => ({
+    toggleSessionExpanded: state.toggleSessionExpanded,
+    collapseSession: state.collapseSession,
+    setLoadingSession: state.setLoadingSession,
+    setSessionTraces: state.setSessionTraces,
+    mergeSessionTimelines: state.mergeSessionTimelines,
+    resetExpandState: state.resetExpandState,
+  }));
 
   // Serialize filter array for stable dependency comparison
   const filterKey = JSON.stringify(filter);
 
   // Reset expanded/trace/timeline state when query params change
   useEffect(() => {
-    setExpandedSessions(new Set());
-    setLoadingSessions(new Set());
-    setSessionTraces({});
-    setSessionTimelines({});
-  }, [endDate, filterKey, pastHours, projectId, startDate, textSearchFilter]);
+    resetExpandState();
+  }, [endDate, filterKey, pastHours, projectId, startDate, textSearchFilter, resetExpandState]);
 
-  // TODO: let's make default time range past three days
   // Initialize with default time range if needed
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
       const sp = new URLSearchParams(searchParams.toString());
-      sp.set("pastHours", "24");
+      sp.set("pastHours", "72");
       router.replace(`${pathName}?${sp.toString()}`);
     }
   }, [pastHours, startDate, endDate, searchParams, pathName, router]);
@@ -99,7 +119,8 @@ function SessionsTableContent() {
           throw new Error(text.error);
         }
 
-        const data = (await res.json()) as { items: SessionRow[] };
+        const data = (await res.json()) as { items: SessionRow[]; timelines: Record<string, TraceTimelineItem[]> };
+        mergeSessionTimelines(data.timelines);
         return { items: data.items, count: 0 };
       } catch (error) {
         toast({
@@ -109,7 +130,7 @@ function SessionsTableContent() {
         throw error;
       }
     },
-    [endDate, filter, pastHours, projectId, startDate, textSearchFilter, toast]
+    [endDate, filter, pastHours, projectId, startDate, textSearchFilter, toast, mergeSessionTimelines]
   );
 
   const {
@@ -124,41 +145,6 @@ function SessionsTableContent() {
     enabled: shouldFetch,
     deps: [endDate, filter, pastHours, projectId, startDate, textSearchFilter],
   });
-
-  // TODO: let's combine the sessions query endpoint with the timelines query endpoint. Can we combine them at the API level such that the sessions endpoint also runs the timeline query and returns both in its response?
-  // Fetch timelines when sessions change
-  useEffect(() => {
-    if (!sessions || sessions.length === 0) return;
-
-    const sessionIds = sessions.map((s) => s.sessionId);
-    fetchTimelines(sessionIds);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions]);
-
-  const fetchTimelines = useCallback(
-    async (sessionIds: string[]) => {
-      try {
-        const body: Record<string, unknown> = { sessionIds };
-        if (pastHours != null) body.pastHours = pastHours;
-        if (startDate != null) body.startDate = startDate;
-        if (endDate != null) body.endDate = endDate;
-
-        const res = await fetch(`/api/projects/${projectId}/sessions/timelines`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
-        if (!res.ok) return;
-
-        const data = (await res.json()) as { timelines: Record<string, TraceTimelineItem[]> };
-        setSessionTimelines((prev) => ({ ...prev, ...data.timelines }));
-      } catch {
-        // Timeline fetch failure is non-critical; timeline just won't render
-      }
-    },
-    [projectId, pastHours, startDate, endDate]
-  );
 
   // Update navigation ref list from expanded session traces
   const allVisibleTraceIds = useMemo(
@@ -175,17 +161,13 @@ function SessionsTableContent() {
       const isExpanded = expandedSessions.has(sessionId);
 
       if (isExpanded) {
-        setExpandedSessions((prev) => {
-          const next = new Set(prev);
-          next.delete(sessionId);
-          return next;
-        });
+        toggleSessionExpanded(sessionId);
         return;
       }
 
       // Expand: fetch traces for this session
-      setExpandedSessions((prev) => new Set(prev).add(sessionId));
-      setLoadingSessions((prev) => new Set(prev).add(sessionId));
+      toggleSessionExpanded(sessionId);
+      setLoadingSession(sessionId, true);
 
       try {
         const urlParams = new URLSearchParams();
@@ -204,24 +186,27 @@ function SessionsTableContent() {
         }
 
         const traces = (await res.json()) as { items: TraceRow[] };
-        setSessionTraces((prev) => ({ ...prev, [sessionId]: traces.items.toReversed() }));
+        setSessionTraces(sessionId, traces.items);
       } catch {
         toast({ title: "Failed to load traces. Please try again.", variant: "destructive" });
         // Collapse on failure
-        setExpandedSessions((prev) => {
-          const next = new Set(prev);
-          next.delete(sessionId);
-          return next;
-        });
+        collapseSession(sessionId);
       } finally {
-        setLoadingSessions((prev) => {
-          const next = new Set(prev);
-          next.delete(sessionId);
-          return next;
-        });
+        setLoadingSession(sessionId, false);
       }
     },
-    [expandedSessions, pastHours, startDate, endDate, projectId, toast]
+    [
+      expandedSessions,
+      pastHours,
+      startDate,
+      endDate,
+      projectId,
+      toast,
+      toggleSessionExpanded,
+      setLoadingSession,
+      setSessionTraces,
+      collapseSession,
+    ]
   );
 
   const handleTraceClick = useCallback(

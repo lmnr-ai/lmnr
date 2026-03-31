@@ -9,7 +9,9 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { addTimeRangeToQuery, getTimeRange, type TimeRange } from "@/lib/clickhouse/utils";
-import { type SessionRow } from "@/lib/traces/types";
+import { type SessionRow, type TraceTimelineItem } from "@/lib/traces/types";
+
+import { getSessionTimelines } from "./timelines";
 
 export const GetSessionsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
@@ -23,7 +25,9 @@ export const DeleteSessionsSchema = z.object({
   sessionIds: z.array(z.string()).min(1),
 });
 
-export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Promise<{ items: SessionRow[] }> {
+export async function getSessions(
+  input: z.infer<typeof GetSessionsSchema>
+): Promise<{ items: SessionRow[]; timelines: Record<string, TraceTimelineItem[]> }> {
   const {
     projectId,
     pastHours,
@@ -51,7 +55,7 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     : [];
 
   if (search && traceIds?.length === 0) {
-    return { items: [] };
+    return { items: [], timelines: {} };
   }
 
   const { query: mainQuery, parameters: mainParams } = buildSessionsQueryWithParams({
@@ -70,8 +74,23 @@ export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Pro
     projectId,
   });
 
+  const sessionItems = items.map((item) => ({ ...item, subRows: [] }));
+
+  let timelines: Record<string, TraceTimelineItem[]> = {};
+  if (sessionItems.length > 0) {
+    const sessionIds = sessionItems.map((s) => s.sessionId);
+    timelines = await getSessionTimelines({
+      projectId,
+      sessionIds,
+      pastHours: pastHours ?? undefined,
+      startDate: startTime ?? undefined,
+      endDate: endTime ?? undefined,
+    });
+  }
+
   return {
-    items: items.map((item) => ({ ...item, subRows: [] })),
+    items: sessionItems,
+    timelines,
   };
 }
 
