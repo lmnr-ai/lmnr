@@ -4,13 +4,11 @@ import { Info } from "lucide-react";
 import { Controller, useFormContext } from "react-hook-form";
 
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select.tsx";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { type ManageSignalForm } from "./types";
-
-const SAMPLING_OPTIONS = [1, 2, 3, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90];
 
 export default function SamplingSection() {
   const { control, watch, setValue } = useFormContext<ManageSignalForm>();
@@ -39,43 +37,41 @@ export default function SamplingSection() {
         <Switch
           checked={isEnabled}
           onCheckedChange={(checked) => {
-            setValue("sampleRate", checked ? 50 : null, { shouldDirty: true });
+            setValue("sampleRate", checked ? 25 : null, { shouldDirty: true });
           }}
         />
       </div>
       {isEnabled && (
-        <div className="rounded-md border p-3">
-          <div className="flex items-center gap-3">
-            <Controller
-              name="sampleRate"
-              control={control}
-              render={({ field }) => (
-                <Select value={String(field.value ?? 50)} onValueChange={(v) => field.onChange(Number(v))}>
-                  <SelectTrigger className="w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SAMPLING_OPTIONS.map((opt) => (
-                      <SelectItem key={opt} value={String(opt)}>
-                        {opt}%
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            <span className="text-xs text-muted-foreground">
-              of all traces will be processed with per-user sampling.{" "}
-              <a
-                href="https://docs.laminar.sh/tracing/structure/user-id"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline hover:text-foreground"
-              >
-                Learn how to set user id per trace
-              </a>
-            </span>
-          </div>
+        <div className="rounded-md border p-3 space-y-3">
+          <Controller
+            name="sampleRate"
+            control={control}
+            render={({ field }) => (
+              <div className="flex items-center gap-3">
+                <Slider
+                  className="w-1/2"
+                  min={5}
+                  max={95}
+                  step={5}
+                  value={[field.value ?? 25]}
+                  onValueChange={([v]) => field.onChange(v)}
+                />
+                <span className="text-sm font-medium w-10">{field.value ?? 25}%</span>
+              </div>
+            )}
+          />
+          <p className="text-xs text-muted-foreground w-1/2">
+            {sampleRate}% of all traces will be processed. When user_id is set, traces are sampled evenly across users
+            so each gets equal coverage.{" "}
+            <a
+              href="https://docs.laminar.sh/tracing/structure/user-id"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              Learn more how to set user id per trace
+            </a>
+          </p>
         </div>
       )}
     </div>
