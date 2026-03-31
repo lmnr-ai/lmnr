@@ -113,7 +113,7 @@ pub fn render_report_email(data: &ReportData) -> String {
                     r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:8px;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:4px;"><tr>
     <td style="font-size:12px;color:#6b7280;" align="left">{signal_name} &middot; {timestamp}</td>
-    <td style="font-size:12px;" align="right"><a href="https://lmnr.ai/project/{project_id}/traces/{trace_id}" style="color:{primary};text-decoration:none;">View trace &rarr;</a></td>
+    <td style="font-size:12px;" align="right"><a href="https://lmnr.ai/project/{project_id}/traces/{trace_id}?chat=true" style="color:{primary};text-decoration:none;">View trace &rarr;</a></td>
   </tr></table>{summary}
 </div>"##,
                     signal_name = html_escape(&event.signal_name),
