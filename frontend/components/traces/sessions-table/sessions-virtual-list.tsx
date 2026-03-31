@@ -1,13 +1,14 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { type SessionRow as SessionRowType, type TraceRow, type TraceTimelineItem } from "@/lib/traces/types";
 
 const itemTransition = { type: "spring", stiffness: 300, damping: 30 } as const;
+const exitTransition = { duration: 0.1, ease: "easeOut" } as const;
 
 import SessionRowComponent from "./session-row";
 import SessionTableHeader from "./session-table-header";
@@ -161,6 +162,7 @@ export default function SessionsVirtualList({
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
               transition={itemTransition}
               style={{ transformOrigin: "top center" }}
             >
@@ -172,6 +174,7 @@ export default function SessionsVirtualList({
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
               transition={itemTransition}
               style={{ transformOrigin: "top center" }}
             >
@@ -188,6 +191,7 @@ export default function SessionsVirtualList({
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
               transition={itemTransition}
               style={{ transformOrigin: "top center" }}
             >
@@ -202,6 +206,7 @@ export default function SessionsVirtualList({
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
               transition={itemTransition}
               style={{ transformOrigin: "top center" }}
             >
@@ -242,25 +247,29 @@ export default function SessionsVirtualList({
     <div ref={scrollContainerRef} className="flex-1 overflow-auto styled-scrollbar">
       <SessionTableHeader />
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-        {virtualizer.getVirtualItems().map((virtualItem) => {
-          const item = flatList[virtualItem.index];
-          return (
-            <div
-              key={virtualItem.key}
-              data-index={virtualItem.index}
-              ref={virtualizer.measureElement}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                transform: `translateY(${virtualItem.start}px)`,
-              }}
-            >
-              {renderItem(item)}
-            </div>
-          );
-        })}
+        <AnimatePresence initial={false} mode="popLayout">
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const item = flatList[virtualItem.index];
+            return (
+              <motion.div
+                key={virtualItem.key}
+                data-index={virtualItem.index}
+                ref={virtualizer.measureElement}
+                exit={{ opacity: 0, scale: 0.97 }}
+                transition={exitTransition}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+              >
+                {renderItem(item)}
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
       {/* Sentinel for infinite scroll */}
       <div ref={sentinelRef} style={{ height: 1 }} />
