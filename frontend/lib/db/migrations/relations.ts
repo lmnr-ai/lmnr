@@ -3,9 +3,11 @@ import {
   datasets,
   datasetParquets,
   projects,
+  workspaces,
+  workspaceUsageLimits,
+  workspaceUsageWarnings,
   signals,
   tracesAgentMessages,
-  workspaces,
   slackIntegrations,
   evaluators,
   evaluatorSpanPaths,
@@ -105,6 +107,37 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   traces: many(traces),
 }));
 
+export const workspaceUsageLimitsRelations = relations(workspaceUsageLimits, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceUsageLimits.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
+export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
+  workspaceUsageLimits: many(workspaceUsageLimits),
+  workspaceUsageWarnings: many(workspaceUsageWarnings),
+  slackIntegrations: many(slackIntegrations),
+  workspaceInvitations: many(workspaceInvitations),
+  subscriptionTier: one(subscriptionTiers, {
+    fields: [workspaces.tierId],
+    references: [subscriptionTiers.id],
+  }),
+  projects: many(projects),
+  reports: many(reports),
+  reportTargets: many(reportTargets),
+  membersOfWorkspaces: many(membersOfWorkspaces),
+  workspaceAddons: many(workspaceAddons),
+  workspaceUsages: many(workspaceUsage),
+}));
+
+export const workspaceUsageWarningsRelations = relations(workspaceUsageWarnings, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceUsageWarnings.workspaceId],
+    references: [workspaces.id],
+  }),
+}));
+
 export const signalsRelations = relations(signals, ({ one, many }) => ({
   project: one(projects, {
     fields: [signals.projectId],
@@ -126,21 +159,6 @@ export const slackIntegrationsRelations = relations(slackIntegrations, ({ one })
     fields: [slackIntegrations.workspaceId],
     references: [workspaces.id],
   }),
-}));
-
-export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
-  slackIntegrations: many(slackIntegrations),
-  workspaceInvitations: many(workspaceInvitations),
-  subscriptionTier: one(subscriptionTiers, {
-    fields: [workspaces.tierId],
-    references: [subscriptionTiers.id],
-  }),
-  projects: many(projects),
-  reports: many(reports),
-  reportTargets: many(reportTargets),
-  membersOfWorkspaces: many(membersOfWorkspaces),
-  workspaceAddons: many(workspaceAddons),
-  workspaceUsages: many(workspaceUsage),
 }));
 
 export const evaluatorsRelations = relations(evaluators, ({ one, many }) => ({
