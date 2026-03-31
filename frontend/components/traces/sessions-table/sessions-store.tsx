@@ -68,9 +68,11 @@ export const createSessionsStore = () =>
       }),
 
     setSessionTraces: (sessionId, traces) =>
-      set((state) => ({
-        sessionTraces: { ...state.sessionTraces, [sessionId]: traces },
-      })),
+      set((state) => {
+        // Guard against stale responses: only write if the session is still expanded
+        if (!state.expandedSessions.has(sessionId)) return state;
+        return { sessionTraces: { ...state.sessionTraces, [sessionId]: traces } };
+      }),
 
     mergeSessionTimelines: (timelines) =>
       set((state) => ({
