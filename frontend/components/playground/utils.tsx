@@ -81,8 +81,7 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
         return {
           anthropic: {
             thinking: {
-              type: "enabled",
-              budgetTokens: anthropicConfig.min,
+              type: "disabled",
             },
           },
         };

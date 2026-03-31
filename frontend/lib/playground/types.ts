@@ -86,7 +86,8 @@ export type OpenAIProviderOptions = {
 
 export type ProviderOptions =
   | {
-      anthropic: AnthropicProviderOptions & {
+      anthropic: Omit<AnthropicProviderOptions, "thinking"> & {
+        thinking?: { type: "enabled"; budgetTokens?: number } | { type: "disabled" } | { type: "adaptive" };
         effort?: "low" | "medium" | "high" | "max";
       };
     }
