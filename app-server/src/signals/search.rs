@@ -134,7 +134,7 @@ fn find_word_proximity_matches(content: &str, query: &str) -> Vec<SearchMatch> {
         let mut count = 0;
         while let Some(rel_pos) = content_lower[start..].find(word.as_str()) {
             positions.push((start + rel_pos, word_idx));
-            start += rel_pos + 1;
+            start += rel_pos + word.len();
             count += 1;
             if count >= MAX_POSITIONS_PER_WORD {
                 break;
