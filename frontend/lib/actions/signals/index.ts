@@ -220,7 +220,7 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 }
 
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput, sampleRate: sampleRate } = CreateSignalSchema.parse(input);
+  const { projectId, name, prompt, structuredOutput, sampleRate } = CreateSignalSchema.parse(input);
 
   const [result] = await db
     .insert(signals)
@@ -237,7 +237,7 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput, sampleRate: sampleRate } = UpdateSignalSchema.parse(input);
+  const { projectId, id, prompt, structuredOutput, sampleRate } = UpdateSignalSchema.parse(input);
 
   const result = await db
     .update(signals)

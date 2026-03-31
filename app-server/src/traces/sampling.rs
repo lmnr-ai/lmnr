@@ -24,9 +24,11 @@ pub async fn get_sampling_factors_cached(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
 ) -> Result<UserSamplingFactors> {
-    let yesterday = (Utc::now().date_naive() - chrono::Duration::days(1))
+    let now = Utc::now();
+    let yesterday = (now - chrono::Duration::days(1))
         .format("%Y-%m-%d")
         .to_string();
+    let today = now.format("%Y-%m-%d").to_string();
     let cache_key = format!(
         "{}:{}:{}",
         SAMPLING_FACTORS_CACHE_KEY, project_id, yesterday
@@ -44,7 +46,7 @@ pub async fn get_sampling_factors_cached(
         }
     }
 
-    let counts = fetch_user_trace_counts(clickhouse, project_id).await?;
+    let counts = fetch_user_trace_counts(clickhouse, project_id, &yesterday, &today).await?;
     let factors = compute_sampling_factors(&counts);
 
     if let Err(e) = cache
@@ -96,17 +98,13 @@ fn compute_sampling_factors(counts: &HashMap<String, u64>) -> UserSamplingFactor
 }
 
 /// Query ClickHouse for per-user trace counts from the previous day.
+/// Date boundaries are passed in to ensure consistency with the cache key.
 async fn fetch_user_trace_counts(
     clickhouse: &clickhouse::Client,
     project_id: Uuid,
+    yesterday: &str,
+    today: &str,
 ) -> Result<HashMap<String, u64>> {
-    let now = Utc::now();
-    let today_start = now.date_naive().and_hms_opt(0, 0, 0).expect("valid time");
-    let yesterday_start = today_start - chrono::Duration::days(1);
-
-    let yesterday_str = yesterday_start.format("%Y-%m-%d %H:%M:%S").to_string();
-    let today_str = today_start.format("%Y-%m-%d %H:%M:%S").to_string();
-
     #[derive(Debug, clickhouse::Row, serde::Deserialize)]
     struct UserCount {
         user_id: String,
@@ -118,12 +116,12 @@ async fn fetch_user_trace_counts(
             "SELECT user_id, count(1) as cnt \
              FROM traces_replacing FINAL \
              WHERE project_id = ? \
-             AND start_time >= toDateTime64(?, 9) AND start_time < toDateTime64(?, 9) \
+             AND start_time >= ? AND start_time < ? \
              GROUP BY user_id",
         )
         .bind(project_id)
-        .bind(yesterday_str.as_str())
-        .bind(today_str.as_str())
+        .bind(yesterday)
+        .bind(today)
         .fetch_all::<UserCount>()
         .await?;
 
