@@ -180,9 +180,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     case "customer.subscription.updated":
       await handleSubscriptionChange(event);
       break;
+    // NOTE: if adding new events here, don't forget to enable them via Stripe Workbench
     default:
-      // Unexpected event type
-      // console.log(`Stripe Webhook. Unhandled event type ${event.type}.`);
       break;
   }
   return new Response("Webhook received.", { status: 200 });
