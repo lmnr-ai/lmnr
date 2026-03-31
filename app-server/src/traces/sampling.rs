@@ -135,18 +135,19 @@ async fn fetch_user_trace_counts(
 ///   p = min(1.0, sample_rate / 100.0 * base_factor)
 ///
 /// Users not seen yesterday (not in the factors map) get a factor of 1.0.
-/// Empty factors map (no historical data) means allow all traces through.
+/// Empty factors map (no historical data) also uses factor 1.0, applying
+/// uniform sampling at exactly sample_rate / 100.
 pub fn should_sample_trace(
     sample_rate: i16,
     user_id: &Option<String>,
     factors: &UserSamplingFactors,
 ) -> bool {
-    if factors.is_empty() {
-        return true;
-    }
-
-    let key = user_id.as_deref().unwrap_or("");
-    let base_factor = factors.get(key).copied().unwrap_or(1.0);
+    let base_factor = if factors.is_empty() {
+        1.0
+    } else {
+        let key = user_id.as_deref().unwrap_or("");
+        factors.get(key).copied().unwrap_or(1.0)
+    };
 
     let p = ((sample_rate as f64 / 100.0) * base_factor).min(1.0);
 
