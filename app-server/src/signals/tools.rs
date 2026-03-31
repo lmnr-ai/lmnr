@@ -7,7 +7,7 @@ use crate::ch::spans::CHSpan;
 
 use super::search::fuzzy_search;
 use super::spans::{extract_exception_from_events, get_span_type, span_short_id};
-use super::utils::{nanoseconds_to_iso, strip_noise, try_parse_json};
+use super::utils::{clean_whitespace, nanoseconds_to_iso, strip_noise, try_parse_json};
 use crate::signals::prompts::{
     GET_FULL_SPAN_INFO_DESCRIPTION, SEARCH_IN_SPANS_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION,
 };
@@ -23,12 +23,12 @@ pub struct SpanInfo {
     pub start: String,
     pub end: String,
     pub status: String,
-    pub input: Value,
-    pub output: Value,
+    pub input: String,
+    pub output: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub exception: Option<Value>,
+    pub exception: Option<String>,
 }
 
 pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
@@ -131,6 +131,13 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
     }
 }
 
+fn stringify_value(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        _ => serde_json::to_string(value).unwrap_or_default(),
+    }
+}
+
 /// For LLM span inputs (JSON arrays of messages), keep only the last `n` messages.
 /// Returns the value unchanged if it's not an array or has fewer than `n` elements.
 fn truncate_messages(value: Value, n: usize) -> Value {
@@ -198,14 +205,15 @@ pub async fn get_full_spans(
                 None
             };
 
-            let exception = extract_exception_from_events(&ch_span.events);
+            let exception = extract_exception_from_events(&ch_span.events)
+                .map(|v| clean_whitespace(&stringify_value(&v)));
 
             let is_llm = ch_span.span_type == 1;
-            let input = try_parse_json(&strip_noise(&ch_span.input));
-            let input = if is_llm {
-                truncate_messages(input, 2)
+            let input_value = try_parse_json(&strip_noise(&ch_span.input));
+            let input_value = if is_llm {
+                truncate_messages(input_value, 2)
             } else {
-                input
+                input_value
             };
 
             SpanInfo {
@@ -215,8 +223,10 @@ pub async fn get_full_spans(
                 start: nanoseconds_to_iso(ch_span.start_time),
                 end: nanoseconds_to_iso(ch_span.end_time),
                 status: ch_span.status.clone(),
-                input,
-                output: try_parse_json(&strip_noise(&ch_span.output)),
+                input: clean_whitespace(&stringify_value(&input_value)),
+                output: clean_whitespace(&stringify_value(
+                    &try_parse_json(&strip_noise(&ch_span.output)),
+                )),
                 parent,
                 exception,
             }
@@ -312,7 +322,7 @@ pub async fn search_in_spans(
                 "input" => &ch_span.input,
                 _ => &ch_span.output,
             };
-            let content = strip_noise(raw);
+            let content = clean_whitespace(&strip_noise(raw));
 
             let matches = fuzzy_search(&content, &search.literal);
             if !matches.is_empty() {

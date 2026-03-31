@@ -8,11 +8,13 @@ use uuid::Uuid;
 
 use crate::ch::spans::CHSpan;
 
-use super::utils::{strip_noise, try_parse_json};
+use super::utils::{clean_whitespace, strip_noise, try_parse_json};
 
 const TRUNCATE_THRESHOLD: usize = 1024;
-/// Max chars to keep per message in LLM span inputs (~1K tokens).
+/// Max chars to keep per message string in LLM span inputs.
 const LLM_MESSAGE_MAX_CHARS: usize = 3000;
+/// Hard cap on total serialized LLM input size after per-string truncation.
+const LLM_INPUT_TOTAL_MAX_CHARS: usize = 8192;
 
 pub struct CompressedSpan {
     pub id: String,
@@ -66,6 +68,10 @@ fn is_empty_value(value: &Value) -> bool {
     }
 }
 
+fn is_empty_raw(s: &str) -> bool {
+    s.is_empty() || s == "null" || s == "\"\"" || s == "''"
+}
+
 /// Get span type string
 pub fn get_span_type(span_type: u8) -> &'static str {
     match span_type {
@@ -75,26 +81,16 @@ pub fn get_span_type(span_type: u8) -> &'static str {
     }
 }
 
-/// Returns (truncated_value, was_truncated).
-fn truncate_value(value: &Value, truncated: &mut bool) -> Value {
-    let value_str = match value {
+fn stringify_value(value: &Value) -> String {
+    match value {
         Value::String(s) => s.clone(),
         _ => serde_json::to_string(value).unwrap_or_default(),
-    };
-
-    let char_count = value_str.chars().count();
-    if char_count <= TRUNCATE_THRESHOLD {
-        return value.clone();
     }
-
-    *truncated = true;
-    let kept: String = value_str.chars().take(TRUNCATE_THRESHOLD).collect();
-    let omitted = char_count - TRUNCATE_THRESHOLD;
-    Value::String(format!("{}<truncated {} more chars>", kept, omitted))
 }
 
-fn truncate_llm_input(value: &Value, truncated: &mut bool) -> Value {
-    match value {
+/// Stringify an LLM input Value (array of messages) with per-string truncation.
+fn truncate_llm_input(value: &Value, truncated: &mut bool) -> String {
+    let truncated_value = match value {
         Value::Array(messages) => Value::Array(
             messages
                 .iter()
@@ -102,7 +98,18 @@ fn truncate_llm_input(value: &Value, truncated: &mut bool) -> Value {
                 .collect(),
         ),
         _ => value.clone(),
+    };
+    stringify_value(&truncated_value)
+}
+
+fn truncate_str(s: String, max: usize, truncated: &mut bool) -> String {
+    let char_count = s.chars().count();
+    if char_count <= max {
+        return s;
     }
+    *truncated = true;
+    let kept: String = s.chars().take(max).collect();
+    format!("{}<truncated {} more chars>", kept, char_count - max)
 }
 
 fn truncate_message_strings(message: &Value, truncated: &mut bool) -> Value {
@@ -182,35 +189,48 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
             let is_tool = ch_span.span_type == 6;
 
             let (input, output) = if is_llm {
-                let output_data = try_parse_json(&strip_noise(&ch_span.output));
-                let output = value_to_string(
-                    &truncate_value(&output_data, &mut output_truncated),
-                );
+                let output = clean_whitespace(&truncate_str(
+                    strip_noise(&ch_span.output),
+                    TRUNCATE_THRESHOLD,
+                    &mut output_truncated,
+                ));
 
                 if seen_llm_paths.contains(&path) {
-                    ("<omitted>".to_string(), output)
+                    (
+                        format!("<omitted {} chars>", ch_span.input.chars().count()),
+                        output,
+                    )
                 } else {
                     seen_llm_paths.insert(path.clone());
-                    let input_data = truncate_llm_input(
-                        &try_parse_json(&strip_noise(&ch_span.input)),
-                        &mut input_truncated,
-                    );
-                    (value_to_string(&input_data), output)
+                    let parsed = try_parse_json(&strip_noise(&ch_span.input));
+                    let llm_str = truncate_llm_input(&parsed, &mut input_truncated);
+                    let input_str = clean_whitespace(&llm_str);
+                    let input_str =
+                        truncate_str(input_str, LLM_INPUT_TOTAL_MAX_CHARS, &mut input_truncated);
+                    (input_str, output)
                 }
             } else if is_tool {
-                let input_raw = try_parse_json(&strip_noise(&ch_span.input));
-                let output_raw = try_parse_json(&strip_noise(&ch_span.output));
+                let input_raw = strip_noise(&ch_span.input);
+                let output_raw = strip_noise(&ch_span.output);
 
-                let input = if is_empty_value(&input_raw) {
+                let input = if is_empty_raw(&input_raw) {
                     "<empty>".to_string()
                 } else {
-                    value_to_string(&truncate_value(&input_raw, &mut input_truncated))
+                    clean_whitespace(&truncate_str(
+                        input_raw,
+                        TRUNCATE_THRESHOLD,
+                        &mut input_truncated,
+                    ))
                 };
 
-                let output = if is_empty_value(&output_raw) {
+                let output = if is_empty_raw(&output_raw) {
                     "<empty>".to_string()
                 } else {
-                    value_to_string(&truncate_value(&output_raw, &mut output_truncated))
+                    clean_whitespace(&truncate_str(
+                        output_raw,
+                        TRUNCATE_THRESHOLD,
+                        &mut output_truncated,
+                    ))
                 };
 
                 (input, output)
@@ -221,7 +241,7 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
             };
 
             let exception =
-                extract_exception_from_events(&ch_span.events).map(|v| value_to_string(&v));
+                extract_exception_from_events(&ch_span.events).map(|v| stringify_value(&v));
 
             CompressedSpan {
                 id: span_short_id(&ch_span.span_id),
@@ -246,13 +266,6 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
             }
         })
         .collect()
-}
-
-fn value_to_string(value: &Value) -> String {
-    match value {
-        Value::String(s) => s.clone(),
-        _ => serde_json::to_string(value).unwrap_or_default(),
-    }
 }
 
 fn spans_to_string(spans: &[CompressedSpan]) -> String {

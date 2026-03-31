@@ -198,11 +198,11 @@ pub async fn process_run(
             system_instruction: system_instruction.clone(),
             tools: Some(tools),
             generation_config: Some(ProviderGenerationConfig {
-                temperature: Some(1.0),
-                thinking_config: Some(ProviderThinkingConfig {
-                    include_thoughts: Some(true),
-                    thinking_level: Some(ProviderThinkingLevel::Medium),
-                }),
+                temperature: Some(0.85),
+                // thinking_config: Some(ProviderThinkingConfig {
+                //     include_thoughts: Some(true),
+                //     thinking_level: Some(ProviderThinkingLevel::Medium),
+                // }),
                 ..Default::default()
             }),
         },

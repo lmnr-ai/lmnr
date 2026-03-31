@@ -23,20 +23,50 @@ static BASE64_IMAGE_RE: LazyLock<Regex> = LazyLock::new(|| {
 static SIGNATURE_FIELD_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"("(?:signature|thought_signature)")\s*:\s*"[^"]*""#).unwrap());
 
-/// Matches runs of literal JSON escape sequences (\n, \t, \r) optionally
-/// mixed with actual whitespace, so they can be collapsed to a single space.
-static ESCAPED_WS_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?:\\[nrt]\s*)+").unwrap());
-
-/// Strip base64 images, signature fields, and collapse literal JSON-escaped
-/// whitespace sequences (\n, \t, \r) from raw ClickHouse span content.
+/// Strip base64 images and signature/thought_signature values from raw
+/// ClickHouse span content. Does NOT touch whitespace — use
+/// `clean_value_whitespace` (after JSON parsing) or `clean_raw_whitespace`
+/// (for non-JSON contexts like search) separately.
 pub fn strip_noise(raw: &str) -> String {
     let without_images = BASE64_IMAGE_RE.replace_all(raw, "[base64 image omitted]");
-    let without_sigs = SIGNATURE_FIELD_RE
-        .replace_all(&without_images, r#"$1:"[signature omitted]""#);
-    ESCAPED_WS_RE
-        .replace_all(&without_sigs, " ")
+    SIGNATURE_FIELD_RE
+        .replace_all(&without_images, r#"$1:"[signature omitted]""#)
         .into_owned()
+}
+
+/// Clean a string by collapsing whitespace (actual and literal escape
+/// sequences) and stripping backslashes (nested JSON escaping noise).
+/// Works on both raw strings (with literal `\n`/`\t`/`\r`) and stringified
+/// parsed JSON values (with actual newline/tab/CR characters).
+pub fn clean_whitespace(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut in_ws = false;
+    let mut chars = s.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\n' || ch == '\t' || ch == '\r' || ch == ' ' {
+            if !in_ws {
+                result.push(' ');
+                in_ws = true;
+            }
+        } else if ch == '\\' {
+            // Literal escape sequence (\n, \t, \r) → treat as whitespace
+            if let Some(&next) = chars.peek() {
+                if next == 'n' || next == 't' || next == 'r' {
+                    chars.next();
+                    if !in_ws {
+                        result.push(' ');
+                        in_ws = true;
+                    }
+                    continue;
+                }
+            }
+            // All other backslashes (\", \\, \/) → skip (JSON escaping noise)
+        } else {
+            result.push(ch);
+            in_ws = false;
+        }
+    }
+    result
 }
 
 /// Build the span input value from a ProviderRequest by combining contents
@@ -382,17 +412,56 @@ mod tests {
     }
 
     #[test]
-    fn test_strip_noise_escaped_whitespace() {
-        let raw = r#"Resources\n\t\tStartup Jobs\n\t\tLog in"#;
+    fn test_strip_noise_preserves_json_escapes() {
+        // strip_noise should NOT touch \n sequences — that's clean_raw_whitespace's job
+        let raw = r#"{"text":"hello\nworld"}"#;
         let result = strip_noise(raw);
-        assert_eq!(result, "Resources Startup Jobs Log in");
+        assert!(result.contains(r#"\n"#));
     }
 
     #[test]
-    fn test_strip_noise_escaped_whitespace_mixed() {
-        let raw = r#"hello\n\n\tworld\r\nfoo"#;
-        let result = strip_noise(raw);
-        assert_eq!(result, "hello world foo");
+    fn test_clean_whitespace_literal_escapes() {
+        assert_eq!(
+            clean_whitespace(r#"Resources\n\t\tStartup Jobs\n\t\tLog in"#),
+            "Resources Startup Jobs Log in"
+        );
+    }
+
+    #[test]
+    fn test_clean_whitespace_actual_whitespace() {
+        assert_eq!(
+            clean_whitespace("hello\n\t\tworld\nfoo"),
+            "hello world foo"
+        );
+    }
+
+    #[test]
+    fn test_clean_whitespace_mixed() {
+        assert_eq!(
+            clean_whitespace(r#"hello\n\n\tworld\r\nfoo"#),
+            "hello world foo"
+        );
+    }
+
+    #[test]
+    fn test_clean_whitespace_strips_backslashes() {
+        assert_eq!(
+            clean_whitespace(r#"said \"hello\" and \\done"#),
+            r#"said "hello" and done"#
+        );
+    }
+
+    #[test]
+    fn test_clean_whitespace_nested_json_noise() {
+        assert_eq!(
+            clean_whitespace(r#"{ \"action\": [ { \"click\": { \"index\": 18 } } ] }"#),
+            r#"{ "action": [ { "click": { "index": 18 } } ] }"#
+        );
+    }
+
+    #[test]
+    fn test_clean_whitespace_collapses_spaces() {
+        assert_eq!(clean_whitespace("hello   world"), "hello world");
     }
 
     #[test]
