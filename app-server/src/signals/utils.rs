@@ -23,12 +23,19 @@ static BASE64_IMAGE_RE: LazyLock<Regex> = LazyLock::new(|| {
 static SIGNATURE_FIELD_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"("(?:signature|thought_signature)")\s*:\s*"[^"]*""#).unwrap());
 
-/// Strip base64 images and signature/thought_signature values from raw
-/// ClickHouse span content using regex
+/// Matches runs of literal JSON escape sequences (\n, \t, \r) optionally
+/// mixed with actual whitespace, so they can be collapsed to a single space.
+static ESCAPED_WS_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:\\[nrt]\s*)+").unwrap());
+
+/// Strip base64 images, signature fields, and collapse literal JSON-escaped
+/// whitespace sequences (\n, \t, \r) from raw ClickHouse span content.
 pub fn strip_noise(raw: &str) -> String {
     let without_images = BASE64_IMAGE_RE.replace_all(raw, "[base64 image omitted]");
-    SIGNATURE_FIELD_RE
-        .replace_all(&without_images, r#"$1:"[signature omitted]""#)
+    let without_sigs = SIGNATURE_FIELD_RE
+        .replace_all(&without_images, r#"$1:"[signature omitted]""#);
+    ESCAPED_WS_RE
+        .replace_all(&without_sigs, " ")
         .into_owned()
 }
 
@@ -372,6 +379,20 @@ mod tests {
         let raw = r#"{"message":"hello world","count":42}"#;
         let result = strip_noise(raw);
         assert_eq!(result, raw);
+    }
+
+    #[test]
+    fn test_strip_noise_escaped_whitespace() {
+        let raw = r#"Resources\n\t\tStartup Jobs\n\t\tLog in"#;
+        let result = strip_noise(raw);
+        assert_eq!(result, "Resources Startup Jobs Log in");
+    }
+
+    #[test]
+    fn test_strip_noise_escaped_whitespace_mixed() {
+        let raw = r#"hello\n\n\tworld\r\nfoo"#;
+        let result = strip_noise(raw);
+        assert_eq!(result, "hello world foo");
     }
 
     #[test]

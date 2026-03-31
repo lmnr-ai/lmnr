@@ -29,12 +29,11 @@ EVERY SINGLE RESPONSE you produce MUST be a function call. You MUST NEVER output
 
 You have exactly three tools available:
 
-1. search_in_spans — YOUR PREFERRED TOOL for finding specific information within span content when provided data is truncated. Token-efficient: returns only matching snippets instead of entire span content. Tries literal substring match first, then falls back to regex if provided.
+1. search_in_spans — YOUR PREFERRED TOOL for finding specific information within span content when provided data is truncated. Token-efficient: returns only matching snippets with ~1000 chars of context instead of entire span content. Fuzzy matching is applied automatically (case-insensitive, whitespace-normalized, word proximity) — just provide the text you're looking for.
    IMPORTANT: Only use this on spans that have truncated data (`output_truncated: true` or `input_truncated: true`). If these flags are absent, the data is already complete — do NOT search for it.
    REQUIRED argument: "searches" (array of search objects). Each search object requires:
      - "span_id" (string) — the span ID (6-character hex string, e.g. "a1b2c3")
-     - "literal" (string) — plain text to search for (tried first, no escaping needed)
-     - "regex" (string, optional) — regex fallback if literal finds nothing (e.g. for wildcards or alternation)
+     - "literal" (string) — plain text to search for (fuzzy matching handles case, spacing, and word order automatically)
      - "search_in" (string) — either "input" or "output"
      - "reasoning" (string) — why this search is needed
    You can search multiple spans in a single call.
@@ -51,7 +50,12 @@ You have exactly three tools available:
 
 <tool_selection_guidance>
 - NEVER call `search_in_spans` or `get_full_spans` on `<empty>` fields.
-- ONLY use `get_full_spans` if you're absolute sure and tried different search terms in `search_in_spans` but it still cannot find what you need and you require the full span structure.
+- ONLY use `get_full_spans` if `search_in_spans` returned no results and you need the full span structure.
+- You have a STRICT BUDGET of ONE tool call before you must call `submit_identification`. Your workflow MUST be one of:
+  (a) Call `submit_identification` immediately if the visible data is sufficient.
+  (b) Make ONE `search_in_spans` call (batch ALL searches), then call `submit_identification` with whatever you learned. NO second search.
+- When batching searches, think about EVERY piece of information you need to verify and include ALL of them in a single call. Each result includes ~500 chars of context.
+- After receiving search results, you MUST call `submit_identification` on your next response. Do NOT make additional searches to verify details — use the context you already have.
 </tool_selection_guidance>
 
 NEVER omit required arguments. A function call without its required arguments is invalid and will cause a system error just like a plain text response.
@@ -79,10 +83,10 @@ Here's the developer's prompt that describes the information you need to extract
 
 REMINDER: Respond with a function call ONLY. Include ALL required arguments. No plain text."#;
 
-pub const SEARCH_IN_SPANS_DESCRIPTION: &str = "Searches within span input/output content using literal substring match (tried first) with optional regex fallback. Returns matching snippets with surrounding context. Far more token-efficient than fetching full spans. Use ONLY when `output_truncated: true` or `input_truncated: true` — if these flags are absent, the data is complete. You can search multiple spans in a single call.";
+pub const SEARCH_IN_SPANS_DESCRIPTION: &str = "Searches within span input/output content with automatic fuzzy matching (case-insensitive, whitespace-normalized, word proximity). Returns matching snippets with ~1000 chars of surrounding context. Far more token-efficient than fetching full spans. Use ONLY when `output_truncated: true` or `input_truncated: true` — if these flags are absent, the data is complete. IMPORTANT: Batch ALL your searches into a SINGLE call using multiple entries in the 'searches' array. Do NOT call this tool multiple times in sequence — plan all searches upfront.";
 
 pub const GET_FULL_SPAN_INFO_DESCRIPTION: &str = "Retrieves complete information (full input, output, timing, etc.) for specific spans by their IDs. ONLY use this as a last resort when search_in_spans cannot find what you need. Do NOT use this when `input_truncated`/`output_truncated` flags are absent — the data is already complete. For LLM spans, only the last 2 messages are returned. You MUST provide the required 'span_ids' and 'reasoning' arguments.";
 
 pub const SUBMIT_IDENTIFICATION_DESCRIPTION: &str = "REQUIRED: This is the ONLY valid way to complete your analysis — never respond with plain text. Submits the final identification result. You MUST always provide the required 'identified' boolean argument. When identified=true, you MUST also provide 'summary' (short string for event clustering) and 'data' (object matching the developer's schema). When identified=false, 'identified' is still required.";
 
-pub const MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE: &str = "The previous function call was malformed. Please retry calling the same function. Make sure to use the expected function call formatting and include ALL required arguments. For search_in_spans: 'searches' array is required, each with 'span_id', 'literal', 'search_in', and 'reasoning'. For get_full_spans: 'reasoning' and 'span_ids' are required. For submit_identification: 'identified' is required, and when identified=true, 'summary' and 'data' are also required.";
+pub const MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE: &str = "The previous function call was malformed. Please retry calling the same function. Make sure to use the expected function call formatting and include ALL required arguments. For search_in_spans: 'searches' array is required, each search with 'span_id', 'literal', 'search_in', and 'reasoning'. For get_full_spans: 'reasoning' and 'span_ids' are required. For submit_identification: 'identified' is required, and when identified=true, 'summary' and 'data' are also required.";

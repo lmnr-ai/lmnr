@@ -13,6 +13,7 @@ pub mod provider;
 pub mod queue;
 pub mod realtime_api;
 pub mod response_processor;
+pub mod search;
 pub mod spans;
 pub mod submissions_consumer;
 pub mod tools;
@@ -75,7 +76,7 @@ impl SignalWorkerConfig {
         let max_allowed_steps = env::var("SIGNAL_JOB_MAX_ALLOWED_STEPS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(5);
+            .unwrap_or(3);
 
         let internal_project_id = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
             .ok()

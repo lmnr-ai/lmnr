@@ -201,7 +201,7 @@ pub async fn process_run(
                 temperature: Some(1.0),
                 thinking_config: Some(ProviderThinkingConfig {
                     include_thoughts: Some(true),
-                    thinking_level: Some(ProviderThinkingLevel::Low),
+                    thinking_level: Some(ProviderThinkingLevel::Medium),
                 }),
                 ..Default::default()
             }),
