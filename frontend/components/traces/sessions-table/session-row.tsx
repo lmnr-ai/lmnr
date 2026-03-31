@@ -42,7 +42,9 @@ export default function SessionRow({ session, timeline, isExpanded, onToggle, on
 
       {/* Session ID */}
       <div className="flex items-center px-4 py-0.5 shrink-0 w-[189px]">
-        <span className="text-xs text-primary-foreground truncate">{session.sessionId}</span>
+        <span className="text-xs text-primary-foreground truncate" title={session.sessionId}>
+          {session.sessionId}
+        </span>
       </div>
 
       {/* Totals pill */}

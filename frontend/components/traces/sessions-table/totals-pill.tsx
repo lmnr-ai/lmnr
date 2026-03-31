@@ -24,19 +24,19 @@ export default function TotalsPill({ duration, totalTokens, totalCost }: TotalsP
       <div className="flex gap-1 h-4 items-center">
         <Clock3 size={12} className="shrink-0 text-secondary-foreground" />
         <span className="font-mono text-xs text-secondary-foreground whitespace-nowrap leading-4">
-          {formatDuration(duration)}
+          {formatDuration(duration ?? 0)}
         </span>
       </div>
       <div className="flex gap-1 h-4 items-center">
         <Coins size={12} className="shrink-0 text-secondary-foreground" />
         <span className="font-mono text-xs text-secondary-foreground whitespace-nowrap leading-4">
-          {compactNumberFormat.format(totalTokens)}
+          {compactNumberFormat.format(totalTokens ?? 0)}
         </span>
       </div>
       <div className="flex gap-1 h-4 items-center">
         <CircleDollarSign size={12} className="shrink-0 text-secondary-foreground" />
         <span className="font-mono text-xs text-secondary-foreground whitespace-nowrap leading-4">
-          {totalCost.toFixed(2)}
+          {(totalCost ?? 0).toFixed(2)}
         </span>
       </div>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { type SessionRow as SessionRowType, type TraceRow, type TraceTimelineItem } from "@/lib/traces/types";
@@ -13,11 +14,14 @@ import TraceSectionHeader from "./trace-section-header";
 type VirtualListItem =
   | { type: "session-row"; session: SessionRowType; timeline?: TraceTimelineItem[] }
   | { type: "trace-section-header"; sessionId: string }
-  | { type: "trace-card"; trace: TraceRow; sessionId: string; isFirst: boolean; isLast: boolean };
+  | { type: "trace-card"; trace: TraceRow; sessionId: string; isFirst: boolean; isLast: boolean }
+  | { type: "trace-loading"; sessionId: string }
+  | { type: "trace-empty"; sessionId: string };
 
 interface SessionsVirtualListProps {
   sessions: SessionRowType[];
   expandedSessions: Set<string>;
+  loadingSessions: Set<string>;
   sessionTraces: Record<string, TraceRow[]>;
   sessionTimelines: Record<string, TraceTimelineItem[]>;
   onToggleSession: (sessionId: string) => void;
@@ -31,6 +35,7 @@ interface SessionsVirtualListProps {
 function estimateSize(item: VirtualListItem): number {
   if (item.type === "session-row") return 36;
   if (item.type === "trace-section-header") return 52;
+  if (item.type === "trace-loading" || item.type === "trace-empty") return 60;
   // trace-card: 173px card + padding (8px top for first, 24px bottom for last, 8px otherwise)
   if (item.type === "trace-card") {
     const topPad = item.isFirst ? 8 : 0;
@@ -43,6 +48,7 @@ function estimateSize(item: VirtualListItem): number {
 export default function SessionsVirtualList({
   sessions,
   expandedSessions,
+  loadingSessions,
   sessionTraces,
   sessionTimelines,
   onToggleSession,
@@ -64,21 +70,29 @@ export default function SessionsVirtualList({
         timeline: sessionTimelines[session.sessionId],
       });
       if (expandedSessions.has(session.sessionId)) {
+        const isLoading = loadingSessions.has(session.sessionId);
         const traces = sessionTraces[session.sessionId] ?? [];
-        items.push({ type: "trace-section-header", sessionId: session.sessionId });
-        traces.forEach((trace, idx) => {
-          items.push({
-            type: "trace-card",
-            trace,
-            sessionId: session.sessionId,
-            isFirst: idx === 0,
-            isLast: idx === traces.length - 1,
+
+        if (isLoading) {
+          items.push({ type: "trace-loading", sessionId: session.sessionId });
+        } else if (traces.length === 0) {
+          items.push({ type: "trace-empty", sessionId: session.sessionId });
+        } else {
+          items.push({ type: "trace-section-header", sessionId: session.sessionId });
+          traces.forEach((trace, idx) => {
+            items.push({
+              type: "trace-card",
+              trace,
+              sessionId: session.sessionId,
+              isFirst: idx === 0,
+              isLast: idx === traces.length - 1,
+            });
           });
-        });
+        }
       }
     }
     return items;
-  }, [sessions, expandedSessions, sessionTraces, sessionTimelines]);
+  }, [sessions, expandedSessions, loadingSessions, sessionTraces, sessionTimelines]);
 
   const virtualizer = useVirtualizer({
     count: flatList.length,
@@ -130,10 +144,46 @@ export default function SessionsVirtualList({
               onClick={() => onTraceClick(item.trace)}
             />
           );
+        case "trace-loading":
+          return (
+            <div className="flex items-center justify-center h-[60px] pl-6">
+              <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
+              <span className="ml-2 text-xs text-muted-foreground">Loading traces...</span>
+            </div>
+          );
+        case "trace-empty":
+          return (
+            <div className="flex items-center justify-center h-[60px] pl-6">
+              <span className="text-xs text-muted-foreground">No traces in this session</span>
+            </div>
+          );
       }
     },
     [expandedSessions, onToggleSession, onTraceClick]
   );
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 overflow-auto styled-scrollbar">
+        <SessionTableHeader />
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin w-5 h-5 text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading sessions...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoading && sessions.length === 0) {
+    return (
+      <div className="flex-1 overflow-auto styled-scrollbar">
+        <SessionTableHeader />
+        <div className="flex items-center justify-center py-12">
+          <span className="text-sm text-muted-foreground">No sessions found</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={scrollContainerRef} className="flex-1 overflow-auto styled-scrollbar">
@@ -161,6 +211,11 @@ export default function SessionsVirtualList({
       </div>
       {/* Sentinel for infinite scroll */}
       <div ref={sentinelRef} style={{ height: 1 }} />
+      {isFetching && (
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
+        </div>
+      )}
     </div>
   );
 }

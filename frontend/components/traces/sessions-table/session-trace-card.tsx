@@ -35,7 +35,9 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
         <div className="flex flex-col h-full justify-between px-4 py-3 shrink-0 w-40">
           <div className="flex flex-col gap-1">
             <span className="text-xs text-secondary-foreground leading-4">{formatRelativeTime(trace.startTime)}</span>
-            <span className="text-xs text-primary-foreground leading-4 truncate">{trace.id}</span>
+            <span className="text-xs text-primary-foreground leading-4 truncate" title={trace.id}>
+              {trace.id}
+            </span>
           </div>
           <div className="flex flex-col gap-1">
             <div className="flex gap-1 h-4 items-center">
@@ -53,7 +55,7 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
             <div className="flex gap-1 h-4 items-center">
               <CircleDollarSign size={12} className="shrink-0 text-muted-foreground" />
               <span className="font-mono text-xs text-muted-foreground whitespace-nowrap leading-4">
-                {trace.totalCost.toFixed(2)}
+                {(trace.totalCost ?? 0).toFixed(2)}
               </span>
             </div>
           </div>
@@ -63,14 +65,14 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
         <div className="bg-[rgba(34,34,38,0.5)] border-l flex-1 h-full min-w-0 overflow-clip px-3 py-2 relative">
           {/* TODO: Replace placeholder with actual trace input data */}
           <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-4">{PLACEHOLDER_TEXT}</p>
-          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-secondary h-12 left-0 right-0" />
+          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0" />
         </div>
 
         {/* Output column */}
         <div className="bg-[rgba(34,34,38,0.5)] border-l flex-1 h-full min-w-0 overflow-clip px-3 py-2 relative">
           {/* TODO: Replace placeholder with actual trace output data */}
           <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-4">{PLACEHOLDER_TEXT}</p>
-          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-secondary h-12 left-0 right-0" />
+          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0" />
         </div>
       </div>
     </div>

@@ -46,6 +46,7 @@ function SessionsTableContent() {
   const { setNavigationRefList } = useTraceViewNavigation();
 
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
+  const [loadingSessions, setLoadingSessions] = useState<Set<string>>(new Set());
   const [sessionTraces, setSessionTraces] = useState<Record<string, TraceRow[]>>({});
   const [sessionTimelines, setSessionTimelines] = useState<Record<string, TraceTimelineItem[]>>({});
 
@@ -170,6 +171,7 @@ function SessionsTableContent() {
 
       // Expand: fetch traces for this session
       setExpandedSessions((prev) => new Set(prev).add(sessionId));
+      setLoadingSessions((prev) => new Set(prev).add(sessionId));
 
       try {
         const urlParams = new URLSearchParams();
@@ -193,6 +195,12 @@ function SessionsTableContent() {
         toast({ title: "Failed to load traces. Please try again.", variant: "destructive" });
         // Collapse on failure
         setExpandedSessions((prev) => {
+          const next = new Set(prev);
+          next.delete(sessionId);
+          return next;
+        });
+      } finally {
+        setLoadingSessions((prev) => {
           const next = new Set(prev);
           next.delete(sessionId);
           return next;
@@ -226,6 +234,7 @@ function SessionsTableContent() {
       <SessionsVirtualList
         sessions={sessions ?? []}
         expandedSessions={expandedSessions}
+        loadingSessions={loadingSessions}
         sessionTraces={sessionTraces}
         sessionTimelines={sessionTimelines}
         onToggleSession={handleToggleSession}
