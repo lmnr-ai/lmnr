@@ -88,27 +88,16 @@ pub async fn get_usage_warnings_for_workspace(
     Ok(res)
 }
 
-/// Atomically mark a usage warning as notified for the current billing cycle.
-/// Only updates if the warning has not already been notified since `billing_start`.
-/// Returns true if this call was the one that marked it (i.e., we should send the notification).
-pub async fn try_mark_warning_as_notified(
-    pool: &PgPool,
-    warning_id: Uuid,
-    billing_start: DateTime<Utc>,
-) -> Result<bool> {
-    let result = sqlx::query(
-        "UPDATE workspace_usage_warnings
-         SET last_notified_at = NOW()
-         WHERE id = $1
-           AND (last_notified_at IS NULL OR last_notified_at < $2)",
-    )
-    .bind(warning_id)
-    .bind(billing_start)
-    .execute(pool)
-    .await?;
-
-    Ok(result.rows_affected() > 0)
+/// Mark a usage warning as notified now. Called by the notification worker after
+/// successfully delivering the notification.
+pub async fn mark_warning_as_notified(pool: &PgPool, warning_id: Uuid) -> Result<()> {
+    sqlx::query("UPDATE workspace_usage_warnings SET last_notified_at = NOW() WHERE id = $1")
+        .bind(warning_id)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
+
 
 /// Get owner email(s) for a workspace.
 pub async fn get_workspace_owner_emails(pool: &PgPool, workspace_id: Uuid) -> Result<Vec<String>> {

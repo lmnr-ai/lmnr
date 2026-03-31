@@ -23,16 +23,18 @@ use crate::{
         usage_warnings::{self, UsageItem},
     },
     mq::MessageQueue,
-    notifications::{self, EmailPayload, NotificationMessage, NotificationType},
+    notifications::{
+        self, EmailPayload, NotificationDefinitionType, NotificationMessage, NotificationType,
+    },
     reports::email_template::html_escape,
 };
 // For workspaces over the limit, expire the cache after 24 hours,
 // so that it resets in the next billing period (+/- 1 day).
 const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 
-/// TTL for cached usage warnings per workspace. Keeps them fresh while
-/// avoiding a DB query on every ingestion batch.
-const USAGE_WARNINGS_CACHE_TTL_SECONDS: u64 = 5 * 60; // 5 minutes
+/// TTL for cached usage warnings per workspace. The cache is explicitly cleared
+/// by the frontend whenever warnings are added or removed, so a long TTL is fine.
+const USAGE_WARNINGS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
 
 const USAGE_WARNING_FROM_EMAIL: &str = "Laminar <usage@mail.lmnr.ai>";
 
@@ -213,25 +215,23 @@ pub async fn update_workspace_bytes_ingested(
 
     let cache_key = format!("{WORKSPACE_BYTES_USAGE_CACHE_KEY}:{workspace_id}");
 
-    let new_value = match cache.get::<i64>(&cache_key).await {
+    let current_value = match cache.get::<i64>(&cache_key).await {
         Ok(Some(_)) => {
             // Cache exists - atomically increment it
             match cache.increment(&cache_key, bytes as i64).await {
-                Ok(new_val) => Some(new_val),
+                Ok(new_val) => new_val,
                 Err(e) => {
                     log::error!(
                         "Failed to increment workspace bytes ingested cache for project [{}]: {:?}",
                         project_id,
                         e
                     );
-                    None
+                    return Ok(());
                 }
             }
         }
         Ok(None) | Err(_) => {
-            // Cache miss - recompute from ClickHouse and populate the cache.
-            // We don't fire soft-limit notifications on cache miss because we
-            // cannot detect boundary crossing without the previous value.
+            // Cache miss - recompute from ClickHouse and seed the cache.
             // We add the current batch size to the ClickHouse value so the cache
             // reflects the true total (ClickHouse may not have replicated this batch yet).
             let bytes_ingested = match get_workspace_bytes_ingested_by_project_ids(
@@ -251,29 +251,28 @@ pub async fn update_workspace_bytes_ingested(
                     0
                 }
             };
-            let seeded_value = bytes_ingested + bytes as i64;
+            // We do not add the current value, because Clickhouse likely has already ingested
+            // the current payload. Even if it didn't, it's safer to underestimate, so that:
+            // - for soft limits, the limit is less likely to be silently skipped
+            // - for hard limits, the limit is not hit prematurely
             cache
-                .insert_with_ttl::<i64>(&cache_key, seeded_value, WORKSPACE_USAGE_TTL_SECONDS)
+                .insert_with_ttl::<i64>(&cache_key, bytes_ingested, WORKSPACE_USAGE_TTL_SECONDS)
                 .await?;
-            None
+
+            bytes_ingested
         }
     };
 
-    // Check soft limits if we got an atomic new_value from increment
-    if let Some(new_bytes) = new_value {
-        let previous_bytes = new_bytes - bytes as i64;
-        check_soft_limits(
-            db.clone(),
-            cache.clone(),
-            queue,
-            workspace_id,
-            project_info.reset_time,
-            UsageItem::Bytes,
-            new_bytes,
-            previous_bytes,
-        )
-        .await;
-    }
+    check_soft_limits(
+        db.clone(),
+        cache.clone(),
+        queue,
+        workspace_id,
+        project_info.reset_time,
+        UsageItem::Bytes,
+        current_value,
+    )
+    .await;
 
     Ok(())
 }
@@ -308,20 +307,20 @@ pub async fn update_workspace_signal_runs_used(
 
     let cache_key = format!("{WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY}:{workspace_id}");
 
-    let new_value = match cache.get::<i64>(&cache_key).await {
+    let current_value = match cache.get::<i64>(&cache_key).await {
         Ok(Some(_)) => match cache.increment(&cache_key, runs as i64).await {
-            Ok(new_val) => Some(new_val),
+            Ok(new_val) => new_val,
             Err(e) => {
                 log::error!(
                     "Failed to increment workspace signal runs cache for project [{}]: {:?}",
                     project_id,
                     e
                 );
-                None
+                return Ok(());
             }
         },
         Ok(None) | Err(_) => {
-            // Cache miss - recompute from ClickHouse and populate the cache.
+            // Cache miss - recompute from ClickHouse and seed the cache.
             // We add the current batch size to the ClickHouse value so the cache
             // reflects the true total (ClickHouse may not have replicated this batch yet).
             let signal_runs = match get_workspace_signal_runs_by_project_ids(
@@ -341,34 +340,33 @@ pub async fn update_workspace_signal_runs_used(
                     0
                 }
             };
-            let seeded_value = signal_runs + runs as i64;
+            // We do not add the current value, because Clickhouse likely has already ingested
+            // the current payload. Even if it didn't, it's safer to underestimate, so that:
+            // - for soft limits, the limit is less likely to be silently skipped
+            // - for hard limits, the limit is not hit prematurely
             cache
-                .insert_with_ttl::<i64>(&cache_key, seeded_value, WORKSPACE_USAGE_TTL_SECONDS)
+                .insert_with_ttl::<i64>(&cache_key, signal_runs, WORKSPACE_USAGE_TTL_SECONDS)
                 .await?;
-            None
+            signal_runs
         }
     };
 
-    // Check soft limits if we got an atomic new_value from increment
-    if let Some(new_runs) = new_value {
-        let previous_runs = new_runs - runs as i64;
-        check_soft_limits(
-            db.clone(),
-            cache.clone(),
-            queue,
-            workspace_id,
-            project_info.reset_time,
-            UsageItem::SignalRuns,
-            new_runs,
-            previous_runs,
-        )
-        .await;
-    }
+    check_soft_limits(
+        db.clone(),
+        cache.clone(),
+        queue,
+        workspace_id,
+        project_info.reset_time,
+        UsageItem::SignalRuns,
+        current_value,
+    )
+    .await;
 
     Ok(())
 }
 
-/// Check if any soft limits (usage warnings) were crossed by this increment and send notifications.
+/// Check soft limits (usage warnings) against the current usage value and enqueue
+/// notifications for any warnings that have not yet been sent this billing cycle.
 async fn check_soft_limits(
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -376,10 +374,9 @@ async fn check_soft_limits(
     workspace_id: Uuid,
     reset_time: DateTime<Utc>,
     usage_item: UsageItem,
-    new_value: i64,
-    previous_value: i64,
+    current_value: i64,
 ) {
-    let warnings = match get_cached_usage_warnings(db.clone(), cache.clone(), workspace_id).await {
+    let warnings = match get_usage_warnings(db.clone(), cache.clone(), workspace_id).await {
         Ok(w) => w,
         Err(e) => {
             log::warn!(
@@ -394,79 +391,46 @@ async fn check_soft_limits(
     let billing_start = current_billing_period_start(reset_time);
 
     for warning in warnings.iter().filter(|w| w.usage_item == usage_item) {
-        let limit = warning.limit_value;
-        // Only fire notification if we crossed the boundary on this specific increment.
-        // Because cache.increment is atomic, we know that we are the one who crossed it.
-        if new_value >= limit && previous_value < limit {
-            // Quick in-memory check to skip the DB call for the common case.
-            // The actual deduplication is done atomically in try_mark_warning_as_notified.
-            if let Some(notified_at) = warning.last_notified_at {
-                if notified_at >= billing_start {
-                    continue;
-                }
-            }
-
-            send_soft_limit_notification(
-                db.clone(),
-                queue.clone(),
-                workspace_id,
-                warning.id,
-                &usage_item,
-                limit,
-                billing_start,
-            )
-            .await;
+        if current_value < warning.limit_value {
+            continue;
         }
+
+        if warning.last_notified_at.is_some_and(|t| t >= billing_start) {
+            // already notified this billing cycle
+            continue;
+        }
+
+        send_soft_limit_notification(
+            db.clone(),
+            cache.clone(),
+            queue.clone(),
+            workspace_id,
+            warning.id,
+            &usage_item,
+            warning.limit_value,
+        )
+        .await;
     }
 }
 
-/// Send a soft limit notification to workspace owners via the notifications queue.
-/// Uses a conditional UPDATE as an atomic guard: only the first caller within
-/// a billing cycle will mark the row and proceed to send the notification.
+/// Build and enqueue a soft-limit notification for workspace owners.
+/// Deduplication is handled on the notification-worker side via a short-lived cache
+/// lock, so this function simply constructs the message and pushes it to the queue.
 async fn send_soft_limit_notification(
     db: Arc<DB>,
+    cache: Arc<Cache>,
     queue: Arc<MessageQueue>,
     workspace_id: Uuid,
     warning_id: Uuid,
     usage_item: &UsageItem,
     limit_value: i64,
-    billing_start: DateTime<Utc>,
 ) {
-    // Atomic guard: conditionally mark as notified only if not already notified
-    // in this billing cycle. Returns true if this call won the race.
-    match usage_warnings::try_mark_warning_as_notified(&db.pool, warning_id, billing_start).await {
-        Ok(true) => {} // We won the race, proceed to send
-        Ok(false) => {
-            log::debug!(
-                "Soft limit notification already sent for workspace [{}] warning [{}]",
-                workspace_id,
-                warning_id
-            );
-            return;
-        }
-        Err(e) => {
-            log::error!(
-                "Failed to mark warning [{}] as notified in DB: {:?}",
-                warning_id,
-                e
-            );
-            return;
-        }
-    }
-
-    // Build and send the notification. If any step below fails, we intentionally
-    // do NOT roll back last_notified_at — clearing it would reopen the dedup window
-    // and allow duplicate notifications when the usage cache is rebuilt from
-    // eventually-consistent ClickHouse data. A missed notification from a transient
-    // failure is preferable to duplicate emails.
     let owner_emails =
         match usage_warnings::get_workspace_owner_emails(&db.pool, workspace_id).await {
             Ok(emails) => emails,
             Err(e) => {
                 log::error!(
-                    "CRITICAL: Failed to get owner emails for workspace [{}] after claiming \
-                     notification slot for warning [{}]. Notification will not be sent this \
-                     billing cycle: {:?}",
+                    "Failed to get owner emails for workspace [{}] for warning [{}]: {:?}",
                     workspace_id,
                     warning_id,
                     e
@@ -478,7 +442,7 @@ async fn send_soft_limit_notification(
     if owner_emails.is_empty() {
         log::warn!(
             "No owner emails found for workspace [{}], skipping soft limit notification \
-             for warning [{}]. Notification slot consumed for this billing cycle.",
+             for warning [{}].",
             workspace_id,
             warning_id
         );
@@ -525,8 +489,7 @@ async fn send_soft_limit_notification(
             Ok(v) => v,
             Err(e) => {
                 log::error!(
-                    "CRITICAL: Failed to serialize email payload for warning [{}]. \
-                     Notification will not be sent this billing cycle: {:?}",
+                    "Failed to serialize email payload for warning [{}]: {:?}",
                     warning_id,
                     e
                 );
@@ -534,27 +497,48 @@ async fn send_soft_limit_notification(
             }
         },
         workspace_id,
-        definition_type: "USAGE_WARNING".to_string(),
+        definition_type: NotificationDefinitionType::UsageWarning,
         definition_id: warning_id,
         target_id: Uuid::nil(),
         target_type: "EMAIL".to_string(),
     };
 
-    if let Err(e) = notifications::push_to_notification_queue(notification_message, queue).await {
-        log::error!(
-            "CRITICAL: Failed to push soft limit notification for workspace [{}] warning [{}]. \
-             Notification will not be sent this billing cycle: {:?}",
-            workspace_id,
-            warning_id,
-            e
-        );
-    } else {
-        log::info!(
-            "Pushed soft limit notification for workspace [{}], item={}, limit={}",
-            workspace_id,
-            usage_item,
-            limit_value
-        );
+    match notifications::push_to_notification_queue(notification_message, queue).await {
+        Err(e) => {
+            log::error!(
+                "Failed to push soft limit notification for workspace [{}] warning [{}]: {:?}",
+                workspace_id,
+                warning_id,
+                e
+            );
+        }
+        Ok(()) => {
+            log::info!(
+                "Pushed soft limit notification for workspace [{}], item={}, limit={}",
+                workspace_id,
+                usage_item,
+                limit_value
+            );
+            // Message is now durably queued. Eagerly update DB and evict the warnings
+            // cache so ingestion workers don't re-enqueue for the same billing cycle.
+            if let Err(e) =
+                usage_warnings::mark_warning_as_notified(&db.pool, warning_id).await
+            {
+                log::error!(
+                    "Failed to update last_notified_at for warning [{}]: {:?}",
+                    warning_id,
+                    e
+                );
+            }
+            let cache_key = format!("{WORKSPACE_USAGE_WARNINGS_CACHE_KEY}:{workspace_id}");
+            if let Err(e) = cache.remove(&cache_key).await {
+                log::warn!(
+                    "Failed to evict warnings cache for workspace [{}]: {:?}",
+                    workspace_id,
+                    e
+                );
+            }
+        }
     }
 }
 
@@ -659,40 +643,43 @@ fn render_usage_warning_email(
     )
 }
 
+
 /// Fetch usage warnings for a workspace, using a short-lived cache to avoid
 /// hitting the database on every ingestion batch.
-async fn get_cached_usage_warnings(
+async fn get_usage_warnings(
     db: Arc<DB>,
     cache: Arc<Cache>,
     workspace_id: Uuid,
 ) -> Result<Vec<usage_warnings::UsageWarning>> {
     let cache_key = format!("{WORKSPACE_USAGE_WARNINGS_CACHE_KEY}:{workspace_id}");
 
-    if let Ok(Some(cached)) = cache
+    match cache
         .get::<Vec<usage_warnings::UsageWarning>>(&cache_key)
         .await
     {
-        return Ok(cached);
+        Ok(Some(cached)) => Ok(cached),
+        Ok(None) | Err(_) => {
+            let warnings =
+                usage_warnings::get_usage_warnings_for_workspace(&db.pool, workspace_id).await?;
+
+            if let Err(e) = cache
+                .insert_with_ttl(
+                    &cache_key,
+                    warnings.clone(),
+                    USAGE_WARNINGS_CACHE_TTL_SECONDS,
+                )
+                .await
+            {
+                log::warn!(
+                    "Failed to cache usage warnings for workspace [{}]: {:?}",
+                    workspace_id,
+                    e
+                );
+            }
+
+            Ok(warnings)
+        }
     }
-
-    let warnings = usage_warnings::get_usage_warnings_for_workspace(&db.pool, workspace_id).await?;
-
-    if let Err(e) = cache
-        .insert_with_ttl(
-            &cache_key,
-            warnings.clone(),
-            USAGE_WARNINGS_CACHE_TTL_SECONDS,
-        )
-        .await
-    {
-        log::warn!(
-            "Failed to cache usage warnings for workspace [{}]: {:?}",
-            workspace_id,
-            e
-        );
-    }
-
-    Ok(warnings)
 }
 
 async fn get_workspace_info_for_project_id(

@@ -8,6 +8,7 @@ use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::cache::{Cache, CacheTrait, keys::USAGE_WARNING_SEND_LOCK_KEY};
 use crate::ch::notification_logs::CHNotificationLog;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
@@ -67,6 +68,10 @@ impl From<TargetType> for NotificationType {
 const LAMINAR_LOGO_PNG: &[u8] = include_bytes!("../../data/logo.png");
 const LAMINAR_LOGO_CID: &str = "laminar-logo";
 
+/// How long the per-notification send lock is held. Long enough to cover email
+/// delivery + DB write; short enough to allow retry if the worker crashes.
+const USAGE_WARNING_SEND_LOCK_TTL_SECONDS: u64 = 300; // 5 minutes
+
 /// Payload for email notifications sent through the notification queue
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmailPayload {
@@ -79,6 +84,24 @@ pub struct EmailPayload {
     pub inline_logo: bool,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum NotificationDefinitionType {
+    Alert,
+    Report,
+    UsageWarning,
+}
+
+impl ToString for NotificationDefinitionType {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Alert => "ALERT".to_string(),
+            Self::Report => "REPORT".to_string(),
+            Self::UsageWarning => "USAGE_WARNING".to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NotificationMessage {
     #[serde(rename = "type")]
@@ -89,7 +112,7 @@ pub struct NotificationMessage {
     pub payload: serde_json::Value,
     pub project_id: Uuid,
     pub workspace_id: Uuid,
-    pub definition_type: String,
+    pub definition_type: NotificationDefinitionType,
     pub definition_id: Uuid,
     pub target_id: Uuid,
     pub target_type: String,
@@ -117,7 +140,7 @@ pub async fn push_to_notification_queue(
     log::debug!(
         "Pushed notification message to queue: workspace_id={}, definition_type={}, target_id={}",
         message.workspace_id,
-        message.definition_type,
+        message.definition_type.to_string(),
         message.target_id
     );
 
@@ -127,6 +150,7 @@ pub async fn push_to_notification_queue(
 /// Handler for notifications
 pub struct NotificationHandler {
     pub db: Arc<DB>,
+    pub cache: Arc<Cache>,
     pub slack_client: reqwest::Client,
     pub resend: Option<Arc<Resend>>,
     pub ch_service: Arc<ClickhouseService>,
@@ -135,12 +159,14 @@ pub struct NotificationHandler {
 impl NotificationHandler {
     pub fn new(
         db: Arc<DB>,
+        cache: Arc<Cache>,
         slack_client: reqwest::Client,
         resend: Option<Arc<Resend>>,
         ch_service: Arc<ClickhouseService>,
     ) -> Self {
         Self {
             db,
+            cache,
             slack_client,
             resend,
             ch_service,
@@ -164,7 +190,7 @@ impl MessageHandler for NotificationHandler {
                 id: Uuid::new_v4(),
                 workspace_id: message.workspace_id,
                 project_id: message.project_id,
-                definition_type: message.definition_type,
+                definition_type: message.definition_type.to_string(),
                 definition_id: message.definition_id,
                 target_id: message.target_id,
                 target_type: message.target_type,
@@ -239,6 +265,40 @@ impl NotificationHandler {
     /// Returns `Ok(true)` if the email was actually sent to at least one recipient,
     /// `Ok(false)` if delivery was skipped (e.g. Resend not configured, no recipients).
     async fn handle_email(&self, message: &NotificationMessage) -> Result<bool, HandlerError> {
+        // For usage-warning emails, claim a short-lived lock so that concurrent
+        // notification workers don't all send the same alert. The first worker to
+        // acquire the lock sends; others give up (their queue message is acked).
+        let is_usage_warning = message.definition_type == NotificationDefinitionType::UsageWarning;
+        if is_usage_warning {
+            let lock_key = format!("{USAGE_WARNING_SEND_LOCK_KEY}:{}", message.definition_id);
+            match self
+                .cache
+                .try_acquire_lock(&lock_key, USAGE_WARNING_SEND_LOCK_TTL_SECONDS)
+                .await
+            {
+                Ok(true) => {} // Lock acquired – proceed with send.
+                Ok(false) => {
+                    log::debug!(
+                        "[Notifications] Usage warning send lock held for warning [{}], skipping",
+                        message.definition_id
+                    );
+                    return Ok(false);
+                }
+                Err(e) => {
+                    log::warn!(
+                        "[Notifications] Failed to acquire send lock for warning [{}]: {:?}",
+                        message.definition_id,
+                        e
+                    );
+                    // permanent error, message will be rejected
+                    return Err(HandlerError::Transient(anyhow::anyhow!(
+                        "Cache error when trying to acquire lock for usage warning cache {}",
+                        e
+                    )));
+                }
+            }
+        }
+
         let resend = match &self.resend {
             Some(r) => r.clone(),
             None => {

@@ -1200,6 +1200,7 @@ fn main() -> anyhow::Result<()> {
                     // Spawn notification workers
                     {
                         let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
                         let client = reqwest::Client::new();
                         let resend = resend_client.clone();
                         let ch_service = Arc::new(ClickhouseService::new(
@@ -1215,6 +1216,7 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 NotificationHandler::new(
                                     db.clone(),
+                                    cache.clone(),
                                     client.clone(),
                                     resend.clone(),
                                     ch_service.clone(),
