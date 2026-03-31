@@ -47,7 +47,7 @@ export async function getSessionTimelines(
     }
   }
 
-  const query = `SELECT ${selectColumns.join(", ")} FROM traces WHERE ${conditions.join(" AND ")} ORDER BY start_time ASC LIMIT 1000`;
+  const query = `SELECT ${selectColumns.join(", ")} FROM traces WHERE ${conditions.join(" AND ")} ORDER BY start_time ASC LIMIT 5000`;
 
   const rows = await executeQuery<TraceTimelineRow>({
     query,

@@ -165,6 +165,9 @@ function SessionsTableContent() {
 
   const handleToggleSession = useCallback(
     async (sessionId: string) => {
+      // Ignore toggle while a fetch is in-flight to prevent loading race
+      if (loadingSessions.has(sessionId)) return;
+
       const isExpanded = expandedSessions.has(sessionId);
 
       if (isExpanded) {
@@ -204,6 +207,7 @@ function SessionsTableContent() {
     },
     [
       expandedSessions,
+      loadingSessions,
       pastHours,
       startDate,
       endDate,
@@ -232,7 +236,13 @@ function SessionsTableContent() {
         <div className="flex flex-1 w-full h-full gap-2">
           <DataTableFilter columns={filters} />
           <DateRangeFilter />
-          <RefreshButton onClick={refetch} variant="outline" />
+          <RefreshButton
+            onClick={() => {
+              resetExpandState();
+              refetch();
+            }}
+            variant="outline"
+          />
           <SearchInput placeholder="Search in sessions..." />
         </div>
         <DataTableFilterList />
