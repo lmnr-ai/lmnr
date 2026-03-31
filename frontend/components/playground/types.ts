@@ -161,6 +161,16 @@ export const providers: { provider: Provider; models: LanguageModel[] }[] = [
         name: "claude-sonnet-4-5-20250929",
         label: "Claude 4.5 Sonnet",
       },
+      {
+        id: "anthropic:claude-sonnet-4-6",
+        name: "claude-sonnet-4-6",
+        label: "Claude 4.6 Sonnet",
+      },
+      {
+        id: "anthropic:claude-opus-4-6",
+        name: "claude-opus-4-6",
+        label: "Claude 4.6 Opus",
+      },
     ],
   },
   {
