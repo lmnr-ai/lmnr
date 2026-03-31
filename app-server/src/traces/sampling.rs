@@ -119,7 +119,6 @@ async fn fetch_user_trace_counts(
              FROM traces_replacing FINAL \
              WHERE project_id = ? \
              AND start_time >= toDateTime64(?, 9) AND start_time < toDateTime64(?, 9) \
-             AND user_id != '' \
              GROUP BY user_id",
         )
         .bind(project_id)
@@ -137,7 +136,7 @@ async fn fetch_user_trace_counts(
 /// signal's sample_rate to get the acceptance probability:
 ///   p = min(1.0, sample_rate / 100.0 * base_factor)
 ///
-/// Unknown users (not in the factors map) get a factor of 1.0.
+/// Users not seen yesterday (not in the factors map) get a factor of 1.0.
 /// Empty factors map (no historical data) means allow all traces through.
 pub fn should_sample_trace(
     sample_rate: i16,
@@ -148,11 +147,8 @@ pub fn should_sample_trace(
         return true;
     }
 
-    let base_factor = user_id
-        .as_ref()
-        .and_then(|uid| factors.get(uid))
-        .copied()
-        .unwrap_or(1.0);
+    let key = user_id.as_deref().unwrap_or("");
+    let base_factor = factors.get(key).copied().unwrap_or(1.0);
 
     let p = ((sample_rate as f64 / 100.0) * base_factor).min(1.0);
 
