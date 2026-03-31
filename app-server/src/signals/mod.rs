@@ -76,7 +76,7 @@ impl SignalWorkerConfig {
         let max_allowed_steps = env::var("SIGNAL_JOB_MAX_ALLOWED_STEPS")
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(3);
+            .unwrap_or(5);
 
         let internal_project_id = env::var("SIGNAL_JOB_INTERNAL_PROJECT_ID")
             .ok()
