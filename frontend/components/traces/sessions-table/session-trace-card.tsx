@@ -76,14 +76,14 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
         <div className="bg-[rgba(34,34,38,0.5)] border-l flex-1 h-full min-w-0 overflow-y-auto px-3 py-2 relative">
           {/* TODO: Replace placeholder with actual trace input data */}
           <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-4">{PLACEHOLDER_TEXT}</p>
-          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0 pointer-events-none" />
+          <div className="sticky bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0 pointer-events-none" />
         </div>
 
         {/* Output column */}
         <div className="bg-[rgba(34,34,38,0.5)] border-l flex-1 h-full min-w-0 overflow-y-auto px-3 py-2 relative">
           {/* TODO: Replace placeholder with actual trace output data */}
           <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-4">{PLACEHOLDER_TEXT}</p>
-          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0 pointer-events-none" />
+          <div className="sticky bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0 pointer-events-none" />
         </div>
       </div>
     </div>
