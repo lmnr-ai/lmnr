@@ -21,6 +21,7 @@ export interface ImagePart {
 export interface TextPart {
   type: "text";
   text: string;
+  providerOptions?: Record<string, Record<string, unknown>>;
 }
 
 export interface ToolResultPart {
@@ -69,6 +70,7 @@ export interface ToolCallPart {
   toolCallId: string;
   toolName: string;
   input: unknown;
+  providerOptions?: Record<string, Record<string, unknown>>;
 }
 
 export interface Message {

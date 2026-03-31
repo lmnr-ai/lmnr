@@ -182,8 +182,13 @@ export const convertGeminiToPlaygroundMessages = async (
       // Gemini parts use field-presence discrimination (no "type" key).
       // Unrecognised variants are skipped.
       for (const part of message.parts) {
+        const thoughtSig =
+          "thoughtSignature" in part && part.thoughtSignature
+            ? { google: { thoughtSignature: part.thoughtSignature } }
+            : undefined;
+
         if ("text" in part) {
-          content.push({ type: "text", text: part.text });
+          content.push({ type: "text", text: part.text, ...(thoughtSig && { providerOptions: thoughtSig }) });
         } else if ("inlineData" in part) {
           if (part.inlineData.mimeType.startsWith("image/")) {
             let imageData = part.inlineData.data;
@@ -224,6 +229,7 @@ export const convertGeminiToPlaygroundMessages = async (
             toolCallId: part.functionCall.id ?? part.functionCall.name,
             toolName: part.functionCall.name,
             input: { type: "json", value: JSON.stringify(part.functionCall.args ?? {}) },
+            ...(thoughtSig && { providerOptions: thoughtSig }),
           });
         } else if ("functionResponse" in part) {
           content.push({
