@@ -228,7 +228,7 @@ export const convertGeminiToPlaygroundMessages = async (
             type: "tool-call",
             toolCallId: part.functionCall.id ?? part.functionCall.name,
             toolName: part.functionCall.name,
-            input: { type: "json", value: JSON.stringify(part.functionCall.args ?? {}) },
+            input: part.functionCall.args ?? {},
             ...(thoughtSig && { providerOptions: thoughtSig }),
           });
         } else if ("functionResponse" in part) {
