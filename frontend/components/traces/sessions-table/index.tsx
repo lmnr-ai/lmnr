@@ -66,6 +66,7 @@ function SessionsTableContent() {
     setSessionTraces,
     mergeSessionTimelines,
     resetExpandState,
+    getController,
   } = useSessionsStoreContext((state) => ({
     toggleSessionExpanded: state.toggleSessionExpanded,
     collapseSession: state.collapseSession,
@@ -73,6 +74,7 @@ function SessionsTableContent() {
     setSessionTraces: state.setSessionTraces,
     mergeSessionTimelines: state.mergeSessionTimelines,
     resetExpandState: state.resetExpandState,
+    getController: state.getController,
   }));
 
   // Serialize filter array for stable dependency comparison
@@ -165,17 +167,15 @@ function SessionsTableContent() {
 
   const handleToggleSession = useCallback(
     async (sessionId: string) => {
-      // Ignore toggle while a fetch is in-flight to prevent loading race
-      if (loadingSessions.has(sessionId)) return;
-
       const isExpanded = expandedSessions.has(sessionId);
 
       if (isExpanded) {
-        toggleSessionExpanded(sessionId);
+        collapseSession(sessionId);
         return;
       }
 
       // Expand: fetch traces for this session
+      const controller = getController(sessionId);
       toggleSessionExpanded(sessionId);
       setLoadingSession(sessionId, true);
 
@@ -189,15 +189,21 @@ function SessionsTableContent() {
         if (startDate != null) urlParams.set("startDate", startDate);
         if (endDate != null) urlParams.set("endDate", endDate);
 
-        const res = await fetch(`/api/projects/${projectId}/traces?${urlParams.toString()}`);
+        const res = await fetch(`/api/projects/${projectId}/traces?${urlParams.toString()}`, {
+          signal: controller.signal,
+        });
 
         if (!res.ok) {
           throw new Error(`Failed to fetch traces: ${res.status} ${res.statusText}`);
         }
 
         const traces = (await res.json()) as { items: TraceRow[] };
+
+        if (controller.signal.aborted) return;
+
         setSessionTraces(sessionId, traces.items);
-      } catch {
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
         toast({ title: "Failed to load traces. Please try again.", variant: "destructive" });
         // Collapse on failure
         collapseSession(sessionId);
@@ -207,7 +213,6 @@ function SessionsTableContent() {
     },
     [
       expandedSessions,
-      loadingSessions,
       pastHours,
       startDate,
       endDate,
@@ -217,6 +222,7 @@ function SessionsTableContent() {
       setLoadingSession,
       setSessionTraces,
       collapseSession,
+      getController,
     ]
   );
 

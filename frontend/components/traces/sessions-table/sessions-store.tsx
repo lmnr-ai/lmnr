@@ -19,6 +19,9 @@ export type SessionsActions = {
   setSessionTraces: (sessionId: string, traces: TraceRow[]) => void;
   mergeSessionTimelines: (timelines: Record<string, TraceTimelineItem[]>) => void;
   resetExpandState: () => void;
+  abortSession: (sessionId: string) => void;
+  abortAllSessions: () => void;
+  getController: (sessionId: string) => AbortController;
 };
 
 export type SessionsStore = SessionsState & SessionsActions;
@@ -32,8 +35,10 @@ const DEFAULT_STATE: SessionsState = {
   sessionTimelines: {},
 };
 
-export const createSessionsStore = () =>
-  createStore<SessionsStore>()((set) => ({
+export const createSessionsStore = () => {
+  const sessionControllers = new Map<string, AbortController>();
+
+  return createStore<SessionsStore>()((set) => ({
     ...DEFAULT_STATE,
 
     toggleSessionExpanded: (sessionId) =>
@@ -47,14 +52,17 @@ export const createSessionsStore = () =>
         return { expandedSessions: next };
       }),
 
-    collapseSession: (sessionId) =>
+    collapseSession: (sessionId) => {
+      sessionControllers.get(sessionId)?.abort();
+      sessionControllers.delete(sessionId);
       set((state) => {
         const nextExpanded = new Set(state.expandedSessions);
         nextExpanded.delete(sessionId);
         const nextLoading = new Set(state.loadingSessions);
         nextLoading.delete(sessionId);
         return { expandedSessions: nextExpanded, loadingSessions: nextLoading };
-      }),
+      });
+    },
 
     setLoadingSession: (sessionId, loading) =>
       set((state) => {
@@ -68,25 +76,44 @@ export const createSessionsStore = () =>
       }),
 
     setSessionTraces: (sessionId, traces) =>
-      set((state) => {
-        // Guard against stale responses: only write if the session is still expanded
-        if (!state.expandedSessions.has(sessionId)) return state;
-        return { sessionTraces: { ...state.sessionTraces, [sessionId]: traces } };
-      }),
+      set((state) => ({
+        sessionTraces: { ...state.sessionTraces, [sessionId]: traces },
+      })),
 
     mergeSessionTimelines: (timelines) =>
       set((state) => ({
         sessionTimelines: { ...state.sessionTimelines, ...timelines },
       })),
 
-    resetExpandState: () =>
+    resetExpandState: () => {
+      for (const c of sessionControllers.values()) c.abort();
+      sessionControllers.clear();
       set({
         expandedSessions: new Set(),
         loadingSessions: new Set(),
         sessionTraces: {},
         sessionTimelines: {},
-      }),
+      });
+    },
+
+    abortSession: (sessionId) => {
+      sessionControllers.get(sessionId)?.abort();
+      sessionControllers.delete(sessionId);
+    },
+
+    abortAllSessions: () => {
+      for (const c of sessionControllers.values()) c.abort();
+      sessionControllers.clear();
+    },
+
+    getController: (sessionId) => {
+      sessionControllers.get(sessionId)?.abort();
+      const controller = new AbortController();
+      sessionControllers.set(sessionId, controller);
+      return controller;
+    },
   }));
+};
 
 export const SessionsContext = createContext<SessionsStoreApi | null>(null);
 
