@@ -1,10 +1,13 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { type SessionRow as SessionRowType, type TraceRow, type TraceTimelineItem } from "@/lib/traces/types";
+
+const itemTransition = { type: "spring", stiffness: 300, damping: 30 } as const;
 
 import SessionRowComponent from "./session-row";
 import SessionTableHeader from "./session-table-header";
@@ -36,11 +39,11 @@ function estimateSize(item: VirtualListItem): number {
   if (item.type === "session-row") return 36;
   if (item.type === "trace-section-header") return 52;
   if (item.type === "trace-loading" || item.type === "trace-empty") return 60;
-  // trace-card: 173px card + padding (8px top for first, 24px bottom for last, 8px otherwise)
+  // trace-card: 140px card + padding (8px top for first, 24px bottom for last, 8px otherwise)
   if (item.type === "trace-card") {
     const topPad = item.isFirst ? 8 : 0;
     const bottomPad = item.isLast ? 24 : 8;
-    return 173 + topPad + bottomPad;
+    return 140 + topPad + bottomPad;
   }
   return 36;
 }
@@ -154,28 +157,58 @@ export default function SessionsVirtualList({
             />
           );
         case "trace-section-header":
-          return <TraceSectionHeader />;
+          return (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={itemTransition}
+              style={{ transformOrigin: "top center" }}
+            >
+              <TraceSectionHeader />
+            </motion.div>
+          );
         case "trace-card":
           return (
-            <SessionTraceCard
-              trace={item.trace}
-              isFirst={item.isFirst}
-              isLast={item.isLast}
-              onClick={() => onTraceClick(item.trace)}
-            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={itemTransition}
+              style={{ transformOrigin: "top center" }}
+            >
+              <SessionTraceCard
+                trace={item.trace}
+                isFirst={item.isFirst}
+                isLast={item.isLast}
+                onClick={() => onTraceClick(item.trace)}
+              />
+            </motion.div>
           );
         case "trace-loading":
           return (
-            <div className="flex items-center justify-center h-[60px] pl-6">
-              <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
-              <span className="ml-2 text-xs text-muted-foreground">Loading traces...</span>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={itemTransition}
+              style={{ transformOrigin: "top center" }}
+            >
+              <div className="flex items-center justify-center h-[60px] pl-6">
+                <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
+                <span className="ml-2 text-xs text-muted-foreground">Loading traces...</span>
+              </div>
+            </motion.div>
           );
         case "trace-empty":
           return (
-            <div className="flex items-center justify-center h-[60px] pl-6">
-              <span className="text-xs text-muted-foreground">No traces in this session</span>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={itemTransition}
+              style={{ transformOrigin: "top center" }}
+            >
+              <div className="flex items-center justify-center h-[60px] pl-6">
+                <span className="text-xs text-muted-foreground">No traces in this session</span>
+              </div>
+            </motion.div>
           );
       }
     },

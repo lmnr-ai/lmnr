@@ -46,12 +46,12 @@ export default function TracesTimeline({ traces, sessionStartTime, sessionEndTim
   }
 
   return (
-    <div className="bg-[rgba(34,34,38,0.5)] flex flex-1 gap-px items-center min-w-0 p-0.5 rounded">
+    <div className="bg-muted/50 flex flex-1 gap-px items-center min-w-0 p-0.5 rounded-[2px]">
       {segments.map((seg, i) => (
         <div
           key={i}
           style={{ flex: seg.flex }}
-          className={cn("h-1.5 min-w-0 rounded-sm", {
+          className={cn("h-1.5 min-w-0 rounded-[2px]", {
             "bg-success-bright": seg.type === "trace" && seg.status !== "error",
             "bg-destructive-bright": seg.type === "trace" && seg.status === "error",
           })}

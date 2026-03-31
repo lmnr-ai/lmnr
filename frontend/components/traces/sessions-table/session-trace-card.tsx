@@ -11,7 +11,15 @@ const PLACEHOLDER_TEXT =
   "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore " +
   "et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut " +
   "aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse " +
-  "cillum dolore eu fugiat nulla pariatur.";
+  "cillum dolore eu fugiat nulla pariatur.\n\n" +
+  "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est " +
+  "laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque " +
+  "laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto " +
+  "beatae vitae dicta sunt explicabo.\n\n" +
+  "Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur " +
+  "magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum " +
+  "quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut " +
+  "labore et dolore magnam aliquam quaerat voluptatem.";
 
 interface SessionTraceCardProps {
   trace: TraceRow;
@@ -26,11 +34,14 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
       className={cn("flex w-full pl-6 pr-0 cursor-pointer", {
         "pt-2": isFirst,
         "pt-0": !isFirst,
-        "pb-6": isLast,
+        "pb-6 border-b": isLast,
         "pb-2": !isLast,
       })}
     >
-      <div className="bg-secondary border rounded flex items-start overflow-clip w-full h-[173px]" onClick={onClick}>
+      <div
+        className="bg-secondary border rounded flex items-start overflow-clip w-full h-[140px] hover:border-muted-foreground/50"
+        onClick={onClick}
+      >
         {/* Details column */}
         <div className="flex flex-col h-full justify-between px-4 py-3 shrink-0 w-40">
           <div className="flex flex-col gap-1">
@@ -65,14 +76,14 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
         <div className="bg-[rgba(34,34,38,0.5)] border-l flex-1 h-full min-w-0 overflow-y-auto px-3 py-2 relative">
           {/* TODO: Replace placeholder with actual trace input data */}
           <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-4">{PLACEHOLDER_TEXT}</p>
-          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0 sticky" />
+          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0 pointer-events-none" />
         </div>
 
         {/* Output column */}
         <div className="bg-[rgba(34,34,38,0.5)] border-l flex-1 h-full min-w-0 overflow-y-auto px-3 py-2 relative">
           {/* TODO: Replace placeholder with actual trace output data */}
           <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-4">{PLACEHOLDER_TEXT}</p>
-          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0 sticky" />
+          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0 pointer-events-none" />
         </div>
       </div>
     </div>

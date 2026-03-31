@@ -45,6 +45,7 @@ function SessionsTableContent() {
 
   const { setNavigationRefList } = useTraceViewNavigation();
 
+  // TODO: let's move all this into a new sessions store, really rethink how all this works, follow existing store patterns we use across our other features.
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
   const [loadingSessions, setLoadingSessions] = useState<Set<string>>(new Set());
   const [sessionTraces, setSessionTraces] = useState<Record<string, TraceRow[]>>({});
@@ -59,9 +60,9 @@ function SessionsTableContent() {
     setLoadingSessions(new Set());
     setSessionTraces({});
     setSessionTimelines({});
-     
   }, [endDate, filterKey, pastHours, projectId, startDate, textSearchFilter]);
 
+  // TODO: let's make default time range past three days
   // Initialize with default time range if needed
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {
@@ -124,6 +125,7 @@ function SessionsTableContent() {
     deps: [endDate, filter, pastHours, projectId, startDate, textSearchFilter],
   });
 
+  // TODO: let's combine the sessions query endpoint with the timelines query endpoint. Can we combine them at the API level such that the sessions endpoint also runs the timeline query and returns both in its response?
   // Fetch timelines when sessions change
   useEffect(() => {
     if (!sessions || sessions.length === 0) return;
