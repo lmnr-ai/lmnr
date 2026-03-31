@@ -116,6 +116,7 @@ async fn fetch_user_trace_counts(
              FROM traces_replacing \
              WHERE project_id = ? \
              AND start_time >= toDateTime64(?, 9) AND start_time < toDateTime64(?, 9) \
+             AND user_id != '' \
              GROUP BY user_id",
         )
         .bind(project_id)
