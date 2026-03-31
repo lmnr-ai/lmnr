@@ -161,12 +161,11 @@ pub async fn get_full_spans(
     trace_id: Uuid,
     span_ids: Vec<String>,
 ) -> Result<Vec<SpanInfo>> {
-    log::info!(
+    log::debug!(
         "Fetching full info for {} spans from trace {}",
         span_ids.len(),
         trace_id
     );
-    log::debug!("Fetching full info for spans: {:?}", span_ids);
 
     // Validate and collect hex suffixes for the SQL IN clause
     let hex_literals: Vec<String> = span_ids

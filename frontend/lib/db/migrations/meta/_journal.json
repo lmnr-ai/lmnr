@@ -547,6 +547,13 @@
       "when": 1774623258552,
       "tag": "0077_ordinary_christian_walker",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1774950776846,
+      "tag": "0078_open_katie_power",
+      "breakpoints": true
     }
   ]
 }

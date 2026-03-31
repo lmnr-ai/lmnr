@@ -394,6 +394,7 @@ mod tests {
                 name: "test_signal".to_string(),
                 prompt: "test prompt".to_string(),
                 structured_output_schema: serde_json::json!({}),
+                sample_rate: None,
             },
             run_id: Uuid::new_v4(),
             internal_trace_id: Uuid::new_v4(),
