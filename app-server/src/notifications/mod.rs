@@ -290,7 +290,7 @@ impl NotificationHandler {
                         message.definition_id,
                         e
                     );
-                    // permanent error, message will be rejected
+                    // transient error, reject requeue
                     return Err(HandlerError::Transient(anyhow::anyhow!(
                         "Cache error when trying to acquire lock for usage warning cache {}",
                         e
