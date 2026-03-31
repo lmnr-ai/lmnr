@@ -50,6 +50,18 @@ function SessionsTableContent() {
   const [sessionTraces, setSessionTraces] = useState<Record<string, TraceRow[]>>({});
   const [sessionTimelines, setSessionTimelines] = useState<Record<string, TraceTimelineItem[]>>({});
 
+  // Serialize filter array for stable dependency comparison
+  const filterKey = JSON.stringify(filter);
+
+  // Reset expanded/trace/timeline state when query params change
+  useEffect(() => {
+    setExpandedSessions(new Set());
+    setLoadingSessions(new Set());
+    setSessionTraces({});
+    setSessionTimelines({});
+     
+  }, [endDate, filterKey, pastHours, projectId, startDate, textSearchFilter]);
+
   // Initialize with default time range if needed
   useEffect(() => {
     if (!pastHours && !startDate && !endDate) {

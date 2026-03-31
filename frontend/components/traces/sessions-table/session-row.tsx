@@ -11,14 +11,13 @@ interface SessionRowProps {
   timeline?: TraceTimelineItem[];
   isExpanded: boolean;
   onToggle: () => void;
-  onClick?: () => void;
 }
 
-export default function SessionRow({ session, timeline, isExpanded, onToggle, onClick }: SessionRowProps) {
+export default function SessionRow({ session, timeline, isExpanded, onToggle }: SessionRowProps) {
   return (
     <div
       className="bg-secondary border-b flex h-9 items-center w-full cursor-pointer hover:bg-secondary/80"
-      onClick={onClick}
+      onClick={onToggle}
     >
       {/* Chevron */}
       <button

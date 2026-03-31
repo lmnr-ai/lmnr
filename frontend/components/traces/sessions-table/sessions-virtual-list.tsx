@@ -94,10 +94,30 @@ export default function SessionsVirtualList({
     return items;
   }, [sessions, expandedSessions, loadingSessions, sessionTraces, sessionTimelines]);
 
+  const getItemKey = useCallback(
+    (index: number) => {
+      const item = flatList[index];
+      switch (item.type) {
+        case "session-row":
+          return `session-${item.session.sessionId}`;
+        case "trace-section-header":
+          return `header-${item.sessionId}`;
+        case "trace-card":
+          return `card-${item.trace.id}`;
+        case "trace-loading":
+          return `loading-${item.sessionId}`;
+        case "trace-empty":
+          return `empty-${item.sessionId}`;
+      }
+    },
+    [flatList]
+  );
+
   const virtualizer = useVirtualizer({
     count: flatList.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: (index) => estimateSize(flatList[index]),
+    getItemKey,
     overscan: 20,
   });
 
