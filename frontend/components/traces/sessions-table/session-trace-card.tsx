@@ -62,17 +62,17 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
         </div>
 
         {/* Input column */}
-        <div className="bg-[rgba(34,34,38,0.5)] border-l flex-1 h-full min-w-0 overflow-clip px-3 py-2 relative">
+        <div className="bg-[rgba(34,34,38,0.5)] border-l flex-1 h-full min-w-0 overflow-y-auto px-3 py-2 relative">
           {/* TODO: Replace placeholder with actual trace input data */}
           <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-4">{PLACEHOLDER_TEXT}</p>
-          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0" />
+          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0 sticky" />
         </div>
 
         {/* Output column */}
-        <div className="bg-[rgba(34,34,38,0.5)] border-l flex-1 h-full min-w-0 overflow-clip px-3 py-2 relative">
+        <div className="bg-[rgba(34,34,38,0.5)] border-l flex-1 h-full min-w-0 overflow-y-auto px-3 py-2 relative">
           {/* TODO: Replace placeholder with actual trace output data */}
           <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-4">{PLACEHOLDER_TEXT}</p>
-          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0" />
+          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-[rgba(34,34,38,0.85)] h-12 left-0 right-0 sticky" />
         </div>
       </div>
     </div>

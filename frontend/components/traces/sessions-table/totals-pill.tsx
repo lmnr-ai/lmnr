@@ -4,12 +4,11 @@ const compactNumberFormat = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
 
-function formatDuration(durationMs: number): string {
-  const seconds = durationMs / 1000;
-  if (seconds < 0.01) return "0s";
-  if (seconds < 100) return `${seconds.toFixed(2)}s`;
-  if (seconds < 1000) return `${seconds.toFixed(1)}s`;
-  return `${Math.round(seconds)}s`;
+function formatDuration(durationSec: number): string {
+  if (durationSec < 0.01) return "0s";
+  if (durationSec < 100) return `${durationSec.toFixed(2)}s`;
+  if (durationSec < 1000) return `${durationSec.toFixed(1)}s`;
+  return `${Math.round(durationSec)}s`;
 }
 
 interface TotalsPillProps {
