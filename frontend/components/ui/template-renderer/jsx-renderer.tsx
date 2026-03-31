@@ -102,9 +102,9 @@ const createIframeContent = (templateCode: string): string => {
         return result.code;
       }
       
-      renderWithData(data) {
-        const { preact, preactHooks, twindObserve, tw } = this.deps;
-        const { render, h, Fragment } = preact;
+      buildTemplateFn() {
+        const { preact, preactHooks } = this.deps;
+        const { h, Fragment } = preact;
         const { useState, useEffect, useMemo, useRef, useCallback, useContext } = preactHooks;
         
         const templateFunction = new Function(
@@ -116,7 +116,14 @@ const createIframeContent = (templateCode: string): string => {
           throw new Error('Template must be a function');
         }
         
-        const element = h(templateFunction, { data });
+        return templateFunction;
+      }
+
+      renderWithData(data) {
+        const { preact, twindObserve, tw } = this.deps;
+        const { render, h } = preact;
+        
+        const element = h(this.templateFn, { data });
         if (!element) {
           throw new Error('Template function must return a valid element');
         }
@@ -129,6 +136,7 @@ const createIframeContent = (templateCode: string): string => {
         try {
           this.deps = await this.loadDependencies();
           this.compiledCode = this.compileTemplate(this.deps.babel);
+          this.templateFn = this.buildTemplateFn();
           this.ready = true;
 
           window.addEventListener('message', (event) => {
