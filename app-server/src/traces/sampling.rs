@@ -27,7 +27,10 @@ pub async fn get_sampling_factors_cached(
     let yesterday = (Utc::now().date_naive() - chrono::Duration::days(1))
         .format("%Y-%m-%d")
         .to_string();
-    let cache_key = format!("{}:{}:{}", SAMPLING_FACTORS_CACHE_KEY, project_id, yesterday);
+    let cache_key = format!(
+        "{}:{}:{}",
+        SAMPLING_FACTORS_CACHE_KEY, project_id, yesterday
+    );
 
     match cache.get::<UserSamplingFactors>(&cache_key).await {
         Ok(Some(factors)) => return Ok(factors),
@@ -113,7 +116,7 @@ async fn fetch_user_trace_counts(
     let rows = clickhouse
         .query(
             "SELECT user_id, count(1) as cnt \
-             FROM traces_replacing \
+             FROM traces_replacing FINAL \
              WHERE project_id = ? \
              AND start_time >= toDateTime64(?, 9) AND start_time < toDateTime64(?, 9) \
              AND user_id != '' \

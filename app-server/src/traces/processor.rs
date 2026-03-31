@@ -288,11 +288,12 @@ async fn check_and_push_signals(
             Ok(factors) => Some(factors),
             Err(e) => {
                 log::error!(
-                    "Failed to get sampling factors for project {}: {:?}",
+                    "Failed to get sampling factors for project {}: {:?}. \
+                     Skipping all signal triggers to avoid over-billing.",
                     project_id,
                     e
                 );
-                None
+                return;
             }
         }
     } else {
@@ -321,7 +322,6 @@ async fn check_and_push_signals(
                         );
                     }
                 }
-                // If sampling_factors failed to load, allow trace through (fail-open)
             }
 
             // Filters matched - try to acquire lock to prevent duplicate triggers
