@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import SearchInput from "@/components/common/search-input";
@@ -80,8 +80,12 @@ function SessionsTableContent() {
   // Serialize filter array for stable dependency comparison
   const filterKey = JSON.stringify(filter);
 
+  // Version counter to discard stale fetch responses after param changes
+  const fetchVersionRef = useRef(0);
+
   // Reset expanded/trace/timeline state when query params change
   useEffect(() => {
+    fetchVersionRef.current += 1;
     resetExpandState();
   }, [endDate, filterKey, pastHours, projectId, startDate, textSearchFilter, resetExpandState]);
 
@@ -98,6 +102,7 @@ function SessionsTableContent() {
 
   const fetchSessions = useCallback(
     async (pageNumber: number) => {
+      const version = fetchVersionRef.current;
       try {
         const urlParams = new URLSearchParams();
         urlParams.set("pageNumber", pageNumber.toString());
@@ -122,7 +127,10 @@ function SessionsTableContent() {
         }
 
         const data = (await res.json()) as { items: SessionRow[]; timelines: Record<string, TraceTimelineItem[]> };
-        mergeSessionTimelines(data.timelines);
+        // Only merge timelines if params haven't changed since this fetch started
+        if (fetchVersionRef.current === version) {
+          mergeSessionTimelines(data.timelines);
+        }
         return { items: data.items, count: 0 };
       } catch (error) {
         toast({
@@ -244,6 +252,7 @@ function SessionsTableContent() {
           <DateRangeFilter />
           <RefreshButton
             onClick={() => {
+              fetchVersionRef.current += 1;
               resetExpandState();
               refetch();
             }}

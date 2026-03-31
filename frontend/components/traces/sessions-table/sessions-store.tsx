@@ -19,8 +19,6 @@ export type SessionsActions = {
   setSessionTraces: (sessionId: string, traces: TraceRow[]) => void;
   mergeSessionTimelines: (timelines: Record<string, TraceTimelineItem[]>) => void;
   resetExpandState: () => void;
-  abortSession: (sessionId: string) => void;
-  abortAllSessions: () => void;
   getController: (sessionId: string) => AbortController;
 };
 
@@ -94,16 +92,6 @@ export const createSessionsStore = () => {
         sessionTraces: {},
         sessionTimelines: {},
       });
-    },
-
-    abortSession: (sessionId) => {
-      sessionControllers.get(sessionId)?.abort();
-      sessionControllers.delete(sessionId);
-    },
-
-    abortAllSessions: () => {
-      for (const c of sessionControllers.values()) c.abort();
-      sessionControllers.clear();
     },
 
     getController: (sessionId) => {
