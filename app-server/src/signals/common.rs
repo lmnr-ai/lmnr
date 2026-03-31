@@ -199,10 +199,10 @@ pub async fn process_run(
             tools: Some(tools),
             generation_config: Some(ProviderGenerationConfig {
                 temperature: Some(0.85),
-                // thinking_config: Some(ProviderThinkingConfig {
-                //     include_thoughts: Some(true),
-                //     thinking_level: Some(ProviderThinkingLevel::Medium),
-                // }),
+                thinking_config: Some(ProviderThinkingConfig {
+                    include_thoughts: Some(true),
+                    thinking_level: Some(ProviderThinkingLevel::Medium),
+                }),
                 ..Default::default()
             }),
         },
