@@ -17,7 +17,11 @@ use crate::{
         complete_months_elapsed, get_workspace_bytes_ingested_by_project_ids,
         get_workspace_signal_runs_by_project_ids,
     },
-    db::{self, DB, projects::ProjectWithWorkspaceBillingInfo, usage_warnings},
+    db::{
+        self, DB,
+        projects::ProjectWithWorkspaceBillingInfo,
+        usage_warnings::{self, UsageItem},
+    },
     mq::MessageQueue,
     notifications::{self, EmailPayload, NotificationMessage, NotificationType},
     reports::email_template::html_escape,
@@ -37,7 +41,7 @@ const USAGE_WARNING_FROM_EMAIL: &str = "Laminar <usage@mail.lmnr.ai>";
 /// - For free tier: always uses the tier limit (custom limits are not allowed).
 /// - For paid tiers: uses custom limit when set, else no limit is enforced.
 fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
-    if project_info.tier_name.trim().to_lowercase() == "free" {
+    if project_info.tier_name.is_free() {
         return Some(project_info.bytes_limit);
     }
     project_info.custom_bytes_limit
@@ -45,7 +49,7 @@ fn get_effective_bytes_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> 
 
 /// Returns the effective signal runs hard limit for a workspace, or None if no limit should be enforced.
 fn get_effective_signal_runs_limit(project_info: &ProjectWithWorkspaceBillingInfo) -> Option<i64> {
-    if project_info.tier_name.trim().to_lowercase() == "free" {
+    if project_info.tier_name.is_free() {
         return Some(project_info.signal_runs_limit);
     }
     project_info.custom_signal_runs_limit
@@ -264,7 +268,7 @@ pub async fn update_workspace_bytes_ingested(
             queue,
             workspace_id,
             project_info.reset_time,
-            "bytes",
+            UsageItem::Bytes,
             new_bytes,
             previous_bytes,
         )
@@ -354,7 +358,7 @@ pub async fn update_workspace_signal_runs_used(
             queue,
             workspace_id,
             project_info.reset_time,
-            "signal_runs",
+            UsageItem::SignalRuns,
             new_runs,
             previous_runs,
         )
@@ -371,7 +375,7 @@ async fn check_soft_limits(
     queue: Arc<MessageQueue>,
     workspace_id: Uuid,
     reset_time: DateTime<Utc>,
-    usage_item: &str,
+    usage_item: UsageItem,
     new_value: i64,
     previous_value: i64,
 ) {
@@ -407,7 +411,7 @@ async fn check_soft_limits(
                 queue.clone(),
                 workspace_id,
                 warning.id,
-                usage_item,
+                &usage_item,
                 limit,
                 billing_start,
             )
@@ -424,7 +428,7 @@ async fn send_soft_limit_notification(
     queue: Arc<MessageQueue>,
     workspace_id: Uuid,
     warning_id: Uuid,
-    usage_item: &str,
+    usage_item: &UsageItem,
     limit_value: i64,
     billing_start: DateTime<Utc>,
 ) {
@@ -554,9 +558,9 @@ async fn send_soft_limit_notification(
     }
 }
 
-fn format_usage_item(usage_item: &str, limit_value: i64) -> (String, String) {
+fn format_usage_item(usage_item: &UsageItem, limit_value: i64) -> (String, String) {
     match usage_item {
-        "bytes" => {
+        UsageItem::Bytes => {
             let gb = limit_value as f64 / (1024.0 * 1024.0 * 1024.0);
             let formatted = if gb >= 1.0 {
                 format!("{:.2} GB", gb)
@@ -565,11 +569,10 @@ fn format_usage_item(usage_item: &str, limit_value: i64) -> (String, String) {
             };
             ("Data ingestion".to_string(), formatted)
         }
-        "signal_runs" => {
+        UsageItem::SignalRuns => {
             let formatted = format_number_with_commas(limit_value);
             ("Signal runs".to_string(), formatted)
         }
-        _ => (usage_item.to_string(), limit_value.to_string()),
     }
 }
 
@@ -598,14 +601,13 @@ fn format_number_with_commas(n: i64) -> String {
 fn render_usage_warning_email(
     workspace_name: &str,
     workspace_id: Uuid,
-    usage_item: &str,
+    usage_item: &UsageItem,
     formatted_limit: &str,
     usage_label: &str,
 ) -> String {
     let meter_description = match usage_item {
-        "bytes" => "data ingested",
-        "signal_runs" => "signal runs used",
-        _ => "usage",
+        UsageItem::Bytes => "data ingested",
+        UsageItem::SignalRuns => "signal runs used",
     };
 
     format!(

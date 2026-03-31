@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, FromRow, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct ProjectWithWorkspaceBillingInfo {
+pub struct ProjectWithWorkspaceBillingInfoDbRow {
     pub id: Uuid,
     pub name: String,
     pub workspace_id: Uuid,
@@ -23,6 +23,69 @@ pub struct ProjectWithWorkspaceBillingInfo {
     pub custom_signal_runs_limit: Option<i64>,
 }
 
+#[derive(Deserialize, Serialize, Default, PartialEq, Eq, Clone)]
+pub enum WorkspaceTierName {
+    Free,
+    Pro,
+    Hobby,
+    #[default]
+    Other,
+}
+
+impl WorkspaceTierName {
+    fn from_str(s: &str) -> Self {
+        match s.trim().to_lowercase().as_str() {
+            "free" => Self::Free,
+            "hobby" => Self::Hobby,
+            "pro" => Self::Pro,
+            x => {
+                log::warn!("Unknown workspace tier name: {}", x);
+                Self::Other
+            }
+        }
+    }
+
+    pub fn is_free(&self) -> bool {
+        *self == WorkspaceTierName::Free
+    }
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectWithWorkspaceBillingInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub workspace_id: Uuid,
+    pub tier_name: WorkspaceTierName,
+    pub reset_time: DateTime<Utc>,
+    pub workspace_project_ids: Vec<Uuid>,
+    pub bytes_limit: i64,
+    pub signal_runs_limit: i64,
+    /// Custom hard limit for bytes, configured by the user. Overrides tier limit when set.
+    #[serde(default)]
+    pub custom_bytes_limit: Option<i64>,
+    /// Custom hard limit for signal runs, configured by the user. Overrides tier limit when set.
+    #[serde(default)]
+    pub custom_signal_runs_limit: Option<i64>,
+}
+
+impl Into<ProjectWithWorkspaceBillingInfo> for ProjectWithWorkspaceBillingInfoDbRow {
+    fn into(self) -> ProjectWithWorkspaceBillingInfo {
+        ProjectWithWorkspaceBillingInfo {
+            id: self.id,
+            name: self.name,
+            workspace_id: self.workspace_id,
+            tier_name: WorkspaceTierName::from_str(&self.tier_name),
+            reset_time: self.reset_time,
+            workspace_project_ids: self.workspace_project_ids,
+            bytes_limit: self.bytes_limit,
+            signal_runs_limit: self.signal_runs_limit,
+            custom_bytes_limit: self.custom_bytes_limit,
+            custom_signal_runs_limit: self.custom_signal_runs_limit,
+        }
+    }
+}
+
 #[derive(FromRow, Debug, Clone)]
 pub struct ProjectInfo {
     pub id: Uuid,
@@ -33,12 +96,11 @@ pub async fn get_projects_for_workspace(
     pool: &PgPool,
     workspace_id: &Uuid,
 ) -> anyhow::Result<Vec<ProjectInfo>> {
-    let projects = sqlx::query_as::<_, ProjectInfo>(
-        "SELECT id, name FROM projects WHERE workspace_id = $1",
-    )
-    .bind(workspace_id)
-    .fetch_all(pool)
-    .await?;
+    let projects =
+        sqlx::query_as::<_, ProjectInfo>("SELECT id, name FROM projects WHERE workspace_id = $1")
+            .bind(workspace_id)
+            .fetch_all(pool)
+            .await?;
 
     Ok(projects)
 }
@@ -47,7 +109,7 @@ pub async fn get_project_and_workspace_billing_info(
     pool: &PgPool,
     project_id: &Uuid,
 ) -> Result<ProjectWithWorkspaceBillingInfo> {
-    let result = sqlx::query_as::<_, ProjectWithWorkspaceBillingInfo>(
+    let result = sqlx::query_as::<_, ProjectWithWorkspaceBillingInfoDbRow>(
         "
         WITH workspace_project_ids AS (
             SELECT array_agg(id) as project_ids,
@@ -82,5 +144,5 @@ pub async fn get_project_and_workspace_billing_info(
     .fetch_one(pool)
     .await?;
 
-    Ok(result)
+    Ok(result.into())
 }
