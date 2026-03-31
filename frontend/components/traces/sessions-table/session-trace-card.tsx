@@ -17,19 +17,20 @@ interface SessionTraceCardProps {
   trace: TraceRow;
   isFirst: boolean;
   isLast: boolean;
+  onClick?: () => void;
 }
 
-export default function SessionTraceCard({ trace, isFirst, isLast }: SessionTraceCardProps) {
+export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: SessionTraceCardProps) {
   return (
     <div
-      className={cn("flex w-full pl-6 pr-0", {
+      className={cn("flex w-full pl-6 pr-0 cursor-pointer", {
         "pt-2": isFirst,
         "pt-0": !isFirst,
         "pb-6": isLast,
         "pb-2": !isLast,
       })}
     >
-      <div className="bg-secondary border rounded flex items-start overflow-clip w-full h-[173px]">
+      <div className="bg-secondary border rounded flex items-start overflow-clip w-full h-[173px]" onClick={onClick}>
         {/* Details column */}
         <div className="flex flex-col h-full justify-between px-4 py-3 shrink-0 w-40">
           <div className="flex flex-col gap-1">
