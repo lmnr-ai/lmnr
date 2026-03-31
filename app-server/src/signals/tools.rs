@@ -1,13 +1,13 @@
 use anyhow::Result;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
 use crate::ch::spans::CHSpan;
 
+use super::search::fuzzy_search;
 use super::spans::{extract_exception_from_events, get_span_type, span_short_id};
-use super::utils::{nanoseconds_to_iso, strip_noise, try_parse_json};
+use super::utils::{clean_whitespace, nanoseconds_to_iso, strip_noise, try_parse_json};
 use crate::signals::prompts::{
     GET_FULL_SPAN_INFO_DESCRIPTION, SEARCH_IN_SPANS_DESCRIPTION, SUBMIT_IDENTIFICATION_DESCRIPTION,
 };
@@ -23,12 +23,12 @@ pub struct SpanInfo {
     pub start: String,
     pub end: String,
     pub status: String,
-    pub input: Value,
-    pub output: Value,
+    pub input: String,
+    pub output: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub exception: Option<Value>,
+    pub exception: Option<String>,
 }
 
 pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
@@ -52,33 +52,29 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
                 "properties": {
                     "searches": {
                         "type": "array",
-                        "description": "REQUIRED. List of search operations to perform.",
+                        "description": "REQUIRED. List of search operations to perform. Include ALL searches you need in this single call — do not plan to call this tool multiple times sequentially.",
                         "items": {
                             "type": "object",
                             "properties": {
+                                "reasoning": {
+                                    "type": "string",
+                                    "description": "Explanation of why this search is needed."
+                                },
                                 "span_id": {
                                     "type": "string",
-                                    "description": "The span ID (6-character hex string, e.g. 'a1b2c3') to search within."
+                                    "description": "REQUIRED. The span ID (6-character hex string, e.g. 'a1b2c3') to search within."
                                 },
                                 "literal": {
                                     "type": "string",
-                                    "description": "REQUIRED. Plain text substring to search for. This is tried first and handles most searches. No escaping needed — just the exact text you want to find."
-                                },
-                                "regex": {
-                                    "type": "string",
-                                    "description": "Optional regex pattern used as fallback if the literal search finds nothing. Only provide this when you need pattern matching (e.g. wildcards, alternation). Write the regex as you would in a regex tester — JSON escaping is handled automatically."
+                                    "description": "REQUIRED. Plain text to search for. Fuzzy matching is applied automatically (case-insensitive, whitespace-normalized, word proximity) — just provide the text you're looking for."
                                 },
                                 "search_in": {
                                     "type": "string",
                                     "enum": ["input", "output"],
                                     "description": "Which field of the span to search within."
-                                },
-                                "reasoning": {
-                                    "type": "string",
-                                    "description": "Explanation of why this search is needed."
                                 }
                             },
-                            "required": ["span_id", "literal", "search_in", "reasoning"]
+                            "required": ["reasoning", "span_id", "literal", "search_in"]
                         }
                     }
                 },
@@ -93,7 +89,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
                 "properties": {
                     "reasoning": {
                         "type": "string",
-                        "description": "REQUIRED. Explain why search_in_spans is insufficient and why these spans need full details."
+                        "description": "REQUIRED. Explain why search_in_spans is insufficient and why do you need full span details."
                     },
                     "span_ids": {
                         "type": "array",
@@ -132,6 +128,13 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
 
     ProviderTool {
         function_declarations,
+    }
+}
+
+fn stringify_value(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        _ => serde_json::to_string(value).unwrap_or_default(),
     }
 }
 
@@ -201,14 +204,15 @@ pub async fn get_full_spans(
                 None
             };
 
-            let exception = extract_exception_from_events(&ch_span.events);
+            let exception = extract_exception_from_events(&ch_span.events)
+                .map(|v| clean_whitespace(&stringify_value(&v)));
 
             let is_llm = ch_span.span_type == 1;
-            let input = try_parse_json(&strip_noise(&ch_span.input));
-            let input = if is_llm {
-                truncate_messages(input, 2)
+            let input_value = try_parse_json(&strip_noise(&ch_span.input));
+            let input_value = if is_llm {
+                truncate_messages(input_value, 2)
             } else {
-                input
+                input_value
             };
 
             SpanInfo {
@@ -218,8 +222,10 @@ pub async fn get_full_spans(
                 start: nanoseconds_to_iso(ch_span.start_time),
                 end: nanoseconds_to_iso(ch_span.end_time),
                 status: ch_span.status.clone(),
-                input,
-                output: try_parse_json(&strip_noise(&ch_span.output)),
+                input: clean_whitespace(&stringify_value(&input_value)),
+                output: clean_whitespace(&stringify_value(
+                    &try_parse_json(&strip_noise(&ch_span.output)),
+                )),
                 parent,
                 exception,
             }
@@ -229,15 +235,10 @@ pub async fn get_full_spans(
     Ok(result_spans)
 }
 
-const CONTEXT_PADDING: usize = 100;
-const MAX_MATCHES_PER_SEARCH: usize = 10;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpanSearchRequest {
     pub span_id: String,
     pub literal: String,
-    #[serde(default)]
-    pub regex: Option<String>,
     pub search_in: String,
     pub reasoning: String,
 }
@@ -245,16 +246,9 @@ pub struct SpanSearchRequest {
 #[derive(Debug, Clone, Serialize)]
 pub struct SpanSearchResult {
     pub span_id: String,
-    pub matches: Vec<SearchMatch>,
-    pub matched_by: String,
+    pub matches: Vec<super::search::SearchMatch>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct SearchMatch {
-    pub snippet: String,
-    pub offset: usize,
 }
 
 pub async fn search_in_spans(
@@ -289,7 +283,6 @@ pub async fn search_in_spans(
             .map(|s| SpanSearchResult {
                 span_id: s.span_id.clone(),
                 matches: vec![],
-                matched_by: String::new(),
                 error: Some("Invalid span_id format".to_string()),
             })
             .collect());
@@ -320,7 +313,6 @@ pub async fn search_in_spans(
                 return SpanSearchResult {
                     span_id: search.span_id.clone(),
                     matches: vec![],
-                    matched_by: String::new(),
                     error: Some("Span not found".to_string()),
                 };
             };
@@ -329,202 +321,24 @@ pub async fn search_in_spans(
                 "input" => &ch_span.input,
                 _ => &ch_span.output,
             };
-            let content = strip_noise(raw);
+            let content = clean_whitespace(&strip_noise(raw));
 
-            let literal_matches = find_literal_matches(&content, &search.literal);
-            if !literal_matches.is_empty() {
-                return SpanSearchResult {
+            let matches = fuzzy_search(&content, &search.literal);
+            if !matches.is_empty() {
+                SpanSearchResult {
                     span_id: search.span_id.clone(),
-                    matches: literal_matches,
-                    matched_by: "literal".to_string(),
+                    matches,
                     error: None,
-                };
-            }
-
-            if let Some(pattern) = &search.regex {
-                match find_regex_matches(&content, pattern) {
-                    Ok(matches) if !matches.is_empty() => {
-                        return SpanSearchResult {
-                            span_id: search.span_id.clone(),
-                            matches,
-                            matched_by: "regex".to_string(),
-                            error: None,
-                        };
-                    }
-                    Err(e) => {
-                        return SpanSearchResult {
-                            span_id: search.span_id.clone(),
-                            matches: vec![],
-                            matched_by: String::new(),
-                            error: Some(format!("Literal: no matches. Regex error: {}", e)),
-                        };
-                    }
-                    _ => {}
                 }
-            }
-
-            SpanSearchResult {
-                span_id: search.span_id.clone(),
-                matches: vec![],
-                matched_by: String::new(),
-                error: Some("No matches found".to_string()),
+            } else {
+                SpanSearchResult {
+                    span_id: search.span_id.clone(),
+                    matches: vec![],
+                    error: Some("No matches found".to_string()),
+                }
             }
         })
         .collect();
 
     Ok(results)
-}
-
-fn find_literal_matches(content: &str, literal: &str) -> Vec<SearchMatch> {
-    if literal.is_empty() {
-        return vec![];
-    }
-    content
-        .match_indices(literal)
-        .take(MAX_MATCHES_PER_SEARCH)
-        .map(|(offset, _)| {
-            let start = offset.saturating_sub(CONTEXT_PADDING);
-            let end = (offset + literal.len() + CONTEXT_PADDING).min(content.len());
-            let start = content.floor_char_boundary(start);
-            let end = content.ceil_char_boundary(end);
-            SearchMatch {
-                snippet: content[start..end].to_string(),
-                offset,
-            }
-        })
-        .collect()
-}
-
-fn find_regex_matches(
-    content: &str,
-    pattern: &str,
-) -> std::result::Result<Vec<SearchMatch>, String> {
-    let re = Regex::new(pattern).map_err(|e| format!("Invalid regex: {}", e))?;
-
-    let matches = re
-        .find_iter(content)
-        .take(MAX_MATCHES_PER_SEARCH)
-        .map(|m| {
-            let start = m.start().saturating_sub(CONTEXT_PADDING);
-            let end = (m.end() + CONTEXT_PADDING).min(content.len());
-            let start = content.floor_char_boundary(start);
-            let end = content.ceil_char_boundary(end);
-            SearchMatch {
-                snippet: content[start..end].to_string(),
-                offset: m.start(),
-            }
-        })
-        .collect();
-
-    Ok(matches)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_regex_match_with_newlines_in_json_raw() {
-        let raw = r#"{"is_done":false,"success":null,"judgement":null,"error":null,"attachments":null,"images":null,"long_term_memory":null,"extracted_content":"Clicked a \"F2\nNew York, NY, USA\nThe AI pl...\"","include_extracted_content_only_once":false,"metadata":{"click_x":1112.5,"click_y":599.3828125},"include_in_memory":false}"#;
-        let pattern = r"F2.*?\\n.*?\\n.*?AI pl\.\.\.";
-
-        let matches = find_regex_matches(raw, pattern).unwrap();
-        assert!(!matches.is_empty(), "Expected at least one match");
-    }
-
-    #[test]
-    fn test_regex_simple_match() {
-        let content = "hello world foo bar";
-        let pattern = r"world.*bar";
-        let matches = find_regex_matches(content, pattern).unwrap();
-        assert_eq!(matches.len(), 1);
-    }
-
-    #[test]
-    fn test_regex_no_match() {
-        let content = "hello world";
-        let pattern = r"xyz";
-        let matches = find_regex_matches(content, pattern).unwrap();
-        assert!(matches.is_empty());
-    }
-
-    #[test]
-    fn test_regex_invalid_pattern() {
-        let content = "hello";
-        let pattern = r"[invalid";
-        let result = find_regex_matches(content, pattern);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_regex_context_padding() {
-        let content = "aaaaaaaaaa_PREFIX_match_here_SUFFIX_bbbbbbbbbb";
-        let pattern = r"match_here";
-        let matches = find_regex_matches(content, pattern).unwrap();
-        assert_eq!(matches.len(), 1);
-        assert!(matches[0].snippet.contains("PREFIX"));
-        assert!(matches[0].snippet.contains("SUFFIX"));
-    }
-
-    #[test]
-    fn test_regex_max_matches_cap() {
-        let content = "ab ".repeat(MAX_MATCHES_PER_SEARCH + 10);
-        let pattern = r"ab";
-        let matches = find_regex_matches(content.trim(), pattern).unwrap();
-        assert_eq!(matches.len(), MAX_MATCHES_PER_SEARCH);
-    }
-
-    #[test]
-    fn test_regex_multibyte_utf8_boundary() {
-        let content = "价格是 hello 世界";
-        let pattern = r"hello";
-        let matches = find_regex_matches(content, pattern).unwrap();
-        assert_eq!(matches.len(), 1);
-    }
-
-    #[test]
-    fn test_literal_simple_match() {
-        let content = "hello world foo bar";
-        let matches = find_literal_matches(content, "world");
-        assert_eq!(matches.len(), 1);
-        assert!(matches[0].snippet.contains("world"));
-    }
-
-    #[test]
-    fn test_literal_no_match() {
-        let content = "hello world";
-        let matches = find_literal_matches(content, "xyz");
-        assert!(matches.is_empty());
-    }
-
-    #[test]
-    fn test_literal_multiple_matches() {
-        let content = "foo bar foo baz foo";
-        let matches = find_literal_matches(content, "foo");
-        assert_eq!(matches.len(), 3);
-    }
-
-    #[test]
-    fn test_literal_empty_pattern() {
-        let content = "hello world";
-        let matches = find_literal_matches(content, "");
-        assert!(matches.is_empty());
-    }
-
-    #[test]
-    fn test_literal_with_brackets() {
-        let content = r#"{"index": "[3352] Summer 2025 checkbox"}"#;
-        let matches = find_literal_matches(content, "[3352]");
-        assert_eq!(matches.len(), 1);
-        assert!(matches[0].snippet.contains("[3352]"));
-    }
-
-    #[test]
-    fn test_literal_context_padding() {
-        let content = "aaaaaaaaaa_PREFIX_match_here_SUFFIX_bbbbbbbbbb";
-        let matches = find_literal_matches(content, "match_here");
-        assert_eq!(matches.len(), 1);
-        assert!(matches[0].snippet.contains("PREFIX"));
-        assert!(matches[0].snippet.contains("SUFFIX"));
-    }
 }
