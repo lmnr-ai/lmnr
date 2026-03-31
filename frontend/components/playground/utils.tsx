@@ -14,7 +14,7 @@ import {
   IconOpenAI,
 } from "@/components/ui/icons";
 import { EnvVars } from "@/lib/env/utils";
-import { anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
+import { anthropicProviderOptionsSettings, anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
 import { googleProviderOptionsSettings, googleThinkingModels } from "@/lib/playground/providers/google";
 import { openAIThinkingModels } from "@/lib/playground/providers/openai";
 import { type ProviderOptions } from "@/lib/playground/types";
@@ -67,15 +67,26 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
     [...anthropicThinkingModels, ...googleThinkingModels, ...openAIThinkingModels].find((m) => m === (value as string))
   ) {
     switch (provider) {
-      case "anthropic":
+      case "anthropic": {
+        const anthropicConfig =
+          anthropicProviderOptionsSettings[value as (typeof anthropicThinkingModels)[number]].thinking;
+        if (anthropicConfig.type === "effort") {
+          return {
+            anthropic: {
+              thinking: { type: "adaptive" },
+              effort: "medium",
+            },
+          };
+        }
         return {
           anthropic: {
             thinking: {
-              type: "disabled",
-              budgetTokens: 1024,
+              type: "enabled",
+              budgetTokens: anthropicConfig.min,
             },
           },
         };
+      }
       case "gemini": {
         const config = googleProviderOptionsSettings[value as (typeof googleThinkingModels)[number]].thinkingConfig;
         if (config.type === "level") {

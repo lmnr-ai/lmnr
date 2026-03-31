@@ -48,6 +48,32 @@ const ReasoningField = () => {
   if (anthropicThinkingModels.find((a) => a === model)) {
     const config = anthropicProviderOptionsSettings[model as (typeof anthropicThinkingModels)[number]].thinking;
 
+    if (config.type === "effort") {
+      return (
+        <div className="flex justify-between items-center">
+          <span className="text-sm font-medium">Effort</span>
+          <Controller
+            render={({ field: { value, onChange } }) => (
+              <Select value={value} onValueChange={onChange}>
+                <SelectTrigger className="w-fit">
+                  <SelectValue placeholder="Select effort" />
+                </SelectTrigger>
+                <SelectContent>
+                  {config.levels.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {capitalize(level)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            name="providerOptions.anthropic.effort"
+            control={control}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col gap-4">
         <Controller

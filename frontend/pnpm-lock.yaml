@@ -12,8 +12,8 @@ importers:
         specifier: ^3.0.17
         version: 3.0.19(zod@4.3.6)
       '@ai-sdk/anthropic':
-        specifier: ^2.0.13
-        version: 2.0.38(zod@4.3.6)
+        specifier: ^2.0.71
+        version: 2.0.71(zod@4.3.6)
       '@ai-sdk/azure':
         specifier: ^2.0.26
         version: 2.0.28(zod@4.3.6)
@@ -465,8 +465,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4
 
-  '@ai-sdk/anthropic@2.0.38':
-    resolution: {integrity: sha512-NjU1ftHbu90OfRCgBwfFelmdEXwGFwLEcfyOyyfjRDm8QHaJUlPNnXhdhPTYuUU386yhj29Vibemiaq6jQv3lA==}
+  '@ai-sdk/anthropic@2.0.71':
+    resolution: {integrity: sha512-JXTtAwlyxGzzRtpiAXk/O93aOTgdfoVX28EoUuRNVqZRgtkoniLQTtqeb8uZ4oXljNJlXzaJLNasS/U90w/wjw==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -7056,10 +7056,10 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.8(zod@4.3.6)
       zod: 4.3.6
 
-  '@ai-sdk/anthropic@2.0.38(zod@4.3.6)':
+  '@ai-sdk/anthropic@2.0.71(zod@4.3.6)':
     dependencies:
-      '@ai-sdk/provider': 2.0.0
-      '@ai-sdk/provider-utils': 3.0.13(zod@4.3.6)
+      '@ai-sdk/provider': 2.0.1
+      '@ai-sdk/provider-utils': 3.0.22(zod@4.3.6)
       zod: 4.3.6
 
   '@ai-sdk/azure@2.0.28(zod@4.3.6)':

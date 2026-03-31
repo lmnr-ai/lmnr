@@ -85,7 +85,11 @@ export type OpenAIProviderOptions = {
 };
 
 export type ProviderOptions =
-  | { anthropic: AnthropicProviderOptions }
+  | {
+      anthropic: AnthropicProviderOptions & {
+        effort?: "low" | "medium" | "high" | "max";
+      };
+    }
   | OpenAIProviderOptions
   | { google: GoogleGenerativeAIProviderOptions }
   | Record<string, never>;
