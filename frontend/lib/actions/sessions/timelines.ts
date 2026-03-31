@@ -33,9 +33,9 @@ export async function getSessionTimelines(
     sessionIds,
   };
 
-  if (pastHours) {
-    conditions.push("start_time >= now() - INTERVAL {pastHours:String} HOUR");
-    parameters.pastHours = pastHours;
+  if (pastHours && !isNaN(parseFloat(pastHours))) {
+    conditions.push("start_time >= now() - INTERVAL {pastHours:UInt32} HOUR");
+    parameters.pastHours = String(parseInt(pastHours));
   } else {
     if (startDate) {
       conditions.push("start_time >= {startDate:String}");
@@ -47,7 +47,7 @@ export async function getSessionTimelines(
     }
   }
 
-  const query = `SELECT ${selectColumns.join(", ")} FROM traces WHERE ${conditions.join(" AND ")} ORDER BY start_time ASC`;
+  const query = `SELECT ${selectColumns.join(", ")} FROM traces WHERE ${conditions.join(" AND ")} ORDER BY start_time ASC LIMIT 1000`;
 
   const rows = await executeQuery<TraceTimelineRow>({
     query,

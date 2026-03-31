@@ -34,6 +34,8 @@ interface SessionsVirtualListProps {
   isFetching: boolean;
   isLoading: boolean;
   fetchNextPage: () => void;
+  error?: Error | null;
+  onRetry?: () => void;
 }
 
 function estimateSize(item: VirtualListItem): number {
@@ -61,6 +63,8 @@ export default function SessionsVirtualList({
   isFetching,
   isLoading,
   fetchNextPage,
+  error,
+  onRetry,
 }: SessionsVirtualListProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -227,6 +231,23 @@ export default function SessionsVirtualList({
         <div className="flex items-center justify-center py-12">
           <Loader2 className="animate-spin w-5 h-5 text-muted-foreground" />
           <span className="ml-2 text-sm text-muted-foreground">Loading sessions...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoading && error && sessions.length === 0) {
+    return (
+      <div className="flex-1 overflow-auto styled-scrollbar">
+        <SessionTableHeader />
+        <div className="flex flex-col items-center justify-center py-12 gap-2">
+          <span className="text-sm text-destructive">Failed to load sessions</span>
+          <span className="text-xs text-muted-foreground">{error.message}</span>
+          {onRetry && (
+            <button onClick={onRetry} className="text-xs text-primary underline hover:no-underline mt-1">
+              Retry
+            </button>
+          )}
         </div>
       </div>
     );

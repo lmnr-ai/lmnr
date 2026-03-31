@@ -138,6 +138,7 @@ function SessionsTableContent() {
     hasMore,
     isFetching,
     isLoading,
+    error,
     fetchNextPage,
     refetch,
   } = useInfiniteScroll<SessionRow>({
@@ -146,11 +147,17 @@ function SessionsTableContent() {
     deps: [endDate, filter, pastHours, projectId, startDate, textSearchFilter],
   });
 
-  // Update navigation ref list from expanded session traces
-  const allVisibleTraceIds = useMemo(
-    () => Object.values(sessionTraces).flatMap((traces) => traces.map((t) => t.id)),
-    [sessionTraces]
-  );
+  // Update navigation ref list from expanded session traces (in rendered order)
+  const allVisibleTraceIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const session of sessions) {
+      if (expandedSessions.has(session.sessionId)) {
+        const traces = sessionTraces[session.sessionId] ?? [];
+        ids.push(...traces.map((t) => t.id));
+      }
+    }
+    return ids;
+  }, [sessions, sessionTraces, expandedSessions]);
 
   useEffect(() => {
     setNavigationRefList(allVisibleTraceIds);
@@ -242,6 +249,8 @@ function SessionsTableContent() {
         isFetching={isFetching}
         isLoading={isLoading || !shouldFetch}
         fetchNextPage={fetchNextPage}
+        error={error}
+        onRetry={refetch}
       />
     </div>
   );
