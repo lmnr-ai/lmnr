@@ -188,6 +188,13 @@ export type TracePreview = {
   outputMessageIds: string[];
 };
 
+export type TraceTimelineItem = {
+  id: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+};
+
 // We have id and sessionId here because
 // its not possible to make good type intersection,
 // and use it in tanstack table wrappers.
