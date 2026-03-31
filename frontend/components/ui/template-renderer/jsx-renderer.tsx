@@ -211,6 +211,7 @@ const JsxRenderer = ({ code, data, className }: { code: string; data: any; class
     iframeReadyRef.current = false;
 
     const handleReady = (event: MessageEvent) => {
+      if (event.source !== iframe.contentWindow) return;
       if (event.data?.type !== `${MESSAGE_TYPE}_READY`) return;
       iframeReadyRef.current = true;
 
