@@ -289,11 +289,11 @@ async fn check_and_push_signals(
             Err(e) => {
                 log::error!(
                     "Failed to get sampling factors for project {}: {:?}. \
-                     Skipping all signal triggers to avoid over-billing.",
+                     Sampled signals will be skipped; non-sampled signals proceed normally.",
                     project_id,
                     e
                 );
-                return;
+                None
             }
         }
     } else {
@@ -321,6 +321,10 @@ async fn check_and_push_signals(
                             trace.user_id().unwrap_or_default()
                         );
                     }
+                } else {
+                    // Sampling factors failed to load — skip sampled triggers
+                    // to avoid processing all traces unsampled (over-billing)
+                    continue;
                 }
             }
 
