@@ -58,7 +58,7 @@ const TagsBadges = ({ tags }: { tags: string[] }) => {
             </div>
           </TooltipTrigger>
           <TooltipPortal>
-            <TooltipContent side="bottom" className="p-2 border max-w-sm">
+            <TooltipContent side="bottom" className="p-2 border max-w-sm max-h-48 overflow-y-auto">
               <div className="flex flex-wrap gap-1">
                 {tags.map((tag) => (
                   <Badge key={tag} className="rounded-3xl" variant="outline">
