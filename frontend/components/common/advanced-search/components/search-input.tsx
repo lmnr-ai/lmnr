@@ -12,6 +12,7 @@ import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
+import { createTagFromFilter } from "../types";
 import FilterSuggestions from "./suggestions";
 import FilterTag from "./tag";
 
@@ -38,16 +39,19 @@ const FilterSearchInput = ({
   const inputValue = useAdvancedSearchContext((state) => state.inputValue);
   const isOpen = useAdvancedSearchContext((state) => state.isOpen);
   const activeIndex = useAdvancedSearchContext((state) => state.activeIndex);
+  const activeRecentIndex = useAdvancedSearchContext((state) => state.activeRecentIndex);
   const selectedTagIds = useAdvancedSearchContext((state) => state.selectedTagIds);
   const openSelectId = useAdvancedSearchContext((state) => state.openSelectId);
   const filters = useAdvancedSearchContext((state) => state.filters);
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
   const activeTagId = useAdvancedSearchContext((state) => state.getActiveTagId());
+  const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
 
   const {
     setInputValue,
     setIsOpen,
     setActiveIndex,
+    setActiveRecentIndex,
     addTag,
     addCompleteTag,
     removeTag,
@@ -56,10 +60,12 @@ const FilterSearchInput = ({
     removeSelectedTags,
     submit,
     clearAll,
+    setTags,
   } = useAdvancedSearchContext((state) => ({
     setInputValue: state.setInputValue,
     setIsOpen: state.setIsOpen,
     setActiveIndex: state.setActiveIndex,
+    setActiveRecentIndex: state.setActiveRecentIndex,
     addTag: state.addTag,
     addCompleteTag: state.addCompleteTag,
     removeTag: state.removeTag,
@@ -68,6 +74,7 @@ const FilterSearchInput = ({
     removeSelectedTags: state.removeSelectedTags,
     submit: state.submit,
     clearAll: state.clearAll,
+    setTags: state.setTags,
   }));
 
   const { mainInputRef } = useAdvancedSearchRefsContext();
@@ -85,17 +92,45 @@ const FilterSearchInput = ({
   );
 
   const handleInputBlur = useCallback(() => {
-    // Don't close if there's an active tag (focus is transferring to it)
     if (activeTagId) return;
     if (openSelectId) return;
     setIsOpen(false);
     submit(router, pathname, searchParams);
   }, [activeTagId, openSelectId, setIsOpen, submit, router, pathname, searchParams]);
 
+  const handleRecentSelect = useCallback(
+    (index: number) => {
+      const rs = recentSearches[index];
+      if (!rs) return;
+      const recentTags = rs.filters.map(createTagFromFilter);
+      setTags(recentTags);
+      setInputValue(rs.search);
+      setIsOpen(false);
+      setActiveIndex(-1);
+      setActiveRecentIndex(-1);
+      queueMicrotask(() => {
+        submit(router, pathname, searchParams);
+      });
+    },
+    [
+      recentSearches,
+      setTags,
+      setInputValue,
+      setIsOpen,
+      setActiveIndex,
+      setActiveRecentIndex,
+      submit,
+      router,
+      pathname,
+      searchParams,
+    ]
+  );
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       const input = mainInputRef.current;
       const count = getSuggestionsCount(filters, inputValue, autocompleteData);
+      const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;
 
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
         if (tags.length > 0) {
@@ -120,20 +155,67 @@ const FilterSearchInput = ({
         }
       }
 
+      // In recent row: left/right navigates chips, enter selects, down goes to suggestions, up goes to input
+      if (activeRecentIndex >= 0 && showRecent) {
+        if (e.key === "ArrowRight") {
+          e.preventDefault();
+          setActiveRecentIndex(Math.min(activeRecentIndex + 1, recentSearches.length - 1));
+          return;
+        }
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          setActiveRecentIndex(Math.max(activeRecentIndex - 1, 0));
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          if (count > 0) {
+            setActiveIndex(0);
+          }
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setActiveRecentIndex(-1);
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          handleRecentSelect(activeRecentIndex);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setActiveRecentIndex(-1);
+          setIsOpen(false);
+          input?.blur();
+          return;
+        }
+        return;
+      }
+
       // Arrow down
       if (e.key === "ArrowDown") {
-        if (isOpen && count > 0) {
+        if (isOpen) {
           e.preventDefault();
-          setActiveIndex(Math.min(activeIndex + 1, count - 1));
+          if (activeIndex === -1 && showRecent) {
+            setActiveRecentIndex(0);
+          } else if (count > 0) {
+            setActiveIndex(Math.min(activeIndex + 1, count - 1));
+          }
         }
         return;
       }
 
       // Arrow up
       if (e.key === "ArrowUp") {
-        if (isOpen && count > 0) {
+        if (isOpen) {
           e.preventDefault();
-          setActiveIndex(Math.max(activeIndex - 1, 0));
+          if (activeIndex === 0 && showRecent) {
+            setActiveRecentIndex(0);
+          } else if (activeIndex > 0) {
+            setActiveIndex(activeIndex - 1);
+          }
         }
         return;
       }
@@ -147,7 +229,6 @@ const FilterSearchInput = ({
             if (suggestion.type === "field") {
               addTag(suggestion.filter.key);
             } else if (suggestion.type === "value") {
-              // Get the default operator for this field's dataType
               const columnFilter = filters.find((f) => f.key === suggestion.field);
               const defaultOperator = columnFilter
                 ? (dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq)
@@ -202,17 +283,22 @@ const FilterSearchInput = ({
       selectedTagIds.size,
       isOpen,
       activeIndex,
+      activeRecentIndex,
       autocompleteData,
+      recentSearches,
       setInputValue,
       setIsOpen,
       setActiveIndex,
+      setActiveRecentIndex,
       selectAllTags,
       clearSelection,
       removeSelectedTags,
       removeTag,
       addTag,
       addCompleteTag,
+      setTags,
       submit,
+      handleRecentSelect,
       navigateToTag,
       router,
       pathname,
