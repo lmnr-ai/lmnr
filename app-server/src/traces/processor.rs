@@ -96,39 +96,43 @@ pub async fn process_span_messages(
             let trace_ids: Vec<Uuid> = updated_traces.iter().map(|t| t.id()).collect();
             let project_ids: Vec<Uuid> =
                 updated_traces.iter().map(|t| t.project_id()).unique().collect();
-            let existing_tags =
-                match get_existing_trace_tags(&clickhouse, &trace_ids, &project_ids).await {
-                    Ok(tags) => tags,
-                    Err(e) => {
-                        log::error!(
-                            "Failed to fetch existing trace_tags from ClickHouse, \
-                             skipping trace insert to avoid data loss: {:?}",
-                            e
-                        );
-                        // Skip ClickHouse insert entirely to avoid overwriting
-                        // existing trace_tags with empty values.
-                        send_trace_updates(&updated_traces, &pubsub, &HashMap::new()).await;
-                        return Ok(());
-                    }
-                };
+            let existing_tags_result =
+                get_existing_trace_tags(&clickhouse, &trace_ids, &project_ids).await;
 
-            let ch_traces: Vec<CHTrace> = updated_traces
-                .iter()
-                .map(|trace| {
-                    let tags = existing_tags
-                        .get(&trace.id())
-                        .cloned()
-                        .unwrap_or_default();
-                    CHTrace::from_db_trace(trace, tags)
-                })
-                .collect();
+            let existing_tags = match &existing_tags_result {
+                Ok(tags) => tags.clone(),
+                Err(e) => {
+                    log::error!(
+                        "Failed to fetch existing trace_tags from ClickHouse, \
+                         skipping trace insert to avoid data loss: {:?}",
+                        e
+                    );
+                    HashMap::new()
+                }
+            };
 
-            if let Err(e) = ch.insert_batch(&ch_traces, config).await {
-                log::error!(
-                    "Failed to upsert {} traces to ClickHouse: {:?}",
-                    ch_traces.len(),
-                    e
-                );
+            // Only insert traces to ClickHouse if we successfully fetched
+            // existing trace_tags. Otherwise skip to avoid overwriting
+            // user-applied tags with empty values on ReplacingMergeTree merge.
+            if existing_tags_result.is_ok() {
+                let ch_traces: Vec<CHTrace> = updated_traces
+                    .iter()
+                    .map(|trace| {
+                        let tags = existing_tags
+                            .get(&trace.id())
+                            .cloned()
+                            .unwrap_or_default();
+                        CHTrace::from_db_trace(trace, tags)
+                    })
+                    .collect();
+
+                if let Err(e) = ch.insert_batch(&ch_traces, config).await {
+                    log::error!(
+                        "Failed to upsert {} traces to ClickHouse: {:?}",
+                        ch_traces.len(),
+                        e
+                    );
+                }
             }
 
             send_trace_updates(&updated_traces, &pubsub, &existing_tags).await;
