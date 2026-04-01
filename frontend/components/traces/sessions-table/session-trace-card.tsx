@@ -1,26 +1,22 @@
-import { CircleDollarSign, Clock3, Coins } from "lucide-react";
+"use client";
 
+import { CircleDollarSign, Clock3, Coins } from "lucide-react";
+import { useParams } from "next/navigation";
+import { useEffect } from "react";
+import { shallow } from "zustand/shallow";
+
+import Markdown from "@/components/traces/trace-view/list/markdown";
 import CopyTooltip from "@/components/ui/copy-tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn, formatRelativeTime, getDurationString } from "@/lib/utils";
+
+import { useSessionsStoreContext } from "./sessions-store";
 
 const compactNumberFormat = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
-
-const PLACEHOLDER_TEXT =
-  "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore " +
-  "et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut " +
-  "aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse " +
-  "cillum dolore eu fugiat nulla pariatur.\n\n" +
-  "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est " +
-  "laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque " +
-  "laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto " +
-  "beatae vitae dicta sunt explicabo.\n\n" +
-  "Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur " +
-  "magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum " +
-  "quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut " +
-  "labore et dolore magnam aliquam quaerat voluptatem.";
 
 interface SessionTraceCardProps {
   trace: TraceRow;
@@ -30,6 +26,49 @@ interface SessionTraceCardProps {
 }
 
 export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: SessionTraceCardProps) {
+  const { projectId } = useParams();
+  const { toast } = useToast();
+
+  const { traceIO, isLoading } = useSessionsStoreContext(
+    (s) => ({
+      traceIO: s.traceIO[trace.id],
+      isLoading: s.loadingTraceIO.has(trace.id),
+    }),
+    shallow
+  );
+
+  const setTraceIO = useSessionsStoreContext((s) => s.setTraceIO);
+  const setLoadingTraceIO = useSessionsStoreContext((s) => s.setLoadingTraceIO);
+
+  // TODO: Add caching/virtualization - currently fetches naively per card mount
+  // TODO: Consider batching fetches for all visible traces in a session
+  useEffect(() => {
+    if (traceIO !== undefined || isLoading) return;
+
+    const fetchIO = async () => {
+      setLoadingTraceIO(trace.id, true);
+      try {
+        const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/main-agent-output`);
+        if (!res.ok) {
+          const errMessage = await res
+            .json()
+            .then((d: { error?: string }) => d?.error)
+            .catch(() => null);
+          toast({ variant: "destructive", title: errMessage ?? "Failed to fetch trace IO" });
+          return;
+        }
+        const data = (await res.json()) as { input: string | null; output: string | null };
+        setTraceIO(trace.id, data);
+      } catch {
+        toast({ variant: "destructive", title: "Failed to fetch trace IO" });
+      } finally {
+        setLoadingTraceIO(trace.id, false);
+      }
+    };
+
+    fetchIO();
+  }, [trace.id, projectId, traceIO, isLoading, setTraceIO, setLoadingTraceIO, toast]);
+
   return (
     <div
       className={cn("flex w-full px-6 cursor-pointer pb-2", {
@@ -75,8 +114,7 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
         {/* Input column */}
         <div className="bg-muted/50 border-l flex-1 h-full min-w-0 overflow-hidden relative">
           <div className="h-full overflow-y-auto px-3 py-2">
-            {/* TODO: Replace placeholder with actual trace input data */}
-            <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-4">{PLACEHOLDER_TEXT}</p>
+            <TraceIOContent text={traceIO?.input} isLoading={isLoading} fallback="No input available" />
           </div>
           <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-muted/50 h-12 left-0 right-0 pointer-events-none" />
         </div>
@@ -84,12 +122,37 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
         {/* Output column */}
         <div className="bg-muted/50 border-l flex-1 h-full min-w-0 overflow-hidden relative">
           <div className="h-full overflow-y-auto px-3 py-2">
-            {/* TODO: Replace placeholder with actual trace output data */}
-            <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-4">{PLACEHOLDER_TEXT}</p>
+            <TraceIOContent text={traceIO?.output} isLoading={isLoading} fallback="No output available" />
           </div>
           <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-muted/50 h-12 left-0 right-0 pointer-events-none" />
         </div>
       </div>
     </div>
   );
+}
+
+function TraceIOContent({
+  text,
+  isLoading,
+  fallback,
+}: {
+  text: string | null | undefined;
+  isLoading: boolean;
+  fallback: string;
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-4/5" />
+        <Skeleton className="h-3 w-3/5" />
+      </div>
+    );
+  }
+
+  if (!text) {
+    return <p className="text-xs text-muted-foreground leading-4">{fallback}</p>;
+  }
+
+  return <Markdown output={text} className="text-muted-foreground [&_*]:text-inherit" contentClassName="pb-0" />;
 }

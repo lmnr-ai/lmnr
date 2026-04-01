@@ -1,6 +1,6 @@
 export default function TraceSectionHeader() {
   return (
-    <div className="flex items-start w-full pl-6 pt-4">
+    <div className="flex items-start w-full pl-6 pt-4 pb-1">
       <div className="shrink-0 w-40">
         <span className="text-xs text-muted-foreground">Details</span>
       </div>

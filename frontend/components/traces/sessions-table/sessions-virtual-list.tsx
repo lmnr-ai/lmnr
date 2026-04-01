@@ -193,7 +193,7 @@ export default function SessionsVirtualList({
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
-              transition={itemTransition}
+              transition={{ duration: 0.2 }}
               style={{ overflow: "hidden" }}
             >
               <div className="flex items-center justify-center h-[60px] pl-6">
