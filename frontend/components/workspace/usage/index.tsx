@@ -20,6 +20,7 @@ import WarningsSettings from "./warnings";
 interface WorkspaceUsageProps {
   workspaceStats: WorkspaceStats | null;
   workspace: Workspace;
+  isOwner: boolean;
 }
 
 interface TierHint {
@@ -81,7 +82,7 @@ const getUsageDescription = (tierName?: string): string => {
   return `${tierHint} ${tierHintOverages}`;
 };
 
-export default function WorkspaceUsage({ workspaceStats, workspace }: WorkspaceUsageProps) {
+export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: WorkspaceUsageProps) {
   const { setMenu } = useWorkspaceMenuContext();
   const featureFlags = useFeatureFlags();
   const tierHint = TIER_USAGE_HINTS[workspace.tierName.toLowerCase().trim()] ?? null;
@@ -191,13 +192,13 @@ export default function WorkspaceUsage({ workspaceStats, workspace }: WorkspaceU
         </SettingsSection>
       )}
 
-      {workspace.tierName !== WorkspaceTier.FREE && <WarningsSettings workspaceId={workspace.id} />}
+      {isOwner && workspace.tierName !== WorkspaceTier.FREE && <WarningsSettings workspaceId={workspace.id} />}
 
-      {workspace.tierName !== WorkspaceTier.FREE && (
+      {isOwner && workspace.tierName !== WorkspaceTier.FREE && tierHint && (
         <LimitsSettings
           workspaceId={workspace.id}
-          tierIncludedDataGB={tierHint?.dataGB ?? 1}
-          tierIncludedSignalRuns={tierHint?.signalRunsNum ?? 100}
+          tierIncludedDataGB={tierHint.dataGB}
+          tierIncludedSignalRuns={tierHint.signalRunsNum}
         />
       )}
     </>
