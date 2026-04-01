@@ -19,7 +19,7 @@ interface TotalsPillProps {
 
 export default function TotalsPill({ duration, totalTokens, totalCost }: TotalsPillProps) {
   return (
-    <div className="bg-[#222226] flex gap-2 h-5 items-center overflow-clip px-1.5 rounded-md shrink-0">
+    <div className="bg-muted flex gap-2 h-5 items-center overflow-clip px-1.5 rounded-md shrink-0">
       <div className="flex gap-1 h-4 items-center">
         <Clock3 size={12} className="shrink-0 text-secondary-foreground" />
         <span className="font-mono text-xs text-secondary-foreground whitespace-nowrap leading-4">
