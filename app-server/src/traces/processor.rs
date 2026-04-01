@@ -94,7 +94,23 @@ pub async fn process_span_messages(
             // Fetch existing trace_tags from ClickHouse so they are preserved
             // when ReplacingMergeTree merges rows with higher num_spans.
             let trace_ids: Vec<Uuid> = updated_traces.iter().map(|t| t.id()).collect();
-            let existing_tags = get_existing_trace_tags(&clickhouse, &trace_ids).await;
+            let project_ids: Vec<Uuid> =
+                updated_traces.iter().map(|t| t.project_id()).unique().collect();
+            let existing_tags =
+                match get_existing_trace_tags(&clickhouse, &trace_ids, &project_ids).await {
+                    Ok(tags) => tags,
+                    Err(e) => {
+                        log::error!(
+                            "Failed to fetch existing trace_tags from ClickHouse, \
+                             skipping trace insert to avoid data loss: {:?}",
+                            e
+                        );
+                        // Skip ClickHouse insert entirely to avoid overwriting
+                        // existing trace_tags with empty values.
+                        send_trace_updates(&updated_traces, &pubsub, &HashMap::new()).await;
+                        return Ok(());
+                    }
+                };
 
             let ch_traces: Vec<CHTrace> = updated_traces
                 .iter()

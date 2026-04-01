@@ -112,32 +112,36 @@ struct ExistingTraceTags {
 /// Fetch existing trace_tags from traces_replacing for the given trace IDs.
 /// This is needed to preserve user-applied trace tags when ReplacingMergeTree
 /// merges rows (the new row with higher num_spans must carry forward existing tags).
+///
+/// Returns an error on ClickHouse failure so the caller can avoid inserting rows
+/// with empty trace_tags (which would silently erase existing tags on merge).
 pub async fn get_existing_trace_tags(
     clickhouse: &clickhouse::Client,
     trace_ids: &[Uuid],
-) -> HashMap<Uuid, Vec<String>> {
+    project_ids: &[Uuid],
+) -> Result<HashMap<Uuid, Vec<String>>, anyhow::Error> {
     if trace_ids.is_empty() {
-        return HashMap::new();
+        return Ok(HashMap::new());
     }
 
-    let placeholders: Vec<String> = trace_ids.iter().map(|_| "?".to_string()).collect();
+    let trace_placeholders: Vec<String> = trace_ids.iter().map(|_| "?".to_string()).collect();
+    let project_placeholders: Vec<String> = project_ids.iter().map(|_| "?".to_string()).collect();
     let query_str = format!(
-        "SELECT id, trace_tags FROM traces_replacing FINAL WHERE id IN ({})",
-        placeholders.join(",")
+        "SELECT id, trace_tags FROM traces_replacing FINAL WHERE project_id IN ({}) AND id IN ({})",
+        project_placeholders.join(","),
+        trace_placeholders.join(",")
     );
 
     let mut query = clickhouse.query(&query_str);
+    for project_id in project_ids {
+        query = query.bind(project_id);
+    }
     for trace_id in trace_ids {
         query = query.bind(trace_id);
     }
 
-    match query.fetch_all::<ExistingTraceTags>().await {
-        Ok(rows) => rows.into_iter().map(|r| (r.id, r.trace_tags)).collect(),
-        Err(e) => {
-            log::error!("Failed to fetch existing trace_tags from ClickHouse: {:?}", e);
-            HashMap::new()
-        }
-    }
+    let rows = query.fetch_all::<ExistingTraceTags>().await?;
+    Ok(rows.into_iter().map(|r| (r.id, r.trace_tags)).collect())
 }
 
 impl ClickhouseInsertable for CHTrace {
