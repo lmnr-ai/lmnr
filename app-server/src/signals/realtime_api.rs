@@ -244,6 +244,7 @@ impl SignalJobRealtimeHandler {
                         self.clickhouse.clone(),
                         self.db.clone(),
                         self.cache.clone(),
+                        self.queue.clone(),
                     )
                     .await
                     {
@@ -289,6 +290,7 @@ impl SignalJobRealtimeHandler {
                     self.clickhouse.clone(),
                     self.db.clone(),
                     self.cache.clone(),
+                    self.queue.clone(),
                 )
                 .await
                 {

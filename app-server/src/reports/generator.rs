@@ -21,7 +21,8 @@ use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
 use crate::notifications::{
-    EmailPayload, NotificationMessage, ReportPayload, TargetType, push_to_notification_queue,
+    EmailPayload, NotificationDefinitionType, NotificationMessage, ReportPayload, TargetType,
+    push_to_notification_queue,
 };
 use crate::signals::llm_model;
 use crate::signals::provider::models::{
@@ -318,7 +319,7 @@ async fn process_report_trigger(
             payload: message_payload,
             project_id: Uuid::nil(),
             workspace_id,
-            definition_type: "REPORT".to_string(),
+            definition_type: NotificationDefinitionType::Report,
             definition_id: report_id,
             target_id: target.id,
             target_type: target_type.to_string(),

@@ -11,9 +11,9 @@ import { type WorkspaceInvitation, type WorkspaceRole, type WorkspaceWithOptiona
 import WorkspaceBilling from "./billing";
 import WorkspaceDeployment from "./deployment-settings/workspace-deployment.tsx";
 import WorkspaceReports from "./reports";
+import WorkspaceUsage from "./usage";
 import WorkspaceIntegrations from "./workspace-integrations";
 import WorkspaceSettings from "./workspace-settings";
-import WorkspaceUsage from "./workspace-usage";
 import WorkspaceUsers from "./workspace-users";
 
 interface WorkspaceProps {
@@ -56,7 +56,7 @@ export default function WorkspaceComponent({
             currentUserRole={currentUserRole}
           />
         )}
-        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} />}
+        {menu === "usage" && <WorkspaceUsage workspaceStats={workspaceStats} workspace={workspace} isOwner={isOwner} />}
         {featureFlags[Feature.SUBSCRIPTION] && menu === "billing" && (
           <WorkspaceBilling
             workspace={workspace}

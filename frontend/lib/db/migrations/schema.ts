@@ -5,13 +5,13 @@ import {
   timestamp,
   text,
   unique,
+  bigint,
   jsonb,
   smallint,
   doublePrecision,
   uniqueIndex,
   index,
   pgPolicy,
-  bigint,
   boolean,
   integer,
   real,
@@ -59,6 +59,55 @@ export const datasetParquets = pgTable(
       foreignColumns: [projects.id],
       name: "dataset_parquets_project_id_fkey",
     }).onDelete("cascade"),
+  ]
+);
+
+export const workspaceUsageLimits = pgTable(
+  "workspace_usage_limits",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    limitType: text("limit_type").notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    limitValue: bigint("limit_value", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "workspace_usage_limits_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("workspace_usage_limits_workspace_id_limit_type_unique").on(table.workspaceId, table.limitType),
+  ]
+);
+
+export const workspaceUsageWarnings = pgTable(
+  "workspace_usage_warnings",
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    usageItem: text("usage_item").notNull(),
+    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
+    limitValue: bigint("limit_value", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true, mode: "string" }),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.workspaceId],
+      foreignColumns: [workspaces.id],
+      name: "workspace_usage_warnings_workspace_id_fkey",
+    })
+      .onUpdate("cascade")
+      .onDelete("cascade"),
+    unique("workspace_usage_warnings_workspace_id_usage_item_limit_value_un").on(
+      table.workspaceId,
+      table.usageItem,
+      table.limitValue
+    ),
   ]
 );
 

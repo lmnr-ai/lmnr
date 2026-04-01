@@ -12,25 +12,34 @@ import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-p
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { type WorkspaceStats } from "@/lib/actions/usage/types";
 import { Feature } from "@/lib/features/features";
+import { type Workspace, WorkspaceTier } from "@/lib/workspaces/types";
+
+import LimitsSettings from "./limits";
+import WarningsSettings from "./warnings";
 
 interface WorkspaceUsageProps {
   workspaceStats: WorkspaceStats | null;
+  workspace: Workspace;
+  isOwner: boolean;
 }
 
-const TIER_USAGE_HINTS: Record<
-  string,
-  {
-    data: string;
-    signalRuns: string;
-    isOverageAllowed: boolean;
-    overageDataPrice: number;
-    overageSignalPrice: number;
-    teamMembers: string;
-  }
-> = {
+interface TierHint {
+  data: string;
+  dataGB: number;
+  signalRuns: string;
+  signalRunsNum: number;
+  isOverageAllowed: boolean;
+  overageDataPrice: number;
+  overageSignalPrice: number;
+  teamMembers: string;
+}
+
+const TIER_USAGE_HINTS: Record<string, TierHint> = {
   free: {
     data: "1 GB",
+    dataGB: 1,
     signalRuns: "100",
+    signalRunsNum: 100,
     isOverageAllowed: false,
     overageDataPrice: 0,
     overageSignalPrice: 0,
@@ -38,7 +47,9 @@ const TIER_USAGE_HINTS: Record<
   },
   hobby: {
     data: "3 GB",
+    dataGB: 3,
     signalRuns: "1,000",
+    signalRunsNum: 1000,
     isOverageAllowed: true,
     overageDataPrice: 2,
     overageSignalPrice: 0.02,
@@ -46,7 +57,9 @@ const TIER_USAGE_HINTS: Record<
   },
   pro: {
     data: "10 GB",
+    dataGB: 10,
     signalRuns: "10,000",
+    signalRunsNum: 10000,
     isOverageAllowed: true,
     overageDataPrice: 1.5,
     overageSignalPrice: 0.015,
@@ -69,9 +82,10 @@ const getUsageDescription = (tierName?: string): string => {
   return `${tierHint} ${tierHintOverages}`;
 };
 
-export default function WorkspaceUsage({ workspaceStats }: WorkspaceUsageProps) {
+export default function WorkspaceUsage({ workspaceStats, workspace, isOwner }: WorkspaceUsageProps) {
   const { setMenu } = useWorkspaceMenuContext();
   const featureFlags = useFeatureFlags();
+  const tierHint = TIER_USAGE_HINTS[workspace.tierName.toLowerCase().trim()] ?? null;
   const gbUsedThisMonth = workspaceStats?.gbUsedThisMonth ?? 0;
   const gbLimit = workspaceStats?.gbLimit ?? 0;
   const signalRunsUsed = workspaceStats?.signalRunsUsedThisMonth ?? 0;
@@ -166,18 +180,26 @@ export default function WorkspaceUsage({ workspaceStats }: WorkspaceUsageProps) 
 
       {featureFlags[Feature.SUBSCRIPTION] && (
         <SettingsSection>
-          <div className="flex items-center gap-2 text-sm text-secondary-foreground">
-            <span>Need to upgrade or manage your subscription?</span>
-            <Link
-              href="?tab=billing"
-              className="text-primary hover:underline inline-flex items-center gap-1"
-              onClick={() => setMenu("billing")}
-            >
-              Go to Billing
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
+          <SettingsSectionHeader size="sm" title="Billing" description="Need to upgrade or manage your subscription?" />
+          <Link
+            href="?tab=billing"
+            className="text-primary hover:underline inline-flex items-center gap-1 text-sm w-fit"
+            onClick={() => setMenu("billing")}
+          >
+            Go to Billing
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </SettingsSection>
+      )}
+
+      {isOwner && workspace.tierName !== WorkspaceTier.FREE && <WarningsSettings workspaceId={workspace.id} />}
+
+      {isOwner && workspace.tierName !== WorkspaceTier.FREE && tierHint && (
+        <LimitsSettings
+          workspaceId={workspace.id}
+          tierIncludedDataGB={tierHint.dataGB}
+          tierIncludedSignalRuns={tierHint.signalRunsNum}
+        />
       )}
     </>
   );

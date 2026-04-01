@@ -92,7 +92,7 @@ pub async fn process_event_notifications_and_clustering(
             payload: message_payload,
             project_id,
             workspace_id: target.workspace_id,
-            definition_type: "ALERT".to_string(),
+            definition_type: notifications::NotificationDefinitionType::Alert,
             definition_id: target.alert_id,
             target_id: target.id,
             target_type: target_type.to_string(),
