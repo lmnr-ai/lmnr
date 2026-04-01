@@ -1,13 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 import { prettifyError, ZodError } from "zod/v4";
 
 import { createAlert, deleteAlert, getAlerts } from "@/lib/actions/alerts";
+import { authOptions } from "@/lib/auth";
 
 export async function GET(_request: NextRequest, props: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await props.params;
 
   try {
-    const result = await getAlerts(projectId);
+    const session = await getServerSession(authOptions);
+    const userEmail = session?.user?.email ?? undefined;
+    const result = await getAlerts(projectId, userEmail);
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);
@@ -25,7 +29,16 @@ export async function POST(request: NextRequest, props: { params: Promise<{ proj
   const { projectId } = await props.params;
 
   try {
+    const session = await getServerSession(authOptions);
+    const userEmail = session?.user?.email;
+    if (!userEmail) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const body = await request.json();
+    const emailTargets = (body.targets ?? []).filter((t: { type: string; email?: string }) => t.type === "EMAIL");
+    if (emailTargets.some((t: { email?: string }) => t.email && t.email !== userEmail)) {
+      return NextResponse.json({ error: "Cannot create alert targets for other users' emails." }, { status: 403 });
+    }
     const result = await createAlert({ ...body, projectId });
     return NextResponse.json(result);
   } catch (error) {

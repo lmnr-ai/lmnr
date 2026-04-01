@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getSpanOutputs } from "@/lib/actions/spans/outputs.ts";
+import { getSpanPreviews } from "@/lib/actions/spans/previews";
 
 export async function POST(
   req: NextRequest,
@@ -12,17 +12,24 @@ export async function POST(
 
   try {
     const body = await req.json();
-    const { spanIds, startDate, endDate } = body;
+    const { spanIds, spanTypes, startDate, endDate } = body;
 
-    const outputs = await getSpanOutputs({ projectId, traceId, spanIds, startDate, endDate });
+    const previews = await getSpanPreviews({
+      projectId,
+      traceId,
+      spanIds,
+      spanTypes,
+      startDate,
+      endDate,
+    });
 
-    return NextResponse.json({ outputs });
+    return NextResponse.json({ previews });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch span outputs." },
+      { error: error instanceof Error ? error.message : "Failed to generate span previews." },
       { status: 500 }
     );
   }

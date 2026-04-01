@@ -28,12 +28,12 @@ interface FieldOption {
 const getFieldOptions = (field: any): FieldOption[] => {
   if (field.type === "number" && isNumberOptions(field.options)) {
     const options = field.options as { min?: number; max?: number };
-    return Array.from({ length: (options.max || 5) - (options.min || 1) + 1 }, (_, i) => {
-      const value = (options.min || 1) + i;
+    return Array.from({ length: (options.max ?? 5) - (options.min ?? 1) + 1 }, (_, i) => {
+      const value = (options.min ?? 1) + i;
       return {
         value,
         label: String(value),
-        keyNumber: i + 1,
+        keyNumber: value,
       };
     });
   }
@@ -132,9 +132,9 @@ const FieldOptions = ({
 
   if (field.type === "number" && isNumberOptions(field.options)) {
     const options = field.options as { min?: number; max?: number };
-    const min = options.min || 1;
-    const max = options.max || 5;
-    const currentValue = (target[field.key] as number) || min;
+    const min = options.min ?? 1;
+    const max = options.max ?? 5;
+    const currentValue = (target[field.key] as number) ?? min;
 
     return (
       <div className="space-y-3">
@@ -206,13 +206,16 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
     focusField("first");
   });
 
-  useHotkeys("1,2,3,4,5,6,7,8,9", (event: KeyboardEvent) => {
+  useHotkeys("0,1,2,3,4,5,6,7,8,9", (event: KeyboardEvent) => {
     if (fields.length === 0) return;
     const focusedField = fields[focusedFieldIndex];
     if (focusedField?.type === "string") return;
 
     const num = parseInt(event.key);
-    if (num >= 1 && num <= 9) {
+    if (focusedField?.type === "number") {
+      event.preventDefault();
+      selectOptionInFocusedField(num);
+    } else if (num >= 1 && num <= 9) {
       event.preventDefault();
       selectOptionInFocusedField(num);
     }
@@ -225,9 +228,9 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
 
     event.preventDefault();
     const options = focusedField.options as { min?: number; max?: number };
-    const min = options.min || 1;
-    const max = options.max || 5;
-    const currentValue = (target[focusedField.key] as number) || min;
+    const min = options.min ?? 1;
+    const max = options.max ?? 5;
+    const currentValue = (target[focusedField.key] as number) ?? min;
 
     if (event.key === "left" && currentValue > min) {
       updateTargetField(focusedField.key, currentValue - 1);
@@ -280,7 +283,7 @@ export default function AnnotationInterface({ className }: AnnotationInterfacePr
               <kbd className="bg-muted/50 px-1.5 py-0.5 rounded text-white/70">a</kbd> to focus on the first dimension
             </div>
             <div className="mb-1">
-              <strong>Keys 1-9:</strong> Select options within the focused dimension
+              <strong>Keys 0-9:</strong> Select options within the focused dimension
             </div>
             <div>
               <strong>Arrow keys:</strong> Adjust slider values

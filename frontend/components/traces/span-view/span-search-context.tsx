@@ -112,10 +112,10 @@ function navigateToMatch(view: EditorView, searchTerm: string, localIndex: numbe
   });
 }
 
-export function SpanSearchProvider({ children }: PropsWithChildren) {
+export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChildren<{ initialSearchTerm?: string }>) {
   const editors = useRef<Map<string, EditorInstance>>(new Map());
-  const searchTermRef = useRef("");
-  const [searchTerm, setSearchTermState] = useState("");
+  const searchTermRef = useRef(initialSearchTerm ?? "");
+  const [searchTerm, setSearchTermState] = useState(initialSearchTerm ?? "");
   const [totalMatches, setTotalMatches] = useState(0);
   const [currentGlobalIndex, setCurrentGlobalIndex] = useState(0);
 

@@ -11,11 +11,11 @@ const LAST_PROJECT_ID = "last-project-id";
 const MAX_AGE = 60 * 60 * 24 * 30;
 
 export const DeleteProjectSchema = z.object({
-  projectId: z.uuid(),
+  projectId: z.guid(),
 });
 
 export const UpdateProjectSchema = z.object({
-  projectId: z.uuid(),
+  projectId: z.guid(),
   name: z.string().min(1, { error: "Project name is required" }),
 });
 

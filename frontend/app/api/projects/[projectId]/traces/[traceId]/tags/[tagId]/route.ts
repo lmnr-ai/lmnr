@@ -1,7 +1,6 @@
 import { type NextRequest } from "next/server";
 
-import { getTraceTags, removeTagFromCHTrace } from "@/lib/actions/tags";
-import { clickhouseClient } from "@/lib/clickhouse/client";
+import { removeTagFromCHTrace } from "@/lib/actions/tags";
 
 export async function DELETE(
   _req: NextRequest,
@@ -10,35 +9,15 @@ export async function DELETE(
   const params = await props.params;
   const projectId = params.projectId;
   const traceId = params.traceId;
-  const tagId = params.tagId;
+  // tagId is the tag name (used as id since trace_tags stores names).
+  // Next.js auto-decodes dynamic route params, so no decodeURIComponent needed.
+  const tagName = params.tagId;
 
-  const chTags = await getTraceTags({
+  await removeTagFromCHTrace({
     traceId,
     projectId,
+    tag: tagName,
   });
-
-  const deletedTagName = chTags.find((tag) => tag.id === tagId)?.name;
-
-  await clickhouseClient.exec({
-    query: `
-      DELETE FROM trace_tags
-      WHERE id = {id: UUID} AND trace_id = {trace_id: UUID} AND project_id = {project_id: UUID}
-    `,
-    query_params: {
-      id: tagId,
-      trace_id: traceId,
-      project_id: projectId,
-    },
-  });
-
-  // Remove the tag from the trace's trace_tags array in ClickHouse
-  if (deletedTagName) {
-    await removeTagFromCHTrace({
-      traceId,
-      projectId,
-      tag: deletedTagName,
-    });
-  }
 
   return new Response("Trace tag deleted successfully", { status: 200 });
 }

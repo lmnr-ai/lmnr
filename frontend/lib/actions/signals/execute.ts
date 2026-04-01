@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 import { executeQuery } from "@/lib/actions/sql";
 
 const ExecuteSignalSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   traceId: z.guid(),
   signal: z.object({
     prompt: z.string().min(1, { error: "Prompt is required" }),

@@ -480,7 +480,6 @@ const createDebuggerSessionStore = ({
           return {
             sidebarWidth: state.sidebarWidth,
             spanPath: state.spanPath,
-            spanTemplates: state.spanTemplates,
             ...(tabToPersist && { tab: tabToPersist }),
             showTreeContent: state.showTreeContent,
             condensedTimelineEnabled: state.condensedTimelineEnabled,

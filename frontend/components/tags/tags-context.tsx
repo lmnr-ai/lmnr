@@ -57,13 +57,20 @@ const TagsContextProvider = ({ children, ...props }: PropsWithChildren<TagsConte
   const createNewTagClasses = useCallback(async () => {
     const tagClassNames = new Set(tagClasses.map((tc) => tc.name));
     const newTags = tags.filter((tag) => !tagClassNames.has(tag.name));
-    for (const tag of newTags) {
-      await fetch(`/api/projects/${params?.projectId}/tag-classes/${tag.name}`, {
-        method: "POST",
-        body: JSON.stringify({
-          color: tag.color,
-        }),
-      });
+    try {
+      for (const tag of newTags) {
+        const res = await fetch(`/api/projects/${params?.projectId}/tag-classes/${tag.name}`, {
+          method: "POST",
+          body: JSON.stringify({
+            color: tag.color,
+          }),
+        });
+        if (!res.ok) {
+          console.error(`Failed to create tag class "${tag.name}"`);
+        }
+      }
+    } catch (e) {
+      console.error("Error creating tag classes:", e);
     }
     if (newTags.length > 0) {
       mutateTagClass();

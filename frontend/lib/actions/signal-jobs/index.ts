@@ -14,8 +14,8 @@ import { signalJobs } from "@/lib/db/migrations/schema";
 import { fetcherJSON } from "@/lib/utils";
 
 export const GetSignalJobsSchema = z.object({
-  projectId: z.string(),
-  signalId: z.string().optional(),
+  projectId: z.guid(),
+  signalId: z.guid().optional(),
   ...FiltersSchema.shape,
 });
 
@@ -51,8 +51,8 @@ export async function getSignalJobs(input: z.infer<typeof GetSignalJobsSchema>) 
 }
 
 export const CreateSignalJob = z.object({
-  projectId: z.string(),
-  signalId: z.string(),
+  projectId: z.guid(),
+  signalId: z.guid(),
   search: z.string().nullable().optional(),
   traceIds: z.array(z.string()).optional(),
   /** 0 = batch, 1 = realtime */

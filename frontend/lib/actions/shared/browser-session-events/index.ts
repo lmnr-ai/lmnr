@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 
 export const GetSharedBrowserSessionEventsSchema = z.object({
-  traceId: z.string(),
+  traceId: z.guid(),
 });
 
 export const getSharedBrowserSessionEvents = async (input: z.infer<typeof GetSharedBrowserSessionEventsSchema>) => {

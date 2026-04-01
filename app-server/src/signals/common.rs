@@ -10,7 +10,6 @@ use crate::{
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{DB, signal_jobs::update_signal_job_stats},
-    mq::MessageQueue,
     signals::{
         SignalRun,
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
@@ -79,18 +78,9 @@ pub async fn process_run(
     project_id: Uuid,
     trace_id: Uuid,
     run_id: Uuid,
-    step: usize,
-    internal_trace_id: Uuid,
-    internal_span_id: Uuid,
-    job_id: Option<Uuid>,
     prompt: &str,
-    signal_name: &str,
     structured_output_schema: &serde_json::Value,
-    model: &str,
-    provider: &str,
     clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-    internal_project_id: Option<Uuid>,
 ) -> Result<ProcessRunResult, HandlerError> {
     let processing_start_time = Utc::now();
 
@@ -208,10 +198,10 @@ pub async fn process_run(
             system_instruction: system_instruction.clone(),
             tools: Some(tools),
             generation_config: Some(ProviderGenerationConfig {
-                temperature: Some(1.0),
+                temperature: Some(0.85),
                 thinking_config: Some(ProviderThinkingConfig {
                     include_thoughts: Some(true),
-                    thinking_level: Some(ProviderThinkingLevel::Low),
+                    thinking_level: Some(ProviderThinkingLevel::Medium),
                 }),
                 ..Default::default()
             }),

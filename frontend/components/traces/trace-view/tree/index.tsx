@@ -1,15 +1,13 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { compact, isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import MustacheTemplateSheet from "../list/mustache-template-sheet";
-import { useBatchedSpanOutputs } from "../list/use-batched-span-outputs";
+import { useBatchedSpanPreviews } from "../list/use-batched-span-previews";
 import { useScrollContext } from "../scroll-context";
-import { type PathInfo } from "../store/utils";
 import { SpanCard } from "./span-card";
 
 interface TreeProps {
@@ -31,8 +29,6 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     }));
 
   const treeSpans = useMemo(() => getTreeSpans(), [getTreeSpans, spans, condensedTimelineVisibleSpanIds]);
-
-  const [settingsSpan, setSettingsSpan] = useState<(TraceViewSpan & { pathInfo: PathInfo }) | null>(null);
 
   const virtualizer = useVirtualizer({
     count: treeSpans.length,
@@ -67,7 +63,15 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
     })
   ) as string[];
 
-  const { outputs } = useBatchedSpanOutputs(
+  const spanTypes = useMemo(() => {
+    const types: Record<string, string> = {};
+    for (const item of treeSpans) {
+      types[item.span.spanId] = item.span.spanType;
+    }
+    return types;
+  }, [treeSpans]);
+
+  const { previews } = useBatchedSpanPreviews(
     projectId,
     visibleSpanIds,
     {
@@ -75,7 +79,8 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
       startTime: trace?.startTime,
       endTime: trace?.endTime,
     },
-    { isShared }
+    { isShared },
+    spanTypes
   );
 
   const handleScroll = useCallback(() => {
@@ -148,11 +153,9 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
                   <SpanCard
                     span={spanItem.span}
                     branchMask={spanItem.branchMask}
-                    output={outputs[spanItem.span.spanId]}
+                    output={previews[spanItem.span.spanId]}
                     depth={spanItem.depth}
-                    pathInfo={spanItem.pathInfo}
                     onSpanSelect={onSpanSelect}
-                    onOpenSettings={setSettingsSpan}
                   />
                 </div>
               );
@@ -160,12 +163,6 @@ const Tree = ({ onSpanSelect, isShared = false }: TreeProps) => {
           </div>
         </div>
       </div>
-      <MustacheTemplateSheet
-        span={settingsSpan}
-        output={outputs[settingsSpan?.spanId ?? ""]}
-        open={!!settingsSpan}
-        onOpenChange={(open) => !open && setSettingsSpan(null)}
-      />
     </div>
   );
 };

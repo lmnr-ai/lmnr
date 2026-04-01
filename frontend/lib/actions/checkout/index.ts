@@ -21,12 +21,12 @@ import {
 } from "./types";
 
 const SwitchTierSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   tier: z.enum(["hobby", "pro"]),
 });
 
 const PaymentPortalSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   returnUrl: z.url(),
 });
 

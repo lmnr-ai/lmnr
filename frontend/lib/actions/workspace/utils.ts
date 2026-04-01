@@ -8,7 +8,7 @@ import { membersOfWorkspaces } from "@/lib/db/migrations/schema";
 import { type WorkspaceRole } from "@/lib/workspaces/types";
 
 const CheckWorkspaceRoleSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   roles: z.array(z.enum(["member", "admin", "owner"])).min(1),
 });
 

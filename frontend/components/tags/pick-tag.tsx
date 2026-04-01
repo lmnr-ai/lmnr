@@ -78,9 +78,16 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
   };
 
   const deleteTag = async (tag: EntityTag) => {
-    await fetch(`${tagsBaseUrl}/${tag.id}`, {
+    const res = await fetch(`${tagsBaseUrl}/${encodeURIComponent(tag.id)}`, {
       method: "DELETE",
     });
+    if (!res.ok) {
+      const errMessage = await res
+        .json()
+        .then((d) => d?.error)
+        .catch(() => null);
+      throw new Error(errMessage ?? "Failed to delete tag");
+    }
     return [tag];
   };
 

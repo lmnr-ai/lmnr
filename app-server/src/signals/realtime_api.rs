@@ -17,7 +17,7 @@ use crate::{
         },
         queue::{SignalMessage, push_to_realtime_queue},
         response_processor::{finalize_runs, process_provider_responses},
-        utils::{InternalSpan, emit_internal_span, request_to_span_input},
+        utils::{InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr},
     },
     worker::{HandlerError, MessageHandler},
 };
@@ -73,18 +73,9 @@ impl MessageHandler for SignalJobRealtimeHandler {
             project_id,
             trace_id,
             message.run_id,
-            message.step,
-            message.internal_trace_id,
-            message.internal_span_id,
-            message.job_id,
             &signal.prompt,
-            &signal.name,
             &signal.structured_output_schema,
-            &llm_model(),
-            &llm_provider(),
             self.clickhouse.clone(),
-            self.queue.clone(),
-            self.config.internal_project_id,
         )
         .await
         {
@@ -136,6 +127,7 @@ impl SignalJobRealtimeHandler {
         message: &SignalMessage,
         config: &SignalWorkerConfig,
         input: serde_json::Value,
+        tools: Option<serde_json::Value>,
         error: Option<String>,
     ) -> InternalSpan {
         InternalSpan {
@@ -158,6 +150,7 @@ impl SignalJobRealtimeHandler {
             error,
             provider_batch_id: None,
             metadata: None,
+            tools,
         }
     }
 
@@ -168,6 +161,7 @@ impl SignalJobRealtimeHandler {
         backoff: ExponentialBackoff,
     ) {
         let span_input = request_to_span_input(&request);
+        let span_tools = request_to_tools_attr(&request);
 
         let model_str = llm_model();
         let llm_client = self.llm_client.clone();
@@ -190,7 +184,7 @@ impl SignalJobRealtimeHandler {
             Ok(response) => {
                 emit_internal_span(
                     self.queue.clone(),
-                    Self::build_submit_span(&message, &self.config, span_input.clone(), None),
+                    Self::build_submit_span(&message, &self.config, span_input.clone(), span_tools.clone(), None),
                 )
                 .await;
                 let inline_response = ProviderInlineResponse {
@@ -250,6 +244,7 @@ impl SignalJobRealtimeHandler {
                         self.clickhouse.clone(),
                         self.db.clone(),
                         self.cache.clone(),
+                        self.queue.clone(),
                     )
                     .await
                     {
@@ -295,6 +290,7 @@ impl SignalJobRealtimeHandler {
                     self.clickhouse.clone(),
                     self.db.clone(),
                     self.cache.clone(),
+                    self.queue.clone(),
                 )
                 .await
                 {
@@ -309,6 +305,7 @@ impl SignalJobRealtimeHandler {
                         &message,
                         &self.config,
                         span_input,
+                        span_tools,
                         Some(format!("{}", e)),
                     ),
                 )
@@ -399,6 +396,7 @@ mod tests {
                 name: "test_signal".to_string(),
                 prompt: "test prompt".to_string(),
                 structured_output_schema: serde_json::json!({}),
+                sample_rate: None,
             },
             run_id: Uuid::new_v4(),
             internal_trace_id: Uuid::new_v4(),

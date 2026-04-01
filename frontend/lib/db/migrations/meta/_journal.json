@@ -540,6 +540,27 @@
       "when": 1774177763075,
       "tag": "0076_aspiring_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1774623258552,
+      "tag": "0077_ordinary_christian_walker",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1774950776846,
+      "tag": "0078_open_katie_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1774978896688,
+      "tag": "0079_abandoned_gorgon",
+      "breakpoints": true
     }
   ]
 }

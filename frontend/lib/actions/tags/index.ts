@@ -1,52 +1,40 @@
 import { sample } from "lodash";
-import z from "zod";
+import { z } from "zod/v4";
 
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { dateToNanoseconds } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
 import { tagClasses } from "@/lib/db/migrations/schema";
 import { defaultColors } from "@/lib/tags/colors";
-import { generateUuid } from "@/lib/utils";
 
 const AddSpanTagSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
+  spanId: z.guid(),
+  projectId: z.guid(),
   name: z.string(),
 });
 
 const AddSpanTagReturnSchema = AddSpanTagSchema.extend({
   id: z.string(),
-  createdAt: z.iso.date(),
-  source: z.enum(["MANUAL", "AUTO", "CODE"]),
 });
 
 const GetSpanTagsSchema = z.object({
-  projectId: z.string(),
-  spanId: z.string(),
+  projectId: z.guid(),
+  spanId: z.guid(),
 });
 
 const AddTraceTagSchema = z.object({
-  traceId: z.string(),
-  projectId: z.string(),
+  traceId: z.guid(),
+  projectId: z.guid(),
   name: z.string(),
 });
 
 const AddTraceTagReturnSchema = AddTraceTagSchema.extend({
   id: z.string(),
-  createdAt: z.iso.date(),
-  source: z.enum(["MANUAL", "AUTO", "CODE"]),
 });
 
 const GetTraceTagsSchema = z.object({
-  projectId: z.string(),
-  traceId: z.string(),
+  projectId: z.guid(),
+  traceId: z.guid(),
 });
-
-const TagSourceMap: Record<number, "MANUAL" | "AUTO" | "CODE"> = {
-  0: "MANUAL",
-  1: "AUTO",
-  2: "CODE",
-};
 
 export const addSpanTag = async (
   input: z.infer<typeof AddSpanTagSchema>
@@ -63,36 +51,18 @@ export const addSpanTag = async (
       projectId,
     };
   }
-  const id = generateUuid();
-  const createdAt = new Date();
-  await clickhouseClient.insert({
-    table: "default.span_tags",
-    format: "JSONEachRow",
-    values: [
-      {
-        span_id: spanId,
-        id: id,
-        name: name,
-        project_id: projectId,
-        source: 0,
-        created_at: dateToNanoseconds(createdAt),
-      },
-    ],
-  });
   await addTagToCHSpan({ spanId, projectId, tag: name });
   return {
     spanId,
     projectId,
-    id,
+    id: name,
     name,
-    createdAt: createdAt.toISOString(),
-    source: "MANUAL",
   };
 };
 
 const AddTagToSpanSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
+  spanId: z.guid(),
+  projectId: z.guid(),
   tag: z.string(),
 });
 
@@ -102,29 +72,24 @@ export const addTagToCHSpan = async (input: z.infer<typeof AddTagToSpanSchema>):
   const parseResult = AddTagToSpanSchema.parse(input);
   const { spanId, projectId, tag } = parseResult;
 
-  // No await here because we don't want to block the request,
-  // ALTER TABLE may be slow.
-  clickhouseClient
-    .command({
-      query: `
+  // With mutations_sync=0, this returns immediately while the mutation runs in the background.
+  await clickhouseClient.command({
+    query: `
       ALTER TABLE spans
       UPDATE tags_array = arrayDistinct(arrayConcat(tags_array, [{tag: String}]))
       WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
     `,
-      query_params: {
-        tag,
-        spanId,
-        projectId,
-      },
-    })
-    .catch((error) => {
-      console.error("Error updating tags in ClickHouse", error);
-    });
+    query_params: {
+      tag,
+      spanId,
+      projectId,
+    },
+  });
 };
 
 const RemoveTagFromSpanSchema = z.object({
-  spanId: z.string(),
-  projectId: z.string(),
+  spanId: z.guid(),
+  projectId: z.guid(),
   tag: z.string(),
 });
 
@@ -134,24 +99,19 @@ export const removeTagFromCHSpan = async (input: z.infer<typeof RemoveTagFromSpa
   const parseResult = RemoveTagFromSpanSchema.parse(input);
   const { spanId, projectId, tag } = parseResult;
 
-  // No await here because we don't want to block the request,
-  // ALTER TABLE may be slow.
-  clickhouseClient
-    .command({
-      query: `
+  // With mutations_sync=0, this returns immediately while the mutation runs in the background.
+  await clickhouseClient.command({
+    query: `
       ALTER TABLE spans
       UPDATE tags_array = arrayFilter(x -> x != {tag: String}, tags_array)
       WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
     `,
-      query_params: {
-        tag,
-        spanId,
-        projectId,
-      },
-    })
-    .catch((error) => {
-      console.error("Error removing tag from ClickHouse", error);
-    });
+    query_params: {
+      tag,
+      spanId,
+      projectId,
+    },
+  });
 };
 
 export const getSpanTags = async (
@@ -159,17 +119,15 @@ export const getSpanTags = async (
 ): Promise<
   {
     name: string;
-    source: "MANUAL" | "AUTO" | "CODE";
     id: string;
-    createdAt: string;
   }[]
 > => {
   const { spanId, projectId } = GetSpanTagsSchema.parse(input);
 
   const chResponse = await clickhouseClient.query({
     query: `
-      SELECT name, id, source, created_at
-      FROM span_tags
+      SELECT DISTINCT arrayJoin(tags_array) as name
+      FROM spans
       WHERE span_id = {spanId: UUID} AND project_id = {projectId: UUID}
     `,
     format: "JSONEachRow",
@@ -181,16 +139,11 @@ export const getSpanTags = async (
 
   const chData = (await chResponse.json()) as Array<{
     name: string;
-    source: number;
-    id: string;
-    created_at: string;
   }>;
 
   return chData.map((tag) => ({
     name: tag.name,
-    source: TagSourceMap[tag.source] ?? "MANUAL",
-    id: tag.id,
-    createdAt: tag.created_at,
+    id: tag.name,
   }));
 };
 
@@ -211,36 +164,18 @@ export const addTraceTag = async (
       projectId,
     };
   }
-  const id = generateUuid();
-  const createdAt = new Date();
-  await clickhouseClient.insert({
-    table: "default.trace_tags",
-    format: "JSONEachRow",
-    values: [
-      {
-        trace_id: traceId,
-        id: id,
-        name: name,
-        project_id: projectId,
-        source: 0,
-        created_at: dateToNanoseconds(createdAt),
-      },
-    ],
-  });
   await addTagToCHTrace({ traceId, projectId, tag: name });
   return {
     traceId,
     projectId,
-    id,
+    id: name,
     name,
-    createdAt: createdAt.toISOString(),
-    source: "MANUAL",
   };
 };
 
 const AddTagToTraceSchema = z.object({
-  traceId: z.string(),
-  projectId: z.string(),
+  traceId: z.guid(),
+  projectId: z.guid(),
   tag: z.string(),
 });
 
@@ -248,29 +183,24 @@ export const addTagToCHTrace = async (input: z.infer<typeof AddTagToTraceSchema>
   const parseResult = AddTagToTraceSchema.parse(input);
   const { traceId, projectId, tag } = parseResult;
 
-  // No await here because we don't want to block the request,
-  // ALTER TABLE may be slow.
-  clickhouseClient
-    .command({
-      query: `
+  // With mutations_sync=0, this returns immediately while the mutation runs in the background.
+  await clickhouseClient.command({
+    query: `
       ALTER TABLE traces_replacing
       UPDATE trace_tags = arrayDistinct(arrayConcat(trace_tags, [{tag: String}]))
       WHERE id = {traceId: UUID} AND project_id = {projectId: UUID}
     `,
-      query_params: {
-        tag,
-        traceId,
-        projectId,
-      },
-    })
-    .catch((error) => {
-      console.error("Error updating trace tags in ClickHouse", error);
-    });
+    query_params: {
+      tag,
+      traceId,
+      projectId,
+    },
+  });
 };
 
 const RemoveTagFromTraceSchema = z.object({
-  traceId: z.string(),
-  projectId: z.string(),
+  traceId: z.guid(),
+  projectId: z.guid(),
   tag: z.string(),
 });
 
@@ -278,24 +208,19 @@ export const removeTagFromCHTrace = async (input: z.infer<typeof RemoveTagFromTr
   const parseResult = RemoveTagFromTraceSchema.parse(input);
   const { traceId, projectId, tag } = parseResult;
 
-  // No await here because we don't want to block the request,
-  // ALTER TABLE may be slow.
-  clickhouseClient
-    .command({
-      query: `
+  // With mutations_sync=0, this returns immediately while the mutation runs in the background.
+  await clickhouseClient.command({
+    query: `
       ALTER TABLE traces_replacing
       UPDATE trace_tags = arrayFilter(x -> x != {tag: String}, trace_tags)
       WHERE id = {traceId: UUID} AND project_id = {projectId: UUID}
     `,
-      query_params: {
-        tag,
-        traceId,
-        projectId,
-      },
-    })
-    .catch((error) => {
-      console.error("Error removing trace tag from ClickHouse", error);
-    });
+    query_params: {
+      tag,
+      traceId,
+      projectId,
+    },
+  });
 };
 
 export const getTraceTags = async (
@@ -303,18 +228,16 @@ export const getTraceTags = async (
 ): Promise<
   {
     name: string;
-    source: "MANUAL" | "AUTO" | "CODE";
     id: string;
-    createdAt: string;
   }[]
 > => {
   const { traceId, projectId } = GetTraceTagsSchema.parse(input);
 
   const chResponse = await clickhouseClient.query({
     query: `
-      SELECT name, id, source, created_at
-      FROM trace_tags
-      WHERE trace_id = {traceId: UUID} AND project_id = {projectId: UUID}
+      SELECT DISTINCT arrayJoin(trace_tags) as name
+      FROM traces_replacing FINAL
+      WHERE id = {traceId: UUID} AND project_id = {projectId: UUID}
     `,
     format: "JSONEachRow",
     query_params: {
@@ -325,21 +248,16 @@ export const getTraceTags = async (
 
   const chData = (await chResponse.json()) as Array<{
     name: string;
-    source: number;
-    id: string;
-    created_at: string;
   }>;
 
   return chData.map((tag) => ({
     name: tag.name,
-    source: TagSourceMap[tag.source] ?? "MANUAL",
-    id: tag.id,
-    createdAt: tag.created_at,
+    id: tag.name,
   }));
 };
 
 const CreateOrUpdateTagClassSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   name: z.string(),
   color: z.string().optional(),
 });

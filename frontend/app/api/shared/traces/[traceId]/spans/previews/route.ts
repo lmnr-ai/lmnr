@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { getSharedSpanOutputs } from "@/lib/actions/shared/spans/outputs.ts";
+import { getSharedSpanPreviews } from "@/lib/actions/shared/spans/previews.ts";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ traceId: string }> }): Promise<Response> {
   const params = await props.params;
@@ -9,17 +9,23 @@ export async function POST(req: NextRequest, props: { params: Promise<{ traceId:
 
   try {
     const body = await req.json();
-    const { spanIds, startDate, endDate } = body;
+    const { spanIds, spanTypes, startDate, endDate } = body;
 
-    const outputs = await getSharedSpanOutputs({ traceId, spanIds, startDate, endDate });
+    const previews = await getSharedSpanPreviews({
+      traceId,
+      spanIds,
+      spanTypes,
+      startDate,
+      endDate,
+    });
 
-    return NextResponse.json({ outputs });
+    return NextResponse.json({ previews });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
     }
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch span outputs." },
+      { error: error instanceof Error ? error.message : "Failed to generate span previews." },
       { status: 500 }
     );
   }

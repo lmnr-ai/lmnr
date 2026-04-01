@@ -1,6 +1,7 @@
 pub mod client;
 pub mod consumer;
 mod doc_batch;
+pub mod preprocess;
 pub mod producer;
 mod proto;
 mod utils;
@@ -16,6 +17,7 @@ use uuid::Uuid;
 use crate::db::events::Event;
 use crate::db::spans::Span;
 use crate::utils::json_value_to_string;
+use preprocess::preprocess_text;
 use utils::extract_text_from_json_value;
 
 pub const SPANS_INDEXER_QUEUE: &str = "spans_indexer_queue";
@@ -99,6 +101,33 @@ impl FlattenJson for QuickwitIndexedEvent {
         let attributes_text = extract_text_from_json_value(&self.attributes);
         let attributes_text = attributes_text.replace('{', " { ").replace('}', " } ");
         self.attributes = serde_json::Value::String(attributes_text);
+    }
+}
+
+/// Preprocess text fields for Quickwit indexing. Normalizes escape sequences,
+/// whitespace, ANSI codes, and Unicode before ingestion.
+#[enum_dispatch(QuickwitDocument)]
+pub trait PreprocessForIndexing {
+    fn preprocess_for_indexing(&mut self);
+}
+
+impl PreprocessForIndexing for QuickwitIndexedSpan {
+    fn preprocess_for_indexing(&mut self) {
+        if let Some(ref input) = self.input {
+            self.input = Some(preprocess_text(input));
+        }
+        if let Some(ref output) = self.output {
+            self.output = Some(preprocess_text(output));
+        }
+    }
+}
+
+impl PreprocessForIndexing for QuickwitIndexedEvent {
+    fn preprocess_for_indexing(&mut self) {
+        self.name = preprocess_text(&self.name);
+        if let Value::String(ref s) = self.attributes {
+            self.attributes = Value::String(preprocess_text(s));
+        }
     }
 }
 

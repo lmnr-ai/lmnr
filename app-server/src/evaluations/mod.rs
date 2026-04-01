@@ -10,15 +10,16 @@ use uuid::Uuid;
 use clickhouse::Row;
 
 use crate::{
-    ch::utils::chrono_to_nanoseconds,
+    ch::{
+        evaluation_datapoints::{CHEvaluationDatapoint, ch_insert_evaluation_datapoints},
+        utils::chrono_to_nanoseconds,
+    },
     db::{
         evaluations::is_shared_evaluation,
         trace::{delete_shared_traces, insert_shared_traces},
     },
-    utils::{get_unsigned_env_with_default, json_value_to_string},
+    utils::json_value_to_string,
 };
-
-const DEFAULT_CHUNK_SIZE: usize = 25;
 
 /// Helper struct for fetching a single trace_id from ClickHouse.
 #[derive(Row, serde::Serialize, serde::Deserialize)]
@@ -87,22 +88,20 @@ fn scores_to_json_string(scores: &HashMap<String, Option<f64>>) -> String {
 }
 
 /// Convert a Value to a ClickHouse string, returning "" for falsey values.
-fn value_to_ch_string(v: &Value) -> String {
+/// Truncates the value to a limit of 250K chars, because the limit for
+/// parameters bound to non-canonical insert queries is 256KB
+fn value_to_ch_string_trunc(v: &Value) -> String {
     if is_falsey_value(v) {
         String::new()
     } else {
-        json_value_to_string(v)
-    }
-}
-
-/// Convert a metadata Option<HashMap> to a ClickHouse string.
-/// Returns "" for None or empty maps so ClickHouse empty() can detect it.
-fn metadata_to_ch_string(metadata: &Option<HashMap<String, Value>>) -> String {
-    match metadata {
-        Some(m) if !m.is_empty() => {
-            json_value_to_string(&serde_json::to_value(m).unwrap_or_default())
-        }
-        _ => String::new(),
+        let s = json_value_to_string(v);
+        let max_bytes = 250000;
+        s.char_indices()
+            .take_while(|(i, _)| *i < max_bytes)
+            .last()
+            .map(|(i, c)| &s[..i + c.len_utf8()])
+            .unwrap_or("")
+            .to_string()
     }
 }
 
@@ -131,122 +130,22 @@ pub async fn insert_evaluation_datapoints(
         .await?;
     }
 
-    // INSERT...SELECT with UNION ALL for datapoints in chunks.
-    // clickhouse-rs bind() performs client-side string interpolation, so all bound
-    // values are embedded in the SQL text. Chunking keeps each query well under
-    // ClickHouse's max_query_size (256 KiB default).
-    let now_nanos = chrono_to_nanoseconds(Utc::now());
-
-    // Each row in the UNION ALL has 15 columns matching the new values.
-    let row_sql = "SELECT toUUID(?) as id, toUUID(?) as evaluation_id, \
-                   toUUID(?) as project_id, toUUID(?) as trace_id, \
-                   fromUnixTimestamp64Nano(toInt64(?), 'UTC') as updated_at, \
-                   ? as data, ? as target, ? as metadata, ? as executor_output, \
-                   toUInt64(?) as `index`, toUUID(?) as dataset_id, \
-                   toUUID(?) as dataset_datapoint_id, \
-                   fromUnixTimestamp64Nano(toInt64(?), 'UTC') as dataset_datapoint_created_at, \
-                   ? as group_id, ? as scores";
-
-    // for most uses (direct from SDK), the number of datapoints passed here is
-    // usually 1, so this is unused most of the times
-    let chunk_size = get_unsigned_env_with_default("EVALS_INSERT_CHUNK_SIZE", DEFAULT_CHUNK_SIZE);
-    for chunk in evaluation_datapoints.chunks(chunk_size) {
-        let union_sql = vec![row_sql; chunk.len()].join(" UNION ALL ");
-
-        // we use prewhere id here, so that we hit the bloom_filter skip index on the
-        // project_id, evaluation_id, id BEFORE we execute FINAL
-        let query = format!(
-            "INSERT INTO evaluation_datapoints (
-                id, evaluation_id, project_id, trace_id, updated_at,
-                data, target, metadata, executor_output, `index`,
-                dataset_id, dataset_datapoint_id, dataset_datapoint_created_at,
-                group_id, scores
-            )
-            SELECT
-                new.id,
-                new.evaluation_id,
-                new.project_id,
-                if(notEmpty(existing.id) AND empty(new.trace_id), existing.trace_id, new.trace_id),
-                new.updated_at,
-                if(notEmpty(existing.id) AND empty(new.data), existing.data, new.data),
-                if(notEmpty(existing.id) AND empty(new.target), existing.target, new.target),
-                if(notEmpty(existing.id) AND empty(new.metadata), existing.metadata, new.metadata),
-                if(notEmpty(existing.id) AND empty(new.executor_output), existing.executor_output, new.executor_output),
-                new.`index`,
-                if(notEmpty(existing.id) AND empty(new.dataset_id), existing.dataset_id, new.dataset_id),
-                if(notEmpty(existing.id) AND empty(new.dataset_id), existing.dataset_datapoint_id, new.dataset_datapoint_id),
-                if(notEmpty(existing.id) AND empty(new.dataset_id), existing.dataset_datapoint_created_at, new.dataset_datapoint_created_at),
-                new.group_id,
-                if(empty(new.scores),
-                    if(notEmpty(existing.id), existing.scores, new.scores),
-                    if(notEmpty(existing.id) AND notEmpty(existing.scores),
-                        jsonMergePatch(existing.scores, new.scores),
-                        new.scores))
-            FROM ({union_sql}) AS new
-            LEFT JOIN (
-                SELECT * FROM evaluation_datapoints FINAL
-                PREWHERE id IN ({id_in_list})
-                WHERE project_id = toUUID(?) AND evaluation_id = toUUID(?)
-            ) AS existing ON new.id = existing.id",
-            id_in_list = vec!["toUUID(?)"; chunk.len()].join(", "),
-        );
-
-        let mut q = clickhouse.query(&query);
-
-        // Bind 15 params per datapoint (matching the UNION ALL row order)
-        for dp in chunk {
-            let data = value_to_ch_string(&dp.data);
-            let target = value_to_ch_string(&dp.target);
-            let metadata = metadata_to_ch_string(&dp.metadata);
-            let executor_output = dp
-                .executor_output
-                .as_ref()
-                .map(|v| value_to_ch_string(v))
-                .unwrap_or_default();
-            let scores = scores_to_json_string(&dp.scores);
-
-            let (dataset_id, dataset_datapoint_id, dataset_datapoint_created_at) =
-                match &dp.dataset_link {
-                    Some(link) => (
-                        link.dataset_id,
-                        link.datapoint_id,
-                        chrono_to_nanoseconds(link.created_at),
-                    ),
-                    None => (Uuid::nil(), Uuid::nil(), 0i64),
-                };
-
-            q = q.bind(dp.id);
-            q = q.bind(evaluation_id);
-            q = q.bind(project_id);
-            q = q.bind(dp.trace_id);
-            q = q.bind(now_nanos);
-            q = q.bind(data.as_str());
-            q = q.bind(target.as_str());
-            q = q.bind(metadata.as_str());
-            q = q.bind(executor_output.as_str());
-            q = q.bind(dp.index as u64);
-            q = q.bind(dataset_id);
-            q = q.bind(dataset_datapoint_id);
-            q = q.bind(dataset_datapoint_created_at);
-            q = q.bind(group_name.as_str());
-            q = q.bind(scores.as_str());
-        }
-
-        // WHERE clause for the existing rows subquery
-        // id IN (...) list – same order as the chunk
-        for dp in chunk {
-            q = q.bind(dp.id);
-        }
-        q = q.bind(project_id);
-        q = q.bind(evaluation_id);
-
-        q.execute().await.map_err(|e| {
-            anyhow::anyhow!(
-                "Clickhouse evaluation datapoints INSERT...SELECT failed: {:?}",
-                e
-            )
-        })?;
-    }
+    ch_insert_evaluation_datapoints(
+        clickhouse,
+        evaluation_datapoints
+            .into_iter()
+            .map(|dp| {
+                CHEvaluationDatapoint::from_evaluation_datapoint_result(
+                    dp,
+                    evaluation_id,
+                    project_id,
+                    group_name,
+                )
+            })
+            .collect::<Vec<_>>()
+            .as_slice(),
+    )
+    .await?;
 
     Ok(())
 }
@@ -299,7 +198,7 @@ pub async fn update_evaluation_datapoint(
     let new_trace_id = trace_id.unwrap_or(Uuid::nil());
     let new_executor_output = executor_output
         .as_ref()
-        .map(|v| value_to_ch_string(v))
+        .map(|v| value_to_ch_string_trunc(v))
         .unwrap_or_default();
     let new_scores = scores_to_json_string(&scores);
     let now_nanos = chrono_to_nanoseconds(Utc::now());
