@@ -78,7 +78,9 @@ export default function SessionsVirtualList({
       });
       if (expandedSessions.has(session.sessionId)) {
         const isLoading = loadingSessions.has(session.sessionId);
-        const traces = sessionTraces[session.sessionId] ?? [];
+        const traces = (sessionTraces[session.sessionId] ?? [])
+          .slice()
+          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
         if (isLoading) {
           items.push({ type: "trace-loading", sessionId: session.sessionId });
@@ -223,7 +225,7 @@ export default function SessionsVirtualList({
   const showList = !isLoading && sessions.length > 0;
 
   return (
-    <div ref={scrollContainerRef} className="flex-1 overflow-auto styled-scrollbar">
+    <div ref={scrollContainerRef} className="flex-1 overflow-auto styled-scrollbar rounded-lg">
       <SessionTableHeader />
       {isLoading && (
         <div className="flex items-center justify-center py-12">
@@ -249,7 +251,7 @@ export default function SessionsVirtualList({
       )}
       {showList && (
         <>
-          <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+          <div style={{ height: virtualizer.getTotalSize() }} className="relative">
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const item = flatList[virtualItem.index];
               return (

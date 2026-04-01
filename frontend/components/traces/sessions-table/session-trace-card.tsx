@@ -1,8 +1,8 @@
 "use client";
 
-import { CircleDollarSign, Clock3, Coins } from "lucide-react";
+import { ChevronDown, ChevronUp, CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import Markdown from "@/components/traces/trace-view/list/markdown";
@@ -28,6 +28,8 @@ interface SessionTraceCardProps {
 export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: SessionTraceCardProps) {
   const { projectId } = useParams();
   const { toast } = useToast();
+
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const { traceIO, isLoading } = useSessionsStoreContext(
     (s) => ({
@@ -76,7 +78,10 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
       })}
     >
       <div
-        className="bg-secondary border rounded flex items-start overflow-clip w-full h-[140px] hover:border-muted-foreground/50"
+        className={cn(
+          "bg-secondary border rounded flex items-start overflow-clip w-full hover:border-muted-foreground/50 transition-all duration-200",
+          isExpanded ? "h-[280px]" : "h-[140px]"
+        )}
         onClick={onClick}
       >
         {/* Details column */}
@@ -112,20 +117,28 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
         </div>
 
         {/* Input column */}
-        <div className="bg-muted/50 border-l flex-1 h-full min-w-0 overflow-hidden relative">
-          <div className="h-full overflow-y-auto px-3 py-2">
-            <TraceIOContent text={traceIO?.input} isLoading={isLoading} fallback="No input available" />
-          </div>
-          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-muted/50 h-12 left-0 right-0 pointer-events-none" />
-        </div>
+        <TraceIOContent
+          text={traceIO?.input}
+          isLoading={isLoading}
+          fallback="No input available"
+          isExpanded={isExpanded}
+          onExpand={(e) => {
+            setIsExpanded((prev) => !prev);
+            e.stopPropagation();
+          }}
+        />
 
         {/* Output column */}
-        <div className="bg-muted/50 border-l flex-1 h-full min-w-0 overflow-hidden relative">
-          <div className="h-full overflow-y-auto px-3 py-2">
-            <TraceIOContent text={traceIO?.output} isLoading={isLoading} fallback="No output available" />
-          </div>
-          <div className="absolute bg-gradient-to-b bottom-0 from-transparent to-muted/50 h-12 left-0 right-0 pointer-events-none" />
-        </div>
+        <TraceIOContent
+          text={traceIO?.output}
+          isLoading={isLoading}
+          fallback="No output available"
+          isExpanded={isExpanded}
+          onExpand={(e) => {
+            setIsExpanded((prev) => !prev);
+            e.stopPropagation();
+          }}
+        />
       </div>
     </div>
   );
@@ -135,24 +148,38 @@ function TraceIOContent({
   text,
   isLoading,
   fallback,
+  isExpanded,
+  onExpand,
 }: {
   text: string | null | undefined;
   isLoading: boolean;
   fallback: string;
+  isExpanded: boolean;
+  onExpand: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
-  if (isLoading) {
-    return (
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-3 w-full" />
-        <Skeleton className="h-3 w-4/5" />
-        <Skeleton className="h-3 w-3/5" />
+  return (
+    <div className={cn("bg-muted/20 border-l flex-1 h-full min-w-0 overflow-hidden relative group")}>
+      <div className={cn("h-full px-3 py-2", isExpanded ? "overflow-y-auto" : "overflow-y-hidden")}>
+        {isLoading ? (
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-4/5" />
+            <Skeleton className="h-3 w-3/5" />
+          </div>
+        ) : !text ? (
+          <p className="text-xs text-muted-foreground leading-4">{fallback}</p>
+        ) : (
+          <Markdown output={text} className="text-secondary-foreground [&_*]:text-inherit" contentClassName="pb-0" />
+        )}
       </div>
-    );
-  }
-
-  if (!text) {
-    return <p className="text-xs text-muted-foreground leading-4">{fallback}</p>;
-  }
-
-  return <Markdown output={text} className="text-muted-foreground [&_*]:text-inherit" contentClassName="pb-0" />;
+      <button
+        className="absolute bottom-0 left-0 right-0 h-20 flex items-end justify-center pb-1 bg-gradient-to-t from-secondary/80 to-transparent transition-opacity duration-200 hover:text-secondary-foreground"
+        onClick={onExpand}
+      >
+        <span className="text-muted-foreground transition-opacity duration-200 opacity-0 group-hover:opacity-100">
+          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </span>
+      </button>
+    </div>
+  );
 }

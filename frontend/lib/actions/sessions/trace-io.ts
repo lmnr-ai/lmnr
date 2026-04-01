@@ -69,9 +69,10 @@ function extractLastUserMessage(raw: string): string | null {
     if (parsed[i]?.role === "user") {
       const content = parsed[i].content;
       if (typeof content === "string") return content;
-      // Handle array content (e.g. Anthropic format with text parts)
+      // Handle array content (e.g. Anthropic format with text parts).
+      // Use findLast to skip injected system-reminder blocks that appear first.
       if (Array.isArray(content)) {
-        const textPart = content.find((p: any) => p?.type === "text" && typeof p.text === "string");
+        const textPart = content.findLast((p: any) => p?.type === "text" && typeof p.text === "string");
         if (textPart) return textPart.text;
       }
     }
