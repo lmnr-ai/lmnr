@@ -5,7 +5,7 @@ import type { Filter } from "@/lib/actions/common/filters";
 import type { Operator } from "@/lib/actions/common/operators";
 
 import type { AdvancedSearchMode, AutocompleteCache, ColumnFilter, FilterTag, FilterTagFocusState } from "../types";
-import type { RecentsSlice } from "./recents-slice";
+import type { RecentSearch, RecentsSlice } from "./recents-slice";
 import type { UndoRedoSlice, UndoSnapshot } from "./undo-redo-slice";
 
 export interface SliceContext {
@@ -67,6 +67,12 @@ export interface AdvancedSearchStore extends RecentsSlice, UndoRedoSlice {
   clearAll: (router: AppRouterInstance, pathname: string, searchParams: ReadonlyURLSearchParams) => void;
   updateLastSubmitted: (filters: Filter[], search: string) => void;
   pushUndoSnapshot: () => void;
+  applyRecentSearch: (
+    recentSearch: RecentSearch,
+    router: AppRouterInstance,
+    pathname: string,
+    searchParams: ReadonlyURLSearchParams
+  ) => void;
 }
 
 export type StoreSet = {

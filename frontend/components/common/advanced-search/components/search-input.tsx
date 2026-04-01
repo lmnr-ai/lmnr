@@ -12,7 +12,6 @@ import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
 import { useAdvancedSearchContext, useAdvancedSearchNavigation, useAdvancedSearchRefsContext } from "../store";
-import { createTagFromFilter } from "../types";
 import FilterSuggestions from "./suggestions";
 import FilterTag from "./tag";
 
@@ -60,7 +59,7 @@ const FilterSearchInput = ({
     removeSelectedTags,
     submit,
     clearAll,
-    setTags,
+    applyRecentSearch,
     undo,
     redo,
   } = useAdvancedSearchContext((state) => ({
@@ -76,7 +75,7 @@ const FilterSearchInput = ({
     removeSelectedTags: state.removeSelectedTags,
     submit: state.submit,
     clearAll: state.clearAll,
-    setTags: state.setTags,
+    applyRecentSearch: state.applyRecentSearch,
     undo: state.undo,
     redo: state.redo,
   }));
@@ -117,28 +116,9 @@ const FilterSearchInput = ({
     (index: number) => {
       const rs = recentSearches[index];
       if (!rs) return;
-      const recentTags = rs.filters.map(createTagFromFilter);
-      setTags(recentTags);
-      setInputValue(rs.search);
-      setIsOpen(false);
-      setActiveIndex(-1);
-      setActiveRecentIndex(-1);
-      queueMicrotask(() => {
-        submit(router, pathname, searchParams);
-      });
+      applyRecentSearch(rs, router, pathname, searchParams);
     },
-    [
-      recentSearches,
-      setTags,
-      setInputValue,
-      setIsOpen,
-      setActiveIndex,
-      setActiveRecentIndex,
-      submit,
-      router,
-      pathname,
-      searchParams,
-    ]
+    [recentSearches, applyRecentSearch, router, pathname, searchParams]
   );
 
   const handleKeyDown = useCallback(

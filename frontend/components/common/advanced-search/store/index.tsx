@@ -320,6 +320,20 @@ function createCoreSlice(
     updateLastSubmitted: (filters, search) => {
       context.setLastSubmitted({ filters, search });
     },
+
+    applyRecentSearch: (recentSearch, router, pathname, searchParams) => {
+      const recentTags = recentSearch.filters.map(createTagFromFilter);
+      set({
+        tags: recentTags,
+        inputValue: recentSearch.search,
+        isOpen: false,
+        activeIndex: -1,
+        activeRecentIndex: -1,
+      });
+      queueMicrotask(() => {
+        get().submit(router, pathname, searchParams);
+      });
+    },
   };
 }
 

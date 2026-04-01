@@ -2,7 +2,7 @@
 
 import { Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { dataTypeOperationsMap, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -63,16 +63,19 @@ const RecentSearchChip = ({
   columnFilters,
   isActive,
   onSelect,
+  ref,
 }: {
   recentSearch: RecentSearch;
   columnFilters: ColumnFilter[];
   isActive: boolean;
   onSelect: () => void;
+  ref?: React.Ref<HTMLDivElement>;
 }) => {
   const tags = recentSearch.filters.map(createTagFromFilter);
 
   return (
     <div
+      ref={ref}
       className={cn(
         "inline-flex items-center rounded-md border h-6 text-xs divide-x px-0.5 cursor-pointer shrink-0 transition-colors",
         isActive ? "bg-accent border-primary/40" : "bg-background hover:bg-accent"
@@ -122,21 +125,22 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   const tags = useAdvancedSearchContext((state) => state.tags);
   const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
 
-  const { addTag, addCompleteTag, setInputValue, setIsOpen, setTags, submit, setActiveIndex, setActiveRecentIndex } =
-    useAdvancedSearchContext((state) => ({
+  const { addTag, addCompleteTag, setInputValue, setIsOpen, submit, applyRecentSearch } = useAdvancedSearchContext(
+    (state) => ({
       addTag: state.addTag,
       addCompleteTag: state.addCompleteTag,
       setInputValue: state.setInputValue,
       setIsOpen: state.setIsOpen,
-      setTags: state.setTags,
       submit: state.submit,
-      setActiveIndex: state.setActiveIndex,
-      setActiveRecentIndex: state.setActiveRecentIndex,
-    }));
+      applyRecentSearch: state.applyRecentSearch,
+    })
+  );
 
   const { mainInputRef } = useAdvancedSearchRefsContext();
 
   const suggestionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const recentChipRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const recentContainerRef = useRef<HTMLDivElement>(null);
 
   const suggestions = useMemo(
     () => buildSuggestions(inputValue, filters, autocompleteData),
@@ -151,6 +155,23 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
       activeElement.scrollIntoView({ block: "nearest" });
     }
   }, [activeIndex]);
+
+  useEffect(() => {
+    const chip = recentChipRefs.current.get(activeRecentIndex);
+    const container = recentContainerRef.current;
+    if (!chip || !container) return;
+
+    const chipLeft = chip.offsetLeft;
+    const chipRight = chipLeft + chip.offsetWidth;
+    const scrollLeft = container.scrollLeft;
+    const visibleRight = scrollLeft + container.clientWidth;
+
+    if (chipLeft < scrollLeft) {
+      container.scrollTo({ left: chipLeft - 12, behavior: "smooth" });
+    } else if (chipRight > visibleRight) {
+      container.scrollTo({ left: chipRight - container.clientWidth + 12, behavior: "smooth" });
+    }
+  }, [activeRecentIndex]);
 
   const handleValueSelect = useCallback(
     (field: string, value: string) => {
@@ -176,18 +197,9 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
 
   const handleRecentSearchSelect = useCallback(
     (recentSearch: RecentSearch) => {
-      const recentTags = recentSearch.filters.map(createTagFromFilter);
-      setTags(recentTags);
-      setInputValue(recentSearch.search);
-      setIsOpen(false);
-      setActiveIndex(-1);
-      setActiveRecentIndex(-1);
-
-      queueMicrotask(() => {
-        submit(router, pathname, searchParams);
-      });
+      applyRecentSearch(recentSearch, router, pathname, searchParams);
     },
-    [setTags, setInputValue, setIsOpen, setActiveIndex, setActiveRecentIndex, submit, router, pathname, searchParams]
+    [applyRecentSearch, router, pathname, searchParams]
   );
 
   if (!isOpen || (suggestions.length === 0 && !showRecent)) return null;
@@ -203,10 +215,16 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
       {showRecent && (
         <div className="border-b">
           <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground font-medium tracking-wide">Recent searches</div>
-          <div className="flex items-center gap-1.5 px-3 pb-2 pt-1 overflow-x-auto no-scrollbar">
+          <div
+            ref={recentContainerRef}
+            className="flex items-center gap-1.5 px-3 pb-2 pt-1 overflow-x-auto no-scrollbar"
+          >
             {recentSearches.map((rs, idx) => (
               <RecentSearchChip
                 key={rs.timestamp}
+                ref={(el) => {
+                  if (el) recentChipRefs.current.set(idx, el);
+                }}
                 recentSearch={rs}
                 columnFilters={filters}
                 isActive={activeRecentIndex === idx}
