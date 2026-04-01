@@ -2,7 +2,7 @@
 
 import { Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React, { type ChangeEvent, type FocusEvent, type KeyboardEvent, memo, useCallback } from "react";
+import React, { type ChangeEvent, type FocusEvent, type KeyboardEvent, memo, useCallback, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 import { getSuggestionAtIndex, getSuggestionsCount } from "@/components/common/advanced-search/utils.ts";
@@ -61,6 +61,8 @@ const FilterSearchInput = ({
     submit,
     clearAll,
     setTags,
+    undo,
+    redo,
   } = useAdvancedSearchContext((state) => ({
     setInputValue: state.setInputValue,
     setIsOpen: state.setIsOpen,
@@ -75,10 +77,13 @@ const FilterSearchInput = ({
     submit: state.submit,
     clearAll: state.clearAll,
     setTags: state.setTags,
+    undo: state.undo,
+    redo: state.redo,
   }));
 
   const { mainInputRef } = useAdvancedSearchRefsContext();
   const { navigateToTag, registerTagHandle } = useAdvancedSearchNavigation();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleInputChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
@@ -89,6 +94,16 @@ const FilterSearchInput = ({
       setIsOpen(true);
     },
     [setInputValue, setIsOpen, selectedTagIds.size, removeSelectedTags, router, pathname, searchParams]
+  );
+
+  const handleInputFocus = useCallback(
+    (e: FocusEvent<HTMLInputElement>) => {
+      const cameFromInside = containerRef.current?.contains(e.relatedTarget as Node);
+      if (!cameFromInside) {
+        setIsOpen(true);
+      }
+    },
+    [setIsOpen]
   );
 
   const handleInputBlur = useCallback(() => {
@@ -131,6 +146,22 @@ const FilterSearchInput = ({
       const input = mainInputRef.current;
       const count = getSuggestionsCount(filters, inputValue, autocompleteData);
       const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo(router, pathname, searchParams);
+        } else {
+          undo(router, pathname, searchParams);
+        }
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "y") {
+        e.preventDefault();
+        redo(router, pathname, searchParams);
+        return;
+      }
 
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
         if (tags.length > 0) {
@@ -296,7 +327,8 @@ const FilterSearchInput = ({
       removeTag,
       addTag,
       addCompleteTag,
-      setTags,
+      undo,
+      redo,
       submit,
       handleRecentSelect,
       navigateToTag,
@@ -328,6 +360,7 @@ const FilterSearchInput = ({
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         "flex items-start gap-2 px-1 rounded-md border border-input relative",
         "bg-muted/80 transition duration-250 py-0.75",
@@ -356,7 +389,8 @@ const FilterSearchInput = ({
           type="text"
           value={inputValue}
           onChange={handleInputChange}
-          onFocus={() => setIsOpen(true)}
+          onFocus={handleInputFocus}
+          onClick={() => setIsOpen(true)}
           onBlur={handleInputBlur}
           onKeyDown={handleKeyDown}
           disabled={disabled}

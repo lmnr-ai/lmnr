@@ -74,7 +74,7 @@ const RecentSearchChip = ({
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-md border h-6 text-xs gap-0.5 px-0.5 cursor-pointer shrink-0 transition-colors",
+        "inline-flex items-center rounded-md border h-6 text-xs divide-x px-0.5 cursor-pointer shrink-0 transition-colors",
         isActive ? "bg-accent border-primary/40" : "bg-background hover:bg-accent"
       )}
       onMouseDown={(e) => {
@@ -90,9 +90,9 @@ const RecentSearchChip = ({
         const displayValue = Array.isArray(tag.value) ? tag.value.join(", ") : String(tag.value);
 
         return (
-          <span key={tag.id} className="inline-flex items-center gap-0.5 rounded bg-muted/80 px-1.5 h-[18px]">
+          <span key={tag.id} className="inline-flex items-center gap-1 px-1.5 h-4">
             <span className="text-secondary-foreground font-medium">{displayName}</span>
-            <span className="text-muted-foreground">{operatorLabel}</span>
+            <span className="text-secondary-foreground/80">{operatorLabel}</span>
             <span className="text-primary">{displayValue}</span>
           </span>
         );
@@ -198,6 +198,7 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
         "absolute top-full left-0 right-0 z-50 mt-1 bg-secondary border rounded-md shadow-md overflow-hidden",
         className
       )}
+      onMouseDown={(e) => e.preventDefault()}
     >
       {showRecent && (
         <div className="border-b">

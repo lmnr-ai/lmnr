@@ -1,8 +1,7 @@
 "use client";
 
 import { isEqual, uniqueId } from "lodash";
-import { type AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { type ReadonlyURLSearchParams, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createContext, type PropsWithChildren, type RefObject, useContext, useMemo, useRef, useState } from "react";
 import { createStore, type StoreApi, useStore } from "zustand";
 import { persist } from "zustand/middleware";
@@ -13,7 +12,6 @@ import { Operator } from "@/lib/actions/common/operators";
 
 import {
   type AdvancedSearchMode,
-  type AutocompleteCache,
   type ColumnFilter,
   createFilterFromTag,
   createTagFromFilter,
@@ -21,127 +19,38 @@ import {
   type FilterTagFocusState,
   type FilterTagRef,
   type TagFocusPosition,
-} from "./types";
-import { getNextField, getPreviousField } from "./utils";
+} from "../types";
+import { getNextField, getPreviousField } from "../utils";
+import { createRecentsSlice, type RecentsSlice } from "./recents-slice";
+import type { AdvancedSearchStore, SliceContext, StoreGet, StoreSet } from "./types";
+import { createUndoRedoSlice, type UndoRedoSlice, type UndoSnapshot } from "./undo-redo-slice";
 
-/** Map UI column dataType (which includes "enum") to the Filter schema's FilterDataType */
+export type { RecentSearch } from "./recents-slice";
+export type { AdvancedSearchStore } from "./types";
+
 function toFilterDataType(uiDataType: ColumnFilter["dataType"]): FilterDataType {
   return uiDataType === "enum" ? "string" : uiDataType;
 }
 
-export interface RecentSearch {
-  filters: Filter[];
-  search: string;
-  timestamp: number;
-}
-
-const MAX_RECENT_SEARCHES = 5;
-
-function areSearchesEqual(a: RecentSearch, b: RecentSearch): boolean {
-  if (a.search !== b.search) return false;
-  if (a.filters.length !== b.filters.length) return false;
-  return JSON.stringify(a.filters) === JSON.stringify(b.filters);
-}
-
-interface AdvancedSearchStore {
-  // State
-  autocompleteData: AutocompleteCache;
-  tags: FilterTag[];
-  inputValue: string;
-  isOpen: boolean;
-  activeIndex: number;
-  activeRecentIndex: number;
-  selectedTagIds: Set<string>;
-  openSelectId: string | null;
-  tagFocusStates: Map<string, FilterTagFocusState>;
-  recentSearches: RecentSearch[];
-
-  // Config (from props)
-  filters: ColumnFilter[];
-  mode: AdvancedSearchMode;
-  onSubmit?: (filters: Filter[], search: string) => void;
-
-  // Computed selectors
-  getActiveTagId: () => string | null;
-
-  // Actions - autocomplete
-  setAutocompleteData: (data: AutocompleteCache) => void;
-
-  // Actions - UI state
-  setInputValue: (value: string) => void;
-  setIsOpen: (isOpen: boolean) => void;
-  setActiveIndex: (index: number) => void;
-  setActiveRecentIndex: (index: number) => void;
-  setOpenSelectId: (id: string | null) => void;
-
-  // Actions - tag operations
-  setTags: (tags: FilterTag[]) => void;
-  addTag: (field: string) => void;
-  addCompleteTag: (
-    field: string,
-    operator: Operator,
-    value: string,
-    router: AppRouterInstance,
-    pathname: string,
-    searchParams: ReadonlyURLSearchParams
-  ) => FilterTag | undefined;
-  removeTag: (
-    tagId: string,
-    router: AppRouterInstance,
-    pathname: string,
-    searchParams: ReadonlyURLSearchParams
-  ) => void;
-  updateTagField: (tagId: string, field: string) => void;
-  updateTagOperator: (tagId: string, operator: Operator) => void;
-  updateTagValue: (tagId: string, value: string | string[]) => void;
-
-  // Actions - selection
-  selectAllTags: () => void;
-  clearSelection: () => void;
-  removeSelectedTags: (router: AppRouterInstance, pathname: string, searchParams: ReadonlyURLSearchParams) => void;
-
-  // Actions - focus
-  setTagFocusState: (tagId: string, state: FilterTagFocusState) => void;
-  getTagFocusState: (tagId: string) => FilterTagFocusState;
-
-  // Actions - submit/clear
-  submit: (router: AppRouterInstance, pathname: string, searchParams: ReadonlyURLSearchParams) => void;
-  clearAll: (router: AppRouterInstance, pathname: string, searchParams: ReadonlyURLSearchParams) => void;
-  updateLastSubmitted: (filters: Filter[], search: string) => void;
-
-  // Actions - recent searches
-  addRecentSearch: (filters: Filter[], search: string) => void;
-}
-
-const createAdvancedSearchStore = (
+function createCoreSlice(
+  set: StoreSet,
+  get: StoreGet,
+  context: SliceContext,
   filters: ColumnFilter[],
-  initialTags: FilterTag[],
-  initialSearch: string,
   mode: AdvancedSearchMode,
   onSubmit?: (filters: Filter[], search: string) => void,
-  suggestions?: Map<string, string[]>,
-  storageKey?: string
-) => {
-  let lastSubmitted = {
-    filters: initialTags.map(createFilterFromTag),
-    search: initialSearch.trim(),
-  };
-
-  type Set = StoreApi<AdvancedSearchStore>["setState"] &
-    ((fn: (state: AdvancedSearchStore) => Partial<AdvancedSearchStore>) => void);
-  type Get = StoreApi<AdvancedSearchStore>["getState"];
-
-  const storeConfig = (set: Set, get: Get): AdvancedSearchStore => ({
+  suggestions?: Map<string, string[]>
+): Omit<AdvancedSearchStore, keyof RecentsSlice | keyof UndoRedoSlice> {
+  return {
     autocompleteData: suggestions || new Map(),
-    tags: initialTags,
-    inputValue: initialSearch,
+    tags: context.initialTags,
+    inputValue: context.initialSearch,
     isOpen: false,
     activeIndex: -1,
     activeRecentIndex: -1,
     selectedTagIds: new Set<string>(),
     openSelectId: null,
     tagFocusStates: new Map<string, FilterTagFocusState>(),
-    recentSearches: [],
 
     filters,
     mode,
@@ -166,6 +75,7 @@ const createAdvancedSearchStore = (
     setTags: (tags) => {
       set({ tags });
     },
+
     addTag: (field) => {
       const { filters } = get();
       const columnFilter = filters.find((f) => f.key === field);
@@ -173,7 +83,6 @@ const createAdvancedSearchStore = (
 
       const operations = dataTypeOperationsMap[columnFilter.dataType];
       const defaultOperator = operations?.[0]?.key ?? Operator.Eq;
-
       const defaultValue = columnFilter.dataType === "array" ? [] : "";
 
       const newTag: FilterTag = {
@@ -204,6 +113,8 @@ const createAdvancedSearchStore = (
       const columnFilter = filters.find((f) => f.key === field);
       if (!columnFilter) return;
 
+      get().pushUndoSnapshot();
+
       const tagValue = columnFilter.dataType === "array" && !Array.isArray(value) ? [value] : value;
 
       const newTag: FilterTag = {
@@ -218,7 +129,7 @@ const createAdvancedSearchStore = (
       const filterObjects = updatedTags.map(createFilterFromTag);
       const searchValue = "";
 
-      lastSubmitted = { filters: filterObjects, search: searchValue };
+      context.setLastSubmitted({ filters: filterObjects, search: searchValue });
 
       set({
         tags: updatedTags,
@@ -226,6 +137,11 @@ const createAdvancedSearchStore = (
         isOpen: false,
         activeIndex: -1,
         activeRecentIndex: -1,
+      });
+
+      context.setLastCommittedSnapshot({
+        tags: updatedTags.map((t) => ({ ...t, value: Array.isArray(t.value) ? [...t.value] : t.value })),
+        inputValue: "",
       });
 
       get().addRecentSearch(filterObjects, searchValue);
@@ -334,9 +250,15 @@ const createAdvancedSearchStore = (
       const filterObjects = tags.map(createFilterFromTag);
       const searchValue = inputValue.trim();
 
-      if (isEqual(lastSubmitted.filters, filterObjects) && lastSubmitted.search === searchValue) {
+      set({ isOpen: false, activeIndex: -1, activeRecentIndex: -1 });
+
+      if (
+        isEqual(context.getLastSubmitted().filters, filterObjects) &&
+        context.getLastSubmitted().search === searchValue
+      ) {
         return;
       }
+      get().pushUndoSnapshot();
 
       if (mode === "url") {
         const params = new URLSearchParams(searchParams.toString());
@@ -357,7 +279,11 @@ const createAdvancedSearchStore = (
         router.push(`${pathname}?${params.toString()}`);
       }
 
-      lastSubmitted = { filters: filterObjects, search: searchValue };
+      context.setLastSubmitted({ filters: filterObjects, search: searchValue });
+      context.setLastCommittedSnapshot({
+        tags: tags.map((t) => ({ ...t, value: Array.isArray(t.value) ? [...t.value] : t.value })),
+        inputValue,
+      });
 
       get().addRecentSearch(filterObjects, searchValue);
 
@@ -365,6 +291,7 @@ const createAdvancedSearchStore = (
     },
 
     clearAll: (router, pathname, searchParams) => {
+      get().pushUndoSnapshot();
       const { mode, onSubmit } = get();
 
       set({
@@ -384,28 +311,55 @@ const createAdvancedSearchStore = (
         router.push(`${pathname}?${params.toString()}`);
       }
 
-      lastSubmitted = { filters: [], search: "" };
+      context.setLastSubmitted({ filters: [], search: "" });
+      context.setLastCommittedSnapshot({ tags: [], inputValue: "" });
 
       onSubmit?.([], "");
     },
+
     updateLastSubmitted: (filters, search) => {
-      lastSubmitted = { filters, search };
+      context.setLastSubmitted({ filters, search });
     },
+  };
+}
 
-    addRecentSearch: (filters, search) => {
-      if (!storageKey) return;
-      if (filters.length === 0 && !search.trim()) return;
+const createAdvancedSearchStore = (
+  filters: ColumnFilter[],
+  initialTags: FilterTag[],
+  initialSearch: string,
+  mode: AdvancedSearchMode,
+  onSubmit?: (filters: Filter[], search: string) => void,
+  suggestions?: Map<string, string[]>,
+  storageKey?: string
+) => {
+  let lastSubmitted = {
+    filters: initialTags.map(createFilterFromTag),
+    search: initialSearch.trim(),
+  };
 
-      const entry: RecentSearch = {
-        filters,
-        search: search.trim(),
-        timestamp: Date.now(),
-      };
+  let lastCommittedSnapshot: UndoSnapshot = {
+    tags: initialTags.map((t) => ({ ...t, value: Array.isArray(t.value) ? [...t.value] : t.value })),
+    inputValue: initialSearch,
+  };
 
-      const { recentSearches } = get();
-      const deduplicated = recentSearches.filter((s) => !areSearchesEqual(s, entry));
-      set({ recentSearches: [entry, ...deduplicated].slice(0, MAX_RECENT_SEARCHES) });
+  const context: SliceContext = {
+    storageKey,
+    initialTags,
+    initialSearch,
+    getLastCommittedSnapshot: () => lastCommittedSnapshot,
+    setLastCommittedSnapshot: (snapshot) => {
+      lastCommittedSnapshot = snapshot;
     },
+    getLastSubmitted: () => lastSubmitted,
+    setLastSubmitted: (value) => {
+      lastSubmitted = value;
+    },
+  };
+
+  const storeConfig = (set: StoreSet, get: StoreGet): AdvancedSearchStore => ({
+    ...createCoreSlice(set, get, context, filters, mode, onSubmit, suggestions),
+    ...createRecentsSlice(set, get, context),
+    ...createUndoRedoSlice(set, get, context),
   });
 
   if (storageKey) {
@@ -423,6 +377,8 @@ const createAdvancedSearchStore = (
 
   return createStore<AdvancedSearchStore>()(storeConfig);
 };
+
+// Context & hooks
 
 const AdvancedSearchStoreContext = createContext<StoreApi<AdvancedSearchStore> | undefined>(undefined);
 
@@ -450,6 +406,7 @@ export const useAdvancedSearchRefsContext = () => {
 };
 
 // Provider
+
 interface AdvancedSearchStoreProviderProps {
   filters: ColumnFilter[];
   mode?: AdvancedSearchMode;
