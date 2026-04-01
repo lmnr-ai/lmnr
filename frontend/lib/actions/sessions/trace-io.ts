@@ -54,23 +54,24 @@ export async function getMainAgentIO({
     executeQuery<{ output: string }>({ query: outputQuery, parameters: { traceId }, projectId }),
   ]);
 
-  const inputText = inputRows.length > 0 ? extractFirstUserMessage(inputRows[0].input) : null;
+  const inputText = inputRows.length > 0 ? extractLastUserMessage(inputRows[0].input) : null;
   const outputText = outputRows.length > 0 ? extractLastAssistantMessage(outputRows[0].output) : null;
 
   return { input: inputText, output: outputText };
 }
 
-/** Extract the first user message content from an LLM span input. */
-function extractFirstUserMessage(raw: string): string | null {
+/** Extract the last user message content from an LLM span input. */
+function extractLastUserMessage(raw: string): string | null {
   const parsed = tryParseJson(raw);
   if (!Array.isArray(parsed)) return raw || null;
 
-  for (const msg of parsed) {
-    if (msg?.role === "user") {
-      if (typeof msg.content === "string") return msg.content;
+  for (let i = parsed.length - 1; i >= 0; i--) {
+    if (parsed[i]?.role === "user") {
+      const content = parsed[i].content;
+      if (typeof content === "string") return content;
       // Handle array content (e.g. Anthropic format with text parts)
-      if (Array.isArray(msg.content)) {
-        const textPart = msg.content.find((p: any) => p?.type === "text" && typeof p.text === "string");
+      if (Array.isArray(content)) {
+        const textPart = content.find((p: any) => p?.type === "text" && typeof p.text === "string");
         if (textPart) return textPart.text;
       }
     }
