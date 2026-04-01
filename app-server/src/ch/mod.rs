@@ -2,7 +2,7 @@ pub mod browser_events;
 pub mod cloud;
 pub mod data_plane;
 pub mod datapoints;
-
+pub mod evaluation_datapoints;
 pub mod limits;
 pub mod logs;
 pub mod notification_logs;

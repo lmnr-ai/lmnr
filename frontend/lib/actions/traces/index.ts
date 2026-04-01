@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { type Filter } from "@/lib/actions/common/filters";
 import { PaginationFiltersSchema, TimeRangeSchema } from "@/lib/actions/common/types";
 import { executeQuery } from "@/lib/actions/sql";
-import { searchSpans } from "@/lib/actions/traces/search";
+import { searchSpans, type SpanSearchHit } from "@/lib/actions/traces/search";
 import {
   buildTracesCountQueryWithParams,
   buildTracesQueryWithParams,
@@ -22,7 +22,7 @@ const EVENTS_TRACE_VIEW_WIDTH = "events-trace-view-width";
 
 export const GetTracesSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
+  projectId: z.guid(),
   traceType: z
     .enum(["DEFAULT", "EVALUATION", "EVENT", "PLAYGROUND"])
     .nullable()
@@ -35,12 +35,12 @@ export const GetTracesSchema = PaginationFiltersSchema.extend({
 });
 
 export const DeleteTracesSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   traceIds: z.array(z.string()).min(1),
 });
 
 export const GetTracesByIdsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   traceIds: z.array(z.string()).min(1),
 });
 
@@ -67,13 +67,14 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
   let limit = pageSize;
   let offset = Math.max(0, pageNumber * pageSize);
 
-  const spanHits: { trace_id: string; span_id: string }[] = search
+  const spanHits: SpanSearchHit[] = search
     ? await searchSpans({
         projectId,
         traceId: undefined,
         searchQuery: search,
         timeRange: getTimeRange(pastHours, startTime, endTime),
         searchType: searchIn as SpanSearchType[],
+        getSnippets: true,
       })
     : [];
   const traceIds = [...new Set(spanHits.map((span) => span.trace_id))];
@@ -133,6 +134,23 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
       const indexB = traceIdIndexMap.get(b.id) ?? Infinity;
       return indexA - indexB;
     });
+
+    const snippetMap = new Map<string, SpanSearchHit>();
+    const snippetsCountMap = new Map<string, number>();
+    for (const hit of spanHits) {
+      snippetsCountMap.set(hit.trace_id, (snippetsCountMap.get(hit.trace_id) ?? 0) + 1);
+      if (!snippetMap.has(hit.trace_id) && (hit.input_snippet || hit.output_snippet)) {
+        snippetMap.set(hit.trace_id, hit);
+      }
+    }
+    for (const item of items) {
+      const hit = snippetMap.get(item.id);
+      if (hit) {
+        item.inputSnippet = hit.input_snippet;
+        item.outputSnippet = hit.output_snippet;
+      }
+      item.snippetsCount = snippetsCountMap.get(item.id) ?? 0;
+    }
   }
 
   return {

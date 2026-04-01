@@ -14,7 +14,7 @@ import AddUserDialog from "@/components/workspace/add-user-dialog";
 import InvitationsTable from "@/components/workspace/invitations-table";
 import LeaveWorkspaceDialog from "@/components/workspace/leave-workspace-dialog";
 import RemoveUserDialog from "@/components/workspace/remove-user-dialog";
-import TransferOwnershipDialog from "@/components/workspace/ui/transfer-ownership-dialog.tsx";
+import TransferOwnershipDialog from "@/components/workspace/transfer-ownership-dialog.tsx";
 import { useWorkspaceMenuContext } from "@/components/workspace/workspace-menu-provider";
 import { useFeatureFlags } from "@/contexts/feature-flags-context";
 import { useUserContext } from "@/contexts/user-context";

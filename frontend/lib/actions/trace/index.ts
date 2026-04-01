@@ -10,14 +10,14 @@ import { db } from "@/lib/db/drizzle";
 import { sharedPayloads, sharedTraces } from "@/lib/db/migrations/schema";
 
 export const UpdateTraceVisibilitySchema = z.object({
-  traceId: z.string(),
-  projectId: z.string(),
+  traceId: z.guid(),
+  projectId: z.guid(),
   visibility: z.enum(["public", "private"]),
 });
 
 export const GetTraceSchema = z.object({
-  traceId: z.string(),
-  projectId: z.string(),
+  traceId: z.guid(),
+  projectId: z.guid(),
 });
 
 interface ClickHouseSpan {
@@ -41,8 +41,6 @@ interface ClickHouseSpan {
   path: string;
   input: string;
   output: string;
-  input_lower: string;
-  output_lower: string;
   size_bytes: number;
   status: string;
   attributes: string;

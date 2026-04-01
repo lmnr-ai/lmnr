@@ -142,7 +142,12 @@ export default function useSubmitHandler({
       try {
         setIsLoading(true);
         const structuredOutput = schemaFieldsToJsonSchema(data.schemaFields);
-        const signal = { name: data.name, prompt: data.prompt, structuredOutput };
+        const signal = {
+          name: data.name,
+          prompt: data.prompt,
+          structuredOutput,
+          sampleRate: data.sampleRate ?? null,
+        };
         const isUpdate = !!data.id;
         const url = isUpdate ? `/api/projects/${projectId}/signals/${data.id}` : `/api/projects/${projectId}/signals`;
         const method = isUpdate ? "PUT" : "POST";

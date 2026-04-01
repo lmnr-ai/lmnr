@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// A noteworthy signal event highlighted by the AI summary, shown with full details.
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NoteworthyEvent {
     pub signal_name: String,
     pub summary: String,
@@ -11,6 +13,7 @@ pub struct NoteworthyEvent {
 }
 
 /// Data for a single project section in the report
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProjectReportData {
     pub project_name: String,
     pub project_id: Uuid,
@@ -23,6 +26,7 @@ pub struct ProjectReportData {
 }
 
 /// Full report data for rendering
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ReportData {
     pub workspace_id: Uuid,
     pub workspace_name: String,
@@ -109,7 +113,7 @@ pub fn render_report_email(data: &ReportData) -> String {
                     r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:8px;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:4px;"><tr>
     <td style="font-size:12px;color:#6b7280;" align="left">{signal_name} &middot; {timestamp}</td>
-    <td style="font-size:12px;" align="right"><a href="https://lmnr.ai/project/{project_id}/traces/{trace_id}" style="color:{primary};text-decoration:none;">View trace &rarr;</a></td>
+    <td style="font-size:12px;" align="right"><a href="https://lmnr.ai/project/{project_id}/traces/{trace_id}?chat=true" style="color:{primary};text-decoration:none;">View trace &rarr;</a></td>
   </tr></table>{summary}
 </div>"##,
                     signal_name = html_escape(&event.signal_name),
@@ -204,7 +208,7 @@ pub fn render_report_email(data: &ReportData) -> String {
     )
 }
 
-fn html_escape(s: &str) -> String {
+pub fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")

@@ -1,40 +1,66 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
-import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw } from "lucide-react";
+import { ArrowUp, Loader2, MessageCircleQuestion, RotateCcw, X } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { shallow } from "zustand/shallow";
 
 import { Conversation, ConversationContent } from "@/components/ai-elements/conversation";
 import { Response } from "@/components/ai-elements/response";
-import { type TraceViewTrace } from "@/components/traces/trace-view/store";
+import { renderSpanReferences } from "@/components/traces/trace-view/span-reference";
+import { useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import DefaultTextarea from "@/components/ui/default-textarea";
 import { cn } from "@/lib/utils";
 
+/**
+ * Wraps markdown-style span links and XML-style span references in backticks
+ * so the markdown renderer routes them through the custom `code` component
+ * (which calls renderSpanReferences) instead of rendering them as <a> tags.
+ */
+function wrapSpanLinksInBackticks(text: string): string {
+  // Markdown-style: [Label](https://...?spanId=UUID)
+  text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)]*[?&]spanId=[0-9a-f-]+[^)]*)\)/gi, (match) => `\`${match}\``);
+  // XML-style: <span id='123' name='my-span' />
+  text = text.replace(
+    /<span\s+id='(\d+)'\s+name='([^']+)'(?:\s+reference_text='(.*?)')?\s*\/>/g,
+    (match) => `\`${match}\``
+  );
+  return text;
+}
+
 const EXAMPLE_QUESTIONS = [
-  "What happened in this trace? Give me a summary.",
-  "Are there any errors or failures in this trace?",
-  "What was the LLM's reasoning in this trace?",
+  "Summarize this trace",
+  "Explain any errors in this trace",
+  "How do I make my agent more efficient?",
 ];
 
 interface ChatProps {
-  trace: TraceViewTrace;
+  traceId: string;
   onSetSpanId: (spanId: string) => void;
-  onSearchSpans: (search: string) => void;
+  onClose?: () => void;
 }
 
-export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
+export default function Chat({ traceId, onSetSpanId, onClose }: ChatProps) {
   const [input, setInput] = useState("");
   const [newChatLoading, setNewChatLoading] = useState(false);
   const projectId = useParams().projectId;
+
+  const { pendingChatInjection, consumePendingChatInjection } = useTraceViewBaseStore(
+    (state) => ({
+      pendingChatInjection: state.pendingChatInjection,
+      consumePendingChatInjection: state.consumePendingChatInjection,
+    }),
+    shallow
+  );
 
   // Resolve sequential span ID to UUID on-demand
   const resolveSpanId = useCallback(
     async (sequentialId: string): Promise<string | null> => {
       try {
         const response = await fetch(
-          `/api/projects/${projectId}/traces/${trace.id}/agent/resolve-span?id=${sequentialId}`
+          `/api/projects/${projectId}/traces/${traceId}/agent/resolve-span?id=${sequentialId}`
         );
         if (response.ok) {
           const data = await response.json();
@@ -45,7 +71,7 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
       }
       return null;
     },
-    [projectId, trace.id]
+    [projectId, traceId]
   );
 
   const handleExampleClick = (question: string) => {
@@ -55,78 +81,34 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
     });
   };
 
+  const spanRefCallbacks = useMemo(
+    () => ({
+      resolveSpanId,
+      onSelectSpan: onSetSpanId,
+    }),
+    [resolveSpanId, onSetSpanId]
+  );
+
   const components = useMemo(
     () => ({
       code: ({ children }: any) => {
         const text = String(children);
-
-        const xmlSpanMatch = text.match(/<span\s+id='(\d+)'\s+name='([^']+)'\s*\/>/);
-        if (xmlSpanMatch) {
-          const [, spanId, spanName] = xmlSpanMatch;
-          return (
-            <button
-              onClick={async () => {
-                const spanUuid = await resolveSpanId(spanId);
-                if (spanUuid) {
-                  onSetSpanId(spanUuid);
-                }
-              }}
-            >
-              <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs">{spanName}</span> span
-            </button>
-          );
-        }
-
-        const xmlSpanWithReferenceTextMatch = text.match(
-          /<span\s+id='(\d+)'\s+name='([^']+)'\s+reference_text='(.*?)'\s*\/>/
-        );
-
-        if (xmlSpanWithReferenceTextMatch) {
-          const [, spanId, spanName, referenceText] = xmlSpanWithReferenceTextMatch;
-          // Unescape any escaped quotes in the reference text
-          const unescapedReferenceText = referenceText.replace(/\\"/g, '"');
-
-          const previewLength = 24;
-          const textPreview =
-            unescapedReferenceText.length > previewLength
-              ? unescapedReferenceText.slice(0, previewLength) + "..."
-              : unescapedReferenceText;
-
-          return (
-            <button
-              onClick={async () => {
-                onSearchSpans(unescapedReferenceText);
-                const spanUuid = await resolveSpanId(spanId);
-                if (spanUuid) {
-                  onSetSpanId(spanUuid);
-                }
-              }}
-            >
-              <span className="bg-primary/70 rounded px-1.5 py-0.5 font-mono text-xs mr-1">{spanName}</span>
-              span
-              <span className="text-xs text-muted-foreground ml-1 font-mono">({textPreview})</span>
-            </button>
-          );
-        }
-
+        const rendered = renderSpanReferences(text, spanRefCallbacks);
+        if (rendered) return rendered;
         return <span className="text-xs bg-secondary rounded text-white font-mono px-1.5 py-0.5">{children}</span>;
       },
     }),
-    [resolveSpanId, onSetSpanId, onSearchSpans]
+    [spanRefCallbacks]
   );
 
   const { messages, sendMessage, setMessages, status } = useChat({
     transport: new DefaultChatTransport({
-      api: `/api/projects/${projectId}/traces/${trace.id}/agent`,
-      body: {
-        traceStartTime: new Date(trace.startTime).toISOString(),
-        traceEndTime: new Date(trace.endTime).toISOString(),
-      },
+      api: `/api/projects/${projectId}/traces/${traceId}/agent`,
     }),
     onFinish: async ({ message }) => {
-      // save assitant message in the UI format
+      // save assistant message in the UI format
       try {
-        const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/messages`, {
+        const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/agent/messages`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -151,7 +133,7 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
     setNewChatLoading(true);
     try {
       // Create a new chat session in the database
-      const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/new-chat`, {
+      const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/agent/new-chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -173,11 +155,54 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
     }
   };
 
-  // Load existing messages when component mounts
+  // Consume pending signal injection. When pendingChatInjection is non-null,
+  // inject the messages and prefill the input.
+  useEffect(() => {
+    if (!pendingChatInjection) {
+      return;
+    }
+    const pending = consumePendingChatInjection();
+    if (!pending) return;
+
+    // Format the JSON payload as markdown: keys become ### headers,
+    // values become body text. One layer deep only.
+    // Wrap span link patterns in backticks so the custom code component
+    // routes them through renderSpanReferences (instead of markdown
+    // rendering them as clickable <a> links).
+    let formattedPayload = pending.eventPayload;
+    try {
+      const parsed = JSON.parse(pending.eventPayload);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        formattedPayload = Object.entries(parsed)
+          .map(([key, value]) => `### ${key}\n${wrapSpanLinksInBackticks(String(value))}`)
+          .join("\n\n");
+      }
+    } catch {
+      // Not valid JSON — wrap as-is but still handle span links
+      formattedPayload = wrapSpanLinksInBackticks(formattedPayload);
+    }
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: "injected-user-" + Date.now(),
+        role: "user" as const,
+        parts: [{ type: "text" as const, text: pending.signalDefinition }],
+      },
+      {
+        id: "injected-assistant-" + Date.now(),
+        role: "assistant" as const,
+        parts: [{ type: "text" as const, text: formattedPayload }],
+      },
+    ]);
+    setInput("Explain how this signal event relates to my trace and include specific span references");
+  }, [pendingChatInjection, consumePendingChatInjection, setMessages]);
+
+  // Load existing chat history on mount.
   useEffect(() => {
     const loadExistingMessages = async () => {
       try {
-        const response = await fetch(`/api/projects/${projectId}/traces/${trace.id}/agent/messages`);
+        const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/agent/messages`);
         if (response.ok) {
           const data = await response.json();
           if (data.messages && data.messages.length > 0) {
@@ -190,15 +215,29 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
     };
 
     loadExistingMessages();
-  }, [trace.id, projectId, setMessages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <div className="grow flex flex-col overflow-auto relative minimal-scrollbar">
-      <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-0 left-0 absolute z-10 pointer-none" />
-      <Conversation>
+    <div className="flex flex-col overflow-hidden relative h-full">
+      <div className="flex items-center justify-between px-2 pt-2 pb-2 flex-shrink-0 relative">
+        <span className="text-base font-medium ml-2">Chat with trace</span>
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" className="px-0.5 h-6 w-6" onClick={handleNewChat} disabled={newChatLoading}>
+            {newChatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+          </Button>
+          {onClose && (
+            <Button variant="ghost" className="px-0.5 h-6 w-6" onClick={onClose}>
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+        <div className="w-full h-[28px] bg-gradient-to-b from-background to-transparent top-full left-0 absolute z-20 pointer-none pointer-events-none" />
+      </div>
+      <Conversation className="relative">
         <ConversationContent className="space-y-4 py-4 px-0 pb-12">
           {messages.length === 0 && status !== "submitted" && status !== "streaming" ? (
-            <div className="flex flex-col items-center justify-center h-full px-4 py-8">
+            <div className="flex flex-col items-center justify-center px-4 py-8">
               <p className="text-sm text-muted-foreground text-center mb-6 max-w-sm">
                 Ask questions about this trace to understand what happened, find errors, or get insights.
               </p>
@@ -220,25 +259,6 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
             </div>
           ) : (
             <>
-              {messages.length > 0 && (
-                <div className="px-4 flex justify-end pt-1">
-                  <Button
-                    onClick={handleNewChat}
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={newChatLoading}
-                  >
-                    {newChatLoading ? (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    ) : (
-                      <RotateCcw className="w-3 h-3 mr-1" />
-                    )}
-                    New Chat
-                  </Button>
-                </div>
-              )}
-
               {messages.map((message) => (
                 <div key={message.id} className={cn("flex", message.role === "user" ? "px-3" : "px-5")}>
                   <div
@@ -301,7 +321,7 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
               }
             }}
           >
-            <div className="relative p-0 flex w-full py-1">
+            <div className="flex flex-row items-end w-full py-1">
               <DefaultTextarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -317,13 +337,15 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
                     }
                   }
                 }}
-                placeholder="Ask about logical errors, insights, or anything else..."
-                className="bg-transparent border-none focus-visible:ring-0 resize-none w-full"
+                placeholder="Summarize, find inefficiencies, explain errors..."
+                className="bg-transparent border-none focus-visible:ring-0 resize-none flex-1 min-w-0"
+                rows={1}
+                maxRows={6}
               />
               <Button
                 type="submit"
                 size="icon"
-                className="absolute right-1 bottom-2 h-7 w-7 rounded-full border bg-primary"
+                className="h-7 w-7 rounded-full border bg-primary flex-shrink-0 mr-1 mb-1"
                 variant="ghost"
                 disabled={input.trim() === "" || status === "streaming"}
                 onClick={() => {
@@ -342,9 +364,7 @@ export default function Chat({ trace, onSetSpanId, onSearchSpans }: ChatProps) {
           </form>
         </motion.div>
       </div>
-      <span className="text-xs text-muted-foreground/50 text-center pb-2">
-        Trace assistant is in beta and can make mistakes
-      </span>
+      <span className="text-xs text-muted-foreground/50 text-center pb-2">Trace agent can make mistakes.</span>
     </div>
   );
 }

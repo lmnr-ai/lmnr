@@ -1,20 +1,19 @@
-import { TooltipPortal } from "@radix-ui/react-tooltip";
-import { isNil } from "lodash";
-import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import { isEmpty, isNil } from "lodash";
+import { ChevronDown, X } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugger-session-view/store";
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
+import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
+import { ContentPreview } from "@/components/traces/trace-view/content-preview";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
-import Markdown from "@/components/traces/trace-view/list/markdown";
-import { MiniTree } from "@/components/traces/trace-view/list/mini-tree";
-import { generateSpanPathKey } from "@/components/traces/trace-view/list/utils";
+import { PreviewLoadingPlaceholder } from "@/components/traces/trace-view/preview-loading-placeholder";
+import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
 import { type TraceViewListSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
+import { getSpanDisplayName } from "@/components/traces/trace-view/utils.ts";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
@@ -22,12 +21,9 @@ interface ListItemProps {
   span: TraceViewListSpan;
   output: any | undefined;
   onSpanSelect: (span: TraceViewListSpan) => void;
-  onOpenSettings: (span: TraceViewListSpan) => void;
-  isFirst: boolean;
-  isLast: boolean;
 }
 
-const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false, isLast = false }: ListItemProps) => {
+const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
   const { selectedSpan, spans } = useTraceViewBaseStore((state) => ({
     selectedSpan: state.selectedSpan,
     spans: state.spans,
@@ -40,30 +36,24 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
     isSpanCached: s.isSpanCached,
   }));
 
-  const spanPathKey = useMemo(() => generateSpanPathKey(span), [span]);
-
-  const savedTemplate = useTraceViewBaseStore((state) => state.getSpanTemplate(spanPathKey));
-
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
   const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
 
-  const defaultExpanded =
+  const hasSnippet = !!(span.inputSnippet || span.outputSnippet);
+  const isExpandableType =
     span.spanType === "LLM" ||
     span.spanType === "CACHED" ||
     span.spanType === "EXECUTOR" ||
     span.spanType === "EVALUATOR";
 
-  const [expandOverride, setExpandOverride] = useState<{ spanId: string; expanded: boolean } | null>(null);
-
-  const isExpanded = expandOverride?.spanId === span.spanId ? expandOverride.expanded : defaultExpanded;
-
   const isPending = span.pending;
   const isLoadingOutput = output === undefined;
 
-  const displayName = useMemo(
-    () => (span.spanType === "LLM" && span.model ? span.model : span.name),
-    [span.spanType, span.model, span.name]
-  );
+  const defaultExpanded = hasSnippet || (isExpandableType && (isLoadingOutput || !isEmpty(output)));
+
+  const [expandOverride, setExpandOverride] = useState<{ spanId: string; expanded: boolean } | null>(null);
+
+  const isExpanded = expandOverride?.spanId === span.spanId ? expandOverride.expanded : defaultExpanded;
 
   const isSelected = selectedSpan?.spanId === span.spanId;
 
@@ -87,21 +77,19 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
     >
       {cachingEnabled && <div className={lockColumnClasses}>{fullSpan && <DebuggerCheckpoint span={fullSpan} />}</div>}
 
-      <div
-        className={cn("flex flex-col flex-1 min-w-0", {
-          "pt-1": span.spanType === "LLM" && !isFirst,
-          "pb-1": isLast,
-        })}
-      >
+      <div className={cn("flex flex-col flex-1 min-w-0 py-1")}>
         <div className="flex items-center gap-2 pl-2 pr-3 py-2">
           <div className="flex items-center gap-2 flex-1 justify-between overflow-hidden">
             <div className="flex items-center gap-2 min-w-0 flex-shrink-[2]">
               <SpanTypeIcon spanType={span.spanType} className={cn({ "text-muted-foreground bg-muted": isPending })} />
-              <span
-                className={cn("font-medium text-sm truncate min-w-0", isPending && "text-muted-foreground shimmer")}
-              >
-                {displayName}
-              </span>
+              <SpanDisplayTooltip isLLM={span.spanType === "LLM"} name={span.name}>
+                <span
+                  className={cn("font-medium text-sm truncate min-w-0", isPending && "text-muted-foreground shimmer")}
+                >
+                  {getSpanDisplayName(span)}
+                </span>
+              </SpanDisplayTooltip>
+
               <Button
                 variant="ghost"
                 onClick={(e) => {
@@ -128,7 +116,7 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
                     </div>
                   </NoSpanTooltip>
                 ) : (
-                  <Skeleton className="w-20 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-full text-xs" />
+                  <PreviewLoadingPlaceholder />
                 )
               ) : (
                 <SpanStatsShield
@@ -140,58 +128,22 @@ const ListItem = ({ span, output, onSpanSelect, onOpenSettings, isFirst = false,
                   cacheReadInputTokens={span.cacheReadInputTokens}
                 />
               )}
-              <Button
-                disabled={isLoadingOutput}
-                variant="ghost"
-                className="hidden py-0 px-[3px] h-5 group-hover/message:block hover:bg-muted animate-in fade-in duration-200"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenSettings(span);
-                }}
-              >
-                <Settings className="size-3.5 text-secondary-foreground" />
-              </Button>
-
-              {span.pathInfo && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center gap-0.5 text-xs text-muted-foreground min-w-0 overflow-hidden">
-                        {span.pathInfo.display.map((ref, index) => (
-                          <React.Fragment key={ref.spanId}>
-                            {index > 0 && <ChevronRight size={12} className="flex-shrink-0" />}
-                            <span className="truncate">{ref.name}</span>
-                            {ref.count && (
-                              <span className="text-secondary-foreground px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium flex-shrink-0">
-                                {ref.count}
-                              </span>
-                            )}
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipPortal>
-                      <TooltipContent className="p-1 border">
-                        <MiniTree span={span} />
-                      </TooltipContent>
-                    </TooltipPortal>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
             </div>
           </div>
         </div>
 
         {isExpanded && (
-          <div className="px-3 w-full p-2 pt-0 flex flex-col gap-2 h-full flex-1">
-            {isLoadingOutput ? (
+          <div className="px-2 w-full flex flex-col gap-2 h-full flex-1">
+            {hasSnippet ? (
+              <SnippetPreview inputSnippet={span.inputSnippet} outputSnippet={span.outputSnippet} variant="span" />
+            ) : isLoadingOutput ? (
               <>
-                <Skeleton className="h-12 w-full" />
+                <PreviewLoadingPlaceholder />
               </>
-            ) : isNil(output) ? (
+            ) : isNil(output) || output === "" ? (
               <div className="text-sm text-muted-foreground italic">No output available</div>
             ) : (
-              <Markdown className="max-h-60" output={output} defaultValue={savedTemplate} />
+              <ContentPreview output={output} maxHeight="max-h-60" expandable />
             )}
           </div>
         )}

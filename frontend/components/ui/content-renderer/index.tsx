@@ -251,7 +251,7 @@ const PureContentRenderer = ({
 
   return (
     <div
-      className={cn("size-full min-h-7 flex flex-col border relative", className)}
+      className={cn("size-full min-h-7 flex flex-col border relative overflow-hidden", className)}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -259,7 +259,7 @@ const PureContentRenderer = ({
         {renderHeaderContent()}
       </div>
       {mode === "custom" ? (
-        <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0">
+        <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0 border-t">
           <TemplateRenderer data={renderedValue} presetKey={presetKey} />
         </div>
       ) : mode === "messages" ? (

@@ -59,7 +59,7 @@ function PureEventsTable() {
 
   const [clusterId] = useClusterId();
   const signal = useSignalStoreContext((state) => state.signal);
-  const selectedEvent = useSignalStoreContext((state) => state.selectedEvent);
+  const traceId = useSignalStoreContext((state) => state.traceId);
   const selectedClusterIds = useSignalStoreContext((state) => getFilterClusterIds(state, clusterId), shallow);
   const isUnclusteredFilter = clusterId === UNCLUSTERED_ID;
   const searchParams = useSearchParams();
@@ -75,21 +75,6 @@ function PureEventsTable() {
   const { columns, filters } = useMemo(() => buildEventsColumns(signal.schemaFields), [signal.schemaFields]);
 
   const setTraceId = useSignalStoreContext((state) => state.setTraceId);
-  const setSelectedEvent = useSignalStoreContext((state) => state.setSelectedEvent);
-
-  // Listen for open-trace events from the traceId column button
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const traceId = (e as CustomEvent<string>).detail;
-      setTraceId(traceId);
-
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set("traceId", traceId);
-      router.push(`${pathName}?${newParams.toString()}`);
-    };
-    window.addEventListener("open-trace", handler);
-    return () => window.removeEventListener("open-trace", handler);
-  }, [setTraceId, searchParams, pathName, router]);
 
   const fetchEvents = useCallback(
     async (pageNumber: number) => {
@@ -154,9 +139,14 @@ function PureEventsTable() {
 
   const handleRowClick = useCallback(
     (row: Row<EventRow>) => {
-      setSelectedEvent(row.original);
+      const traceId = row.original.traceId;
+      setTraceId(traceId);
+
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.set("traceId", traceId);
+      router.push(`${pathName}?${newParams.toString()}`);
     },
-    [setSelectedEvent]
+    [setTraceId, searchParams, pathName, router]
   );
 
   const { setNavigationRefList } = useTraceViewNavigation<EventNavigationItem>();
@@ -173,10 +163,12 @@ function PureEventsTable() {
     deps: [params.projectId, signal.id, pastHours, startDate, endDate, filter, selectedClusterIds, isUnclusteredFilter],
   });
 
+  // Find the first event matching the active traceId to highlight it
   const focusedRowId = useMemo(() => {
-    if (!selectedEvent) return undefined;
-    return selectedEvent.id;
-  }, [selectedEvent]);
+    if (!traceId || !events) return undefined;
+    const match = events.find((e) => e.traceId === traceId);
+    return match?.id;
+  }, [traceId, events]);
 
   useEffect(() => {
     if (events) {

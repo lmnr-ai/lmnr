@@ -1,6 +1,7 @@
 //! This module reads report triggers from RabbitMQ and processes them: fetches signal event
 //! samples from ClickHouse, generates per-project AI summaries via the LLM service with tool
-//! calling, generates an HTML report, and pushes email notifications to the notification queue.
+//! calling, generates an HTML report, and pushes email and Slack notifications to the
+//! notification queue.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -15,12 +16,13 @@ use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData, rend
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
-use crate::db::reports::{get_email_report_targets, get_signals_for_workspace};
+use crate::db::reports::{get_report_targets, get_signals_for_workspace};
 use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
 use crate::notifications::{
-    EmailPayload, NotificationMessage, NotificationType, push_to_notification_queue,
+    EmailPayload, NotificationDefinitionType, NotificationMessage, ReportPayload, TargetType,
+    push_to_notification_queue,
 };
 use crate::signals::llm_model;
 use crate::signals::provider::models::{
@@ -239,91 +241,134 @@ async fn process_report_trigger(
         total_events,
     };
 
-    let html = render_report_email(&report_data);
+    let email_report = render_report_email(&report_data);
 
-    // Get email targets from report_targets table
-    let email_targets = get_email_report_targets(&db.pool, &report_id, &workspace_id)
+    // Fetch all notification targets
+    let targets = get_report_targets(&db.pool, &report_id, &workspace_id)
         .await
         .map_err(|e| HandlerError::transient(e))?;
 
-    if email_targets.is_empty() {
+    if targets.is_empty() {
         log::info!(
-            "[Reports Generator] No email targets found for report {} in workspace {}",
+            "[Reports Generator] No targets found for report {} in workspace {}",
             report_id,
             workspace_id
         );
         return Ok(());
     }
 
-    let subject = format!("{} – {}", report_name, workspace_name);
+    let title = format!("{} – {}", report_name, workspace_name);
 
-    // Push one notification per email target so each gets its own notification log entry
-    let mut push_failures = 0;
-    for target in &email_targets {
-        let email_payload = EmailPayload {
-            from: REPORT_FROM_EMAIL.to_string(),
-            to: vec![target.email.clone()],
-            subject: subject.clone(),
-            html: html.clone(),
-            inline_logo: true,
+    // Push notifications to all targets
+    let mut processed = 0;
+    let mut failures = 0;
+    let mut transient_failures = 0;
+
+    for target in &targets {
+        log::debug!(
+            "Processing report target: email: {:?}, channel_id: {:?}, integration_id: {:?}",
+            target.email,
+            target.channel_id,
+            target.integration_id
+        );
+        let Ok(target_type) = target.r#type.parse::<TargetType>() else {
+            log::warn!(
+                "[Reports Generator] Unknown target type '{}' for target {}",
+                target.r#type,
+                target.id
+            );
+            continue;
         };
 
-        let message_payload = serde_json::to_value(&email_payload)
-            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
+        let message_payload = match target_type {
+            TargetType::Email => {
+                let Some(ref email) = target.email else {
+                    continue;
+                };
+                let payload = EmailPayload {
+                    from: REPORT_FROM_EMAIL.to_string(),
+                    to: vec![email.clone()],
+                    subject: title.clone(),
+                    html: email_report.clone(),
+                    inline_logo: true,
+                };
+                serde_json::to_value(&payload)
+                    .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?
+            }
+            TargetType::Slack => {
+                let (Some(channel_id), Some(integration_id)) =
+                    (&target.channel_id, target.integration_id)
+                else {
+                    continue;
+                };
+                let payload = ReportPayload {
+                    title: title.clone(),
+                    report: report_data.clone(),
+                    channel_id: channel_id.clone(),
+                    integration_id,
+                };
+                serde_json::to_value(&payload)
+                    .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?
+            }
+        };
+
+        processed += 1;
 
         let notification_message = NotificationMessage {
-            project_id: Uuid::nil(),
-            trace_id: Uuid::nil(),
-            notification_type: NotificationType::Email,
-            event_name: "report_email".to_string(),
+            notification_type: target_type.into(),
             payload: message_payload,
+            project_id: Uuid::nil(),
             workspace_id,
-            definition_type: "REPORT".to_string(),
+            definition_type: NotificationDefinitionType::Report,
             definition_id: report_id,
             target_id: target.id,
-            target_type: "EMAIL".to_string(),
+            target_type: target_type.to_string(),
         };
 
-        // Check payload size on the handler side — exceeding the limit is a permanent
-        // error because retrying won't shrink the payload.
         let serialized_size = serde_json::to_vec(&notification_message)
             .map(|v| v.len())
             .unwrap_or(0);
         if serialized_size >= mq_max_payload() {
-            log::warn!(
+            log::error!(
                 "[Reports Generator] MQ payload limit exceeded. payload size: [{}], target: [{}]",
                 serialized_size,
-                target.email,
+                target.id,
             );
-            return Err(HandlerError::permanent(anyhow::anyhow!(
-                "Notification payload size ({} bytes) exceeds MQ limit",
-                serialized_size,
-            )));
+            failures += 1;
+            continue;
         }
 
         if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
-            push_failures += 1;
+            failures += 1;
+            transient_failures += 1;
             log::error!(
-                "[Reports Generator] Failed to push report notification for {}: {:?}",
-                target.email,
+                "[Reports Generator] Failed to push report notification for target {}: {:?}",
+                target.id,
                 e
             );
         }
     }
 
-    if push_failures == email_targets.len() {
+    // Return transient error if all notifications failed (except all permanent, then permanent error)
+    if processed > 0 && failures == processed {
+        if transient_failures == 0 {
+            return Err(HandlerError::permanent(anyhow::anyhow!(
+                "All {} report notifications exceeded MQ payload size limit for workspace {}",
+                processed,
+                workspace_id
+            )));
+        }
         let msg = format!(
             "Failed to push all {} report notifications to queue for workspace {}",
-            email_targets.len(),
-            workspace_id
+            processed, workspace_id
         );
-        // Publish failures are transient (MQ connectivity), retrying may help
         return Err(HandlerError::transient(anyhow::anyhow!(msg)));
     }
 
     log::info!(
-        "[Reports Generator] Report email notifications pushed to queue for workspace {}",
-        workspace_id
+        "[Reports Generator] Report notifications pushed to queue for workspace {} ({} targets)",
+        workspace_id,
+        processed,
     );
 
     Ok(())

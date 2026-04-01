@@ -13,13 +13,13 @@ import { type SessionRow } from "@/lib/traces/types";
 
 export const GetSessionsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
-  projectId: z.string(),
+  projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
 });
 
 export const DeleteSessionsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
   sessionIds: z.array(z.string()).min(1),
 });
 

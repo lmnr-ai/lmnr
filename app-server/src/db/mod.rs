@@ -20,6 +20,7 @@ pub mod signals;
 pub mod slack_integrations;
 pub mod spans;
 pub mod trace;
+pub mod usage_warnings;
 pub mod utils;
 pub mod workspaces;
 

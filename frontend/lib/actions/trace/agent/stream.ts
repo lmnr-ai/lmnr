@@ -1,7 +1,7 @@
 import { getTracer, observe } from "@lmnr-ai/lmnr";
 import { convertToModelMessages, smoothStream, stepCountIs, streamText, tool, type UIMessage } from "ai";
 import YAML from "yaml";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 import { getLanguageModel } from "@/lib/ai/model";
 
@@ -11,8 +11,8 @@ import { getSpansByIds, getTraceStructureAsString } from "./spans";
 
 export const TraceStreamChatSchema = z.object({
   messages: z.array(z.any()).describe("Array of UI messages"),
-  traceId: z.string().describe("The trace ID to analyze"),
-  projectId: z.string().describe("The project ID"),
+  traceId: z.guid().describe("The trace ID to analyze"),
+  projectId: z.guid().describe("The project ID"),
 });
 
 export const streamTraceChat = observe(

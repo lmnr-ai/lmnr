@@ -124,6 +124,7 @@ mod realtime;
 mod reports;
 mod routes;
 mod runtime;
+mod search;
 mod signals;
 mod sql;
 mod storage;
@@ -1144,6 +1145,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::BrowserEvents,
                             num_browser_events_workers as usize,
@@ -1151,6 +1153,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
                                 cache: cache.clone(),
+                                queue: queue.clone(),
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1197,6 +1200,7 @@ fn main() -> anyhow::Result<()> {
                     // Spawn notification workers
                     {
                         let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
                         let client = reqwest::Client::new();
                         let resend = resend_client.clone();
                         let ch_service = Arc::new(ClickhouseService::new(
@@ -1212,6 +1216,7 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 NotificationHandler::new(
                                     db.clone(),
+                                    cache.clone(),
                                     client.clone(),
                                     resend.clone(),
                                     ch_service.clone(),
@@ -1277,6 +1282,7 @@ fn main() -> anyhow::Result<()> {
                     // Spawn LLM batch submissions workers
                     if let Some(llm_client) = llm_provider_client.as_ref() {
                         let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let llm_client_clone = llm_client.clone();
@@ -1287,6 +1293,7 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 SignalJobSubmissionBatchHandler::new(
                                     db.clone(),
+                                    cache.clone(),
                                     queue.clone(),
                                     clickhouse.clone(),
                                     llm_client_clone.clone(),
@@ -1373,6 +1380,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Logs,
                             num_logs_workers as usize,
@@ -1380,6 +1388,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 cache: cache.clone(),
                                 clickhouse: clickhouse.clone(),
+                                queue: queue.clone(),
                             },
                             QueueConfig::new(LOGS_QUEUE, LOGS_EXCHANGE, LOGS_ROUTING_KEY),
                         );

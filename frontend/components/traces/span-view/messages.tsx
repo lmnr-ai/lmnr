@@ -1,12 +1,12 @@
-import { useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { type ModelMessage } from "ai";
 import { isEqual, isNil } from "lodash";
 import { ChevronDown } from "lucide-react";
-import React, { memo, type Ref, useMemo, useRef } from "react";
+import React, { memo, useCallback, useMemo, useRef } from "react";
 import { type z } from "zod/v4";
 
 import AnthropicContentParts from "@/components/traces/span-view/anthropic-parts";
-import { MessageWrapper } from "@/components/traces/span-view/common";
+import { getRoleColors, MessageWrapper } from "@/components/traces/span-view/common";
 import GeminiContentParts from "@/components/traces/span-view/gemini-parts";
 import ContentParts from "@/components/traces/span-view/generic-parts";
 import LangChainContentParts from "@/components/traces/span-view/langchain-parts";
@@ -200,14 +200,39 @@ interface MessagesProps {
   maxHeight?: number;
 }
 
+const HEADER_HEIGHT = 28;
+
+function updateOverlay(
+  overlayEl: HTMLDivElement | null,
+  labelEl: HTMLSpanElement | null,
+  role: string | undefined,
+  show: boolean
+) {
+  if (!overlayEl || !labelEl) return;
+  if (!show || !role) {
+    overlayEl.style.opacity = "0";
+    overlayEl.style.pointerEvents = "none";
+    return;
+  }
+  const colors = getRoleColors(role);
+  overlayEl.style.opacity = "1";
+  overlayEl.style.pointerEvents = "auto";
+  labelEl.style.color = colors.badgeText;
+  labelEl.textContent = role.charAt(0).toUpperCase() + role.slice(1);
+}
+
 function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeight }: MessagesProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
 
   const processedResult = useMemo(() => processMessages(messages), [messages]);
   const toolNameMap = useMemo(() => buildToolNameMap(processedResult), [processedResult]);
 
   const searchState = useSpanSearchState();
   const searchTerm = searchState?.searchTerm || "";
+
+  const prevOverlayRef = useRef<{ role?: string; show: boolean }>({ show: false });
 
   const virtualizer = useVirtualizer({
     count: processedResult.messages.length,
@@ -218,46 +243,107 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
 
   const items = virtualizer.getVirtualItems();
 
-  const scrollToBottom = () => {
+  const handleScroll = useCallback(() => {
+    const el = parentRef.current;
+    if (!el) return;
+
+    const scrollTop = el.scrollTop;
+    const cache = virtualizer.measurementsCache;
+
+    let role: string | undefined;
+    let show = false;
+
+    let lo = 0;
+    let hi = cache.length - 1;
+    let found = -1;
+
+    while (lo <= hi) {
+      const mid = (lo + hi) >>> 1;
+      if (cache[mid].start <= scrollTop) {
+        found = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+
+    if (found >= 0) {
+      const message = processedResult.messages[found] as { role?: string };
+      role = message?.role;
+      const itemStart = cache[found].start;
+      const itemEnd = cache[found].end;
+      // Show overlay slightly before the header fully scrolls out of view,
+      // keep it through the padding gap, hide when next card's header appears.
+      const nextStart = found + 1 < cache.length ? cache[found + 1].start : itemEnd;
+      show = scrollTop > itemStart + HEADER_HEIGHT * 0.1 && scrollTop < nextStart - HEADER_HEIGHT * 1.5;
+    }
+
+    const prev = prevOverlayRef.current;
+    if (prev.role !== role || prev.show !== show) {
+      prevOverlayRef.current = { role, show };
+      updateOverlay(overlayRef.current, labelRef.current, role, show);
+    }
+  }, [processedResult.messages, virtualizer]);
+
+  const scrollToBottom = useCallback(() => {
     virtualizer.scrollToIndex(processedResult.messages.length - 1, {
       align: "end",
     });
-  };
+  }, [processedResult.messages.length, virtualizer]);
 
   return (
     <>
-      <div
-        ref={parentRef}
-        className="size-full relative overflow-y-auto styled-scrollbar p-2"
-        style={{
-          contain: "strict",
-          overflowAnchor: "none",
-        }}
-      >
+      <div className="size-full relative">
         <div
+          className="absolute top-0 left-0 right-0 z-20 bg-background transition-opacity duration-150"
+          ref={overlayRef}
+          style={{ opacity: 0, pointerEvents: "none" }}
+        >
+          <div className="mx-2 flex items-center px-2 py-1 gap-2 border bg-background rounded-t shadow-sm">
+            <span ref={labelRef} className="text-sm font-medium" />
+          </div>
+        </div>
+        <div
+          ref={parentRef}
+          onScroll={handleScroll}
+          className="size-full overflow-y-auto styled-scrollbar px-2"
           style={{
-            height: virtualizer.getTotalSize(),
-            width: "100%",
-            position: "relative",
+            contain: "strict",
+            overflowAnchor: "none",
           }}
         >
           <div
             style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
+              height: virtualizer.getTotalSize(),
               width: "100%",
-              transform: `translateY(${items[0]?.start ?? 0}px)`,
+              position: "relative",
             }}
           >
-            <MessagesRenderer
-              {...processedResult}
-              ref={virtualizer.measureElement}
-              virtualItems={items}
-              presetKey={presetKey}
-              maxHeight={maxHeight}
-              toolNameMap={toolNameMap}
-            />
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${items[0]?.start ?? 0}px)`,
+              }}
+            >
+              {items.map((item) => {
+                const message = processedResult.messages[item.index] as { role?: string };
+                return (
+                  <div key={item.key} data-index={item.index} ref={virtualizer.measureElement} className="pb-4">
+                    <MessageWrapper
+                      role={message?.role}
+                      presetKey={`collapse-${item.index}-${presetKey}`}
+                      maxHeight={maxHeight}
+                      stickyHeader={false}
+                    >
+                      {renderMessageContent(processedResult, item.index, presetKey, toolNameMap)}
+                    </MessageWrapper>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -274,99 +360,6 @@ function PureMessages({ messages, presetKey, hideScrollToBottom = false, maxHeig
     </>
   );
 }
-
-const MessagesRenderer = ({
-  messages,
-  type,
-  presetKey,
-  ref,
-  virtualItems,
-  maxHeight,
-  toolNameMap,
-}: ProcessedMessages & {
-  presetKey: string;
-  virtualItems: VirtualItem[];
-  ref: Ref<HTMLDivElement>;
-  maxHeight?: number;
-  toolNameMap: Map<string, string>;
-}) => {
-  switch (type) {
-    case "openai":
-      return virtualItems.map((row) => {
-        const message = messages[row.index];
-        return (
-          <div key={row.key} data-index={row.index} ref={ref} className="pb-4">
-            <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`} maxHeight={maxHeight}>
-              <OpenAIContentParts
-                parentIndex={row.index}
-                presetKey={presetKey}
-                message={message}
-                toolNameMap={toolNameMap}
-              />
-            </MessageWrapper>
-          </div>
-        );
-      });
-
-    case "langchain":
-      return virtualItems.map((row) => {
-        const message = messages[row.index];
-        return (
-          <div key={row.key} data-index={row.index} ref={ref} className="pb-4">
-            <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`} maxHeight={maxHeight}>
-              <LangChainContentParts
-                parentIndex={row.index}
-                presetKey={presetKey}
-                message={message}
-                toolNameMap={toolNameMap}
-              />
-            </MessageWrapper>
-          </div>
-        );
-      });
-
-    case "anthropic":
-      return virtualItems.map((row) => {
-        const message = messages[row.index];
-        return (
-          <div key={row.key} data-index={row.index} ref={ref} className="pb-4">
-            <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`} maxHeight={maxHeight}>
-              <AnthropicContentParts
-                parentIndex={row.index}
-                presetKey={presetKey}
-                message={message}
-                toolNameMap={toolNameMap}
-              />
-            </MessageWrapper>
-          </div>
-        );
-      });
-
-    case "gemini":
-      return virtualItems.map((row) => {
-        const message = messages[row.index];
-        return (
-          <div key={row.key} data-index={row.index} ref={ref} className="pb-4">
-            <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`} maxHeight={maxHeight}>
-              <GeminiContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
-            </MessageWrapper>
-          </div>
-        );
-      });
-
-    case "generic":
-      return virtualItems.map((row) => {
-        const message = messages[row.index];
-        return (
-          <div key={row.key} data-index={row.index} ref={ref} className="pb-4">
-            <MessageWrapper role={message.role} presetKey={`collapse-${row.index}-${presetKey}`} maxHeight={maxHeight}>
-              <ContentParts parentIndex={row.index} presetKey={presetKey} message={message} />
-            </MessageWrapper>
-          </div>
-        );
-      });
-  }
-};
 const Messages = memo(PureMessages, (prevProps, nextProps) => {
   if (isNil(prevProps.messages) && isNil(nextProps.messages)) return true;
   if (isNil(prevProps.messages) || isNil(nextProps.messages)) return false;

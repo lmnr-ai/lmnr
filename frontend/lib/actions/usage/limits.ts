@@ -1,11 +1,11 @@
 import { addMonths, subHours } from "date-fns";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { completeMonthsElapsed } from "@/lib/actions/workspaces/utils";
 import { cache, PROJECT_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
-import { projects, subscriptionTiers, workspaces } from "@/lib/db/migrations/schema";
+import { projects, subscriptionTiers, workspaces, workspaceUsageLimits } from "@/lib/db/migrations/schema";
 import { Feature, isFeatureEnabled } from "@/lib/features/features";
 
 const TIER_RETENTION_DAYS: Record<string, number> = {
@@ -23,6 +23,7 @@ interface ProjectBillingInfo {
   workspaceProjectIds: string[];
   bytesLimit: number;
   signalRunsLimit: number;
+  customSignalRunsLimit?: number | null;
 }
 
 interface BillingInfo {
@@ -31,6 +32,7 @@ interface BillingInfo {
   signalRunsLimit: number;
   resetTime: string;
   workspaceProjectIds: string[];
+  customSignalRunsLimit: number | null;
 }
 
 async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | null> {
@@ -44,6 +46,7 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
         signalRunsLimit: Number(cached.signalRunsLimit),
         resetTime: cached.resetTime,
         workspaceProjectIds: cached.workspaceProjectIds,
+        customSignalRunsLimit: cached.customSignalRunsLimit != null ? Number(cached.customSignalRunsLimit) : null,
       };
     }
   } catch {
@@ -69,10 +72,19 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
 
   const row = tierRows[0];
 
-  const projectRows = await db.query.projects.findMany({
-    where: eq(projects.workspaceId, row.workspaceId),
-    columns: { id: true },
-  });
+  const [projectRows, customLimitRows] = await Promise.all([
+    db.query.projects.findMany({
+      where: eq(projects.workspaceId, row.workspaceId),
+      columns: { id: true },
+    }),
+    db
+      .select({ limitValue: workspaceUsageLimits.limitValue })
+      .from(workspaceUsageLimits)
+      .where(
+        and(eq(workspaceUsageLimits.workspaceId, row.workspaceId), eq(workspaceUsageLimits.limitType, "signal_runs"))
+      )
+      .limit(1),
+  ]);
 
   return {
     workspaceId: row.workspaceId,
@@ -80,6 +92,7 @@ async function getProjectBillingInfo(projectId: string): Promise<BillingInfo | n
     signalRunsLimit: Number(row.signalRunsLimit),
     resetTime: row.resetTime,
     workspaceProjectIds: projectRows.map((p) => p.id),
+    customSignalRunsLimit: customLimitRows.length > 0 ? Number(customLimitRows[0].limitValue) : null,
   };
 }
 
@@ -93,13 +106,23 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
     return;
   }
 
-  const { workspaceId, tierName, signalRunsLimit, resetTime, workspaceProjectIds } = info;
+  const { workspaceId, tierName, signalRunsLimit, resetTime, workspaceProjectIds, customSignalRunsLimit } = info;
+  const isFree = tierName.trim().toLowerCase() === "free";
 
-  if (tierName.trim().toLowerCase() !== "free") {
-    return;
+  let effectiveLimit: number;
+  if (isFree) {
+    effectiveLimit = signalRunsLimit;
+  } else {
+    // For paid tiers, use the custom signal_runs limit if set
+    if (customSignalRunsLimit == null) {
+      return; // No custom limit for paid tier, no enforcement
+    }
+    effectiveLimit = customSignalRunsLimit;
   }
 
-  if (signalRunsLimit === 0) {
+  // For free tier, signalRunsLimit=0 means "no limit configured on this tier"
+  // For custom limits (paid tiers), 0 means "block everything" so we don't skip
+  if (isFree && effectiveLimit === 0) {
     return;
   }
 
@@ -136,10 +159,10 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
     totalSignalRuns = rows.length > 0 ? Number(rows[0].total_signal_runs) : 0;
   }
 
-  if (totalSignalRuns + tracesCount > signalRunsLimit) {
-    const remaining = Math.max(signalRunsLimit - totalSignalRuns, 0);
+  if (totalSignalRuns + tracesCount > effectiveLimit) {
+    const remaining = Math.max(effectiveLimit - totalSignalRuns, 0);
     throw new Error(
-      `Signal runs limit exceeded. This job requires ${tracesCount} signal runs, but your workspace only has ${remaining} remaining out of ${signalRunsLimit} allowed this billing period. Please upgrade your plan.`
+      `Signal runs limit exceeded. This job requires ${tracesCount} signal runs, but your workspace only has ${remaining} remaining out of ${effectiveLimit} allowed this billing period.${isFree ? " Please upgrade your plan." : ""}`
     );
   }
 }

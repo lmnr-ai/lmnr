@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 use crate::{
     cache::Cache,
     ch::signal_run_messages::insert_signal_run_messages,
-    db::DB,
+    db::{DB, spans::SpanType},
     mq::MessageQueue,
     signals::{
         SignalRun, SignalWorkerConfig,
@@ -17,6 +17,7 @@ use crate::{
         },
         queue::{SignalMessage, push_to_realtime_queue},
         response_processor::{finalize_runs, process_provider_responses},
+        utils::{InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr},
     },
     worker::{HandlerError, MessageHandler},
 };
@@ -72,18 +73,9 @@ impl MessageHandler for SignalJobRealtimeHandler {
             project_id,
             trace_id,
             message.run_id,
-            message.step,
-            message.internal_trace_id,
-            message.internal_span_id,
-            message.job_id,
             &signal.prompt,
-            &signal.name,
             &signal.structured_output_schema,
-            &llm_model(),
-            &llm_provider(),
             self.clickhouse.clone(),
-            self.queue.clone(),
-            self.config.internal_project_id,
         )
         .await
         {
@@ -131,12 +123,46 @@ impl MessageHandler for SignalJobRealtimeHandler {
 }
 
 impl SignalJobRealtimeHandler {
+    fn build_submit_span(
+        message: &SignalMessage,
+        config: &SignalWorkerConfig,
+        input: serde_json::Value,
+        tools: Option<serde_json::Value>,
+        error: Option<String>,
+    ) -> InternalSpan {
+        InternalSpan {
+            name: format!("step_{}.submit_realtime_request", message.step),
+            trace_id: message.internal_trace_id,
+            run_id: message.run_id,
+            signal_name: message.signal.name.clone(),
+            parent_span_id: Some(message.internal_span_id),
+            span_type: SpanType::LLM,
+            start_time: message.request_start_time,
+            input: Some(input),
+            output: None,
+            input_tokens: None,
+            input_cached_tokens: None,
+            output_tokens: None,
+            model: llm_model(),
+            provider: llm_provider(),
+            internal_project_id: config.internal_project_id,
+            job_id: message.job_id,
+            error,
+            provider_batch_id: None,
+            metadata: None,
+            tools,
+        }
+    }
+
     async fn process_realtime_request(
         &self,
         request: crate::signals::provider::models::ProviderRequest,
         message: SignalMessage,
         backoff: ExponentialBackoff,
     ) {
+        let span_input = request_to_span_input(&request);
+        let span_tools = request_to_tools_attr(&request);
+
         let model_str = llm_model();
         let llm_client = self.llm_client.clone();
         let req_clone = request.clone();
@@ -156,6 +182,11 @@ impl SignalJobRealtimeHandler {
 
         match backoff::future::retry(backoff, generate_fn).await {
             Ok(response) => {
+                emit_internal_span(
+                    self.queue.clone(),
+                    Self::build_submit_span(&message, &self.config, span_input.clone(), span_tools.clone(), None),
+                )
+                .await;
                 let inline_response = ProviderInlineResponse {
                     response: Some(response),
                     error: None,
@@ -213,6 +244,7 @@ impl SignalJobRealtimeHandler {
                         self.clickhouse.clone(),
                         self.db.clone(),
                         self.cache.clone(),
+                        self.queue.clone(),
                     )
                     .await
                     {
@@ -258,6 +290,7 @@ impl SignalJobRealtimeHandler {
                     self.clickhouse.clone(),
                     self.db.clone(),
                     self.cache.clone(),
+                    self.queue.clone(),
                 )
                 .await
                 {
@@ -266,6 +299,18 @@ impl SignalJobRealtimeHandler {
             }
             Err(e) => {
                 log::error!("[SIGNAL JOB] Realtime API error after backoff: {:?}", e);
+                emit_internal_span(
+                    self.queue.clone(),
+                    Self::build_submit_span(
+                        &message,
+                        &self.config,
+                        span_input,
+                        span_tools,
+                        Some(format!("{}", e)),
+                    ),
+                )
+                .await;
+
                 let failed_run = SignalRun::from_message(&message, message.signal.id)
                     .failed(&format!("Realtime API failed: {}", e));
 
@@ -351,6 +396,7 @@ mod tests {
                 name: "test_signal".to_string(),
                 prompt: "test prompt".to_string(),
                 structured_output_schema: serde_json::json!({}),
+                sample_rate: None,
             },
             run_id: Uuid::new_v4(),
             internal_trace_id: Uuid::new_v4(),

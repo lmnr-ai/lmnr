@@ -366,6 +366,7 @@ pub async fn process_succeeded_batch(
         clickhouse.clone(),
         db.clone(),
         cache.clone(),
+        queue.clone(),
     )
     .await?;
 

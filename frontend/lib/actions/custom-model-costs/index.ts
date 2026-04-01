@@ -7,12 +7,12 @@ import { customModelCosts } from "@/lib/db/migrations/schema";
 import { invalidateCustomModelCostsCache } from "./invalidate-cache";
 
 const GetCustomModelCostsSchema = z.object({
-  projectId: z.string(),
+  projectId: z.guid(),
 });
 
 const UpsertCustomModelCostSchema = z.object({
-  id: z.string().optional(),
-  projectId: z.string(),
+  id: z.guid().optional(),
+  projectId: z.guid(),
   provider: z.string().optional(),
   model: z.string().min(1, "Model name is required"),
   costs: z.record(z.string(), z.number().nonnegative("Cost values must not be negative")),
@@ -21,13 +21,13 @@ const UpsertCustomModelCostSchema = z.object({
 });
 
 const DeleteCustomModelCostSchema = z.object({
-  projectId: z.string(),
-  id: z.string(),
+  projectId: z.guid(),
+  id: z.guid(),
 });
 
 const CopyCustomModelCostsSchema = z.object({
-  sourceProjectId: z.string(),
-  targetProjectId: z.string(),
+  sourceProjectId: z.guid(),
+  targetProjectId: z.guid(),
 });
 
 export type CustomModelCost = {

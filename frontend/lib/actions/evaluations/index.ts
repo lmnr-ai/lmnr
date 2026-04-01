@@ -14,14 +14,14 @@ import { paginatedGet } from "@/lib/db/utils";
 import { type Evaluation } from "@/lib/evaluation/types";
 
 export const GetEvaluationsSchema = PaginationFiltersSchema.extend({
-  projectId: z.string(),
+  projectId: z.guid(),
   groupId: z.string().nullable().optional(),
   search: z.string().nullable().optional(),
 });
 
 export const DeleteEvaluationsSchema = z.object({
-  projectId: z.string(),
-  evaluationIds: z.array(z.string()),
+  projectId: z.guid(),
+  evaluationIds: z.array(z.guid()),
 });
 
 export async function getEvaluations(input: z.infer<typeof GetEvaluationsSchema>) {

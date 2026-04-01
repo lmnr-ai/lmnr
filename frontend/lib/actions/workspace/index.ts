@@ -32,31 +32,31 @@ const LAST_WORKSPACE_ID = "last-workspace-id";
 const MAX_AGE = 60 * 60 * 24 * 30;
 
 const DeleteWorkspaceSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
 });
 
 const UpdateWorkspaceSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
   name: z.string().min(1, { error: "Workspace name is required" }),
 });
 
 const GetWorkspaceSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
 });
 
 const GetWorkspaceUsersSchema = z.object({
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
 });
 
 const UpdateRoleSchema = z.object({
-  workspaceId: z.string(),
-  userId: z.string(),
+  workspaceId: z.guid(),
+  userId: z.guid(),
   role: z.enum(["member", "admin"]),
 });
 
 const RemoveUserSchema = z.object({
-  workspaceId: z.string(),
-  userId: z.string(),
+  workspaceId: z.guid(),
+  userId: z.guid(),
 });
 
 export async function updateWorkspace(input: z.infer<typeof UpdateWorkspaceSchema>) {
@@ -326,9 +326,9 @@ export const updateRole = async (input: z.infer<typeof UpdateRoleSchema>) => {
 export { LAST_WORKSPACE_ID, MAX_AGE };
 
 export const TransferOwnershipSchema = z.object({
-  workspaceId: z.string(),
-  currentOwnerId: z.string(),
-  newOwnerId: z.string(),
+  workspaceId: z.guid(),
+  currentOwnerId: z.guid(),
+  newOwnerId: z.guid(),
 });
 
 export async function transferOwnership(input: z.infer<typeof TransferOwnershipSchema>) {

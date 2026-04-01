@@ -10,7 +10,7 @@ import { type Project } from "@/lib/workspaces/types";
 
 export const CreateProjectSchema = z.object({
   name: z.string().min(1, "Project name is required"),
-  workspaceId: z.string(),
+  workspaceId: z.guid(),
 });
 
 export async function createProject(input: z.infer<typeof CreateProjectSchema>) {

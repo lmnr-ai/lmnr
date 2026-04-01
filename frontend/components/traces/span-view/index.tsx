@@ -13,14 +13,15 @@ import { SpanSearchProvider } from "@/components/traces/span-view/span-search-co
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.tsx";
 import ContentRenderer from "@/components/ui/content-renderer/index";
 import { spanViewTheme } from "@/components/ui/content-renderer/utils";
-import { Skeleton } from "@/components/ui/skeleton";
 import { type Span, SpanType } from "@/lib/traces/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
+import { SpanViewSkeleton } from "./skeleton";
 
 interface SpanViewProps {
   spanId: string;
   traceId: string;
+  initialSearchTerm?: string;
 }
 
 const swrFetcher = async (url: string) => {
@@ -114,9 +115,9 @@ const SpanViewTabs = ({
   );
 };
 
-export function SpanView({ spanId, traceId }: SpanViewProps) {
+export function SpanView({ spanId, traceId, initialSearchTerm }: SpanViewProps) {
   const { projectId } = useParams();
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(!!initialSearchTerm);
   const {
     data: span,
     isLoading,
@@ -141,13 +142,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col space-y-2 p-2">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-      </div>
-    );
+    return <SpanViewSkeleton />;
   }
 
   if (error) {
@@ -178,7 +173,7 @@ export function SpanView({ spanId, traceId }: SpanViewProps) {
 
   if (span) {
     return (
-      <SpanSearchProvider>
+      <SpanSearchProvider initialSearchTerm={initialSearchTerm}>
         <SpanControls span={span}>
           <SpanViewTabs span={span} searchRef={searchRef} searchOpen={searchOpen} setSearchOpen={setSearchOpen} />
         </SpanControls>

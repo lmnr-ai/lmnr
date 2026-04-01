@@ -6,47 +6,38 @@ import { alerts, alertTargets, projects } from "@/lib/db/migrations/schema";
 
 import { type AlertTarget, type AlertType, type AlertWithDetails } from "./types";
 
+const TargetSchema = z.object({
+  type: z.string(),
+  integrationId: z.guid().optional(),
+  channelId: z.string().optional(),
+  channelName: z.string().optional(),
+  email: z.email().optional(),
+});
+
 const CreateAlertSchema = z.object({
-  projectId: z.uuid(),
+  projectId: z.guid(),
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT"]),
-  sourceId: z.uuid(),
-  targets: z
-    .array(
-      z.object({
-        type: z.string(),
-        integrationId: z.uuid(),
-        channelId: z.string().optional(),
-        channelName: z.string().optional(),
-      })
-    )
-    .min(1),
+  sourceId: z.guid(),
+  targets: z.array(TargetSchema).min(1),
 });
 
 const UpdateAlertSchema = z.object({
-  alertId: z.uuid(),
-  projectId: z.uuid(),
+  alertId: z.guid(),
+  projectId: z.guid(),
   name: z.string().min(1),
   type: z.enum(["SIGNAL_EVENT"]),
-  sourceId: z.uuid(),
-  targets: z
-    .array(
-      z.object({
-        type: z.string(),
-        integrationId: z.uuid(),
-        channelId: z.string().optional(),
-        channelName: z.string().optional(),
-      })
-    )
-    .min(1),
+  sourceId: z.guid(),
+  targets: z.array(TargetSchema),
+  userEmail: z.string().optional(),
 });
 
 const DeleteAlertSchema = z.object({
-  alertId: z.uuid(),
-  projectId: z.uuid(),
+  alertId: z.guid(),
+  projectId: z.guid(),
 });
 
-export async function getAlerts(projectId: string): Promise<AlertWithDetails[]> {
+export async function getAlerts(projectId: string, userEmail?: string): Promise<AlertWithDetails[]> {
   const [project] = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)
@@ -87,6 +78,9 @@ export async function getAlerts(projectId: string): Promise<AlertWithDetails[]> 
 
   const targetsByAlert = new Map<string, AlertTarget[]>();
   for (const t of targetRows) {
+    // Only include the current user's own email target; never expose other members' emails.
+    // If userEmail is unknown, strip all email targets as a safeguard.
+    if (t.type === "EMAIL" && (!userEmail || t.email !== userEmail)) continue;
     const list = targetsByAlert.get(t.alertId) ?? [];
     list.push({
       id: t.id,
@@ -118,9 +112,10 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
         alertId: alert.id,
         projectId,
         type: t.type,
-        integrationId: t.integrationId,
+        integrationId: t.integrationId ?? null,
         channelId: t.channelId ?? null,
         channelName: t.channelName ?? null,
+        email: t.email ?? null,
       }))
     );
 
@@ -129,7 +124,7 @@ export async function createAlert(input: z.infer<typeof CreateAlertSchema>) {
 }
 
 export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
-  const { alertId, projectId, name, type, sourceId, targets } = UpdateAlertSchema.parse(input);
+  const { alertId, projectId, name, type, sourceId, targets, userEmail } = UpdateAlertSchema.parse(input);
 
   return await db.transaction(async (tx) => {
     await tx
@@ -137,18 +132,52 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
       .set({ name, type, sourceId })
       .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)));
 
+    // Fetch existing email targets belonging to OTHER users so we can preserve them.
+    // The frontend only manages the current user's own email target + Slack targets.
+    const existingTargets = await tx
+      .select({
+        id: alertTargets.id,
+        type: alertTargets.type,
+        integrationId: alertTargets.integrationId,
+        channelId: alertTargets.channelId,
+        channelName: alertTargets.channelName,
+        email: alertTargets.email,
+      })
+      .from(alertTargets)
+      .where(and(eq(alertTargets.alertId, alertId), eq(alertTargets.projectId, projectId)));
+
+    // When userEmail is known, preserve other users' email targets.
+    // When userEmail is unknown, preserve ALL email targets as a safeguard.
+    const preservedEmailTargets = existingTargets.filter(
+      (t) => t.type === "EMAIL" && (!userEmail || t.email !== userEmail)
+    );
+
     await tx.delete(alertTargets).where(and(eq(alertTargets.alertId, alertId), eq(alertTargets.projectId, projectId)));
 
-    await tx.insert(alertTargets).values(
-      targets.map((t) => ({
+    const allTargets = [
+      ...targets.map((t) => ({
         alertId,
         projectId,
         type: t.type,
-        integrationId: t.integrationId,
+        integrationId: t.integrationId ?? null,
         channelId: t.channelId ?? null,
         channelName: t.channelName ?? null,
-      }))
-    );
+        email: t.email ?? null,
+      })),
+      ...preservedEmailTargets.map((t) => ({
+        alertId,
+        projectId,
+        type: t.type,
+        integrationId: t.integrationId ?? null,
+        channelId: t.channelId ?? null,
+        channelName: t.channelName ?? null,
+        email: t.email,
+      })),
+    ];
+
+    if (allTargets.length > 0) {
+      await tx.insert(alertTargets).values(allTargets);
+    }
 
     return { id: alertId };
   });

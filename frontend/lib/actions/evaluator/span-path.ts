@@ -8,24 +8,24 @@ import { evaluatorSpanPaths } from "@/lib/db/migrations/schema";
 import { appendEvaluatorIdToCache, removeEvaluatorIdFromCache } from "./cache";
 
 export const RegisterEvaluatorToSpanPathSchema = z.object({
-  projectId: z.string(),
-  evaluatorId: z.string(),
+  projectId: z.guid(),
+  evaluatorId: z.guid(),
   spanPath: z
     .array(z.string().min(1, { error: "Span path elements cannot be empty" }))
     .min(1, { error: "Span path must contain at least one element" }),
 });
 
 export const UnregisterEvaluatorFromSpanPathSchema = z.object({
-  projectId: z.string(),
-  evaluatorId: z.string(),
+  projectId: z.guid(),
+  evaluatorId: z.guid(),
   spanPath: z
     .array(z.string().min(1, { error: "Span path elements cannot be empty" }))
     .min(1, { error: "Span path must contain at least one element" }),
 });
 
 export const GetSpanPathSchema = z.object({
-  projectId: z.string(),
-  evaluatorId: z.string(),
+  projectId: z.guid(),
+  evaluatorId: z.guid(),
 });
 
 export const registerEvaluatorToSpanPath = async (input: z.infer<typeof RegisterEvaluatorToSpanPathSchema>) => {
@@ -85,5 +85,5 @@ export const getSpanPath = async (input: z.infer<typeof GetSpanPathSchema>): Pro
   return evaluatorSpanPath.spanPath as string[];
 };
 
-
-export const spanPathCacheKey = (projectId: string, spanPath: string[]): string => `${PROJECT_EVALUATORS_BY_PATH_CACHE_KEY}:${projectId}:${JSON.stringify(spanPath)}`;
+export const spanPathCacheKey = (projectId: string, spanPath: string[]): string =>
+  `${PROJECT_EVALUATORS_BY_PATH_CACHE_KEY}:${projectId}:${JSON.stringify(spanPath)}`;

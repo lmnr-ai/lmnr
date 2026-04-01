@@ -16,8 +16,8 @@ import {
 import { generateSequentialUuidsV7 } from "@/lib/utils";
 
 export const ListDatapointsSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
   pageNumber: z.number().default(0),
   pageSize: z.number().default(50),
 });
@@ -25,38 +25,38 @@ export const ListDatapointsSchema = z.object({
 export const CreateDatapointsSchema = z.object({
   datapoints: z.array(
     z.object({
-      id: z.string().optional(),
+      id: z.guid().optional(),
       data: z.any(),
       target: z.any().optional(),
       metadata: z.record(z.string(), z.any()).optional(),
     })
   ),
-  sourceSpanId: z.string().optional(),
+  sourceSpanId: z.guid().optional(),
 });
 
 export const CreateDatapointsInputSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
   datapoints: CreateDatapointsSchema.shape.datapoints,
   sourceSpanId: CreateDatapointsSchema.shape.sourceSpanId,
 });
 
 export const DeleteDatapointsSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
   datapointIds: z.array(z.string()),
 });
 
 export const PushDatapointsToQueueSchema = z.object({
   datapointIds: z.array(z.string()),
-  projectId: z.string(),
-  datasetId: z.string(),
-  queueId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
+  queueId: z.guid(),
 });
 
 export const CountDatapointsSchema = z.object({
-  projectId: z.string(),
-  datasetId: z.string(),
+  projectId: z.guid(),
+  datasetId: z.guid(),
 });
 
 export async function countDatapoints(input: z.infer<typeof CountDatapointsSchema>) {
