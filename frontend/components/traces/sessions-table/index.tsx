@@ -235,10 +235,10 @@ function SessionsTableContent() {
   );
 
   const handleTraceClick = useCallback(
-    (trace: TraceRow) => {
+    (traceId: string) => {
       const params = new URLSearchParams(searchParams.toString());
-      setTraceId(trace.id);
-      params.set("traceId", trace.id);
+      setTraceId(traceId);
+      params.set("traceId", traceId);
       router.push(`${pathName}?${params.toString()}`);
     },
     [setTraceId, pathName, router, searchParams]

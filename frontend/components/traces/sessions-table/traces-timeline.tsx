@@ -5,6 +5,7 @@ interface TracesTimelineProps {
   traces: TraceTimelineItem[];
   sessionStartTime: string;
   sessionEndTime: string;
+  onTraceClick?: (traceId: string) => void;
 }
 
 // Minimum flex value for trace bars so they remain visible even for very short durations
@@ -12,13 +13,18 @@ const MIN_TRACE_FLEX = 0.01;
 // Minimum gap flex to show; gaps smaller than this are omitted (back-to-back traces)
 const MIN_GAP_FLEX = 0.005;
 
-export default function TracesTimeline({ traces, sessionStartTime, sessionEndTime }: TracesTimelineProps) {
+export default function TracesTimeline({
+  traces,
+  sessionStartTime,
+  sessionEndTime,
+  onTraceClick,
+}: TracesTimelineProps) {
   const sessionStart = new Date(sessionStartTime).getTime();
   const sessionEnd = new Date(sessionEndTime).getTime();
   const totalSpan = Math.max(sessionEnd - sessionStart, 1);
 
   // Build segments: alternating gaps and trace bars
-  const segments: { type: "gap" | "trace"; flex: number; status?: string }[] = [];
+  const segments: { type: "gap" | "trace"; flex: number; status?: string; traceId?: string }[] = [];
   const sorted = [...traces].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
   let cursor = sessionStart;
@@ -34,7 +40,12 @@ export default function TracesTimeline({ traces, sessionStartTime, sessionEndTim
 
     // The trace bar itself -- enforce minimum width for very short durations
     const duration = Math.max(traceEnd - traceStart, 1);
-    segments.push({ type: "trace", flex: Math.max(duration / totalSpan, MIN_TRACE_FLEX), status: trace.status });
+    segments.push({
+      type: "trace",
+      flex: Math.max(duration / totalSpan, MIN_TRACE_FLEX),
+      status: trace.status,
+      traceId: trace.id,
+    });
 
     cursor = Math.max(cursor, traceEnd);
   }
@@ -46,7 +57,7 @@ export default function TracesTimeline({ traces, sessionStartTime, sessionEndTim
   }
 
   return (
-    <div className="bg-muted/50 flex flex-1 gap-px items-center min-w-0 p-0.5 rounded-[2px]">
+    <div className="bg-muted/50 flex flex-1 gap-1 items-center min-w-0 p-0.5 rounded-[2px]">
       {segments.map((seg, i) => (
         <div
           key={i}
@@ -54,7 +65,16 @@ export default function TracesTimeline({ traces, sessionStartTime, sessionEndTim
           className={cn("h-1.5 min-w-0 rounded-[2px]", {
             "bg-success-bright": seg.type === "trace" && seg.status !== "error",
             "bg-destructive-bright": seg.type === "trace" && seg.status === "error",
+            "cursor-pointer hover:brightness-125": seg.type === "trace" && onTraceClick,
           })}
+          onClick={
+            seg.type === "trace" && seg.traceId && onTraceClick
+              ? (e) => {
+                  e.stopPropagation();
+                  onTraceClick(seg.traceId!);
+                }
+              : undefined
+          }
         />
       ))}
     </div>

@@ -11,9 +11,10 @@ interface SessionRowProps {
   timeline?: TraceTimelineItem[];
   isExpanded: boolean;
   onToggle: () => void;
+  onTraceClick?: (traceId: string) => void;
 }
 
-export default function SessionRow({ session, timeline, isExpanded, onToggle }: SessionRowProps) {
+export default function SessionRow({ session, timeline, isExpanded, onToggle, onTraceClick }: SessionRowProps) {
   return (
     <div
       className="bg-secondary border-x border-b flex h-9 items-center w-full cursor-pointer hover:bg-muted"
@@ -55,7 +56,12 @@ export default function SessionRow({ session, timeline, isExpanded, onToggle }: 
       <div className="flex flex-1 gap-4 h-full items-center min-w-0 px-4 py-0.5">
         <span className="text-xs text-secondary-foreground whitespace-nowrap">{session.traceCount ?? 0}</span>
         {timeline && timeline.length > 0 && (
-          <TracesTimeline traces={timeline} sessionStartTime={session.startTime} sessionEndTime={session.endTime} />
+          <TracesTimeline
+            traces={timeline}
+            sessionStartTime={session.startTime}
+            sessionEndTime={session.endTime}
+            onTraceClick={onTraceClick}
+          />
         )}
       </div>
     </div>

@@ -29,7 +29,7 @@ interface SessionsVirtualListProps {
   sessionTraces: Record<string, TraceRow[]>;
   sessionTimelines: Record<string, TraceTimelineItem[]>;
   onToggleSession: (sessionId: string) => void;
-  onTraceClick: (trace: TraceRow) => void;
+  onTraceClick: (traceId: string) => void;
   hasMore: boolean;
   isFetching: boolean;
   isLoading: boolean;
@@ -159,16 +159,17 @@ export default function SessionsVirtualList({
               timeline={item.timeline}
               isExpanded={expandedSessions.has(item.session.sessionId)}
               onToggle={() => onToggleSession(item.session.sessionId)}
+              onTraceClick={onTraceClick}
             />
           );
         case "trace-section-header":
           return (
             <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.97 }}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
               transition={itemTransition}
-              style={{ transformOrigin: "top center" }}
+              style={{ overflow: "hidden" }}
             >
               <TraceSectionHeader />
             </motion.div>
@@ -176,28 +177,28 @@ export default function SessionsVirtualList({
         case "trace-card":
           return (
             <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.97 }}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
               transition={itemTransition}
-              style={{ transformOrigin: "top center" }}
+              style={{ overflow: "hidden" }}
             >
               <SessionTraceCard
                 trace={item.trace}
                 isFirst={item.isFirst}
                 isLast={item.isLast}
-                onClick={() => onTraceClick(item.trace)}
+                onClick={() => onTraceClick(item.trace.id)}
               />
             </motion.div>
           );
         case "trace-loading":
           return (
             <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.97 }}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
               transition={itemTransition}
-              style={{ transformOrigin: "top center" }}
+              style={{ overflow: "hidden" }}
             >
               <div className="flex items-center justify-center h-[60px] pl-6">
                 <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
@@ -208,11 +209,11 @@ export default function SessionsVirtualList({
         case "trace-empty":
           return (
             <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.97 }}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
               transition={itemTransition}
-              style={{ transformOrigin: "top center" }}
+              style={{ overflow: "hidden" }}
             >
               <div className="flex items-center justify-center h-[60px] pl-6">
                 <span className="text-xs text-muted-foreground">No traces in this session</span>
