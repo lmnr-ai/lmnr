@@ -1,14 +1,13 @@
 "use client";
 
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { type SessionRow as SessionRowType, type TraceRow, type TraceTimelineItem } from "@/lib/traces/types";
 
-const itemTransition = { type: "spring", stiffness: 300, damping: 30 } as const;
-const exitTransition = { duration: 0.1, ease: "easeOut" } as const;
+const itemTransition = { type: "spring", stiffness: 400, damping: 50 } as const;
 
 import SessionRowComponent from "./session-row";
 import SessionTableHeader from "./session-table-header";
@@ -167,7 +166,6 @@ export default function SessionsVirtualList({
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
               transition={itemTransition}
               style={{ overflow: "hidden" }}
             >
@@ -177,9 +175,8 @@ export default function SessionsVirtualList({
         case "trace-card":
           return (
             <motion.div
-              initial={{ height: 0, opacity: 0 }}
+              initial={{ height: 120, opacity: 0.5 }}
               animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
               transition={itemTransition}
               style={{ overflow: "hidden" }}
             >
@@ -196,7 +193,6 @@ export default function SessionsVirtualList({
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
               transition={itemTransition}
               style={{ overflow: "hidden" }}
             >
@@ -211,7 +207,6 @@ export default function SessionsVirtualList({
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
               transition={itemTransition}
               style={{ overflow: "hidden" }}
             >
@@ -225,22 +220,18 @@ export default function SessionsVirtualList({
     [expandedSessions, onToggleSession, onTraceClick]
   );
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 overflow-auto styled-scrollbar">
-        <SessionTableHeader />
+  const showList = !isLoading && sessions.length > 0;
+
+  return (
+    <div ref={scrollContainerRef} className="flex-1 overflow-auto styled-scrollbar">
+      <SessionTableHeader />
+      {isLoading && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="animate-spin w-5 h-5 text-muted-foreground" />
           <span className="ml-2 text-sm text-muted-foreground">Loading sessions...</span>
         </div>
-      </div>
-    );
-  }
-
-  if (!isLoading && error && sessions.length === 0) {
-    return (
-      <div className="flex-1 overflow-auto styled-scrollbar">
-        <SessionTableHeader />
+      )}
+      {!isLoading && error && sessions.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 gap-2">
           <span className="text-sm text-destructive">Failed to load sessions</span>
           <span className="text-xs text-muted-foreground">{error.message}</span>
@@ -250,55 +241,42 @@ export default function SessionsVirtualList({
             </button>
           )}
         </div>
-      </div>
-    );
-  }
-
-  if (!isLoading && sessions.length === 0) {
-    return (
-      <div className="flex-1 overflow-auto styled-scrollbar">
-        <SessionTableHeader />
+      )}
+      {!isLoading && !error && sessions.length === 0 && (
         <div className="flex items-center justify-center py-12">
           <span className="text-sm text-muted-foreground">No sessions found</span>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div ref={scrollContainerRef} className="flex-1 overflow-auto styled-scrollbar">
-      <SessionTableHeader />
-      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-        <AnimatePresence initial={false} mode="popLayout">
-          {virtualizer.getVirtualItems().map((virtualItem) => {
-            const item = flatList[virtualItem.index];
-            return (
-              <motion.div
-                key={virtualItem.key}
-                data-index={virtualItem.index}
-                ref={virtualizer.measureElement}
-                exit={{ opacity: 0, scale: 0.97 }}
-                transition={exitTransition}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualItem.start}px)`,
-                }}
-              >
-                {renderItem(item)}
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-      </div>
-      {/* Sentinel for infinite scroll */}
-      <div ref={sentinelRef} style={{ height: 1 }} />
-      {isFetching && (
-        <div className="flex items-center justify-center py-4">
-          <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
-        </div>
+      )}
+      {showList && (
+        <>
+          <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const item = flatList[virtualItem.index];
+              return (
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  {renderItem(item)}
+                </div>
+              );
+            })}
+          </div>
+          <div ref={sentinelRef} style={{ height: 1 }} />
+          {isFetching && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
+            </div>
+          )}
+        </>
       )}
     </div>
   );

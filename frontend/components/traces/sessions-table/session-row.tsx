@@ -1,5 +1,6 @@
 import { ChevronRightIcon } from "lucide-react";
 
+import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type SessionRow as SessionRowType, type TraceTimelineItem } from "@/lib/traces/types";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
@@ -41,10 +42,12 @@ export default function SessionRow({ session, timeline, isExpanded, onToggle, on
       </div>
 
       {/* Session ID */}
-      <div className="flex items-center px-4 py-0.5 shrink-0 w-[189px]">
-        <span className="text-xs text-primary-foreground truncate" title={session.sessionId}>
-          {session.sessionId}
-        </span>
+      <div className="flex items-center px-4 py-0.5 shrink-0 w-[189px]" onClick={(e) => e.stopPropagation()}>
+        <CopyTooltip value={session.sessionId}>
+          <span className="text-xs text-primary-foreground truncate block" title={session.sessionId}>
+            {session.sessionId}
+          </span>
+        </CopyTooltip>
       </div>
 
       {/* Totals pill */}

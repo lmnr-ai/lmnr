@@ -1,5 +1,6 @@
 import { CircleDollarSign, Clock3, Coins } from "lucide-react";
 
+import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn, formatRelativeTime, getDurationString } from "@/lib/utils";
 
@@ -31,11 +32,8 @@ interface SessionTraceCardProps {
 export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: SessionTraceCardProps) {
   return (
     <div
-      className={cn("flex w-full pl-6 pr-0 cursor-pointer", {
-        "pt-2": isFirst,
-        "pt-0": !isFirst,
+      className={cn("flex w-full px-6 cursor-pointer pb-2", {
         "pb-6 border-b": isLast,
-        "pb-2": !isLast,
       })}
     >
       <div
@@ -46,9 +44,11 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
         <div className="flex flex-col h-full justify-between px-4 py-3 shrink-0 w-40">
           <div className="flex flex-col gap-1">
             <span className="text-xs text-secondary-foreground leading-4">{formatRelativeTime(trace.startTime)}</span>
-            <span className="text-xs text-primary-foreground leading-4 truncate" title={trace.id}>
-              {trace.id}
-            </span>
+            <CopyTooltip value={trace.id}>
+              <span className="text-xs text-primary-foreground leading-4 truncate block" title={trace.id}>
+                {trace.id}
+              </span>
+            </CopyTooltip>
           </div>
           <div className="flex flex-col gap-1">
             <div className="flex gap-1 h-4 items-center">
