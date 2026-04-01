@@ -45,7 +45,7 @@ const AUTOCOMPLETE_CONFIG: &[(&str, &[&str])] = &[
     (
         "trace_tags",
         &[
-            "SELECT arrayJoin(topK(512)(name)) as value FROM trace_tags WHERE project_id = {project_id:UUID} AND created_at >= {start_time:DateTime64(9)} AND created_at < {end_time:DateTime64(9)}",
+            "SELECT arrayJoin(topK(512)(arrayJoin(trace_tags))) as value FROM traces_replacing FINAL WHERE project_id = {project_id:UUID} AND start_time >= {start_time:DateTime64(9)} AND start_time < {end_time:DateTime64(9)} AND notEmpty(trace_tags)",
         ],
     ),
 ];
