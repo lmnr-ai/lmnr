@@ -60,7 +60,7 @@ function SessionsTableContent() {
   );
 
   const {
-    toggleSessionExpanded,
+    expandSession,
     collapseSession,
     setLoadingSession,
     setSessionTraces,
@@ -68,7 +68,7 @@ function SessionsTableContent() {
     resetExpandState,
     getController,
   } = useSessionsStoreContext((state) => ({
-    toggleSessionExpanded: state.toggleSessionExpanded,
+    expandSession: state.expandSession,
     collapseSession: state.collapseSession,
     setLoadingSession: state.setLoadingSession,
     setSessionTraces: state.setSessionTraces,
@@ -184,7 +184,7 @@ function SessionsTableContent() {
 
       // Expand: fetch traces for this session
       const controller = getController(sessionId);
-      toggleSessionExpanded(sessionId);
+      expandSession(sessionId);
       setLoadingSession(sessionId, true);
 
       try {
@@ -226,7 +226,7 @@ function SessionsTableContent() {
       endDate,
       projectId,
       toast,
-      toggleSessionExpanded,
+      expandSession,
       setLoadingSession,
       setSessionTraces,
       collapseSession,

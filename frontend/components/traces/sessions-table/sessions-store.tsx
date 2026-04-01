@@ -13,7 +13,7 @@ export type SessionsState = {
 };
 
 export type SessionsActions = {
-  toggleSessionExpanded: (sessionId: string) => void;
+  expandSession: (sessionId: string) => void;
   collapseSession: (sessionId: string) => void;
   setLoadingSession: (sessionId: string, loading: boolean) => void;
   setSessionTraces: (sessionId: string, traces: TraceRow[]) => void;
@@ -39,14 +39,10 @@ export const createSessionsStore = () => {
   return createStore<SessionsStore>()((set) => ({
     ...DEFAULT_STATE,
 
-    toggleSessionExpanded: (sessionId) =>
+    expandSession: (sessionId) =>
       set((state) => {
         const next = new Set(state.expandedSessions);
-        if (next.has(sessionId)) {
-          next.delete(sessionId);
-        } else {
-          next.add(sessionId);
-        }
+        next.add(sessionId);
         return { expandedSessions: next };
       }),
 
