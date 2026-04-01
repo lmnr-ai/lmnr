@@ -335,14 +335,27 @@ const saveRenderingKeys = async (
   }
 };
 
-export async function getSpanPreviews(
-  input: z.infer<typeof GetSpanPreviewsSchema>,
+export interface RawSpanData {
+  spanId: string;
+  data: string;
+  name: string;
+}
+
+/**
+ * Process already-fetched raw span data through the full preview pipeline
+ * (classify → cached DB keys → provider matching → LLM generation).
+ *
+ * Use this when you already have the span output data and want to avoid
+ * a redundant ClickHouse fetch.
+ */
+export async function processSpanPreviews(
+  rawSpans: RawSpanData[],
+  projectId: string,
+  spanIds: string[],
+  spanTypes: Record<string, string>,
   options: GetSpanPreviewsOptions = {}
 ): Promise<SpanPreviewResult> {
   const { skipGeneration = false } = options;
-  const { projectId, traceId, spanIds, spanTypes, startDate, endDate } = GetSpanPreviewsSchema.parse(input);
-
-  const rawSpans = await fetchSpanData(projectId, traceId, spanIds, spanTypes, startDate, endDate);
 
   const { resolved: classifiedPreviews, needsProcessing } = classifyRawSpans(rawSpans, spanTypes);
 
@@ -363,7 +376,6 @@ export async function getSpanPreviews(
   const providerResult = { ...cachedResult, ...providerPreviews };
 
   if (skipGeneration || needsLlm.length === 0) {
-    // Shared traces: resolve remaining spans with JSON fallback, no LLM calls
     for (const span of needsLlm) {
       providerResult[span.spanId] = toJsonPreview(span.parsedData);
     }
@@ -375,4 +387,15 @@ export async function getSpanPreviews(
   await saveRenderingKeys(projectId, llmKeys);
 
   return fillMissing({ ...providerResult, ...llmPreviews }, spanIds);
+}
+
+export async function getSpanPreviews(
+  input: z.infer<typeof GetSpanPreviewsSchema>,
+  options: GetSpanPreviewsOptions = {}
+): Promise<SpanPreviewResult> {
+  const { projectId, traceId, spanIds, spanTypes, startDate, endDate } = GetSpanPreviewsSchema.parse(input);
+
+  const rawSpans = await fetchSpanData(projectId, traceId, spanIds, spanTypes, startDate, endDate);
+
+  return processSpanPreviews(rawSpans, projectId, spanIds, spanTypes, options);
 }

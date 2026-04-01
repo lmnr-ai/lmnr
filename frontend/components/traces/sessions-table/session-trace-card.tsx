@@ -48,7 +48,14 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
     const fetchIO = async () => {
       setLoadingTraceIO(trace.id, true);
       try {
-        const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/main-agent-output`);
+        const params = new URLSearchParams();
+        if (trace.startTime) {
+          params.set("startDate", new Date(new Date(trace.startTime).getTime() - 1000).toISOString());
+        }
+        if (trace.endTime) {
+          params.set("endDate", new Date(new Date(trace.endTime).getTime() + 1000).toISOString());
+        }
+        const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/main-agent-output?${params.toString()}`);
         if (!res.ok) {
           const errMessage = await res
             .json()
@@ -67,7 +74,7 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
     };
 
     fetchIO();
-  }, [trace.id, projectId, traceIO, isLoading, setTraceIO, setLoadingTraceIO, toast]);
+  }, [trace.id, projectId, traceIO, isLoading, setTraceIO, setLoadingTraceIO, toast, trace.startTime, trace.endTime]);
 
   return (
     <div
