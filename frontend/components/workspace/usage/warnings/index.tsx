@@ -8,15 +8,15 @@ import { SettingsSection, SettingsSectionHeader } from "@/components/settings/se
 import { type WorkspaceUsageWarning } from "@/lib/actions/usage/usage-warnings";
 import { swrFetcher } from "@/lib/utils";
 
-import UsageWarningRow, { AddWarningForm } from "./usage-warning-row";
+import WarningChip, { AddWarningPopover } from "./warning-row";
 
-interface UsageWarningsSettingsProps {
+interface WarningsSettingsProps {
   workspaceId: string;
 }
 
 const GB_IN_BYTES = 1024 * 1024 * 1024;
 
-export default function UsageWarningsSettings({ workspaceId }: UsageWarningsSettingsProps) {
+export default function WarningsSettings({ workspaceId }: WarningsSettingsProps) {
   const router = useRouter();
   const { data: warnings = [], mutate } = useSWR<WorkspaceUsageWarning[]>(
     `/api/workspaces/${workspaceId}/usage-warnings`,
@@ -36,20 +36,20 @@ export default function UsageWarningsSettings({ workspaceId }: UsageWarningsSett
   const toDisplayGB = (raw: number) => Math.round((raw / GB_IN_BYTES) * 100) / 100;
 
   return (
-    <>
+    <SettingsSection>
       <SettingsSectionHeader
-        title="Usage warnings"
-        description="Get notified by email when your usage reaches a threshold. The workspace owner will receive the notification. You can set multiple thresholds per meter."
+        size="sm"
+        title="Email warnings"
+        description="Get notified when your usage reaches a threshold. You can set multiple thresholds per meter."
       />
-      <SettingsSection>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col rounded-md border flex-1">
+          <div className="flex items-center px-3 h-10">
             <span className="text-sm font-medium">Data ingestion</span>
-            <span className="text-xs text-muted-foreground">
-              Notify when data ingested in a billing cycle reaches these thresholds.
-            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
             {bytesWarnings.map((w) => (
-              <UsageWarningRow
+              <WarningChip
                 key={w.id}
                 workspaceId={workspaceId}
                 id={w.id}
@@ -58,7 +58,7 @@ export default function UsageWarningsSettings({ workspaceId }: UsageWarningsSett
                 onRemove={handleUpdate}
               />
             ))}
-            <AddWarningForm
+            <AddWarningPopover
               workspaceId={workspaceId}
               usageItem="bytes"
               unit="GB"
@@ -66,14 +66,15 @@ export default function UsageWarningsSettings({ workspaceId }: UsageWarningsSett
               onAdd={handleUpdate}
             />
           </div>
+        </div>
 
-          <div className="flex flex-col gap-2">
+        <div className="flex flex-col rounded-md border flex-1">
+          <div className="flex items-center px-3 h-10">
             <span className="text-sm font-medium">Signal runs</span>
-            <span className="text-xs text-muted-foreground">
-              Notify when signal runs in a billing cycle reach these thresholds.
-            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
             {signalRunsWarnings.map((w) => (
-              <UsageWarningRow
+              <WarningChip
                 key={w.id}
                 workspaceId={workspaceId}
                 id={w.id}
@@ -82,7 +83,7 @@ export default function UsageWarningsSettings({ workspaceId }: UsageWarningsSett
                 onRemove={handleUpdate}
               />
             ))}
-            <AddWarningForm
+            <AddWarningPopover
               workspaceId={workspaceId}
               usageItem="signal_runs"
               unit="runs"
@@ -91,7 +92,7 @@ export default function UsageWarningsSettings({ workspaceId }: UsageWarningsSett
             />
           </div>
         </div>
-      </SettingsSection>
-    </>
+      </div>
+    </SettingsSection>
   );
 }
