@@ -3,6 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
+import SignalsCell from "@/components/signals/signals-cell";
 import TagsCell from "@/components/tags/tags-cell";
 import TraceTagsCell from "@/components/tags/trace-tags-cell";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
@@ -228,6 +229,17 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     meta: { sql: "trace_tags" },
   },
   {
+    accessorFn: (row) => row.signalNames,
+    cell: (row) => {
+      const names = row.getValue() as string[] | undefined;
+      if (names && names.length > 0) return <SignalsCell signalNames={names} />;
+      return "-";
+    },
+    header: "Signals",
+    accessorKey: "signalNames",
+    id: "signals",
+  },
+  {
     accessorFn: (row) => row.metadata,
     header: "Metadata",
     id: "metadata",
@@ -371,6 +383,7 @@ export const defaultTracesColumnOrder = [
   "cost",
   "total_tokens",
   "trace_tags",
+  "signals",
   "span_tags",
   "metadata",
   "session_id",

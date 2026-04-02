@@ -140,6 +140,7 @@ export type TraceRow = {
   status: string;
   spanTags: string[];
   traceTags: string[];
+  signalNames?: string[];
   analysis_status?: string;
   analysis_preview?: string;
   analysis?: string;

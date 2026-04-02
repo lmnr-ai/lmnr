@@ -1,18 +1,16 @@
 import { ChevronsRight, Maximize, Radio, Sparkles } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
-import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
+import { useTraceSignals } from "@/components/signals/use-trace-signals";
 import TraceTagsButton from "@/components/tags/trace-tags-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
-import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { type Filter } from "@/lib/actions/common/filters";
-import { type EventRow } from "@/lib/events/types";
 import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
@@ -42,9 +40,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
     setTracesAgentOpen,
     signalsPanelOpen,
     setSignalsPanelOpen,
-    traceSignals,
-    setTraceSignals,
-    setIsTraceSignalsLoading,
     setActiveSignalTabId,
     initialSignalId,
   } = useTraceViewStore(
@@ -56,65 +51,23 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       setTracesAgentOpen: state.setTracesAgentOpen,
       signalsPanelOpen: state.signalsPanelOpen,
       setSignalsPanelOpen: state.setSignalsPanelOpen,
-      traceSignals: state.traceSignals,
-      setTraceSignals: state.setTraceSignals,
-      setIsTraceSignalsLoading: state.setIsTraceSignalsLoading,
       setActiveSignalTabId: state.setActiveSignalTabId,
       initialSignalId: state.initialSignalId,
     }),
     shallow
   );
 
-  // Eagerly fetch signal count when trace loads, so the button shows the correct count.
-  // Tab selection uses initialSignalId from the store (set at creation time) — see
-  // SignalEventsPanel for the same logic. Whichever fetch completes first picks the tab.
+  const { signals: traceSignals, isLoading: isTraceSignalsLoading } = useTraceSignals(traceId);
+
+  // Auto-open signals panel and select tab when SWR data arrives
+  const hasAutoOpened = useRef(false);
   useEffect(() => {
-    if (!traceId || !projectId) return;
-
-    const fetchSignals = async () => {
-      try {
-        setIsTraceSignalsLoading(true);
-        const response = await fetch(`/api/projects/${projectId}/traces/${traceId}/signals`);
-        if (!response.ok) return;
-
-        const data = (await response.json()) as Array<{
-          signalId: string;
-          signalName: string;
-          prompt: string;
-          structuredOutput: Record<string, unknown>;
-          events: EventRow[];
-        }>;
-        if (!Array.isArray(data)) return;
-
-        const mapped: TraceSignal[] = data.map((s) => ({
-          signalId: s.signalId,
-          signalName: s.signalName,
-          prompt: s.prompt ?? "",
-          schemaFields: jsonSchemaToSchemaFields(s.structuredOutput).map((f) => ({
-            name: f.name,
-            type: f.type,
-            description: f.description,
-          })),
-          events: Array.isArray(s.events) ? s.events : [],
-        }));
-
-        setTraceSignals(mapped);
-
-        if (mapped.length > 0) {
-          setSignalsPanelOpen(true);
-          const preferred = initialSignalId ? mapped.find((s) => s.signalId === initialSignalId) : undefined;
-          setActiveSignalTabId(preferred?.signalId ?? mapped[0].signalId);
-        }
-      } catch (error) {
-        console.error("Error fetching trace signals:", error);
-      } finally {
-        setIsTraceSignalsLoading(false);
-      }
-    };
-
-    fetchSignals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (hasAutoOpened.current || traceSignals.length === 0) return;
+    hasAutoOpened.current = true;
+    setSignalsPanelOpen(true);
+    const preferred = initialSignalId ? traceSignals.find((s) => s.signalId === initialSignalId) : undefined;
+    setActiveSignalTabId(preferred?.signalId ?? traceSignals[0].signalId);
+  }, [traceSignals, initialSignalId, setSignalsPanelOpen, setActiveSignalTabId]);
 
   const fullScreenParams = useMemo(() => {
     const ps = new URLSearchParams(searchParams);
@@ -191,7 +144,14 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         </div>
         {trace && <ShareTraceButton projectId={projectId} />}
       </div>
-      {signalsPanelOpen && <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} />}
+      {signalsPanelOpen && (
+        <ResizableSignalCard
+          traceId={traceId}
+          traceSignals={traceSignals}
+          isTraceSignalsLoading={isTraceSignalsLoading}
+          onClose={() => setSignalsPanelOpen(false)}
+        />
+      )}
       <div className="flex items-center gap-2 mt-2">
         <TraceViewSearch
           spans={spans}
