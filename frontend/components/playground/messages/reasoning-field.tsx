@@ -77,26 +77,29 @@ const ReasoningField = () => {
     return (
       <div className="flex flex-col gap-4">
         <Controller
-          render={({ field: { value, onChange } }) => (
-            <>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium">Thinking Tokens</span>
-                <Input
-                  onChange={(e) => onChange(Number(e.target.value))}
-                  value={Number(value)}
-                  type="number"
-                  className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
+          render={({ field: { value, onChange } }) => {
+            const tokens = value != null ? Number(value) : config.min;
+            return (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-sm font-medium">Thinking Tokens</span>
+                  <Input
+                    onChange={(e) => onChange(Number(e.target.value))}
+                    value={tokens}
+                    type="number"
+                    className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
+                  />
+                </div>
+                <Slider
+                  value={[tokens]}
+                  min={config.min}
+                  max={watch("maxTokens")}
+                  step={1}
+                  onValueChange={(v) => onChange(v?.[0])}
                 />
-              </div>
-              <Slider
-                value={[Number(value)]}
-                min={config.min}
-                max={watch("maxTokens")}
-                step={1}
-                onValueChange={(v) => onChange(v?.[0])}
-              />
-            </>
-          )}
+              </>
+            );
+          }}
           name="providerOptions.anthropic.thinking.budgetTokens"
           control={control}
         />
