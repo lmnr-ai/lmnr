@@ -60,6 +60,22 @@ export async function getMainAgentIO({
   return { input: inputText, output: outputText };
 }
 
+export async function getMainAgentIOBatch({
+  traceIds,
+  projectId,
+}: {
+  traceIds: string[];
+  projectId: string;
+}): Promise<Record<string, { input: string | null; output: string | null }>> {
+  const results = await Promise.allSettled(traceIds.map((id) => getMainAgentIO({ traceId: id, projectId })));
+  return Object.fromEntries(
+    traceIds.map((id, i) => {
+      const result = results[i];
+      return [id, result.status === "fulfilled" ? result.value : { input: null, output: null }];
+    })
+  );
+}
+
 /** Extract the last user message content from an LLM span input. */
 function extractLastUserMessage(raw: string): string | null {
   const parsed = tryParseJson(raw);
