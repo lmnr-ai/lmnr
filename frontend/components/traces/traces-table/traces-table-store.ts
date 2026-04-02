@@ -58,6 +58,7 @@ export const useTracesTableStore = create<TracesTableStoreState>()(
           meta: {
             sql: cc.sql,
             dataType: cc.dataType,
+            dbType: cc.dataType === "number" ? "Float64" : "String",
             isCustom: true,
           },
         }));

@@ -6,6 +6,7 @@ import {
   backtickEscape,
   buildSelectQuery,
   type ColumnFilterConfig,
+  type ColumnFilterProcessor,
   createArrayColumnFilter,
   createCustomFilter,
   createNumberFilter,
@@ -150,6 +151,46 @@ export interface BuildTracesQueryOptions {
   customColumns?: CustomColumn[];
 }
 
+/**
+ * Build a ColumnFilterConfig that includes both the static traces processors
+ * and dynamic processors for any custom SQL columns.
+ */
+const buildFilterConfigWithCustomColumns = (customColumns?: CustomColumn[]): ColumnFilterConfig => {
+  if (!customColumns || customColumns.length === 0) {
+    return tracesColumnFilterConfig;
+  }
+
+  const processors = new Map(tracesColumnFilterConfig.processors);
+
+  for (const col of customColumns) {
+    const filterSql = col.filterSql ?? col.sql;
+    const dbType = col.dbType ?? "String";
+    const isNumeric = dbType === "Int64" || dbType === "Float64";
+
+    const processor: ColumnFilterProcessor = (filter, paramKey) => {
+      const opSymbol = OperatorLabelMap[filter.operator];
+      const parsedValue = isNumeric
+        ? dbType === "Int64"
+          ? parseInt(String(filter.value))
+          : parseFloat(String(filter.value))
+        : String(filter.value);
+
+      if (isNumeric && isNaN(parsedValue as number)) {
+        return { condition: null, params: {} };
+      }
+
+      return {
+        condition: `${filterSql} ${opSymbol} {${paramKey}:${dbType}}`,
+        params: { [paramKey]: parsedValue },
+      };
+    };
+
+    processors.set(col.id, processor);
+  }
+
+  return { processors };
+};
+
 export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): QueryResult => {
   const {
     traceType,
@@ -199,6 +240,9 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     orderBy.push({ column: "start_time", direction: "DESC" });
   }
 
+  // Build filter config with custom column processors
+  const columnFilterConfig = buildFilterConfigWithCustomColumns(customColumns);
+
   const queryOptions: SelectQueryOptions = {
     select: {
       columns: selectColumns,
@@ -211,7 +255,7 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
       timeColumn: "start_time",
     },
     filters,
-    columnFilterConfig: tracesColumnFilterConfig,
+    columnFilterConfig,
     orderBy,
     customConditions,
     pagination: {
