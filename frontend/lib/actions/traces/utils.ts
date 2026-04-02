@@ -128,6 +128,8 @@ const tracesSelectColumns = [
 
 export const DEFAULT_SEARCH_MAX_HITS = 500;
 
+const ALLOWED_DB_TYPES = new Set(["String", "Float64", "Int64"]);
+
 export interface CustomColumn {
   id: string;
   sql: string;
@@ -164,7 +166,7 @@ const buildFilterConfigWithCustomColumns = (customColumns?: CustomColumn[]): Col
 
   for (const col of customColumns) {
     const filterSql = col.filterSql ?? col.sql;
-    const dbType = col.dbType ?? "String";
+    const dbType = ALLOWED_DB_TYPES.has(col.dbType ?? "String") ? (col.dbType ?? "String") : "String";
     const isNumeric = dbType === "Int64" || dbType === "Float64";
 
     const processor: ColumnFilterProcessor = (filter, paramKey) => {

@@ -99,7 +99,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
           id: z.string().min(1),
           sql: z.string().min(1),
           filterSql: z.string().optional(),
-          dbType: z.string().optional(),
+          dbType: z.enum(["String", "Float64", "Int64"]).optional(),
         })
       );
       customColumns = CustomColumnSchema.parse(parsed);
@@ -183,7 +183,7 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
           id: z.string().min(1),
           sql: z.string().min(1),
           filterSql: z.string().optional(),
-          dbType: z.string().optional(),
+          dbType: z.enum(["String", "Float64", "Int64"]).optional(),
         })
       );
       customColumns = CustomColumnSchema.parse(parsed);

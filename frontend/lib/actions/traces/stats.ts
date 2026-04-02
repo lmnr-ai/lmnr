@@ -57,7 +57,7 @@ export async function getTraceStats(
           id: z.string().min(1),
           sql: z.string().min(1),
           filterSql: z.string().optional(),
-          dbType: z.string().optional(),
+          dbType: z.enum(["String", "Float64", "Int64"]).optional(),
         })
       );
       customColumns = CustomColumnSchema.parse(parsed);
