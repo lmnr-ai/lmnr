@@ -20,7 +20,7 @@ interface RawUrlParams {
   sortDirection: string | null;
 }
 
-function toColumnsPayload(columnDefs: ColumnDef<TraceRow>[]): TracesQueryColumn[] {
+export function toColumnsPayload(columnDefs: ColumnDef<TraceRow>[]): TracesQueryColumn[] {
   return columnDefs
     .filter((c) => c.meta?.sql)
     .map((c) => ({

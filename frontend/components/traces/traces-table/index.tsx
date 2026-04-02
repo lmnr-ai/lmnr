@@ -16,7 +16,7 @@ import {
   PREVIEW_COLUMN,
 } from "@/components/traces/traces-table/columns";
 import TracesColumnsMenu from "@/components/traces/traces-table/traces-columns-menu";
-import { useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
+import { toColumnsPayload, useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -170,14 +170,7 @@ function TracesTableContent() {
   // Build custom columns JSON for the stats endpoint so custom column filters
   // can be resolved server-side.
   const customColumnsJson = useMemo(() => {
-    const customCols = columnDefs
-      .filter((c) => c.meta?.isCustom && c.meta?.sql)
-      .map((c) => ({
-        id: c.id!,
-        sql: c.meta!.sql!,
-        ...(c.meta!.filterSql && { filterSql: c.meta!.filterSql }),
-        ...(c.meta!.dbType && { dbType: c.meta!.dbType }),
-      }));
+    const customCols = toColumnsPayload(columnDefs.filter((c) => c.meta?.isCustom));
     return customCols.length > 0 ? JSON.stringify(customCols) : undefined;
   }, [columnDefs]);
 
