@@ -75,16 +75,16 @@ pub async fn insert_signal_run_messages(
         Ok(mut ch_insert) => {
             for message in messages {
                 if let Err(e) = ch_insert.write(message).await {
-                    log::err!("Failed to write to signal_run_messages_v2: {:?}", e);
+                    log::error!("Failed to write to signal_run_messages_v2: {:?}", e);
                     return Ok(());
                 }
             }
             if let Err(e) = ch_insert.end().await {
-                log::err!("Failed to flush signal_run_messages_v2 batch: {:?}", e);
+                log::error!("Failed to flush signal_run_messages_v2 batch: {:?}", e);
             }
         }
         Err(e) => {
-            log::err!(
+            log::error!(
                 "Failed to start insert into signal_run_messages_v2: {:?}",
                 e
             );
