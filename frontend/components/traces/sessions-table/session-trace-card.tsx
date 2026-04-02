@@ -1,14 +1,12 @@
 "use client";
 
 import { ChevronDown, ChevronUp, CircleDollarSign, Clock3, Coins } from "lucide-react";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { shallow } from "zustand/shallow";
 
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/lib/hooks/use-toast";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn, formatRelativeTime, getDurationString } from "@/lib/utils";
 
@@ -26,50 +24,15 @@ interface SessionTraceCardProps {
 }
 
 export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: SessionTraceCardProps) {
-  const { projectId } = useParams();
-  const { toast } = useToast();
-
   const [isExpanded, setIsExpanded] = useState(false);
 
   const { traceIO, isLoading } = useSessionsStoreContext(
     (s) => ({
       traceIO: s.traceIO[trace.id],
-      isLoading: s.loadingTraceIO.has(trace.id),
+      isLoading: trace.sessionId ? s.loadingSessionIO.has(trace.sessionId) : false,
     }),
     shallow
   );
-
-  const setTraceIO = useSessionsStoreContext((s) => s.setTraceIO);
-  const setLoadingTraceIO = useSessionsStoreContext((s) => s.setLoadingTraceIO);
-
-  // TODO: Add caching/virtualization - currently fetches naively per card mount
-  // TODO: Consider batching fetches for all visible traces in a session
-  useEffect(() => {
-    if (traceIO !== undefined || isLoading) return;
-
-    const fetchIO = async () => {
-      setLoadingTraceIO(trace.id, true);
-      try {
-        const res = await fetch(`/api/projects/${projectId}/traces/${trace.id}/main-agent-output`);
-        if (!res.ok) {
-          const errMessage = await res
-            .json()
-            .then((d: { error?: string }) => d?.error)
-            .catch(() => null);
-          toast({ variant: "destructive", title: errMessage ?? "Failed to fetch trace IO" });
-          return;
-        }
-        const data = (await res.json()) as { input: string | null; output: string | null };
-        setTraceIO(trace.id, data);
-      } catch {
-        toast({ variant: "destructive", title: "Failed to fetch trace IO" });
-      } finally {
-        setLoadingTraceIO(trace.id, false);
-      }
-    };
-
-    fetchIO();
-  }, [trace.id, projectId, traceIO, isLoading, setTraceIO, setLoadingTraceIO, toast]);
 
   return (
     <div
@@ -158,7 +121,7 @@ function TraceIOContent({
   onExpand: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
-    <div className={cn("bg-muted/20 border-l flex-1 h-full min-w-0 overflow-hidden relative group")}>
+    <div className={cn("bg-muted/40 border-l flex-1 h-full min-w-0 overflow-hidden relative group")}>
       <div className={cn("h-full px-3 py-2", isExpanded ? "overflow-y-auto" : "overflow-y-hidden")}>
         {isLoading ? (
           <div className="flex flex-col gap-2">
@@ -173,10 +136,10 @@ function TraceIOContent({
         )}
       </div>
       <button
-        className="absolute bottom-0 left-0 right-0 h-20 flex items-end justify-center pb-1 bg-gradient-to-t from-secondary/80 to-transparent transition-opacity duration-200 hover:text-secondary-foreground"
+        className="absolute bottom-0 left-0 right-0 h-14 flex items-end justify-center pb-1 bg-gradient-to-t from-secondary/80 to-transparent transition-all duration-200 text-secondary-foreground hover:text-primary-foreground"
         onClick={onExpand}
       >
-        <span className="text-muted-foreground transition-opacity duration-200 opacity-0 group-hover:opacity-100">
+        <span className="transition-opacity duration-200 opacity-0 group-hover:opacity-100">
           {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </span>
       </button>
