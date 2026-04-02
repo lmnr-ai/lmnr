@@ -69,23 +69,23 @@ pub async fn insert_signal_run_messages(
 
     // Dual-write to new TTL-based table. Best-effort — don't fail the operation if this errors.
     match clickhouse
-        .insert::<CHSignalRunMessage>("new_signal_run_messages")
+        .insert::<CHSignalRunMessage>("signal_run_messages_v2")
         .await
     {
         Ok(mut ch_insert) => {
             for message in messages {
                 if let Err(e) = ch_insert.write(message).await {
-                    log::err!("Failed to write to new_signal_run_messages: {:?}", e);
+                    log::err!("Failed to write to signal_run_messages_v2: {:?}", e);
                     return Ok(());
                 }
             }
             if let Err(e) = ch_insert.end().await {
-                log::err!("Failed to flush new_signal_run_messages batch: {:?}", e);
+                log::err!("Failed to flush signal_run_messages_v2 batch: {:?}", e);
             }
         }
         Err(e) => {
             log::err!(
-                "Failed to start insert into new_signal_run_messages: {:?}",
+                "Failed to start insert into signal_run_messages_v2: {:?}",
                 e
             );
         }
