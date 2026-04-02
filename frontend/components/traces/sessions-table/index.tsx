@@ -4,7 +4,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
-import SearchInput from "@/components/common/search-input";
+import AdvancedSearch from "@/components/common/advanced-search";
 import { filters } from "@/components/traces/sessions-table/columns";
 import { SessionsStoreProvider, useSessionsStoreContext } from "@/components/traces/sessions-table/sessions-store";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
@@ -12,7 +12,7 @@ import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
-import DataTableFilter, { DataTableFilterList } from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
 import { type SessionRow, type TraceRow, type TraceTimelineItem } from "@/lib/traces/types";
@@ -65,6 +65,8 @@ function SessionsTableContent() {
     setLoadingSession,
     setSessionTraces,
     mergeSessionTimelines,
+    mergeTraceIO,
+    setLoadingSessionIO,
     resetExpandState,
     getController,
   } = useSessionsStoreContext((state) => ({
@@ -73,6 +75,8 @@ function SessionsTableContent() {
     setLoadingSession: state.setLoadingSession,
     setSessionTraces: state.setSessionTraces,
     mergeSessionTimelines: state.mergeSessionTimelines,
+    mergeTraceIO: state.mergeTraceIO,
+    setLoadingSessionIO: state.setLoadingSessionIO,
     resetExpandState: state.resetExpandState,
     getController: state.getController,
   }));
@@ -210,6 +214,30 @@ function SessionsTableContent() {
         if (controller.signal.aborted) return;
 
         setSessionTraces(sessionId, traces.items);
+
+        const traceIds = traces.items.map((t) => t.id);
+        if (traceIds.length > 0) {
+          setLoadingSessionIO(sessionId, true);
+          try {
+            const ioRes = await fetch(`/api/projects/${projectId}/traces/io`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ traceIds }),
+              signal: controller.signal,
+            });
+            if (controller.signal.aborted) return;
+            if (ioRes.ok) {
+              const ioData = (await ioRes.json()) as Record<string, { input: string | null; output: string | null }>;
+              if (!controller.signal.aborted) {
+                mergeTraceIO(ioData);
+              }
+            }
+          } catch (ioError) {
+            if (ioError instanceof DOMException && ioError.name === "AbortError") return;
+          } finally {
+            setLoadingSessionIO(sessionId, false);
+          }
+        }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         toast({ title: "Failed to load traces. Please try again.", variant: "destructive" });
@@ -229,6 +257,8 @@ function SessionsTableContent() {
       expandSession,
       setLoadingSession,
       setSessionTraces,
+      mergeTraceIO,
+      setLoadingSessionIO,
       collapseSession,
       getController,
     ]
@@ -258,9 +288,15 @@ function SessionsTableContent() {
             }}
             variant="outline"
           />
-          <SearchInput placeholder="Search in sessions..." />
         </div>
-        <DataTableFilterList />
+        <div className="w-full px-px">
+          <AdvancedSearch
+            filters={filters}
+            resource="sessions"
+            placeholder="Search by session ID, duration, cost, tokens and more..."
+            className="w-full flex-1"
+          />
+        </div>
       </div>
       <SessionsVirtualList
         sessions={sessions ?? []}
