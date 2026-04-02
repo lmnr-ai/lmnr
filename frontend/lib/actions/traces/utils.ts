@@ -275,10 +275,11 @@ export interface BuildTracesCountQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  customColumns?: CustomColumn[];
 }
 
 export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOptions): QueryResult => {
-  const { traceType, traceIds, filters, startTime, endTime, pastHours } = options;
+  const { traceType, traceIds, filters, startTime, endTime, pastHours, customColumns } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -309,7 +310,7 @@ export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOp
       timeColumn: "start_time",
     },
     filters,
-    columnFilterConfig: tracesColumnFilterConfig,
+    columnFilterConfig: buildFilterConfigWithCustomColumns(customColumns),
     customConditions,
   };
 
@@ -381,6 +382,7 @@ export const buildTracesStatsWhereConditions = (options: {
   traceType: string;
   traceIds: string[];
   filters: Filter[];
+  customColumns?: CustomColumn[];
 }): { conditions: [string, ...string[]]; params: Record<string, any> } => {
   const conditions: [string] = [`trace_type = {traceType:String}`];
   const params: Record<string, any> = { traceType: options.traceType };
@@ -390,9 +392,11 @@ export const buildTracesStatsWhereConditions = (options: {
     params.traceIds = options.traceIds;
   }
 
+  const columnFilterConfig = buildFilterConfigWithCustomColumns(options.customColumns);
+
   options.filters.forEach((filter, index) => {
     const paramKey = `${filter.column}_${index}`;
-    const processor = tracesColumnFilterConfig.processors.get(filter.column);
+    const processor = columnFilterConfig.processors.get(filter.column);
 
     if (processor) {
       const result = processor(filter, paramKey);

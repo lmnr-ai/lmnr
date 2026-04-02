@@ -168,9 +168,29 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
     search,
     searchIn,
     filter: inputFilters,
+    customColumns: customColumnsJson,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
+
+  // Parse and validate custom columns from JSON
+  let customColumns: CustomColumn[] | undefined;
+  if (customColumnsJson) {
+    try {
+      const parsed = JSON.parse(customColumnsJson);
+      const CustomColumnSchema = z.array(
+        z.object({
+          id: z.string().min(1),
+          sql: z.string().min(1),
+          filterSql: z.string().optional(),
+          dbType: z.string().optional(),
+        })
+      );
+      customColumns = CustomColumnSchema.parse(parsed);
+    } catch {
+      // ignore malformed custom columns
+    }
+  }
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
@@ -195,6 +215,7 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
     startTime,
     endTime,
     pastHours,
+    customColumns,
   });
 
   const result = await executeQuery<{ count: number }>({

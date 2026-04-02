@@ -6,7 +6,11 @@ import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
 import { GetTracesSchema } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
-import { buildTracesStatsWhereConditions, generateEmptyTimeBuckets } from "@/lib/actions/traces/utils";
+import {
+  buildTracesStatsWhereConditions,
+  type CustomColumn,
+  generateEmptyTimeBuckets,
+} from "@/lib/actions/traces/utils";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 
@@ -38,9 +42,29 @@ export async function getTraceStats(
     filter: inputFilters,
     intervalValue,
     intervalUnit,
+    customColumns: customColumnsJson,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
+
+  // Parse and validate custom columns from JSON
+  let customColumns: CustomColumn[] | undefined;
+  if (customColumnsJson) {
+    try {
+      const parsed = JSON.parse(customColumnsJson);
+      const CustomColumnSchema = z.array(
+        z.object({
+          id: z.string().min(1),
+          sql: z.string().min(1),
+          filterSql: z.string().optional(),
+          dbType: z.string().optional(),
+        })
+      );
+      customColumns = CustomColumnSchema.parse(parsed);
+    } catch {
+      // ignore malformed custom columns
+    }
+  }
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
@@ -63,6 +87,7 @@ export async function getTraceStats(
     traceType,
     traceIds,
     filters,
+    customColumns,
   });
 
   const {
