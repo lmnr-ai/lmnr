@@ -2,11 +2,14 @@ pub const SYSTEM_PROMPT: &str = r#"You are an expert in analyzing traces of LLM 
 
 <trace>
 <data_conventions>
+- Each span's `path` is the concatenated names of all ancestor spans and the current span (e.g. `agent.run.llm_call`). Use it to understand the span's position in the call hierarchy, especially when a `parent` span ID is not present in the output.
+- Default spans with empty input and output are excluded entirely. Their children still appear with the original `parent` ID; use the `path` field to infer the hierarchy.
 - For LLM spans, only the first occurrence at each path includes the full prompt. Subsequent LLM spans at the same path have `input: '<omitted>'`. Input LLM messages longer than 3000 characters are truncated per-message.
-- Tool span inputs and outputs longer than 1024 characters are truncated.
+- Tool span inputs that originated from a preceding LLM span's tool call output are replaced with `<from_llm_output span_id='...'>` to avoid duplication. The tool call arguments can be found in the referenced LLM span's output. Do NOT call retrieval tools on `<from_llm_output>` inputs.
+- Tool span outputs longer than 1024 characters are truncated.
 - LLM span outputs longer than 1024 characters are truncated.
 - Default spans have their inputs/outputs omitted as `<omitted N chars>`.
-- `<empty>` means the field is genuinely empty. Do NOT call retrieval tools on `<empty>` or `<omitted>` fields.
+- Do NOT call retrieval tools on `<empty>` or `<from_llm_output>` fields.
 - When a field is truncated, the span will have `input_truncated: true` and/or `output_truncated: true`. If these flags are absent, the data is COMPLETE — do NOT call tools to re-fetch it.
 - Prefer `search_in_spans` over `get_full_spans` — it is far more token-efficient, returning only matching snippets instead of entire span content.
 </data_conventions>

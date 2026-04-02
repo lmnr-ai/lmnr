@@ -16,6 +16,11 @@ const LLM_MESSAGE_MAX_CHARS: usize = 3000;
 /// Hard cap on total serialized LLM input size after per-string truncation.
 const LLM_INPUT_TOTAL_MAX_CHARS: usize = 8192;
 
+/// Minimum unique words in tool input for content-overlap dedup to be attempted.
+const TOOL_DEDUP_MIN_WORDS: usize = 3;
+/// Fraction of tool input words that must appear in an LLM output to count as a match.
+const TOOL_DEDUP_OVERLAP_THRESHOLD: f64 = 0.75;
+
 pub struct CompressedSpan {
     pub id: String,
     pub name: String,
@@ -155,26 +160,64 @@ pub fn extract_exception_from_events(events: &[(i64, String, String)]) -> Option
         .filter(|v| !v.is_null())
 }
 
+/// Extract unique lowercase alphanumeric tokens (length >= 2) from a string.
+fn extract_words(s: &str) -> HashSet<String> {
+    s.split(|c: char| !c.is_alphanumeric() && c != '_')
+        .filter(|w| w.len() >= 2)
+        .map(|w| w.to_lowercase())
+        .collect()
+}
+
+/// Compute the fraction of `needle_words` that appear in `haystack_words`.
+/// Returns 0.0 if `needle_words` has fewer than `TOOL_DEDUP_MIN_WORDS` entries.
+fn content_overlap_score(needle_words: &HashSet<String>, haystack_words: &HashSet<String>) -> f64 {
+    if needle_words.len() < TOOL_DEDUP_MIN_WORDS {
+        return 0.0;
+    }
+    let matched = needle_words
+        .iter()
+        .filter(|w| haystack_words.contains(*w))
+        .count();
+    matched as f64 / needle_words.len() as f64
+}
+
 /// Compress span content based on type and occurrence.
-/// Spans are identified by the last 4 hex chars of their UUID, which is stable
+/// Spans are identified by the last 6 hex chars of their UUID, which is stable
 /// across iterations regardless of span arrival order.
+///
+/// Optimizations applied:
+/// - Default spans with empty input AND output are fully excluded.
+/// - Tool span inputs that duplicate a preceding LLM sibling's output are
+///   replaced with a `<from_llm_output span_id='...'>` reference.
 pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
-    // Build span UUID to short ID mapping
     let span_uuid_to_short: HashMap<Uuid, String> = ch_spans
         .iter()
         .map(|span| (span.span_id, span_short_id(&span.span_id)))
         .collect();
 
-    // Track which LLM paths we've already seen
+    // For tool-input dedup: track all LLM span outputs (as word sets) per parent.
+    // When a tool span's input words overlap sufficiently with an LLM sibling's
+    // output words, we replace the tool input with a reference.
+    let mut parent_llm_outputs: HashMap<Uuid, Vec<(String, HashSet<String>)>> = HashMap::new();
+
     let mut seen_llm_paths: HashSet<String> = HashSet::new();
 
     ch_spans
         .iter()
-        .map(|ch_span| {
+        .filter_map(|ch_span| {
             let is_llm = ch_span.span_type == 1;
+            let is_tool = ch_span.span_type == 6;
+            let is_default = !is_llm && !is_tool;
+
+            // Exclude default spans with empty input and output
+            if is_default && is_empty_raw(&ch_span.input) && is_empty_raw(&ch_span.output) {
+                return None;
+            }
+
             let path = ch_span.path.clone();
             let duration_ns = ch_span.end_time - ch_span.start_time;
             let duration_secs = duration_ns as f64 / 1_000_000_000.0;
+            let short_id = span_short_id(&ch_span.span_id);
 
             let parent = if ch_span.parent_span_id.is_nil() || ch_span.parent_span_id == Uuid::nil()
             {
@@ -186,14 +229,16 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
             let mut input_truncated = false;
             let mut output_truncated = false;
 
-            let is_tool = ch_span.span_type == 6;
-
             let (input, output) = if is_llm {
-                let output = clean_whitespace(&truncate_str(
-                    strip_noise(&ch_span.output),
-                    TRUNCATE_THRESHOLD,
-                    &mut output_truncated,
-                ));
+                let cleaned_output = clean_whitespace(&strip_noise(&ch_span.output));
+                let output_words = extract_words(&cleaned_output);
+                parent_llm_outputs
+                    .entry(ch_span.parent_span_id)
+                    .or_default()
+                    .push((short_id.clone(), output_words));
+
+                let output =
+                    truncate_str(cleaned_output, TRUNCATE_THRESHOLD, &mut output_truncated);
 
                 if seen_llm_paths.contains(&path) {
                     (
@@ -210,17 +255,38 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
                     (input_str, output)
                 }
             } else if is_tool {
-                let input_raw = strip_noise(&ch_span.input);
                 let output_raw = strip_noise(&ch_span.output);
 
-                let input = if is_empty_raw(&input_raw) {
-                    "<empty>".to_string()
-                } else {
-                    clean_whitespace(&truncate_str(
-                        input_raw,
-                        TRUNCATE_THRESHOLD,
-                        &mut input_truncated,
-                    ))
+                let input = {
+                    let input_raw = strip_noise(&ch_span.input);
+                    if is_empty_raw(&input_raw) {
+                        "<empty>".to_string()
+                    } else {
+                        let input_words = extract_words(&input_raw);
+                        let matched_llm =
+                            parent_llm_outputs
+                                .get(&ch_span.parent_span_id)
+                                .and_then(|llms| {
+                                    llms.iter().rev().find_map(|(llm_id, llm_words)| {
+                                        let score = content_overlap_score(&input_words, llm_words);
+                                        if score >= TOOL_DEDUP_OVERLAP_THRESHOLD {
+                                            Some(llm_id.clone())
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                });
+
+                        if let Some(llm_id) = matched_llm {
+                            format!("<from_llm_output span_id='{}'>", llm_id)
+                        } else {
+                            clean_whitespace(&truncate_str(
+                                input_raw,
+                                TRUNCATE_THRESHOLD,
+                                &mut input_truncated,
+                            ))
+                        }
+                    }
                 };
 
                 let output = if is_empty_raw(&output_raw) {
@@ -243,8 +309,8 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
             let exception =
                 extract_exception_from_events(&ch_span.events).map(|v| stringify_value(&v));
 
-            CompressedSpan {
-                id: span_short_id(&ch_span.span_id),
+            Some(CompressedSpan {
+                id: short_id,
                 name: ch_span.name.clone(),
                 path: path.clone(),
                 span_type: get_span_type(ch_span.span_type).to_string(),
@@ -263,7 +329,7 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
                 },
                 parent,
                 exception,
-            }
+            })
         })
         .collect()
 }
@@ -285,7 +351,7 @@ fn spans_to_string(spans: &[CompressedSpan]) -> String {
         if let Some(parent) = &span.parent {
             let _ = writeln!(out, "  parent: {}", parent);
         } else {
-            let _ = writeln!(out, "  parent: <it_is_the_root_span>");
+            let _ = writeln!(out, "  parent: <none>");
         }
         if !span.status.is_empty() {
             let _ = writeln!(out, "  status: {}", span.status);
@@ -409,4 +475,510 @@ pub async fn get_trace_structure_as_string(
         "Here are all spans of the trace:\n<spans>\n{}</spans>\n",
         trace_str
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_span(
+        span_id: Uuid,
+        parent_span_id: Uuid,
+        name: &str,
+        span_type: u8,
+        start_time: i64,
+        input: &str,
+        output: &str,
+    ) -> CHSpan {
+        CHSpan {
+            span_id,
+            name: name.to_string(),
+            span_type,
+            start_time,
+            end_time: start_time + 1_000_000_000,
+            input_cost: 0.0,
+            output_cost: 0.0,
+            total_cost: 0.0,
+            model: String::new(),
+            session_id: String::new(),
+            project_id: Uuid::nil(),
+            trace_id: Uuid::nil(),
+            provider: String::new(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            user_id: String::new(),
+            path: name.to_string(),
+            input: input.to_string(),
+            output: output.to_string(),
+            size_bytes: 0,
+            status: String::new(),
+            attributes: String::new(),
+            request_model: String::new(),
+            response_model: String::new(),
+            parent_span_id,
+            trace_metadata: String::new(),
+            trace_type: 0,
+            tags_array: vec![],
+            events: vec![],
+        }
+    }
+
+    // ===================================================================
+    // extract_words
+    // ===================================================================
+
+    #[test]
+    fn test_extract_words_json() {
+        let words = extract_words(r#"{"action":"click","params":{"index":42}}"#);
+        assert!(words.contains("action"));
+        assert!(words.contains("click"));
+        assert!(words.contains("params"));
+        assert!(words.contains("index"));
+        assert!(words.contains("42"));
+    }
+
+    #[test]
+    fn test_extract_words_skips_single_char() {
+        let words = extract_words(r#"{"a": 1, "bb": 2}"#);
+        assert!(!words.contains("a"));
+        assert!(!words.contains("1"));
+        assert!(words.contains("bb"));
+    }
+
+    #[test]
+    fn test_extract_words_case_insensitive() {
+        let words = extract_words("Hello WORLD FooBar");
+        assert!(words.contains("hello"));
+        assert!(words.contains("world"));
+        assert!(words.contains("foobar"));
+    }
+
+    // ===================================================================
+    // content_overlap_score
+    // ===================================================================
+
+    #[test]
+    fn test_overlap_full_match() {
+        let needle: HashSet<String> = ["action", "click", "index"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let haystack: HashSet<String> = ["action", "click", "index", "extra", "words"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(content_overlap_score(&needle, &haystack), 1.0);
+    }
+
+    #[test]
+    fn test_overlap_partial_match() {
+        let needle: HashSet<String> = ["action", "click", "params", "index"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let haystack: HashSet<String> = ["action", "click", "index"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(content_overlap_score(&needle, &haystack), 0.75);
+    }
+
+    #[test]
+    fn test_overlap_below_min_words() {
+        let needle: HashSet<String> = ["ab", "cd"].iter().map(|s| s.to_string()).collect();
+        let haystack: HashSet<String> = ["ab", "cd"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(content_overlap_score(&needle, &haystack), 0.0);
+    }
+
+    #[test]
+    fn test_overlap_no_match() {
+        let needle: HashSet<String> = ["foo", "bar", "baz"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let haystack: HashSet<String> = ["alpha", "beta", "gamma"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(content_overlap_score(&needle, &haystack), 0.0);
+    }
+
+    // ===================================================================
+    // compress_span_content — empty default span exclusion
+    // ===================================================================
+
+    #[test]
+    fn test_empty_default_spans_excluded() {
+        let parent_id = Uuid::new_v4();
+        let spans = vec![
+            make_span(
+                parent_id,
+                Uuid::nil(),
+                "agent",
+                0,
+                1000,
+                "\"hello\"",
+                "\"world\"",
+            ),
+            make_span(Uuid::new_v4(), parent_id, "agent.step", 0, 2000, "", ""),
+            make_span(
+                Uuid::new_v4(),
+                parent_id,
+                "null_wrapper",
+                0,
+                3000,
+                "null",
+                "null",
+            ),
+        ];
+
+        let result = compress_span_content(&spans);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "agent");
+    }
+
+    #[test]
+    fn test_default_span_with_content_kept() {
+        let spans = vec![
+            make_span(
+                Uuid::new_v4(),
+                Uuid::nil(),
+                "agent",
+                0,
+                1000,
+                "\"data\"",
+                "\"result\"",
+            ),
+            make_span(
+                Uuid::new_v4(),
+                Uuid::nil(),
+                "wrapper",
+                0,
+                2000,
+                "\"input\"",
+                "",
+            ),
+        ];
+
+        let result = compress_span_content(&spans);
+        assert_eq!(result.len(), 2);
+    }
+
+    // ===================================================================
+    // compress_span_content — tool input dedup via content overlap
+    // ===================================================================
+
+    #[test]
+    fn test_done_tool_dedup_realistic() {
+        let parent_id = Uuid::new_v4();
+        let llm_id = Uuid::new_v4();
+
+        let llm_output = r#"[{"content":{"parts":[{"text":"{ \"thinking\": \"I have gathered info for F2, Nox Metals, and Blue.\", \"action\": [ { \"done\": { \"text\": \"Here are summaries for 3 startups from the Y Combinator Summer 2025 batch: 1. F2 - AI platform for private markets investors, New York. 2. Nox Metals - AI-powered metals supplier, Detroit. 3. Blue - voice assistant USB-C dongle, controls every app on your phone.\", \"success\": true } } ] }"}],"role":"model"}}]"#;
+
+        let tool_input = r#"{"action":"done","params":{"text":"Here are summaries for 3 startups from the Y Combinator Summer 2025 batch: 1. F2 - AI platform for private markets investors, New York. 2. Nox Metals - AI-powered metals supplier, Detroit. 3. Blue - voice assistant USB-C dongle, controls every app on your phone.","success":true,"files_to_display":[]}}"#;
+
+        let spans = vec![
+            make_span(
+                llm_id,
+                parent_id,
+                "gemini.generate_content",
+                1,
+                1000,
+                r#"[{"role":"user","content":"summarize"}]"#,
+                llm_output,
+            ),
+            make_span(Uuid::new_v4(), parent_id, "done", 6, 2000, tool_input, "{}"),
+        ];
+
+        let result = compress_span_content(&spans);
+        let tool_span = result.iter().find(|s| s.name == "done").unwrap();
+
+        assert!(
+            tool_span.input.contains("<from_llm_output"),
+            "done tool with high content overlap should be deduped, got: {}",
+            tool_span.input
+        );
+        assert!(tool_span.input.contains(&span_short_id(&llm_id)));
+    }
+
+    #[test]
+    fn test_go_back_tool_dedup_realistic() {
+        let parent_id = Uuid::new_v4();
+        let llm_id = Uuid::new_v4();
+
+        let llm_output = r#"[{"content":{"parts":[{"text":"{ \"thinking\": \"I need to go back to the companies list.\", \"action\": [ { \"go_back\": { \"description\": \"Returning to the Summer 2025 companies list to find more startups.\" } } ] }"}],"role":"model"}}]"#;
+
+        let tool_input = r#"{"action":"go_back","params":{"description":"Returning to the Summer 2025 companies list to find more startups."}}"#;
+
+        let spans = vec![
+            make_span(
+                llm_id,
+                parent_id,
+                "gemini.generate_content",
+                1,
+                1000,
+                r#"[{"role":"user","content":"go back"}]"#,
+                llm_output,
+            ),
+            make_span(
+                Uuid::new_v4(),
+                parent_id,
+                "go_back",
+                6,
+                2000,
+                tool_input,
+                "{}",
+            ),
+        ];
+
+        let result = compress_span_content(&spans);
+        let tool_span = result.iter().find(|s| s.name == "go_back").unwrap();
+
+        assert!(
+            tool_span.input.contains("<from_llm_output"),
+            "go_back tool should be deduped, got: {}",
+            tool_span.input
+        );
+    }
+
+    #[test]
+    fn test_tool_input_kept_when_no_overlap() {
+        let parent_id = Uuid::new_v4();
+        let llm_id = Uuid::new_v4();
+
+        let llm_output =
+            r#"[{"content":{"parts":[{"text":"The weather is sunny today"}],"role":"model"}}]"#;
+
+        let tool_input = r#"{"database":"postgres","query":"SELECT * FROM users WHERE active = true","limit":100}"#;
+
+        let spans = vec![
+            make_span(
+                llm_id,
+                parent_id,
+                "gemini.generate_content",
+                1,
+                1000,
+                r#"[{"role":"user","content":"hi"}]"#,
+                llm_output,
+            ),
+            make_span(
+                Uuid::new_v4(),
+                parent_id,
+                "db_query",
+                6,
+                2000,
+                tool_input,
+                "rows",
+            ),
+        ];
+
+        let result = compress_span_content(&spans);
+        let tool_span = result.iter().find(|s| s.name == "db_query").unwrap();
+
+        assert!(
+            !tool_span.input.contains("<from_llm_output"),
+            "unrelated tool input should NOT be deduped, got: {}",
+            tool_span.input
+        );
+    }
+
+    #[test]
+    fn test_tool_input_kept_when_no_preceding_llm() {
+        let parent_id = Uuid::new_v4();
+
+        let spans = vec![
+            make_span(
+                parent_id,
+                Uuid::nil(),
+                "agent",
+                0,
+                1000,
+                "\"run\"",
+                "\"done\"",
+            ),
+            make_span(
+                Uuid::new_v4(),
+                parent_id,
+                "navigate",
+                6,
+                2000,
+                r#"{"action":"navigate","params":{"url":"https://example.com"}}"#,
+                r#"{"extracted_content":"Navigated to https://example.com"}"#,
+            ),
+        ];
+
+        let result = compress_span_content(&spans);
+        let tool_span = result.iter().find(|s| s.name == "navigate").unwrap();
+
+        assert!(
+            !tool_span.input.contains("<from_llm_output"),
+            "tool without LLM sibling should keep its input, got: {}",
+            tool_span.input
+        );
+    }
+
+    #[test]
+    fn test_small_tool_input_not_deduped() {
+        let parent_id = Uuid::new_v4();
+        let llm_id = Uuid::new_v4();
+
+        let llm_output = r#"[{"content":{"parts":[{"text":"{ \"action\": [ { \"click\": { \"index\": 42 } } ] }"}],"role":"model"}}]"#;
+
+        // Only 2 meaningful words after filtering (below TOOL_DEDUP_MIN_WORDS)
+        let tool_input = r#"{"x": 42}"#;
+
+        let spans = vec![
+            make_span(
+                llm_id,
+                parent_id,
+                "gemini",
+                1,
+                1000,
+                r#"[{"role":"user","content":"hi"}]"#,
+                llm_output,
+            ),
+            make_span(
+                Uuid::new_v4(),
+                parent_id,
+                "click",
+                6,
+                2000,
+                tool_input,
+                "ok",
+            ),
+        ];
+
+        let result = compress_span_content(&spans);
+        let tool_span = result.iter().find(|s| s.name == "click").unwrap();
+
+        assert!(
+            !tool_span.input.contains("<from_llm_output"),
+            "tool with too few words should not be deduped, got: {}",
+            tool_span.input
+        );
+    }
+
+    #[test]
+    fn test_parallel_llms_match_correct_one() {
+        let parent_id = Uuid::new_v4();
+        let llm_a = Uuid::new_v4();
+        let llm_b = Uuid::new_v4();
+
+        let llm_a_output = r#"{"action":"search_database","query":"SELECT name FROM startups WHERE batch = 'S25'","limit":10}"#;
+        let llm_b_output = r#"{"action":"send_email","recipient":"user@example.com","subject":"YC Report","body":"Here is the summary of startups."}"#;
+
+        let tool_a_input = r#"{"action":"search_database","query":"SELECT name FROM startups WHERE batch = 'S25'","limit":10}"#;
+        let tool_b_input = r#"{"action":"send_email","recipient":"user@example.com","subject":"YC Report","body":"Here is the summary of startups."}"#;
+
+        let spans = vec![
+            make_span(
+                llm_a,
+                parent_id,
+                "llm_a",
+                1,
+                1000,
+                r#"[{"role":"user","content":"a"}]"#,
+                llm_a_output,
+            ),
+            make_span(
+                llm_b,
+                parent_id,
+                "llm_b",
+                1,
+                2000,
+                r#"[{"role":"user","content":"b"}]"#,
+                llm_b_output,
+            ),
+            make_span(
+                Uuid::new_v4(),
+                parent_id,
+                "search_db",
+                6,
+                3000,
+                tool_a_input,
+                "results",
+            ),
+            make_span(
+                Uuid::new_v4(),
+                parent_id,
+                "send_mail",
+                6,
+                4000,
+                tool_b_input,
+                "sent",
+            ),
+        ];
+
+        let result = compress_span_content(&spans);
+        let search_tool = result.iter().find(|s| s.name == "search_db").unwrap();
+        let email_tool = result.iter().find(|s| s.name == "send_mail").unwrap();
+
+        assert!(
+            search_tool.input.contains(&span_short_id(&llm_a)),
+            "search tool should reference LLM A, got: {}",
+            search_tool.input
+        );
+        assert!(
+            email_tool.input.contains(&span_short_id(&llm_b)),
+            "email tool should reference LLM B, got: {}",
+            email_tool.input
+        );
+    }
+
+    #[test]
+    fn test_nested_agents_scope_correctly() {
+        let outer_parent = Uuid::new_v4();
+        let inner_parent = Uuid::new_v4();
+        let outer_llm = Uuid::new_v4();
+        let inner_llm = Uuid::new_v4();
+
+        let shared_content = r#"{"action":"analyze","data":"revenue figures Q1 2025","format":"summary","include_charts":true}"#;
+
+        let spans = vec![
+            make_span(
+                outer_llm,
+                outer_parent,
+                "outer_llm",
+                1,
+                1000,
+                r#"[{"role":"user","content":"a"}]"#,
+                shared_content,
+            ),
+            make_span(
+                inner_llm,
+                inner_parent,
+                "inner_llm",
+                1,
+                2000,
+                r#"[{"role":"user","content":"b"}]"#,
+                shared_content,
+            ),
+            make_span(
+                Uuid::new_v4(),
+                outer_parent,
+                "outer_tool",
+                6,
+                3000,
+                shared_content,
+                "res",
+            ),
+            make_span(
+                Uuid::new_v4(),
+                inner_parent,
+                "inner_tool",
+                6,
+                4000,
+                shared_content,
+                "res",
+            ),
+        ];
+
+        let result = compress_span_content(&spans);
+        let outer_tool = result.iter().find(|s| s.name == "outer_tool").unwrap();
+        let inner_tool = result.iter().find(|s| s.name == "inner_tool").unwrap();
+
+        assert!(outer_tool.input.contains(&span_short_id(&outer_llm)));
+        assert!(inner_tool.input.contains(&span_short_id(&inner_llm)));
+    }
 }
