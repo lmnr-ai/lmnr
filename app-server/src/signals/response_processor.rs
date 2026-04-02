@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     ch::signal_events::{CHSignalEvent, insert_signal_events},
-    ch::signal_run_messages::{CHSignalRunMessage, delete_signal_run_messages},
+    ch::signal_run_messages::CHSignalRunMessage,
     ch::signal_runs::{CHSignalRun, insert_signal_runs},
     db::DB,
     db::spans::SpanType,
@@ -207,7 +207,7 @@ pub async fn process_provider_responses(
     })
 }
 
-/// Insert results into ClickHouse, clean up messages, and update job stats.
+/// Insert results into ClickHouse and update job stats.
 /// Callers must insert `new_messages` into ClickHouse **before** routing pending/failed runs to
 /// any queue, to avoid a race where a consumer picks up a run before its conversation history
 /// (e.g. tool results or retry guidance) has been persisted.
@@ -256,24 +256,6 @@ pub async fn finalize_runs(
             "[SIGNAL JOB] Failed to insert permanently failed runs: {:?}",
             e
         );
-    }
-
-    // Delete messages for completed and permanently failed runs
-    let final_runs: Vec<&SignalRun> = succeeded_runs
-        .iter()
-        .chain(permanently_failed_runs.iter())
-        .collect();
-    if !final_runs.is_empty() {
-        let project_run_pairs: Vec<(Uuid, Uuid)> = final_runs
-            .iter()
-            .map(|run| (run.project_id, run.run_id))
-            .collect();
-        if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
-            log::error!(
-                "[SIGNAL JOB] Failed to delete messages for final runs: {:?}",
-                e
-            );
-        }
     }
 
     // Update job stats for succeeded runs

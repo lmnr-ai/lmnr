@@ -4,9 +4,7 @@ use uuid::Uuid;
 
 use crate::{
     ch::{
-        signal_run_messages::{
-            CHSignalRunMessage, delete_signal_run_messages, get_signal_run_messages,
-        },
+        signal_run_messages::{CHSignalRunMessage, get_signal_run_messages},
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{DB, signal_jobs::update_signal_job_stats},
@@ -45,19 +43,6 @@ pub async fn handle_failed_runs(
     let failed_runs_ch: Vec<CHSignalRun> = failed_runs.iter().map(CHSignalRun::from).collect();
     if let Err(e) = insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await {
         log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
-    }
-
-    // Delete messages for failed runs since they won't be processed further
-    let project_run_pairs: Vec<(Uuid, Uuid)> = failed_runs
-        .iter()
-        .map(|run| (run.project_id, run.run_id))
-        .collect();
-
-    if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
-        log::error!(
-            "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
-            e
-        );
     }
 
     // Update job statistics - group by job_id since runs may belong to different jobs

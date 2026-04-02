@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     ch::{
-        signal_run_messages::{delete_signal_run_messages, insert_signal_run_messages},
+        signal_run_messages::insert_signal_run_messages,
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::DB,
@@ -260,18 +260,6 @@ async fn process_failed_batch(
             .collect();
         if let Err(e) = insert_signal_runs(clickhouse.clone(), &failed_runs_ch).await {
             log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
-        }
-
-        let project_run_pairs: Vec<(Uuid, Uuid)> = permanently_failed_runs
-            .iter()
-            .map(|run| (run.project_id, run.run_id))
-            .collect();
-
-        if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
-            log::error!(
-                "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
-                e
-            );
         }
 
         let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
