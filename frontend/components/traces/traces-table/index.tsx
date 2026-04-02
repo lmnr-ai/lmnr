@@ -167,6 +167,20 @@ function TracesTableContent() {
     };
   }, [setChartContainerWidth]);
 
+  // Build custom columns JSON for the stats endpoint so custom column filters
+  // can be resolved server-side.
+  const customColumnsJson = useMemo(() => {
+    const customCols = columnDefs
+      .filter((c) => c.meta?.isCustom && c.meta?.sql)
+      .map((c) => ({
+        id: c.id!,
+        sql: c.meta!.sql!,
+        ...(c.meta!.filterSql && { filterSql: c.meta!.filterSql }),
+        ...(c.meta!.dbType && { dbType: c.meta!.dbType }),
+      }));
+    return customCols.length > 0 ? JSON.stringify(customCols) : undefined;
+  }, [columnDefs]);
+
   const statsUrl = useTimeSeriesStatsUrl({
     baseUrl: `/api/projects/${projectId}/traces/stats`,
     chartContainerWidth,
@@ -177,6 +191,7 @@ function TracesTableContent() {
     additionalParams: {
       ...(textSearchFilter && { search: textSearchFilter }),
       ...(searchIn.length > 0 && { searchIn }),
+      ...(customColumnsJson && { customColumns: customColumnsJson }),
     },
     defaultTargetBars: DEFAULT_TARGET_BARS,
   });
