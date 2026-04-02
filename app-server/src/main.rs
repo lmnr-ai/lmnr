@@ -1575,7 +1575,7 @@ fn main() -> anyhow::Result<()> {
                             )
                             .service({
                                 // rate limited endpoints, currently enabled only for v1/sql/query
-                                let mut scope = web::scope("/v1")
+                                let mut scope = web::scope("/v1/sql")
                                     .wrap(Condition::new(
                                         rate_limiter.is_some(),
                                         RateLimiter::default(),
