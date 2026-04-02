@@ -1,6 +1,7 @@
 export const AUTOCOMPLETE_FIELDS: Record<string, string[]> = {
   traces: ["top_span_name", "tags", "span_names"],
   spans: ["name", "tags", "model"],
+  sessions: [],
 };
 
 export const FIELD_TO_CACHE_KEY: Record<string, Record<string, string>> = {

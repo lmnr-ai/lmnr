@@ -311,7 +311,9 @@ const createAdvancedSearchStore = (
     // Submit/clear actions
     submit: (router, pathname, searchParams) => {
       const { tags, inputValue, onSubmit, mode } = get();
-      const filterObjects = tags.map(createFilterFromTag);
+      // Skip incomplete tags (empty value) so we don't submit invalid filters
+      const completeTags = tags.filter((t) => (Array.isArray(t.value) ? t.value.length > 0 : t.value !== ""));
+      const filterObjects = completeTags.map(createFilterFromTag);
       const searchValue = inputValue.trim();
 
       if (isEqual(lastSubmitted.filters, filterObjects) && lastSubmitted.search === searchValue) {

@@ -21,7 +21,7 @@ import {
 
 interface AdvancedSearchInnerProps {
   filters: ColumnFilter[];
-  resource: "traces" | "spans";
+  resource: "traces" | "spans" | "sessions";
   placeholder?: string;
   className?: string;
   disabled?: boolean;
@@ -146,7 +146,7 @@ AdvancedSearchInner.displayName = "AdvancedSearchInner";
 
 interface AdvancedSearchProps {
   filters: ColumnFilter[];
-  resource: "traces" | "spans";
+  resource: "traces" | "spans" | "sessions";
   placeholder?: string;
   className?: string;
   disabled?: boolean;
