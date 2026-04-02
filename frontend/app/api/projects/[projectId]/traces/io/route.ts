@@ -4,7 +4,10 @@ import { prettifyError, z, ZodError } from "zod/v4";
 import { getMainAgentIOBatch } from "@/lib/actions/sessions/trace-io";
 
 const bodySchema = z.object({
-  traceIds: z.array(z.string().uuid()).min(1).max(100),
+  traceIds: z
+    .array(z.string().regex(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/))
+    .min(1)
+    .max(100),
 });
 
 export async function POST(req: NextRequest, props: { params: Promise<{ projectId: string }> }): Promise<Response> {
