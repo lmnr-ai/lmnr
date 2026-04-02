@@ -1445,9 +1445,10 @@ fn main() -> anyhow::Result<()> {
         log::info!("Enabling producer mode, spinning up full HTTP and gRPC servers");
 
         // === Rate limiter ===
-        let rate_limiter = if let Ok(redis_url) = env::var("REDIS_URL") {
-            let limit = get_unsigned_env_with_default("RATE_LIMIT", 100);
-            let period_secs = get_unsigned_env_with_default("RATE_LIMIT_PERIOD_SECS", 60);
+        let rate_limiter = if is_feature_enabled(Feature::RateLimiter) {
+            let redis_url = env::var("REDIS_URL").unwrap();
+            let limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
+            let period_secs: u64 = env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
             // project_auth middleware populates ProjectApiKey in request extensions
             match Limiter::builder(&redis_url)
                 .key_by(|req: &dev::ServiceRequest| {
@@ -1456,7 +1457,7 @@ fn main() -> anyhow::Result<()> {
                         .map(|k| format!("ratelimit:{}", k.project_id))
                 })
                 .limit(limit)
-                .period(Duration::from_secs(period_secs as u64))
+                .period(Duration::from_secs(period_secs))
                 .build()
             {
                 Ok(limiter) => {
@@ -1473,6 +1474,7 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         } else {
+            log::info!("Rate limiter is disabled");
             None
         };
 
