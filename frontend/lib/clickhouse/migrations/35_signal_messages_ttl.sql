@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS signal_run_messages_v2
 ENGINE = MergeTree
 PARTITION BY toYYYYMMDD(time)
 ORDER BY (project_id, run_id, time)
-TTL time + INTERVAL 7 DAY;
+TTL time + INTERVAL 7 DAY
 SETTINGS index_granularity = 8192;
 
 INSERT INTO signal_run_messages_v2(
