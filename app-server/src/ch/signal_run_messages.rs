@@ -39,7 +39,7 @@ pub async fn insert_signal_run_messages(
     messages: &[CHSignalRunMessage],
 ) -> Result<()> {
     let mut ch_insert = clickhouse
-        .insert::<CHSignalRunMessage>("signal_run_messages_v2")
+        .insert::<CHSignalRunMessage>("signal_run_messages")
         .await?;
 
     for message in messages {
@@ -58,7 +58,7 @@ pub async fn get_signal_run_messages(
     run_id: Uuid,
 ) -> Result<Vec<CHSignalRunMessage>> {
     let messages = clickhouse
-        .query("SELECT project_id, run_id, time, message FROM signal_run_messages_v2 WHERE project_id = ? AND run_id = ? ORDER BY time ASC")
+        .query("SELECT project_id, run_id, time, message FROM signal_run_messages WHERE project_id = ? AND run_id = ? ORDER BY time ASC")
         .bind(project_id)
         .bind(run_id)
         .fetch_all::<CHSignalRunMessage>()

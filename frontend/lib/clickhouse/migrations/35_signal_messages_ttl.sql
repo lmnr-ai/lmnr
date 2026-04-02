@@ -21,4 +21,6 @@ SELECT project_id, run_id, time, message
 FROM signal_run_messages
 WHERE time >= now() - INTERVAL 7 DAY;
 
-DROP TABLE IF EXISTS signal_run_messages;
+EXCHANGE TABLES signal_run_messages AND signal_run_messages_v2;
+
+DROP TABLE IF EXISTS signal_run_messages_v2;
