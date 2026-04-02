@@ -50,18 +50,48 @@ pub async fn insert_signal_run_messages(
 
             let ch_insert_end_res = ch_insert.end().await;
             match ch_insert_end_res {
-                Ok(_) => Ok(()),
-                Err(e) => Err(anyhow::anyhow!(
-                    "Clickhouse signal_run_messages batch insertion failed: {:?}",
-                    e
-                )),
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(anyhow::anyhow!(
+                        "Clickhouse signal_run_messages batch insertion failed: {:?}",
+                        e
+                    ));
+                }
             }
         }
-        Err(e) => Err(anyhow::anyhow!(
-            "Failed to insert signal_run_messages batch into Clickhouse: {:?}",
-            e
-        )),
+        Err(e) => {
+            return Err(anyhow::anyhow!(
+                "Failed to insert signal_run_messages batch into Clickhouse: {:?}",
+                e
+            ));
+        }
     }
+
+    // Dual-write to new TTL-based table. Best-effort — don't fail the operation if this errors.
+    match clickhouse
+        .insert::<CHSignalRunMessage>("new_signal_run_messages")
+        .await
+    {
+        Ok(mut ch_insert) => {
+            for message in messages {
+                if let Err(e) = ch_insert.write(message).await {
+                    log::err!("Failed to write to new_signal_run_messages: {:?}", e);
+                    return Ok(());
+                }
+            }
+            if let Err(e) = ch_insert.end().await {
+                log::err!("Failed to flush new_signal_run_messages batch: {:?}", e);
+            }
+        }
+        Err(e) => {
+            log::err!(
+                "Failed to start insert into new_signal_run_messages: {:?}",
+                e
+            );
+        }
+    }
+
+    Ok(())
 }
 
 #[instrument(skip(clickhouse))]
