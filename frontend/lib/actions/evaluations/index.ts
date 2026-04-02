@@ -15,7 +15,7 @@ import { type Evaluation } from "@/lib/evaluation/types";
 
 export const GetEvaluationsSchema = PaginationFiltersSchema.extend({
   projectId: z.guid(),
-  groupId: z.guid().nullable().optional(),
+  groupId: z.string().nullable().optional(),
   search: z.string().nullable().optional(),
 });
 

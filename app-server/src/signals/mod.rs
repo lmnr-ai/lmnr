@@ -13,6 +13,7 @@ pub mod provider;
 pub mod queue;
 pub mod realtime_api;
 pub mod response_processor;
+pub mod search;
 pub mod spans;
 pub mod submissions_consumer;
 pub mod tools;

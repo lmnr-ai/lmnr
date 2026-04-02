@@ -2,14 +2,14 @@ import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-const createIframeContent = (templateCode: string, data: any): string => {
-  const serializedData = JSON.stringify(data);
-  // Escape characters that would break the template literal embedding
+const MESSAGE_TYPE = "__TEMPLATE_DATA_UPDATE__";
+
+const createIframeContent = (templateCode: string): string => {
   const escapedTemplateCode = templateCode
-    .replace(/\\/g, "\\\\") // preserve backslashes (so '\n' stays two chars)
-    .replace(/`/g, "\\`") // avoid closing the template literal
-    .replace(/\$/g, "\\$") // avoid accidental interpolation
-    .replace(/<\\\/script>/gi, "<\\\\/script>"); // prevent breaking out of the script tag
+    .replace(/\\/g, "\\\\")
+    .replace(/`/g, "\\`")
+    .replace(/\$/g, "\\$")
+    .replace(/<\\\/script>/gi, "<\\\\/script>");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -32,15 +32,8 @@ const createIframeContent = (templateCode: string, data: any): string => {
   </script>
   
   <style>
-       
-    * { 
-      box-sizing: border-box; 
-    }
-    
-    html, body, #root {
-      height: 100%;
-    }
-    
+    * { box-sizing: border-box; }
+    html, body, #root { height: 100%; }
     body { 
       margin: 0; 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -48,10 +41,7 @@ const createIframeContent = (templateCode: string, data: any): string => {
       background: #0A0A0A;
       color: #FAFAFA;
     }
-    
-    .error {
-      color: #CC3333;
-    }
+    .error { color: #CC3333; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   </style>
 </head>
@@ -59,11 +49,15 @@ const createIframeContent = (templateCode: string, data: any): string => {
   <div id="root" />
   
   <script type="module">
+    const parentOrigin = window.origin;
+
     class TemplateRenderer {
       constructor() {
         this.root = document.getElementById('root');
-        this.data = ${serializedData};
         this.templateCode = \`${escapedTemplateCode}\`;
+        this.compiledCode = null;
+        this.deps = null;
+        this.ready = false;
       }
       
       showError(message, details = '') {
@@ -77,109 +71,96 @@ const createIframeContent = (templateCode: string, data: any): string => {
       }
       
       async loadDependencies() {
-        try {
-          const [preactModule, preactHooksModule, babelModule, twindCore, presetTailwind, presetAutoprefix] = await Promise.all([
-            import('preact'),
-            import('preact/hooks'),
-            import('@babel/standalone'),
-            import('@twind/core'),
-            import('@twind/preset-tailwind'),
-            import('@twind/preset-autoprefix')
-          ]);
-          
-          // Initialize Twind with Tailwind-compatible presets
-          const core = twindCore.default || twindCore;
-          const tailwind = presetTailwind.default || presetTailwind;
-          const autoprefix = presetAutoprefix.default || presetAutoprefix;
-          const { install, observe } = core;
-          const tw = install({ presets: [tailwind(), autoprefix()] });
+        const [preactModule, preactHooksModule, babelModule, twindCore, presetTailwind, presetAutoprefix] = await Promise.all([
+          import('preact'),
+          import('preact/hooks'),
+          import('@babel/standalone'),
+          import('@twind/core'),
+          import('@twind/preset-tailwind'),
+          import('@twind/preset-autoprefix')
+        ]);
+        
+        const core = twindCore.default || twindCore;
+        const tailwind = presetTailwind.default || presetTailwind;
+        const autoprefix = presetAutoprefix.default || presetAutoprefix;
+        const { install, observe } = core;
+        const tw = install({ presets: [tailwind(), autoprefix()] });
 
-          return {
-            preact: preactModule,
-            preactHooks: preactHooksModule,
-            babel: babelModule.default || babelModule,
-            twindObserve: observe,
-            tw
-          };
-        } catch (error) {
-          throw new Error(\`Failed to load dependencies: \${error.message}\`);
-        }
+        return {
+          preact: preactModule,
+          preactHooks: preactHooksModule,
+          babel: babelModule.default || babelModule,
+          twindObserve: observe,
+          tw
+        };
       }
       
       compileTemplate(babel) {
-        try {
-          const result = babel.transform(this.templateCode, {
-            presets: [
-              ['react', {
-                pragma: 'h',
-                pragmaFrag: 'Fragment'
-              }]
-            ]
-          });
-          
-          return result.code;
-        } catch (error) {
-          throw new Error(\`Template compilation failed: \${error.message}\`);
-        }
+        const result = babel.transform(this.templateCode, {
+          presets: [['react', { pragma: 'h', pragmaFrag: 'Fragment' }]]
+        });
+        return result.code;
       }
       
-      executeTemplate(compiledCode, preact, preactHooks, twindObserve, tw) {
-        try {
-          const { render, h, Fragment } = preact;
-          const { useState, useEffect, useMemo, useRef, useCallback, useContext } = preactHooks;
-          
-          const templateFunction = new Function(
-            'h',
-            'Fragment',
-            'useState',
-            'useEffect',
-            'useMemo',
-            'useRef',
-            'useCallback',
-            'useContext',
-            'return ' + compiledCode
-          )(h, Fragment, useState, useEffect, useMemo, useRef, useCallback, useContext);
-          
-          if (typeof templateFunction !== 'function') {
-            throw new Error('Template must be a function');
-          }
-          
-          const element = h(templateFunction, { data: this.data });
-          
-          if (!element) {
-            throw new Error('Template function must return a valid element');
-          }
-          
-          this.root.innerHTML = '';
-          
-          try {
-            twindObserve(tw, this.root);
-          } catch {}
+      buildTemplateFn() {
+        const { preact, preactHooks } = this.deps;
+        const { h, Fragment } = preact;
+        const { useState, useEffect, useMemo, useRef, useCallback, useContext } = preactHooks;
+        
+        const templateFunction = new Function(
+          'h', 'Fragment', 'useState', 'useEffect', 'useMemo', 'useRef', 'useCallback', 'useContext',
+          'return ' + this.compiledCode
+        )(h, Fragment, useState, useEffect, useMemo, useRef, useCallback, useContext);
+        
+        if (typeof templateFunction !== 'function') {
+          throw new Error('Template must be a function');
+        }
+        
+        return templateFunction;
+      }
 
-          render(element, this.root);
-          
-        } catch (error) {
-          throw new Error(\`Template execution failed: \${error.message}\`);
+      renderWithData(data) {
+        const { preact, twindObserve, tw } = this.deps;
+        const { render, h } = preact;
+        
+        const element = h(this.templateFn, { data });
+        if (!element) {
+          throw new Error('Template function must return a valid element');
         }
+        
+        try { twindObserve(tw, this.root); } catch {}
+        render(element, this.root);
       }
       
-      async render() {
+      async init() {
         try {
-          const { preact, preactHooks, babel, twindObserve, tw } = await this.loadDependencies();
-          const compiledCode = this.compileTemplate(babel);
-          this.executeTemplate(compiledCode, preact, preactHooks, twindObserve, tw);
-          
+          this.deps = await this.loadDependencies();
+          this.compiledCode = this.compileTemplate(this.deps.babel);
+          this.templateFn = this.buildTemplateFn();
+          this.ready = true;
+
+          window.addEventListener('message', (event) => {
+            if (event.origin !== parentOrigin) return;
+            if (!event.data || event.data.type !== '${MESSAGE_TYPE}') return;
+
+            if (this.ready) {
+              try {
+                this.renderWithData(event.data.payload);
+              } catch (error) {
+                this.showError(error.message || 'Render error', error.stack);
+              }
+            }
+          });
+
+          window.parent.postMessage({ type: '${MESSAGE_TYPE}_READY' }, parentOrigin);
         } catch (error) {
-          this.showError(
-            error.message || 'Unknown error occurred',
-            error.stack
-          );
+          this.showError(error.message || 'Unknown error occurred', error.stack);
         }
       }
     }
     
     const renderer = new TemplateRenderer();
-    renderer.render();
+    renderer.init();
   </script>
 </body>
 </html>`;
@@ -191,19 +172,8 @@ const createErrorContent = (message: string): string => `
 <head>
   <meta charset="utf-8">
   <style>
-    body { 
-      margin: 0; 
-      padding: 1rem; 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-      background: #FAFAFA;
-    }
-    .error { 
-      color: #dc2626; 
-      background: #fef2f2; 
-      padding: 1rem; 
-      border-radius: 0.375rem; 
-      border: 1px solid #fecaca; 
-    }
+    body { margin: 0; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #FAFAFA; }
+    .error { color: #dc2626; background: #fef2f2; padding: 1rem; border-radius: 0.375rem; border: 1px solid #fecaca; }
   </style>
 </head>
 <body>
@@ -239,30 +209,55 @@ const parseData = (data: any): any => {
 
 const JsxRenderer = ({ code, data, className }: { code: string; data: any; className?: string }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const pendingDataRef = useRef<any>(null);
+  const iframeReadyRef = useRef(false);
 
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
 
-    try {
-      const parsedData = parseData(data);
-      const normalizedCode = normalizeTemplateCode(code);
-      iframe.srcdoc = createIframeContent(normalizedCode, parsedData);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to initialize template renderer";
+    iframeReadyRef.current = false;
 
-      iframe.srcdoc = createErrorContent(errorMessage);
+    const handleReady = (event: MessageEvent) => {
+      if (event.source !== iframe.contentWindow) return;
+      if (event.data?.type !== `${MESSAGE_TYPE}_READY`) return;
+      iframeReadyRef.current = true;
+
+      if (pendingDataRef.current !== null) {
+        iframe.contentWindow?.postMessage({ type: MESSAGE_TYPE, payload: pendingDataRef.current }, window.origin);
+      }
+    };
+
+    window.addEventListener("message", handleReady);
+
+    try {
+      iframe.srcdoc = createIframeContent(normalizeTemplateCode(code));
+    } catch (error) {
+      iframe.srcdoc = createErrorContent(
+        error instanceof Error ? error.message : "Failed to initialize template renderer"
+      );
     }
-  }, [code, data]);
+
+    return () => window.removeEventListener("message", handleReady);
+  }, [code]);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const parsedData = parseData(data);
+    pendingDataRef.current = parsedData;
+
+    if (iframeReadyRef.current) {
+      iframe.contentWindow?.postMessage({ type: MESSAGE_TYPE, payload: parsedData }, window.origin);
+    }
+  }, [data]);
 
   return (
     <iframe
       ref={iframeRef}
-      className={cn("w-full h-full border", className)}
-      style={{
-        contain: "layout style",
-        isolation: "isolate",
-      }}
+      className={cn("w-full h-full", className)}
+      style={{ contain: "layout style", isolation: "isolate" }}
       sandbox="allow-scripts allow-same-origin"
       title="Template Preview"
       referrerPolicy="no-referrer"

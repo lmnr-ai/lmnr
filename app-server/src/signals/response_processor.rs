@@ -1,7 +1,8 @@
+use regex::Regex;
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, LazyLock},
 };
 use uuid::Uuid;
 
@@ -25,7 +26,7 @@ use crate::{
         },
         queue::SignalMessage,
         spans::{get_trace_span_ids_and_end_time, span_short_id},
-        tools::get_full_spans,
+        tools::{SpanSearchRequest, get_full_spans, search_in_spans},
         utils::{
             InternalSpan, emit_internal_span, nanoseconds_to_datetime, replace_span_tags_with_links,
         },
@@ -216,6 +217,7 @@ pub async fn finalize_runs(
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     cache: Arc<Cache>,
+    queue: Arc<MessageQueue>,
 ) -> Result<(), HandlerError> {
     // Insert succeeded runs and update usage limits
     let succeeded_runs_ch: Vec<CHSignalRun> =
@@ -232,9 +234,10 @@ pub async fn finalize_runs(
             let db = db.clone();
             let clickhouse = clickhouse.clone();
             let cache = cache.clone();
+            let queue = queue.clone();
             async move {
                 if let Err(e) =
-                    update_workspace_signal_runs_used(db, clickhouse, cache, project_id, runs).await
+                    update_workspace_signal_runs_used(db, clickhouse, cache, queue, project_id, runs).await
                 {
                     log::error!("Failed to update workspace signal runs used: {}", e);
                 }
@@ -403,6 +406,7 @@ async fn process_single_response(
             error: span_error,
             provider_batch_id,
             metadata: None,
+            tools: None,
         },
     )
     .await;
@@ -461,6 +465,7 @@ async fn process_single_response(
                 error: tool_error,
                 provider_batch_id: None,
                 metadata: None,
+                tools: None,
             },
         )
         .await;
@@ -604,6 +609,40 @@ pub async fn handle_tool_call(
     clickhouse: clickhouse::Client,
 ) -> StepResult {
     match function_call.name.as_str() {
+        "search_in_spans" => {
+            let searches: Vec<SpanSearchRequest> = function_call
+                .args
+                .as_ref()
+                .and_then(|args| args.get("searches"))
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default();
+
+            if searches.is_empty() {
+                return StepResult::Failed {
+                    error: "No searches provided".to_string(),
+                    finish_reason: None,
+                    is_processing_error: true,
+                };
+            }
+
+            match search_in_spans(
+                clickhouse,
+                signal_message.project_id,
+                run.trace_id,
+                searches,
+            )
+            .await
+            {
+                Ok(results) => StepResult::RequiresNextStep {
+                    reason: NextStepReason::ToolResult(serde_json::json!({ "results": results })),
+                },
+                Err(e) => StepResult::RequiresNextStep {
+                    reason: NextStepReason::ToolResult(
+                        serde_json::json!({ "error": e.to_string() }),
+                    ),
+                },
+            }
+        }
         "get_full_spans" | "get_full_span_info" => {
             let span_ids: Vec<String> = function_call
                 .args
@@ -612,7 +651,8 @@ pub async fn handle_tool_call(
                 .and_then(|v| v.as_array())
                 .map(|arr| {
                     arr.iter()
-                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .filter_map(|v| v.as_str())
+                        .flat_map(|s| parse_span_ids_from_str(s))
                         .collect()
                 })
                 .unwrap_or_default();
@@ -762,9 +802,25 @@ pub async fn handle_create_event(
             error: None,
             provider_batch_id: None,
             metadata: None,
+            tools: None,
         },
     )
     .await;
 
     Ok(event_id)
+}
+
+static SPAN_ID_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b[0-9a-fA-F]{6}\b").unwrap());
+
+/// Extracts 6-char hex span short IDs from a string, regardless of formatting.
+///
+/// Uses regex to pull out hex tokens, so it handles any malformed LLM output:
+/// - `"672ca8\", \"355a29\", \"6dfb10\""`  (escaped quotes as separators)
+/// - `"204e1c' , '1ccaa0' , '953318'"`    (single quotes as separators)
+/// - `"672ca8"`                            (normal single ID)
+fn parse_span_ids_from_str(s: &str) -> Vec<String> {
+    SPAN_ID_RE
+        .find_iter(s)
+        .map(|m| m.as_str().to_string())
+        .collect()
 }
