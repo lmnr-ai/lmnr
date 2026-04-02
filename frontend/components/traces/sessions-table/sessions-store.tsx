@@ -12,6 +12,7 @@ export type SessionsState = {
   sessionTimelines: Record<string, TraceTimelineItem[]>;
   traceIO: Record<string, { input: string | null; output: string | null }>;
   loadingTraceIO: Set<string>;
+  loadingSessionIO: Set<string>;
 };
 
 export type SessionsActions = {
@@ -22,6 +23,8 @@ export type SessionsActions = {
   mergeSessionTimelines: (timelines: Record<string, TraceTimelineItem[]>) => void;
   setTraceIO: (traceId: string, io: { input: string | null; output: string | null }) => void;
   setLoadingTraceIO: (traceId: string, loading: boolean) => void;
+  mergeTraceIO: (io: Record<string, { input: string | null; output: string | null }>) => void;
+  setLoadingSessionIO: (sessionId: string, loading: boolean) => void;
   resetExpandState: () => void;
   getController: (sessionId: string) => AbortController;
 };
@@ -37,6 +40,7 @@ const DEFAULT_STATE: SessionsState = {
   sessionTimelines: {},
   traceIO: {},
   loadingTraceIO: new Set(),
+  loadingSessionIO: new Set(),
 };
 
 export const createSessionsStore = () => {
@@ -101,6 +105,19 @@ export const createSessionsStore = () => {
         return { loadingTraceIO: next };
       }),
 
+    mergeTraceIO: (io) =>
+      set((state) => ({
+        traceIO: { ...state.traceIO, ...io },
+      })),
+
+    setLoadingSessionIO: (sessionId, loading) =>
+      set((state) => {
+        const next = new Set(state.loadingSessionIO);
+        if (loading) next.add(sessionId);
+        else next.delete(sessionId);
+        return { loadingSessionIO: next };
+      }),
+
     resetExpandState: () => {
       for (const c of sessionControllers.values()) c.abort();
       sessionControllers.clear();
@@ -111,6 +128,7 @@ export const createSessionsStore = () => {
         sessionTimelines: {},
         traceIO: {},
         loadingTraceIO: new Set(),
+        loadingSessionIO: new Set(),
       });
     },
 
