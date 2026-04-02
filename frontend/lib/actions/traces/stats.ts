@@ -8,8 +8,8 @@ import { GetTracesSchema } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
 import {
   buildTracesStatsWhereConditions,
-  type CustomColumn,
   generateEmptyTimeBuckets,
+  parseCustomColumnsJson,
 } from "@/lib/actions/traces/utils";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
@@ -47,24 +47,7 @@ export async function getTraceStats(
 
   const filters: Filter[] = compact(inputFilters);
 
-  // Parse and validate custom columns from JSON
-  let customColumns: CustomColumn[] | undefined;
-  if (customColumnsJson) {
-    try {
-      const parsed = JSON.parse(customColumnsJson);
-      const CustomColumnSchema = z.array(
-        z.object({
-          id: z.string().min(1),
-          sql: z.string().min(1),
-          filterSql: z.string().optional(),
-          dbType: z.enum(["String", "Float64", "Int64"]).optional(),
-        })
-      );
-      customColumns = CustomColumnSchema.parse(parsed);
-    } catch {
-      // ignore malformed custom columns
-    }
-  }
+  const customColumns = parseCustomColumnsJson(customColumnsJson);
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({

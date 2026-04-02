@@ -1,4 +1,5 @@
 import { scaleUtc } from "d3-scale";
+import { z } from "zod/v4";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { type Filter } from "@/lib/actions/common/filters";
@@ -135,6 +136,25 @@ export interface CustomColumn {
   sql: string;
   filterSql?: string;
   dbType?: string;
+}
+
+const CustomColumnsSchema = z.array(
+  z.object({
+    id: z.string().min(1),
+    sql: z.string().min(1),
+    filterSql: z.string().optional(),
+    dbType: z.enum(["String", "Float64", "Int64"]).optional(),
+  })
+);
+
+/** Parse and validate a JSON-encoded custom columns string. */
+export function parseCustomColumnsJson(json: string | undefined | null): CustomColumn[] | undefined {
+  if (!json) return undefined;
+  try {
+    return CustomColumnsSchema.parse(JSON.parse(json));
+  } catch {
+    return undefined;
+  }
 }
 
 export interface BuildTracesQueryOptions {
@@ -397,7 +417,8 @@ export const buildTracesStatsWhereConditions = (options: {
   const columnFilterConfig = buildFilterConfigWithCustomColumns(options.customColumns);
 
   options.filters.forEach((filter, index) => {
-    const paramKey = `${filter.column}_${index}`;
+    const safeColumn = filter.column.replace(/[^a-zA-Z0-9_]/g, "_");
+    const paramKey = `${safeColumn}_${index}`;
     const processor = columnFilterConfig.processors.get(filter.column);
 
     if (processor) {

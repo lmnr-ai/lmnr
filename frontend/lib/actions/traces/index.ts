@@ -8,7 +8,7 @@ import { searchSpans, type SpanSearchHit } from "@/lib/actions/traces/search";
 import {
   buildTracesCountQueryWithParams,
   buildTracesQueryWithParams,
-  type CustomColumn,
+  parseCustomColumnsJson,
 } from "@/lib/actions/traces/utils";
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
@@ -89,24 +89,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     }
   }
 
-  // Parse and validate custom columns from JSON
-  let customColumns: CustomColumn[] | undefined;
-  if (customColumnsJson) {
-    try {
-      const parsed = JSON.parse(customColumnsJson);
-      const CustomColumnSchema = z.array(
-        z.object({
-          id: z.string().min(1),
-          sql: z.string().min(1),
-          filterSql: z.string().optional(),
-          dbType: z.enum(["String", "Float64", "Int64"]).optional(),
-        })
-      );
-      customColumns = CustomColumnSchema.parse(parsed);
-    } catch {
-      // ignore malformed custom columns
-    }
-  }
+  const customColumns = parseCustomColumnsJson(customColumnsJson);
 
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
     projectId,
@@ -173,24 +156,7 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
 
   const filters: Filter[] = compact(inputFilters);
 
-  // Parse and validate custom columns from JSON
-  let customColumns: CustomColumn[] | undefined;
-  if (customColumnsJson) {
-    try {
-      const parsed = JSON.parse(customColumnsJson);
-      const CustomColumnSchema = z.array(
-        z.object({
-          id: z.string().min(1),
-          sql: z.string().min(1),
-          filterSql: z.string().optional(),
-          dbType: z.enum(["String", "Float64", "Int64"]).optional(),
-        })
-      );
-      customColumns = CustomColumnSchema.parse(parsed);
-    } catch {
-      // ignore malformed custom columns
-    }
-  }
+  const customColumns = parseCustomColumnsJson(customColumnsJson);
 
   const spanHits: { trace_id: string; span_id: string }[] = search
     ? await searchSpans({
