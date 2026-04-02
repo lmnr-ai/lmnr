@@ -36,7 +36,7 @@ export const extractToolsFromAttributes = (attributes: Record<string, any>): Too
   // moving the schema parsing to provider-specific types, i.e. @/lib/spans/types
   if (genAiToolDefinitions) {
     try {
-      const parsed = JSON.parse(genAiToolDefinitions);
+      const parsed = typeof genAiToolDefinitions === "string" ? JSON.parse(genAiToolDefinitions) : genAiToolDefinitions;
       return parsed.map((tool: any) => {
         const func = tool.function ?? tool;
         return {

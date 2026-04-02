@@ -142,7 +142,7 @@ const parseGenAiToolsDefinitionsFromSpan = (tools?: string) => {
     if (!tools) {
       return undefined;
     }
-    const parsedTools = JSON.parse(tools) as {
+    const parsedTools = (typeof tools === "string" ? JSON.parse(tools) : tools) as {
       type: "function";
       name?: string;
       function: { name: string; description?: string; parameters: Record<string, any> };
