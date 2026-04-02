@@ -209,8 +209,14 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
             let is_tool = ch_span.span_type == 6;
             let is_default = !is_llm && !is_tool;
 
-            // Exclude default spans with empty input and output
-            if is_default && is_empty_raw(&ch_span.input) && is_empty_raw(&ch_span.output) {
+            let has_exception = extract_exception_from_events(&ch_span.events).is_some();
+
+            // Exclude default spans with empty input and output, unless they have an exception
+            if is_default
+                && is_empty_raw(&ch_span.input)
+                && is_empty_raw(&ch_span.output)
+                && !has_exception
+            {
                 return None;
             }
 
@@ -636,6 +642,28 @@ mod tests {
         let result = compress_span_content(&spans);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].name, "agent");
+    }
+
+    #[test]
+    fn test_empty_default_span_with_exception_kept() {
+        let parent_id = Uuid::new_v4();
+        let span_id = Uuid::new_v4();
+        let mut span = make_span(span_id, parent_id, "failing_step", 0, 2000, "", "");
+        span.events = vec![(
+            2_500_000_000,
+            "exception".to_string(),
+            r#"{"exception.message":"connection timeout"}"#.to_string(),
+        )];
+
+        let spans = vec![
+            make_span(parent_id, Uuid::nil(), "agent", 0, 1000, "\"run\"", "\"ok\""),
+            span,
+        ];
+
+        let result = compress_span_content(&spans);
+        assert_eq!(result.len(), 2);
+        let kept = result.iter().find(|s| s.name == "failing_step").unwrap();
+        assert!(kept.exception.is_some());
     }
 
     #[test]
