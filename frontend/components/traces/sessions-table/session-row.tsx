@@ -1,9 +1,16 @@
 import { ChevronRightIcon } from "lucide-react";
 
+import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type SessionRow as SessionRowType, type TraceTimelineItem } from "@/lib/traces/types";
-import { cn, formatRelativeTime } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
+import {
+  CHEVRON_COLUMN_WIDTH_CLASSNAME,
+  SESSION_ID_COLUMN_WIDTH_CLASSNAME,
+  START_TIME_COLUMN_WIDTH_CLASSNAME,
+  TOTALS_COLUMN_WIDTH_CLASSNAME,
+} from "./session-table-header";
 import TotalsPill from "./totals-pill";
 import TracesTimeline from "./traces-timeline";
 
@@ -23,7 +30,7 @@ export default function SessionRow({ session, timeline, isExpanded, onToggle, on
     >
       {/* Chevron */}
       <button
-        className="flex items-center justify-center shrink-0 w-10 h-full"
+        className={`flex items-center justify-center shrink-0 ${CHEVRON_COLUMN_WIDTH_CLASSNAME} h-full`}
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
@@ -37,21 +44,26 @@ export default function SessionRow({ session, timeline, isExpanded, onToggle, on
       </button>
 
       {/* Start time */}
-      <div className="flex items-center px-4 py-0.5 shrink-0 w-[120px]">
-        <span className="text-xs text-secondary-foreground truncate">{formatRelativeTime(session.startTime)}</span>
+      <div className={`flex items-center px-4 py-0.5 shrink-0 ${START_TIME_COLUMN_WIDTH_CLASSNAME}`}>
+        <span className="text-secondary-foreground truncate">
+          <ClientTimestampFormatter timestamp={session.startTime} />
+        </span>
       </div>
 
       {/* Session ID */}
-      <div className="flex items-center px-4 py-0.5 shrink-0 w-[189px]" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`flex items-center px-4 py-0.5 shrink-0 ${SESSION_ID_COLUMN_WIDTH_CLASSNAME}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <CopyTooltip value={session.sessionId}>
-          <span className="text-xs text-primary-foreground truncate block" title={session.sessionId}>
+          <span className="text-sm text-primary-foreground truncate block" title={session.sessionId}>
             {session.sessionId}
           </span>
         </CopyTooltip>
       </div>
 
       {/* Totals pill */}
-      <div className="flex items-center px-4 py-0.5 shrink-0 w-60">
+      <div className={`flex items-center px-4 py-0.5 shrink-0 ${TOTALS_COLUMN_WIDTH_CLASSNAME}`}>
         <TotalsPill duration={session.duration} totalTokens={session.totalTokens} totalCost={session.totalCost} />
       </div>
 
