@@ -1,0 +1,161 @@
+---
+title: "March 2026 product update"
+date: "2026-04-02"
+description: "Slack and email alerts, full-text search with snippets, cost heatmaps, custom SQL columns, per-signal sampling, Keycloak auth, and more."
+author:
+  name: Robert Kim
+  url: https://x.com/skull8888888888
+tags: ["laminar", "product-update", "observability", "agents", "signals"]
+---
+
+Here's everything we shipped in March.
+
+## Alerts and reports
+
+You can now get notified when signals fire — through both Slack and email.
+
+**Alerts** let you configure per-signal notifications. When a signal detects an event (e.g. "agent got stuck in a loop"), Laminar pushes a notification to a Slack channel, to your email, or both. Each alert links directly to the trace so you can jump straight to the issue.
+
+**Reports** deliver scheduled summaries of signal activity. Subscribe to daily or weekly email digests, or route them to a Slack channel. Reports aggregate recent signal events so you can track trends without watching the dashboard.
+
+Both systems are unified — every alert and every report supports Slack and email as notification targets, so you pick the channels that fit your workflow.
+
+## Full-text search with highlighted snippets
+
+Search now works across the full text of span inputs and outputs. Type a query in the traces page and results come back with highlighted snippets showing the matching context, so you can tell at a glance which traces are relevant without opening each one.
+
+Under the hood, we added a text preprocessing pipeline that normalizes data before indexing — fixing tokenization issues where escape sequences caused bad tokens. Search results include snippet counts per trace and auto-expand matching spans in the trace view.
+
+## Cost heatmap in trace view
+
+A new toggle in the trace timeline lets you switch to a cost heatmap view. Spans are rendered as a red gradient based on relative cost — the most expensive span is fully red, zero-cost spans are muted. This makes it immediately obvious where you're spending money in a long agent run, without reading through individual span details.
+
+## Custom SQL columns and sorting on traces
+
+The traces table now supports custom columns defined by arbitrary SQL expressions. Click "Columns → Custom column," write a ClickHouse expression (or let AI generate one), and the result appears as a new column in your traces table. Custom columns persist in your browser and are sent to the backend for server-side evaluation.
+
+All applicable trace columns (timestamp, duration, cost, tokens) are now sortable as well. Click any column header to sort, and the sort state is preserved in the URL for sharing.
+
+## Signals improvements
+
+Signals got a major round of updates this month:
+
+- **Redesigned signals page.** The list view now shows sparkline charts per signal, a card-based layout, and an empty-state onboarding flow.
+- **Inline trigger creation.** Triggers are now created directly inside the signal sheet instead of a separate tab, making the setup flow much faster.
+- **Realtime and batch processing modes.** Each signal trigger can now be set to realtime (processed immediately as traces arrive) or batch mode.
+- **Per-signal sampling.** For high-volume workloads, you can set a sampling percentage (1–95%) on any signal. The budget is distributed across users proportionally to their trace volume using probabilistic sampling.
+- **Signal events panel in trace view.** A new panel in the trace viewer shows all signal events for that trace, with tabs per signal and links to open the full signal page.
+- **`search_in_spans` tool.** The signal processing agent can now search through span inputs and outputs for specific text instead of relying on the full payload, making extraction more precise and cheaper.
+- **Idempotent signal runs.** Duplicate processing is now prevented at the infrastructure level.
+
+## Span view improvements
+
+The span detail view got a significant upgrade:
+
+- **Overview tab** for LLM spans that summarizes recent input messages and full output.
+- **Server-side preview generation** replaces client-side parsing. The backend now detects the provider format (OpenAI, Anthropic, Gemini, LangChain) and generates previews automatically, with an LLM fallback for unknown structures.
+- **Root span input/output columns** on the traces table — the root span's input and output are now materialized during trace ingestion and shown directly in the table, no click required.
+- **Cached token counts** now appear in the span stats tooltip.
+
+## Self-hosted improvements
+
+- **Keycloak authentication.** Keycloak is now supported as an OAuth provider for self-hosted deployments. Set three environment variables and a "Continue with Keycloak" button appears on the sign-in page.
+- **Improved user invitations.** In self-hosted mode, admins can now invite users who don't have accounts yet. A pending invitation is created, and when the user signs up, they're automatically added to the workspace.
+- **Hidden dummy email input.** When real auth providers (Google, GitHub, Keycloak, etc.) are configured, the default email input is hidden to avoid confusion.
+
+## Playground updates
+
+- **Gemini 3 models** added to the playground: `gemini-3-flash-preview`, `gemini-3-pro`, and `gemini-3.1-flash-lite-preview`, all with thinking/budget configuration support.
+
+## Python SDK
+
+- **Streaming token usage** for Anthropic is now always reported, not just when `enrich_token_usage` is enabled. Cumulative usage from `message_delta` events is handled correctly.
+- **OpenRouter model names** are no longer stripped of their provider prefix — `openai/gpt-4o` stays as `openai/gpt-4o` in span attributes.
+- **`opentelemetry-instrumentation-threading`** is now a default dependency for better async trace context propagation.
+
+---
+
+## Full changelog
+
+**Alerts & notifications**
+
+- Alerts, reports, and Slack integration ([#1380](https://github.com/lmnr-ai/lmnr/pull/1380))
+- Signal report generation worker ([#1381](https://github.com/lmnr-ai/lmnr/pull/1381))
+- Email generation improvements for signal reports ([#1391](https://github.com/lmnr-ai/lmnr/pull/1391))
+- Notification log table for alert and report notifications ([#1402](https://github.com/lmnr-ai/lmnr/pull/1402))
+- Slack reports and email alerts — unified notification channels ([#1517](https://github.com/lmnr-ai/lmnr/pull/1517))
+- Add chat open URL param to trace and span links in notifications ([#1552](https://github.com/lmnr-ai/lmnr/pull/1552))
+- Usage soft limits (warnings) with email notifications ([#1540](https://github.com/lmnr-ai/lmnr/pull/1540))
+
+**Signals**
+
+- Redesign signals list page with sparklines ([#1387](https://github.com/lmnr-ai/lmnr/pull/1387), [#1433](https://github.com/lmnr-ai/lmnr/pull/1433))
+- Signals UI enhancement ([#1383](https://github.com/lmnr-ai/lmnr/pull/1383))
+- Add trigger creation UI to signal creation sheet ([#1439](https://github.com/lmnr-ai/lmnr/pull/1439))
+- Realtime/batch processing mode for signals ([#1441](https://github.com/lmnr-ai/lmnr/pull/1441))
+- Per-signal sampling for trace processing ([#1541](https://github.com/lmnr-ai/lmnr/pull/1541))
+- Signal events panel and dual layout strategy in trace view ([#1486](https://github.com/lmnr-ai/lmnr/pull/1486))
+- Signal agent: add cost and duration ([#1440](https://github.com/lmnr-ai/lmnr/pull/1440))
+- Signals idempotent runs ([#1496](https://github.com/lmnr-ai/lmnr/pull/1496))
+- Signal agent `search_in_spans` tool ([#1537](https://github.com/lmnr-ai/lmnr/pull/1537))
+- Don't run signals on non-default trace types ([#1425](https://github.com/lmnr-ai/lmnr/pull/1425))
+- Generalize signals provider system with env-var based selection ([#1382](https://github.com/lmnr-ai/lmnr/pull/1382))
+- Hide unnamed low-level clusters ([#1546](https://github.com/lmnr-ai/lmnr/pull/1546))
+
+**Search**
+
+- Full-text search with highlighted snippets ([#1506](https://github.com/lmnr-ai/lmnr/pull/1506), [#1519](https://github.com/lmnr-ai/lmnr/pull/1519))
+- Trace-to-span search ([#1543](https://github.com/lmnr-ai/lmnr/pull/1543))
+- Preprocess data before Quickwit indexing ([#1529](https://github.com/lmnr-ai/lmnr/pull/1529))
+- Agent search improvements ([#1551](https://github.com/lmnr-ai/lmnr/pull/1551))
+
+**Traces & spans**
+
+- Custom SQL columns and sorting on traces table ([#1412](https://github.com/lmnr-ai/lmnr/pull/1412))
+- Cost heatmap toggle in trace view ([#1453](https://github.com/lmnr-ai/lmnr/pull/1453))
+- Root span input/output columns on traces page ([#1375](https://github.com/lmnr-ai/lmnr/pull/1375))
+- Cached tokens in span view stats tooltip ([#1386](https://github.com/lmnr-ai/lmnr/pull/1386))
+- Span preview generation with provider matching and LLM fallback ([#1497](https://github.com/lmnr-ai/lmnr/pull/1497))
+- Span view improvements: overview tab, virtualized messages, search ([#1457](https://github.com/lmnr-ai/lmnr/pull/1457))
+- Deep parse output, don't persist on DB ([#1539](https://github.com/lmnr-ai/lmnr/pull/1539))
+- Persist table column widths across page refreshes ([#1379](https://github.com/lmnr-ai/lmnr/pull/1379))
+- Dynamic interval calculation, timezone-sensitive ticks ([#1442](https://github.com/lmnr-ai/lmnr/pull/1442))
+- Reader mode fix ([#1532](https://github.com/lmnr-ai/lmnr/pull/1532))
+- Show costs in trace view ([#1535](https://github.com/lmnr-ai/lmnr/pull/1535))
+
+**Self-hosted & auth**
+
+- Keycloak as an OAuth authentication provider ([#1488](https://github.com/lmnr-ai/lmnr/pull/1488))
+- Improved user invitation for self-hosted deployments ([#1458](https://github.com/lmnr-ai/lmnr/pull/1458))
+- Hide dummy email input when real auth providers are configured ([#1463](https://github.com/lmnr-ai/lmnr/pull/1463))
+
+**Evaluations**
+
+- Use INSERT...SELECT for eval datapoints ([#1438](https://github.com/lmnr-ai/lmnr/pull/1438))
+- Prevent score columns from being purged on page refresh ([#1484](https://github.com/lmnr-ai/lmnr/pull/1484))
+- Prevent alias shadowing when aggregating and filtering same column ([#1530](https://github.com/lmnr-ai/lmnr/pull/1530))
+- Overwrite eval values on every call to insert datapoints ([#1536](https://github.com/lmnr-ai/lmnr/pull/1536))
+
+**Playground**
+
+- Gemini 3 models in playground ([#1502](https://github.com/lmnr-ai/lmnr/pull/1502), [#1504](https://github.com/lmnr-ai/lmnr/pull/1504))
+
+**Infrastructure & reliability**
+
+- Scoped error boundaries, improved error handling ([#1393](https://github.com/lmnr-ai/lmnr/pull/1393))
+- Per-worker prefetch count for RabbitMQ consumers ([#1399](https://github.com/lmnr-ai/lmnr/pull/1399))
+- Refactor batch and realtime processing ([#1396](https://github.com/lmnr-ai/lmnr/pull/1396))
+- Pre-aggregated usage table ([#1460](https://github.com/lmnr-ai/lmnr/pull/1460))
+- Upgrade Next.js ([#1444](https://github.com/lmnr-ai/lmnr/pull/1444))
+- Read SDK spans from spans table ([#1510](https://github.com/lmnr-ai/lmnr/pull/1510))
+
+**Python SDK**
+
+- Report usage tokens for Anthropic streaming requests ([lmnr-python#270](https://github.com/lmnr-ai/lmnr-python/pull/270))
+- Don't cut OpenRouter provider prefix ([lmnr-python#268](https://github.com/lmnr-ai/lmnr-python/pull/268))
+- Make claude-code-proxy and threading instrumentation default dependencies ([lmnr-python#274](https://github.com/lmnr-ai/lmnr-python/pull/274))
+
+**Docs**
+
+- Slack integration, reports, and alerts documentation ([docs#118](https://github.com/lmnr-ai/docs/pull/118))
+- Fix TypeScript integration initialization examples ([docs#119](https://github.com/lmnr-ai/docs/pull/119))
