@@ -4,6 +4,7 @@ import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatabl
 import { type Filter } from "@/lib/actions/common/filters";
 import {
   backtickEscape,
+  buildColumnFilters,
   buildSelectQuery,
   type ColumnFilterConfig,
   type ColumnFilterProcessor,
@@ -275,10 +276,11 @@ export interface BuildTracesCountQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  customColumns?: CustomColumn[];
 }
 
 export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOptions): QueryResult => {
-  const { traceType, traceIds, filters, startTime, endTime, pastHours } = options;
+  const { traceType, traceIds, filters, startTime, endTime, pastHours, customColumns } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -309,7 +311,7 @@ export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOp
       timeColumn: "start_time",
     },
     filters,
-    columnFilterConfig: tracesColumnFilterConfig,
+    columnFilterConfig: buildFilterConfigWithCustomColumns(customColumns),
     customConditions,
   };
 
@@ -381,27 +383,22 @@ export const buildTracesStatsWhereConditions = (options: {
   traceType: string;
   traceIds: string[];
   filters: Filter[];
-}): { conditions: [string, ...string[]]; params: Record<string, any> } => {
+  customColumns?: CustomColumn[];
+}): { conditions: [string, ...string[]]; params: QueryParams } => {
   const conditions: [string] = [`trace_type = {traceType:String}`];
-  const params: Record<string, any> = { traceType: options.traceType };
+  const params: QueryParams = { traceType: options.traceType };
 
   if (options.traceIds.length > 0) {
     conditions.push(`id IN ({traceIds:Array(UUID)})`);
     params.traceIds = options.traceIds;
   }
 
-  options.filters.forEach((filter, index) => {
-    const paramKey = `${filter.column}_${index}`;
-    const processor = tracesColumnFilterConfig.processors.get(filter.column);
-
-    if (processor) {
-      const result = processor(filter, paramKey);
-      if (result.condition) {
-        conditions.push(result.condition);
-        Object.assign(params, result.params);
-      }
-    }
-  });
+  const columnFilterConfig = buildFilterConfigWithCustomColumns(options.customColumns);
+  const { condition: filterCondition, params: filterParams } = buildColumnFilters(options.filters, columnFilterConfig);
+  if (filterCondition) {
+    conditions.push(filterCondition);
+    Object.assign(params, filterParams);
+  }
 
   return { conditions, params };
 };

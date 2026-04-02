@@ -20,6 +20,28 @@ import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
 const TRACES_TRACE_VIEW_WIDTH = "traces-trace-view-width";
 const EVENTS_TRACE_VIEW_WIDTH = "events-trace-view-width";
 
+const CustomColumnSchema = z.array(
+  z.object({
+    id: z.string().min(1),
+    sql: z.string().min(1),
+    filterSql: z.string().optional(),
+    dbType: z.enum(["String", "Float64", "Int64"]).optional(),
+  })
+);
+
+export const parseCustomColumns = (customColumnsJson?: string): CustomColumn[] | undefined => {
+  if (!customColumnsJson) {
+    return undefined;
+  }
+
+  try {
+    return CustomColumnSchema.parse(JSON.parse(customColumnsJson));
+  } catch {
+    // ignore malformed custom columns
+    return undefined;
+  }
+};
+
 export const GetTracesSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.guid(),
@@ -89,24 +111,7 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
     }
   }
 
-  // Parse and validate custom columns from JSON
-  let customColumns: CustomColumn[] | undefined;
-  if (customColumnsJson) {
-    try {
-      const parsed = JSON.parse(customColumnsJson);
-      const CustomColumnSchema = z.array(
-        z.object({
-          id: z.string().min(1),
-          sql: z.string().min(1),
-          filterSql: z.string().optional(),
-          dbType: z.string().optional(),
-        })
-      );
-      customColumns = CustomColumnSchema.parse(parsed);
-    } catch {
-      // ignore malformed custom columns
-    }
-  }
+  const customColumns = parseCustomColumns(customColumnsJson);
 
   const { query: mainQuery, parameters: mainParams } = buildTracesQueryWithParams({
     projectId,
@@ -168,6 +173,7 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
     search,
     searchIn,
     filter: inputFilters,
+    customColumns: customColumnsJson,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
@@ -187,6 +193,8 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
     return { count: 0 };
   }
 
+  const customColumns = parseCustomColumns(customColumnsJson);
+
   const { query: countQuery, parameters: countParams } = buildTracesCountQueryWithParams({
     projectId,
     traceType,
@@ -195,6 +203,7 @@ export async function countTraces(input: z.infer<typeof GetTracesSchema>): Promi
     startTime,
     endTime,
     pastHours,
+    customColumns,
   });
 
   const result = await executeQuery<{ count: number }>({

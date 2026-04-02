@@ -4,7 +4,7 @@ import { z } from "zod/v4";
 import { type Filter } from "@/lib/actions/common/filters";
 import { buildTimeRangeWithFill } from "@/lib/actions/common/query-builder";
 import { executeQuery } from "@/lib/actions/sql";
-import { GetTracesSchema } from "@/lib/actions/traces";
+import { GetTracesSchema, parseCustomColumns } from "@/lib/actions/traces";
 import { searchSpans } from "@/lib/actions/traces/search";
 import { buildTracesStatsWhereConditions, generateEmptyTimeBuckets } from "@/lib/actions/traces/utils";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
@@ -36,6 +36,7 @@ export async function getTraceStats(
     search,
     searchIn,
     filter: inputFilters,
+    customColumns: customColumnsJson,
     intervalValue,
     intervalUnit,
   } = input;
@@ -59,10 +60,13 @@ export async function getTraceStats(
     return { items };
   }
 
+  const customColumns = parseCustomColumns(customColumnsJson);
+
   const { conditions: whereConditions, params: whereParams } = buildTracesStatsWhereConditions({
     traceType,
     traceIds,
     filters,
+    customColumns,
   });
 
   const {
