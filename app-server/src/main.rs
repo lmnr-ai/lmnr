@@ -1501,7 +1501,7 @@ fn main() -> anyhow::Result<()> {
                         let project_ingestion_auth =
                             HttpAuthentication::bearer(auth::project_ingestion_validator);
 
-                        App::new()
+                        let mut app = App::new()
                             .wrap(ErrorHandlers::new().handler(
                                 StatusCode::BAD_REQUEST,
                                 |res: dev::ServiceResponse| {
@@ -1524,7 +1524,13 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
                             .app_data(web::Data::new(pubsub.clone()))
-                            .app_data(web::Data::new(http_client_for_http.clone()))
+                            .app_data(web::Data::new(http_client_for_http.clone()));
+
+                        if let Some(ref limiter) = rate_limiter {
+                            app = app.app_data(web::Data::new(limiter.clone()));
+                        }
+
+                        app
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
@@ -1575,19 +1581,15 @@ fn main() -> anyhow::Result<()> {
                                         web::route().to(api::v1::mcp::method_not_allowed),
                                     ),
                             )
-                            .service({
-                                // rate limited endpoints, currently enabled only for v1/sql/query
-                                let mut scope = web::scope("/v1/sql")
+                            .service(
+                                web::scope("/v1/sql")
                                     .wrap(Condition::new(
                                         rate_limiter.is_some(),
                                         RateLimiter::default(),
                                     ))
-                                    .wrap(project_auth.clone());
-                                if let Some(ref limiter) = rate_limiter {
-                                    scope = scope.app_data(web::Data::new(limiter.clone()));
-                                }
-                                scope.service(api::v1::sql::execute_sql_query)
-                            })
+                                    .wrap(project_auth.clone())
+                                    .service(api::v1::sql::execute_sql_query),
+                            )
                             .service(
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
