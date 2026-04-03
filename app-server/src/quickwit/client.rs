@@ -155,10 +155,7 @@ impl QuickwitClient {
         index_id: &str,
         query_body: serde_json::Value,
     ) -> anyhow::Result<serde_json::Value> {
-        let url = format!(
-            "{}/api/v1/{}/search",
-            self.inner.search_endpoint, index_id
-        );
+        let url = format!("{}/api/v1/{}/search", self.inner.search_endpoint, index_id);
 
         let response = self
             .inner
@@ -185,7 +182,6 @@ impl QuickwitClient {
     }
 }
 
-#[instrument(skip(docs))]
 pub fn build_doc_batch<T: serde::Serialize>(
     index_id: &str,
     docs: &[T],
