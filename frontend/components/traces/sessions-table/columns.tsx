@@ -69,7 +69,7 @@ export const filters: ColumnFilter[] = [
   },
   {
     key: "tags",
-    name: "Tags",
+    name: "Span tags",
     dataType: "string",
   },
 ];
@@ -175,9 +175,9 @@ export const columns: ColumnDef<SessionRow, any>[] = [
       if (Array.isArray(tags) && tags?.length > 0) return <TagsCell tags={tags} />;
       return "-";
     },
-    header: "Tags",
+    header: "Span tags",
     accessorKey: "spanTags",
-    id: "tags",
+    id: "span_tags",
   },
 ];
 
@@ -194,5 +194,5 @@ export const defaultSessionsColumnOrder = [
   "total_tokens",
   "trace_count",
   "user_id",
-  "tags",
+  "span_tags",
 ];
