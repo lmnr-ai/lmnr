@@ -216,20 +216,20 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     accessorKey: "spanTags",
     id: "span_tags",
     enableSorting: true,
-    meta: { sql: "span_tags" },
+    meta: { sql: "tags" },
   },
   {
-    accessorFn: (row) => row.tags,
+    accessorFn: (row) => row.traceTags,
     cell: (row) => {
       const tags = row.getValue() as string[];
       if (tags?.length > 0) return <TagsCell tags={tags} />;
       return "-";
     },
     header: "Tags",
-    accessorKey: "tags",
-    id: "tags",
+    accessorKey: "traceTags",
+    id: "trace_tags",
     enableSorting: true,
-    meta: { sql: "tags" },
+    meta: { sql: "trace_tags" },
   },
   {
     accessorFn: (row) => row.metadata,
@@ -345,12 +345,12 @@ export const filters: ColumnFilter[] = [
   {
     name: "Span tags",
     dataType: "array",
-    key: "span_tags",
+    key: "tags",
   },
   {
     name: "Tags",
     dataType: "array",
-    key: "tags",
+    key: "trace_tags",
   },
   {
     name: "Metadata",
@@ -374,7 +374,7 @@ export const defaultTracesColumnOrder = [
   "duration",
   "cost",
   "total_tokens",
-  "tags",
+  "trace_tags",
   "span_tags",
   "metadata",
   "session_id",

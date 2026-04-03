@@ -190,8 +190,8 @@ impl Trace {
                 evaluate_string_filter(&user_id, &filter.operator, &filter.value)
             }
 
-            "tags" => evaluate_array_contains_filter(&self.trace_tags, &filter.operator, &filter.value),
-            "span_tags" => evaluate_array_contains_filter(&self.tags, &filter.operator, &filter.value),
+            "tags" => evaluate_array_contains_filter(&self.tags, &filter.operator, &filter.value),
+            "trace_tags" => evaluate_array_contains_filter(&self.trace_tags, &filter.operator, &filter.value),
             "span_name" => {
                 let target_name = filter.value.as_str().unwrap_or("");
                 let has_span = spans
