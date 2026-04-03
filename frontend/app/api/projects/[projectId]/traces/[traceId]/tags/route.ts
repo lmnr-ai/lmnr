@@ -1,64 +1,78 @@
-import { and, eq, sql } from "drizzle-orm";
-
 import { clickhouseClient } from "@/lib/clickhouse/client";
-import { db } from "@/lib/db/drizzle";
-import { traces } from "@/lib/db/migrations/schema";
 
 export async function GET(
   _req: Request,
   props: { params: Promise<{ projectId: string; traceId: string }> }
 ): Promise<Response> {
-  const { projectId, traceId } = await props.params;
+  try {
+    const { projectId, traceId } = await props.params;
 
-  const result = await db
-    .select({ traceTags: traces.traceTags })
-    .from(traces)
-    .where(and(eq(traces.id, traceId), eq(traces.projectId, projectId)))
-    .limit(1);
+    const result = await clickhouseClient.query({
+      query: `
+        SELECT tags
+        FROM trace_tags FINAL
+        WHERE project_id = {projectId:UUID} AND trace_id = {traceId:UUID}
+      `,
+      format: "JSONEachRow",
+      query_params: { projectId, traceId },
+    });
 
-  const traceTags = result[0]?.traceTags ?? [];
+    const rows = await result.json<{ tags: string[] }>();
+    const tags = rows.length > 0 ? rows[0].tags : [];
 
-  return Response.json(traceTags);
+    return Response.json(tags);
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function POST(
   req: Request,
   props: { params: Promise<{ projectId: string; traceId: string }> }
 ): Promise<Response> {
-  const { projectId, traceId } = await props.params;
-  const body = (await req.json()) as { tagName: string };
-  const { tagName } = body;
+  try {
+    const { projectId, traceId } = await props.params;
+    const body = (await req.json()) as { tagName: string };
+    const { tagName } = body;
 
-  if (!tagName || typeof tagName !== "string") {
-    return Response.json({ error: "tagName is required" }, { status: 400 });
+    if (!tagName || typeof tagName !== "string") {
+      return Response.json({ error: "tagName is required" }, { status: 400 });
+    }
+
+    // Read current tags from CH
+    const result = await clickhouseClient.query({
+      query: `
+        SELECT tags
+        FROM trace_tags FINAL
+        WHERE project_id = {projectId:UUID} AND trace_id = {traceId:UUID}
+      `,
+      format: "JSONEachRow",
+      query_params: { projectId, traceId },
+    });
+
+    const rows = await result.json<{ tags: string[] }>();
+    const currentTags = rows.length > 0 ? rows[0].tags : [];
+
+    // Add the new tag (deduplicate)
+    const updatedTags = [...new Set([...currentTags, tagName])];
+
+    // Insert into CH trace_tags table (ReplacingMergeTree deduplicates by updated_at)
+    // DateTime64(6) expects microseconds since epoch
+    await clickhouseClient.insert({
+      table: "trace_tags",
+      values: [
+        {
+          project_id: projectId,
+          trace_id: traceId,
+          updated_at: Date.now() * 1000,
+          tags: updatedTags,
+        },
+      ],
+      format: "JSONEachRow",
+    });
+
+    return Response.json(updatedTags);
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
-
-  // Update PostgreSQL: append tag if not already present
-  const result = await db
-    .update(traces)
-    .set({
-      traceTags: sql`array(SELECT DISTINCT unnest(COALESCE(${traces.traceTags}, '{}'::text[]) || ARRAY[${tagName}]::text[]))`,
-    })
-    .where(and(eq(traces.id, traceId), eq(traces.projectId, projectId)))
-    .returning({ traceTags: traces.traceTags });
-
-  if (result.length === 0) {
-    return Response.json({ error: "Trace not found" }, { status: 404 });
-  }
-
-  // Insert into ClickHouse trace_tags table (ReplacingMergeTree deduplicates by updated_at)
-  const updatedTags = result[0].traceTags ?? [];
-  await clickhouseClient.command({
-    query: `
-      INSERT INTO trace_tags (project_id, trace_id, updated_at, tags)
-      VALUES ({projectId:UUID}, {traceId:UUID}, now64(6, 'UTC'), {tags:Array(String)})
-    `,
-    query_params: {
-      projectId,
-      traceId,
-      tags: updatedTags,
-    },
-  });
-
-  return Response.json(updatedTags);
 }
