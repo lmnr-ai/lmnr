@@ -42,8 +42,12 @@ export async function POST(
     .where(and(eq(traces.id, traceId), eq(traces.projectId, projectId)))
     .returning({ traceTags: traces.traceTags });
 
+  if (result.length === 0) {
+    return Response.json({ error: "Trace not found" }, { status: 404 });
+  }
+
   // Insert into ClickHouse trace_tags table (ReplacingMergeTree deduplicates by updated_at)
-  const updatedTags = result[0]?.traceTags ?? [];
+  const updatedTags = result[0].traceTags ?? [];
   await clickhouseClient.command({
     query: `
       INSERT INTO trace_tags (project_id, trace_id, updated_at, tags)
