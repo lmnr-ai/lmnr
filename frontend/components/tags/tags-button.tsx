@@ -1,3 +1,5 @@
+import { Tag } from "lucide-react";
+
 import ManageTags from "@/components/tags/manage-tags";
 import TagsContextProvider, { type TagsMode, useTagsContext } from "@/components/tags/tags-context";
 import { Button } from "@/components/ui/button";
@@ -11,7 +13,7 @@ const TagsButtonContent = ({ className }: { className?: string }) => {
     <ManageTags>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className={cn("h-6 text-xs px-1.5 gap-1.5", className)}>
-          {tags.length > 0 && (
+          {tags.length > 0 ? (
             <div className="flex -space-x-[6px]">
               {tags.map((tag) => {
                 const color = tagClasses.find((c) => c.name === tag.name)?.color;
@@ -24,6 +26,8 @@ const TagsButtonContent = ({ className }: { className?: string }) => {
                 );
               })}
             </div>
+          ) : (
+            <Tag className="size-3.5" />
           )}
           Tags
         </Button>

@@ -5,6 +5,7 @@ import { memo, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
+import TagsButton from "@/components/tags/tags-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -16,7 +17,6 @@ import { cn } from "@/lib/utils";
 
 import Metadata from "../metadata";
 import ResizableSignalCard from "./resizeable-signal-card";
-import TagsButton from "./tags-button";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
 

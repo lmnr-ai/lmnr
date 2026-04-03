@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useMemo } from "react";
 
 import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
-import TagsInline from "@/components/tags/tags-inline";
+import TagsButton from "@/components/tags/tags-button";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
@@ -118,7 +118,7 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
           <div className="flex gap-2 gap-y-1 flex-wrap items-center">
             <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} />
             <ExportSpansPopover span={span} />
-            <TagsInline mode={{ type: "span", spanId: span.spanId }} />
+            <TagsButton mode={{ type: "span", spanId: span.spanId }} />
           </div>
           <EvaluatorScoresList spanId={span.spanId} />
         </div>
