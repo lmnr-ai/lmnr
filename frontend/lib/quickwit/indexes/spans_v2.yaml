@@ -39,11 +39,17 @@ doc_mapping:
       fast: false
       stored: false
       record: position
+    - name: attributes
+      type: text
+      tokenizer: default
+      fast: false
+      stored: false
+      record: position
   tag_fields: []
   timestamp_field: start_time
   partition_key: hash_mod(project_id, 100)
 search_settings:
-  default_search_fields: [input, output]
+  default_search_fields: [input, output, attributes]
 retention:
   period: 90 days
   schedule: daily
