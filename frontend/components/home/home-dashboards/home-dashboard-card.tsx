@@ -1,8 +1,7 @@
 "use client";
 
 import { Pin, PinOff } from "lucide-react";
-import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
@@ -20,6 +19,7 @@ interface HomeDashboardCardProps {
 
 function HomeDashboardCard({ chart, isPinned, onTogglePin }: HomeDashboardCardProps) {
   const { projectId } = useParams();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [data, setData] = useState<DataRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -70,16 +70,17 @@ function HomeDashboardCard({ chart, isPinned, onTogglePin }: HomeDashboardCardPr
   }, [fetchData]);
 
   return (
-    <div className="bg-secondary border border-border rounded-xl h-[269px] relative overflow-hidden flex flex-col">
+    <div
+      className="bg-secondary border border-border rounded-xl h-[269px] relative overflow-hidden flex flex-col cursor-pointer hover:border-foreground/20 transition-colors"
+      onClick={() => router.push(`/project/${projectId}/dashboard`)}
+    >
       <div className="flex items-center justify-between p-3">
-        <Link
-          href={`/project/${projectId}/dashboard`}
-          className="text-xs text-secondary-foreground truncate flex-1 hover:text-foreground transition-colors"
-        >
-          {chart.name}
-        </Link>
+        <span className="text-xs text-secondary-foreground truncate flex-1">{chart.name}</span>
         <button
-          onClick={onTogglePin}
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePin();
+          }}
           className={`shrink-0 ml-2 transition-colors ${isPinned ? "text-primary" : "text-muted-foreground"} hover:text-foreground`}
         >
           {isPinned ? <Pin size={16} /> : <PinOff size={16} />}
