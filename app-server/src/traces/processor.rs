@@ -104,10 +104,10 @@ pub async fn process_span_messages(
                 );
             }
 
-            // Note: trace_tags are NOT re-inserted to ClickHouse here.
-            // Span ingestion never modifies trace_tags; re-inserting stale values
-            // would race with API-driven tag additions/removals.
-            // Only the tag API routes write to the ClickHouse trace_tags table.
+            // Note: CHTrace inserts an empty trace_tags into traces_replacing, but
+            // the view reads trace_tags from the separate `trace_tags` table (via LEFT JOIN),
+            // not from traces_replacing.trace_tags. Only the tag API routes write to
+            // the `trace_tags` table to avoid race conditions with stale data.
 
             send_trace_updates(&updated_traces, &pubsub).await;
 
