@@ -51,19 +51,6 @@ def run_query_json(query: str) -> dict:
     }
 
 
-def run_query(query: str, data: str | None = None) -> str:
-    params = {"user": CH_USER, "password": CH_PASS}
-    if data:
-        params["query"] = query
-        body = data.encode("utf-8")
-    else:
-        body = query.encode("utf-8")
-    url = f"{CH_URL}/?{urllib.parse.urlencode(params)}"
-    req = urllib.request.Request(url, data=body)
-    resp = urllib.request.urlopen(req)
-    return resp.read().decode("utf-8")
-
-
 def benchmark(project_id: str, runs: int = 3):
     # Find a trace with tags
     result = run_query_json(
