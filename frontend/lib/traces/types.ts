@@ -137,8 +137,8 @@ export type TraceRow = {
   metadata: Record<string, string>;
   userId?: string;
   status: string;
-  tags: string[];
   spanTags: string[];
+  traceTags: string[];
   analysis_status?: string;
   analysis_preview?: string;
   analysis?: string;

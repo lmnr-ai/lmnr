@@ -1,7 +1,7 @@
 -- Add trace_tags column to traces_replacing for user-assigned trace-level tags
 ALTER TABLE default.traces_replacing ADD COLUMN IF NOT EXISTS `trace_tags` Array(String) DEFAULT [];
 
--- Recreate raw_traces_v0 view to expose both span_tags and tags (trace-level)
+-- Recreate raw_traces_v0 view to expose both tags (span-level) and trace_tags (trace-level)
 DROP VIEW IF EXISTS default.raw_traces_v0;
 CREATE VIEW IF NOT EXISTS default.raw_traces_v0 SQL SECURITY INVOKER AS
 SELECT
@@ -40,8 +40,8 @@ SELECT
       WHEN trace_type = 0 THEN 'DEFAULT'
       ELSE 'DEFAULT'
     END AS trace_type,
-    arrayDistinct(traces_replacing.tags) AS span_tags,
-    arrayDistinct(traces_replacing.trace_tags) AS tags,
+    arrayDistinct(traces_replacing.tags) AS tags,
+    arrayDistinct(traces_replacing.trace_tags) AS trace_tags,
     has_browser_session,
     arrayDistinct(span_names) span_names,
     root_span_input,
@@ -51,7 +51,7 @@ SELECT
 FROM default.traces_replacing FINAL
 WHERE project_id={project_id:UUID};
 
--- Recreate traces_v0 view to expose both span_tags and tags
+-- Recreate traces_v0 view to expose both tags and trace_tags
 DROP VIEW IF EXISTS default.traces_v0;
 CREATE VIEW IF NOT EXISTS default.traces_v0 SQL SECURITY INVOKER AS
 SELECT
@@ -72,8 +72,8 @@ SELECT
     t.top_span_name AS top_span_name,
     t.top_span_type AS top_span_type,
     t.trace_type AS trace_type,
-    t.span_tags AS span_tags,
     t.tags AS tags,
+    t.trace_tags AS trace_tags,
     t.has_browser_session AS has_browser_session,
     t.id AS id,
     t.span_names AS span_names,
