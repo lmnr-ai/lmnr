@@ -121,6 +121,47 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 - **Package managers**: Cargo (Rust), pnpm (frontend), uv (Python)
 - **Git workflow**: Submit PRs to `dev` branch, which merges to `main` periodically
 
+## Coding Style Guidelines
+
+### Rust
+
+- Prefer `.unwrap_or(value)` over `.unwrap_or_else(|| value)` when the fallback is a simple value (not a closure that needs lazy evaluation). Same applies to `.ok_or` vs `.ok_or_else` and `.or` vs `.or_else`.
+- **Imports**: Import structs, traits, and enums directly. For functions, qualify with `module::function` but fully import the module. Prefer nested imports:
+  ```rust
+  // Good
+  use crate::{mod1::{self, Struct1}, mod2::{self, Struct2}};
+
+  // Bad
+  use crate::mod1;
+  use crate::mod1::Struct1;
+  use crate::mod2;
+  use crate::mod2::Struct2;
+  ```
+- All imports must live at the top of the file (or at least at the module level). Do **not** add imports inside functions.
+- Use `cargo check` (not `cargo build`) for verification. Use targeted test commands (e.g., `cargo test --lib module::name`) instead of full-package test runs.
+
+### TypeScript
+
+- Prefer arrow functions over named functions:
+  ```typescript
+  // Good
+  const foo = async ({ param1, param2 }: Params) => {};
+
+  // Bad
+  async function foo({ param1, param2 }: Params) {}
+  ```
+- Rely on the existing pre-commit hooks (Husky + lint-staged) instead of running manual project-wide type-checks before every commit.
+
+### Python (query-engine)
+
+- Do **not** import `List`, `Dict`, `Set`, `Tuple` from `typing` — use the built-in `list`, `dict`, `set`, `tuple` instead (Python 3.10+).
+- Prefer `T | None` over `Optional[T]`.
+- Strongly type wherever possible.
+
+### General
+
+- When adding a new crate, npm package, or Python dependency, do **not** rely on cached knowledge for version numbers. Query the source directly (crates.io, npmjs.com, pypi.org) to get the latest version.
+
 ## Pre-commit Hooks
 
 The frontend uses Husky with lint-staged. Before commits:
