@@ -10,14 +10,19 @@ import AdvancedSearch from "@/components/common/advanced-search";
 import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import TracesChart from "@/components/traces/traces-chart";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
-import { defaultTracesColumnOrder, filters, PREVIEW_COLUMN } from "@/components/traces/traces-table/columns";
+import {
+  defaultTracesColumnOrder,
+  filters as staticFilters,
+  PREVIEW_COLUMN,
+} from "@/components/traces/traces-table/columns";
 import TracesColumnsMenu from "@/components/traces/traces-table/traces-columns-menu";
-import { useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
+import { toColumnsPayload, useTracesTableStore } from "@/components/traces/traces-table/traces-table-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider, useDataTableStore } from "@/components/ui/infinite-datatable/model/datatable-store";
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
+import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { Switch } from "@/components/ui/switch";
 import { useLocalStorage } from "@/hooks/use-local-storage.tsx";
@@ -96,6 +101,16 @@ function TracesTableContent() {
     rebuildColumns();
   }, [customColumns, rebuildColumns]);
 
+  // Merge static filter definitions with custom column filters
+  const allFilters = useMemo<ColumnFilter[]>(() => {
+    const customColumnFilters: ColumnFilter[] = customColumns.map((cc) => ({
+      name: cc.name,
+      key: `custom:${cc.name}`,
+      dataType: cc.dataType === "number" ? ("number" as const) : ("string" as const),
+    }));
+    return [...staticFilters, ...customColumnFilters];
+  }, [customColumns]);
+
   // SQL strings from column defs — only changes when columns structurally change.
   // useInfiniteScroll uses JSON.stringify on deps, so identical SQL strings
   // produce the same string → no spurious re-fetch.
@@ -152,6 +167,13 @@ function TracesTableContent() {
     };
   }, [setChartContainerWidth]);
 
+  // Build custom columns JSON for the stats endpoint so custom column filters
+  // can be resolved server-side.
+  const customColumnsJson = useMemo(() => {
+    const customCols = toColumnsPayload(columnDefs.filter((c) => c.meta?.isCustom));
+    return customCols.length > 0 ? JSON.stringify(customCols) : undefined;
+  }, [columnDefs]);
+
   const statsUrl = useTimeSeriesStatsUrl({
     baseUrl: `/api/projects/${projectId}/traces/stats`,
     chartContainerWidth,
@@ -162,6 +184,7 @@ function TracesTableContent() {
     additionalParams: {
       ...(textSearchFilter && { search: textSearchFilter }),
       ...(searchIn.length > 0 && { searchIn }),
+      ...(customColumnsJson && { customColumns: customColumnsJson }),
     },
     defaultTargetBars: DEFAULT_TARGET_BARS,
   });
@@ -408,7 +431,7 @@ function TracesTableContent() {
         onSort={handleSort}
       >
         <div className="flex flex-1 w-full h-full gap-2">
-          <DataTableFilter columns={filters} />
+          <DataTableFilter columns={allFilters} />
           <TracesColumnsMenu lockedColumns={["status", "preview"]} columnLabels={columnLabels} />
           <DateRangeFilter />
           <RefreshButton onClick={handleRefresh} variant="outline" />
@@ -419,7 +442,7 @@ function TracesTableContent() {
         </div>
         <div className="w-full px-px">
           <AdvancedSearch
-            filters={filters}
+            filters={allFilters}
             resource="traces"
             placeholder="Search by root span name, tokens, tags, full text and more..."
             className="w-full flex-1"

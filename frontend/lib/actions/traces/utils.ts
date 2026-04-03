@@ -1,4 +1,5 @@
 import { scaleUtc } from "d3-scale";
+import { z } from "zod/v4";
 
 import { OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import { type Filter } from "@/lib/actions/common/filters";
@@ -6,6 +7,7 @@ import {
   backtickEscape,
   buildSelectQuery,
   type ColumnFilterConfig,
+  type ColumnFilterProcessor,
   createArrayColumnFilter,
   createCustomFilter,
   createNumberFilter,
@@ -127,11 +129,32 @@ const tracesSelectColumns = [
 
 export const DEFAULT_SEARCH_MAX_HITS = 500;
 
+const ALLOWED_DB_TYPES = new Set(["String", "Float64", "Int64"]);
+
 export interface CustomColumn {
   id: string;
   sql: string;
   filterSql?: string;
   dbType?: string;
+}
+
+const CustomColumnsSchema = z.array(
+  z.object({
+    id: z.string().min(1),
+    sql: z.string().min(1),
+    filterSql: z.string().optional(),
+    dbType: z.enum(["String", "Float64", "Int64"]).optional(),
+  })
+);
+
+/** Parse and validate a JSON-encoded custom columns string. */
+export function parseCustomColumnsJson(json: string | undefined | null): CustomColumn[] | undefined {
+  if (!json) return undefined;
+  try {
+    return CustomColumnsSchema.parse(JSON.parse(json));
+  } catch {
+    return undefined;
+  }
 }
 
 export interface BuildTracesQueryOptions {
@@ -149,6 +172,46 @@ export interface BuildTracesQueryOptions {
   sortDirection?: "ASC" | "DESC";
   customColumns?: CustomColumn[];
 }
+
+/**
+ * Build a ColumnFilterConfig that includes both the static traces processors
+ * and dynamic processors for any custom SQL columns.
+ */
+const buildFilterConfigWithCustomColumns = (customColumns?: CustomColumn[]): ColumnFilterConfig => {
+  if (!customColumns || customColumns.length === 0) {
+    return tracesColumnFilterConfig;
+  }
+
+  const processors = new Map(tracesColumnFilterConfig.processors);
+
+  for (const col of customColumns) {
+    const filterSql = col.filterSql ?? col.sql;
+    const dbType = ALLOWED_DB_TYPES.has(col.dbType ?? "String") ? (col.dbType ?? "String") : "String";
+    const isNumeric = dbType === "Int64" || dbType === "Float64";
+
+    const processor: ColumnFilterProcessor = (filter, paramKey) => {
+      const opSymbol = OperatorLabelMap[filter.operator];
+      const parsedValue = isNumeric
+        ? dbType === "Int64"
+          ? parseInt(String(filter.value))
+          : parseFloat(String(filter.value))
+        : String(filter.value);
+
+      if (isNumeric && isNaN(parsedValue as number)) {
+        return { condition: null, params: {} };
+      }
+
+      return {
+        condition: `${filterSql} ${opSymbol} {${paramKey}:${dbType}}`,
+        params: { [paramKey]: parsedValue },
+      };
+    };
+
+    processors.set(col.id, processor);
+  }
+
+  return { processors };
+};
 
 export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): QueryResult => {
   const {
@@ -199,6 +262,9 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
     orderBy.push({ column: "start_time", direction: "DESC" });
   }
 
+  // Build filter config with custom column processors
+  const columnFilterConfig = buildFilterConfigWithCustomColumns(customColumns);
+
   const queryOptions: SelectQueryOptions = {
     select: {
       columns: selectColumns,
@@ -211,7 +277,7 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
       timeColumn: "start_time",
     },
     filters,
-    columnFilterConfig: tracesColumnFilterConfig,
+    columnFilterConfig,
     orderBy,
     customConditions,
     pagination: {
@@ -231,10 +297,11 @@ export interface BuildTracesCountQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  customColumns?: CustomColumn[];
 }
 
 export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOptions): QueryResult => {
-  const { traceType, traceIds, filters, startTime, endTime, pastHours } = options;
+  const { traceType, traceIds, filters, startTime, endTime, pastHours, customColumns } = options;
 
   const customConditions: Array<{
     condition: string;
@@ -265,7 +332,7 @@ export const buildTracesCountQueryWithParams = (options: BuildTracesCountQueryOp
       timeColumn: "start_time",
     },
     filters,
-    columnFilterConfig: tracesColumnFilterConfig,
+    columnFilterConfig: buildFilterConfigWithCustomColumns(customColumns),
     customConditions,
   };
 
@@ -337,6 +404,7 @@ export const buildTracesStatsWhereConditions = (options: {
   traceType: string;
   traceIds: string[];
   filters: Filter[];
+  customColumns?: CustomColumn[];
 }): { conditions: [string, ...string[]]; params: Record<string, any> } => {
   const conditions: [string] = [`trace_type = {traceType:String}`];
   const params: Record<string, any> = { traceType: options.traceType };
@@ -346,9 +414,12 @@ export const buildTracesStatsWhereConditions = (options: {
     params.traceIds = options.traceIds;
   }
 
+  const columnFilterConfig = buildFilterConfigWithCustomColumns(options.customColumns);
+
   options.filters.forEach((filter, index) => {
-    const paramKey = `${filter.column}_${index}`;
-    const processor = tracesColumnFilterConfig.processors.get(filter.column);
+    const safeColumn = filter.column.replace(/[^a-zA-Z0-9_]/g, "_");
+    const paramKey = `${safeColumn}_${index}`;
+    const processor = columnFilterConfig.processors.get(filter.column);
 
     if (processor) {
       const result = processor(filter, paramKey);

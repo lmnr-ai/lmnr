@@ -20,7 +20,7 @@ interface RawUrlParams {
   sortDirection: string | null;
 }
 
-function toColumnsPayload(columnDefs: ColumnDef<TraceRow>[]): TracesQueryColumn[] {
+export function toColumnsPayload(columnDefs: ColumnDef<TraceRow>[]): TracesQueryColumn[] {
   return columnDefs
     .filter((c) => c.meta?.sql)
     .map((c) => ({
@@ -58,6 +58,7 @@ export const useTracesTableStore = create<TracesTableStoreState>()(
           meta: {
             sql: cc.sql,
             dataType: cc.dataType,
+            dbType: cc.dataType === "number" ? "Float64" : "String",
             isCustom: true,
           },
         }));
