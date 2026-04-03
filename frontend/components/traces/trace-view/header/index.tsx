@@ -5,7 +5,6 @@ import { memo, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import TagsInline from "@/components/tags/tags-inline";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -147,7 +146,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           )}
           {trace && (
             <span className={HEADER_ITEM_CLS}>
-              <span className="text-base font-medium ml-2 flex-shrink-0">Trace</span>
+              <span className="text-base font-medium pl-2 flex-shrink-0">Trace</span>
               <TraceDropdown traceId={traceId} />
             </span>
           )}
@@ -162,7 +161,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                 )}
               >
                 <Sparkles size={14} className="mr-1" />
-                Chat with trace
+                Chat
               </Button>
             </span>
           )}
@@ -193,9 +192,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         {trace && <ShareTraceButton projectId={projectId} />}
       </div>
       {signalsPanelOpen && <ResizableSignalCard traceId={traceId} onClose={() => setSignalsPanelOpen(false)} />}
-      <div className="flex flex-wrap gap-1 items-center">
-        <TagsInline mode={{ type: "trace", traceId }} />
-      </div>
       <div className="flex items-center gap-2 mt-2">
         <TraceViewSearch
           spans={spans}
