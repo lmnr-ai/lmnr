@@ -133,7 +133,8 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       const list = await getEmailsConfig();
       if (account?.provider === "github" && user?.email && !!list) {
-        return list.includes(user.email);
+        const emailLower = user.email.toLowerCase();
+        return list.some((e) => e.toLowerCase() === emailLower);
       }
       return true;
     },
