@@ -153,7 +153,7 @@ const PureSpanOverview = ({ span }: { span: Span }) => {
         <Button
           aria-label="Scroll to bottom"
           size="icon"
-          className="absolute bottom-3 right-3 rounded-full"
+          className="absolute bottom-3 right-3 rounded-full z-40"
           onClick={scrollToBottom}
         >
           <ChevronDown className="w-4 h-4" />
