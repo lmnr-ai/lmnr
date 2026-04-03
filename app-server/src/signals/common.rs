@@ -110,7 +110,7 @@ pub async fn process_run(
         } else {
             let hashes: Vec<String> = extracted.keys().cloned().collect();
             let mut summaries =
-                lookup_cached_summaries(&cache, project_id, signal_id, &hashes).await;
+                lookup_cached_summaries(&cache, project_id, signal_id, prompt, &hashes).await;
 
             let uncached: HashMap<String, String> = extracted
                 .iter()

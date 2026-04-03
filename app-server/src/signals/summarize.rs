@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
 
 use crate::cache::keys::SYS_PROMPT_SUMMARY_CACHE_KEY;
@@ -10,8 +11,6 @@ use crate::signals::provider::models::{
 };
 use crate::signals::provider::{LanguageModelClient, ProviderClient};
 use crate::signals::provider::{ProviderThinkingConfig, ProviderThinkingLevel};
-
-const SUMMARY_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
 
 const SUMMARIZATION_PROMPT: &str = r#"Given this signal description that a developer wants to detect in traces:
 <signal_description>
@@ -24,8 +23,18 @@ Compress the following system prompt from an LLM application. Retain only inform
 {{system_prompt}}
 </system_prompt>"#;
 
-fn cache_key(project_id: Uuid, signal_id: Uuid, prompt_hash: &str) -> String {
-    format!("{SYS_PROMPT_SUMMARY_CACHE_KEY}:{project_id}:{signal_id}:{prompt_hash}")
+fn hash_signal_prompt(signal_prompt: &str) -> String {
+    let digest = Sha3_256::digest(signal_prompt.as_bytes());
+    format!("{:x}", digest)[..8].to_string()
+}
+
+fn cache_key(
+    project_id: Uuid,
+    signal_id: Uuid,
+    signal_prompt_hash: &str,
+    sys_prompt_hash: &str,
+) -> String {
+    format!("{SYS_PROMPT_SUMMARY_CACHE_KEY}:{project_id}:{signal_id}:{signal_prompt_hash}:{sys_prompt_hash}")
 }
 
 /// Look up cached summaries for a set of system prompt hashes.
@@ -34,11 +43,13 @@ pub async fn lookup_cached_summaries(
     cache: &Arc<Cache>,
     project_id: Uuid,
     signal_id: Uuid,
+    signal_prompt: &str,
     hashes: &[String],
 ) -> HashMap<String, String> {
+    let sig_hash = hash_signal_prompt(signal_prompt);
     let mut result = HashMap::new();
     for hash in hashes {
-        let key = cache_key(project_id, signal_id, hash);
+        let key = cache_key(project_id, signal_id, &sig_hash, hash);
         match cache.get::<String>(&key).await {
             Ok(Some(summary)) => {
                 result.insert(hash.clone(), summary);
@@ -53,7 +64,7 @@ pub async fn lookup_cached_summaries(
             }
         }
     }
-    log::info!("Lookup cached summaries: {:?}", result);
+
     result
 }
 
@@ -68,15 +79,13 @@ pub async fn generate_and_cache_summaries(
     signal_prompt: &str,
     uncached: &HashMap<String, String>, // hash -> full system prompt text
 ) -> HashMap<String, String> {
+    let sig_hash = hash_signal_prompt(signal_prompt);
     let mut result = HashMap::new();
     for (hash, sys_prompt_text) in uncached {
         match generate_summary(llm_client, model, signal_prompt, sys_prompt_text).await {
             Ok(summary) => {
-                let key = cache_key(project_id, signal_id, hash);
-                if let Err(e) = cache
-                    .insert_with_ttl(&key, summary.clone(), SUMMARY_CACHE_TTL_SECONDS)
-                    .await
-                {
+                let key = cache_key(project_id, signal_id, &sig_hash, hash);
+                if let Err(e) = cache.insert(&key, summary.clone()).await {
                     log::warn!("Failed to cache system prompt summary {}: {:?}", hash, e);
                 }
                 result.insert(hash.clone(), summary);
