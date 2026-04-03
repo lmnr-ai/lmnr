@@ -419,6 +419,7 @@ function TracesTableContent() {
         </div>
         <div className="w-full px-px">
           <AdvancedSearch
+            storageKey="traces"
             filters={filters}
             resource="traces"
             placeholder="Search by root span name, tokens, tags, full text and more..."
