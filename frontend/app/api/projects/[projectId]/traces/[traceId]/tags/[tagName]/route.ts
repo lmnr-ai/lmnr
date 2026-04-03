@@ -12,25 +12,25 @@ export async function DELETE(
   const { projectId, traceId, tagName } = await props.params;
 
   // Update PostgreSQL: remove the tag from the array
-  await db
+  const result = await db
     .update(traces)
     .set({
       traceTags: sql`array_remove(COALESCE(${traces.traceTags}, '{}'::text[]), ${tagName})`,
     })
-    .where(and(eq(traces.id, traceId), eq(traces.projectId, projectId)));
+    .where(and(eq(traces.id, traceId), eq(traces.projectId, projectId)))
+    .returning({ traceTags: traces.traceTags });
 
-  // Update ClickHouse: remove tag from trace_tags array
-  // With mutations_sync=0, this returns immediately while the mutation runs in the background.
+  // Insert into ClickHouse trace_tags table with updated tags (ReplacingMergeTree deduplicates by updated_at)
+  const updatedTags = result[0]?.traceTags ?? [];
   await clickhouseClient.command({
     query: `
-      ALTER TABLE traces_replacing
-      UPDATE trace_tags = arrayFilter(x -> x != {tagName:String}, trace_tags)
-      WHERE id = {traceId:UUID} AND project_id = {projectId:UUID}
+      INSERT INTO trace_tags (project_id, trace_id, updated_at, tags)
+      VALUES ({projectId:UUID}, {traceId:UUID}, now64(6, 'UTC'), {tags:Array(String)})
     `,
     query_params: {
-      tagName,
-      traceId,
       projectId,
+      traceId,
+      tags: updatedTags,
     },
   });
 

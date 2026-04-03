@@ -42,21 +42,19 @@ export async function POST(
     .where(and(eq(traces.id, traceId), eq(traces.projectId, projectId)))
     .returning({ traceTags: traces.traceTags });
 
-  // Update ClickHouse: append tag to trace_tags array
-  // With mutations_sync=0, this returns immediately while the mutation runs in the background.
+  // Insert into ClickHouse trace_tags table (ReplacingMergeTree deduplicates by updated_at)
+  const updatedTags = result[0]?.traceTags ?? [];
   await clickhouseClient.command({
     query: `
-      ALTER TABLE traces_replacing
-      UPDATE trace_tags = arrayDistinct(arrayConcat(trace_tags, [{tagName:String}]))
-      WHERE id = {traceId:UUID} AND project_id = {projectId:UUID}
+      INSERT INTO trace_tags (project_id, trace_id, updated_at, tags)
+      VALUES ({projectId:UUID}, {traceId:UUID}, now64(6, 'UTC'), {tags:Array(String)})
     `,
     query_params: {
-      tagName,
-      traceId,
       projectId,
+      traceId,
+      tags: updatedTags,
     },
   });
 
-  const updatedTags = result[0]?.traceTags ?? [];
   return Response.json(updatedTags);
 }
