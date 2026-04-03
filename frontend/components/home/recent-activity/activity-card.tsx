@@ -26,13 +26,18 @@ export default function ActivityCard({ notification, onDismiss, isExpanded, onTo
         onClick={onToggleExpand}
       >
         <CardHeader notification={notification} onDismiss={onDismiss} />
-        <CardFooter notification={notification} projectId={projectId as string} variant="collapsed" />
+        <CardFooter
+          notification={notification}
+          projectId={projectId as string}
+          variant="collapsed"
+          onDismiss={onDismiss}
+        />
       </div>
 
       {/* Expanded overlay */}
       {isExpanded && (
         <div
-          className="absolute -left-px -bottom-px w-[calc(100%+2px)] z-10 border border-primary/30 rounded-xl flex flex-col gap-4 items-end pb-[18px] pt-[14px] px-4 shadow-[0px_8px_24px_0px_rgba(0,0,0,0.5)] cursor-pointer"
+          className="absolute -left-px -bottom-px w-[calc(100%+2px)] h-[200px] z-10 border border-primary/30 rounded-xl flex flex-col gap-4 items-end pb-[18px] pt-[14px] px-4 shadow-[0px_8px_24px_0px_rgba(0,0,0,0.5)] cursor-pointer"
           style={{
             backgroundImage:
               "linear-gradient(90deg, rgba(34, 34, 38, 0.75) 0%, rgba(34, 34, 38, 0.75) 100%), linear-gradient(90deg, hsl(var(--secondary)) 0%, hsl(var(--secondary)) 100%)",
@@ -50,7 +55,12 @@ export default function ActivityCard({ notification, onDismiss, isExpanded, onTo
               ))}
             </div>
           </div>
-          <CardFooter notification={notification} projectId={projectId as string} variant="expanded" />
+          <CardFooter
+            notification={notification}
+            projectId={projectId as string}
+            variant="expanded"
+            onDismiss={onDismiss}
+          />
         </div>
       )}
     </div>
@@ -104,10 +114,12 @@ function CardFooter({
   notification,
   projectId,
   variant,
+  onDismiss,
 }: {
   notification: ActivityNotification;
   projectId: string;
   variant: "collapsed" | "expanded";
+  onDismiss: (id: string) => void;
 }) {
   return (
     <div className="flex items-center justify-between w-full">
@@ -115,7 +127,10 @@ function CardFooter({
       <div className="flex gap-2 items-center">
         {notification.type === "new_signal" && variant === "collapsed" && (
           <button
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDismiss(notification.id);
+            }}
             className="border border-[#555] rounded px-2 py-1 text-xs leading-4 text-foreground hover:bg-muted transition-colors"
           >
             Delete
