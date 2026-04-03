@@ -1,8 +1,10 @@
 use std::collections::HashSet;
 
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 use uuid::Uuid;
 
 use super::utils::chrono_to_nanoseconds;
@@ -264,5 +266,49 @@ impl TraceAggregation {
         }
 
         trace_aggregations.into_values().collect()
+    }
+}
+
+/// ClickHouse representation of a trace_tags row.
+#[derive(Row, Serialize, Deserialize, Debug, Clone)]
+pub struct CHTraceTag {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub project_id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub trace_id: Uuid,
+    /// DateTime64(6, 'UTC') as microseconds since epoch
+    pub updated_at: i64,
+    pub tags: Vec<String>,
+}
+
+#[instrument(skip(clickhouse, items))]
+pub async fn insert_trace_tags_batch(
+    clickhouse: &clickhouse::Client,
+    items: &[CHTraceTag],
+) -> Result<()> {
+    if items.is_empty() {
+        return Ok(());
+    }
+
+    let ch_insert = clickhouse.insert::<CHTraceTag>("trace_tags").await;
+    match ch_insert {
+        Ok(mut ch_insert) => {
+            for item in items {
+                ch_insert.write(item).await?;
+            }
+
+            let ch_insert_end_res = ch_insert.end().await;
+            match ch_insert_end_res {
+                Ok(_) => Ok(()),
+                Err(e) => Err(anyhow::anyhow!(
+                    "Clickhouse batch trace_tags insertion failed: {:?}",
+                    e
+                )),
+            }
+        }
+        Err(e) => Err(anyhow::anyhow!(
+            "Failed to insert trace_tags batch into Clickhouse: {:?}",
+            e
+        )),
     }
 }

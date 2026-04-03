@@ -17,7 +17,7 @@ use crate::{
     ch::{
         ClickhouseTrait,
         spans::CHSpan,
-        traces::{CHTrace, TraceAggregation},
+        traces::{CHTrace, CHTraceTag, TraceAggregation, insert_trace_tags_batch},
     },
     db::{
         DB,
@@ -102,6 +102,22 @@ pub async fn process_span_messages(
                     ch_traces.len(),
                     e
                 );
+            }
+
+            // Insert trace_tags into the separate trace_tags table for traces with non-empty tags
+            let ch_trace_tags: Vec<CHTraceTag> = updated_traces
+                .iter()
+                .filter(|trace| !trace.trace_tags().is_empty())
+                .map(|trace| CHTraceTag {
+                    project_id: trace.project_id(),
+                    trace_id: trace.id(),
+                    updated_at: chrono::Utc::now().timestamp_micros(),
+                    tags: trace.trace_tags().clone(),
+                })
+                .collect();
+
+            if let Err(e) = insert_trace_tags_batch(&clickhouse, &ch_trace_tags).await {
+                log::error!("Failed to insert trace_tags to ClickHouse: {:?}", e);
             }
 
             send_trace_updates(&updated_traces, &pubsub).await;
