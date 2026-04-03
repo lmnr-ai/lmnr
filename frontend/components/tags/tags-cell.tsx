@@ -49,15 +49,15 @@ const TagsCell = ({ tags }: TagsCellProps) => {
           </div>
         </TooltipTrigger>
         <TooltipPortal>
-          <TooltipContent side="bottom" className="p-2 border">
-            <div className="flex flex-col gap-1 items-start">
+          <TooltipContent side="bottom" className="px-3 py-2 border">
+            <div className="flex flex-col gap-1.5 items-start text-secondary-foreground">
               {resolvedTags.map((tag) => (
                 <div key={tag.name} className="flex flex-row items-center gap-2">
                   <div
-                    className={cn("size-3 rounded-full flex-shrink-0", !tag.color && "bg-gray-300")}
+                    className={cn("size-2.5 rounded-full flex-shrink-0", !tag.color && "bg-gray-300")}
                     style={tag.color ? { backgroundColor: tag.color } : undefined}
                   />
-                  <span className="text-sm">{tag.name}</span>
+                  <span className="text-xs">{tag.name}</span>
                 </div>
               ))}
             </div>
