@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::DateTime;
 use serde::Deserialize;
 use serde_json::Value;
+use sha3::{Digest, Sha3_256};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use uuid::Uuid;
@@ -37,6 +38,7 @@ pub struct CompressedSpan {
     pub status: String,
     pub parent: Option<String>,
     pub exception: Option<String>,
+    pub system_prompt_ref: Option<String>,
 }
 
 const SPAN_SHORT_ID_LEN: usize = 6;
@@ -181,15 +183,88 @@ fn content_overlap_score(needle_words: &HashSet<String>, haystack_words: &HashSe
     matched as f64 / needle_words.len() as f64
 }
 
+/// Hash a system prompt text to a stable short hex identifier.
+/// Normalizes whitespace and lowercases before hashing so minor formatting
+/// variations produce the same hash.
+fn hash_system_prompt(text: &str) -> String {
+    let normalized = text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+    let digest = Sha3_256::digest(normalized.as_bytes());
+    format!("{:x}", digest)[..8].to_string()
+}
+
+/// Extract the system message from a parsed LLM input message array.
+/// Returns `(system_text, remaining_messages)` if a `role: "system"` message is found.
+fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
+    let messages = parsed.as_array()?;
+    let sys_idx = messages.iter().position(|m| {
+        m.get("role")
+            .and_then(|r| r.as_str())
+            .is_some_and(|r| r == "system")
+    })?;
+    let sys_msg = &messages[sys_idx];
+    let sys_text = sys_msg
+        .get("content")
+        .and_then(|c| c.as_str())
+        .or_else(|| {
+            sys_msg
+                .get("parts")
+                .and_then(|p| p.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|p| p.get("text"))
+                .and_then(|t| t.as_str())
+        })
+        .unwrap_or("")
+        .to_string();
+    if sys_text.is_empty() {
+        return None;
+    }
+    let remaining: Vec<Value> = messages
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != sys_idx)
+        .map(|(_, m)| m.clone())
+        .collect();
+    Some((sys_text, Value::Array(remaining)))
+}
+
+/// Scan all LLM spans and extract unique system prompts.
+/// Returns a map of `hash -> full_system_prompt_text` for all unique system prompts found.
+pub fn extract_system_prompts(ch_spans: &[CHSpan]) -> HashMap<String, String> {
+    let mut result: HashMap<String, String> = HashMap::new();
+    for span in ch_spans {
+        if span.span_type != 1 {
+            continue;
+        }
+        let parsed = try_parse_json(&strip_noise(&span.input));
+        if let Some((sys_text, _)) = extract_system_message(&parsed) {
+            let hash = hash_system_prompt(&sys_text);
+            result.entry(hash).or_insert(sys_text);
+        }
+    }
+    result
+}
+
 /// Compress span content based on type and occurrence.
 /// Spans are identified by the last 6 hex chars of their UUID, which is stable
 /// across iterations regardless of span arrival order.
+///
+/// `system_prompt_summaries` maps system prompt hash -> compressed summary.
+/// When provided, system messages are extracted from LLM inputs and replaced
+/// with a `system_prompt: sp_XXXX` reference. Summaries appear in the preamble.
 ///
 /// Optimizations applied:
 /// - Default spans with empty input AND output are fully excluded.
 /// - Tool span inputs that duplicate a preceding LLM sibling's output are
 ///   replaced with a `<from_llm_output span_id='...'>` reference.
-pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
+/// - System prompts in LLM inputs are extracted and replaced with references.
+pub fn compress_span_content(
+    ch_spans: &[CHSpan],
+    system_prompt_summaries: &HashMap<String, String>,
+) -> Vec<CompressedSpan> {
     let span_uuid_to_short: HashMap<Uuid, String> = ch_spans
         .iter()
         .map(|span| (span.span_id, span_short_id(&span.span_id)))
@@ -235,6 +310,8 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
             let mut input_truncated = false;
             let mut output_truncated = false;
 
+            let mut sys_prompt_ref: Option<String> = None;
+
             let (input, output) = if is_llm {
                 let cleaned_output = clean_whitespace(&strip_noise(&ch_span.output));
                 let output_words = extract_words(&cleaned_output);
@@ -254,7 +331,21 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
                 } else {
                     seen_llm_paths.insert(path.clone());
                     let parsed = try_parse_json(&strip_noise(&ch_span.input));
-                    let llm_str = truncate_llm_input(&parsed, &mut input_truncated);
+
+                    let input_to_process =
+                        if let Some((sys_text, remaining)) = extract_system_message(&parsed) {
+                            let hash = hash_system_prompt(&sys_text);
+                            if system_prompt_summaries.contains_key(&hash) {
+                                sys_prompt_ref = Some(format!("sp_{}", hash));
+                                remaining
+                            } else {
+                                parsed
+                            }
+                        } else {
+                            parsed
+                        };
+
+                    let llm_str = truncate_llm_input(&input_to_process, &mut input_truncated);
                     let input_str = clean_whitespace(&llm_str);
                     let input_str =
                         truncate_str(input_str, LLM_INPUT_TOTAL_MAX_CHARS, &mut input_truncated);
@@ -335,13 +426,34 @@ pub fn compress_span_content(ch_spans: &[CHSpan]) -> Vec<CompressedSpan> {
                 },
                 parent,
                 exception,
+                system_prompt_ref: sys_prompt_ref,
             })
         })
         .collect()
 }
 
-fn spans_to_string(spans: &[CompressedSpan]) -> String {
+fn spans_to_string(
+    spans: &[CompressedSpan],
+    system_prompt_summaries: &HashMap<String, String>,
+) -> String {
     let mut out = String::new();
+
+    // Emit system prompts preamble if any were extracted
+    let used_refs: HashSet<&str> = spans
+        .iter()
+        .filter_map(|s| s.system_prompt_ref.as_deref())
+        .collect();
+    if !used_refs.is_empty() {
+        let _ = writeln!(out, "system_prompts:");
+        for ref_id in &used_refs {
+            let hash = ref_id.strip_prefix("sp_").unwrap_or(ref_id);
+            if let Some(summary) = system_prompt_summaries.get(hash) {
+                let _ = writeln!(out, "  {}: {}", ref_id, summary);
+            }
+        }
+        let _ = writeln!(out);
+    }
+
     for span in spans {
         let is_llm = span.span_type == "llm";
         let _ = writeln!(out, "- id: {}", span.id);
@@ -361,6 +473,9 @@ fn spans_to_string(spans: &[CompressedSpan]) -> String {
         }
         if !span.status.is_empty() {
             let _ = writeln!(out, "  status: {}", span.status);
+        }
+        if let Some(ref_id) = &span.system_prompt_ref {
+            let _ = writeln!(out, "  system_prompt: {}", ref_id);
         }
         if span.input_truncated {
             let _ = writeln!(out, "  input_truncated: true");
@@ -459,27 +574,50 @@ pub async fn get_trace_span_ids_and_end_time(
     Ok(spans)
 }
 
-/// Get trace structure as YAML of all compressed spans
+/// Query trace spans from ClickHouse (public for use in process_run).
+pub async fn get_trace_ch_spans(
+    clickhouse: clickhouse::Client,
+    project_id: Uuid,
+    trace_id: Uuid,
+) -> Result<Vec<CHSpan>> {
+    get_trace_spans(clickhouse, project_id, trace_id).await
+}
+
+/// Build the trace structure string from pre-fetched spans and system prompt summaries.
+pub fn build_trace_structure_string(
+    ch_spans: &[CHSpan],
+    trace_id: Uuid,
+    system_prompt_summaries: &HashMap<String, String>,
+) -> String {
+    if ch_spans.is_empty() {
+        return format!(
+            "No spans found for trace {}. Either the trace does not exist in this project or there are no spans in the trace.",
+            trace_id
+        );
+    }
+
+    let compressed_spans = compress_span_content(ch_spans, system_prompt_summaries);
+    let trace_str = spans_to_string(&compressed_spans, system_prompt_summaries);
+
+    format!(
+        "Here are all spans of the trace:\n<spans>\n{}</spans>\n",
+        trace_str
+    )
+}
+
+/// Get trace structure as YAML of all compressed spans.
+/// This is the simple path without system prompt summarization (used by MCP, trace chat).
 pub async fn get_trace_structure_as_string(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
     trace_id: Uuid,
 ) -> Result<String> {
     let ch_spans = get_trace_spans(clickhouse, project_id, trace_id).await?;
-
-    if ch_spans.is_empty() {
-        return Ok(format!(
-            "No spans found for trace {}. Either the trace does not exist in this project or there are no spans in the trace.",
-            trace_id
-        ));
-    }
-
-    let compressed_spans = compress_span_content(&ch_spans);
-    let trace_str = spans_to_string(&compressed_spans);
-
-    Ok(format!(
-        "Here are all spans of the trace:\n<spans>\n{}</spans>\n",
-        trace_str
+    let empty_summaries = HashMap::new();
+    Ok(build_trace_structure_string(
+        &ch_spans,
+        trace_id,
+        &empty_summaries,
     ))
 }
 
@@ -639,7 +777,8 @@ mod tests {
             ),
         ];
 
-        let result = compress_span_content(&spans);
+        let no_summaries = HashMap::new();
+        let result = compress_span_content(&spans, &no_summaries);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].name, "agent");
     }
@@ -656,11 +795,20 @@ mod tests {
         )];
 
         let spans = vec![
-            make_span(parent_id, Uuid::nil(), "agent", 0, 1000, "\"run\"", "\"ok\""),
+            make_span(
+                parent_id,
+                Uuid::nil(),
+                "agent",
+                0,
+                1000,
+                "\"run\"",
+                "\"ok\"",
+            ),
             span,
         ];
 
-        let result = compress_span_content(&spans);
+        let no_summaries = HashMap::new();
+        let result = compress_span_content(&spans, &no_summaries);
         assert_eq!(result.len(), 2);
         let kept = result.iter().find(|s| s.name == "failing_step").unwrap();
         assert!(kept.exception.is_some());
@@ -689,7 +837,8 @@ mod tests {
             ),
         ];
 
-        let result = compress_span_content(&spans);
+        let no_summaries = HashMap::new();
+        let result = compress_span_content(&spans, &no_summaries);
         assert_eq!(result.len(), 2);
     }
 
@@ -719,7 +868,8 @@ mod tests {
             make_span(Uuid::new_v4(), parent_id, "done", 6, 2000, tool_input, "{}"),
         ];
 
-        let result = compress_span_content(&spans);
+        let no_summaries = HashMap::new();
+        let result = compress_span_content(&spans, &no_summaries);
         let tool_span = result.iter().find(|s| s.name == "done").unwrap();
 
         assert!(
@@ -760,7 +910,8 @@ mod tests {
             ),
         ];
 
-        let result = compress_span_content(&spans);
+        let no_summaries = HashMap::new();
+        let result = compress_span_content(&spans, &no_summaries);
         let tool_span = result.iter().find(|s| s.name == "go_back").unwrap();
 
         assert!(
@@ -801,7 +952,8 @@ mod tests {
             ),
         ];
 
-        let result = compress_span_content(&spans);
+        let no_summaries = HashMap::new();
+        let result = compress_span_content(&spans, &no_summaries);
         let tool_span = result.iter().find(|s| s.name == "db_query").unwrap();
 
         assert!(
@@ -836,7 +988,8 @@ mod tests {
             ),
         ];
 
-        let result = compress_span_content(&spans);
+        let no_summaries = HashMap::new();
+        let result = compress_span_content(&spans, &no_summaries);
         let tool_span = result.iter().find(|s| s.name == "navigate").unwrap();
 
         assert!(
@@ -877,7 +1030,8 @@ mod tests {
             ),
         ];
 
-        let result = compress_span_content(&spans);
+        let no_summaries = HashMap::new();
+        let result = compress_span_content(&spans, &no_summaries);
         let tool_span = result.iter().find(|s| s.name == "click").unwrap();
 
         assert!(
@@ -938,7 +1092,8 @@ mod tests {
             ),
         ];
 
-        let result = compress_span_content(&spans);
+        let no_summaries = HashMap::new();
+        let result = compress_span_content(&spans, &no_summaries);
         let search_tool = result.iter().find(|s| s.name == "search_db").unwrap();
         let email_tool = result.iter().find(|s| s.name == "send_mail").unwrap();
 
@@ -1002,11 +1157,240 @@ mod tests {
             ),
         ];
 
-        let result = compress_span_content(&spans);
+        let no_summaries = HashMap::new();
+        let result = compress_span_content(&spans, &no_summaries);
         let outer_tool = result.iter().find(|s| s.name == "outer_tool").unwrap();
         let inner_tool = result.iter().find(|s| s.name == "inner_tool").unwrap();
 
         assert!(outer_tool.input.contains(&span_short_id(&outer_llm)));
         assert!(inner_tool.input.contains(&span_short_id(&inner_llm)));
+    }
+
+    // ===================================================================
+    // extract_system_message
+    // ===================================================================
+
+    #[test]
+    fn test_extract_system_message_openai_format() {
+        let input = serde_json::json!([
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Hello"}
+        ]);
+        let (sys_text, remaining) = extract_system_message(&input).unwrap();
+        assert_eq!(sys_text, "You are a helpful assistant.");
+        assert_eq!(remaining.as_array().unwrap().len(), 1);
+        assert_eq!(remaining[0]["role"], "user");
+    }
+
+    #[test]
+    fn test_extract_system_message_gemini_parts_format() {
+        let input = serde_json::json!([
+            {"role": "system", "parts": [{"text": "You are a safety-focused agent."}]},
+            {"role": "user", "parts": [{"text": "Do something"}]}
+        ]);
+        let (sys_text, remaining) = extract_system_message(&input).unwrap();
+        assert_eq!(sys_text, "You are a safety-focused agent.");
+        assert_eq!(remaining.as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_extract_system_message_none_when_absent() {
+        let input = serde_json::json!([
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi"}
+        ]);
+        assert!(extract_system_message(&input).is_none());
+    }
+
+    #[test]
+    fn test_extract_system_message_none_for_non_array() {
+        let input = serde_json::json!({"role": "system", "content": "test"});
+        assert!(extract_system_message(&input).is_none());
+    }
+
+    // ===================================================================
+    // hash_system_prompt
+    // ===================================================================
+
+    #[test]
+    fn test_hash_stability() {
+        let hash1 = hash_system_prompt("You are a helpful assistant.");
+        let hash2 = hash_system_prompt("You are a helpful assistant.");
+        assert_eq!(hash1, hash2);
+        assert_eq!(hash1.len(), 8);
+    }
+
+    #[test]
+    fn test_hash_whitespace_normalization() {
+        let hash1 = hash_system_prompt("You  are\n a   helpful\tassistant.");
+        let hash2 = hash_system_prompt("You are a helpful assistant.");
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_hash_case_normalization() {
+        let hash1 = hash_system_prompt("You Are A Helpful Assistant.");
+        let hash2 = hash_system_prompt("you are a helpful assistant.");
+        assert_eq!(hash1, hash2);
+    }
+
+    // ===================================================================
+    // extract_system_prompts (full scan)
+    // ===================================================================
+
+    #[test]
+    fn test_extract_system_prompts_from_trace() {
+        let sys_prompt = "You are a customer support agent. Always be polite.";
+        let input = format!(
+            r#"[{{"role":"system","content":"{}"}},{{"role":"user","content":"Help me"}}]"#,
+            sys_prompt
+        );
+        let spans = vec![
+            make_span(
+                Uuid::new_v4(),
+                Uuid::nil(),
+                "llm_call",
+                1,
+                1000,
+                &input,
+                "ok",
+            ),
+            make_span(
+                Uuid::new_v4(),
+                Uuid::nil(),
+                "tool_call",
+                6,
+                2000,
+                "{}",
+                "ok",
+            ),
+        ];
+
+        let extracted = extract_system_prompts(&spans);
+        assert_eq!(extracted.len(), 1);
+        let (_, text) = extracted.iter().next().unwrap();
+        assert_eq!(text, sys_prompt);
+    }
+
+    #[test]
+    fn test_extract_system_prompts_deduplicates() {
+        let sys_prompt = "You are a helpful agent.";
+        let input = format!(
+            r#"[{{"role":"system","content":"{}"}},{{"role":"user","content":"Hi"}}]"#,
+            sys_prompt
+        );
+        let spans = vec![
+            make_span(Uuid::new_v4(), Uuid::nil(), "llm_a", 1, 1000, &input, "a"),
+            make_span(Uuid::new_v4(), Uuid::nil(), "llm_b", 1, 2000, &input, "b"),
+        ];
+
+        let extracted = extract_system_prompts(&spans);
+        assert_eq!(extracted.len(), 1);
+    }
+
+    // ===================================================================
+    // compress_span_content — system prompt extraction
+    // ===================================================================
+
+    #[test]
+    fn test_system_prompt_extracted_and_referenced() {
+        let sys_prompt = "You are a customer support agent. Always be polite and helpful.";
+        let input = format!(
+            r#"[{{"role":"system","content":"{}"}},{{"role":"user","content":"Help me"}}]"#,
+            sys_prompt
+        );
+        let hash = hash_system_prompt(sys_prompt);
+        let summaries: HashMap<String, String> = [(
+            hash.clone(),
+            "Customer support agent. Be polite.".to_string(),
+        )]
+        .into_iter()
+        .collect();
+
+        let spans = vec![make_span(
+            Uuid::new_v4(),
+            Uuid::nil(),
+            "openai.chat",
+            1,
+            1000,
+            &input,
+            "Sure, I can help!",
+        )];
+
+        let result = compress_span_content(&spans, &summaries);
+        assert_eq!(result.len(), 1);
+        let span = &result[0];
+        assert_eq!(span.system_prompt_ref, Some(format!("sp_{}", hash)));
+        assert!(
+            !span.input.contains("customer support"),
+            "system message should be stripped from input, got: {}",
+            span.input
+        );
+        assert!(span.input.contains("Help me"));
+    }
+
+    #[test]
+    fn test_system_prompt_kept_when_no_summary() {
+        let sys_prompt = "You are a customer support agent.";
+        let input = format!(
+            r#"[{{"role":"system","content":"{}"}},{{"role":"user","content":"Help me"}}]"#,
+            sys_prompt
+        );
+
+        let no_summaries = HashMap::new();
+        let spans = vec![make_span(
+            Uuid::new_v4(),
+            Uuid::nil(),
+            "openai.chat",
+            1,
+            1000,
+            &input,
+            "Sure!",
+        )];
+
+        let result = compress_span_content(&spans, &no_summaries);
+        assert_eq!(result.len(), 1);
+        let span = &result[0];
+        assert!(span.system_prompt_ref.is_none());
+        assert!(span.input.contains("customer support"));
+    }
+
+    #[test]
+    fn test_system_prompt_preamble_in_output() {
+        let sys_prompt = "You are a safety-focused AI agent with strict rules.";
+        let input = format!(
+            r#"[{{"role":"system","content":"{}"}},{{"role":"user","content":"Do X"}}]"#,
+            sys_prompt
+        );
+        let hash = hash_system_prompt(sys_prompt);
+        let summary = "Safety-focused AI agent with strict rules.".to_string();
+        let summaries: HashMap<String, String> =
+            [(hash.clone(), summary.clone())].into_iter().collect();
+
+        let spans = vec![make_span(
+            Uuid::new_v4(),
+            Uuid::nil(),
+            "llm",
+            1,
+            1000,
+            &input,
+            "ok",
+        )];
+
+        let compressed = compress_span_content(&spans, &summaries);
+        let output = spans_to_string(&compressed, &summaries);
+        assert!(
+            output.contains("system_prompts:"),
+            "output should contain system_prompts section, got:\n{}",
+            output
+        );
+        assert!(
+            output.contains(&format!("sp_{}", hash)),
+            "output should contain the ref id"
+        );
+        assert!(
+            output.contains(&summary),
+            "output should contain the summary"
+        );
     }
 }
