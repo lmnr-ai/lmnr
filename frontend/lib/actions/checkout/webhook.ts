@@ -59,7 +59,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
   });
   const currentTier = workspace?.subscriptionTier?.name.trim().toLowerCase();
 
-  const [{ tierId: newTierId }] = await db
+  const updatedRows = await db
     .update(workspaces)
     .set({
       subscriptionId,
@@ -103,6 +103,10 @@ export const manageWorkspaceSubscriptionEvent = async ({
     await db.delete(workspaceUsage).where(eq(workspaceUsage.workspaceId, workspaceId));
   }
   await updateUsageCacheForWorkspace(workspaceId, true, true);
+  if (updatedRows.length === 0) {
+    return;
+  }
+  const newTierId = updatedRows[0].tierId;
   try {
     const newTier = await db.query.subscriptionTiers.findFirst({
       where: eq(subscriptionTiers.id, newTierId),
@@ -113,7 +117,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
       : undefined;
     if (["hobby", "pro"].includes(newTierName ?? "NOT_FOUND")) {
       const newTierConfig = TIER_CONFIG[newTierName! as PaidTier];
-      insertNewTierUsageWarnings({
+      await insertNewTierUsageWarnings({
         workspaceId,
         newTierConfig,
         currentTierConfig,
