@@ -1151,9 +1151,6 @@ export const traces = pgTable(
     spanNames: jsonb("span_names"),
     rootSpanInput: text("root_span_input"),
     rootSpanOutput: text("root_span_output"),
-    traceTags: text("trace_tags")
-      .array()
-      .default(sql`'{}'::text[]`),
   },
   (table) => [
     index("traces_pkey").using(
