@@ -42,6 +42,7 @@ def run_query_json(query: str) -> dict:
     elapsed = time.perf_counter() - start
     stats = data.get("statistics", {})
     return {
+        "data": data.get("data", []),
         "rows_read": stats.get("rows_read", 0),
         "bytes_read": stats.get("bytes_read", 0),
         "ch_ms": stats.get("elapsed", 0) * 1000,
