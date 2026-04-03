@@ -287,7 +287,6 @@ export const MessageWrapper = ({
     return () => resizeObserver.disconnect();
   }, [checkOverflow]);
 
-  const isCapped = !isExpanded && isOverflowing;
   const showToggle = isOverflowing || isExpanded;
 
   return (
