@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { type Stripe } from "stripe";
 
 import { deleteAllProjectsWorkspaceInfoFromCache } from "@/lib/actions/project";
+import { invalidateUsageWarningsCacheForWorkspace } from "@/lib/actions/usage/utils";
 import { cache, WORKSPACE_BYTES_USAGE_CACHE_KEY, WORKSPACE_SIGNAL_RUNS_USAGE_CACHE_KEY } from "@/lib/cache";
 import { db } from "@/lib/db/drizzle";
 import {
@@ -122,6 +123,7 @@ export const manageWorkspaceSubscriptionEvent = async ({
         newTierConfig,
         currentTierConfig,
       });
+      await invalidateUsageWarningsCacheForWorkspace(workspaceId);
     }
   } catch (e) {
     console.error(`Failed to create new usage warnings for workspace ${workspaceId}, Error: ${e}`);
@@ -286,7 +288,7 @@ export const handleInvoiceFinalized = async (
   await updateUsageCacheForWorkspace(workspaceId, hasBytes, hasSignalRuns);
 };
 
-export const insertNewTierUsageWarnings = async ({
+const insertNewTierUsageWarnings = async ({
   workspaceId,
   newTierConfig,
   currentTierConfig,
