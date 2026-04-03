@@ -169,14 +169,14 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     cell: (row) => <Mono className="text-xs">{row.getValue() || "-"}</Mono>,
   },
   {
-    accessorFn: (row) => ("tags" in row ? row.tags : "-"),
+    accessorFn: (row) => ("spanTags" in row ? row.spanTags : "-"),
     cell: (row) => {
       const tags = row.getValue() as string[];
       if (Array.isArray(tags) && tags?.length > 0) return <TagsCell tags={tags} />;
       return "-";
     },
     header: "Tags",
-    accessorKey: "tags",
+    accessorKey: "spanTags",
     id: "tags",
   },
 ];
