@@ -291,26 +291,26 @@ export const MessageWrapper = ({
   const showToggle = isOverflowing || isExpanded;
 
   return (
-    <div className="relative border rounded">
+    <div className={cn("relative border rounded", { "border-b-0": showToggle })}>
       <RoleHeader role={role} className={stickyHeader ? "sticky top-0 z-10" : undefined} />
       <div ref={containerRef} className="overflow-hidden" style={!isExpanded ? { maxHeight } : undefined}>
         <div className="flex flex-col divide-y">{children}</div>
       </div>
       {showToggle && (
-        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b">
+        <div className="sticky bottom-0 z-30 flex flex-col items-center">
           {!isExpanded && (
             <div
               className="w-full pointer-events-none"
               style={{
-                height: isCapped ? 48 : 24,
-                marginTop: isCapped ? -48 : 0,
-                background: "linear-gradient(to bottom, transparent, hsl(var(--secondary)))",
+                height: 36,
+                marginTop: -36,
+                background: "linear-gradient(to bottom, transparent, hsl(var(--background) / 0.75))",
               }}
             />
           )}
           <button
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="py-1.5 bg-secondary w-full flex items-center justify-center gap-1 text-xs text-secondary-foreground cursor-pointer rounded-b transition-colors -mt-2"
+            className="py-1 bg-background/75 w-full flex items-center justify-center gap-1 text-xs text-secondary-foreground cursor-pointer rounded-b border-b transition-colors"
           >
             {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
           </button>
