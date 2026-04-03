@@ -132,45 +132,6 @@ const ReasoningField = () => {
 
   if (googleThinkingModels.find((g) => g === model)) {
     const config = googleProviderOptionsSettings[model as (typeof googleThinkingModels)[number]].thinkingConfig;
-
-    if (config.type === "level") {
-      return (
-        <div className="flex flex-col gap-4">
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-medium">Thinking Level</span>
-            <Controller
-              render={({ field: { value, onChange } }) => (
-                <Select value={value} onValueChange={onChange}>
-                  <SelectTrigger className="w-fit">
-                    <SelectValue placeholder="Select level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {config.levels.map((level) => (
-                      <SelectItem key={level} value={level}>
-                        {capitalize(level)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              name="providerOptions.google.thinkingConfig.thinkingLevel"
-              control={control}
-            />
-          </div>
-          <Controller
-            render={({ field: { onChange, value } }) => (
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium">Include Thoughts</span>
-                <Switch checked={value || undefined} onCheckedChange={onChange} />
-              </div>
-            )}
-            name="providerOptions.google.thinkingConfig.includeThoughts"
-            control={control}
-          />
-        </div>
-      );
-    }
-
     return (
       <div className="flex flex-col gap-4">
         <Controller

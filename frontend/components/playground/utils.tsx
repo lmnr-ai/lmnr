@@ -88,22 +88,11 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
       }
       case "gemini": {
         const config = googleProviderOptionsSettings[value as (typeof googleThinkingModels)[number]].thinkingConfig;
-        if (config.type === "level") {
-          const defaultLevel = config.levels.includes("medium") ? "medium" : config.levels[0];
-          return {
-            google: {
-              thinkingConfig: {
-                includeThoughts: false,
-                thinkingLevel: defaultLevel,
-              },
-            },
-          };
-        }
         return {
           google: {
             thinkingConfig: {
               includeThoughts: false,
-              thinkingBudget: config.min,
+              thinkingBudget: config?.min,
             },
           },
         };

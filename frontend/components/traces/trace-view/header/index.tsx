@@ -1,7 +1,7 @@
-import { ChevronsRight, Maximize, Radio, Sparkles, X } from "lucide-react";
+import { ChevronsRight, Maximize, Radio, Sparkles } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
@@ -166,9 +166,11 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               </Button>
             </span>
           )}
-          <span className={HEADER_ITEM_CLS}>
-            <Metadata metadata={trace?.metadata} />
-          </span>
+          {trace?.metadata && (
+            <span className={HEADER_ITEM_CLS}>
+              <Metadata metadata={trace?.metadata} />
+            </span>
+          )}
           <span className={HEADER_ITEM_CLS}>
             <TagsButton mode={{ type: "trace", traceId }} />
           </span>
@@ -194,7 +196,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
       <div className="flex flex-wrap gap-1 items-center">
         <TagsInline mode={{ type: "trace", traceId }} />
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mt-2">
         <TraceViewSearch
           spans={spans}
           onSubmit={onSearch}
