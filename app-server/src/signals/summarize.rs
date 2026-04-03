@@ -12,6 +12,8 @@ use crate::signals::provider::models::{
 use crate::signals::provider::{LanguageModelClient, ProviderClient};
 use crate::signals::provider::{ProviderThinkingConfig, ProviderThinkingLevel};
 
+const SUMMARY_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
+
 const SUMMARIZATION_PROMPT: &str = r#"Given this signal description that a developer wants to detect in traces:
 <signal_description>
 {{signal_prompt}}
@@ -85,7 +87,10 @@ pub async fn generate_and_cache_summaries(
         match generate_summary(llm_client, model, signal_prompt, sys_prompt_text).await {
             Ok(summary) => {
                 let key = cache_key(project_id, signal_id, &sig_hash, hash);
-                if let Err(e) = cache.insert(&key, summary.clone()).await {
+                if let Err(e) = cache
+                    .insert_with_ttl(&key, summary.clone(), SUMMARY_CACHE_TTL_SECONDS)
+                    .await
+                {
                     log::warn!("Failed to cache system prompt summary {}: {:?}", hash, e);
                 }
                 result.insert(hash.clone(), summary);

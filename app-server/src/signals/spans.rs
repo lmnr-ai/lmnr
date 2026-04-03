@@ -3,7 +3,7 @@ use chrono::DateTime;
 use serde::Deserialize;
 use serde_json::Value;
 use sha3::{Digest, Sha3_256};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
 use uuid::Uuid;
 
@@ -439,7 +439,7 @@ fn spans_to_string(
     let mut out = String::new();
 
     // Emit system prompts preamble if any were extracted
-    let used_refs: HashSet<&str> = spans
+    let used_refs: BTreeSet<&str> = spans
         .iter()
         .filter_map(|s| s.system_prompt_ref.as_deref())
         .collect();
