@@ -1,130 +1,49 @@
 "use client";
-import { type CheckedState } from "@radix-ui/react-checkbox";
+
 import { isEmpty } from "lodash";
 import { Plus } from "lucide-react";
-import { useParams } from "next/navigation";
 import { type Dispatch, type SetStateAction, useMemo } from "react";
 
-import { useTagsContext } from "@/components/tags/tags-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/lib/hooks/use-toast";
-import { type SpanTag, type TagClass } from "@/lib/traces/types";
+import { type TagClass } from "@/lib/traces/types";
+
+import { type Tag } from "./tags-dropdown";
 
 interface PickTagProps {
-  setStep: Dispatch<SetStateAction<0 | 1>>;
+  tags: Tag[];
+  tagClasses: TagClass[];
   query: string;
   setQuery: Dispatch<SetStateAction<string>>;
+  setStep: Dispatch<SetStateAction<0 | 1>>;
+  onAttach: (tagClassName: string) => Promise<void>;
+  onDetach: (tag: Tag) => Promise<void>;
 }
-const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
-  const params = useParams();
-  const { tags, tagClasses, mutate, mode } = useTagsContext();
-  const { toast } = useToast();
+
+const PickTag = ({ tags, tagClasses, query, setQuery, setStep, onAttach, onDetach }: PickTagProps) => {
   const { selected, available, hasExactMatch } = useMemo(() => {
-    const selectedNames = tags.map(({ name }) => name);
-    const selected = tagClasses.filter((tag) => selectedNames.includes(tag.name));
-    const available = tagClasses.filter((tag) => !selectedNames.includes(tag.name));
-
     const searchLower = query.toLowerCase();
-    const filteredSelected = selected.filter((tag) => tag.name.toLowerCase().includes(searchLower));
-    const filteredAvailable = available.filter((tag) => tag.name.toLowerCase().includes(searchLower));
+    const tagNames = new Set(tags.map((t) => t.name));
 
-    const hasExactMatch = [...selected, ...available].some((tag) => tag.name.toLowerCase() === searchLower);
+    // Build selected from actual tags — always show them even without a tagClass
+    const selected = tags
+      .filter((t) => t.name.toLowerCase().includes(searchLower))
+      .map((t) => {
+        const tc = tagClasses.find((c) => c.name === t.name);
+        return { ...t, color: t.color ?? tc?.color };
+      });
 
-    return {
-      selected: filteredSelected,
-      available: filteredAvailable,
-      hasExactMatch,
-    };
+    // Available = tagClasses not currently attached
+    const available = tagClasses
+      .filter((tc) => !tagNames.has(tc.name))
+      .filter((tc) => tc.name.toLowerCase().includes(searchLower));
+
+    const allNames = [...tagNames, ...tagClasses.map((tc) => tc.name)];
+    const hasExactMatch = allNames.some((name) => name.toLowerCase() === searchLower);
+
+    return { selected, available, hasExactMatch };
   }, [tagClasses, tags, query]);
-
-  const handleCheckTag = (tagClass: TagClass) => async (checked: CheckedState) => {
-    try {
-      if (checked) {
-        let attachUrl: string;
-        let body: Record<string, string>;
-
-        if (mode.type === "span") {
-          attachUrl = `/api/projects/${params?.projectId}/spans/${mode.spanId}/tags`;
-          body = { name: tagClass.name };
-        } else {
-          attachUrl = `/api/projects/${params?.projectId}/traces/${mode.traceId}/tags`;
-          body = { tagName: tagClass.name };
-        }
-
-        const res = await fetch(attachUrl, {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-
-        if (!res.ok) {
-          toast({ variant: "destructive", title: "Error", description: "Failed to attach tag." });
-          return;
-        }
-
-        if (mode.type === "span") {
-          const data = (await res.json()) as SpanTag;
-          await mutate([...tags, data], {
-            revalidate: false,
-          });
-        } else {
-          // Trace mode: API returns updated tag names array
-          // Revalidate to get the fresh list
-          await mutate();
-        }
-      }
-    } catch (e) {
-      if (e instanceof Error) {
-        toast({ variant: "destructive", title: "Error", description: e.message });
-      }
-    }
-  };
-
-  const deleteTag = async (tag: SpanTag) => {
-    let deleteUrl: string;
-    if (mode.type === "span") {
-      deleteUrl = `/api/projects/${params?.projectId}/spans/${mode.spanId}/tags/${encodeURIComponent(tag.id)}`;
-    } else {
-      deleteUrl = `/api/projects/${params?.projectId}/traces/${mode.traceId}/tags/${encodeURIComponent(tag.name)}`;
-    }
-    const res = await fetch(deleteUrl, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      const errMessage = await res
-        .json()
-        .then((d) => d?.error)
-        .catch(() => null);
-      throw new Error(errMessage ?? "Failed to delete tag");
-    }
-    return [tag];
-  };
-
-  const handleUncheckTag = (tag?: SpanTag) => async (checked: CheckedState) => {
-    try {
-      if (!checked && tag) {
-        if (mode.type === "span") {
-          await mutate(deleteTag(tag), {
-            optimisticData: [...tags.filter((l) => l.id !== tag.id)],
-            rollbackOnError: true,
-            populateCache: (updatedData, original) => [
-              ...(original ?? []).filter((item) => !updatedData.map((u) => u.id).includes(item.id)),
-            ],
-            revalidate: false,
-          });
-        } else {
-          // Trace mode: delete then revalidate to get the fresh string[] from API
-          await deleteTag(tag);
-          await mutate();
-        }
-      }
-    } catch (e) {
-      if (e instanceof Error) {
-        toast({ variant: "destructive", title: "Error", description: e.message });
-      }
-    }
-  };
 
   return (
     <>
@@ -138,11 +57,11 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
 
       {(!isEmpty(selected) || !isEmpty(available)) && <DropdownMenuSeparator />}
 
-      {!isEmpty(selected) && <SelectedTags tags={selected} onCheck={handleUncheckTag} spanTags={tags} />}
+      {!isEmpty(selected) && <SelectedTags tags={selected} onDetach={onDetach} />}
 
       {!isEmpty(selected) && !isEmpty(available) && <DropdownMenuSeparator />}
 
-      {!isEmpty(available) && <AvailableTags tags={available} onCheck={handleCheckTag} />}
+      {!isEmpty(available) && <AvailableTags tags={available} onAttach={onAttach} />}
       {query && !hasExactMatch && available.length + selected.length < 5 && (
         <>
           <DropdownMenuSeparator />
@@ -165,46 +84,42 @@ const PickTag = ({ setStep, query, setQuery }: PickTagProps) => {
 
 export default PickTag;
 
-const AvailableTags = ({
-  tags,
-  onCheck,
-}: {
-  tags: TagClass[];
-  onCheck: (tagClass: TagClass) => (checked: CheckedState) => Promise<void>;
-}) => (
+const AvailableTags = ({ tags, onAttach }: { tags: TagClass[]; onAttach: (tagClassName: string) => Promise<void> }) => (
   <DropdownMenuGroup>
     {tags.map((tag) => (
       <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.name}>
         <Checkbox
           checked={false}
-          onCheckedChange={onCheck(tag)}
+          onCheckedChange={(checked) => {
+            if (checked) onAttach(tag.name);
+          }}
           className="[&_svg]:!text-primary-foreground [&_svg]:!size-[10px]"
         />
-        <div style={{ background: tag.color }} className={`w-2 h-2 rounded-full`} />
+        <div
+          style={tag.color ? { background: tag.color } : undefined}
+          className={`w-2 h-2 rounded-full ${!tag.color ? "bg-gray-300" : ""}`}
+        />
         <span>{tag.name}</span>
       </DropdownMenuItem>
     ))}
   </DropdownMenuGroup>
 );
 
-const SelectedTags = ({
-  tags: tags,
-  onCheck,
-  spanTags: spanTags,
-}: {
-  tags: TagClass[];
-  onCheck: (tag?: SpanTag) => (checked: CheckedState) => Promise<void>;
-  spanTags: SpanTag[];
-}) => (
+const SelectedTags = ({ tags, onDetach }: { tags: Tag[]; onDetach: (tag: Tag) => Promise<void> }) => (
   <DropdownMenuGroup>
     {tags.map((tag) => (
       <DropdownMenuItem onSelect={(e) => e.preventDefault()} key={tag.name}>
         <Checkbox
-          onCheckedChange={onCheck(spanTags.find((s) => s.name === tag.name))}
+          onCheckedChange={(checked) => {
+            if (!checked) onDetach(tag);
+          }}
           checked
           className="[&_svg]:!text-primary-foreground [&_svg]:!size-[10px]"
         />
-        <div style={{ background: tag.color }} className={`w-2 h-2 rounded-full`} />
+        <div
+          style={tag.color ? { background: tag.color } : undefined}
+          className={`w-2 h-2 rounded-full ${!tag.color ? "bg-gray-300" : ""}`}
+        />
         <span>{tag.name}</span>
       </DropdownMenuItem>
     ))}

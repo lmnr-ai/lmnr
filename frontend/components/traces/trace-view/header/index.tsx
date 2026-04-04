@@ -5,7 +5,7 @@ import { memo, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import TagsButton from "@/components/tags/tags-button";
+import TraceTagsButton from "@/components/tags/trace-tags-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -171,7 +171,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
             </span>
           )}
           <span className={HEADER_ITEM_CLS}>
-            <TagsButton mode={{ type: "trace", traceId }} />
+            <TraceTagsButton traceId={traceId} />
           </span>
           {signalCount > 0 && (
             <span className={HEADER_ITEM_CLS}>
