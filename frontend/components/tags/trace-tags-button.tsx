@@ -129,7 +129,7 @@ const TraceTagsButton = ({ traceId, className }: TraceTagsButtonProps) => {
           ) : (
             <Tag className="size-3.5" />
           )}
-          Tags
+          {tags.length === 1 ? tags.at(0)?.name : "Tags"}
         </Button>
       </DropdownMenuTrigger>
     </TagsDropdown>

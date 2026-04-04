@@ -67,13 +67,14 @@ const PickTag = ({ tags, tagClasses, query, setQuery, setStep, onAttach, onDetac
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem
+              className="gap-1"
               onSelect={(e) => {
                 e.preventDefault();
                 setStep(1);
               }}
             >
-              <Plus size={16} className="mr-2" />
-              Create new tag: <span className="text-left">&#34;{query}&#34;</span>
+              <Plus size={16} />
+              <span className="text-left">{query}</span>
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </>
