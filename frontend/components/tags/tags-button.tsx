@@ -20,8 +20,8 @@ const TagsButtonContent = ({ className }: { className?: string }) => {
                 return (
                   <div
                     key={tag.id}
-                    className="size-3.5 border border-background rounded-full"
-                    style={{ background: color }}
+                    className={cn("size-3.5 border border-background rounded-full", !color && "bg-gray-300")}
+                    style={color ? { background: color } : undefined}
                   />
                 );
               })}
