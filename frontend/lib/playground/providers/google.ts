@@ -50,7 +50,6 @@ export const googleProviderOptionsSettings: Record<
       max: 24576,
     },
   },
-
   "gemini:gemini-3.1-flash-lite-preview": {
     thinkingConfig: {
       min: 512,

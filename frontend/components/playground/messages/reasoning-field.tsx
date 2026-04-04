@@ -48,29 +48,58 @@ const ReasoningField = () => {
   if (anthropicThinkingModels.find((a) => a === model)) {
     const config = anthropicProviderOptionsSettings[model as (typeof anthropicThinkingModels)[number]].thinking;
 
+    if (config.type === "effort") {
+      return (
+        <div className="flex justify-between items-center">
+          <span className="text-sm font-medium">Effort</span>
+          <Controller
+            render={({ field: { value, onChange } }) => (
+              <Select value={value} onValueChange={onChange}>
+                <SelectTrigger className="w-fit">
+                  <SelectValue placeholder="Select effort" />
+                </SelectTrigger>
+                <SelectContent>
+                  {config.levels.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {capitalize(level)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            name="providerOptions.anthropic.effort"
+            control={control}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col gap-4">
         <Controller
-          render={({ field: { value, onChange } }) => (
-            <>
-              <div className="flex justify-between">
-                <span className="text-sm font-medium">Thinking Tokens</span>
-                <Input
-                  onChange={(e) => onChange(Number(e.target.value))}
-                  value={Number(value)}
-                  type="number"
-                  className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
+          render={({ field: { value, onChange } }) => {
+            const tokens = value != null ? Number(value) : config.min;
+            return (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-sm font-medium">Thinking Tokens</span>
+                  <Input
+                    onChange={(e) => onChange(Number(e.target.value))}
+                    value={tokens}
+                    type="number"
+                    className="text-sm font-medium w-16 text-right hide-arrow px-1 py-0 h-fit"
+                  />
+                </div>
+                <Slider
+                  value={[tokens]}
+                  min={config.min}
+                  max={watch("maxTokens")}
+                  step={1}
+                  onValueChange={(v) => onChange(v?.[0])}
                 />
-              </div>
-              <Slider
-                value={[Number(value)]}
-                min={config.min}
-                max={watch("maxTokens")}
-                step={1}
-                onValueChange={(v) => onChange(v?.[0])}
-              />
-            </>
-          )}
+              </>
+            );
+          }}
           name="providerOptions.anthropic.thinking.budgetTokens"
           control={control}
         />

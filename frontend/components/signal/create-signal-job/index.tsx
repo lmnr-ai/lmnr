@@ -321,6 +321,7 @@ const CreateSignalJobContent = () => {
           </div>
           <div className="w-full px-px">
             <AdvancedSearch
+              storageKey="traces"
               mode="state"
               filters={tableFilters}
               resource="traces"

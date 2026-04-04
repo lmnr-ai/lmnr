@@ -5,10 +5,11 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+use actix_limitation::{Limiter, RateLimiter};
 use actix_web::{
-    App, HttpServer, dev,
+    App, HttpMessage, HttpServer, dev,
     http::StatusCode,
-    middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
+    middleware::{Condition, ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
@@ -1442,6 +1443,41 @@ fn main() -> anyhow::Result<()> {
 
     if enable_producer() {
         log::info!("Enabling producer mode, spinning up full HTTP and gRPC servers");
+
+        // === Rate limiter ===
+        let rate_limiter = if is_feature_enabled(Feature::RateLimiter) {
+            let redis_url = env::var("REDIS_URL").unwrap();
+            let limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
+            let period_secs: u64 = env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
+            // project_auth middleware populates ProjectApiKey in request extensions
+            match Limiter::builder(&redis_url)
+                .key_by(|req: &dev::ServiceRequest| {
+                    req.extensions()
+                        .get::<db::project_api_keys::ProjectApiKey>()
+                        .map(|k| format!("ratelimit:{}", k.project_id))
+                })
+                .limit(limit)
+                .period(Duration::from_secs(period_secs))
+                .build()
+            {
+                Ok(limiter) => {
+                    log::info!(
+                        "Rate limiter initialized ({} req/{} s per project)",
+                        limit,
+                        period_secs
+                    );
+                    Some(limiter)
+                }
+                Err(e) => {
+                    log::warn!("Failed to initialize rate limiter: {:?}", e);
+                    None
+                }
+            }
+        } else {
+            log::info!("Rate limiter is disabled");
+            None
+        };
+
         // == HTTP server and listener workers ==
         let http_server_handle = thread::Builder::new()
             .name("http".to_string())
@@ -1465,7 +1501,7 @@ fn main() -> anyhow::Result<()> {
                         let project_ingestion_auth =
                             HttpAuthentication::bearer(auth::project_ingestion_validator);
 
-                        App::new()
+                        let mut app = App::new()
                             .wrap(ErrorHandlers::new().handler(
                                 StatusCode::BAD_REQUEST,
                                 |res: dev::ServiceResponse| {
@@ -1488,7 +1524,13 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
                             .app_data(web::Data::new(pubsub.clone()))
-                            .app_data(web::Data::new(http_client_for_http.clone()))
+                            .app_data(web::Data::new(http_client_for_http.clone()));
+
+                        if let Some(ref limiter) = rate_limiter {
+                            app = app.app_data(web::Data::new(limiter.clone()));
+                        }
+
+                        app
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
@@ -1540,6 +1582,15 @@ fn main() -> anyhow::Result<()> {
                                     ),
                             )
                             .service(
+                                web::scope("/v1/sql")
+                                    .wrap(Condition::new(
+                                        rate_limiter.is_some(),
+                                        RateLimiter::default(),
+                                    ))
+                                    .wrap(project_auth.clone())
+                                    .service(api::v1::sql::execute_sql_query),
+                            )
+                            .service(
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
                                     .service(api::v1::datasets::get_datasets)
@@ -1549,7 +1600,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
-                                    .service(api::v1::sql::execute_sql_query)
                                     .service(api::v1::rollouts::stream)
                                     .service(api::v1::rollouts::update_status)
                                     .service(api::v1::rollouts::send_span_update)
