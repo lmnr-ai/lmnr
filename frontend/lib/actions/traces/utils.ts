@@ -110,7 +110,7 @@ const tracesSelectColumns = [
   "session_id as sessionId",
   "metadata",
   "tags as spanTags",
-  "trace_tags as traceTags",
+  "ifNull(trace_tags, []) as traceTags",
   "input_tokens as inputTokens",
   "output_tokens as outputTokens",
   "top_span_id as topSpanId",

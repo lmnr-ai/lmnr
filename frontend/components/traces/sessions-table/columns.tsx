@@ -177,7 +177,7 @@ export const columns: ColumnDef<SessionRow, any>[] = [
     },
     header: "Tags",
     accessorKey: "spanTags",
-    id: "tags",
+    id: "spanTags",
   },
 ];
 
@@ -194,5 +194,5 @@ export const defaultSessionsColumnOrder = [
   "total_tokens",
   "trace_count",
   "user_id",
-  "tags",
+  "spanTags",
 ];
