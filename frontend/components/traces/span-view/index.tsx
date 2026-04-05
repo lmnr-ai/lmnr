@@ -57,7 +57,7 @@ const SpanViewTabs = ({
   const defaultTab = initialTab ?? (isLLM ? "overview" : "span-input");
 
   return (
-    <Tabs className="flex flex-col grow overflow-hidden gap-0" defaultValue={defaultTab} tabIndex={0}>
+    <Tabs key={initialTab} className="flex flex-col grow overflow-hidden gap-0" defaultValue={defaultTab} tabIndex={0}>
       <div className="px-2 pb-2 mt-2 border-b w-full">
         <TabsList className="border-none text-xs h-7">
           {isLLM && (
