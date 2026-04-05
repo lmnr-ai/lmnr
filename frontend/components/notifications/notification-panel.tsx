@@ -2,7 +2,6 @@
 
 import { Bell } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import useSWR from "swr";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -49,21 +48,20 @@ const formatNotification = (notification: WebNotification) => {
       title: payload.title,
       summary: `${report.total_events} new event${report.total_events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} during last ${periodType}`,
       period: `${report.period_start} - ${report.period_end}`,
-      projectCount: report.projects.length,
+      projects: report.projects.map((p) => ({ id: p.project_id, name: p.project_name })),
     };
   } catch {
     return {
       title: "Report",
       summary: "New signal events report available",
       period: "",
-      projectCount: 0,
+      projects: [],
     };
   }
 };
 
 const NotificationPanel = () => {
   const { workspace } = useProjectContext();
-  const { projectId } = useParams<{ projectId: string }>();
 
   const { data: notifications } = useSWR<WebNotification[]>(
     workspace ? `/api/workspaces/${workspace.id}/notifications` : null,
@@ -105,12 +103,19 @@ const NotificationPanel = () => {
                     {formatted.period && (
                       <span className="text-[11px] text-muted-foreground/70">{formatted.period}</span>
                     )}
-                    <Link
-                      href={`/project/${projectId}/signals`}
-                      className="text-xs text-primary hover:underline mt-0.5 w-fit"
-                    >
-                      View events
-                    </Link>
+                    {formatted.projects.length > 0 && (
+                      <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
+                        {formatted.projects.map((p) => (
+                          <Link
+                            key={p.id}
+                            href={`/project/${p.id}/signals`}
+                            className="text-xs text-primary hover:underline w-fit"
+                          >
+                            {formatted.projects.length === 1 ? "View events" : p.name}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
