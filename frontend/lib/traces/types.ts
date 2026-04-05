@@ -60,6 +60,7 @@ export type Span = {
   outputTokens: number;
   totalTokens: number;
   cacheReadInputTokens?: number;
+  reasoningTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;

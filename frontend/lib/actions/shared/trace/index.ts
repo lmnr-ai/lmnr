@@ -23,7 +23,7 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
 
   const projectId = sharedTrace.projectId;
 
-  const [[trace], [cacheTokens]] = await Promise.all([
+  const [[trace], [extraTokens]] = await Promise.all([
     executeQuery<Omit<TraceViewTrace, "visibility">>({
       query: `
       SELECT
@@ -49,13 +49,14 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
         traceId,
       },
     }),
-    executeQuery<{ cacheReadInputTokens: number }>({
+    executeQuery<{ cacheReadInputTokens: number; reasoningTokens: number }>({
       query: `
-      SELECT 
-          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens')) as cacheReadInputTokens
+      SELECT
+          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.cache_read_input_tokens')) as cacheReadInputTokens,
+          SUM(simpleJSONExtractUInt(attributes, 'gen_ai.usage.reasoning_tokens')) as reasoningTokens
       FROM spans
       WHERE trace_id = {traceId: UUID}
-        AND span_type = 'LLM'  
+        AND span_type = 'LLM'
       `,
       projectId,
       parameters: {
@@ -70,7 +71,8 @@ export async function getSharedTrace(input: z.infer<typeof GetSharedTraceSchema>
 
   return {
     ...trace,
-    cacheReadInputTokens: cacheTokens?.cacheReadInputTokens ?? 0,
+    cacheReadInputTokens: extraTokens?.cacheReadInputTokens ?? 0,
+    reasoningTokens: extraTokens?.reasoningTokens ?? 0,
     visibility: "public",
   };
 }

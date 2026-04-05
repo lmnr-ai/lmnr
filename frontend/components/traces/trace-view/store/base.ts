@@ -38,6 +38,7 @@ export type TraceViewSpan = {
   outputTokens: number;
   totalTokens: number;
   cacheReadInputTokens?: number;
+  reasoningTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
@@ -45,6 +46,7 @@ export type TraceViewSpan = {
     totalCost: number;
     totalTokens: number;
     cacheReadInputTokens?: number;
+    reasoningTokens?: number;
     hasLLMDescendants: boolean;
   };
   inputSnippet?: SnippetInfo;
@@ -81,6 +83,7 @@ export type TraceViewTrace = {
   outputTokens: number;
   totalTokens: number;
   cacheReadInputTokens?: number;
+  reasoningTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
