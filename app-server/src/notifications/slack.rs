@@ -119,7 +119,7 @@ fn format_event_identification_blocks(
                         serde_json::Value::Null => String::new(),
                         _ => serde_json::to_string_pretty(value).unwrap_or_default(),
                     };
-                    format!("• *{}*: {}", key, formatted_value)
+                    format!("_{}_\n{}", key, formatted_value)
                 })
                 .collect()
         } else {
@@ -146,8 +146,7 @@ fn format_event_identification_blocks(
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": format!(":small_blue_diamond: *Event*: `{}`", event_name)
-                }
+                    "text": format!("*Event*: `{}`", event_name)                }
             }),
             json!({
                 "type": "section",
