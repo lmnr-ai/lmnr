@@ -104,6 +104,7 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
     output: tryParseJson(span.output),
     attributes: parsedAttributes,
     cacheReadInputTokens: parsedAttributes["gen_ai.usage.cache_read_input_tokens"] || 0,
+    reasoningTokens: parsedAttributes["gen_ai.usage.reasoning_tokens"] || 0,
     events: (span.events || []).map((event) => ({
       timestamp: event.timestamp,
       name: event.name,
