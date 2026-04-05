@@ -71,6 +71,7 @@ export const enrichSpansWithPending = (existingSpans: TraceViewSpan[]): TraceVie
           outputTokens: 0,
           totalTokens: 0,
           cacheReadInputTokens: 0,
+          reasoningTokens: 0,
           traceId: span.traceId,
           spanType: SpanType.DEFAULT,
           path: "",
