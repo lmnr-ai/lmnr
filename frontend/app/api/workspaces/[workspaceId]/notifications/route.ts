@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { getWebNotifications } from "@/lib/actions/notifications";
 import { authOptions } from "@/lib/auth";
+import { isUserMemberOfWorkspace } from "@/lib/authorization";
 
 export async function GET(_request: NextRequest, props: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = await props.params;
@@ -11,6 +12,9 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ work
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!(await isUserMemberOfWorkspace(workspaceId, session.user.id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     const result = await getWebNotifications(workspaceId);
     return NextResponse.json(result);
