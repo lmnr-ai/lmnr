@@ -243,6 +243,41 @@ async fn process_report_trigger(
 
     let email_report = render_report_email(&report_data);
 
+    let title = format!("{} – {}", report_name, workspace_name);
+
+    // Push a WEB notification so the report is available in the UI notification panel.
+    // This runs before the targets check because WEB targets are not stored in the
+    // database and should always be sent when there are signal events to report.
+    {
+        let web_payload = ReportPayload {
+            title: title.clone(),
+            report: report_data.clone(),
+            channel_id: String::new(),
+            integration_id: Uuid::nil(),
+        };
+        let web_payload_value = serde_json::to_value(&web_payload)
+            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
+
+        let web_notification = NotificationMessage {
+            notification_type: NotificationType::Web,
+            payload: web_payload_value,
+            project_id: Uuid::nil(),
+            workspace_id,
+            definition_type: NotificationDefinitionType::Report,
+            definition_id: report_id,
+            target_id: Uuid::nil(),
+            target_type: TargetType::Web.to_string(),
+        };
+
+        if let Err(e) = push_to_notification_queue(web_notification, queue.clone()).await {
+            log::error!(
+                "[Reports Generator] Failed to push WEB report notification for workspace {}: {:?}",
+                workspace_id,
+                e
+            );
+        }
+    }
+
     // Fetch all notification targets
     let targets = get_report_targets(&db.pool, &report_id, &workspace_id)
         .await
@@ -256,8 +291,6 @@ async fn process_report_trigger(
         );
         return Ok(());
     }
-
-    let title = format!("{} – {}", report_name, workspace_name);
 
     // Push notifications to all targets
     let mut processed = 0;
@@ -348,38 +381,6 @@ async fn process_report_trigger(
             log::error!(
                 "[Reports Generator] Failed to push report notification for target {}: {:?}",
                 target.id,
-                e
-            );
-        }
-    }
-
-    // Push a WEB notification so the report is available in the UI notification panel.
-    // Reuse ReportPayload with empty channel_id / nil integration_id.
-    {
-        let web_payload = ReportPayload {
-            title: title.clone(),
-            report: report_data.clone(),
-            channel_id: String::new(),
-            integration_id: Uuid::nil(),
-        };
-        let web_payload_value = serde_json::to_value(&web_payload)
-            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
-
-        let web_notification = NotificationMessage {
-            notification_type: NotificationType::Web,
-            payload: web_payload_value,
-            project_id: Uuid::nil(),
-            workspace_id,
-            definition_type: NotificationDefinitionType::Report,
-            definition_id: report_id,
-            target_id: Uuid::nil(),
-            target_type: TargetType::Web.to_string(),
-        };
-
-        if let Err(e) = push_to_notification_queue(web_notification, queue.clone()).await {
-            log::error!(
-                "[Reports Generator] Failed to push WEB report notification for workspace {}: {:?}",
-                workspace_id,
                 e
             );
         }
