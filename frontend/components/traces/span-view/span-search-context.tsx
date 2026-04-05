@@ -39,18 +39,33 @@ const SpanSearchRegistrationContext = createContext<SpanSearchRegistrationContex
 export const useSpanSearchState = () => useContext(SpanSearchStateContext);
 export const useSpanSearchRegistration = () => useContext(SpanSearchRegistrationContext);
 
-function processSearchTerm(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  const hasEscapeSequences = /\\[nrt]/.test(trimmed);
-  return hasEscapeSequences ? trimmed.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r") : trimmed;
+function buildSearchRegex(query: string): RegExp | null {
+  const tokens = query
+    .split(/[^a-zA-Z0-9]+/)
+    .filter((t) => t.length > 0)
+    .map((t) => t.replace(/[\\.*+?^${}()|[\]]/g, "\\$&"));
+
+  if (tokens.length === 0) {
+    return null;
+  }
+
+  const core = tokens.length === 1 ? tokens[0] : tokens.join("[^a-zA-Z0-9]+");
+
+  return new RegExp(core, "i");
 }
 
-// Single-pass: applies the CodeMirror search query AND counts matches,
-// using one toString() and one toLowerCase() per editor.
 function applySearchAndCount(view: EditorView, searchTerm: string): number {
-  const processed = processSearchTerm(searchTerm);
-  if (!processed) {
+  const trimmed = searchTerm.trim();
+  if (!trimmed) {
+    closeSearchPanel(view);
+    view.dispatch({
+      effects: setSearchQuery.of(new SearchQuery({ search: "" })),
+    });
+    return 0;
+  }
+
+  const regex = buildSearchRegex(trimmed);
+  if (!regex) {
     closeSearchPanel(view);
     view.dispatch({
       effects: setSearchQuery.of(new SearchQuery({ search: "" })),
@@ -64,24 +79,18 @@ function applySearchAndCount(view: EditorView, searchTerm: string): number {
   view.dispatch({
     effects: setSearchQuery.of(
       new SearchQuery({
-        search: processed,
+        search: regex.source,
         caseSensitive: false,
-        literal: true,
+        literal: false,
         wholeWord: false,
-        regexp: false,
+        regexp: true,
       })
     ),
   });
 
-  const lowerDoc = docText.toLowerCase();
-  const lowerSearch = processed.toLowerCase();
-  let count = 0;
-  let pos = 0;
-  while ((pos = lowerDoc.indexOf(lowerSearch, pos)) !== -1) {
-    count++;
-    pos += lowerSearch.length;
-  }
-  return count;
+  const globalRegex = new RegExp(regex.source, "gi");
+  const matches = docText.match(globalRegex);
+  return matches ? matches.length : 0;
 }
 
 function findScrollableAncestor(el: HTMLElement): HTMLElement | null {
@@ -109,6 +118,9 @@ function scrollEditorMatchToCenter(view: EditorView) {
 }
 
 function navigateToMatch(view: EditorView, searchTerm: string, localIndex: number) {
+  const regex = buildSearchRegex(searchTerm);
+  if (!regex) return;
+
   view.dispatch({
     selection: { anchor: 0, head: 0 },
     scrollIntoView: false,
@@ -120,11 +132,11 @@ function navigateToMatch(view: EditorView, searchTerm: string, localIndex: numbe
   view.dispatch({
     effects: setSearchQuery.of(
       new SearchQuery({
-        search: searchTerm,
+        search: regex.source,
         caseSensitive: false,
-        literal: true,
+        literal: false,
         wholeWord: false,
-        regexp: false,
+        regexp: true,
       })
     ),
   });
@@ -244,7 +256,7 @@ export function SpanSearchProvider({ children, initialSearchTerm }: PropsWithChi
         }
       });
 
-      navigateToMatch(editor.view, processSearchTerm(searchTermRef.current), localIndex);
+      navigateToMatch(editor.view, searchTermRef.current.trim(), localIndex);
     },
     [getEditorForGlobalIndex]
   );
