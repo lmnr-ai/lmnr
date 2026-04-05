@@ -146,7 +146,8 @@ fn format_event_identification_blocks(
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": format!("*Event*: `{}`", event_name)                }
+                    "text": format!("*Event*: `{}`", event_name)
+                }
             }),
             json!({
                 "type": "section",
