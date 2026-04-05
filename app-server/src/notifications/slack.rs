@@ -119,7 +119,7 @@ fn format_event_identification_blocks(
                         serde_json::Value::Null => String::new(),
                         _ => serde_json::to_string_pretty(value).unwrap_or_default(),
                     };
-                    format!("_{}_\n{}", key, formatted_value)
+                    format!("_{}_:\n{}", key, formatted_value)
                 })
                 .collect()
         } else {
