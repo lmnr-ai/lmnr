@@ -49,6 +49,7 @@ export type TraceViewSpan = {
   };
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
+  attributesSnippet?: SnippetInfo;
 };
 
 export type TraceViewListSpan = {
@@ -69,6 +70,7 @@ export type TraceViewListSpan = {
   } | null;
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
+  attributesSnippet?: SnippetInfo;
 };
 
 export type TraceViewTrace = {
@@ -311,6 +313,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         pathInfo: pathInfoMap.get(span.spanId) ?? null,
         inputSnippet: span.inputSnippet,
         outputSnippet: span.outputSnippet,
+        attributesSnippet: span.attributesSnippet,
       }));
 
       return lightweightListSpans;

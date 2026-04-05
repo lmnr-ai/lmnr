@@ -53,7 +53,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
   const llmMetrics = getLLMMetrics(span);
   const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
 
-  const hasSnippet = !!(span.inputSnippet || span.outputSnippet);
+  const hasSnippet = !!(span.inputSnippet || span.outputSnippet || span.attributesSnippet);
 
   const hasChildren = childSpans && childSpans.length > 0;
   const isExpandable =
@@ -164,7 +164,12 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
             <div className="px-2 pt-0">
               {hasSnippet ? (
                 <div className="pb-2">
-                  <SnippetPreview inputSnippet={span.inputSnippet} outputSnippet={span.outputSnippet} variant="span" />
+                  <SnippetPreview
+                    inputSnippet={span.inputSnippet}
+                    outputSnippet={span.outputSnippet}
+                    attributesSnippet={span.attributesSnippet}
+                    variant="span"
+                  />
                 </div>
               ) : (
                 <>
