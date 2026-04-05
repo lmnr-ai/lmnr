@@ -21,8 +21,8 @@ use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
 use crate::notifications::{
-    EmailPayload, NotificationDefinitionType, NotificationMessage, ReportPayload, TargetType,
-    push_to_notification_queue,
+    EmailPayload, NotificationDefinitionType, NotificationMessage, NotificationType, ReportPayload,
+    TargetType, push_to_notification_queue,
 };
 use crate::signals::llm_model;
 use crate::signals::provider::models::{
@@ -310,6 +310,10 @@ async fn process_report_trigger(
                 serde_json::to_value(&payload)
                     .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?
             }
+            TargetType::Web => {
+                // Web targets are not stored in the database; skip if encountered.
+                continue;
+            }
         };
 
         processed += 1;
@@ -344,6 +348,38 @@ async fn process_report_trigger(
             log::error!(
                 "[Reports Generator] Failed to push report notification for target {}: {:?}",
                 target.id,
+                e
+            );
+        }
+    }
+
+    // Push a WEB notification so the report is available in the UI notification panel.
+    // Reuse ReportPayload with empty channel_id / nil integration_id.
+    {
+        let web_payload = ReportPayload {
+            title: title.clone(),
+            report: report_data.clone(),
+            channel_id: String::new(),
+            integration_id: Uuid::nil(),
+        };
+        let web_payload_value = serde_json::to_value(&web_payload)
+            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
+
+        let web_notification = NotificationMessage {
+            notification_type: NotificationType::Web,
+            payload: web_payload_value,
+            project_id: Uuid::nil(),
+            workspace_id,
+            definition_type: NotificationDefinitionType::Report,
+            definition_id: report_id,
+            target_id: Uuid::nil(),
+            target_type: TargetType::Web.to_string(),
+        };
+
+        if let Err(e) = push_to_notification_queue(web_notification, queue.clone()).await {
+            log::error!(
+                "[Reports Generator] Failed to push WEB report notification for workspace {}: {:?}",
+                workspace_id,
                 e
             );
         }

@@ -26,6 +26,7 @@ pub const NOTIFICATIONS_ROUTING_KEY: &str = "notifications";
 pub enum NotificationType {
     Slack,
     Email,
+    Web,
 }
 
 /// The delivery channel for a notification target, as stored in the database.
@@ -33,6 +34,7 @@ pub enum NotificationType {
 pub enum TargetType {
     Email,
     Slack,
+    Web,
 }
 
 impl std::str::FromStr for TargetType {
@@ -42,6 +44,7 @@ impl std::str::FromStr for TargetType {
         match s {
             "EMAIL" => Ok(Self::Email),
             "SLACK" => Ok(Self::Slack),
+            "WEB" => Ok(Self::Web),
             other => Err(format!("unknown target type: {other}")),
         }
     }
@@ -52,6 +55,7 @@ impl std::fmt::Display for TargetType {
         match self {
             Self::Email => f.write_str("EMAIL"),
             Self::Slack => f.write_str("SLACK"),
+            Self::Web => f.write_str("WEB"),
         }
     }
 }
@@ -61,6 +65,7 @@ impl From<TargetType> for NotificationType {
         match t {
             TargetType::Email => Self::Email,
             TargetType::Slack => Self::Slack,
+            TargetType::Web => Self::Web,
         }
     }
 }
@@ -182,6 +187,7 @@ impl MessageHandler for NotificationHandler {
         let delivered = match message.notification_type {
             NotificationType::Slack => self.handle_slack(&message).await?,
             NotificationType::Email => self.handle_email(&message).await?,
+            NotificationType::Web => true,
         };
 
         if delivered {
