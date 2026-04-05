@@ -39,9 +39,10 @@ const formatNotification = (notification: WebNotification) => {
     const payload: ReportPayload = JSON.parse(notification.payload);
     const report = payload.report;
     const signalCount = report.projects.reduce((acc, p) => acc + Object.keys(p.signal_event_counts).length, 0);
-    const startDate = new Date(report.period_start);
-    const endDate = new Date(report.period_end);
-    const diffDays = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const startMs = new Date(report.period_start).getTime();
+    const endMs = new Date(report.period_end).getTime();
+    const diffDays =
+      Number.isNaN(startMs) || Number.isNaN(endMs) ? NaN : Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
     const periodType = diffDays >= 7 ? "week" : diffDays > 1 ? `${diffDays} days` : "day";
 
     return {
