@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::{DateTime, Months, Utc};
-use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -185,7 +184,6 @@ pub async fn get_workspace_signal_runs_limit_exceeded(
     Ok(signal_runs >= effective_limit)
 }
 
-#[instrument(skip(db, clickhouse, cache, queue, project_id, bytes))]
 pub async fn update_workspace_bytes_ingested(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
@@ -277,7 +275,6 @@ pub async fn update_workspace_bytes_ingested(
     Ok(())
 }
 
-#[instrument(skip(db, clickhouse, cache, queue, project_id, runs))]
 pub async fn update_workspace_signal_runs_used(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
@@ -521,9 +518,7 @@ async fn send_soft_limit_notification(
             );
             // Message is now durably queued. Eagerly update DB and evict the warnings
             // cache so ingestion workers don't re-enqueue for the same billing cycle.
-            if let Err(e) =
-                usage_warnings::mark_warning_as_notified(&db.pool, warning_id).await
-            {
+            if let Err(e) = usage_warnings::mark_warning_as_notified(&db.pool, warning_id).await {
                 log::error!(
                     "Failed to update last_notified_at for warning [{}]: {:?}",
                     warning_id,
@@ -642,7 +637,6 @@ fn render_usage_warning_email(
         meter_description = meter_description,
     )
 }
-
 
 /// Fetch usage warnings for a workspace, using a short-lived cache to avoid
 /// hitting the database on every ingestion batch.

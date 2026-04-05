@@ -4,6 +4,7 @@ name = "app-server"
 version = "0.1.0"
 
 [dependencies]
+actix-limitation = {version = "0.5.1", default-features = false}
 actix-web = "4.13"
 actix-web-httpauth = "0.8.2"
 anyhow = "1"

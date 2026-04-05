@@ -30,7 +30,7 @@ pub struct SqlQueryResponse {
     pub data: Vec<serde_json::Value>,
 }
 
-#[post("sql/query")]
+#[post("query")]
 pub async fn execute_sql_query(
     req: web::Json<SqlQueryRequest>,
     project_api_key: ProjectApiKey,

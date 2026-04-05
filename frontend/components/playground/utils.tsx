@@ -14,7 +14,7 @@ import {
   IconOpenAI,
 } from "@/components/ui/icons";
 import { EnvVars } from "@/lib/env/utils";
-import { anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
+import { anthropicProviderOptionsSettings, anthropicThinkingModels } from "@/lib/playground/providers/anthropic";
 import { googleProviderOptionsSettings, googleThinkingModels } from "@/lib/playground/providers/google";
 import { openAIThinkingModels } from "@/lib/playground/providers/openai";
 import { type ProviderOptions } from "@/lib/playground/types";
@@ -67,22 +67,43 @@ export const getDefaultThinkingModelProviderOptions = <P extends Provider, K ext
     [...anthropicThinkingModels, ...googleThinkingModels, ...openAIThinkingModels].find((m) => m === (value as string))
   ) {
     switch (provider) {
-      case "anthropic":
+      case "anthropic": {
+        const anthropicConfig =
+          anthropicProviderOptionsSettings[value as (typeof anthropicThinkingModels)[number]].thinking;
+        if (anthropicConfig.type === "effort") {
+          return {
+            anthropic: {
+              thinking: { type: "adaptive" },
+              effort: "medium",
+            },
+          };
+        }
         return {
           anthropic: {
             thinking: {
               type: "disabled",
-              budgetTokens: 1024,
             },
           },
         };
+      }
       case "gemini": {
         const config = googleProviderOptionsSettings[value as (typeof googleThinkingModels)[number]].thinkingConfig;
+        if (config.type === "level") {
+          const defaultLevel = config.levels.includes("medium") ? "medium" : config.levels[0];
+          return {
+            google: {
+              thinkingConfig: {
+                includeThoughts: false,
+                thinkingLevel: defaultLevel,
+              },
+            },
+          };
+        }
         return {
           google: {
             thinkingConfig: {
               includeThoughts: false,
-              thinkingBudget: config?.min,
+              thinkingBudget: config.min,
             },
           },
         };
@@ -142,7 +163,7 @@ const parseGenAiToolsDefinitionsFromSpan = (tools?: string) => {
     if (!tools) {
       return undefined;
     }
-    const parsedTools = JSON.parse(tools) as {
+    const parsedTools = (typeof tools === "string" ? JSON.parse(tools) : tools) as {
       type: "function";
       name?: string;
       function: { name: string; description?: string; parameters: Record<string, any> };

@@ -20,6 +20,7 @@ pub enum Feature {
     Clustering,
     Signals,
     Reports,
+    RateLimiter,
 }
 
 pub fn is_feature_enabled(feature: Feature) -> bool {
@@ -53,6 +54,11 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         Feature::Reports => {
             env::var("ENABLE_REPORTS").is_ok_and(|s| s == "true")
                 && env::var("RESEND_API_KEY").is_ok_and(|s| !s.is_empty())
+        }
+        Feature::RateLimiter => {
+            env::var("REDIS_URL").is_ok()
+                && env::var("RATE_LIMIT").is_ok()
+                && env::var("RATE_LIMIT_PERIOD_SECS").is_ok()
         }
     }
 }

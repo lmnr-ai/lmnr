@@ -184,7 +184,7 @@ pub fn replace_span_tags_with_links(
             .map(|uuid| uuid.to_string())
             .unwrap_or_else(|| short_id.to_string());
         format!(
-            "[{}](https://www.laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
+            "[{}](https://laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
             span_name, project_id, trace_id, real_span_id
         )
     });
@@ -196,7 +196,7 @@ pub fn replace_span_tags_with_links(
         let short_id = caps[1].to_lowercase();
         match span_ids_map.get(&short_id) {
             Some(uuid) => format!(
-                "[span {}](https://www.laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
+                "[span {}](https://laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
                 short_id, project_id, trace_id, uuid
             ),
             None => caps[0].to_string(),
@@ -429,10 +429,7 @@ mod tests {
 
     #[test]
     fn test_clean_whitespace_actual_whitespace() {
-        assert_eq!(
-            clean_whitespace("hello\n\t\tworld\nfoo"),
-            "hello world foo"
-        );
+        assert_eq!(clean_whitespace("hello\n\t\tworld\nfoo"), "hello world foo");
     }
 
     #[test]
