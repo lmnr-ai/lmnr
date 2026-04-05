@@ -269,7 +269,16 @@ async fn process_report_trigger(
             target_type: TargetType::Web.to_string(),
         };
 
-        if let Err(e) = push_to_notification_queue(web_notification, queue.clone()).await {
+        let serialized_size = serde_json::to_vec(&web_notification)
+            .map(|v| v.len())
+            .unwrap_or(0);
+        if serialized_size >= mq_max_payload() {
+            log::error!(
+                "[Reports Generator] MQ payload limit exceeded for WEB notification. payload size: [{}], workspace: [{}]",
+                serialized_size,
+                workspace_id,
+            );
+        } else if let Err(e) = push_to_notification_queue(web_notification, queue.clone()).await {
             log::error!(
                 "[Reports Generator] Failed to push WEB report notification for workspace {}: {:?}",
                 workspace_id,
