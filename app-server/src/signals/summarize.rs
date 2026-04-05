@@ -36,7 +36,9 @@ fn cache_key(
     signal_prompt_hash: &str,
     sys_prompt_hash: &str,
 ) -> String {
-    format!("{SYS_PROMPT_SUMMARY_CACHE_KEY}:{project_id}:{signal_id}:{signal_prompt_hash}:{sys_prompt_hash}")
+    format!(
+        "{SYS_PROMPT_SUMMARY_CACHE_KEY}:{project_id}:{signal_id}:{signal_prompt_hash}:{sys_prompt_hash}"
+    )
 }
 
 /// Look up cached summaries for a set of system prompt hashes.
@@ -132,7 +134,7 @@ async fn generate_summary(
             max_output_tokens: Some(2048),
             thinking_config: Some(ProviderThinkingConfig {
                 include_thoughts: Some(false),
-                thinking_level: Some(ProviderThinkingLevel::Minimal),
+                thinking_level: Some(ProviderThinkingLevel::Medium),
             }),
             ..Default::default()
         }),
