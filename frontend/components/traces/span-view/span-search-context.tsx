@@ -84,6 +84,30 @@ function applySearchAndCount(view: EditorView, searchTerm: string): number {
   return count;
 }
 
+function findScrollableAncestor(el: HTMLElement): HTMLElement | null {
+  let current = el.parentElement;
+  while (current) {
+    const { overflowY } = getComputedStyle(current);
+    if (overflowY === "auto" || overflowY === "scroll") return current;
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function scrollEditorMatchToCenter(view: EditorView) {
+  const coords = view.coordsAtPos(view.state.selection.main.head);
+  if (!coords) return;
+
+  const scrollParent = findScrollableAncestor(view.dom);
+  if (!scrollParent) return;
+
+  const parentRect = scrollParent.getBoundingClientRect();
+  const matchY = coords.top - parentRect.top + scrollParent.scrollTop;
+  const targetScroll = matchY - parentRect.height / 2;
+
+  scrollParent.scrollTo({ top: targetScroll, behavior: "smooth" });
+}
+
 function navigateToMatch(view: EditorView, searchTerm: string, localIndex: number) {
   view.dispatch({
     selection: { anchor: 0, head: 0 },
@@ -109,6 +133,9 @@ function navigateToMatch(view: EditorView, searchTerm: string, localIndex: numbe
     for (let i = 0; i <= localIndex; i++) {
       findNext(view);
     }
+    requestAnimationFrame(() => {
+      scrollEditorMatchToCenter(view);
+    });
   });
 }
 
