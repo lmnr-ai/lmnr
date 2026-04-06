@@ -141,7 +141,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
       // Inject ID fields for clickable chart types
       const injectedMetrics = [...metrics];
-      if (needsIdInjection) {
+      if (needsIdInjection && (!dimensions || dimensions.length === 0)) {
         const existingColumns = new Set(metrics.map((m) => m.column));
         const existingDimensions = new Set(dimensions || []);
 
