@@ -87,18 +87,36 @@ const NotificationItem = ({
   notification,
   formatted,
   projectId,
+  onMarkAsRead,
 }: {
   notification: WebNotification;
   formatted: FormattedNotification;
   projectId?: string;
+  onMarkAsRead: (notificationId: string) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
   const hasDetails = formatted.aiSummary || formatted.noteworthyEvents.length > 0;
+  const isUnread = !notification.isRead;
+
+  const handleClick = () => {
+    if (isUnread) {
+      onMarkAsRead(notification.id);
+    }
+  };
 
   return (
-    <div className="flex flex-col gap-1.5 border-b last:border-b-0 px-3 py-3">
+    <div
+      className={cn(
+        "flex flex-col gap-1.5 border-b last:border-b-0 px-3 py-3 cursor-pointer transition-colors",
+        isUnread ? "bg-secondary/50" : "bg-transparent"
+      )}
+      onClick={handleClick}
+    >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-foreground">{formatted.title}</span>
+        <div className="flex items-center gap-1.5">
+          {isUnread && <span className="size-1.5 rounded-full bg-orange-500 shrink-0" />}
+          <span className="text-xs font-medium text-foreground">{formatted.title}</span>
+        </div>
         <span className="text-[11px] text-muted-foreground/70 shrink-0 ml-2">
           {formatRelativeTime(notification.createdAt)}
         </span>
@@ -106,7 +124,10 @@ const NotificationItem = ({
       <span className="text-xs text-muted-foreground">{formatted.summary}</span>
       {hasDetails && (
         <button
-          onClick={() => setExpanded((prev) => !prev)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((prev) => !prev);
+          }}
           className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-fit"
         >
           {expanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
@@ -134,6 +155,7 @@ const NotificationItem = ({
                     <Link
                       href={`/project/${projectId}/traces/${event.trace_id}`}
                       className="text-[11px] text-primary hover:underline mt-0.5 w-fit"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       View trace
                     </Link>
@@ -145,7 +167,11 @@ const NotificationItem = ({
         </>
       )}
       {projectId && (
-        <Link href={`/project/${projectId}/signals`} className="text-xs text-primary hover:underline mt-0.5 w-fit">
+        <Link
+          href={`/project/${projectId}/signals`}
+          className="text-xs text-primary hover:underline mt-0.5 w-fit"
+          onClick={(e) => e.stopPropagation()}
+        >
           View all events
         </Link>
       )}
@@ -156,10 +182,9 @@ const NotificationItem = ({
 const NotificationPanel = () => {
   const { workspace, project } = useProjectContext();
 
-  const { data: notifications } = useSWR<WebNotification[]>(
-    workspace ? `/api/workspaces/${workspace.id}/notifications` : null,
-    swrFetcher
-  );
+  const swrKey = workspace && project ? `/api/workspaces/${workspace.id}/notifications?projectId=${project.id}` : null;
+
+  const { data: notifications, mutate } = useSWR<WebNotification[]>(swrKey, swrFetcher);
 
   const formattedNotifications = notifications
     ?.map((n) => ({
@@ -171,6 +196,25 @@ const NotificationPanel = () => {
     );
 
   const hasNotifications = formattedNotifications && formattedNotifications.length > 0;
+  const hasUnread = formattedNotifications?.some(({ notification }) => !notification.isRead) ?? false;
+
+  const handleMarkAsRead = async (notificationId: string) => {
+    if (!workspace || !project) return;
+
+    // Optimistically update the local data
+    mutate((current) => current?.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n)), false);
+
+    try {
+      await fetch(`/api/workspaces/${workspace.id}/notifications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationId, projectId: project.id }),
+      });
+    } catch {
+      // Revert on failure
+      mutate();
+    }
+  };
 
   return (
     <Popover>
@@ -182,7 +226,7 @@ const NotificationPanel = () => {
           )}
         >
           <Bell className="size-4" />
-          {hasNotifications && <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary" />}
+          {hasUnread && <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-orange-500" />}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" side="bottom" className="w-[28rem] p-0">
@@ -202,6 +246,7 @@ const NotificationPanel = () => {
                   notification={notification}
                   formatted={formatted}
                   projectId={project?.id}
+                  onMarkAsRead={handleMarkAsRead}
                 />
               ))}
             </div>

@@ -1,4 +1,8 @@
+import { and, eq, inArray } from "drizzle-orm";
+
 import { clickhouseClient } from "@/lib/clickhouse/client";
+import { db } from "@/lib/db/drizzle";
+import { notificationReads } from "@/lib/db/migrations/schema";
 
 export interface WebNotification {
   id: string;
@@ -8,9 +12,15 @@ export interface WebNotification {
   definitionId: string;
   payload: string;
   createdAt: string;
+  isRead: boolean;
 }
 
-export const getWebNotifications = async (workspaceId: string, limit = 5): Promise<WebNotification[]> => {
+export const getWebNotifications = async (
+  workspaceId: string,
+  userId: string,
+  projectId: string,
+  limit = 5
+): Promise<WebNotification[]> => {
   const result = await clickhouseClient.query({
     query: `
       SELECT
@@ -32,5 +42,36 @@ export const getWebNotifications = async (workspaceId: string, limit = 5): Promi
     format: "JSONEachRow",
   });
 
-  return (await result.json()) as WebNotification[];
+  const notifications = (await result.json()) as Omit<WebNotification, "isRead">[];
+
+  if (notifications.length === 0) {
+    return [];
+  }
+
+  const notificationIds = notifications.map((n) => n.id);
+  const readRows = await db
+    .select({ notificationId: notificationReads.notificationId })
+    .from(notificationReads)
+    .where(
+      and(
+        eq(notificationReads.projectId, projectId),
+        eq(notificationReads.userId, userId),
+        inArray(notificationReads.notificationId, notificationIds)
+      )
+    );
+
+  const readIds = new Set(readRows.map((r) => r.notificationId));
+
+  return notifications.map((n) => ({
+    ...n,
+    isRead: readIds.has(n.id),
+  }));
+};
+
+export const markNotificationAsRead = async (
+  userId: string,
+  notificationId: string,
+  projectId: string
+): Promise<void> => {
+  await db.insert(notificationReads).values({ userId, notificationId, projectId }).onConflictDoNothing();
 };
