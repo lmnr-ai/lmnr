@@ -58,9 +58,8 @@ const formatNotification = (notification: WebNotification, projectId?: string) =
     const periodType = diffDays >= 7 ? "week" : diffDays > 1 ? `${diffDays} days` : "day";
 
     return {
-      title: payload.title,
+      title: `Events Summary (${report.period_start} - ${report.period_end})`,
       summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} during last ${periodType}`,
-      period: `${report.period_start} - ${report.period_end}`,
     };
   } catch {
     return null;
@@ -117,7 +116,9 @@ const NotificationPanel = () => {
                 <div key={notification.id} className="flex flex-col gap-1 border-b last:border-b-0 px-3 py-2.5">
                   <span className="text-xs font-medium text-foreground">{formatted.title}</span>
                   <span className="text-xs text-muted-foreground">{formatted.summary}</span>
-                  {formatted.period && <span className="text-[11px] text-muted-foreground/70">{formatted.period}</span>}
+                  <span className="text-[11px] text-muted-foreground/70">
+                    {new Date(notification.createdAt).toLocaleString()}
+                  </span>
                   {project && (
                     <Link
                       href={`/project/${project.id}/signals`}
