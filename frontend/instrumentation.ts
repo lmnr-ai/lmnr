@@ -160,6 +160,7 @@ export async function register() {
             return;
           }
 
+          let seeded = 0;
           for (const project of projectsWithoutSignals) {
             try {
               const [signal] = await db
@@ -177,13 +178,14 @@ export async function register() {
                   signalId: signal.id,
                   value: DEFAULT_SIGNAL_TRIGGER_VALUE,
                 });
+                seeded++;
               }
             } catch (err) {
               console.error(`Failed to seed default signal for project ${project.id}:`, err);
             }
           }
 
-          console.log(`Seeded default signals for ${projectsWithoutSignals.length} project(s)`);
+          console.log(`Seeded default signals for ${seeded}/${projectsWithoutSignals.length} project(s)`);
         } catch (error) {
           console.error("Failed to initialize default signals:", error);
           console.log("Continuing without default signals...");
