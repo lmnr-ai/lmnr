@@ -203,13 +203,15 @@ const NotificationPanel = () => {
     mutate((current) => current?.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n)), false);
 
     try {
-      await fetch(`/api/workspaces/${workspace.id}/notifications`, {
+      const res = await fetch(`/api/workspaces/${workspace.id}/notifications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notificationId, projectId: project.id }),
       });
+      if (!res.ok) {
+        mutate();
+      }
     } catch {
-      // Revert on failure
       mutate();
     }
   };
