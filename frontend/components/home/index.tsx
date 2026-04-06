@@ -13,7 +13,7 @@ export default function Home() {
       <Header path="home" />
       <ScrollArea className="h-full">
         <div className="flex flex-col items-center">
-          <div className="max-w-[850px] w-full flex flex-col gap-[45px] pt-[65px] pb-8">
+          <div className="max-w-[1050px] w-full flex flex-col gap-[45px] pt-[65px] pb-8">
             <FeatureBanner />
             <RecentActivity />
             <HomeDashboards />

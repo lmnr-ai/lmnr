@@ -22,7 +22,7 @@ export default function ActivityCard({ notification, onDismiss, isExpanded, onTo
     <div className="relative w-[350px] shrink-0">
       {/* Collapsed card */}
       <div
-        className="bg-secondary border border-primary/30 rounded-xl flex flex-col gap-3 items-end pb-[18px] pt-[14px] px-4 cursor-pointer"
+        className="bg-secondary border rounded-xl flex flex-col gap-3 items-end pb-[18px] pt-[14px] px-4 cursor-pointer"
         onClick={onToggleExpand}
       >
         <CardHeader notification={notification} onDismiss={onDismiss} />
@@ -104,7 +104,7 @@ function CardHeader({
         }}
         className="text-muted-foreground hover:text-foreground shrink-0"
       >
-        <X size={20} />
+        <X size={16} />
       </button>
     </div>
   );

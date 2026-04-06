@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { features } from "./banner-data";
@@ -48,10 +49,18 @@ export default function FeatureBanner() {
 
   return (
     <div className="flex gap-2 items-start w-full">
-      <div className="flex-1 relative">
-        <div key={activeIndex} className="animate-in fade-in duration-300">
-          <BannerSlide feature={features[activeIndex]} />
-        </div>
+      <div className="flex-1 relative overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeIndex}
+            initial={{ scale: 0.98 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0.98 }}
+            transition={{ duration: 0.1, ease: "easeInOut" }}
+          >
+            <BannerSlide feature={features[activeIndex]} />
+          </motion.div>
+        </AnimatePresence>
       </div>
       <BannerNav
         activeIndex={activeIndex}
