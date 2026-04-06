@@ -222,10 +222,10 @@ pub async fn process_run(
             system_instruction: system_instruction.clone(),
             tools: Some(tools),
             generation_config: Some(ProviderGenerationConfig {
-                temperature: Some(0.95),
+                temperature: Some(1.0),
                 thinking_config: Some(ProviderThinkingConfig {
                     include_thoughts: Some(true),
-                    thinking_level: Some(ProviderThinkingLevel::Low),
+                    thinking_level: Some(ProviderThinkingLevel::Medium),
                 }),
                 ..Default::default()
             }),
