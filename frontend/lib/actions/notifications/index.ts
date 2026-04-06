@@ -49,16 +49,12 @@ export const getWebNotifications = async (
   }
 
   const notificationIds = notifications.map((n) => n.id);
+  // Query by user_id + notification_ids only. The PK is (user_id, notification_id),
+  // so read status is per-user per-notification regardless of project context.
   const readRows = await db
     .select({ notificationId: notificationReads.notificationId })
     .from(notificationReads)
-    .where(
-      and(
-        eq(notificationReads.projectId, projectId),
-        eq(notificationReads.userId, userId),
-        inArray(notificationReads.notificationId, notificationIds)
-      )
-    );
+    .where(and(eq(notificationReads.userId, userId), inArray(notificationReads.notificationId, notificationIds)));
 
   const readIds = new Set(readRows.map((r) => r.notificationId));
 
