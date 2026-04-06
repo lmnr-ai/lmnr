@@ -14,7 +14,8 @@ export async function register() {
     if (isFeatureEnabled(Feature.LOCAL_DB)) {
       const { sql } = await import("drizzle-orm");
       const { migrate } = await import("drizzle-orm/postgres-js/migrator");
-      const { subscriptionTiers, modelCosts } = await import("@/lib/db/migrations/schema.ts");
+      const { subscriptionTiers, modelCosts, signals, signalTriggers, projects } =
+        await import("@/lib/db/migrations/schema.ts");
       const { db } = await import("@/lib/db/drizzle.ts");
 
       const initializeData = async () => {
@@ -137,6 +138,79 @@ export async function register() {
       console.log("Applying ClickHouse schema. This may take a while...");
       await initializeClickHouse();
       console.log("✓ ClickHouse schema applied successfully");
+
+      // Seed default signals for projects that don't have any
+      const DEFAULT_SIGNAL = {
+        name: "Failure Detector",
+        prompt: `Analyze this trace for concrete issues: tool call failures, API errors, \
+loops or repeated calls, wrong tool selection, logic errors, \
+and abnormally slow or expensive spans. Only report problems visible in the trace data.`,
+        structuredOutputSchema: {
+          type: "object",
+          required: ["description", "category"],
+          properties: {
+            description: {
+              type: "string",
+              description: "Description of the issue: what happened, which span(s) are involved, and the impact",
+            },
+            category: {
+              type: "string",
+              enum: ["tool_error", "api_error", "logic_error", "looping", "wrong_tool", "timeout", "other"],
+              description: "Category of the issue",
+            },
+          },
+        },
+      };
+
+      const DEFAULT_SIGNAL_TRIGGER_VALUE = [
+        { column: "total_token_count", operator: "gt", value: "1000" },
+        { column: "root_span_finished", operator: "eq", value: "true" },
+      ];
+
+      const initializeDefaultSignals = async () => {
+        try {
+          // Find all project IDs that already have at least one signal
+          const projectsWithSignals = await db.selectDistinct({ projectId: signals.projectId }).from(signals);
+
+          const projectIdsWithSignals = new Set(projectsWithSignals.map((r) => r.projectId));
+
+          // Get all projects
+          const allProjects = await db.select({ id: projects.id }).from(projects);
+
+          // Filter to projects that have no signals
+          const projectsWithoutSignals = allProjects.filter((p) => !projectIdsWithSignals.has(p.id));
+
+          if (projectsWithoutSignals.length === 0) {
+            console.log("All projects already have signals, skipping default signal seeding");
+            return;
+          }
+
+          for (const project of projectsWithoutSignals) {
+            const [signal] = await db
+              .insert(signals)
+              .values({
+                projectId: project.id,
+                ...DEFAULT_SIGNAL,
+              })
+              .onConflictDoNothing()
+              .returning({ id: signals.id });
+
+            if (signal) {
+              await db.insert(signalTriggers).values({
+                projectId: project.id,
+                signalId: signal.id,
+                value: DEFAULT_SIGNAL_TRIGGER_VALUE,
+              });
+            }
+          }
+
+          console.log(`Seeded default signals for ${projectsWithoutSignals.length} project(s)`);
+        } catch (error) {
+          console.error("Failed to initialize default signals:", error);
+          console.log("Continuing without default signals...");
+        }
+      };
+      await initializeDefaultSignals();
 
       // Run Quickwit index initialization
       const initializeQuickwit = async () => {
