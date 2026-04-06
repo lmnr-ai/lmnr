@@ -20,9 +20,10 @@ interface ChartRendererCoreProps {
   columns: ColumnInfo[];
   onBarClick?: (rowData: Record<string, any>) => void;
   onTraceClick?: (traceId: string, spanId?: string) => void;
+  onSignalClick?: (signalId: string, traceId?: string) => void;
 }
 
-export const ChartRendererCore = ({ config, data, columns, onBarClick, onTraceClick }: ChartRendererCoreProps) => {
+export const ChartRendererCore = ({ config, data, columns, onBarClick, onTraceClick, onSignalClick }: ChartRendererCoreProps) => {
   const isMetricOrTable = config.type === ChartType.Metric || config.type === ChartType.Table;
 
   const {
@@ -70,7 +71,7 @@ export const ChartRendererCore = ({ config, data, columns, onBarClick, onTraceCl
         </div>
       );
     }
-    return <TableChart data={data} onTraceClick={onTraceClick} />;
+    return <TableChart data={data} onTraceClick={onTraceClick} onSignalClick={onSignalClick} />;
   }
 
   if (!config.type || !config.x || !config.y) {

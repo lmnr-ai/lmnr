@@ -160,6 +160,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
           if (!existingColumns.has("trace_id") && !existingDimensions.has("trace_id")) {
             injectedMetrics.push({ fn: "raw", column: "trace_id", args: [], alias: "__hidden_trace_id" });
           }
+          if (!existingColumns.has("signal_id") && !existingDimensions.has("signal_id")) {
+            injectedMetrics.push({ fn: "raw", column: "signal_id", args: [], alias: "__hidden_signal_id" });
+          }
         }
       }
 

@@ -5,12 +5,13 @@ import { cn } from "@/lib/utils";
 interface TableChartProps {
   data: Record<string, any>[];
   onTraceClick?: (traceId: string, spanId?: string) => void;
+  onSignalClick?: (signalId: string, traceId?: string) => void;
 }
 
-const CLICKABLE_ID_COLUMNS = new Set(["trace_id", "id"]);
+const CLICKABLE_ID_COLUMNS = new Set(["trace_id", "id", "signal_id"]);
 const SPAN_ID_COLUMN = "span_id";
 
-const TableChart = ({ data, onTraceClick }: TableChartProps) => {
+const TableChart = ({ data, onTraceClick, onSignalClick }: TableChartProps) => {
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-full w-full text-muted-foreground">
@@ -20,15 +21,23 @@ const TableChart = ({ data, onTraceClick }: TableChartProps) => {
   }
 
   const columns = Object.keys(data[0]).filter(
-    (col) => col !== "__hidden_trace_id" && col !== "__hidden_span_id" && col !== "__hidden_id"
+    (col) => !col.startsWith("__hidden_")
   );
 
   const isClickableCell = (column: string): boolean => {
+    if (column === "signal_id") return !!onSignalClick;
     if (!onTraceClick) return false;
     return CLICKABLE_ID_COLUMNS.has(column);
   };
 
   const handleCellClick = (column: string, row: Record<string, any>) => {
+    if (column === "signal_id" && onSignalClick) {
+      const signalId = String(row[column]);
+      const traceId = row.trace_id || row.__hidden_trace_id;
+      onSignalClick(signalId, traceId ? String(traceId) : undefined);
+      return;
+    }
+
     if (!onTraceClick) return;
 
     if (column === "trace_id" || column === "id") {

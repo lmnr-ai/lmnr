@@ -26,14 +26,14 @@ function DashboardContent() {
           </Link>
         </div>
       </Header>
-      <div className="relative flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">
           <div className="h-full px-4 pb-4">
             <GridLayout />
           </div>
         </ScrollArea>
-        {traceId && <TraceViewSidePanel traceId={traceId} spanId={spanId ?? undefined} onClose={closeTrace} />}
       </div>
+      {traceId && <TraceViewSidePanel traceId={traceId} spanId={spanId ?? undefined} onClose={closeTrace} />}
     </>
   );
 }

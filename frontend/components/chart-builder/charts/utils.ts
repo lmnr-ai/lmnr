@@ -174,6 +174,12 @@ const selectColumnsFromData = (
     yColumns.forEach((yColumn) => {
       selectedRow[yColumn] = row[yColumn];
     });
+    // Preserve hidden ID columns for click handlers
+    Object.keys(row).forEach((key) => {
+      if (key.startsWith("__hidden_")) {
+        selectedRow[key] = row[key];
+      }
+    });
     return selectedRow;
   });
 

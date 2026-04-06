@@ -2,6 +2,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
+import { ChartType } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 import ChartHeader from "@/components/dashboard/chart-header";
 import { useDashboardTraceContext } from "@/components/dashboard/dashboard-trace-context";
@@ -10,6 +11,50 @@ import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type GroupByInterval } from "@/lib/clickhouse/modifiers";
 import { convertToTimeParameters } from "@/lib/time";
+
+/**
+ * For clickable chart types (horizontal bar, table), inject hidden ID columns
+ * into the SQL query if they're not already present. This handles charts that
+ * were saved before the editor started injecting these columns.
+ */
+const injectIdColumns = (sql: string, chartType?: ChartType): string => {
+  if (chartType !== ChartType.HorizontalBarChart && chartType !== ChartType.Table) {
+    return sql;
+  }
+
+  // Don't inject if query has GROUP BY (aggregated results can't link to individual rows)
+  if (/\bGROUP\s+BY\b/i.test(sql)) {
+    return sql;
+  }
+
+  const injections: string[] = [];
+  const lowerSql = sql.toLowerCase();
+
+  if (/\bfrom\s+spans\b/i.test(sql)) {
+    if (!lowerSql.includes("__hidden_trace_id") && !/__hidden_trace_id/.test(sql)) {
+      injections.push("trace_id AS `__hidden_trace_id`");
+    }
+    if (!lowerSql.includes("__hidden_span_id") && !/__hidden_span_id/.test(sql)) {
+      injections.push("span_id AS `__hidden_span_id`");
+    }
+  } else if (/\bfrom\s+traces\b/i.test(sql)) {
+    if (!lowerSql.includes("__hidden_id") && !/__hidden_id/.test(sql)) {
+      injections.push("id AS `__hidden_id`");
+    }
+  } else if (/\bfrom\s+signal_events\b/i.test(sql)) {
+    if (!lowerSql.includes("__hidden_trace_id")) {
+      injections.push("trace_id AS `__hidden_trace_id`");
+    }
+    if (!lowerSql.includes("__hidden_signal_id")) {
+      injections.push("signal_id AS `__hidden_signal_id`");
+    }
+  }
+
+  if (injections.length === 0) return sql;
+
+  // Insert the columns before FROM
+  return sql.replace(/\bFROM\b/i, `, ${injections.join(", ")}\nFROM`);
+};
 
 interface ChartProps {
   chart: DashboardChart;
@@ -59,13 +104,14 @@ const Chart = ({ chart }: ChartProps) => {
       setIsLoading(true);
       setError(null);
 
+      const augmentedQuery = injectIdColumns(query, settings.config.type);
       const response = await fetch(`/api/projects/${projectId}/sql`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          query,
+          query: augmentedQuery,
           projectId,
           parameters,
         }),
@@ -91,13 +137,21 @@ const Chart = ({ chart }: ChartProps) => {
 
   const handleBarClick = useCallback(
     (rowData: Record<string, any>) => {
+      const signalId = rowData.signal_id || rowData.__hidden_signal_id;
       const traceId = rowData.trace_id || rowData.__hidden_trace_id || rowData.id || rowData.__hidden_id;
+
+      if (signalId) {
+        const url = `/project/${projectId}/signals/${signalId}${traceId ? `?traceId=${traceId}` : ""}`;
+        window.open(url, "_blank");
+        return;
+      }
+
       const spanId = rowData.span_id || rowData.__hidden_span_id;
       if (traceId) {
         openTrace(String(traceId), spanId ? String(spanId) : undefined);
       }
     },
-    [openTrace]
+    [openTrace, projectId]
   );
 
   const handleTraceClick = useCallback(
@@ -105,6 +159,14 @@ const Chart = ({ chart }: ChartProps) => {
       openTrace(traceId, spanId);
     },
     [openTrace]
+  );
+
+  const handleSignalClick = useCallback(
+    (signalId: string, traceId?: string) => {
+      const url = `/project/${projectId}/signals/${signalId}${traceId ? `?traceId=${traceId}` : ""}`;
+      window.open(url, "_blank");
+    },
+    [projectId]
   );
 
   return (
@@ -124,6 +186,7 @@ const Chart = ({ chart }: ChartProps) => {
           columns={columns}
           onBarClick={handleBarClick}
           onTraceClick={handleTraceClick}
+          onSignalClick={handleSignalClick}
         />
       )}
       <IconResizeHandle className="size-4 absolute right-2 text-muted-foreground bottom-2" />
