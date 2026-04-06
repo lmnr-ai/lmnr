@@ -156,26 +156,30 @@ export async function register() {
           const projectsWithoutSignals = allProjects.filter((p) => !projectIdsWithSignals.has(p.id));
 
           if (projectsWithoutSignals.length === 0) {
-            console.log("All projects already have signals, skipping default signal seeding");
+            console.log("No projects need default signals, skipping seeding");
             return;
           }
 
           for (const project of projectsWithoutSignals) {
-            const [signal] = await db
-              .insert(signals)
-              .values({
-                projectId: project.id,
-                ...DEFAULT_SIGNAL,
-              })
-              .onConflictDoNothing()
-              .returning({ id: signals.id });
+            try {
+              const [signal] = await db
+                .insert(signals)
+                .values({
+                  projectId: project.id,
+                  ...DEFAULT_SIGNAL,
+                })
+                .onConflictDoNothing()
+                .returning({ id: signals.id });
 
-            if (signal) {
-              await db.insert(signalTriggers).values({
-                projectId: project.id,
-                signalId: signal.id,
-                value: DEFAULT_SIGNAL_TRIGGER_VALUE,
-              });
+              if (signal) {
+                await db.insert(signalTriggers).values({
+                  projectId: project.id,
+                  signalId: signal.id,
+                  value: DEFAULT_SIGNAL_TRIGGER_VALUE,
+                });
+              }
+            } catch (err) {
+              console.error(`Failed to seed default signal for project ${project.id}:`, err);
             }
           }
 
