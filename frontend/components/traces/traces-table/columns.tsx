@@ -4,6 +4,7 @@ import { capitalize } from "lodash";
 
 import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import TagsCell from "@/components/tags/tags-cell";
+import TraceTagsCell from "@/components/tags/trace-tags-cell";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon, { createSpanTypeIcon } from "@/components/traces/span-type-icon";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
@@ -220,11 +221,7 @@ export const columns: ColumnDef<TraceRow, any>[] = [
   },
   {
     accessorFn: (row) => row.traceTags,
-    cell: (row) => {
-      const tags = row.getValue() as string[];
-      if (tags?.length > 0) return <TagsCell tags={tags} />;
-      return "-";
-    },
+    cell: (row) => <TraceTagsCell traceId={row.row.original.id} />,
     header: "Tags",
     accessorKey: "traceTags",
     id: "trace_tags",
