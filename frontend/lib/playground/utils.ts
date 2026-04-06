@@ -1,4 +1,4 @@
-import { type ModelMessage, type SystemModelMessage } from "ai";
+import { type ModelMessage, type SystemModelMessage, type ToolModelMessage } from "ai";
 
 import { type Message } from "@/lib/playground/types";
 
@@ -6,12 +6,23 @@ import { tryParseJson } from "../utils";
 
 export const parseSystemMessages = (messages: Message[]): ModelMessage[] =>
   messages.map((message) => {
-    // Handle system messages with text content
     if (message.role === "system" && message.content?.[0]?.type === "text") {
       return {
         role: message.role,
         content: message.content[0].text,
       } as SystemModelMessage;
+    }
+
+    if (
+      message.role === "user" &&
+      Array.isArray(message.content) &&
+      message.content.length > 0 &&
+      message.content.every((part) => part.type === "tool-result")
+    ) {
+      return {
+        role: "tool",
+        content: message.content,
+      } as unknown as ToolModelMessage;
     }
 
     return message as ModelMessage;

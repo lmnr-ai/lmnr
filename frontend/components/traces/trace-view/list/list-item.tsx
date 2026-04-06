@@ -39,7 +39,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
   const fullSpan = useMemo(() => spans.find((s) => s.spanId === span.spanId), [spans, span.spanId]);
   const isCached = cachingEnabled && fullSpan ? isSpanCached(fullSpan) : false;
 
-  const hasSnippet = !!(span.inputSnippet || span.outputSnippet);
+  const hasSnippet = !!(span.inputSnippet || span.outputSnippet || span.attributesSnippet);
   const isExpandableType =
     span.spanType === "LLM" ||
     span.spanType === "CACHED" ||
@@ -135,7 +135,12 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
         {isExpanded && (
           <div className="px-2 w-full flex flex-col gap-2 h-full flex-1">
             {hasSnippet ? (
-              <SnippetPreview inputSnippet={span.inputSnippet} outputSnippet={span.outputSnippet} variant="span" />
+              <SnippetPreview
+                inputSnippet={span.inputSnippet}
+                outputSnippet={span.outputSnippet}
+                attributesSnippet={span.attributesSnippet}
+                variant="span"
+              />
             ) : isLoadingOutput ? (
               <>
                 <PreviewLoadingPlaceholder />

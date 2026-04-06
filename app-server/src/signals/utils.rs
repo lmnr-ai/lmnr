@@ -24,12 +24,49 @@ static SIGNATURE_FIELD_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"("(?:signature|thought_signature)")\s*:\s*"[^"]*""#).unwrap());
 
 /// Strip base64 images and signature/thought_signature values from raw
-/// ClickHouse span content using regex
+/// ClickHouse span content. Does NOT touch whitespace — use
+/// `clean_value_whitespace` (after JSON parsing) or `clean_raw_whitespace`
+/// (for non-JSON contexts like search) separately.
 pub fn strip_noise(raw: &str) -> String {
     let without_images = BASE64_IMAGE_RE.replace_all(raw, "[base64 image omitted]");
     SIGNATURE_FIELD_RE
         .replace_all(&without_images, r#"$1:"[signature omitted]""#)
         .into_owned()
+}
+
+/// Clean a string by collapsing whitespace (actual and literal escape
+/// sequences) and stripping backslashes (nested JSON escaping noise).
+/// Works on both raw strings (with literal `\n`/`\t`/`\r`) and stringified
+/// parsed JSON values (with actual newline/tab/CR characters).
+pub fn clean_whitespace(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut in_ws = false;
+    let mut chars = s.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\n' || ch == '\t' || ch == '\r' || ch == ' ' {
+            if !in_ws {
+                result.push(' ');
+                in_ws = true;
+            }
+        } else if ch == '\\' {
+            // Literal escape sequence (\n, \t, \r) → treat as whitespace
+            if let Some(&next) = chars.peek() {
+                if next == 'n' || next == 't' || next == 'r' {
+                    chars.next();
+                    if !in_ws {
+                        result.push(' ');
+                        in_ws = true;
+                    }
+                    continue;
+                }
+            }
+            // All other backslashes (\", \\, \/) → skip (JSON escaping noise)
+        } else {
+            result.push(ch);
+            in_ws = false;
+        }
+    }
+    result
 }
 
 /// Build the span input value from a ProviderRequest by combining contents
@@ -147,7 +184,7 @@ pub fn replace_span_tags_with_links(
             .map(|uuid| uuid.to_string())
             .unwrap_or_else(|| short_id.to_string());
         format!(
-            "[{}](https://www.laminar.sh/project/{}/traces/{}?spanId={})",
+            "[{}](https://laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
             span_name, project_id, trace_id, real_span_id
         )
     });
@@ -159,7 +196,7 @@ pub fn replace_span_tags_with_links(
         let short_id = caps[1].to_lowercase();
         match span_ids_map.get(&short_id) {
             Some(uuid) => format!(
-                "[span {}](https://www.laminar.sh/project/{}/traces/{}?spanId={})",
+                "[span {}](https://laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
                 short_id, project_id, trace_id, uuid
             ),
             None => caps[0].to_string(),
@@ -372,6 +409,56 @@ mod tests {
         let raw = r#"{"message":"hello world","count":42}"#;
         let result = strip_noise(raw);
         assert_eq!(result, raw);
+    }
+
+    #[test]
+    fn test_strip_noise_preserves_json_escapes() {
+        // strip_noise should NOT touch \n sequences — that's clean_raw_whitespace's job
+        let raw = r#"{"text":"hello\nworld"}"#;
+        let result = strip_noise(raw);
+        assert!(result.contains(r#"\n"#));
+    }
+
+    #[test]
+    fn test_clean_whitespace_literal_escapes() {
+        assert_eq!(
+            clean_whitespace(r#"Resources\n\t\tStartup Jobs\n\t\tLog in"#),
+            "Resources Startup Jobs Log in"
+        );
+    }
+
+    #[test]
+    fn test_clean_whitespace_actual_whitespace() {
+        assert_eq!(clean_whitespace("hello\n\t\tworld\nfoo"), "hello world foo");
+    }
+
+    #[test]
+    fn test_clean_whitespace_mixed() {
+        assert_eq!(
+            clean_whitespace(r#"hello\n\n\tworld\r\nfoo"#),
+            "hello world foo"
+        );
+    }
+
+    #[test]
+    fn test_clean_whitespace_strips_backslashes() {
+        assert_eq!(
+            clean_whitespace(r#"said \"hello\" and \\done"#),
+            r#"said "hello" and done"#
+        );
+    }
+
+    #[test]
+    fn test_clean_whitespace_nested_json_noise() {
+        assert_eq!(
+            clean_whitespace(r#"{ \"action\": [ { \"click\": { \"index\": 18 } } ] }"#),
+            r#"{ "action": [ { "click": { "index": 18 } } ] }"#
+        );
+    }
+
+    #[test]
+    fn test_clean_whitespace_collapses_spaces() {
+        assert_eq!(clean_whitespace("hello   world"), "hello world");
     }
 
     #[test]

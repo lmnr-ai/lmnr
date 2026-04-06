@@ -12,7 +12,7 @@ import { type Filter } from "@/lib/actions/common/filters";
 import { useRealtime } from "@/lib/hooks/use-realtime";
 import { SpanType } from "@/lib/traces/types";
 
-import { SpanView } from "../span-view";
+import { SpanView, type SpanViewTab } from "../span-view";
 import { SpanViewSkeleton } from "../span-view/skeleton";
 import DynamicWidthLayout from "./dynamic-width-layout";
 import FillWidthLayout from "./fill-width-layout";
@@ -327,6 +327,14 @@ export default function TraceViewContent({
     />
   );
 
+  const snippetTab: SpanViewTab | undefined = selectedSpan?.inputSnippet
+    ? "span-input"
+    : selectedSpan?.outputSnippet
+      ? "span-output"
+      : selectedSpan?.attributesSnippet
+        ? "attributes"
+        : undefined;
+
   const spanPanel = (
     <div className="flex flex-col h-full w-full overflow-hidden flex-1">
       {!selectedSpan ? (
@@ -339,6 +347,7 @@ export default function TraceViewContent({
           spanId={selectedSpan.spanId}
           traceId={traceId}
           initialSearchTerm={traceSearchTerm}
+          initialTab={snippetTab}
         />
       )}
     </div>

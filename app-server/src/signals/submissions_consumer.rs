@@ -144,7 +144,8 @@ async fn process(
         }
     }
 
-    let result = process_batch(msg, db, clickhouse, queue, llm_client, config).await;
+    let result =
+        process_batch(msg, db, cache.clone(), clickhouse, queue, llm_client, config).await;
 
     if result.is_ok() {
         if let Err(e) = cache
@@ -173,6 +174,7 @@ async fn process(
 async fn process_batch(
     msg: SignalJobSubmissionBatchMessage,
     db: Arc<DB>,
+    cache: Arc<crate::cache::Cache>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
     llm_client: Arc<ProviderClient>,
@@ -192,9 +194,12 @@ async fn process_batch(
             project_id,
             trace_id,
             message.run_id,
+            signal.id,
             &signal.prompt,
             &signal.structured_output_schema,
             clickhouse.clone(),
+            cache.clone(),
+            llm_client.clone(),
         )
         .await
         {

@@ -37,6 +37,7 @@ export const PREVIEW_COLUMN: ColumnDef<TraceRow, any> = {
     <SnippetPreview
       inputSnippet={row.row.original.inputSnippet}
       outputSnippet={row.row.original.outputSnippet}
+      attributesSnippet={row.row.original.attributesSnippet}
       snippetsCount={row.row.original.snippetsCount}
       variant="table"
     />

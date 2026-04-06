@@ -186,7 +186,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
   const { toast } = useToast();
   const { openInSql, isLoading: isSqlLoading } = useOpenInSql({
     projectId: projectId as string,
-    params: { type: "trace", traceId: String(trace?.id) },
+    params: { type: "trace", traceId: traceId },
   });
 
   const handleCopyTraceId = useCallback(async () => {

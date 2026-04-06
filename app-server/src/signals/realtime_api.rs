@@ -73,9 +73,12 @@ impl MessageHandler for SignalJobRealtimeHandler {
             project_id,
             trace_id,
             message.run_id,
+            signal.id,
             &signal.prompt,
             &signal.structured_output_schema,
             self.clickhouse.clone(),
+            self.cache.clone(),
+            self.llm_client.clone(),
         )
         .await
         {
@@ -244,6 +247,7 @@ impl SignalJobRealtimeHandler {
                         self.clickhouse.clone(),
                         self.db.clone(),
                         self.cache.clone(),
+                        self.queue.clone(),
                     )
                     .await
                     {
@@ -289,6 +293,7 @@ impl SignalJobRealtimeHandler {
                     self.clickhouse.clone(),
                     self.db.clone(),
                     self.cache.clone(),
+                    self.queue.clone(),
                 )
                 .await
                 {
@@ -394,6 +399,7 @@ mod tests {
                 name: "test_signal".to_string(),
                 prompt: "test prompt".to_string(),
                 structured_output_schema: serde_json::json!({}),
+                sample_rate: None,
             },
             run_id: Uuid::new_v4(),
             internal_trace_id: Uuid::new_v4(),

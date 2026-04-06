@@ -153,6 +153,7 @@ interface AdvancedSearchProps {
   mode?: AdvancedSearchMode;
   value?: { filters: Filter[]; search: string };
   onSubmit?: (filters: Filter[], search: string) => void;
+  storageKey?: string;
   options?: {
     // If provided autocomplete won't fetch suggestions
     suggestions?: Map<string, string[]>;
@@ -169,6 +170,7 @@ const AdvancedSearch = ({
   mode = "url",
   value,
   onSubmit,
+  storageKey,
   options: { suggestions, disableHotKey } = { disableHotKey: false },
 }: AdvancedSearchProps) => (
   <AdvancedSearchStoreProvider
@@ -178,6 +180,7 @@ const AdvancedSearch = ({
     initialSearch={value?.search}
     onSubmit={onSubmit}
     suggestions={suggestions}
+    storageKey={storageKey}
   >
     <AdvancedSearchInner
       filters={filters}

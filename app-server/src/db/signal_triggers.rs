@@ -25,6 +25,7 @@ struct DBSignalTrigger {
     prompt: String,
     structured_output_schema: Value,
     mode: i16,
+    sample_rate: Option<i16>,
 }
 
 /// Returns all signal triggers for the project with pre-parsed filters
@@ -41,7 +42,8 @@ pub async fn get_signal_triggers(
             s.id as signal_id,
             s.name as signal_name,
             s.prompt as prompt,
-            s.structured_output_schema as structured_output_schema
+            s.structured_output_schema as structured_output_schema,
+            s.sample_rate as sample_rate
         FROM
             signal_triggers st
         INNER JOIN
@@ -78,6 +80,7 @@ pub async fn get_signal_triggers(
                     name: db_trigger.signal_name,
                     prompt: db_trigger.prompt,
                     structured_output_schema: db_trigger.structured_output_schema,
+                    sample_rate: db_trigger.sample_rate,
                 },
                 mode: SignalMode::from_u8(db_trigger.mode as u8),
             })

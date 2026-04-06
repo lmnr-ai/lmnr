@@ -3,24 +3,24 @@ use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::{
+    cache::Cache,
     ch::{
-        signal_run_messages::{
-            CHSignalRunMessage, delete_signal_run_messages, get_signal_run_messages,
-        },
+        signal_run_messages::{CHSignalRunMessage, get_signal_run_messages},
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{DB, signal_jobs::update_signal_job_stats},
     signals::{
-        SignalRun,
+        SignalRun, llm_model,
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
         provider::{
-            ProviderThinkingConfig, ProviderThinkingLevel,
+            ProviderClient, ProviderThinkingConfig, ProviderThinkingLevel,
             models::{
                 ProviderContent as Content, ProviderGenerationConfig, ProviderPart as Part,
                 ProviderRequest, ProviderRequestItem,
             },
         },
-        spans::get_trace_structure_as_string,
+        spans::{build_trace_structure_string, extract_system_prompts, get_trace_ch_spans},
+        summarize::{generate_and_cache_summaries, lookup_cached_summaries},
         tools::build_tool_definitions,
     },
     worker::HandlerError,
@@ -47,19 +47,6 @@ pub async fn handle_failed_runs(
         log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
     }
 
-    // Delete messages for failed runs since they won't be processed further
-    let project_run_pairs: Vec<(Uuid, Uuid)> = failed_runs
-        .iter()
-        .map(|run| (run.project_id, run.run_id))
-        .collect();
-
-    if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
-        log::error!(
-            "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
-            e
-        );
-    }
-
     // Update job statistics - group by job_id since runs may belong to different jobs
     let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
     for run in &failed_runs {
@@ -78,9 +65,12 @@ pub async fn process_run(
     project_id: Uuid,
     trace_id: Uuid,
     run_id: Uuid,
+    signal_id: Uuid,
     prompt: &str,
     structured_output_schema: &serde_json::Value,
     clickhouse: clickhouse::Client,
+    cache: Arc<Cache>,
+    llm_client: Arc<ProviderClient>,
 ) -> Result<ProcessRunResult, HandlerError> {
     let processing_start_time = Utc::now();
 
@@ -92,13 +82,47 @@ pub async fn process_run(
         })?;
 
     let (contents, system_instruction, new_messages) = if existing_messages.is_empty() {
-        // No messages exist - build initial prompts
+        // Fetch spans and build compressed trace with system prompt summarization
+        let ch_spans = get_trace_ch_spans(clickhouse.clone(), project_id, trace_id)
+            .await
+            .map_err(|e| {
+                HandlerError::Transient(anyhow::anyhow!("Failed to get trace spans: {}", e))
+            })?;
+
+        let extracted = extract_system_prompts(&ch_spans);
+        let system_prompt_summaries = if extracted.is_empty() {
+            HashMap::new()
+        } else {
+            let hashes: Vec<String> = extracted.keys().cloned().collect();
+            let mut summaries =
+                lookup_cached_summaries(&cache, project_id, signal_id, prompt, &hashes).await;
+
+            let uncached: HashMap<String, String> = extracted
+                .iter()
+                .filter(|(h, _)| !summaries.contains_key(*h))
+                .map(|(h, t)| (h.clone(), t.clone()))
+                .collect();
+
+            if !uncached.is_empty() {
+                let model = llm_model();
+                let generated = generate_and_cache_summaries(
+                    &cache,
+                    &llm_client,
+                    &model,
+                    project_id,
+                    signal_id,
+                    prompt,
+                    &uncached,
+                )
+                .await;
+                summaries.extend(generated);
+            }
+
+            summaries
+        };
+
         let trace_structure =
-            get_trace_structure_as_string(clickhouse.clone(), project_id, trace_id)
-                .await
-                .map_err(|e| {
-                    HandlerError::Transient(anyhow::anyhow!("Failed to get trace structure: {}", e))
-                })?;
+            build_trace_structure_string(&ch_spans, trace_id, &system_prompt_summaries);
 
         let system_prompt = SYSTEM_PROMPT.replace("{{fullTraceData}}", &trace_structure);
 
@@ -198,7 +222,7 @@ pub async fn process_run(
             system_instruction: system_instruction.clone(),
             tools: Some(tools),
             generation_config: Some(ProviderGenerationConfig {
-                temperature: Some(1.0),
+                temperature: Some(0.95),
                 thinking_config: Some(ProviderThinkingConfig {
                     include_thoughts: Some(true),
                     thinking_level: Some(ProviderThinkingLevel::Low),

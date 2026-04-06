@@ -36,10 +36,16 @@ pub struct QuickwitIndexedSpan {
     pub start_time: DateTime<Utc>,
     pub input: Option<String>,
     pub output: Option<String>,
+    pub attributes: Option<String>,
 }
 
 impl From<&Span> for QuickwitIndexedSpan {
     fn from(span: &Span) -> Self {
+        let attributes = if span.attributes.raw_attributes.is_empty() {
+            None
+        } else {
+            serde_json::to_string(&span.attributes.raw_attributes).ok()
+        };
         Self {
             span_id: span.span_id,
             project_id: span.project_id,
@@ -47,6 +53,7 @@ impl From<&Span> for QuickwitIndexedSpan {
             start_time: span.start_time,
             input: span.input.as_ref().map(json_value_to_string),
             output: span.output.as_ref().map(json_value_to_string),
+            attributes,
         }
     }
 }
@@ -118,6 +125,9 @@ impl PreprocessForIndexing for QuickwitIndexedSpan {
         }
         if let Some(ref output) = self.output {
             self.output = Some(preprocess_text(output));
+        }
+        if let Some(ref attributes) = self.attributes {
+            self.attributes = Some(preprocess_text(attributes));
         }
     }
 }

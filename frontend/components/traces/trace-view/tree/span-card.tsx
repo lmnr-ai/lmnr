@@ -8,6 +8,7 @@ import { ContentPreview } from "@/components/traces/trace-view/content-preview";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
 import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
 import { getLLMMetrics, getSpanDisplayName } from "@/components/traces/trace-view/utils";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { isStringDateOld } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
@@ -52,7 +53,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
   const llmMetrics = getLLMMetrics(span);
   const childSpans = useMemo(() => spans.filter((s) => s.parentSpanId === span.spanId), [spans, span.spanId]);
 
-  const hasSnippet = !!(span.inputSnippet || span.outputSnippet);
+  const hasSnippet = !!(span.inputSnippet || span.outputSnippet || span.attributesSnippet);
 
   const hasChildren = childSpans && childSpans.length > 0;
   const isExpandable =
@@ -134,7 +135,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
                   </div>
                 </NoSpanTooltip>
               ) : (
-                <PreviewLoadingPlaceholder />
+                <Skeleton className="w-10 h-4 text-secondary-foreground px-2 py-0.5 bg-secondary rounded-md text-xs" />
               )
             ) : (
               <SpanStatsShield
@@ -163,7 +164,12 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
             <div className="px-2 pt-0">
               {hasSnippet ? (
                 <div className="pb-2">
-                  <SnippetPreview inputSnippet={span.inputSnippet} outputSnippet={span.outputSnippet} variant="span" />
+                  <SnippetPreview
+                    inputSnippet={span.inputSnippet}
+                    outputSnippet={span.outputSnippet}
+                    attributesSnippet={span.attributesSnippet}
+                    variant="span"
+                  />
                 </div>
               ) : (
                 <>
