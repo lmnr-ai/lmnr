@@ -320,7 +320,7 @@ function TracesTableContent() {
           const payload = JSON.parse(event.data);
           if (payload.traces && Array.isArray(payload.traces)) {
             for (const trace of payload.traces) {
-              updateRealtimeTrace(trace);
+              updateRealtimeTrace({ ...trace, spanTags: trace.tags ?? [] });
             }
           }
         } catch (e) {
