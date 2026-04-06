@@ -30,7 +30,7 @@ export const getWebNotifications = async (
         definition_type as definitionType,
         definition_id as definitionId,
         payload,
-        created_at as createdAt
+        formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt
       FROM notification_logs
       WHERE workspace_id = {workspaceId: UUID}
         AND target_type = 'WEB'
