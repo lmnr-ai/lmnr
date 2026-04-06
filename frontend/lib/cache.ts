@@ -110,6 +110,24 @@ class CacheManager {
     }
   }
 
+  async expire(key: string, seconds: number): Promise<boolean> {
+    if (this.useRedis) {
+      const client = await this.getRedisClient();
+      try {
+        const result = await client.expire(key, seconds);
+        return result === 1;
+      } catch (e) {
+        console.error("Error setting expiry in cache", e);
+        return false;
+      }
+    } else {
+      const entry = this.memoryCache.get(key);
+      if (!entry) return false;
+      entry.expiresAt = Date.now() + seconds * 1000;
+      return true;
+    }
+  }
+
   async zrange(key: string, start: number, stop: number): Promise<string[]> {
     if (this.useRedis) {
       const client = await this.getRedisClient();

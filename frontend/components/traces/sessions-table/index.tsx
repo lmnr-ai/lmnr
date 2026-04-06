@@ -215,7 +215,7 @@ function SessionsTableContent() {
 
         setSessionTraces(sessionId, traces.items);
 
-        const traceIds = traces.items.map((t) => t.id);
+        const traceIds = traces.items.filter((t) => t.totalTokens > 0).map((t) => t.id);
         if (traceIds.length > 0) {
           setLoadingSessionIO(sessionId, true);
           try {
