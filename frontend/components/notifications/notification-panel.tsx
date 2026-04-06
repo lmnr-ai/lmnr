@@ -58,7 +58,7 @@ const formatNotification = (notification: WebNotification, projectId?: string) =
     const periodType = diffDays >= 7 ? "week" : diffDays > 1 ? `${diffDays} days` : "day";
 
     return {
-      title: `Events Summary (${report.period_start} - ${report.period_end})`,
+      title: `Events Summary`,
       summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} during last ${periodType}`,
     };
   } catch {
@@ -93,15 +93,15 @@ const NotificationPanel = () => {
       <PopoverTrigger asChild>
         <button
           className={cn(
-            "relative flex items-center justify-center rounded-md p-1.5",
+            "relative flex items-center justify-center rounded-md p-1",
             "text-secondary-foreground hover:bg-secondary/60 transition-colors"
           )}
         >
-          <Bell className="size-6" />
+          <Bell className="size-4" />
           {hasNotifications && <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary" />}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-96 p-0">
+      <PopoverContent align="start" side="bottom" className="w-96 p-0">
         <div className="flex items-center justify-between border-b px-3 py-2">
           <span className="text-sm font-medium">Notifications</span>
         </div>
