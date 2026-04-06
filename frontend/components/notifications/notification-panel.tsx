@@ -62,18 +62,29 @@ const formatNotification = (notification: WebNotification, projectId?: string): 
     const signalCount = project
       ? Object.keys(project.signal_event_counts).length
       : report.projects.reduce((acc, p) => acc + Object.keys(p.signal_event_counts).length, 0);
-    const startMs = new Date(report.period_start).getTime();
-    const endMs = new Date(report.period_end).getTime();
-    const diffDays =
-      Number.isNaN(startMs) || Number.isNaN(endMs) ? NaN : Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
-    const periodType = diffDays >= 7 ? "week" : diffDays > 1 ? `${diffDays} days` : "day";
+    const startDate = new Date(report.period_start);
+    const endDate = new Date(report.period_end);
+    const startMs = startDate.getTime();
+    const endMs = endDate.getTime();
+    const periodLabel = (() => {
+      if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+        return "during selected period";
+      }
+
+      const formatMonthDay = (date: Date) => {
+        const month = date.toLocaleDateString("en-US", { month: "short" });
+        return `${month}-${date.getDate()}`;
+      };
+
+      return `between ${formatMonthDay(startDate)} and ${formatMonthDay(endDate)}`;
+    })();
 
     const aiSummary = project?.ai_summary ?? null;
     const noteworthyEvents = project ? project.noteworthy_events : report.projects.flatMap((p) => p.noteworthy_events);
 
     return {
-      title: `Events Summary`,
-      summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} during last ${periodType}`,
+      title: `Signal Events Report`,
+      summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} ${periodLabel}`,
       aiSummary,
       noteworthyEvents,
       projectId: project?.project_id ?? null,
@@ -108,18 +119,22 @@ const NotificationItem = ({
     <div
       className={cn(
         "flex flex-col gap-1.5 border-b last:border-b-0 px-3 py-3 cursor-pointer transition-colors",
-        isUnread ? "bg-secondary" : "bg-transparent"
+        isUnread ? "bg-secondary hover:bg-secondary/90" : "bg-transparent hover:bg-secondary/20"
       )}
       onClick={handleClick}
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-foreground">{formatted.title}</span>
+        <span className={cn("text-xs text-foreground", isUnread ? "font-semibold" : "font-medium")}>
+          {formatted.title}
+        </span>
         <div className="flex items-center gap-1.5 shrink-0 ml-2">
           {isUnread && <span className="size-1.5 rounded-full bg-orange-500 shrink-0" />}
           <span className="text-[11px] text-muted-foreground/70">{formatRelativeTime(notification.createdAt)}</span>
         </div>
       </div>
-      <span className="text-xs text-muted-foreground">{formatted.summary}</span>
+      <span className={cn("text-xs", isUnread ? "text-foreground/80" : "text-muted-foreground")}>
+        {formatted.summary}
+      </span>
       {hasDetails && (
         <button
           onClick={(e) => {
@@ -135,7 +150,10 @@ const NotificationItem = ({
       {expanded && (
         <>
           {formatted.aiSummary && (
-            <p className="text-xs text-secondary-foreground leading-relaxed">{formatted.aiSummary}</p>
+            <div className="flex flex-col gap-1 mt-1">
+              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Summary</span>
+              <p className="text-xs text-secondary-foreground leading-relaxed">{formatted.aiSummary}</p>
+            </div>
           )}
           {formatted.noteworthyEvents.length > 0 && (
             <div className="flex flex-col gap-1.5 mt-1">

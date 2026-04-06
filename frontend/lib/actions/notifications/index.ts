@@ -19,7 +19,7 @@ export const getWebNotifications = async (
   workspaceId: string,
   userId: string,
   projectId: string,
-  limit = 5
+  limit = 10
 ): Promise<WebNotification[]> => {
   const result = await clickhouseClient.query({
     query: `
