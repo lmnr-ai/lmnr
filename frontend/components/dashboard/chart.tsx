@@ -4,6 +4,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 import ChartHeader from "@/components/dashboard/chart-header";
+import { useDashboardTraceContext } from "@/components/dashboard/dashboard-trace-context";
 import { type DashboardChart } from "@/components/dashboard/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +22,7 @@ const Chart = ({ chart }: ChartProps) => {
   const [data, setData] = useState<Record<string, any>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { openTrace } = useDashboardTraceContext();
 
   const columns = useMemo(() => transformDataToColumns(data), [data]);
 
@@ -87,6 +89,24 @@ const Chart = ({ chart }: ChartProps) => {
     fetchData();
   }, [fetchData]);
 
+  const handleBarClick = useCallback(
+    (rowData: Record<string, any>) => {
+      const traceId = rowData.trace_id || rowData.__hidden_trace_id;
+      const spanId = rowData.span_id || rowData.__hidden_span_id;
+      if (traceId) {
+        openTrace(String(traceId), spanId ? String(spanId) : undefined);
+      }
+    },
+    [openTrace]
+  );
+
+  const handleTraceClick = useCallback(
+    (traceId: string, spanId?: string) => {
+      openTrace(traceId, spanId);
+    },
+    [openTrace]
+  );
+
   return (
     <div className="flex flex-col border gap-2 rounded-lg p-4 h-full border-dashed border-border relative">
       <ChartHeader name={name} id={id} projectId={projectId as string} />
@@ -98,7 +118,13 @@ const Chart = ({ chart }: ChartProps) => {
       ) : isLoading ? (
         <Skeleton className="h-full w-full" />
       ) : (
-        <ChartRendererCore config={settings.config} data={data} columns={columns} />
+        <ChartRendererCore
+          config={settings.config}
+          data={data}
+          columns={columns}
+          onBarClick={handleBarClick}
+          onTraceClick={handleTraceClick}
+        />
       )}
       <IconResizeHandle className="size-4 absolute right-2 text-muted-foreground bottom-2" />
     </div>

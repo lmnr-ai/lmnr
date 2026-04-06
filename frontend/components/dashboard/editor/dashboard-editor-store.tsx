@@ -6,7 +6,7 @@ import { isDate, isEmpty, isNil, isObject } from "lodash";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
 
-import { ChartType } from "@/components/chart-builder/types.ts";
+import { ChartType, type DisplayMode } from "@/components/chart-builder/types.ts";
 import { type DashboardChart } from "@/components/dashboard/types";
 import { type SQLParameter } from "@/components/sql/sql-editor-store";
 
@@ -26,7 +26,7 @@ type DashboardEditorActions = {
   setQuery: (query: string) => void;
   setName: (name: string) => void;
   setChartConfig: (config: DashboardChart["settings"]["config"]) => void;
-  setTotal: (total: boolean) => void;
+  setDisplayMode: (displayMode: DisplayMode) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setData: (data: Record<string, string | number | boolean>[]) => void;
@@ -66,7 +66,7 @@ const defaultChart: DashboardEditorState["chart"] = {
     config: {
       x: undefined,
       y: undefined,
-      total: false,
+      displayMode: "none",
       breakdown: undefined,
       type: ChartType.LineChart,
     },
@@ -121,7 +121,7 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
         },
       })),
 
-    setTotal: (total) =>
+    setDisplayMode: (displayMode) =>
       set((state) => ({
         chart: {
           ...state.chart,
@@ -129,7 +129,8 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
             ...state.chart.settings,
             config: {
               ...state.chart.settings.config,
-              total,
+              displayMode,
+              total: undefined,
             },
           },
         },

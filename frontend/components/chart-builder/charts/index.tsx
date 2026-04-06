@@ -4,27 +4,33 @@ import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-bu
 import BarChart from "@/components/chart-builder/charts/bar-chart";
 import HorizontalBarChart from "@/components/chart-builder/charts/horizontal-bar-chart";
 import LineChart from "@/components/chart-builder/charts/line-chart";
+import MetricChart from "@/components/chart-builder/charts/metric-chart";
+import TableChart from "@/components/chart-builder/charts/table-chart";
 import {
   generateChartConfig,
   transformDataForBreakdown,
   transformDataForSimpleChart,
 } from "@/components/chart-builder/charts/utils";
-import { type ChartConfig, ChartType } from "@/components/chart-builder/types";
+import { type ChartConfig, ChartType, resolveDisplayMode } from "@/components/chart-builder/types";
 import { type ColumnInfo } from "@/components/chart-builder/utils";
 
 interface ChartRendererCoreProps {
   config: ChartConfig;
   data: Record<string, any>[];
   columns: ColumnInfo[];
+  onBarClick?: (rowData: Record<string, any>) => void;
+  onTraceClick?: (traceId: string, spanId?: string) => void;
 }
 
-export const ChartRendererCore = ({ config, data, columns }: ChartRendererCoreProps) => {
+export const ChartRendererCore = ({ config, data, columns, onBarClick, onTraceClick }: ChartRendererCoreProps) => {
+  const isMetricOrTable = config.type === ChartType.Metric || config.type === ChartType.Table;
+
   const {
     chartData,
     keys,
     chartConfig: uiChartConfig,
   } = useMemo(() => {
-    if (!config.type || !config.x || !config.y) {
+    if (isMetricOrTable || !config.type || !config.x || !config.y) {
       return { chartData: [], keys: new Set<string>(), chartConfig: {} };
     }
 
@@ -41,7 +47,31 @@ export const ChartRendererCore = ({ config, data, columns }: ChartRendererCorePr
     }
 
     return transformDataForSimpleChart(data, config.x, [config.y]);
-  }, [config, data, columns]);
+  }, [config, data, columns, isMetricOrTable]);
+
+  // Handle Metric type
+  if (config.type === ChartType.Metric) {
+    if (data.length === 0) {
+      return (
+        <div className="flex flex-1 h-full justify-center items-center bg-muted/30 rounded-lg">
+          <span className="text-muted-foreground">No data during this period</span>
+        </div>
+      );
+    }
+    return <MetricChart data={data} x={config.x || Object.keys(data[0])[0]} y="" metricColumn={config.y || config.x} />;
+  }
+
+  // Handle Table type
+  if (config.type === ChartType.Table) {
+    if (data.length === 0) {
+      return (
+        <div className="flex flex-1 h-full justify-center items-center bg-muted/30 rounded-lg">
+          <span className="text-muted-foreground">No data during this period</span>
+        </div>
+      );
+    }
+    return <TableChart data={data} onTraceClick={onTraceClick} />;
+  }
 
   if (!config.type || !config.x || !config.y) {
     return (
@@ -56,12 +86,15 @@ export const ChartRendererCore = ({ config, data, columns }: ChartRendererCorePr
     );
   }
 
+  const displayMode = resolveDisplayMode(config);
+
   const props = {
     data: chartData,
     x: config.x,
     y: config.y,
     breakdown: config.breakdown,
-    total: config.total,
+    displayMode,
+    metricColumn: config.y,
     keys: Array.from(keys),
     chartConfig: uiChartConfig || generateChartConfig(Array.from(keys)),
   };
@@ -80,7 +113,7 @@ export const ChartRendererCore = ({ config, data, columns }: ChartRendererCorePr
     case ChartType.BarChart:
       return <BarChart {...props} />;
     case ChartType.HorizontalBarChart:
-      return <HorizontalBarChart {...props} />;
+      return <HorizontalBarChart {...props} onBarClick={onBarClick} />;
     default:
       return (
         <div className="flex items-center justify-center h-full w-full text-muted-foreground">

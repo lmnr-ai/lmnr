@@ -9,11 +9,11 @@ import { type DashboardChart } from "@/components/dashboard/types";
 import Header from "@/components/ui/header";
 
 const DashboardEditor = ({ chart }: { chart?: DashboardChart }) => {
-  const { id } = useParams();
+  const { id, projectId } = useParams();
 
   return (
     <DashboardEditorStoreProvider chart={chart}>
-      <Header path={`dashboard/${chart?.name ?? id}`} />
+      <Header path={[{ name: "home", href: `/project/${projectId}/dashboard` }, { name: String(chart?.name ?? id) }]} />
       <div className="flex-1 overflow-hidden px-4 pb-4">
         <ChartBuilder />
       </div>

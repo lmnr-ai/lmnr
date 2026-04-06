@@ -1,4 +1,4 @@
-import { ChartBar, ChartColumn, ChartLine } from "lucide-react";
+import { ChartBar, ChartColumn, ChartLine, Hash, Table2 } from "lucide-react";
 import { type ReactNode } from "react";
 import { useFormContext } from "react-hook-form";
 
@@ -20,6 +20,14 @@ const chartTypeOptions: Record<ChartType, { label: string; icon: ReactNode }> = 
   [ChartType.HorizontalBarChart]: {
     label: "Horizontal Bar",
     icon: <ChartBar className="size-3.5" />,
+  },
+  [ChartType.Metric]: {
+    label: "Metric",
+    icon: <Hash className="size-3.5" />,
+  },
+  [ChartType.Table]: {
+    label: "Table",
+    icon: <Table2 className="size-3.5" />,
   },
 };
 

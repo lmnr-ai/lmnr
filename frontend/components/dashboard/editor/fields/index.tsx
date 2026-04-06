@@ -3,13 +3,13 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { ChartType } from "@/components/chart-builder/types";
+import { ChartType, type DisplayMode, resolveDisplayMode } from "@/components/chart-builder/types";
 import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
 import { type DashboardChart } from "@/components/dashboard/types";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import ChartTypeField from "./ChartTypeField";
@@ -67,12 +67,12 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const { chart, setName, chartType, total, setTotal } = useDashboardEditorStoreContext((state) => ({
+  const { chart, setName, chartType, displayMode, setDisplayMode } = useDashboardEditorStoreContext((state) => ({
     chart: state.chart,
     setName: state.setName,
     chartType: state.chart.settings.config.type,
-    total: state.chart.settings.config.total ?? false,
-    setTotal: state.setTotal,
+    displayMode: resolveDisplayMode(state.chart.settings.config),
+    setDisplayMode: state.setDisplayMode,
   }));
 
   const handleSaveChart = useCallback(async () => {
@@ -126,16 +126,25 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
       <TableSelect />
       <MetricsField />
       <FiltersField />
-      <DimensionsField />
-      {chartType === ChartType.HorizontalBarChart && <OrderByField />}
+      {chartType !== ChartType.Metric && chartType !== ChartType.Table && <DimensionsField />}
+      {(chartType === ChartType.HorizontalBarChart || chartType === ChartType.Table) && <OrderByField />}
       <LimitField />
 
-      <div className="flex items-center gap-2">
-        <Checkbox id="showTotal" checked={total} onCheckedChange={(checked) => setTotal(checked as boolean)} />
-        <Label htmlFor="showTotal" className="text-xs text-secondary-foreground/80 cursor-pointer">
-          Show Total
-        </Label>
-      </div>
+      {chartType !== ChartType.Metric && chartType !== ChartType.Table && (
+        <div className="grid gap-1">
+          <Label className="font-semibold text-xs">Display Value</Label>
+          <Select value={displayMode} onValueChange={(value) => setDisplayMode(value as DisplayMode)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="total">Show Total</SelectItem>
+              <SelectItem value="latest">Show Latest Value</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {saveError && <div className="text-sm text-destructive">{saveError}</div>}
       <Button

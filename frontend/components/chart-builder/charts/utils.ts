@@ -261,3 +261,39 @@ export const calculateChartTotals = (data: Record<string, any>[], keys: string[]
 
   return { totalSum, totalMax };
 };
+
+export const calculateLatestValue = (data: Record<string, any>[], keys: string[]): number => {
+  if (data.length === 0 || keys.length === 0) return 0;
+
+  const lastRow = data[data.length - 1];
+  return keys.reduce((sum, key) => sum + (Number(lastRow[key]) || 0), 0);
+};
+
+export type DisplayValueResult = {
+  displayValue: number | null;
+  totalMax: number;
+};
+
+export const calculateDisplayValue = (
+  data: Record<string, any>[],
+  keys: string[],
+  displayMode: string
+): DisplayValueResult => {
+  if (displayMode === "none") return { displayValue: null, totalMax: 0 };
+
+  const totalMax = calculateDataMax(data, keys);
+
+  if (displayMode === "total") {
+    const totalSum = data.reduce(
+      (sum, row) => sum + keys.reduce((keySum, key) => keySum + (Number(row[key]) || 0), 0),
+      0
+    );
+    return { displayValue: totalSum, totalMax };
+  }
+
+  if (displayMode === "latest") {
+    return { displayValue: calculateLatestValue(data, keys), totalMax };
+  }
+
+  return { displayValue: null, totalMax: 0 };
+};

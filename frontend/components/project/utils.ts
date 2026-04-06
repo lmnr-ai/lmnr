@@ -2,7 +2,7 @@ import {
   Database,
   FlaskConical,
   GitFork,
-  LayoutGrid,
+  House,
   Pen,
   PlayCircle,
   Radio,
@@ -13,9 +13,9 @@ import {
 
 export const getSidebarMenus = (projectId: string) => [
   {
-    name: "dashboards",
+    name: "home",
     href: `/project/${projectId}/dashboard`,
-    icon: LayoutGrid,
+    icon: House,
   },
   {
     name: "traces",

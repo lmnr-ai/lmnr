@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 
+import { DashboardTraceProvider, useDashboardTraceContext } from "@/components/dashboard/dashboard-trace-context";
 import GridLayout from "@/components/dashboard/grid-layout";
+import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import { Button } from "@/components/ui/button";
 
 import DateRangeFilter from "../ui/date-range-filter";
@@ -10,10 +12,12 @@ import { GroupByPeriodSelect } from "../ui/group-by-period-select";
 import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";
 
-export default function Dashboard() {
+function DashboardContent() {
+  const { traceId, spanId, closeTrace } = useDashboardTraceContext();
+
   return (
     <>
-      <Header path={"dashboard"}>
+      <Header path={"home"}>
         <div className="h-12 flex gap-2 w-full items-center">
           <DateRangeFilter />
           <GroupByPeriodSelect />
@@ -22,11 +26,22 @@ export default function Dashboard() {
           </Link>
         </div>
       </Header>
-      <ScrollArea className="h-full">
-        <div className="h-full px-4 pb-4">
-          <GridLayout />
-        </div>
-      </ScrollArea>
+      <div className="relative flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <div className="h-full px-4 pb-4">
+            <GridLayout />
+          </div>
+        </ScrollArea>
+        {traceId && <TraceViewSidePanel traceId={traceId} spanId={spanId ?? undefined} onClose={closeTrace} />}
+      </div>
     </>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <DashboardTraceProvider>
+      <DashboardContent />
+    </DashboardTraceProvider>
   );
 }
