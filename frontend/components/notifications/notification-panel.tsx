@@ -33,11 +33,17 @@ interface ReportPayload {
   };
 }
 
-const formatNotification = (notification: WebNotification) => {
+const formatNotification = (notification: WebNotification, projectId?: string) => {
   try {
     const payload: ReportPayload = JSON.parse(notification.payload);
     const report = payload.report;
-    const signalCount = report.projects.reduce((acc, p) => acc + Object.keys(p.signal_event_counts).length, 0);
+    const project = projectId ? report.projects.find((p) => p.project_id === projectId) : undefined;
+    const events = project
+      ? Object.values(project.signal_event_counts).reduce((a, b) => a + b, 0)
+      : report.total_events;
+    const signalCount = project
+      ? Object.keys(project.signal_event_counts).length
+      : report.projects.reduce((acc, p) => acc + Object.keys(p.signal_event_counts).length, 0);
     const startMs = new Date(report.period_start).getTime();
     const endMs = new Date(report.period_end).getTime();
     const diffDays =
@@ -46,22 +52,20 @@ const formatNotification = (notification: WebNotification) => {
 
     return {
       title: payload.title,
-      summary: `${report.total_events} new event${report.total_events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} during last ${periodType}`,
+      summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} during last ${periodType}`,
       period: `${report.period_start} - ${report.period_end}`,
-      projects: report.projects.map((p) => ({ id: p.project_id, name: p.project_name })),
     };
   } catch {
     return {
       title: "Report",
       summary: "New signal events report available",
       period: "",
-      projects: [],
     };
   }
 };
 
 const NotificationPanel = () => {
-  const { workspace } = useProjectContext();
+  const { workspace, project } = useProjectContext();
 
   const { data: notifications } = useSWR<WebNotification[]>(
     workspace ? `/api/workspaces/${workspace.id}/notifications` : null,
@@ -79,11 +83,11 @@ const NotificationPanel = () => {
             "text-secondary-foreground hover:bg-secondary/60 transition-colors"
           )}
         >
-          <Bell className="size-4" />
+          <Bell className="size-6" />
           {hasNotifications && <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary" />}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0">
+      <PopoverContent align="end" className="w-96 p-0">
         <div className="flex items-center justify-between border-b px-3 py-2">
           <span className="text-sm font-medium">Notifications</span>
         </div>
@@ -95,7 +99,7 @@ const NotificationPanel = () => {
           ) : (
             <div className="flex flex-col">
               {notifications.map((n) => {
-                const formatted = formatNotification(n);
+                const formatted = formatNotification(n, project?.id);
                 return (
                   <div key={n.id} className="flex flex-col gap-1 border-b last:border-b-0 px-3 py-2.5">
                     <span className="text-xs font-medium text-foreground">{formatted.title}</span>
@@ -103,18 +107,13 @@ const NotificationPanel = () => {
                     {formatted.period && (
                       <span className="text-[11px] text-muted-foreground/70">{formatted.period}</span>
                     )}
-                    {formatted.projects.length > 0 && (
-                      <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
-                        {formatted.projects.map((p) => (
-                          <Link
-                            key={p.id}
-                            href={`/project/${p.id}/signals`}
-                            className="text-xs text-primary hover:underline w-fit"
-                          >
-                            {formatted.projects.length === 1 ? "View events" : p.name}
-                          </Link>
-                        ))}
-                      </div>
+                    {project && (
+                      <Link
+                        href={`/project/${project.id}/signals`}
+                        className="text-xs text-primary hover:underline mt-0.5 w-fit"
+                      >
+                        View events
+                      </Link>
                     )}
                   </div>
                 );
