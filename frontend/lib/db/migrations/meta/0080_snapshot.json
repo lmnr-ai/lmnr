@@ -1450,7 +1450,7 @@
       "compositePrimaryKeys": {
         "notification_reads_pkey": {
           "name": "notification_reads_pkey",
-          "columns": ["user_id", "notification_id"]
+          "columns": ["user_id", "notification_id", "project_id"]
         }
       },
       "uniqueConstraints": {},

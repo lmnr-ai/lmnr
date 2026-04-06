@@ -108,18 +108,16 @@ const NotificationItem = ({
     <div
       className={cn(
         "flex flex-col gap-1.5 border-b last:border-b-0 px-3 py-3 cursor-pointer transition-colors",
-        isUnread ? "bg-secondary/50" : "bg-transparent"
+        isUnread ? "bg-secondary" : "bg-transparent"
       )}
       onClick={handleClick}
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
+        <span className="text-xs font-medium text-foreground">{formatted.title}</span>
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
           {isUnread && <span className="size-1.5 rounded-full bg-orange-500 shrink-0" />}
-          <span className="text-xs font-medium text-foreground">{formatted.title}</span>
+          <span className="text-[11px] text-muted-foreground/70">{formatRelativeTime(notification.createdAt)}</span>
         </div>
-        <span className="text-[11px] text-muted-foreground/70 shrink-0 ml-2">
-          {formatRelativeTime(notification.createdAt)}
-        </span>
       </div>
       <span className="text-xs text-muted-foreground">{formatted.summary}</span>
       {hasDetails && (
