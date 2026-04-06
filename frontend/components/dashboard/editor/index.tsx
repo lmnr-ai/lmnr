@@ -13,7 +13,7 @@ const DashboardEditor = ({ chart }: { chart?: DashboardChart }) => {
 
   return (
     <DashboardEditorStoreProvider chart={chart}>
-      <Header path={[{ name: "home", href: `/project/${projectId}/dashboard` }, { name: String(chart?.name ?? id) }]} />
+      <Header path={[{ name: "Home", href: `/project/${projectId}/dashboard` }, { name: String(chart?.name ?? id) }]} />
       <div className="flex-1 overflow-hidden px-4 pb-4">
         <ChartBuilder />
       </div>

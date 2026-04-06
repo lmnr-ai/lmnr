@@ -19,7 +19,9 @@ const TableChart = ({ data, onTraceClick }: TableChartProps) => {
     );
   }
 
-  const columns = Object.keys(data[0]).filter((col) => col !== "__hidden_trace_id" && col !== "__hidden_span_id");
+  const columns = Object.keys(data[0]).filter(
+    (col) => col !== "__hidden_trace_id" && col !== "__hidden_span_id" && col !== "__hidden_id"
+  );
 
   const isClickableCell = (column: string): boolean => {
     if (!onTraceClick) return false;

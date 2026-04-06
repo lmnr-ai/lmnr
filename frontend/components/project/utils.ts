@@ -13,7 +13,7 @@ import {
 
 export const getSidebarMenus = (projectId: string) => [
   {
-    name: "home",
+    name: "Home",
     href: `/project/${projectId}/dashboard`,
     icon: House,
   },

@@ -17,7 +17,7 @@ function DashboardContent() {
 
   return (
     <>
-      <Header path={"home"}>
+      <Header path={"Home"}>
         <div className="h-12 flex gap-2 w-full items-center">
           <DateRangeFilter />
           <GroupByPeriodSelect />

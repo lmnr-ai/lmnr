@@ -91,7 +91,7 @@ const Chart = ({ chart }: ChartProps) => {
 
   const handleBarClick = useCallback(
     (rowData: Record<string, any>) => {
-      const traceId = rowData.trace_id || rowData.__hidden_trace_id;
+      const traceId = rowData.trace_id || rowData.__hidden_trace_id || rowData.id || rowData.__hidden_id;
       const spanId = rowData.span_id || rowData.__hidden_span_id;
       if (traceId) {
         openTrace(String(traceId), spanId ? String(spanId) : undefined);

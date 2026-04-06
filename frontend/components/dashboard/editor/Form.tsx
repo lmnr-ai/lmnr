@@ -296,7 +296,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
             </Select>
           </div>
         </div>
-        <div className="flex flex-col justify-center items-center w-full min-h-96 p-4 self-center border rounded border-dashed bg-secondary">
+        <div className="flex flex-col justify-start items-center w-full min-h-96 p-4 self-center border rounded border-dashed bg-secondary">
           {chart.name && (
             <div className="w-full mb-2">
               <span className="font-medium text-lg text-secondary-foreground truncate">{chart.name}</span>
