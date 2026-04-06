@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 
 import { tryParseJson } from "@/lib/actions/common/utils";
+import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
 import { cache } from "@/lib/cache";
 
@@ -35,7 +36,7 @@ const INPUT_QUERY = `
 `;
 
 const OUTPUT_QUERY = `
-  SELECT output AS output_content
+  SELECT span_id AS spanId, output AS data, name
   FROM spans
   WHERE trace_id = {traceId: UUID}
     AND span_type = 'LLM'
@@ -44,12 +45,26 @@ const OUTPUT_QUERY = `
   LIMIT 1
 `;
 
+/**
+ * Fetches the input and output of the "main agent" for a given trace.
+ *
+ * Strategy:
+ * 1. Find all LLM spans in the trace
+ * 2. Group by system prompt (first message content hash) to identify sub-agents
+ * 3. The "main agent" is the one whose earliest span has the earliest start_time
+ * 4. Input: first user message from the main agent's first LLM span
+ * 5. Output: rendered preview from the main agent's last LLM span (via processSpanPreviews)
+ */
 export async function getMainAgentIO({
   traceId,
   projectId,
+  startDate,
+  endDate,
 }: {
   traceId: string;
   projectId: string;
+  startDate?: string;
+  endDate?: string;
 }): Promise<{ input: string | null; output: string | null }> {
   const pathRows = await executeQuery<{ path: string }>({
     query: TOP_PATH_QUERY,
@@ -63,26 +78,35 @@ export async function getMainAgentIO({
 
   const topPath = pathRows[0].path;
 
+  const parameters: Record<string, string> = { traceId };
+  if (startDate) parameters.startDate = startDate.replace("Z", "");
+  if (endDate) parameters.endDate = endDate.replace("Z", "");
+
   const [inputRows, outputRows] = await Promise.all([
     executeQuery<{ input: string }>({
       query: INPUT_QUERY,
       parameters: { traceId, path: topPath },
       projectId,
     }),
-    executeQuery<{ output_content: string }>({
+    executeQuery<{ spanId: string; data: string; name: string }>({
       query: OUTPUT_QUERY,
       parameters: { traceId, path: topPath },
       projectId,
     }),
   ]);
 
-  const rawOutput = outputRows.length > 0 ? outputRows[0].output_content || null : null;
-
-  if (inputRows.length === 0) {
-    return { input: null, output: rawOutput };
+  let outputText: string | null = null;
+  if (outputRows.length > 0) {
+    const { spanId } = outputRows[0];
+    const previews = await processSpanPreviews(outputRows, projectId, [spanId], { [spanId]: "LLM" });
+    outputText = previews[spanId] || null;
   }
 
-  return { input: await extractInput(inputRows[0].input), output: rawOutput };
+  if (inputRows.length === 0) {
+    return { input: null, output: outputText };
+  }
+
+  return { input: await extractInput(inputRows[0].input), output: outputText };
 }
 
 export async function getMainAgentIOBatch({
