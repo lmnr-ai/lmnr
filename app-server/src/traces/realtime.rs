@@ -34,7 +34,8 @@ struct RealtimeTrace {
     top_span_type: Option<String>,
     status: Option<String>,
     user_id: Option<String>,
-    span_tags: Vec<String>,
+    #[serde(rename = "spanTags")]
+    tags: Vec<String>,
     trace_tags: Vec<String>,
     root_span_input: Option<String>,
     root_span_output: Option<String>,
@@ -207,7 +208,7 @@ impl RealtimeTrace {
                 .map(|t| SpanType::from(t as u8).to_string()),
             status: trace.status(),
             user_id: trace.user_id(),
-            span_tags: trace.tags().clone(),
+            tags: trace.tags().clone(),
             trace_tags: Vec::new(),
             root_span_input: trace.root_span_input(),
             root_span_output: trace.root_span_output(),
