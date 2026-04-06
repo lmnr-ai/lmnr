@@ -94,7 +94,7 @@ export const ChartRendererCore = ({ config, data, columns, onBarClick, onTraceCl
     y: config.y,
     breakdown: config.breakdown,
     displayMode,
-    metricColumn: config.y,
+    metricColumn: config.type === ChartType.HorizontalBarChart ? config.x : config.y,
     keys: Array.from(keys),
     chartConfig: uiChartConfig || generateChartConfig(Array.from(keys)),
   };

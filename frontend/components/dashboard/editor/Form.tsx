@@ -147,18 +147,18 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
         if (table === "spans") {
           if (!existingColumns.has("trace_id") && !existingDimensions.has("trace_id")) {
-            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [] });
+            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [], alias: "__hidden_trace_id" });
           }
           if (!existingColumns.has("span_id") && !existingDimensions.has("span_id")) {
-            injectedMetrics.push({ fn: "raw", column: "span_id", args: [] });
+            injectedMetrics.push({ fn: "raw", column: "span_id", args: [], alias: "__hidden_span_id" });
           }
         } else if (table === "traces") {
           if (!existingColumns.has("id") && !existingDimensions.has("id")) {
-            injectedMetrics.push({ fn: "raw", column: "id", args: [] });
+            injectedMetrics.push({ fn: "raw", column: "id", args: [], alias: "__hidden_id" });
           }
         } else if (table === "signal_events") {
           if (!existingColumns.has("trace_id") && !existingDimensions.has("trace_id")) {
-            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [] });
+            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [], alias: "__hidden_trace_id" });
           }
         }
       }
