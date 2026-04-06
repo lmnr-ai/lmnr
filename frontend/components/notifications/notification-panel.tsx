@@ -38,6 +38,13 @@ const formatNotification = (notification: WebNotification, projectId?: string) =
     const payload: ReportPayload = JSON.parse(notification.payload);
     const report = payload.report;
     const project = projectId ? report.projects.find((p) => p.project_id === projectId) : undefined;
+
+    // If a projectId was provided but not found in the report, this project had
+    // no events in the period — skip showing this notification.
+    if (projectId && !project) {
+      return null;
+    }
+
     const events = project
       ? Object.values(project.signal_event_counts).reduce((a, b) => a + b, 0)
       : report.total_events;
@@ -56,11 +63,7 @@ const formatNotification = (notification: WebNotification, projectId?: string) =
       period: `${report.period_start} - ${report.period_end}`,
     };
   } catch {
-    return {
-      title: "Report",
-      summary: "New signal events report available",
-      period: "",
-    };
+    return null;
   }
 };
 
@@ -72,7 +75,19 @@ const NotificationPanel = () => {
     swrFetcher
   );
 
-  const hasNotifications = notifications && notifications.length > 0;
+  const formattedNotifications = notifications
+    ?.map((n) => ({
+      notification: n,
+      formatted: formatNotification(n, project?.id),
+    }))
+    .filter(
+      (
+        item
+      ): item is { notification: WebNotification; formatted: NonNullable<ReturnType<typeof formatNotification>> } =>
+        item.formatted !== null
+    );
+
+  const hasNotifications = formattedNotifications && formattedNotifications.length > 0;
 
   return (
     <Popover>
@@ -98,26 +113,21 @@ const NotificationPanel = () => {
             </div>
           ) : (
             <div className="flex flex-col">
-              {notifications.map((n) => {
-                const formatted = formatNotification(n, project?.id);
-                return (
-                  <div key={n.id} className="flex flex-col gap-1 border-b last:border-b-0 px-3 py-2.5">
-                    <span className="text-xs font-medium text-foreground">{formatted.title}</span>
-                    <span className="text-xs text-muted-foreground">{formatted.summary}</span>
-                    {formatted.period && (
-                      <span className="text-[11px] text-muted-foreground/70">{formatted.period}</span>
-                    )}
-                    {project && (
-                      <Link
-                        href={`/project/${project.id}/signals`}
-                        className="text-xs text-primary hover:underline mt-0.5 w-fit"
-                      >
-                        View events
-                      </Link>
-                    )}
-                  </div>
-                );
-              })}
+              {formattedNotifications.map(({ notification, formatted }) => (
+                <div key={notification.id} className="flex flex-col gap-1 border-b last:border-b-0 px-3 py-2.5">
+                  <span className="text-xs font-medium text-foreground">{formatted.title}</span>
+                  <span className="text-xs text-muted-foreground">{formatted.summary}</span>
+                  {formatted.period && <span className="text-[11px] text-muted-foreground/70">{formatted.period}</span>}
+                  {project && (
+                    <Link
+                      href={`/project/${project.id}/signals`}
+                      className="text-xs text-primary hover:underline mt-0.5 w-fit"
+                    >
+                      View events
+                    </Link>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
