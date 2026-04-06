@@ -43,7 +43,6 @@ interface FormattedNotification {
   summary: string;
   aiSummary: string | null;
   noteworthyEvents: NoteworthyEvent[];
-  projectId: string | null;
 }
 
 const formatNotification = (notification: WebNotification, projectId?: string): FormattedNotification | null => {
@@ -87,7 +86,6 @@ const formatNotification = (notification: WebNotification, projectId?: string): 
       summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} ${periodLabel}`,
       aiSummary,
       noteworthyEvents,
-      projectId: project?.project_id ?? null,
     };
   } catch {
     return null;
