@@ -1,4 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
+import { z } from "zod/v4";
 
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { db } from "@/lib/db/drizzle";
@@ -15,12 +16,24 @@ export interface WebNotification {
   isRead: boolean;
 }
 
+const GetWebNotificationsSchema = z.object({
+  workspaceId: z.guid(),
+  userId: z.guid(),
+  projectId: z.guid(),
+  limit: z.number().int().positive().optional().default(10),
+});
+
+const MarkNotificationAsReadSchema = z.object({
+  userId: z.guid(),
+  notificationId: z.guid(),
+  projectId: z.guid(),
+});
+
 export const getWebNotifications = async (
-  workspaceId: string,
-  userId: string,
-  projectId: string,
-  limit = 10
+  input: z.input<typeof GetWebNotificationsSchema>
 ): Promise<WebNotification[]> => {
+  const { workspaceId, userId, projectId, limit } = GetWebNotificationsSchema.parse(input);
+
   const result = await clickhouseClient.query({
     query: `
       SELECT
@@ -68,10 +81,8 @@ export const getWebNotifications = async (
   }));
 };
 
-export const markNotificationAsRead = async (
-  userId: string,
-  notificationId: string,
-  projectId: string
-): Promise<void> => {
+export const markNotificationAsRead = async (input: z.infer<typeof MarkNotificationAsReadSchema>): Promise<void> => {
+  const { userId, notificationId, projectId } = MarkNotificationAsReadSchema.parse(input);
+
   await db.insert(notificationReads).values({ userId, notificationId, projectId }).onConflictDoNothing();
 };

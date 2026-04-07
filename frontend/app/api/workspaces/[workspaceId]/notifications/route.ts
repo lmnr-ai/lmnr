@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ works
     if (!(await isProjectInWorkspace(projectId, workspaceId))) {
       return NextResponse.json({ error: "Project does not belong to this workspace" }, { status: 400 });
     }
-    const result = await getWebNotifications(workspaceId, userId, projectId);
+    const result = await getWebNotifications({ workspaceId, userId, projectId });
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest, props: { params: Promise<{ work
     if (!(await isProjectInWorkspace(projectId, workspaceId))) {
       return NextResponse.json({ error: "Project does not belong to this workspace" }, { status: 400 });
     }
-    await markNotificationAsRead(userId, notificationId, projectId);
+    await markNotificationAsRead({ userId, notificationId, projectId });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);
