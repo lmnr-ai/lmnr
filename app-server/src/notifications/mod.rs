@@ -281,6 +281,7 @@ impl MessageHandler for NotificationHandler {
             project_id: message.project_id,
             workspace_id: message.workspace_id,
             definition_type: message.definition_type.to_string(),
+            definition_id: message.definition_id,
             notification_data,
             created_at: now_ms,
         };

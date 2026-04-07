@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS notifications
     project_id         UUID,
     workspace_id       UUID,
     definition_type    LowCardinality(String),
+    definition_id      UUID,
     notification_data  String DEFAULT '',
     created_at         DateTime64(3, 'UTC')
 )

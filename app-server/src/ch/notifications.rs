@@ -16,6 +16,8 @@ pub struct CHNotification {
     #[serde(with = "clickhouse::serde::uuid")]
     pub workspace_id: Uuid,
     pub definition_type: String,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub definition_id: Uuid,
     /// Serialized NotificationKind (structured JSON, no HTML/markdown).
     pub notification_data: String,
     pub created_at: i64,
