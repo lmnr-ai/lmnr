@@ -175,7 +175,7 @@ const NotificationItem = ({
       </span>
       {hasDetails && !expanded && (
         <div className="relative cursor-pointer" onClick={handleExpand}>
-          <div className="max-h-16 overflow-hidden">
+          <div className="max-h-22 overflow-hidden">
             <NotificationDetails formatted={formatted} projectId={projectId} />
           </div>
           <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-background to-transparent pointer-events-none" />
