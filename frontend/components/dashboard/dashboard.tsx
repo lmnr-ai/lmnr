@@ -1,11 +1,9 @@
 "use client";
 
-import Link from "next/link";
-
 import { DashboardTraceProvider, useDashboardTraceStore } from "@/components/dashboard/dashboard-trace-context";
+import AddChartDropdown from "@/components/dashboard/add-chart-dropdown";
 import GridLayout from "@/components/dashboard/grid-layout";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
-import { Button } from "@/components/ui/button";
 
 import DateRangeFilter from "../ui/date-range-filter";
 import { GroupByPeriodSelect } from "../ui/group-by-period-select";
@@ -25,9 +23,9 @@ function DashboardContent() {
         <div className="h-12 flex gap-2 w-full items-center">
           <DateRangeFilter />
           <GroupByPeriodSelect />
-          <Link passHref className="ml-auto" href={{ pathname: "dashboard/new" }}>
-            <Button icon="plus">Chart</Button>
-          </Link>
+          <div className="ml-auto">
+            <AddChartDropdown />
+          </div>
         </div>
       </Header>
       <div className="flex-1 overflow-hidden">
