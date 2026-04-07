@@ -51,9 +51,19 @@ const formatNotification = (notification: WebNotification, projectId?: string): 
     const payload: ReportPayload = JSON.parse(notification.payload);
     const report = payload.report;
     const project = projectId ? report.projects.find((p) => p.project_id === projectId) : undefined;
+    const periodStartMs = new Date(report.period_start).getTime();
+    const periodEndMs = new Date(report.period_end).getTime();
 
     if (projectId && !project) {
       return null;
+    }
+
+    // Hide weekly-style rollups to avoid duplicating info already shown by daily reports.
+    if (!Number.isNaN(periodStartMs) && !Number.isNaN(periodEndMs)) {
+      const periodDays = (periodEndMs - periodStartMs) / (1000 * 60 * 60 * 24);
+      if (periodDays > 3) {
+        return null;
+      }
     }
 
     const events = project
@@ -62,17 +72,12 @@ const formatNotification = (notification: WebNotification, projectId?: string): 
     const signalCount = project
       ? Object.keys(project.signal_event_counts).length
       : report.projects.reduce((acc, p) => acc + Object.keys(p.signal_event_counts).length, 0);
-    const startMs = new Date(report.period_start).getTime();
-    const endMs = new Date(report.period_end).getTime();
     const periodType = (() => {
-      if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+      if (Number.isNaN(periodStartMs) || Number.isNaN(periodEndMs)) {
         return "selected period";
       }
 
-      const diffDays = Math.max(1, Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)));
-      if (diffDays >= 7) {
-        return "week";
-      }
+      const diffDays = Math.max(1, Math.round((periodEndMs - periodStartMs) / (1000 * 60 * 60 * 24)));
       if (diffDays > 1) {
         return `${diffDays} days`;
       }
@@ -84,7 +89,7 @@ const formatNotification = (notification: WebNotification, projectId?: string): 
 
     return {
       title: `Signal Events Report`,
-      summary: `${events} new event${events !== 1 ? "s" : ""} in the last ${periodType} among ${signalCount} signal${signalCount !== 1 ? "s" : ""}`,
+      summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} in the last ${periodType}`,
       aiSummary,
       noteworthyEvents,
     };
