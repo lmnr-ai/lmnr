@@ -323,8 +323,13 @@ impl NotificationHandler {
                 .await
                 .map_err(|e| HandlerError::transient(e))?;
 
+                // Filter to only the targets belonging to this specific alert
+                // (definition_id). The query returns targets for all alerts
+                // matching the event name; without this filter, multiple alerts
+                // on the same signal would cause duplicate deliveries.
                 Ok(targets
                     .into_iter()
+                    .filter(|t| t.alert_id == message.definition_id)
                     .filter_map(|t| {
                         let target_type = t.r#type.parse::<TargetType>().ok()?;
                         Some(DeliveryTarget {
