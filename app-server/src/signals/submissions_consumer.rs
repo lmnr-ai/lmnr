@@ -111,10 +111,6 @@ async fn process(
             "[SIGNAL JOB] Batch {} already submitted, skipping",
             batch_message_id
         );
-
-        // Avoid tight redelivery loop when this is the only message in the queue
-        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-
         return Ok(());
     }
 
@@ -130,6 +126,10 @@ async fn process(
                 "[SIGNAL JOB] Batch {} is locked by another worker, re-publishing to back of queue",
                 batch_message_id,
             );
+
+            // Avoid tight redelivery loop
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+
             if let Err(e) = push_to_submissions_queue(msg, queue).await {
                 log::error!(
                     "[SIGNAL JOB] Failed to re-publish locked batch {}: {:?}",
