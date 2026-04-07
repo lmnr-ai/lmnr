@@ -196,8 +196,23 @@ impl MessageHandler for NotificationHandler {
             }
             NotificationKind::UsageWarning(payload) => {
                 // Lock already acquired above; proceed directly to sending.
-                self.handle_usage_warning(workspace_id, notification_id, &payload)
-                    .await?;
+                // If the handler fails (e.g. transient DB error fetching owner
+                // emails), release the lock so that a retry can re-acquire it
+                // instead of being silently dropped as a duplicate.
+                if let Err(e) = self
+                    .handle_usage_warning(workspace_id, notification_id, &payload)
+                    .await
+                {
+                    let lock_key = format!("{USAGE_WARNING_SEND_LOCK_KEY}:{}", payload.warning_id);
+                    if let Err(release_err) = self.cache.release_lock(&lock_key).await {
+                        log::warn!(
+                            "[Notifications] Failed to release usage warning lock for [{}]: {:?}",
+                            payload.warning_id,
+                            release_err
+                        );
+                    }
+                    return Err(e);
+                }
             }
         }
 
