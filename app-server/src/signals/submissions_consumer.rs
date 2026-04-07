@@ -89,7 +89,7 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
     }
 }
 
-const BATCH_LOCK_TTL_SECONDS: u64 = 7200;
+const BATCH_LOCK_TTL_SECONDS: u64 = 3600;
 const BATCH_SUBMITTED_TTL_SECONDS: u64 = 86400;
 
 async fn process(
@@ -111,6 +111,10 @@ async fn process(
             "[SIGNAL JOB] Batch {} already submitted, skipping",
             batch_message_id
         );
+
+        // Avoid tight redelivery loop when this is the only message in the queue
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+
         return Ok(());
     }
 
@@ -144,8 +148,16 @@ async fn process(
         }
     }
 
-    let result =
-        process_batch(msg, db, cache.clone(), clickhouse, queue, llm_client, config).await;
+    let result = process_batch(
+        msg,
+        db,
+        cache.clone(),
+        clickhouse,
+        queue,
+        llm_client,
+        config,
+    )
+    .await;
 
     if result.is_ok() {
         if let Err(e) = cache
@@ -319,10 +331,7 @@ async fn submit_batch_to_llm(
 ) -> Result<(), (Vec<SignalRun>, HandlerError)> {
     let span_requests = requests.clone();
     match llm_client
-        .create_batch(
-            requests,
-            Some(format!("signal_batch_{}", Uuid::new_v4())),
-        )
+        .create_batch(requests, Some(format!("signal_batch_{}", Uuid::new_v4())))
         .await
     {
         Ok(operation) => {
