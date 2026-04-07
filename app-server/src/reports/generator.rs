@@ -1,7 +1,7 @@
 //! This module reads report triggers from RabbitMQ and processes them: fetches signal event
 //! samples from ClickHouse, generates per-project AI summaries via the LLM service with tool
-//! calling, generates an HTML report, and pushes email and Slack notifications to the
-//! notification queue.
+//! calling, builds report data, and pushes a single notification to the notification queue.
+//! The notification consumer handles formatting and delivery to all targets.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -12,17 +12,16 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use super::ReportTriggerMessage;
-use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData, render_report_email};
+use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData};
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
-use crate::db::reports::{get_report_targets, get_signals_for_workspace};
+use crate::db::reports::get_signals_for_workspace;
 use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
 use crate::notifications::{
-    EmailPayload, NotificationDefinitionType, NotificationMessage, ReportPayload, TargetType,
-    push_to_notification_queue,
+    NotificationKind, NotificationMessage, SignalReportPayload, push_to_notification_queue,
 };
 use crate::signals::llm_model;
 use crate::signals::provider::models::{
@@ -34,7 +33,6 @@ use crate::signals::provider::{
 use crate::worker::{HandlerError, MessageHandler};
 
 const MAX_EVENTS_FOR_SUMMARY: u64 = 128;
-const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
 
 /// Report type identifier for signal events summary reports.
 const REPORT_TYPE_SIGNAL_EVENTS_SUMMARY: &str = "SIGNAL_EVENTS_SUMMARY";
@@ -76,7 +74,6 @@ async fn process_report_trigger(
     llm_client: Option<Arc<ProviderClient>>,
 ) -> Result<(), HandlerError> {
     let workspace_id = message.workspace_id;
-    let report_id = message.id;
     let report_type = &message.r#type;
 
     log::info!(
@@ -230,7 +227,7 @@ async fn process_report_trigger(
         return Ok(());
     }
 
-    // Build the report
+    // Build the report data
     let report_data = ReportData {
         workspace_id,
         workspace_name: workspace_name.clone(),
@@ -241,134 +238,39 @@ async fn process_report_trigger(
         total_events,
     };
 
-    let email_report = render_report_email(&report_data);
-
-    // Fetch all notification targets
-    let targets = get_report_targets(&db.pool, &report_id, &workspace_id)
-        .await
-        .map_err(|e| HandlerError::transient(e))?;
-
-    if targets.is_empty() {
-        log::info!(
-            "[Reports Generator] No targets found for report {} in workspace {}",
-            report_id,
-            workspace_id
-        );
-        return Ok(());
-    }
-
     let title = format!("{} – {}", report_name, workspace_name);
 
-    // Push notifications to all targets
-    let mut processed = 0;
-    let mut failures = 0;
-    let mut transient_failures = 0;
+    // Push a single notification message with the report data.
+    // The consumer handles fetching targets, formatting, and delivery.
+    let notification_message = NotificationMessage {
+        workspace_id,
+        payload: NotificationKind::SignalReport(SignalReportPayload {
+            report: report_data,
+            title,
+        }),
+    };
 
-    for target in &targets {
-        log::debug!(
-            "Processing report target: email: {:?}, channel_id: {:?}, integration_id: {:?}",
-            target.email,
-            target.channel_id,
-            target.integration_id
-        );
-        let Ok(target_type) = target.r#type.parse::<TargetType>() else {
-            log::warn!(
-                "[Reports Generator] Unknown target type '{}' for target {}",
-                target.r#type,
-                target.id
-            );
-            continue;
-        };
-
-        let message_payload = match target_type {
-            TargetType::Email => {
-                let Some(ref email) = target.email else {
-                    continue;
-                };
-                let payload = EmailPayload {
-                    from: REPORT_FROM_EMAIL.to_string(),
-                    to: vec![email.clone()],
-                    subject: title.clone(),
-                    html: email_report.clone(),
-                    inline_logo: true,
-                };
-                serde_json::to_value(&payload)
-                    .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?
-            }
-            TargetType::Slack => {
-                let (Some(channel_id), Some(integration_id)) =
-                    (&target.channel_id, target.integration_id)
-                else {
-                    continue;
-                };
-                let payload = ReportPayload {
-                    title: title.clone(),
-                    report: report_data.clone(),
-                    channel_id: channel_id.clone(),
-                    integration_id,
-                };
-                serde_json::to_value(&payload)
-                    .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?
-            }
-        };
-
-        processed += 1;
-
-        let notification_message = NotificationMessage {
-            notification_type: target_type.into(),
-            payload: message_payload,
-            project_id: Uuid::nil(),
-            workspace_id,
-            definition_type: NotificationDefinitionType::Report,
-            definition_id: report_id,
-            target_id: target.id,
-            target_type: target_type.to_string(),
-        };
-
-        let serialized_size = serde_json::to_vec(&notification_message)
-            .map(|v| v.len())
-            .unwrap_or(0);
-        if serialized_size >= mq_max_payload() {
-            log::error!(
-                "[Reports Generator] MQ payload limit exceeded. payload size: [{}], target: [{}]",
-                serialized_size,
-                target.id,
-            );
-            failures += 1;
-            continue;
-        }
-
-        if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
-            failures += 1;
-            transient_failures += 1;
-            log::error!(
-                "[Reports Generator] Failed to push report notification for target {}: {:?}",
-                target.id,
-                e
-            );
-        }
+    let serialized_size = serde_json::to_vec(&notification_message)
+        .map(|v| v.len())
+        .unwrap_or(0);
+    if serialized_size >= mq_max_payload() {
+        return Err(HandlerError::permanent(anyhow::anyhow!(
+            "[Reports Generator] MQ payload limit exceeded. payload size: [{}]",
+            serialized_size,
+        )));
     }
 
-    // Return transient error if all notifications failed (except all permanent, then permanent error)
-    if processed > 0 && failures == processed {
-        if transient_failures == 0 {
-            return Err(HandlerError::permanent(anyhow::anyhow!(
-                "All {} report notifications exceeded MQ payload size limit for workspace {}",
-                processed,
-                workspace_id
-            )));
-        }
-        let msg = format!(
-            "Failed to push all {} report notifications to queue for workspace {}",
-            processed, workspace_id
-        );
-        return Err(HandlerError::transient(anyhow::anyhow!(msg)));
+    if let Err(e) = push_to_notification_queue(notification_message, queue.clone()).await {
+        return Err(HandlerError::transient(anyhow::anyhow!(
+            "Failed to push report notification for workspace {}: {:?}",
+            workspace_id,
+            e
+        )));
     }
 
     log::info!(
-        "[Reports Generator] Report notifications pushed to queue for workspace {} ({} targets)",
+        "[Reports Generator] Report notification pushed to queue for workspace {}",
         workspace_id,
-        processed,
     );
 
     Ok(())

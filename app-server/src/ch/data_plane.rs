@@ -14,6 +14,7 @@ use crate::data_plane::client::DataPlaneClient;
 use crate::db::workspaces::WorkspaceDeployment;
 
 use super::notification_logs::CHNotificationLog;
+use super::notifications::{CHNotification, CHNotificationDelivery};
 use super::spans::CHSpan;
 use super::traces::CHTrace;
 use super::{ClickhouseInsertable, ClickhouseTrait};
@@ -26,6 +27,8 @@ pub enum DataPlaneBatch {
     Spans(Vec<CHSpan>),
     Traces(Vec<CHTrace>),
     NotificationLogs(Vec<CHNotificationLog>),
+    Notifications(Vec<CHNotification>),
+    NotificationDeliveries(Vec<CHNotificationDelivery>),
 }
 
 /// Data plane ClickHouse client that sends data to a remote data plane server.

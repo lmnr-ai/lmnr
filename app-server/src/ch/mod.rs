@@ -6,6 +6,7 @@ pub mod evaluation_datapoints;
 pub mod limits;
 pub mod logs;
 pub mod notification_logs;
+pub mod notifications;
 pub mod service;
 pub mod signal_events;
 pub mod signal_run_messages;
@@ -29,6 +30,8 @@ pub enum Table {
     Spans,
     Traces,
     NotificationLogs,
+    Notifications,
+    NotificationDeliveries,
 }
 
 impl Table {
@@ -37,6 +40,8 @@ impl Table {
             Table::Spans => "spans",
             Table::Traces => "traces_replacing",
             Table::NotificationLogs => "notification_logs",
+            Table::Notifications => "notifications",
+            Table::NotificationDeliveries => "notification_deliveries",
         }
     }
 }

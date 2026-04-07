@@ -9,51 +9,10 @@ use sodiumoxide::{
     crypto::aead::xchacha20poly1305_ietf::{Key, Nonce, open},
     hex,
 };
-use uuid::Uuid;
 
-use crate::reports::email_template::ReportData;
+use super::{EventIdentificationPayload, SignalReportPayload};
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct EventIdentificationPayload {
-    pub project_id: Uuid,
-    pub trace_id: Uuid,
-    pub event_name: String,
-    pub extracted_information: Option<serde_json::Value>,
-    pub channel_id: String,
-    pub integration_id: Uuid,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ReportPayload {
-    pub title: String,
-    pub report: ReportData,
-    pub channel_id: String,
-    pub integration_id: Uuid,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub enum SlackMessagePayload {
-    EventIdentification(EventIdentificationPayload),
-    Report(ReportPayload),
-}
-
-impl SlackMessagePayload {
-    pub fn channel_id(&self) -> &str {
-        match self {
-            Self::EventIdentification(p) => &p.channel_id,
-            Self::Report(p) => &p.channel_id,
-        }
-    }
-
-    pub fn integration_id(&self) -> &Uuid {
-        match self {
-            Self::EventIdentification(p) => &p.integration_id,
-            Self::Report(p) => &p.integration_id,
-        }
-    }
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SlackApiResponse {
@@ -97,18 +56,15 @@ fn md_links_to_slack(text: &str) -> String {
     RE.replace_all(text, "<$2|$1>").into_owned()
 }
 
-fn format_event_identification_blocks(
-    project_id: &str,
-    trace_id: &str,
-    event_name: &str,
-    extracted_information: Option<serde_json::Value>,
+pub fn format_event_identification_blocks(
+    payload: &EventIdentificationPayload,
 ) -> serde_json::Value {
     let trace_link = format!(
         "https://laminar.sh/project/{}/traces/{}?chat=true",
-        project_id, trace_id
+        payload.project_id, payload.trace_id
     );
 
-    let info_entries: Vec<String> = if let Some(info) = extracted_information {
+    let info_entries: Vec<String> = if let Some(ref info) = payload.extracted_information {
         if let Some(obj) = info.as_object() {
             obj.iter()
                 .map(|(key, value)| {
@@ -123,7 +79,7 @@ fn format_event_identification_blocks(
                 })
                 .collect()
         } else {
-            vec![serde_json::to_string_pretty(&info).unwrap_or_default()]
+            vec![serde_json::to_string_pretty(info).unwrap_or_default()]
         }
     } else {
         vec![]
@@ -146,7 +102,7 @@ fn format_event_identification_blocks(
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": format!("*Event*: `{}`", event_name)
+                    "text": format!("*Event*: `{}`", payload.event_name)
                 }
             }),
             json!({
@@ -178,7 +134,7 @@ fn format_event_identification_blocks(
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": format!("✅ *Event Detected: {}*", event_name)
+                "text": format!("✅ *Event Detected: {}*", payload.event_name)
             }
         },
         {
@@ -200,7 +156,7 @@ fn format_event_identification_blocks(
     ])
 }
 
-fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
+pub fn format_report_blocks(payload: &SignalReportPayload) -> serde_json::Value {
     let report = &payload.report;
     let project_count = report.projects.len();
 
@@ -273,18 +229,6 @@ fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
     }
 
     json!(blocks)
-}
-
-pub fn format_message_blocks(payload: &SlackMessagePayload) -> serde_json::Value {
-    match payload {
-        SlackMessagePayload::EventIdentification(p) => format_event_identification_blocks(
-            &p.project_id.to_string(),
-            &p.trace_id.to_string(),
-            &p.event_name,
-            p.extracted_information.clone(),
-        ),
-        SlackMessagePayload::Report(p) => format_report_blocks(p),
-    }
 }
 
 pub async fn send_message(
