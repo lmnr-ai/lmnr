@@ -235,6 +235,38 @@ enum DeliveryChannel {
     },
 }
 
+impl DeliveryTarget {
+    /// Build a list of delivery targets from raw DB target rows.
+    /// Works with any type that has the standard target fields
+    /// (type, email, channel_id, integration_id).
+    fn from_raw_targets(
+        targets: &[(String, Option<String>, Option<String>, Option<Uuid>)],
+    ) -> Vec<Self> {
+        targets
+            .iter()
+            .filter_map(|(target_type, email, channel_id, integration_id)| {
+                match target_type.as_str() {
+                    "EMAIL" => email.as_ref().map(|email| DeliveryTarget {
+                        channel: DeliveryChannel::Email {
+                            address: email.clone(),
+                        },
+                    }),
+                    "SLACK" => match (channel_id, integration_id) {
+                        (Some(channel_id), Some(integration_id)) => Some(DeliveryTarget {
+                            channel: DeliveryChannel::Slack {
+                                channel_id: channel_id.clone(),
+                                integration_id: *integration_id,
+                            },
+                        }),
+                        _ => None,
+                    },
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+}
+
 impl NotificationHandler {
     /// Handle an event identification (alert) notification.
     /// Fetches alert targets from DB, then sends to each.
@@ -254,65 +286,33 @@ impl NotificationHandler {
             HandlerError::transient(anyhow::anyhow!("Failed to fetch alert targets: {}", e))
         })?;
 
-        let delivery_targets: Vec<DeliveryTarget> = targets
+        let raw: Vec<_> = targets
             .iter()
-            .filter_map(|t| match t.r#type.as_str() {
-                "EMAIL" => t.email.as_ref().map(|email| DeliveryTarget {
-                    channel: DeliveryChannel::Email {
-                        address: email.clone(),
-                    },
-                }),
-                "SLACK" => match (&t.channel_id, t.integration_id) {
-                    (Some(channel_id), Some(integration_id)) => Some(DeliveryTarget {
-                        channel: DeliveryChannel::Slack {
-                            channel_id: channel_id.clone(),
-                            integration_id,
-                        },
-                    }),
-                    _ => None,
-                },
-                _ => None,
+            .map(|t| {
+                (
+                    t.r#type.clone(),
+                    t.email.clone(),
+                    t.channel_id.clone(),
+                    t.integration_id,
+                )
             })
             .collect();
+        let delivery_targets = DeliveryTarget::from_raw_targets(&raw);
 
         let email_subject = format!("Alert: {}", payload.event_name);
         let email_html = email::render_alert_email(payload);
-
         let slack_blocks = slack::format_event_identification_blocks(payload);
 
-        for target in &delivery_targets {
-            match &target.channel {
-                DeliveryChannel::Email { address } => {
-                    let delivered = self
-                        .send_email(
-                            ALERT_FROM_EMAIL,
-                            &[address.clone()],
-                            &email_subject,
-                            &email_html,
-                            true,
-                        )
-                        .await;
-                    self.log_delivery(workspace_id, notification_id, "EMAIL", address, delivered)
-                        .await;
-                }
-                DeliveryChannel::Slack {
-                    channel_id,
-                    integration_id,
-                } => {
-                    let delivered = self
-                        .send_slack(integration_id, channel_id, slack_blocks.clone())
-                        .await;
-                    self.log_delivery(
-                        workspace_id,
-                        notification_id,
-                        "SLACK",
-                        channel_id,
-                        delivered,
-                    )
-                    .await;
-                }
-            }
-        }
+        self.deliver_to_targets(
+            workspace_id,
+            notification_id,
+            &delivery_targets,
+            ALERT_FROM_EMAIL,
+            &email_subject,
+            &email_html,
+            &slack_blocks,
+        )
+        .await;
 
         Ok(())
     }
@@ -335,26 +335,18 @@ impl NotificationHandler {
                     ))
                 })?;
 
-        let delivery_targets: Vec<DeliveryTarget> = targets
+        let raw: Vec<_> = targets
             .iter()
-            .filter_map(|t| match t.r#type.as_str() {
-                "EMAIL" => t.email.as_ref().map(|email| DeliveryTarget {
-                    channel: DeliveryChannel::Email {
-                        address: email.clone(),
-                    },
-                }),
-                "SLACK" => match (&t.channel_id, t.integration_id) {
-                    (Some(channel_id), Some(integration_id)) => Some(DeliveryTarget {
-                        channel: DeliveryChannel::Slack {
-                            channel_id: channel_id.clone(),
-                            integration_id,
-                        },
-                    }),
-                    _ => None,
-                },
-                _ => None,
+            .map(|t| {
+                (
+                    t.r#type.clone(),
+                    t.email.clone(),
+                    t.channel_id.clone(),
+                    t.integration_id,
+                )
             })
             .collect();
+        let delivery_targets = DeliveryTarget::from_raw_targets(&raw);
 
         if delivery_targets.is_empty() {
             log::info!(
@@ -368,39 +360,16 @@ impl NotificationHandler {
         let email_subject = payload.title.clone();
         let slack_blocks = slack::format_report_blocks(payload);
 
-        for target in &delivery_targets {
-            match &target.channel {
-                DeliveryChannel::Email { address } => {
-                    let delivered = self
-                        .send_email(
-                            REPORT_FROM_EMAIL,
-                            &[address.clone()],
-                            &email_subject,
-                            &email_html,
-                            true,
-                        )
-                        .await;
-                    self.log_delivery(workspace_id, notification_id, "EMAIL", address, delivered)
-                        .await;
-                }
-                DeliveryChannel::Slack {
-                    channel_id,
-                    integration_id,
-                } => {
-                    let delivered = self
-                        .send_slack(integration_id, channel_id, slack_blocks.clone())
-                        .await;
-                    self.log_delivery(
-                        workspace_id,
-                        notification_id,
-                        "SLACK",
-                        channel_id,
-                        delivered,
-                    )
-                    .await;
-                }
-            }
-        }
+        self.deliver_to_targets(
+            workspace_id,
+            notification_id,
+            &delivery_targets,
+            REPORT_FROM_EMAIL,
+            &email_subject,
+            &email_html,
+            &slack_blocks,
+        )
+        .await;
 
         Ok(())
     }
@@ -587,6 +556,52 @@ impl NotificationHandler {
             Err(e) => {
                 log::error!("Failed to send Slack message: {}", e);
                 false
+            }
+        }
+    }
+
+    /// Deliver to all targets, logging each delivery attempt.
+    async fn deliver_to_targets(
+        &self,
+        workspace_id: Uuid,
+        notification_id: Uuid,
+        targets: &[DeliveryTarget],
+        from_email: &str,
+        email_subject: &str,
+        email_html: &str,
+        slack_blocks: &serde_json::Value,
+    ) {
+        for target in targets {
+            match &target.channel {
+                DeliveryChannel::Email { address } => {
+                    let delivered = self
+                        .send_email(
+                            from_email,
+                            &[address.clone()],
+                            email_subject,
+                            email_html,
+                            true,
+                        )
+                        .await;
+                    self.log_delivery(workspace_id, notification_id, "EMAIL", address, delivered)
+                        .await;
+                }
+                DeliveryChannel::Slack {
+                    channel_id,
+                    integration_id,
+                } => {
+                    let delivered = self
+                        .send_slack(integration_id, channel_id, slack_blocks.clone())
+                        .await;
+                    self.log_delivery(
+                        workspace_id,
+                        notification_id,
+                        "SLACK",
+                        channel_id,
+                        delivered,
+                    )
+                    .await;
+                }
             }
         }
     }
