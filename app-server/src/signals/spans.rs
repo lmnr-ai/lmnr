@@ -2,7 +2,6 @@ use anyhow::Result;
 use chrono::DateTime;
 use serde::Deserialize;
 use serde_json::Value;
-use sha3::{Digest, Sha3_256};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
 use uuid::Uuid;
@@ -183,22 +182,12 @@ fn content_overlap_score(needle_words: &HashSet<String>, haystack_words: &HashSe
     matched as f64 / needle_words.len() as f64
 }
 
-/// Hash a system prompt text to a stable short hex identifier.
-/// Normalizes whitespace and lowercases before hashing so minor formatting
-/// variations produce the same hash.
-fn hash_system_prompt(text: &str) -> String {
-    let normalized = text
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase();
-    let digest = Sha3_256::digest(normalized.as_bytes());
-    format!("{:x}", digest)[..8].to_string()
-}
+// Re-export from utils for backwards compatibility
+pub use super::utils::hash_system_prompt;
 
 /// Extract the system message from a parsed LLM input message array.
 /// Returns `(system_text, remaining_messages)` if a `role: "system"` message is found.
-fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
+pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
     let messages = parsed.as_array()?;
     let sys_idx = messages.iter().position(|m| {
         m.get("role")

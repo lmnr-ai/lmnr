@@ -9,8 +9,13 @@ use crate::{
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{DB, signal_jobs::update_signal_job_stats},
+    mq::MessageQueue,
     signals::{
-        SignalRun,
+        SignalRun, SignalWorkerConfig,
+        filter::{
+            apply_drop_rules, generate_and_cache_drop_rules, lookup_cached_drop_rules,
+            pipeline_fingerprint,
+        },
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
         provider::{
             LlmClient, ProviderThinkingConfig, ProviderThinkingLevel,
@@ -71,6 +76,8 @@ pub async fn process_run(
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     llm_client: Arc<LlmClient>,
+    queue: Arc<MessageQueue>,
+    config: &SignalWorkerConfig,
 ) -> Result<ProcessRunResult, HandlerError> {
     let processing_start_time = Utc::now();
 
@@ -89,7 +96,49 @@ pub async fn process_run(
                 HandlerError::Transient(anyhow::anyhow!("Failed to get trace spans: {}", e))
             })?;
 
-        let extracted = extract_system_prompts(&ch_spans);
+        // Compute pipeline fingerprint and resolve span drop rules (cached or generated)
+        let fingerprint = pipeline_fingerprint(&ch_spans);
+        let drop_rules = if let Some(ref fp) = fingerprint {
+            match lookup_cached_drop_rules(&cache, project_id, signal_id, prompt, fp).await {
+                Some(rules) => {
+                    if !rules.is_empty() {
+                        log::info!(
+                            "Applying {} cached span drop rules for trace {}",
+                            rules.len(),
+                            trace_id
+                        );
+                    }
+                    rules
+                }
+                None => {
+                    // Cache miss: build unfiltered trace to let the LLM analyze structure,
+                    // then generate + cache rules for this and future runs.
+                    let unfiltered_structure = build_trace_structure_string(
+                        &ch_spans,
+                        trace_id,
+                        &HashMap::new(),
+                    );
+                    generate_and_cache_drop_rules(
+                        &cache,
+                        &llm_client,
+                        queue.clone(),
+                        config.internal_project_id,
+                        project_id,
+                        signal_id,
+                        prompt,
+                        fp,
+                        &unfiltered_structure,
+                    )
+                    .await
+                }
+            }
+        } else {
+            Vec::new()
+        };
+
+        let ch_spans_for_trace = apply_drop_rules(ch_spans, &drop_rules);
+
+        let extracted = extract_system_prompts(&ch_spans_for_trace);
         let system_prompt_summaries = if extracted.is_empty() {
             HashMap::new()
         } else {
@@ -120,7 +169,7 @@ pub async fn process_run(
         };
 
         let trace_structure =
-            build_trace_structure_string(&ch_spans, trace_id, &system_prompt_summaries);
+            build_trace_structure_string(&ch_spans_for_trace, trace_id, &system_prompt_summaries);
 
         let system_prompt = SYSTEM_PROMPT.replace("{{fullTraceData}}", &trace_structure);
 

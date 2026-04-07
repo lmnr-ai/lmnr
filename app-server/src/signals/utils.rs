@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::Utc;
 use regex::Regex;
 use serde_json::Value;
+use sha3::{Digest, Sha3_256};
 use std::{collections::HashMap, sync::Arc, sync::LazyLock};
 use uuid::Uuid;
 
@@ -133,6 +134,19 @@ pub struct InternalSpan {
     pub provider_batch_id: Option<String>,
     pub metadata: Option<HashMap<String, Value>>,
     pub tools: Option<Value>,
+}
+
+/// Hash a text to a stable short hex identifier.
+/// Normalizes whitespace and lowercases before hashing so minor formatting
+/// variations produce the same hash.
+pub fn hash_system_prompt(text: &str) -> String {
+    let normalized = text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+    let digest = Sha3_256::digest(normalized.as_bytes());
+    format!("{:x}", digest)[..8].to_string()
 }
 
 /// Try to parse JSON string, return the parsed value or the original string

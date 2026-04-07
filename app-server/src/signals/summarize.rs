@@ -25,7 +25,7 @@ Compress the following system prompt from an LLM application. Retain only inform
 {{system_prompt}}
 </system_prompt>"#;
 
-fn hash_signal_prompt(signal_prompt: &str) -> String {
+pub fn hash_signal_prompt(signal_prompt: &str) -> String {
     let digest = Sha3_256::digest(signal_prompt.as_bytes());
     format!("{:x}", digest)[..8].to_string()
 }

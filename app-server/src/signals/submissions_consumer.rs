@@ -200,6 +200,8 @@ async fn process_batch(
             clickhouse.clone(),
             cache.clone(),
             llm_client.clone(),
+            queue.clone(),
+            &config,
         )
         .await
         {

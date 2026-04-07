@@ -79,6 +79,8 @@ impl MessageHandler for SignalJobRealtimeHandler {
             self.clickhouse.clone(),
             self.cache.clone(),
             self.llm_client.clone(),
+            self.queue.clone(),
+            &self.config,
         )
         .await
         {
