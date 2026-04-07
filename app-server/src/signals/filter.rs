@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
@@ -7,12 +8,17 @@ use uuid::Uuid;
 use crate::cache::keys::SPAN_DROP_RULES_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 use crate::ch::spans::CHSpan;
+use crate::db::spans::SpanType;
+use crate::mq::MessageQueue;
 use crate::signals::provider::models::{
     ModelSize, ProviderContent, ProviderFunctionDeclaration, ProviderGenerationConfig,
     ProviderPart, ProviderRequest, ProviderTool,
 };
 use crate::signals::provider::{LlmClient, ProviderThinkingConfig, ProviderThinkingLevel};
-use crate::signals::utils::{strip_noise, try_parse_json};
+use crate::signals::utils::{
+    InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr, strip_noise,
+    try_parse_json,
+};
 
 use super::spans::extract_system_message;
 
@@ -150,6 +156,11 @@ const FILTER_GENERATION_PROMPT: &str = r#"You are analyzing a trace from an LLM-
 
 Examine the trace carefully. For each span pattern that is clearly irrelevant to detecting the signal described above, call the `add_span_drop_rule` tool. Be conservative — only drop spans you are confident carry no signal. When in doubt, keep the span.
 
+CRITICAL rule authoring guidance:
+- Strongly prefer rules with ONLY a 'name' or 'path' matcher. These are the most robust because they match consistently across trace variants.
+- Do NOT add 'input' or 'output' matchers unless absolutely necessary to disambiguate spans that share the same name/path but differ in relevance. Input/output content varies between runs, so overly specific patterns will fail to match on future traces and the rule becomes useless.
+- Remember that within a rule, ALL matchers must match (AND semantics). An overly specific input/output pattern will prevent the entire rule from matching even when the name/path matches perfectly.
+
 After you have added all rules (or if no rules are needed), call the `done` tool to finish."#;
 
 fn build_filter_tool_definitions() -> Vec<ProviderTool> {
@@ -162,7 +173,12 @@ fn build_filter_tool_definitions() -> Vec<ProviderTool> {
                     "Use this to eliminate spans that carry no diagnostic signal for the current signal type, ",
                     "reducing token usage and improving focus.\n\n",
                     "A span is dropped if it matches ANY rule. Within a rule, ALL field matchers must match (AND semantics).\n\n",
-                    "Every rule MUST include at least one 'name' field matcher.\n\n",
+                    "Every rule MUST include at least one 'name' or 'path' field matcher.\n\n",
+                    "IMPORTANT — 'name' vs 'path':\n",
+                    "- 'name' is the span's own short name (e.g. \"anthropic.messages\", \"Bash\").\n",
+                    "- 'path' is the dot-separated ancestry path including the span itself (e.g. \"agent.Bash.anthropic.messages\").\n",
+                    "Use 'name' for matching a span regardless of where it appears in the hierarchy.\n",
+                    "Use 'path' for matching spans at a specific position in the call tree.\n\n",
                     "Pattern syntax: glob only. '*' matches any sequence of characters including empty. Examples:\n",
                     "- exact:    \"create_sdk_mcp_server\"\n",
                     "- prefix:   \"run_benchmark*\"\n",
@@ -170,12 +186,13 @@ fn build_filter_tool_definitions() -> Vec<ProviderTool> {
                     "- contains: \"*tool_call*\"\n",
                     "- any:      \"*\"\n\n",
                     "Matchable fields:\n",
-                    "- \"name\"   — the span name\n",
+                    "- \"name\"   — the span's own short name (NOT the full hierarchy path)\n",
+                    "- \"path\"   — the full dot-separated ancestry path (e.g. \"agent.tool.llm_call\")\n",
                     "- \"input\"  — the full input field of the span as a string\n",
                     "- \"output\" — the full output field of the span as a string\n\n",
                     "Do NOT add a drop rule if:\n",
                     "- You are unsure whether the span pattern ever contains signal\n",
-                    "- The rule would have no 'name' matcher\n",
+                    "- The rule would have no 'name' or 'path' matcher\n",
                     "- The pattern is so broad it could match spans from unrelated pipelines",
                 ).to_string(),
                 parameters: serde_json::json!({
@@ -183,15 +200,15 @@ fn build_filter_tool_definitions() -> Vec<ProviderTool> {
                     "properties": {
                         "match": {
                             "type": "array",
-                            "description": "List of field matchers. ALL must match for the rule to apply. Must contain at least one matcher with field 'name'.",
+                            "description": "List of field matchers. ALL must match for the rule to apply. Must contain at least one matcher with field 'name' or 'path'.",
                             "minItems": 1,
                             "items": {
                                 "type": "object",
                                 "properties": {
                                     "field": {
                                         "type": "string",
-                                        "enum": ["name", "input", "output"],
-                                        "description": "The span field to match against."
+                                        "enum": ["name", "path", "input", "output"],
+                                        "description": "The span field to match against. 'name' is the span's own short name; 'path' is the full dot-separated ancestry."
                                     },
                                     "pattern": {
                                         "type": "string",
@@ -253,7 +270,7 @@ fn parse_drop_rules_from_response(
         };
 
         let mut matchers = Vec::new();
-        let mut has_name = false;
+        let mut has_identity_matcher = false;
         for m in match_array {
             let field = m.get("field").and_then(|f| f.as_str()).unwrap_or_default();
             let pattern = m
@@ -263,11 +280,11 @@ fn parse_drop_rules_from_response(
             if field.is_empty() || pattern.is_empty() {
                 continue;
             }
-            if !matches!(field, "name" | "input" | "output") {
+            if !matches!(field, "name" | "path" | "input" | "output") {
                 continue;
             }
-            if field == "name" {
-                has_name = true;
+            if field == "name" || field == "path" {
+                has_identity_matcher = true;
             }
             matchers.push(FieldMatcher {
                 field: field.to_string(),
@@ -275,7 +292,7 @@ fn parse_drop_rules_from_response(
             });
         }
 
-        if !has_name || matchers.is_empty() {
+        if !has_identity_matcher || matchers.is_empty() {
             continue;
         }
 
@@ -299,6 +316,8 @@ fn parse_drop_rules_from_response(
 pub async fn generate_and_cache_drop_rules(
     cache: &Arc<Cache>,
     llm_client: &Arc<LlmClient>,
+    queue: Arc<MessageQueue>,
+    internal_project_id: Option<Uuid>,
     project_id: Uuid,
     signal_id: Uuid,
     signal_prompt: &str,
@@ -312,6 +331,8 @@ pub async fn generate_and_cache_drop_rules(
         );
         return Vec::new();
     }
+
+    let start_time = Utc::now();
 
     let user_prompt = FILTER_GENERATION_PROMPT
         .replace("{{signal_prompt}}", signal_prompt)
@@ -340,15 +361,67 @@ pub async fn generate_and_cache_drop_rules(
         model_size: Some(ModelSize::Large),
     };
 
-    let response = match llm_client.generate_content(&request).await {
-        Ok(r) => r,
+    let span_input = request_to_span_input(&request);
+    let span_tools = request_to_tools_attr(&request);
+
+    let (response, error) = match llm_client.generate_content(&request).await {
+        Ok(r) => (Some(r), None),
         Err(e) => {
             log::error!("LLM call failed for span filter generation: {}", e);
-            return Vec::new();
+            (None, Some(format!("{}", e)))
         }
     };
 
-    let rules = parse_drop_rules_from_response(&response);
+    let usage = response.as_ref().and_then(|r| r.usage_metadata.as_ref());
+
+    let rules = response
+        .as_ref()
+        .map(parse_drop_rules_from_response)
+        .unwrap_or_default();
+
+    // TODO: make better internal tracing in the future
+    emit_internal_span(
+        queue,
+        InternalSpan {
+            name: "generate_span_filters".to_string(),
+            trace_id: Uuid::new_v4(),
+            run_id: Uuid::nil(),
+            signal_name: String::new(),
+            parent_span_id: None,
+            span_type: SpanType::LLM,
+            start_time,
+            input: Some(span_input),
+            output: Some(serde_json::json!({
+                "rules": rules,
+            })),
+            input_tokens: usage.and_then(|u| u.prompt_token_count),
+            input_cached_tokens: usage.and_then(|u| u.cache_read_input_tokens),
+            output_tokens: usage.and_then(|u| u.candidates_token_count),
+            model: "claude-opus-4-6".to_string(),
+            provider: "bedrock".to_string(),
+            internal_project_id,
+            job_id: None,
+            error,
+            provider_batch_id: None,
+            metadata: Some(
+                serde_json::json!({
+                    "project_id": project_id,
+                    "signal_id": signal_id,
+                })
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect(),
+            ),
+            tools: span_tools,
+        },
+    )
+    .await;
+
+    if response.is_none() {
+        return Vec::new();
+    }
 
     log::info!(
         "Generated {} span drop rules for project={} signal={}",
@@ -403,6 +476,7 @@ fn rule_matches_span(rule: &DropRule, span: &CHSpan) -> bool {
     rule.match_.iter().all(|m| {
         let value = match m.field.as_str() {
             "name" => &span.name,
+            "path" => &span.path,
             "input" => &span.input,
             "output" => &span.output,
             _ => return false,
@@ -521,6 +595,28 @@ mod tests {
         let spans = vec![make_test_span("a", "", ""), make_test_span("b", "", "")];
         let result = apply_drop_rules(spans.clone(), &[]);
         assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_apply_drop_rules_path_matching() {
+        let mut span1 = make_test_span("anthropic.messages", "", "");
+        span1.path = "agent.Bash.anthropic.messages".to_string();
+        let mut span2 = make_test_span("anthropic.messages", "", "");
+        span2.path = "agent.anthropic.messages".to_string();
+        let mut span3 = make_test_span("openai.chat", "", "");
+        span3.path = "agent.openai.chat".to_string();
+
+        let rules = vec![DropRule {
+            match_: vec![FieldMatcher {
+                field: "path".to_string(),
+                pattern: "agent.Bash.*".to_string(),
+            }],
+            reason: "nested under Bash tool".to_string(),
+        }];
+        let result = apply_drop_rules(vec![span1, span2, span3], &rules);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].path, "agent.anthropic.messages");
+        assert_eq!(result[1].path, "agent.openai.chat");
     }
 
     fn make_test_span(name: &str, input: &str, output: &str) -> CHSpan {

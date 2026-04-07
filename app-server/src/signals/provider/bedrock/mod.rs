@@ -137,18 +137,71 @@ impl LanguageModelClient for BedrockClient {
             }
         }
 
+        let thinking_enabled = request
+            .generation_config
+            .as_ref()
+            .and_then(|gc| gc.thinking_config.as_ref())
+            .and_then(|tc| tc.thinking_level.as_ref())
+            .is_some_and(|level| {
+                !matches!(
+                    level,
+                    super::models::ProviderThinkingLevel::ThinkingLevelUnspecified
+                )
+            });
+
+        let thinking_budget = if thinking_enabled {
+            request
+                .generation_config
+                .as_ref()
+                .and_then(|gc| gc.thinking_config.as_ref())
+                .and_then(|tc| tc.thinking_level.as_ref())
+                .map(thinking_level_to_budget)
+                .unwrap_or(4096)
+        } else {
+            0
+        };
+
         if let Some(gen_config) = &request.generation_config {
             let mut inference_config = InferenceConfiguration::builder();
-            if let Some(temp) = gen_config.temperature {
-                inference_config = inference_config.temperature(temp);
+            // temperature, top_p, top_k are incompatible with extended thinking
+            if !thinking_enabled {
+                if let Some(temp) = gen_config.temperature {
+                    inference_config = inference_config.temperature(temp);
+                }
+                if let Some(top_p) = gen_config.top_p {
+                    inference_config = inference_config.top_p(top_p);
+                }
             }
-            if let Some(top_p) = gen_config.top_p {
-                inference_config = inference_config.top_p(top_p);
-            }
-            if let Some(max_tokens) = gen_config.max_output_tokens {
-                inference_config = inference_config.max_tokens(max_tokens);
-            }
+            // budget_tokens must be < max_tokens, so when thinking is enabled
+            // bump max_tokens to fit both the thinking budget and desired output.
+            let max_tokens = gen_config.max_output_tokens.unwrap_or(4096);
+            let effective_max_tokens = if thinking_enabled {
+                max_tokens + thinking_budget as i32
+            } else {
+                max_tokens
+            };
+            inference_config = inference_config.max_tokens(effective_max_tokens);
             req_builder = req_builder.inference_config(inference_config.build());
+        }
+
+        if thinking_enabled {
+            let thinking_doc = Document::Object(
+                [(
+                    "thinking".to_string(),
+                    Document::Object(
+                        [
+                            ("type".to_string(), Document::String("enabled".to_string())),
+                            (
+                                "budget_tokens".to_string(),
+                                Document::Number(aws_smithy_types::Number::PosInt(thinking_budget)),
+                            ),
+                        ]
+                        .into(),
+                    ),
+                )]
+                .into(),
+            );
+            req_builder = req_builder.additional_model_request_fields(thinking_doc);
         }
 
         let resp = req_builder.send().await.map_err(|e| {
@@ -222,6 +275,17 @@ impl LanguageModelClient for BedrockClient {
             usage_metadata: usage,
             model_version: Some(model.to_string()),
         })
+    }
+}
+
+fn thinking_level_to_budget(level: &super::models::ProviderThinkingLevel) -> u64 {
+    use super::models::ProviderThinkingLevel;
+    match level {
+        ProviderThinkingLevel::ThinkingLevelUnspecified => 0,
+        ProviderThinkingLevel::Minimal => 1_024,
+        ProviderThinkingLevel::Low => 2_048,
+        ProviderThinkingLevel::Medium => 4_096,
+        ProviderThinkingLevel::High => 16_384,
     }
 }
 

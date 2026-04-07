@@ -9,8 +9,9 @@ use crate::{
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{DB, signal_jobs::update_signal_job_stats},
+    mq::MessageQueue,
     signals::{
-        SignalRun,
+        SignalRun, SignalWorkerConfig,
         filter::{
             apply_drop_rules, generate_and_cache_drop_rules, lookup_cached_drop_rules,
             pipeline_fingerprint,
@@ -75,6 +76,8 @@ pub async fn process_run(
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
     llm_client: Arc<LlmClient>,
+    queue: Arc<MessageQueue>,
+    config: &SignalWorkerConfig,
 ) -> Result<ProcessRunResult, HandlerError> {
     let processing_start_time = Utc::now();
 
@@ -118,6 +121,8 @@ pub async fn process_run(
                     generate_and_cache_drop_rules(
                         &cache,
                         &llm_client,
+                        queue.clone(),
+                        config.internal_project_id,
                         project_id,
                         signal_id,
                         prompt,
