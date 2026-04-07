@@ -1,3 +1,4 @@
+import { backOff } from "exponential-backoff";
 import { z } from "zod/v4";
 
 import { tryParseJson } from "@/lib/actions/common/utils";
@@ -81,20 +82,36 @@ export async function getSpan(input: z.infer<typeof GetSpanSchema>) {
   // spans table. ClickHouse JSON format serializes named tuples as objects and Int64 as unquoted
   // numbers (output_format_json_quote_64bit_integers = 0), so each event arrives as
   // { timestamp: number, name: string, attributes: string }.
-  const [span] = await executeQuery<
-    Omit<Span, "attributes" | "events"> & {
-      attributes: string;
-      events: { timestamp: number; name: string; attributes: string }[];
-    }
-  >({
-    query: mainQuery,
-    parameters,
-    projectId,
-  });
 
-  if (!span) {
-    throw new Error("Span not found");
-  }
+  // Retry with exponential backoff to handle transient ClickHouse errors
+  // or spans not yet visible due to async inserts.
+  const span = await backOff(
+    async () => {
+      const [result] = await executeQuery<
+        Omit<Span, "attributes" | "events"> & {
+          attributes: string;
+          events: { timestamp: number; name: string; attributes: string }[];
+        }
+      >({
+        query: mainQuery,
+        parameters,
+        projectId,
+      });
+
+      if (!result) {
+        throw new Error("Span not found");
+      }
+
+      return result;
+    },
+    {
+      numOfAttempts: 5,
+      startingDelay: 100,
+      timeMultiple: 2,
+      maxDelay: 800,
+      jitter: "none",
+    }
+  );
 
   const parsedAttributes = tryParseJson(span.attributes) || {};
 
