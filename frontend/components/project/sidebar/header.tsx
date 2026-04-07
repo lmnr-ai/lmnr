@@ -9,7 +9,7 @@ import React, { useEffect } from "react";
 import useSWR from "swr";
 
 import { useSessionSync } from "@/components/auth/session-sync-provider";
-import NotificationPanel from "@/components/notifications/notification-panel";
+import NotificationTrigger from "@/components/notifications/notification-trigger";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.tsx";
 import {
   DropdownMenu,
@@ -167,7 +167,7 @@ const ProjectSidebarHeader = ({ projectId, workspaceId }: { workspaceId: string;
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          {(open || openMobile) && <NotificationPanel />}
+          {(open || openMobile) && <NotificationTrigger />}
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarHeader>

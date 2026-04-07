@@ -1,11 +1,11 @@
 "use client";
 
-import { Bell, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import useSWR from "swr";
 
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
 import { cn, formatRelativeTime, swrFetcher } from "@/lib/utils";
@@ -88,7 +88,7 @@ const formatNotification = (notification: WebNotification, projectId?: string): 
     const noteworthyEvents = project ? project.noteworthy_events : report.projects.flatMap((p) => p.noteworthy_events);
 
     return {
-      title: `Signal Events Report`,
+      title: `Signal Events Summary`,
       summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} in the last ${periodType}`,
       aiSummary,
       noteworthyEvents,
@@ -122,7 +122,7 @@ const NotificationItem = ({
   return (
     <div
       className={cn(
-        "flex flex-col gap-1.5 border-b last:border-b-0 px-3 py-3 cursor-pointer transition-colors",
+        "flex flex-col gap-1.5 border-b px-3 py-3 cursor-pointer transition-colors",
         isUnread ? "bg-secondary hover:bg-secondary/90" : "bg-transparent hover:bg-secondary/20"
       )}
       onClick={handleClick}
@@ -200,6 +200,7 @@ const NotificationItem = ({
 };
 
 const NotificationPanel = () => {
+  const { isOpen, close } = useNotificationPanelStore();
   const { workspace, project } = useProjectContext();
 
   const swrKey = workspace && project ? `/api/workspaces/${workspace.id}/notifications?projectId=${project.id}` : null;
@@ -216,12 +217,10 @@ const NotificationPanel = () => {
     );
 
   const hasNotifications = formattedNotifications && formattedNotifications.length > 0;
-  const hasUnread = formattedNotifications?.some(({ notification }) => !notification.isRead) ?? false;
 
   const handleMarkAsRead = async (notificationId: string) => {
     if (!workspace || !project) return;
 
-    // Optimistically update the local data
     mutate((current) => current?.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n)), false);
 
     try {
@@ -239,23 +238,24 @@ const NotificationPanel = () => {
   };
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          className={cn(
-            "relative flex items-center justify-center rounded-md p-1",
-            "text-secondary-foreground hover:bg-secondary/60 transition-colors"
-          )}
-        >
-          <Bell className="size-4" />
-          {hasUnread && <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-orange-500" />}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" side="bottom" className="w-[28rem] p-0">
-        <div className="flex items-center justify-between border-b px-3 py-2">
+    <div
+      className={cn(
+        "absolute inset-y-0 left-0 z-50 w-80 bg-background border-r shadow-lg",
+        "transition-transform duration-200 ease-in-out",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}
+    >
+      <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
           <span className="text-sm font-medium">Notifications</span>
+          <button
+            onClick={close}
+            className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+          >
+            <X className="size-4" />
+          </button>
         </div>
-        <div className="max-h-[32rem] overflow-y-auto">
+        <div className="flex-1 overflow-y-auto">
           {!hasNotifications ? (
             <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
               No notifications yet
@@ -274,8 +274,8 @@ const NotificationPanel = () => {
             </div>
           )}
         </div>
-      </PopoverContent>
-    </Popover>
+      </div>
+    </div>
   );
 };
 
