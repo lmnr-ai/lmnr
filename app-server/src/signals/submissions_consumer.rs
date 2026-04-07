@@ -126,6 +126,10 @@ async fn process(
                 "[SIGNAL JOB] Batch {} is locked by another worker, re-publishing to back of queue",
                 batch_message_id,
             );
+
+            // Avoid tight redelivery loop
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+
             if let Err(e) = push_to_submissions_queue(msg, queue).await {
                 log::error!(
                     "[SIGNAL JOB] Failed to re-publish locked batch {}: {:?}",
@@ -144,8 +148,16 @@ async fn process(
         }
     }
 
-    let result =
-        process_batch(msg, db, cache.clone(), clickhouse, queue, llm_client, config).await;
+    let result = process_batch(
+        msg,
+        db,
+        cache.clone(),
+        clickhouse,
+        queue,
+        llm_client,
+        config,
+    )
+    .await;
 
     if result.is_ok() {
         if let Err(e) = cache
@@ -319,10 +331,7 @@ async fn submit_batch_to_llm(
 ) -> Result<(), (Vec<SignalRun>, HandlerError)> {
     let span_requests = requests.clone();
     match llm_client
-        .create_batch(
-            requests,
-            Some(format!("signal_batch_{}", Uuid::new_v4())),
-        )
+        .create_batch(requests, Some(format!("signal_batch_{}", Uuid::new_v4())))
         .await
     {
         Ok(operation) => {
