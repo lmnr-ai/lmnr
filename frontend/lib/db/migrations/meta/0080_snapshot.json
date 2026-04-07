@@ -1446,7 +1446,26 @@
         }
       },
       "indexes": {},
-      "foreignKeys": {},
+      "foreignKeys": {
+        "notification_reads_project_id_fkey": {
+          "name": "notification_reads_project_id_fkey",
+          "tableFrom": "notification_reads",
+          "tableTo": "projects",
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "notification_reads_user_id_fkey": {
+          "name": "notification_reads_user_id_fkey",
+          "tableFrom": "notification_reads",
+          "tableTo": "users",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {
         "notification_reads_pkey": {
           "name": "notification_reads_pkey",
