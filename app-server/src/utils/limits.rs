@@ -22,10 +22,7 @@ use crate::{
         usage_warnings::{self, UsageItem},
     },
     mq::MessageQueue,
-    notifications::{
-        self, EmailPayload, NotificationDefinitionType, NotificationMessage, NotificationType,
-    },
-    reports::email_template::html_escape,
+    notifications::{self, NotificationDefinitionType, NotificationKind, NotificationMessage},
 };
 // For workspaces over the limit, expire the cache after 24 hours,
 // so that it resets in the next billing period (+/- 1 day).
@@ -34,8 +31,6 @@ const WORKSPACE_USAGE_TTL_SECONDS: u64 = 60 * 60 * 24; // 24 hours
 /// TTL for cached usage warnings per workspace. The cache is explicitly cleared
 /// by the frontend whenever warnings are added or removed, so a long TTL is fine.
 const USAGE_WARNINGS_CACHE_TTL_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
-
-const USAGE_WARNING_FROM_EMAIL: &str = "Laminar <usage@mail.lmnr.ai>";
 
 /// Returns the effective bytes hard limit for a workspace, or None if no limit should be enforced.
 ///
@@ -411,8 +406,8 @@ async fn check_soft_limits(
 }
 
 /// Build and enqueue a soft-limit notification for workspace owners.
-/// Deduplication is handled on the notification-worker side via a short-lived cache
-/// lock, so this function simply constructs the message and pushes it to the queue.
+/// Only sends the core usage warning data. Target fetching, email rendering, and
+/// deduplication all happen downstream in the notification consumer pipeline.
 async fn send_soft_limit_notification(
     db: Arc<DB>,
     cache: Arc<Cache>,
@@ -422,30 +417,6 @@ async fn send_soft_limit_notification(
     usage_item: &UsageItem,
     limit_value: i64,
 ) {
-    let owner_emails =
-        match usage_warnings::get_workspace_owner_emails(&db.pool, workspace_id).await {
-            Ok(emails) => emails,
-            Err(e) => {
-                log::error!(
-                    "Failed to get owner emails for workspace [{}] for warning [{}]: {:?}",
-                    workspace_id,
-                    warning_id,
-                    e
-                );
-                return;
-            }
-        };
-
-    if owner_emails.is_empty() {
-        log::warn!(
-            "No owner emails found for workspace [{}], skipping soft limit notification \
-             for warning [{}].",
-            workspace_id,
-            warning_id
-        );
-        return;
-    }
-
     let workspace_name = match usage_warnings::get_workspace_name(&db.pool, workspace_id).await {
         Ok(name) => name,
         Err(e) => {
@@ -459,45 +430,23 @@ async fn send_soft_limit_notification(
     };
 
     let (usage_label, formatted_limit) = format_usage_item(usage_item, limit_value);
-    let subject = format!(
-        "Usage warning: {} reached {} \u{2013} {}",
-        usage_label, formatted_limit, workspace_name
-    );
-    let html = render_usage_warning_email(
-        &workspace_name,
-        workspace_id,
-        usage_item,
-        &formatted_limit,
-        &usage_label,
-    );
 
-    let email_payload = EmailPayload {
-        from: USAGE_WARNING_FROM_EMAIL.to_string(),
-        to: owner_emails,
-        subject,
-        html,
-        inline_logo: true,
+    let usage_item_str = match usage_item {
+        UsageItem::Bytes => "bytes",
+        UsageItem::SignalRuns => "signal_runs",
     };
 
     let notification_message = NotificationMessage {
         project_id: Uuid::nil(),
-        notification_type: NotificationType::Email,
-        payload: match serde_json::to_value(&email_payload) {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!(
-                    "Failed to serialize email payload for warning [{}]: {:?}",
-                    warning_id,
-                    e
-                );
-                return;
-            }
-        },
         workspace_id,
         definition_type: NotificationDefinitionType::UsageWarning,
         definition_id: warning_id,
-        target_id: Uuid::nil(),
-        target_type: "EMAIL".to_string(),
+        notification_kind: NotificationKind::UsageWarning {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            usage_item: usage_item_str.to_string(),
+        },
     };
 
     match notifications::push_to_notification_queue(notification_message, queue).await {
@@ -575,67 +524,6 @@ fn format_number_with_commas(n: i64) -> String {
     }
 
     result
-}
-
-fn render_usage_warning_email(
-    workspace_name: &str,
-    workspace_id: Uuid,
-    usage_item: &UsageItem,
-    formatted_limit: &str,
-    usage_label: &str,
-) -> String {
-    let meter_description = match usage_item {
-        UsageItem::Bytes => "data ingested",
-        UsageItem::SignalRuns => "signal runs used",
-    };
-
-    format!(
-        r##"<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Usage Warning – {workspace_name}</title>
-</head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
-
-  <!-- Header -->
-  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
-    <img src="cid:laminar-logo" alt="Laminar" width="120" height="21" style="display:block;margin-bottom:16px;" />
-    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">Usage Warning</h1>
-    <p style="margin:0;font-size:16px;color:#D0754E;">{usage_label} threshold reached</p>
-  </div>
-
-  <!-- Content -->
-  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
-    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      Your workspace <strong>{workspace_name}</strong> has reached <strong>{formatted_limit}</strong> of {meter_description} in the current billing cycle.
-    </p>
-    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
-      This is a warning notification you configured. No action is required unless you want to adjust your usage or limits.
-    </p>
-    <div style="text-align:center;padding-top:8px;">
-      <a href="https://lmnr.ai/workspace/{workspace_id}?tab=usage" style="display:inline-block;background:#D0754E;color:#ffffff;text-decoration:none;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:600;">View Usage</a>
-    </div>
-  </div>
-
-  <!-- Footer -->
-  <div style="text-align:center;padding:16px 0;">
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This notification was generated automatically by <a href="https://www.lmnr.ai" style="color:#D0754E;text-decoration:none;">Laminar</a>.</p>
-    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are the owner of the {workspace_name} workspace.</p>
-    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="https://lmnr.ai/workspace/{workspace_id}?tab=usage" style="color:#D0754E;text-decoration:none;">Manage warning thresholds</a></p>
-  </div>
-
-</div>
-</body>
-</html>"##,
-        workspace_name = html_escape(workspace_name),
-        workspace_id = workspace_id,
-        usage_label = html_escape(usage_label),
-        formatted_limit = html_escape(formatted_limit),
-        meter_description = meter_description,
-    )
 }
 
 /// Fetch usage warnings for a workspace, using a short-lived cache to avoid

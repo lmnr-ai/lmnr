@@ -37,7 +37,9 @@ use logs::{
 use mq::MessageQueue;
 use names::NameGenerator;
 use notifications::{
-    NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE, NOTIFICATIONS_ROUTING_KEY, NotificationHandler,
+    NOTIFICATION_DELIVERIES_EXCHANGE, NOTIFICATION_DELIVERIES_QUEUE,
+    NOTIFICATION_DELIVERIES_ROUTING_KEY, NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE,
+    NOTIFICATIONS_ROUTING_KEY, NotificationDeliveryHandler, NotificationHandler,
 };
 use opentelemetry_proto::opentelemetry::proto::collector::logs::v1::logs_service_server::LogsServiceServer;
 use opentelemetry_proto::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
@@ -1194,12 +1196,10 @@ fn main() -> anyhow::Result<()> {
                         log::warn!("Gemini client not available - skipping signals workers");
                     }
 
-                    // Spawn notification workers
+                    // Spawn notification workers (stage 1: persist + fan-out to targets)
                     {
                         let db = db_for_consumer.clone();
-                        let cache = cache_for_consumer.clone();
-                        let client = reqwest::Client::new();
-                        let resend = resend_client.clone();
+                        let queue = mq_for_consumer.clone();
                         let ch_service = Arc::new(ClickhouseService::new(
                             clickhouse_for_consumer.clone(),
                             db_for_consumer.pool.clone(),
@@ -1213,9 +1213,7 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 NotificationHandler::new(
                                     db.clone(),
-                                    cache.clone(),
-                                    client.clone(),
-                                    resend.clone(),
+                                    queue.clone(),
                                     ch_service.clone(),
                                 )
                             },
@@ -1223,6 +1221,39 @@ fn main() -> anyhow::Result<()> {
                                 NOTIFICATIONS_QUEUE,
                                 NOTIFICATIONS_EXCHANGE,
                                 NOTIFICATIONS_ROUTING_KEY,
+                            ),
+                        );
+                    }
+
+                    // Spawn notification delivery workers (stage 2: format + send + log)
+                    {
+                        let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
+                        let client = reqwest::Client::new();
+                        let resend = resend_client.clone();
+                        let ch_service = Arc::new(ClickhouseService::new(
+                            clickhouse_for_consumer.clone(),
+                            db_for_consumer.pool.clone(),
+                            cache_for_consumer.clone(),
+                            reqwest::Client::new(),
+                        ));
+
+                        worker_pool_clone.spawn(
+                            WorkerType::NotificationDeliveries,
+                            num_notification_workers as usize,
+                            move || {
+                                NotificationDeliveryHandler::new(
+                                    db.clone(),
+                                    cache.clone(),
+                                    client.clone(),
+                                    resend.clone(),
+                                    ch_service.clone(),
+                                )
+                            },
+                            QueueConfig::new(
+                                NOTIFICATION_DELIVERIES_QUEUE,
+                                NOTIFICATION_DELIVERIES_EXCHANGE,
+                                NOTIFICATION_DELIVERIES_ROUTING_KEY,
                             ),
                         );
                     }

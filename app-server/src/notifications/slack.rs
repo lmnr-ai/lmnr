@@ -9,51 +9,11 @@ use sodiumoxide::{
     crypto::aead::xchacha20poly1305_ietf::{Key, Nonce, open},
     hex,
 };
-use uuid::Uuid;
 
+use super::NotificationKind;
 use crate::reports::email_template::ReportData;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct EventIdentificationPayload {
-    pub project_id: Uuid,
-    pub trace_id: Uuid,
-    pub event_name: String,
-    pub extracted_information: Option<serde_json::Value>,
-    pub channel_id: String,
-    pub integration_id: Uuid,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ReportPayload {
-    pub title: String,
-    pub report: ReportData,
-    pub channel_id: String,
-    pub integration_id: Uuid,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub enum SlackMessagePayload {
-    EventIdentification(EventIdentificationPayload),
-    Report(ReportPayload),
-}
-
-impl SlackMessagePayload {
-    pub fn channel_id(&self) -> &str {
-        match self {
-            Self::EventIdentification(p) => &p.channel_id,
-            Self::Report(p) => &p.channel_id,
-        }
-    }
-
-    pub fn integration_id(&self) -> &Uuid {
-        match self {
-            Self::EventIdentification(p) => &p.integration_id,
-            Self::Report(p) => &p.integration_id,
-        }
-    }
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SlackApiResponse {
@@ -200,8 +160,7 @@ fn format_event_identification_blocks(
     ])
 }
 
-fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
-    let report = &payload.report;
+fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
     let project_count = report.projects.len();
 
     let overview = format!(
@@ -217,7 +176,7 @@ fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
     let mut blocks = vec![
         json!({
             "type": "section",
-            "text": { "type": "mrkdwn", "text": format!(":bar_chart: *{}*", payload.title) }
+            "text": { "type": "mrkdwn", "text": format!(":bar_chart: *{}*", title) }
         }),
         json!({
             "type": "section",
@@ -275,15 +234,45 @@ fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
     json!(blocks)
 }
 
-pub fn format_message_blocks(payload: &SlackMessagePayload) -> serde_json::Value {
-    match payload {
-        SlackMessagePayload::EventIdentification(p) => format_event_identification_blocks(
-            &p.project_id.to_string(),
-            &p.trace_id.to_string(),
-            &p.event_name,
-            p.extracted_information.clone(),
+/// Format Slack message blocks from a `NotificationKind`.
+pub fn format_message_blocks(kind: &NotificationKind) -> serde_json::Value {
+    match kind {
+        NotificationKind::EventIdentification {
+            project_id,
+            trace_id,
+            event_name,
+            extracted_information,
+        } => format_event_identification_blocks(
+            &project_id.to_string(),
+            &trace_id.to_string(),
+            event_name,
+            extracted_information.clone(),
         ),
-        SlackMessagePayload::Report(p) => format_report_blocks(p),
+        NotificationKind::SignalsReport { report_data, title } => {
+            format_report_blocks(title, report_data)
+        }
+        NotificationKind::UsageWarning {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            ..
+        } => {
+            // Simple text block for usage warnings (these are primarily email-based,
+            // but we handle Slack gracefully if targets include it).
+            json!([
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": format!(
+                            ":warning: *Usage Warning*\n{} has reached *{}* of {}.",
+                            workspace_name, formatted_limit, usage_label
+                        )
+                    }
+                },
+                {"type": "divider"}
+            ])
+        }
     }
 }
 
