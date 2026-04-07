@@ -1,5 +1,8 @@
+export type PresetTable = "traces" | "spans" | "signals";
+
 export interface ChartPreset {
   name: string;
+  table: PresetTable;
   query: string;
   config: {
     type: string;
@@ -14,6 +17,7 @@ export interface ChartPreset {
 export const CHART_PRESETS: ChartPreset[] = [
   {
     name: "Trace p90 cost",
+    table: "traces",
     query: `SELECT
     toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
     quantile(0.9)(total_cost) AS \`p90_total_cost\`
@@ -29,7 +33,8 @@ ORDER BY time ASC WITH FILL
     config: { x: "time", y: "p90_total_cost", type: "line", displayMode: "average" },
   },
   {
-    name: "Trace p90 duration (s)",
+    name: "Trace p90 duration",
+    table: "traces",
     query: `SELECT
     toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
     quantile(0.9)(duration) AS \`p90_duration\`
@@ -46,6 +51,7 @@ ORDER BY time ASC WITH FILL
   },
   {
     name: "New traces",
+    table: "traces",
     query: `SELECT
     toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
     status,
@@ -62,7 +68,51 @@ ORDER BY time ASC WITH FILL
     config: { x: "time", y: "count", type: "line", total: true, breakdown: "status" },
   },
   {
+    name: "Total duration",
+    table: "traces",
+    query: `SELECT
+    toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
+    sum(duration) AS \`sum_duration\`
+FROM traces
+WHERE
+    start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}
+GROUP BY time
+ORDER BY time WITH FILL
+    FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
+    TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
+    STEP toInterval(1, {interval_unit:String})`,
+    config: { x: "time", y: "sum_duration", type: "line", displayMode: "total" },
+  },
+  {
+    name: "Longest traces (min)",
+    table: "traces",
+    query: `SELECT
+    (duration / 60) AS \`value\`
+FROM traces
+WHERE
+    start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}
+ORDER BY value DESC
+LIMIT 10`,
+    config: { x: "value", y: "value", type: "horizontalBar", displayMode: "none" },
+  },
+  {
+    name: "Expensive traces",
+    table: "traces",
+    query: `SELECT
+    (total_cost) AS \`value\`
+FROM traces
+WHERE
+    start_time >= {start_time:DateTime64}
+    AND start_time <= {end_time:DateTime64}
+ORDER BY value DESC
+LIMIT 10`,
+    config: { x: "value", y: "value", type: "horizontalBar", displayMode: "none" },
+  },
+  {
     name: "Total cost",
+    table: "spans",
     query: `SELECT
     toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
     sum(total_cost) AS total_cost
@@ -80,6 +130,7 @@ ORDER BY time WITH FILL
   },
   {
     name: "Total tokens",
+    table: "spans",
     query: `SELECT
     toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
     sum(total_tokens) AS total_tokens
@@ -96,11 +147,12 @@ ORDER BY time WITH FILL
     config: { x: "time", y: "total_tokens", type: "line", total: true },
   },
   {
-    name: "Tokens by model (sum)",
+    name: "Tokens by model",
+    table: "spans",
     query: `SELECT
     toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
     model,
-    sum(total_tokens) AS total_tokens
+    sum(total_tokens) AS \`total_tokens\`
 FROM spans
 WHERE
     model != '<null>'
@@ -108,54 +160,18 @@ WHERE
     AND start_time >= {start_time:DateTime64}
     AND start_time <= {end_time:DateTime64}
 GROUP BY time, model
-ORDER BY time WITH FILL
+ORDER BY time ASC WITH FILL
     FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
     TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
     STEP toInterval(1, {interval_unit:String})`,
-    config: { x: "time", y: "total_tokens", type: "line", breakdown: "model" },
+    config: { x: "time", y: "total_tokens", type: "line", breakdown: "model", displayMode: "none" },
   },
   {
-    name: "Latency by model (p90)",
-    query: `SELECT
-    toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
-    model,
-    quantile(0.9)(duration) AS duration
-FROM spans
-WHERE
-    span_type = 'LLM'
-    AND start_time >= {start_time:DateTime64}
-    AND start_time <= {end_time:DateTime64}
-GROUP BY time, model
-ORDER BY time WITH FILL
-    FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
-    TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
-    STEP toInterval(1, {interval_unit:String})`,
-    config: { x: "time", y: "duration", type: "line", breakdown: "model" },
-  },
-  {
-    name: "Cost by model (sum)",
-    query: `SELECT
-    toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
-    model,
-    sum(total_cost) AS total_cost
-FROM spans
-WHERE
-    model != '<null>'
-    AND span_type = 'LLM'
-    AND start_time >= {start_time:DateTime64}
-    AND start_time <= {end_time:DateTime64}
-GROUP BY time, model
-ORDER BY time WITH FILL
-    FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
-    TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
-    STEP toInterval(1, {interval_unit:String})`,
-    config: { x: "time", y: "total_cost", type: "line", breakdown: "model" },
-  },
-  {
-    name: "Top spans",
+    name: "Top span names",
+    table: "spans",
     query: `SELECT
     name,
-    COUNT(span_id) AS count
+    count(span_id) AS \`count\`
 FROM spans
 WHERE
     start_time >= {start_time:DateTime64}
@@ -163,62 +179,25 @@ WHERE
 GROUP BY name
 ORDER BY count DESC
 LIMIT 5`,
-    config: { x: "count", y: "name", type: "horizontalBar", total: true },
+    config: { x: "count", y: "name", type: "horizontalBar", displayMode: "total" },
   },
   {
-    name: "Top model tokens",
+    name: "Longest spans (min)",
+    table: "spans",
     query: `SELECT
-    model,
-    sum(total_tokens) AS total_tokens
+    (duration / 60) AS \`value\`
 FROM spans
 WHERE
-    model != '<null>'
-    AND span_type = 'LLM'
+    span_type = 'LLM'
     AND start_time >= {start_time:DateTime64}
     AND start_time <= {end_time:DateTime64}
-GROUP BY model
-ORDER BY total_tokens DESC
-LIMIT 5`,
-    config: { x: "total_tokens", y: "model", type: "horizontalBar", total: true },
-  },
-  {
-    name: "Longest traces (m)",
-    query: `SELECT
-    (duration / 60) AS \`value\`
-FROM traces
-WHERE
-    start_time >= {start_time:DateTime64}
-    AND start_time <= {end_time:DateTime64}
 ORDER BY value DESC
-LIMIT 5`,
-    config: { x: "value", y: "value", type: "horizontalBar", displayMode: "none" },
-  },
-  {
-    name: "Longest spans (m)",
-    query: `SELECT
-    (duration / 60) AS \`value\`
-FROM spans
-WHERE
-    start_time >= {start_time:DateTime64}
-    AND start_time <= {end_time:DateTime64}
-ORDER BY value DESC
-LIMIT 5`,
-    config: { x: "value", y: "value", type: "horizontalBar", displayMode: "none" },
-  },
-  {
-    name: "Expensive traces",
-    query: `SELECT
-    (total_cost) AS \`value\`
-FROM traces
-WHERE
-    start_time >= {start_time:DateTime64}
-    AND start_time <= {end_time:DateTime64}
-ORDER BY value DESC
-LIMIT 5`,
+LIMIT 10`,
     config: { x: "value", y: "value", type: "horizontalBar", displayMode: "none" },
   },
   {
     name: "Expensive spans",
+    table: "spans",
     query: `SELECT
     (total_cost) AS \`value\`
 FROM spans
@@ -226,11 +205,12 @@ WHERE
     start_time >= {start_time:DateTime64}
     AND start_time <= {end_time:DateTime64}
 ORDER BY value DESC
-LIMIT 5`,
+LIMIT 10`,
     config: { x: "value", y: "value", type: "horizontalBar", displayMode: "none" },
   },
   {
     name: "Signal events",
+    table: "signals",
     query: `SELECT
     name,
     count(*) AS \`count\`
@@ -239,24 +219,8 @@ WHERE
     timestamp >= {start_time:DateTime64}
     AND timestamp <= {end_time:DateTime64}
 GROUP BY name
-ORDER BY count DESC`,
+ORDER BY count DESC
+LIMIT 10`,
     config: { x: "count", y: "name", type: "horizontalBar", displayMode: "total" },
-  },
-  {
-    name: "Trace status",
-    query: `SELECT
-    toStartOfInterval(start_time, toInterval(1, {interval_unit:String})) AS time,
-    status,
-    count(*) AS \`count\`
-FROM traces
-WHERE
-    start_time >= {start_time:DateTime64}
-    AND start_time <= {end_time:DateTime64}
-GROUP BY time, status
-ORDER BY time ASC WITH FILL
-    FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
-    TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
-    STEP toInterval(1, {interval_unit:String})`,
-    config: { x: "time", y: "count", type: "line", breakdown: "status" },
   },
 ];

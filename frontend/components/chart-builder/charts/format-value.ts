@@ -1,3 +1,5 @@
+import { formatSecsToHoursMinsSecs } from "@/lib/utils";
+
 type UnitType = "currency" | "duration" | "plain";
 
 const columnUnitMap: Record<string, UnitType> = {
@@ -29,7 +31,7 @@ export const formatMetricValue = (value: number, columnName?: string): string =>
     case "currency":
       return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     case "duration":
-      return `${value.toLocaleString(undefined, { maximumFractionDigits: 3 })}s`;
+      return formatSecsToHoursMinsSecs(value);
     case "plain":
     default:
       return value.toLocaleString();

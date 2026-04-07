@@ -7,6 +7,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 
 import { formatMetricValue } from "./format-value";
 import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
+import { cn } from "@/lib/utils";
 
 interface HorizontalBarChartProps {
   data: Record<string, any>[];
@@ -134,6 +135,15 @@ const HorizontalBarChart = ({
                 key={valueColumn}
                 dataKey={valueColumn}
                 fill={config.color}
+                shape={(props: any) => {
+                  const { payload, tooltipPayload, tooltipPosition, dataKey, ...svgProps } = props;
+                  const isClickable = onBarClick && (
+                    payload?.trace_id || payload?.__hidden_trace_id ||
+                    payload?.id || payload?.__hidden_id ||
+                    payload?.signal_id || payload?.__hidden_signal_id
+                  );
+                  return <rect {...svgProps} className={cn({"hover:opacity-60 transition-opacity cursor-pointer": isClickable})} rx={4} />;
+                }}
                 radius={4}
                 cursor={onBarClick ? "pointer" : undefined}
                 onClick={(barData: any) => {

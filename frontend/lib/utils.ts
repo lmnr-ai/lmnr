@@ -296,6 +296,20 @@ export const formatSecondsToMinutesAndSeconds = (seconds: number) => {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
 
+export const formatSecsToHoursMinsSecs = (seconds: number): string => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+
+  const parts: string[] = [];
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0) parts.push(`${m}m`);
+  if (parts.length === 0 || s > 0) {
+    parts.push(`${s < 10 && parts.length > 0 ? s.toFixed(1) : s.toFixed(s < 1 ? 2 : 1)}s`);
+  }
+  return parts.join(" ");
+};
+
 export const pluralize = (count: number, singular: string, plural: string) => {
   const pluralRules = new Intl.PluralRules("en-US");
   const grammaticalNumber = pluralRules.select(count);
