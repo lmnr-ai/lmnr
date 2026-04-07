@@ -5,7 +5,7 @@ import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { ChartType } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
 import ChartHeader from "@/components/dashboard/chart-header";
-import { useDashboardTraceContext } from "@/components/dashboard/dashboard-trace-context";
+import { useDashboardTraceStore } from "@/components/dashboard/dashboard-trace-context";
 import { type DashboardChart } from "@/components/dashboard/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -68,13 +68,16 @@ const Chart = ({ chart }: ChartProps) => {
   const [data, setData] = useState<Record<string, any>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { openTrace } = useDashboardTraceContext();
+  const openTrace = useDashboardTraceStore((s) => s.openTrace);
 
   const columns = useMemo(() => transformDataToColumns(data), [data]);
 
+  const pastHours = searchParams.get("pastHours");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const groupByInterval = searchParams.get("groupByInterval") as GroupByInterval | null;
+
   const timeParameters = useMemo(() => {
-    const groupByInterval = searchParams.get("groupByInterval") as GroupByInterval | null;
-    const pastHours = searchParams.get("pastHours");
     if (pastHours) {
       return {
         pastHours,
@@ -82,13 +85,10 @@ const Chart = ({ chart }: ChartProps) => {
       };
     }
 
-    const startTime = searchParams.get("startDate");
-    const endTime = searchParams.get("endDate");
-
-    if (startTime && endTime) {
+    if (startDate && endDate) {
       return {
-        startTime,
-        endTime,
+        startTime: startDate,
+        endTime: endDate,
         ...(groupByInterval && { groupByInterval }),
       };
     }
@@ -96,7 +96,7 @@ const Chart = ({ chart }: ChartProps) => {
       pastHours: 24,
       ...(groupByInterval && { groupByInterval }),
     };
-  }, [searchParams]);
+  }, [pastHours, startDate, endDate, groupByInterval]);
 
   const fetchData = useCallback(async () => {
     try {

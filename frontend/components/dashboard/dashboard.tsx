@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { DashboardTraceProvider, useDashboardTraceContext } from "@/components/dashboard/dashboard-trace-context";
+import { DashboardTraceProvider, useDashboardTraceStore } from "@/components/dashboard/dashboard-trace-context";
 import GridLayout from "@/components/dashboard/grid-layout";
 import { TraceViewSidePanel } from "@/components/traces/trace-view";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,11 @@ import Header from "../ui/header";
 import { ScrollArea } from "../ui/scroll-area";
 
 function DashboardContent() {
-  const { traceId, spanId, closeTrace } = useDashboardTraceContext();
+  const { traceId, spanId, closeTrace } = useDashboardTraceStore((s) => ({
+    traceId: s.traceId,
+    spanId: s.spanId,
+    closeTrace: s.closeTrace,
+  }));
 
   return (
     <>

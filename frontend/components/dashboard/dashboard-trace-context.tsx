@@ -1,41 +1,50 @@
 "use client";
 
-import { createContext, type PropsWithChildren, useCallback, useContext, useState } from "react";
+import { createContext, type PropsWithChildren, useContext, useRef } from "react";
+import { createStore, useStore } from "zustand";
+import { shallow } from "zustand/shallow";
 
 interface DashboardTraceState {
   traceId: string | null;
   spanId: string | null;
+}
+
+interface DashboardTraceActions {
   openTrace: (traceId: string, spanId?: string) => void;
   closeTrace: () => void;
 }
 
-const DashboardTraceContext = createContext<DashboardTraceState | null>(null);
+type DashboardTraceStore = DashboardTraceState & DashboardTraceActions;
 
-export const useDashboardTraceContext = (): DashboardTraceState => {
-  const ctx = useContext(DashboardTraceContext);
-  if (!ctx) {
-    throw new Error("useDashboardTraceContext must be used within a DashboardTraceProvider");
-  }
-  return ctx;
-};
+const createDashboardTraceStore = () =>
+  createStore<DashboardTraceStore>((set) => ({
+    traceId: null,
+    spanId: null,
+    openTrace: (traceId, spanId) => set({ traceId, spanId: spanId ?? null }),
+    closeTrace: () => set({ traceId: null, spanId: null }),
+  }));
+
+type DashboardTraceStoreApi = ReturnType<typeof createDashboardTraceStore>;
+
+const DashboardTraceContext = createContext<DashboardTraceStoreApi | null>(null);
 
 export const DashboardTraceProvider = ({ children }: PropsWithChildren) => {
-  const [traceId, setTraceId] = useState<string | null>(null);
-  const [spanId, setSpanId] = useState<string | null>(null);
-
-  const openTrace = useCallback((newTraceId: string, newSpanId?: string) => {
-    setTraceId(newTraceId);
-    setSpanId(newSpanId ?? null);
-  }, []);
-
-  const closeTrace = useCallback(() => {
-    setTraceId(null);
-    setSpanId(null);
-  }, []);
+  const storeRef = useRef<DashboardTraceStoreApi>(null);
+  if (!storeRef.current) {
+    storeRef.current = createDashboardTraceStore();
+  }
 
   return (
-    <DashboardTraceContext.Provider value={{ traceId, spanId, openTrace, closeTrace }}>
+    <DashboardTraceContext.Provider value={storeRef.current}>
       {children}
     </DashboardTraceContext.Provider>
   );
+};
+
+export const useDashboardTraceStore = <T,>(selector: (state: DashboardTraceStore) => T): T => {
+  const store = useContext(DashboardTraceContext);
+  if (!store) {
+    throw new Error("useDashboardTraceStore must be used within a DashboardTraceProvider");
+  }
+  return useStore(store, selector, shallow);
 };

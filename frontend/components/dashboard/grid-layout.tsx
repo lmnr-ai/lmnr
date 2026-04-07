@@ -2,6 +2,7 @@ import "react-grid-layout/css/styles.css";
 import "./styles.css";
 
 import { compact, debounce, isEqual, pick } from "lodash";
+import { memo } from "react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 import { Responsive, type ResponsiveProps, WidthProvider } from "react-grid-layout";
@@ -141,4 +142,4 @@ const GridLayout = () => {
   );
 };
 
-export default GridLayout;
+export default memo(GridLayout);
