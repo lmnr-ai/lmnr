@@ -89,7 +89,7 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
     }
 }
 
-const BATCH_LOCK_TTL_SECONDS: u64 = 3600;
+const BATCH_LOCK_TTL_SECONDS: u64 = 7200;
 const BATCH_SUBMITTED_TTL_SECONDS: u64 = 86400;
 
 async fn process(
