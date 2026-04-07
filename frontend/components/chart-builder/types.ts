@@ -2,11 +2,9 @@ export enum ChartType {
   "LineChart" = "line",
   "BarChart" = "bar",
   "HorizontalBarChart" = "horizontalBar",
-  "Metric" = "metric",
-  "Table" = "table",
 }
 
-export type DisplayMode = "total" | "latest" | "none";
+export type DisplayMode = "total" | "average" | "none";
 
 export interface ChartConfig {
   type?: ChartType;

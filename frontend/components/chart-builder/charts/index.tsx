@@ -4,8 +4,6 @@ import { useChartBuilderStoreContext } from "@/components/chart-builder/chart-bu
 import BarChart from "@/components/chart-builder/charts/bar-chart";
 import HorizontalBarChart from "@/components/chart-builder/charts/horizontal-bar-chart";
 import LineChart from "@/components/chart-builder/charts/line-chart";
-import MetricChart from "@/components/chart-builder/charts/metric-chart";
-import TableChart from "@/components/chart-builder/charts/table-chart";
 import {
   generateChartConfig,
   transformDataForBreakdown,
@@ -19,19 +17,15 @@ interface ChartRendererCoreProps {
   data: Record<string, any>[];
   columns: ColumnInfo[];
   onBarClick?: (rowData: Record<string, any>) => void;
-  onTraceClick?: (traceId: string, spanId?: string) => void;
-  onSignalClick?: (signalId: string, traceId?: string) => void;
 }
 
-export const ChartRendererCore = ({ config, data, columns, onBarClick, onTraceClick, onSignalClick }: ChartRendererCoreProps) => {
-  const isMetricOrTable = config.type === ChartType.Metric || config.type === ChartType.Table;
-
+export const ChartRendererCore = ({ config, data, columns, onBarClick }: ChartRendererCoreProps) => {
   const {
     chartData,
     keys,
     chartConfig: uiChartConfig,
   } = useMemo(() => {
-    if (isMetricOrTable || !config.type || !config.x || !config.y) {
+    if (!config.type || !config.x || !config.y) {
       return { chartData: [], keys: new Set<string>(), chartConfig: {} };
     }
 
@@ -48,31 +42,7 @@ export const ChartRendererCore = ({ config, data, columns, onBarClick, onTraceCl
     }
 
     return transformDataForSimpleChart(data, config.x, [config.y]);
-  }, [config, data, columns, isMetricOrTable]);
-
-  // Handle Metric type
-  if (config.type === ChartType.Metric) {
-    if (data.length === 0) {
-      return (
-        <div className="flex flex-1 h-full justify-center items-center bg-muted/30 rounded-lg">
-          <span className="text-muted-foreground">No data during this period</span>
-        </div>
-      );
-    }
-    return <MetricChart data={data} x={config.x || Object.keys(data[0])[0]} y="" metricColumn={config.y || config.x} />;
-  }
-
-  // Handle Table type
-  if (config.type === ChartType.Table) {
-    if (data.length === 0) {
-      return (
-        <div className="flex flex-1 h-full justify-center items-center bg-muted/30 rounded-lg">
-          <span className="text-muted-foreground">No data during this period</span>
-        </div>
-      );
-    }
-    return <TableChart data={data} onTraceClick={onTraceClick} onSignalClick={onSignalClick} />;
-  }
+  }, [config, data, columns]);
 
   if (!config.type || !config.x || !config.y) {
     return (

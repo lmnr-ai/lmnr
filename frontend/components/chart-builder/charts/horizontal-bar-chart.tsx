@@ -1,3 +1,4 @@
+import { ArrowUpRight, ExternalLink, PanelRight } from "lucide-react";
 import React, { useMemo } from "react";
 import { Bar, BarChart as RechartsBarChart, LabelList, XAxis, YAxis } from "recharts";
 
@@ -141,7 +142,37 @@ const HorizontalBarChart = ({
                   }
                 }}
               >
-                <LabelList style={{ fill: "#E8E3E3", fontSize: 14 }} position="insideLeft" dataKey={categoryColumn} />
+                <LabelList
+                  dataKey={categoryColumn}
+                  content={(props) => {
+                    const row = data[props.index as number];
+                    const hasSignalId = row?.signal_id || row?.__hidden_signal_id;
+                    const hasTraceId = row?.trace_id || row?.__hidden_trace_id || row?.id || row?.__hidden_id;
+                    const isClickable = onBarClick && (hasTraceId || hasSignalId);
+                    const showLabel = categoryColumn !== valueColumn;
+                    const labelText = showLabel ? String(props.value) : "";
+
+                    return (
+                      <g className="pointer-events-none">
+                        {labelText && (
+                          <text x={(props.x as number) + 8} y={(props.y as number) + 20} fill="#E8E3E3" fontSize={14}>
+                            {labelText}
+                          </text>
+                        )}
+                        {isClickable && (
+                          <foreignObject
+                            x={(props.x as number) + (labelText ? measureText14Inter(labelText) + 14 : 8)}
+                            y={(props.y as number) + 8}
+                            width={16}
+                            height={16}
+                          >
+                            <ArrowUpRight className="size-4 text-primary-foreground" />
+                          </foreignObject>
+                        )}
+                      </g>
+                    );
+                  }}
+                />
               </Bar>
             );
           })}

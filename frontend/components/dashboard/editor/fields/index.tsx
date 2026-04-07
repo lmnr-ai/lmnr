@@ -126,11 +126,11 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
       <TableSelect />
       <MetricsField />
       <FiltersField />
-      {chartType !== ChartType.Metric && chartType !== ChartType.Table && <DimensionsField />}
-      {(chartType === ChartType.HorizontalBarChart || chartType === ChartType.Table) && <OrderByField />}
+      <DimensionsField />
+      {chartType === ChartType.HorizontalBarChart && <OrderByField />}
       <LimitField />
 
-      {chartType !== ChartType.Metric && chartType !== ChartType.Table && (
+      {(
         <div className="grid gap-1">
           <Label className="font-semibold text-xs">Display Value</Label>
           <Select value={displayMode} onValueChange={(value) => setDisplayMode(value as DisplayMode)}>
@@ -140,7 +140,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
             <SelectContent>
               <SelectItem value="none">None</SelectItem>
               <SelectItem value="total">Show Total</SelectItem>
-              <SelectItem value="latest">Show Latest Value</SelectItem>
+              <SelectItem value="average">Show Average</SelectItem>
             </SelectContent>
           </Select>
         </div>

@@ -54,10 +54,13 @@ const ChartBuilder = () => {
         const filteredFilters = (queryStructure.filters || []).filter(
           (filter) => filter.field !== "start_time" && filter.field !== "end_time"
         );
+        const filteredMetrics = (queryStructure.metrics || []).filter(
+          (metric) => !metric.alias?.startsWith("__hidden_")
+        );
 
         reset({
           table: queryStructure.table,
-          metrics: queryStructure.metrics,
+          metrics: filteredMetrics.length > 0 ? filteredMetrics : queryStructure.metrics,
           dimensions: queryStructure.dimensions,
           filters: filteredFilters,
           timeRange: queryStructure.timeRange,

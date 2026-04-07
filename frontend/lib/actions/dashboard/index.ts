@@ -18,7 +18,7 @@ const ChartSettingsSchema = z.object({
     y: z.string(),
     breakdown: z.string().optional(),
     total: z.boolean().optional(),
-    displayMode: z.enum(["total", "latest", "none"]).optional(),
+    displayMode: z.enum(["total", "average", "none"]).optional(),
   }),
   layout: z.object({
     x: z.number(),

@@ -18,35 +18,36 @@ import { convertToTimeParameters } from "@/lib/time";
  * were saved before the editor started injecting these columns.
  */
 const injectIdColumns = (sql: string, chartType?: ChartType): string => {
-  if (chartType !== ChartType.HorizontalBarChart && chartType !== ChartType.Table) {
+  if (chartType !== ChartType.HorizontalBarChart) {
     return sql;
   }
 
-  // Don't inject if query has GROUP BY (aggregated results can't link to individual rows)
-  if (/\bGROUP\s+BY\b/i.test(sql)) {
-    return sql;
-  }
-
+  const hasGroupBy = /\bGROUP\s+BY\b/i.test(sql);
   const injections: string[] = [];
   const lowerSql = sql.toLowerCase();
 
-  if (/\bfrom\s+spans\b/i.test(sql)) {
-    if (!lowerSql.includes("__hidden_trace_id") && !/__hidden_trace_id/.test(sql)) {
-      injections.push("trace_id AS `__hidden_trace_id`");
-    }
-    if (!lowerSql.includes("__hidden_span_id") && !/__hidden_span_id/.test(sql)) {
-      injections.push("span_id AS `__hidden_span_id`");
-    }
-  } else if (/\bfrom\s+traces\b/i.test(sql)) {
-    if (!lowerSql.includes("__hidden_id") && !/__hidden_id/.test(sql)) {
-      injections.push("id AS `__hidden_id`");
-    }
-  } else if (/\bfrom\s+signal_events\b/i.test(sql)) {
+  if (/\bfrom\s+signal_events\b/i.test(sql)) {
+    // Signal name → signal_id is 1:1, so any() is safe with GROUP BY
+    const wrap = hasGroupBy ? (col: string) => `any(${col})` : (col: string) => col;
     if (!lowerSql.includes("__hidden_trace_id")) {
-      injections.push("trace_id AS `__hidden_trace_id`");
+      injections.push(`${wrap("trace_id")} AS \`__hidden_trace_id\``);
     }
     if (!lowerSql.includes("__hidden_signal_id")) {
-      injections.push("signal_id AS `__hidden_signal_id`");
+      injections.push(`${wrap("signal_id")} AS \`__hidden_signal_id\``);
+    }
+  } else if (!hasGroupBy) {
+    // For spans/traces, skip injection when GROUP BY is present
+    if (/\bfrom\s+spans\b/i.test(sql)) {
+      if (!lowerSql.includes("__hidden_trace_id")) {
+        injections.push("trace_id AS `__hidden_trace_id`");
+      }
+      if (!lowerSql.includes("__hidden_span_id")) {
+        injections.push("span_id AS `__hidden_span_id`");
+      }
+    } else if (/\bfrom\s+traces\b/i.test(sql)) {
+      if (!lowerSql.includes("__hidden_id")) {
+        injections.push("id AS `__hidden_id`");
+      }
     }
   }
 
@@ -141,8 +142,7 @@ const Chart = ({ chart }: ChartProps) => {
       const traceId = rowData.trace_id || rowData.__hidden_trace_id || rowData.id || rowData.__hidden_id;
 
       if (signalId) {
-        const url = `/project/${projectId}/signals/${signalId}${traceId ? `?traceId=${traceId}` : ""}`;
-        window.open(url, "_blank");
+        window.open(`/project/${projectId}/signals/${signalId}`, "_blank");
         return;
       }
 
@@ -152,21 +152,6 @@ const Chart = ({ chart }: ChartProps) => {
       }
     },
     [openTrace, projectId]
-  );
-
-  const handleTraceClick = useCallback(
-    (traceId: string, spanId?: string) => {
-      openTrace(traceId, spanId);
-    },
-    [openTrace]
-  );
-
-  const handleSignalClick = useCallback(
-    (signalId: string, traceId?: string) => {
-      const url = `/project/${projectId}/signals/${signalId}${traceId ? `?traceId=${traceId}` : ""}`;
-      window.open(url, "_blank");
-    },
-    [projectId]
   );
 
   return (
@@ -185,8 +170,6 @@ const Chart = ({ chart }: ChartProps) => {
           data={data}
           columns={columns}
           onBarClick={handleBarClick}
-          onTraceClick={handleTraceClick}
-          onSignalClick={handleSignalClick}
         />
       )}
       <IconResizeHandle className="size-4 absolute right-2 text-muted-foreground bottom-2" />

@@ -77,21 +77,6 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       return null;
     }
 
-    const isMetric = chartType === ChartType.Metric;
-    const isTable = chartType === ChartType.Table;
-
-    // Metric and Table types don't need x/y in the traditional sense
-    if (isMetric || isTable) {
-      const firstMetric = metrics[0];
-      const metricValue = firstMetric.alias || (firstMetric.fn === "raw" ? "value" : firstMetric.column);
-      return {
-        type: chartType,
-        x: metricValue,
-        y: metricValue,
-        displayMode: "none" as const,
-      };
-    }
-
     const isTimeSeries = needsTimeSeries(chartType);
     const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
     const firstMetric = metrics[0];
@@ -127,11 +112,10 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
     try {
       const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
-      const isTable = chartType === ChartType.Table;
-      const needsIdInjection = isHorizontalBar || isTable;
+      const needsIdInjection = isHorizontalBar;
       const allFilters = [...(filters || [])];
 
-      if (isHorizontalBar || isTable || chartType === ChartType.Metric) {
+      if (isHorizontalBar) {
         const timeColumn = getTimeColumn(table);
         allFilters.push(
           { field: timeColumn, op: "gte" as const, stringValue: "{start_time:DateTime64}" },
@@ -141,10 +125,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
       // Inject ID fields for clickable chart types
       const injectedMetrics = [...metrics];
+      const existingColumns = new Set(metrics.map((m) => m.column));
+      const existingDimensions = new Set(dimensions || []);
       if (needsIdInjection && (!dimensions || dimensions.length === 0)) {
-        const existingColumns = new Set(metrics.map((m) => m.column));
-        const existingDimensions = new Set(dimensions || []);
-
         if (table === "spans") {
           if (!existingColumns.has("trace_id") && !existingDimensions.has("trace_id")) {
             injectedMetrics.push({ fn: "raw", column: "trace_id", args: [], alias: "__hidden_trace_id" });
@@ -155,13 +138,6 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         } else if (table === "traces") {
           if (!existingColumns.has("id") && !existingDimensions.has("id")) {
             injectedMetrics.push({ fn: "raw", column: "id", args: [], alias: "__hidden_id" });
-          }
-        } else if (table === "signal_events") {
-          if (!existingColumns.has("trace_id") && !existingDimensions.has("trace_id")) {
-            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [], alias: "__hidden_trace_id" });
-          }
-          if (!existingColumns.has("signal_id") && !existingDimensions.has("signal_id")) {
-            injectedMetrics.push({ fn: "raw", column: "signal_id", args: [], alias: "__hidden_signal_id" });
           }
         }
       }

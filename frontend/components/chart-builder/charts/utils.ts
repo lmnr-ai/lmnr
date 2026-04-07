@@ -202,6 +202,7 @@ export const transformDataForBreakdown = (
   breakdownColumn: string
 ) => {
   const groupedByX = new Map<string, Record<string, number>>();
+  const hiddenByX = new Map<string, Record<string, any>>();
   const allBreakdownValues = new Set<string>();
 
   data.forEach((row) => {
@@ -215,6 +216,13 @@ export const transformDataForBreakdown = (
 
     if (!groupedByX.has(xValue)) {
       groupedByX.set(xValue, {});
+      const hidden: Record<string, any> = {};
+      Object.keys(row).forEach((key) => {
+        if (key.startsWith("__hidden_")) {
+          hidden[key] = row[key];
+        }
+      });
+      hiddenByX.set(xValue, hidden);
     }
 
     const xGroup = groupedByX.get(xValue);
@@ -229,6 +237,7 @@ export const transformDataForBreakdown = (
     [xColumn]: xValue,
     ...Object.fromEntries(filteredBreakdownValues.map((value) => [value, 0])),
     ...breakdownGroups,
+    ...hiddenByX.get(xValue),
   }));
 
   return {
@@ -268,11 +277,20 @@ export const calculateChartTotals = (data: Record<string, any>[], keys: string[]
   return { totalSum, totalMax };
 };
 
-export const calculateLatestValue = (data: Record<string, any>[], keys: string[]): number => {
+export const calculateAverageValue = (data: Record<string, any>[], keys: string[]): number => {
   if (data.length === 0 || keys.length === 0) return 0;
 
-  const lastRow = data[data.length - 1];
-  return keys.reduce((sum, key) => sum + (Number(lastRow[key]) || 0), 0);
+  // Exclude zero-filled rows (from WITH FILL gap filling) to avoid skewing the average
+  const nonZeroRows = data.filter((row) =>
+    keys.some((key) => (Number(row[key]) || 0) !== 0)
+  );
+  if (nonZeroRows.length === 0) return 0;
+
+  const totalSum = nonZeroRows.reduce(
+    (sum, row) => sum + keys.reduce((keySum, key) => keySum + (Number(row[key]) || 0), 0),
+    0
+  );
+  return totalSum / nonZeroRows.length;
 };
 
 export type DisplayValueResult = {
@@ -297,8 +315,8 @@ export const calculateDisplayValue = (
     return { displayValue: totalSum, totalMax };
   }
 
-  if (displayMode === "latest") {
-    return { displayValue: calculateLatestValue(data, keys), totalMax };
+  if (displayMode === "average") {
+    return { displayValue: calculateAverageValue(data, keys), totalMax };
   }
 
   return { displayValue: null, totalMax: 0 };
