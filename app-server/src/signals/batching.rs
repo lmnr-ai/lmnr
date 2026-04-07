@@ -57,7 +57,6 @@ impl SignalBatchingHandler {
         match push_to_submissions_queue(
             SignalJobSubmissionBatchMessage {
                 messages: deliveries.iter().map(|d| d.message.clone()).collect(),
-                id: Uuid::new_v4(),
             },
             self.queue.clone(),
         )
