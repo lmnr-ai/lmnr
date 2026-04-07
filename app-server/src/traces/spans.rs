@@ -937,7 +937,7 @@ impl Span {
     }
 
     fn is_input_cc_bash_check(&self) -> bool {
-        // we stringify the input for test, thus escape newline chars
+        // We stringify the input for this check, which causes newline chars to be escaped.
         static IS_DISPLAYING_CONTENT_REGEX: LazyLock<Regex> = LazyLock::new(|| {
             Regex::new(
             "Format your response as:(?:\\\\n)*<is_displaying_contents>(?:\\\\n)*(?:true|false)(?:\\\\n)*</is_displaying_contents>(?:\\\\n)*<filepaths>(?:\\\\n)*path/to/file1(?:\\\\n)*path/to/file2(?:\\\\n)*</filepaths>"
