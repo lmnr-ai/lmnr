@@ -1,5 +1,5 @@
 {
-  "id": "604b6460-4d25-4367-b0d3-af855dbfeaa8",
+  "id": "522ec4b4-6df4-4386-9759-1faa4f32ca88",
   "prevId": "55507a2e-aff5-488f-9046-83b83d599d1b",
   "version": "7",
   "dialect": "postgresql",
@@ -1419,6 +1419,12 @@
       "name": "notification_reads",
       "schema": "",
       "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "user_id": {
           "name": "user_id",
           "type": "uuid",
@@ -1427,12 +1433,6 @@
         },
         "notification_id": {
           "name": "notification_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "project_id": {
-          "name": "project_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -1450,7 +1450,7 @@
       "compositePrimaryKeys": {
         "notification_reads_pkey": {
           "name": "notification_reads_pkey",
-          "columns": ["user_id", "notification_id", "project_id"]
+          "columns": ["project_id", "user_id", "notification_id"]
         }
       },
       "uniqueConstraints": {},

@@ -858,14 +858,16 @@ export const workspaceAddons = pgTable(
 
 export const subscriptionTiers = pgTable("subscription_tiers", {
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-  id: bigint({ mode: "number" }).primaryKey().generatedByDefaultAsIdentity({
-    name: "subscription_tiers_id_seq",
-    startWith: 1,
-    increment: 1,
-    minValue: 1,
-    maxValue: 9223372036854775807,
-    cache: 1,
-  }),
+  id: bigint({ mode: "number" })
+    .primaryKey()
+    .generatedByDefaultAsIdentity({
+      name: "subscription_tiers_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   name: text().notNull(),
   // You can use { mode: "bigint" } if numbers are exceeding js number limitations
@@ -1067,13 +1069,13 @@ export const signalTriggers = pgTable(
 export const notificationReads = pgTable(
   "notification_reads",
   {
+    projectId: uuid("project_id").notNull(),
     userId: uuid("user_id").notNull(),
     notificationId: uuid("notification_id").notNull(),
-    projectId: uuid("project_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.userId, table.notificationId, table.projectId], name: "notification_reads_pkey" }),
+    primaryKey({ columns: [table.projectId, table.userId, table.notificationId], name: "notification_reads_pkey" }),
   ]
 );
 
