@@ -58,6 +58,14 @@ const formatNotification = (notification: WebNotification, projectId?: string): 
       return null;
     }
 
+    // Hide weekly-style rollups to avoid duplicating info already shown by daily reports.
+    if (!Number.isNaN(periodStartMs) && !Number.isNaN(periodEndMs)) {
+      const periodDays = (periodEndMs - periodStartMs) / (1000 * 60 * 60 * 24);
+      if (periodDays > 3) {
+        return null;
+      }
+    }
+
     const events = project
       ? Object.values(project.signal_event_counts).reduce((a, b) => a + b, 0)
       : report.total_events;
