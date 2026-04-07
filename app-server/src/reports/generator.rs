@@ -24,12 +24,12 @@ use crate::notifications::{
     EmailPayload, NotificationDefinitionType, NotificationMessage, NotificationType, ReportPayload,
     TargetType, push_to_notification_queue,
 };
-use crate::signals::llm_model;
 use crate::signals::provider::models::{
     ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderTool,
 };
 use crate::signals::provider::{
-    LanguageModelClient, ProviderClient, ProviderContent, ProviderPart, ProviderRequest,
+    LlmClient, ProviderContent, ProviderPart, ProviderRequest, ProviderThinkingConfig,
+    ProviderThinkingLevel,
 };
 use crate::worker::{HandlerError, MessageHandler};
 
@@ -48,7 +48,7 @@ pub struct ReportsGenerator {
     pub db: Arc<DB>,
     pub clickhouse: clickhouse::Client,
     pub queue: Arc<MessageQueue>,
-    pub llm_client: Option<Arc<ProviderClient>>,
+    pub llm_client: Option<Arc<LlmClient>>,
 }
 
 #[async_trait]
@@ -73,7 +73,7 @@ async fn process_report_trigger(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    llm_client: Option<Arc<ProviderClient>>,
+    llm_client: Option<Arc<LlmClient>>,
 ) -> Result<(), HandlerError> {
     let workspace_id = message.workspace_id;
     let report_id = message.id;
@@ -485,7 +485,7 @@ fn build_summary_context(
 /// Generate a per-project AI summary using the LLM with tool calling.
 /// Returns (summary_text, noteworthy_signal_event_ids).
 async fn generate_project_summary(
-    llm_client: &ProviderClient,
+    llm_client: &LlmClient,
     project_name: &str,
     signal_name_map: &HashMap<Uuid, String>,
     signal_event_counts: &BTreeMap<String, u64>,
@@ -530,14 +530,19 @@ async fn generate_project_summary(
         system_instruction: Some(system_instruction),
         tools: Some(vec![tool]),
         generation_config: Some(ProviderGenerationConfig {
-            temperature: Some(0.2),
+            temperature: Some(1.0),
+            thinking_config: Some(ProviderThinkingConfig {
+                thinking_level: Some(ProviderThinkingLevel::Medium),
+                ..Default::default()
+            }),
             ..Default::default()
         }),
+        provider: None,
+        model_size: None,
     };
 
-    let model = llm_model();
     let response = llm_client
-        .generate_content(&model, &request)
+        .generate_content(&request)
         .await
         .map_err(|e| anyhow::anyhow!("LLM generate_content failed: {:?}", e))?;
 

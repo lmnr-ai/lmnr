@@ -9,7 +9,7 @@ use crate::cache::{Cache, CacheTrait};
 use crate::signals::provider::models::{
     ProviderContent, ProviderGenerationConfig, ProviderPart, ProviderRequest,
 };
-use crate::signals::provider::{LanguageModelClient, ProviderClient};
+use crate::signals::provider::LlmClient;
 use crate::signals::provider::{ProviderThinkingConfig, ProviderThinkingLevel};
 
 const SUMMARY_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
@@ -36,7 +36,9 @@ fn cache_key(
     signal_prompt_hash: &str,
     sys_prompt_hash: &str,
 ) -> String {
-    format!("{SYS_PROMPT_SUMMARY_CACHE_KEY}:{project_id}:{signal_id}:{signal_prompt_hash}:{sys_prompt_hash}")
+    format!(
+        "{SYS_PROMPT_SUMMARY_CACHE_KEY}:{project_id}:{signal_id}:{signal_prompt_hash}:{sys_prompt_hash}"
+    )
 }
 
 /// Look up cached summaries for a set of system prompt hashes.
@@ -74,17 +76,16 @@ pub async fn lookup_cached_summaries(
 /// Returns the generated summaries as `hash -> summary`.
 pub async fn generate_and_cache_summaries(
     cache: &Arc<Cache>,
-    llm_client: &Arc<ProviderClient>,
-    model: &str,
+    llm_client: &Arc<LlmClient>,
     project_id: Uuid,
     signal_id: Uuid,
     signal_prompt: &str,
-    uncached: &HashMap<String, String>, // hash -> full system prompt text
+    uncached: &HashMap<String, String>,
 ) -> HashMap<String, String> {
     let sig_hash = hash_signal_prompt(signal_prompt);
     let mut result = HashMap::new();
     for (hash, sys_prompt_text) in uncached {
-        match generate_summary(llm_client, model, signal_prompt, sys_prompt_text).await {
+        match generate_summary(llm_client, signal_prompt, sys_prompt_text).await {
             Ok(summary) => {
                 let key = cache_key(project_id, signal_id, &sig_hash, hash);
                 if let Err(e) = cache
@@ -108,8 +109,7 @@ pub async fn generate_and_cache_summaries(
 }
 
 async fn generate_summary(
-    llm_client: &Arc<ProviderClient>,
-    model: &str,
+    llm_client: &Arc<LlmClient>,
     signal_prompt: &str,
     system_prompt_text: &str,
 ) -> anyhow::Result<String> {
@@ -132,14 +132,16 @@ async fn generate_summary(
             max_output_tokens: Some(2048),
             thinking_config: Some(ProviderThinkingConfig {
                 include_thoughts: Some(false),
-                thinking_level: Some(ProviderThinkingLevel::Minimal),
+                thinking_level: Some(ProviderThinkingLevel::Medium),
             }),
             ..Default::default()
         }),
+        provider: None,
+        model_size: None,
     };
 
     let response = llm_client
-        .generate_content(model, &request)
+        .generate_content(&request)
         .await
         .map_err(|e| anyhow::anyhow!("LLM call failed for system prompt summary: {}", e))?;
 
