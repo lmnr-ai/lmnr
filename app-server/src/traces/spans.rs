@@ -9,7 +9,6 @@ use indexmap::IndexMap;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use tracing::warn;
 use uuid::Uuid;
 
 use crate::{
@@ -255,8 +254,7 @@ impl SpanAttributes {
     fn normalize_if_absent(&mut self, source_key: &str, target_key: &str) {
         if !self.raw_attributes.contains_key(target_key) {
             if let Some(value) = self.raw_attributes.get(source_key).cloned() {
-                self.raw_attributes
-                    .insert(target_key.to_string(), value);
+                self.raw_attributes.insert(target_key.to_string(), value);
             }
         }
     }
@@ -293,19 +291,8 @@ impl SpanAttributes {
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
 
-        let cache_total = cache_write_tokens + cache_read_tokens;
-        if cache_total > total_input_tokens && total_input_tokens > 0 {
-            warn!(
-                total_input_tokens,
-                cache_write_tokens,
-                cache_read_tokens,
-                "Cache tokens ({}) exceed total input tokens ({}). Token breakdown may be inaccurate.",
-                cache_total,
-                total_input_tokens
-            );
-        }
-
-        let regular_input_tokens = (total_input_tokens - cache_total).max(0);
+        let regular_input_tokens =
+            (total_input_tokens - (cache_write_tokens + cache_read_tokens)).max(0);
 
         InputTokens {
             regular_input_tokens,
@@ -961,14 +948,8 @@ impl Span {
                 .iter()
                 .map(|(k, v)| k.len() + estimate_json_size(v))
                 .sum::<usize>()
-            + self
-                .input
-                .as_ref()
-                .map_or(0, |v| estimate_json_size(v))
-            + self
-                .output
-                .as_ref()
-                .map_or(0, |v| estimate_json_size(v))
+            + self.input.as_ref().map_or(0, |v| estimate_json_size(v))
+            + self.output.as_ref().map_or(0, |v| estimate_json_size(v))
             + self
                 .events
                 .iter()
@@ -3378,14 +3359,8 @@ mod tests {
                 "stream.prompt.messages".to_string(),
                 json!("[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"hello\"}]}]"),
             ),
-            (
-                "stream.response.text".to_string(),
-                json!("Hi there!"),
-            ),
-            (
-                "stream.response.toolCalls".to_string(),
-                json!("[]"),
-            ),
+            ("stream.response.text".to_string(), json!("Hi there!")),
+            ("stream.response.toolCalls".to_string(), json!("[]")),
         ]);
 
         let mut span = Span {
@@ -3443,9 +3418,7 @@ mod tests {
             Some(&json!(14))
         );
         assert_eq!(
-            span.attributes
-                .raw_attributes
-                .get("aisdk.model.provider"),
+            span.attributes.raw_attributes.get("aisdk.model.provider"),
             Some(&json!("openai.chat"))
         );
     }
@@ -3484,10 +3457,7 @@ mod tests {
         assert_eq!(span.span_type, SpanType::LLM);
         assert_eq!(span.attributes.input_tokens().total(), 50);
         assert_eq!(span.attributes.output_tokens(), 100);
-        assert_eq!(
-            span.attributes.request_model(),
-            Some("gpt-4o".to_string())
-        );
+        assert_eq!(span.attributes.request_model(), Some("gpt-4o".to_string()));
         assert_eq!(
             span.attributes.provider_name(&span.name),
             Some("openai".to_string())
@@ -3504,7 +3474,10 @@ mod tests {
             ("gen_ai.system".to_string(), json!("existing-provider")),
             // These should be ignored since standard keys already exist
             ("aisdk.model.id".to_string(), json!("overwrite-model")),
-            ("aisdk.model.provider".to_string(), json!("overwrite.provider")),
+            (
+                "aisdk.model.provider".to_string(),
+                json!("overwrite.provider"),
+            ),
             ("stream.usage.inputTokens".to_string(), json!(999)),
             ("stream.usage.outputTokens".to_string(), json!(888)),
         ]);
@@ -3583,7 +3556,9 @@ mod tests {
             ("streamObject.usage.outputTokens".to_string(), json!(60)),
             (
                 "streamObject.prompt.messages".to_string(),
-                json!("[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"extract data\"}]}]"),
+                json!(
+                    "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"extract data\"}]}]"
+                ),
             ),
         ]);
 

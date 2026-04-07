@@ -97,25 +97,19 @@ pub async fn get_llm_usage_for_span(
             input_cost = cost_entry.input_cost;
             output_cost = cost_entry.output_cost;
             total_cost = input_cost + output_cost;
-        } else if total_tokens > 0 {
-            warn!(
-                span_name,
-                model,
-                provider = provider_name.as_deref().unwrap_or("unknown"),
-                "No pricing found for model. Cost will be reported as 0."
+        }
+    } else if let Some(provider) = attributes
+        .raw_attributes
+        .get(GEN_AI_SYSTEM)
+        .and_then(|v| v.as_str())
+    {
+        // Span has gen_ai.system but no model name.
+        if total_tokens > 0 {
+            log::warn!(
+                "LLM span has tokens but no model name. Cost cannot be calculated. Provider: [{}].",
+                provider,
             );
         }
-    } else if attributes.raw_attributes.contains_key(GEN_AI_SYSTEM) && total_tokens > 0 {
-        // Span has gen_ai.system but no model name.
-        warn!(
-            span_name,
-            provider = attributes
-                .raw_attributes
-                .get(GEN_AI_SYSTEM)
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown"),
-            "LLM span has tokens but no model name. Cost cannot be calculated."
-        );
     }
 
     SpanUsage {
