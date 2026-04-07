@@ -27,7 +27,10 @@ use crate::notifications::{
 use crate::signals::provider::models::{
     ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderTool,
 };
-use crate::signals::provider::{LlmClient, ProviderContent, ProviderPart, ProviderRequest};
+use crate::signals::provider::{
+    LlmClient, ProviderContent, ProviderPart, ProviderRequest, ProviderThinkingConfig,
+    ProviderThinkingLevel,
+};
 use crate::worker::{HandlerError, MessageHandler};
 
 const MAX_EVENTS_FOR_SUMMARY: u64 = 128;
@@ -481,7 +484,11 @@ async fn generate_project_summary(
         system_instruction: Some(system_instruction),
         tools: Some(vec![tool]),
         generation_config: Some(ProviderGenerationConfig {
-            temperature: Some(0.2),
+            temperature: Some(1.0),
+            thinking_config: Some(ProviderThinkingConfig {
+                thinking_level: Some(ProviderThinkingLevel::Medium),
+                ..Default::default()
+            }),
             ..Default::default()
         }),
         provider: None,
