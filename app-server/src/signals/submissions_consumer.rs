@@ -71,9 +71,8 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         log::debug!(
-            "[SIGNAL JOB] Processing submission message. runs: {}, batch_message_id: {}",
+            "[SIGNAL JOB] Processing submission message. runs: {}",
             message.messages.len(),
-            message.id,
         );
 
         process(
@@ -93,97 +92,6 @@ const BATCH_LOCK_TTL_SECONDS: u64 = 7200;
 const BATCH_SUBMITTED_TTL_SECONDS: u64 = 86400;
 
 async fn process(
-    msg: SignalJobSubmissionBatchMessage,
-    db: Arc<DB>,
-    cache: Arc<crate::cache::Cache>,
-    clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
-    llm_client: Arc<LlmClient>,
-    config: Arc<SignalWorkerConfig>,
-) -> Result<(), HandlerError> {
-    let batch_message_id = msg.id;
-    let submitted_key = format!("{SIGNAL_BATCH_SUBMITTED_CACHE_KEY}:{batch_message_id}");
-    let lock_key = format!("{SIGNAL_BATCH_LOCK_CACHE_KEY}:{batch_message_id}");
-
-    // Check if this batch was already submitted (idempotency on redelivery)
-    if let Ok(Some(true)) = cache.get::<bool>(&submitted_key).await {
-        log::info!(
-            "[SIGNAL JOB] Batch {} already submitted, skipping",
-            batch_message_id
-        );
-        return Ok(());
-    }
-
-    // Acquire distributed lock to prevent concurrent processing
-    // This can happen if worker is taking long to process the batch and the message is redelivered to another worker
-    match cache
-        .try_acquire_lock(&lock_key, BATCH_LOCK_TTL_SECONDS)
-        .await
-    {
-        Ok(true) => {}
-        Ok(false) => {
-            log::info!(
-                "[SIGNAL JOB] Batch {} is locked by another worker, re-publishing to back of queue",
-                batch_message_id,
-            );
-
-            // Avoid tight redelivery loop
-            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-
-            if let Err(e) = push_to_submissions_queue(msg, queue).await {
-                log::error!(
-                    "[SIGNAL JOB] Failed to re-publish locked batch {}: {:?}",
-                    batch_message_id,
-                    e
-                );
-            }
-            return Ok(());
-        }
-        Err(e) => {
-            log::warn!(
-                "[SIGNAL JOB] Failed to acquire lock for batch {}: {:?}, proceeding without lock",
-                batch_message_id,
-                e
-            );
-        }
-    }
-
-    let result = process_batch(
-        msg,
-        db,
-        cache.clone(),
-        clickhouse,
-        queue,
-        llm_client,
-        config,
-    )
-    .await;
-
-    if result.is_ok() {
-        if let Err(e) = cache
-            .insert_with_ttl(&submitted_key, true, BATCH_SUBMITTED_TTL_SECONDS)
-            .await
-        {
-            log::warn!(
-                "[SIGNAL JOB] Failed to set submitted flag for batch {}: {:?}",
-                batch_message_id,
-                e
-            );
-        }
-    }
-
-    if let Err(e) = cache.release_lock(&lock_key).await {
-        log::warn!(
-            "[SIGNAL JOB] Failed to release lock for batch {}: {:?}",
-            batch_message_id,
-            e
-        );
-    }
-
-    result
-}
-
-async fn process_batch(
     msg: SignalJobSubmissionBatchMessage,
     db: Arc<DB>,
     cache: Arc<crate::cache::Cache>,
