@@ -232,8 +232,8 @@ impl SpanAttributes {
     fn detect_aisdk_operation_prefix(&self) -> Option<&'static str> {
         for prefix in AISDK_OPERATION_PREFIXES {
             if self
-                    .raw_attributes
-                    .contains_key(&format!("{prefix}.usage.inputTokens"))
+                .raw_attributes
+                .contains_key(&format!("{prefix}.usage.inputTokens"))
                 || self
                     .raw_attributes
                     .contains_key(&format!("{prefix}.usage.outputTokens"))
@@ -476,6 +476,10 @@ impl SpanAttributes {
             .insert(GEN_AI_INPUT_TOKENS.to_string(), json!(usage.input_tokens));
         self.raw_attributes
             .insert(GEN_AI_OUTPUT_TOKENS.to_string(), json!(usage.output_tokens));
+        self.raw_attributes.insert(
+            "llm.usage.total_tokens".to_string(),
+            json!(usage.total_tokens),
+        );
         self.raw_attributes
             .insert(GEN_AI_TOTAL_COST.to_string(), json!(usage.total_cost));
         self.raw_attributes
