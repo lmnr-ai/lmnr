@@ -296,21 +296,25 @@ export const MessageWrapper = ({
         <div className="flex flex-col divide-y">{children}</div>
       </div>
       {showToggle && (
-        <div className="sticky bottom-0 z-30 flex flex-col items-center">
+        <div className="sticky bottom-0 z-30 flex flex-col items-center rounded-b">
           <div
             className="w-full pointer-events-none"
             style={{
-              height: 36,
-              marginTop: -42,
+              height: isExpanded ? 16 : 36,
+              marginTop: isExpanded ? -8 : -36,
               background: "linear-gradient(to bottom, transparent, hsl(var(--background) / 1))",
             }}
           />
-          <button
-            onClick={() => setIsExpanded((prev) => !prev)}
-            className="py-1 bg-background w-full flex items-center justify-center gap-1 text-xs text-secondary-foreground cursor-pointer rounded-b border-b transition-colors"
-          >
-            {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-          </button>
+          <div className="w-full bg-background rounded-b">
+            <button
+              onClick={() => setIsExpanded((prev) => !prev)}
+              className="h-3 relative w-full flex items-center justify-center text-secondary-foreground cursor-pointer rounded-b border-b transition-colors"
+            >
+              <span className="absolute -top-2.5 w-full flex justify-center">
+                {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+              </span>
+            </button>
+          </div>
         </div>
       )}
     </div>
