@@ -1230,6 +1230,7 @@ fn main() -> anyhow::Result<()> {
                     // Spawn notification workers (stage 1: persist + fan-out to targets)
                     {
                         let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
                         let queue = mq_for_consumer.clone();
                         let ch_service = Arc::new(ClickhouseService::new(
                             clickhouse_for_consumer.clone(),
@@ -1244,6 +1245,7 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 NotificationHandler::new(
                                     db.clone(),
+                                    cache.clone(),
                                     queue.clone(),
                                     ch_service.clone(),
                                 )

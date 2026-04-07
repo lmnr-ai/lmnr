@@ -8,6 +8,7 @@ use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::cache::{Cache, CacheTrait, keys::USAGE_WARNING_NOTIFICATION_LOCK_KEY};
 use crate::ch::notification_logs::CHNotificationLog;
 use crate::ch::notifications::CHNotification;
 use crate::ch::service::ClickhouseService;
@@ -198,16 +199,28 @@ async fn push_to_deliveries_queue(
 // notifications_consumer — stage 1: persist notification + fan-out to targets
 // ══════════════════════════════════════════════════════════════════════════════
 
+/// How long the per-warning dedup lock is held in stage 1.
+/// This prevents concurrent ingestion workers from enqueuing duplicate
+/// usage-warning notifications for the same warning definition.
+const USAGE_WARNING_NOTIFICATION_LOCK_TTL_SECONDS: u64 = 300; // 5 minutes
+
 pub struct NotificationHandler {
     pub db: Arc<DB>,
+    pub cache: Arc<Cache>,
     pub queue: Arc<MessageQueue>,
     pub ch_service: Arc<ClickhouseService>,
 }
 
 impl NotificationHandler {
-    pub fn new(db: Arc<DB>, queue: Arc<MessageQueue>, ch_service: Arc<ClickhouseService>) -> Self {
+    pub fn new(
+        db: Arc<DB>,
+        cache: Arc<Cache>,
+        queue: Arc<MessageQueue>,
+        ch_service: Arc<ClickhouseService>,
+    ) -> Self {
         Self {
             db,
+            cache,
             queue,
             ch_service,
         }
@@ -219,6 +232,39 @@ impl MessageHandler for NotificationHandler {
     type Message = NotificationMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
+        // For usage warnings, acquire a dedup lock keyed on definition_id (the
+        // warning row). Multiple ingestion workers can race through
+        // check_soft_limits and enqueue duplicate NotificationMessages for the
+        // same warning before mark_warning_as_notified takes effect. The lock
+        // here in stage 1 (before fan-out) deduplicates without blocking the
+        // per-owner fan-out that stage 2 performs.
+        if message.definition_type == NotificationDefinitionType::UsageWarning {
+            let lock_key = format!(
+                "{}:{}",
+                USAGE_WARNING_NOTIFICATION_LOCK_KEY, message.definition_id
+            );
+            match self
+                .cache
+                .try_acquire_lock(&lock_key, USAGE_WARNING_NOTIFICATION_LOCK_TTL_SECONDS)
+                .await
+            {
+                Ok(true) => {} // Lock acquired – proceed.
+                Ok(false) => {
+                    log::debug!(
+                        "[Notifications] Usage warning dedup lock held for [{}], skipping",
+                        message.definition_id
+                    );
+                    return Ok(());
+                }
+                Err(e) => {
+                    return Err(HandlerError::Transient(anyhow::anyhow!(
+                        "Cache error acquiring usage warning notification lock: {}",
+                        e
+                    )));
+                }
+            }
+        }
+
         let notification_id = Uuid::new_v4();
         let now_ms = chrono::Utc::now().timestamp_millis();
 
