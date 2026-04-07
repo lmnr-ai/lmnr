@@ -60,7 +60,7 @@ pub fn format_event_identification_blocks(
     payload: &EventIdentificationPayload,
 ) -> serde_json::Value {
     let trace_link = format!(
-        "https://laminar.sh/project/{}/traces/{}?chat=true",
+        "https://lmnr.ai/project/{}/traces/{}?chat=true",
         payload.project_id, payload.trace_id
     );
 
@@ -200,7 +200,7 @@ pub fn format_report_blocks(payload: &SignalReportPayload) -> serde_json::Value 
             text.push_str("\nNoteworthy Events:\n");
             for event in &project.noteworthy_events {
                 let entry = format!(
-                    "• `{}` – {} ({}) <https://laminar.sh/project/{}/traces/{}?chat=true|View trace>\n",
+                    "• `{}` – {} ({}) <https://lmnr.ai/project/{}/traces/{}?chat=true|View trace>\n",
                     event.signal_name,
                     event.summary,
                     event.timestamp,

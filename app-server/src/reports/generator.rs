@@ -245,6 +245,7 @@ async fn process_report_trigger(
     let notification_message = NotificationMessage {
         workspace_id,
         payload: NotificationKind::SignalReport(SignalReportPayload {
+            report_id: message.id,
             report: report_data,
             title,
         }),

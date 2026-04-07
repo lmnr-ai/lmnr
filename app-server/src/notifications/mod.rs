@@ -47,6 +47,7 @@ pub struct EventIdentificationPayload {
 /// Core notification event data for a signals report.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SignalReportPayload {
+    pub report_id: Uuid,
     pub report: ReportData,
     pub title: String,
 }
@@ -309,19 +310,8 @@ impl NotificationHandler {
         notification_id: Uuid,
         payload: &SignalReportPayload,
     ) -> Result<(), HandlerError> {
-        // We need to find the report ID to fetch targets. Look up by workspace_id.
-        // Reports are identified by workspace_id. We fetch all report targets for
-        // all reports in this workspace.
-        let reports = db::reports::get_all_reports_for_workspace(&self.db.pool, &workspace_id)
-            .await
-            .map_err(|e| {
-                HandlerError::transient(anyhow::anyhow!("Failed to fetch reports: {}", e))
-            })?;
-
-        let mut delivery_targets: Vec<DeliveryTarget> = Vec::new();
-
-        for report in &reports {
-            let targets = db::reports::get_report_targets(&self.db.pool, &report.id, &workspace_id)
+        let targets =
+            db::reports::get_report_targets(&self.db.pool, &payload.report_id, &workspace_id)
                 .await
                 .map_err(|e| {
                     HandlerError::transient(anyhow::anyhow!(
@@ -330,33 +320,26 @@ impl NotificationHandler {
                     ))
                 })?;
 
-            for t in &targets {
-                match t.r#type.as_str() {
-                    "EMAIL" => {
-                        if let Some(ref email) = t.email {
-                            delivery_targets.push(DeliveryTarget {
-                                channel: DeliveryChannel::Email {
-                                    address: email.clone(),
-                                },
-                            });
-                        }
-                    }
-                    "SLACK" => {
-                        if let (Some(channel_id), Some(integration_id)) =
-                            (&t.channel_id, t.integration_id)
-                        {
-                            delivery_targets.push(DeliveryTarget {
-                                channel: DeliveryChannel::Slack {
-                                    channel_id: channel_id.clone(),
-                                    integration_id,
-                                },
-                            });
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
+        let delivery_targets: Vec<DeliveryTarget> = targets
+            .iter()
+            .filter_map(|t| match t.r#type.as_str() {
+                "EMAIL" => t.email.as_ref().map(|email| DeliveryTarget {
+                    channel: DeliveryChannel::Email {
+                        address: email.clone(),
+                    },
+                }),
+                "SLACK" => match (&t.channel_id, t.integration_id) {
+                    (Some(channel_id), Some(integration_id)) => Some(DeliveryTarget {
+                        channel: DeliveryChannel::Slack {
+                            channel_id: channel_id.clone(),
+                            integration_id,
+                        },
+                    }),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect();
 
         if delivery_targets.is_empty() {
             log::info!(
