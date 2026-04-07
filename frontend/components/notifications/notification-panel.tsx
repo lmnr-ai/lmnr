@@ -179,7 +179,13 @@ const NotificationItem = ({
         {formatted.summary}
       </span>
       {hasDetails && !expanded && (
-        <div className="relative cursor-pointer" onClick={handleExpand}>
+        <div
+          className="relative cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleExpand();
+          }}
+        >
           <div className="max-h-22 overflow-hidden">
             <NotificationDetails formatted={formatted} projectId={projectId} />
           </div>
