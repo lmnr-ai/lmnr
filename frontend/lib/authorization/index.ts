@@ -143,6 +143,16 @@ export const isUserMemberOfWorkspace = async (workspaceId: string, userId: strin
   return isMember;
 };
 
+export const isProjectInWorkspace = async (projectId: string, workspaceId: string): Promise<boolean> => {
+  const result = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.workspaceId, workspaceId)))
+    .limit(1);
+
+  return result.length > 0;
+};
+
 /**
  * Returns the user's role in the workspace, or null if they are not a member.
  * Not cached — intended for middleware role checks on sensitive routes.
