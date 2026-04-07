@@ -183,7 +183,12 @@ const NotificationItem = ({
           <div className="max-h-22 overflow-hidden">
             <NotificationDetails formatted={formatted} projectId={projectId} />
           </div>
-          <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+          <div
+            className={cn(
+              "absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t to-transparent pointer-events-none",
+              isUnread ? "from-secondary/40" : "from-background"
+            )}
+          />
           <button className="relative flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors w-fit mt-1">
             <ChevronDown className="size-3" />
             Show more
