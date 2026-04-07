@@ -224,8 +224,16 @@ impl MessageHandler for NotificationHandler {
         let now_ms = chrono::Utc::now().timestamp_millis();
 
         // 1. Persist the raw notification event to ClickHouse `notifications` table.
-        let notification_data =
-            serde_json::to_string(&message.notification_kind).unwrap_or_default();
+        let notification_data = match serde_json::to_string(&message.notification_kind) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!(
+                    "[Notifications] Failed to serialize notification_kind: {:?}",
+                    e
+                );
+                String::new()
+            }
+        };
 
         let ch_notification = CHNotification {
             id: notification_id,
@@ -432,9 +440,21 @@ impl MessageHandler for NotificationDeliveryHandler {
                 project_id: message.project_id,
                 definition_type: message.definition_type.to_string(),
                 definition_id: message.definition_id,
-                target_id: message.notification_id,
+                // target_id is Uuid::nil() because delivery targets are no longer
+                // identified by a DB row id in the new pipeline. The actual target
+                // is described by target_type + the notification_kind payload.
+                target_id: Uuid::nil(),
                 target_type: message.target.target_type.to_string(),
-                payload: serde_json::to_string(&message.notification_kind).unwrap_or_default(),
+                payload: match serde_json::to_string(&message.notification_kind) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        log::error!(
+                            "[NotificationDelivery] Failed to serialize notification_kind for log: {:?}",
+                            e
+                        );
+                        String::new()
+                    }
+                },
                 created_at: now_ms,
             };
 
