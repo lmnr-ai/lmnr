@@ -10,10 +10,10 @@ use crate::{
     },
     db::{DB, signal_jobs::update_signal_job_stats},
     signals::{
-        SignalRun, llm_model,
+        SignalRun,
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
         provider::{
-            ProviderClient, ProviderThinkingConfig, ProviderThinkingLevel,
+            LlmClient, ProviderThinkingConfig, ProviderThinkingLevel,
             models::{
                 ProviderContent as Content, ProviderGenerationConfig, ProviderPart as Part,
                 ProviderRequest, ProviderRequestItem,
@@ -70,7 +70,7 @@ pub async fn process_run(
     structured_output_schema: &serde_json::Value,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
-    llm_client: Arc<ProviderClient>,
+    llm_client: Arc<LlmClient>,
 ) -> Result<ProcessRunResult, HandlerError> {
     let processing_start_time = Utc::now();
 
@@ -104,11 +104,9 @@ pub async fn process_run(
                 .collect();
 
             if !uncached.is_empty() {
-                let model = llm_model();
                 let generated = generate_and_cache_summaries(
                     &cache,
                     &llm_client,
-                    &model,
                     project_id,
                     signal_id,
                     prompt,
@@ -229,6 +227,8 @@ pub async fn process_run(
                 }),
                 ..Default::default()
             }),
+            provider: None,
+            model_size: None,
         },
         metadata: Some(serde_json::json!({
             "run_id": run_id,

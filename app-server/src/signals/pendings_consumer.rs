@@ -13,7 +13,7 @@ use crate::{
     signals::SignalRun,
     signals::{
         SignalWorkerConfig,
-        provider::{LanguageModelClient, ProviderClient, models::ProviderBatchOutput},
+        provider::{LlmClient, models::ProviderBatchOutput},
         push_to_signals_queue,
         queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue, push_to_waiting_queue},
         response_processor::{FailureMetadata, finalize_runs, process_provider_responses},
@@ -28,7 +28,7 @@ pub struct SignalJobPendingBatchHandler {
     pub cache: Arc<crate::cache::Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
-    pub llm_client: Arc<ProviderClient>,
+    pub llm_client: Arc<LlmClient>,
     pub config: Arc<SignalWorkerConfig>,
 }
 
@@ -38,7 +38,7 @@ impl SignalJobPendingBatchHandler {
         cache: Arc<crate::cache::Cache>,
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
-        llm_client: Arc<ProviderClient>,
+        llm_client: Arc<LlmClient>,
         config: Arc<SignalWorkerConfig>,
     ) -> Self {
         Self {
@@ -75,7 +75,7 @@ async fn process(
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    llm_client: Arc<ProviderClient>,
+    llm_client: Arc<LlmClient>,
     config: Arc<SignalWorkerConfig>,
     cache: Arc<crate::cache::Cache>,
 ) -> Result<(), HandlerError> {

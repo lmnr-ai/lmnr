@@ -12,7 +12,7 @@ use crate::{
         common::{ProcessRunResult, handle_failed_runs, process_run},
         llm_model, llm_provider,
         provider::{
-            LanguageModelClient, ProviderClient,
+            LlmClient,
             models::{ProviderBatchOutput, ProviderInlineResponse},
         },
         queue::{SignalMessage, push_to_realtime_queue},
@@ -36,7 +36,7 @@ pub struct SignalJobRealtimeHandler {
     pub cache: Arc<Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
-    pub llm_client: Arc<ProviderClient>,
+    pub llm_client: Arc<LlmClient>,
     pub config: Arc<SignalWorkerConfig>,
 }
 
@@ -46,7 +46,7 @@ impl SignalJobRealtimeHandler {
         cache: Arc<Cache>,
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
-        llm_client: Arc<ProviderClient>,
+        llm_client: Arc<LlmClient>,
         config: Arc<SignalWorkerConfig>,
     ) -> Self {
         Self {
@@ -166,13 +166,12 @@ impl SignalJobRealtimeHandler {
         let span_input = request_to_span_input(&request);
         let span_tools = request_to_tools_attr(&request);
 
-        let model_str = llm_model();
         let llm_client = self.llm_client.clone();
         let req_clone = request.clone();
 
         let generate_fn = || async {
             llm_client
-                .generate_content(&model_str, &req_clone)
+                .generate_content(&req_clone)
                 .await
                 .map_err(|e| {
                     if e.is_retryable() {
@@ -359,6 +358,7 @@ mod tests {
         MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait,
     };
     use crate::signals::provider::mock::{GenerateFailureMode, MockProviderClient};
+    use crate::signals::provider::ProviderClient;
     use crate::signals::provider::models::ProviderRequest;
     use crate::signals::queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_ROUTING_KEY};
     use std::time::Duration;
@@ -370,6 +370,8 @@ mod tests {
             system_instruction: None,
             tools: None,
             generation_config: None,
+            provider: None,
+            model_size: None,
         }
     }
 
@@ -428,9 +430,12 @@ mod tests {
             internal_project_id: None,
             waiting_queue_ttl_ms: 300_000,
         });
-        let provider_client = Arc::new(ProviderClient::Mock(llm_client));
+        let client = Arc::new(LlmClient::from_provider(
+            "mock",
+            ProviderClient::Mock(llm_client),
+        ));
 
-        SignalJobRealtimeHandler::new(db, cache, queue, clickhouse, provider_client, config)
+        SignalJobRealtimeHandler::new(db, cache, queue, clickhouse, client, config)
     }
 
     /// When generate_content always returns a retryable 429 error, after backoff is exhausted
