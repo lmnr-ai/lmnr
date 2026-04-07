@@ -23,3 +23,4 @@ pub const SAMPLING_FACTORS_CACHE_KEY: &str = "sampling_factors";
 pub const WORKSPACE_USAGE_WARNINGS_CACHE_KEY: &str = "workspace_usage_warnings";
 pub const USAGE_WARNING_SEND_LOCK_KEY: &str = "usage_warning_send_lock";
 pub const SYS_PROMPT_SUMMARY_CACHE_KEY: &str = "sys_prompt_summary";
+pub const SPAN_DROP_RULES_CACHE_KEY: &str = "span_drop_rules";

@@ -198,7 +198,7 @@ fn hash_system_prompt(text: &str) -> String {
 
 /// Extract the system message from a parsed LLM input message array.
 /// Returns `(system_text, remaining_messages)` if a `role: "system"` message is found.
-fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
+pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
     let messages = parsed.as_array()?;
     let sys_idx = messages.iter().position(|m| {
         m.get("role")

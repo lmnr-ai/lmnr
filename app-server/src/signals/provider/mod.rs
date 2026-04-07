@@ -144,7 +144,7 @@ pub fn model_for_size(provider: &str, size: ModelSize) -> String {
             "global.anthropic.claude-haiku-4-5-20251001-v1:0".to_string()
         }
         ("bedrock", ModelSize::Medium) => "global.anthropic.claude-sonnet-4-6".to_string(),
-        ("bedrock", ModelSize::Large) => "global.anthropic.claude-opus-4-6".to_string(),
+        ("bedrock", ModelSize::Large) => "global.anthropic.claude-opus-4-6-v1".to_string(),
         _ => default_model_for_provider(provider),
     }
 }

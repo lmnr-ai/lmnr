@@ -6,6 +6,7 @@ use uuid::Uuid;
 pub mod batching;
 pub mod common;
 pub mod enqueue;
+pub mod filter;
 pub mod pendings_consumer;
 pub mod postprocess;
 pub mod prompts;
