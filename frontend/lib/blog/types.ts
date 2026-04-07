@@ -13,6 +13,7 @@ export type BlogMetadata = {
   thumbnail?: string;
   excerpt?: string;
   tags?: string[];
+  updated?: string;
 };
 
 export type BlogListItem = BlogMetadata & {
@@ -25,4 +26,3 @@ export type MatterAndContent = {
   data: BlogMetadata;
   content: string;
 };
-
