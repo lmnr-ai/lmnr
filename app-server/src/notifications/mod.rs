@@ -8,7 +8,6 @@ use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::cache::{Cache, CacheTrait, keys::USAGE_WARNING_SEND_LOCK_KEY};
 use crate::ch::notification_logs::CHNotificationLog;
 use crate::ch::notifications::CHNotification;
 use crate::ch::service::ClickhouseService;
@@ -224,16 +223,12 @@ impl MessageHandler for NotificationHandler {
         let now_ms = chrono::Utc::now().timestamp_millis();
 
         // 1. Persist the raw notification event to ClickHouse `notifications` table.
-        let notification_data = match serde_json::to_string(&message.notification_kind) {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!(
-                    "[Notifications] Failed to serialize notification_kind: {:?}",
-                    e
-                );
-                String::new()
-            }
-        };
+        let notification_data = serde_json::to_string(&message.notification_kind).map_err(|e| {
+            HandlerError::permanent(anyhow::anyhow!(
+                "Failed to serialize notification_kind: {}",
+                e
+            ))
+        })?;
 
         let ch_notification = CHNotification {
             id: notification_id,
@@ -393,12 +388,8 @@ impl NotificationHandler {
 const LAMINAR_LOGO_PNG: &[u8] = include_bytes!("../../data/logo.png");
 const LAMINAR_LOGO_CID: &str = "laminar-logo";
 
-/// How long the per-notification send lock is held (for usage warning dedup).
-const USAGE_WARNING_SEND_LOCK_TTL_SECONDS: u64 = 300; // 5 minutes
-
 pub struct NotificationDeliveryHandler {
     pub db: Arc<DB>,
-    pub cache: Arc<Cache>,
     pub slack_client: reqwest::Client,
     pub resend: Option<Arc<Resend>>,
     pub ch_service: Arc<ClickhouseService>,
@@ -407,14 +398,12 @@ pub struct NotificationDeliveryHandler {
 impl NotificationDeliveryHandler {
     pub fn new(
         db: Arc<DB>,
-        cache: Arc<Cache>,
         slack_client: reqwest::Client,
         resend: Option<Arc<Resend>>,
         ch_service: Arc<ClickhouseService>,
     ) -> Self {
         Self {
             db,
-            cache,
             slack_client,
             resend,
             ch_service,
@@ -526,30 +515,10 @@ impl NotificationDeliveryHandler {
         &self,
         message: &NotificationDeliveryMessage,
     ) -> Result<bool, HandlerError> {
-        // For usage-warning emails, claim a short-lived lock to prevent duplicates.
-        if message.definition_type == NotificationDefinitionType::UsageWarning {
-            let lock_key = format!("{USAGE_WARNING_SEND_LOCK_KEY}:{}", message.definition_id);
-            match self
-                .cache
-                .try_acquire_lock(&lock_key, USAGE_WARNING_SEND_LOCK_TTL_SECONDS)
-                .await
-            {
-                Ok(true) => {} // Lock acquired – proceed.
-                Ok(false) => {
-                    log::debug!(
-                        "[NotificationDelivery] Usage warning send lock held for [{}], skipping",
-                        message.definition_id
-                    );
-                    return Ok(false);
-                }
-                Err(e) => {
-                    return Err(HandlerError::Transient(anyhow::anyhow!(
-                        "Cache error acquiring usage warning lock: {}",
-                        e
-                    )));
-                }
-            }
-        }
+        // Usage-warning deduplication is handled upstream in stage 1 (check_soft_limits
+        // in limits.rs uses last_notified_at per billing cycle). No per-delivery lock
+        // is needed here — doing so would block multi-owner fan-out since all deliveries
+        // share the same definition_id.
 
         let resend = match &self.resend {
             Some(r) => r.clone(),

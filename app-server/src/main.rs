@@ -456,6 +456,32 @@ fn main() -> anyhow::Result<()> {
                 .await
                 .unwrap();
 
+            // ==== 3.6b Notification Deliveries message queue ====
+            channel
+                .exchange_declare(
+                    NOTIFICATION_DELIVERIES_EXCHANGE,
+                    ExchangeKind::Fanout,
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    FieldTable::default(),
+                )
+                .await
+                .unwrap();
+
+            channel
+                .queue_declare(
+                    NOTIFICATION_DELIVERIES_QUEUE,
+                    QueueDeclareOptions {
+                        durable: true,
+                        ..Default::default()
+                    },
+                    quorum_queue_args.clone(),
+                )
+                .await
+                .unwrap();
+
             // ==== 3.7 Event Clustering message queue ====
             channel
                 .exchange_declare(
@@ -710,6 +736,11 @@ fn main() -> anyhow::Result<()> {
         queue.register_queue(SIGNALS_EXCHANGE, SIGNALS_QUEUE);
         // ==== 3.6 Notifications message queue ====
         queue.register_queue(NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE);
+        // ==== 3.6b Notification Deliveries message queue ====
+        queue.register_queue(
+            NOTIFICATION_DELIVERIES_EXCHANGE,
+            NOTIFICATION_DELIVERIES_QUEUE,
+        );
         // ==== 3.7 Event Clustering message queue ====
         queue.register_queue(EVENT_CLUSTERING_EXCHANGE, EVENT_CLUSTERING_QUEUE);
         // ==== 3.7b Event Clustering Batch message queue ====
@@ -1228,7 +1259,6 @@ fn main() -> anyhow::Result<()> {
                     // Spawn notification delivery workers (stage 2: format + send + log)
                     {
                         let db = db_for_consumer.clone();
-                        let cache = cache_for_consumer.clone();
                         let client = reqwest::Client::new();
                         let resend = resend_client.clone();
                         let ch_service = Arc::new(ClickhouseService::new(
@@ -1244,7 +1274,6 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 NotificationDeliveryHandler::new(
                                     db.clone(),
-                                    cache.clone(),
                                     client.clone(),
                                     resend.clone(),
                                     ch_service.clone(),
