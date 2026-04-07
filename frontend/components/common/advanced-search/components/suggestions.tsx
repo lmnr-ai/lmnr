@@ -2,15 +2,15 @@
 
 import { Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
-import { dataTypeOperationsMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
+import { dataTypeOperationsMap, OperatorLabelMap } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Operator } from "@/lib/actions/common/operators";
 import { cn } from "@/lib/utils";
 
-import { useAdvancedSearchContext, useAdvancedSearchRefsContext } from "../store";
-import { type ColumnFilter } from "../types";
+import { type RecentSearch, useAdvancedSearchContext, useAdvancedSearchRefsContext } from "../store";
+import { type ColumnFilter, createTagFromFilter } from "../types";
 import { buildValueSuggestions } from "../utils";
 
 interface FieldSuggestion {
@@ -58,6 +58,55 @@ export const buildSuggestions = (
   return [...fieldSuggestions, ...valueSuggestions, { type: "raw_search" as const, value: inputValue.trim() }];
 };
 
+const RecentSearchChip = ({
+  recentSearch,
+  columnFilters,
+  isActive,
+  onSelect,
+  ref,
+}: {
+  recentSearch: RecentSearch;
+  columnFilters: ColumnFilter[];
+  isActive: boolean;
+  onSelect: () => void;
+  ref?: React.Ref<HTMLDivElement>;
+}) => {
+  const tags = recentSearch.filters.map(createTagFromFilter);
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "inline-flex items-center rounded-md border h-6 text-xs divide-x px-0.5 cursor-pointer shrink-0 transition-colors",
+        isActive ? "bg-accent border-primary/40" : "bg-background hover:bg-accent"
+      )}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onClick={onSelect}
+    >
+      {tags.map((tag) => {
+        const colFilter = columnFilters.find((f) => f.key === tag.field);
+        const displayName = colFilter?.name ?? tag.field;
+        const operatorLabel = OperatorLabelMap[tag.operator] ?? tag.operator;
+        const displayValue = Array.isArray(tag.value) ? tag.value.join(", ") : String(tag.value);
+
+        return (
+          <span key={tag.id} className="inline-flex items-center gap-1 px-1.5 h-4">
+            <span className="text-secondary-foreground font-medium">{displayName}</span>
+            <span className="text-secondary-foreground/80">{operatorLabel}</span>
+            <span className="text-primary">{displayValue}</span>
+          </span>
+        );
+      })}
+      {recentSearch.search && (
+        <span className="px-1 text-secondary-foreground truncate">&quot;{recentSearch.search}&quot;</span>
+      )}
+    </div>
+  );
+};
+
 interface FilterSuggestionsProps {
   className?: string;
 }
@@ -70,25 +119,35 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
   const inputValue = useAdvancedSearchContext((state) => state.inputValue);
   const isOpen = useAdvancedSearchContext((state) => state.isOpen);
   const activeIndex = useAdvancedSearchContext((state) => state.activeIndex);
+  const activeRecentIndex = useAdvancedSearchContext((state) => state.activeRecentIndex);
   const filters = useAdvancedSearchContext((state) => state.filters);
   const autocompleteData = useAdvancedSearchContext((state) => state.autocompleteData);
+  const tags = useAdvancedSearchContext((state) => state.tags);
+  const recentSearches = useAdvancedSearchContext((state) => state.recentSearches);
 
-  const { addTag, addCompleteTag, setInputValue, setIsOpen, submit } = useAdvancedSearchContext((state) => ({
-    addTag: state.addTag,
-    addCompleteTag: state.addCompleteTag,
-    setInputValue: state.setInputValue,
-    setIsOpen: state.setIsOpen,
-    submit: state.submit,
-  }));
+  const { addTag, addCompleteTag, setInputValue, setIsOpen, submit, applyRecentSearch } = useAdvancedSearchContext(
+    (state) => ({
+      addTag: state.addTag,
+      addCompleteTag: state.addCompleteTag,
+      setInputValue: state.setInputValue,
+      setIsOpen: state.setIsOpen,
+      submit: state.submit,
+      applyRecentSearch: state.applyRecentSearch,
+    })
+  );
 
   const { mainInputRef } = useAdvancedSearchRefsContext();
 
   const suggestionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const recentChipRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const recentContainerRef = useRef<HTMLDivElement>(null);
 
   const suggestions = useMemo(
     () => buildSuggestions(inputValue, filters, autocompleteData),
     [inputValue, filters, autocompleteData]
   );
+
+  const showRecent = !inputValue.trim() && tags.length === 0 && recentSearches.length > 0;
 
   useEffect(() => {
     const activeElement = suggestionRefs.current.get(activeIndex);
@@ -97,17 +156,31 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
     }
   }, [activeIndex]);
 
+  useEffect(() => {
+    const chip = recentChipRefs.current.get(activeRecentIndex);
+    const container = recentContainerRef.current;
+    if (!chip || !container) return;
+
+    const chipLeft = chip.offsetLeft;
+    const chipRight = chipLeft + chip.offsetWidth;
+    const scrollLeft = container.scrollLeft;
+    const visibleRight = scrollLeft + container.clientWidth;
+
+    if (chipLeft < scrollLeft) {
+      container.scrollTo({ left: chipLeft - 12, behavior: "smooth" });
+    } else if (chipRight > visibleRight) {
+      container.scrollTo({ left: chipRight - container.clientWidth + 12, behavior: "smooth" });
+    }
+  }, [activeRecentIndex]);
+
   const handleValueSelect = useCallback(
     (field: string, value: string) => {
-      // Find the filter to get the proper field key and default operator
       const columnFilter = filters.find((f) => f.key === field);
       if (!columnFilter) return;
 
-      // Get the default operator for this field's dataType
       const defaultOperator = dataTypeOperationsMap[columnFilter.dataType]?.[0]?.key ?? Operator.Eq;
       addCompleteTag(field, defaultOperator, value, router, pathname, searchParams);
 
-      // Keep focus on main input
       mainInputRef.current?.focus();
     },
     [filters, addCompleteTag, router, pathname, searchParams, mainInputRef]
@@ -122,7 +195,14 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
     [setInputValue, setIsOpen, submit, router, pathname, searchParams]
   );
 
-  if (!isOpen || suggestions.length === 0) return null;
+  const handleRecentSearchSelect = useCallback(
+    (recentSearch: RecentSearch) => {
+      applyRecentSearch(recentSearch, router, pathname, searchParams);
+    },
+    [applyRecentSearch, router, pathname, searchParams]
+  );
+
+  if (!isOpen || (suggestions.length === 0 && !showRecent)) return null;
 
   return (
     <div
@@ -130,89 +210,114 @@ const FilterSuggestions = ({ className }: FilterSuggestionsProps) => {
         "absolute top-full left-0 right-0 z-50 mt-1 bg-secondary border rounded-md shadow-md overflow-hidden",
         className
       )}
+      onMouseDown={(e) => e.preventDefault()}
     >
-      <div className="px-3 pt-2 pb-1 text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
-        {inputValue.trim() ? "Suggestions" : "Filter by"}
-      </div>
-      <ScrollArea className="max-h-64 [&>div]:max-h-64">
-        <div className="pb-1">
-          {suggestions.map((suggestion, idx) => {
-            const isActive = idx === activeIndex;
-
-            if (suggestion.type === "field") {
-              return (
-                <div
-                  key={`field-${suggestion.filter.key}`}
-                  ref={(el) => {
-                    if (el) suggestionRefs.current.set(idx, el);
-                  }}
-                  className={cn(
-                    "px-3 py-1.5 text-xs cursor-pointer font-medium text-secondary-foreground",
-                    isActive ? "bg-accent" : "hover:bg-accent"
-                  )}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onClick={() => addTag(suggestion.filter.key)}
-                >
-                  {suggestion.filter.name}
-                </div>
-              );
-            }
-
-            if (suggestion.type === "value") {
-              // Find the filter name for display
-              const filterForField = filters.find((f) => f.key === suggestion.field);
-              const displayName = filterForField?.name || suggestion.field;
-
-              return (
-                <div
-                  key={`value-${suggestion.field}-${suggestion.value}-${idx}`}
-                  ref={(el) => {
-                    if (el) suggestionRefs.current.set(idx, el);
-                  }}
-                  className={cn(
-                    "px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground",
-                    isActive ? "bg-accent" : "hover:bg-accent"
-                  )}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onClick={() => handleValueSelect(suggestion.field, suggestion.value)}
-                >
-                  <span className="text-muted-foreground">{displayName}:</span>{" "}
-                  <span className="font-medium">{suggestion.value}</span>
-                </div>
-              );
-            }
-
-            // Raw search suggestion
-            return (
-              <div
-                key="raw-search"
+      {showRecent && (
+        <div className="border-b">
+          <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground font-medium tracking-wide">Recent searches</div>
+          <div
+            ref={recentContainerRef}
+            className="flex items-center gap-1.5 px-3 pb-2 pt-1 overflow-x-auto no-scrollbar"
+          >
+            {recentSearches.map((rs, idx) => (
+              <RecentSearchChip
+                key={rs.timestamp}
                 ref={(el) => {
-                  if (el) suggestionRefs.current.set(idx, el);
+                  if (el) recentChipRefs.current.set(idx, el);
                 }}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground border-t mt-1 pt-2",
-                  isActive ? "bg-accent" : "hover:bg-accent"
-                )}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                onClick={() => handleRawSearchSelect(suggestion.value)}
-              >
-                <Search className="w-3 h-3" />
-                <span className="text-muted-foreground">Full text search:</span>
-                <span className="font-medium">&quot;{suggestion.value}&quot;</span>
-              </div>
-            );
-          })}
+                recentSearch={rs}
+                columnFilters={filters}
+                isActive={activeRecentIndex === idx}
+                onSelect={() => handleRecentSearchSelect(rs)}
+              />
+            ))}
+          </div>
         </div>
-      </ScrollArea>
+      )}
+      {suggestions.length > 0 && (
+        <>
+          <div className="px-3 pt-2 pb-1 text-xs text-muted-foreground font-medium tracking-wide">
+            {inputValue.trim() ? "Suggestions" : "Filter by"}
+          </div>
+          <ScrollArea className="max-h-64 [&>div]:max-h-64">
+            <div className="pb-1">
+              {suggestions.map((suggestion, idx) => {
+                const isActive = idx === activeIndex;
+
+                if (suggestion.type === "field") {
+                  return (
+                    <div
+                      key={`field-${suggestion.filter.key}`}
+                      ref={(el) => {
+                        if (el) suggestionRefs.current.set(idx, el);
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 text-xs cursor-pointer font-medium text-secondary-foreground",
+                        isActive ? "bg-accent" : "hover:bg-accent"
+                      )}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onClick={() => addTag(suggestion.filter.key)}
+                    >
+                      {suggestion.filter.name}
+                    </div>
+                  );
+                }
+
+                if (suggestion.type === "value") {
+                  const filterForField = filters.find((f) => f.key === suggestion.field);
+                  const displayName = filterForField?.name || suggestion.field;
+
+                  return (
+                    <div
+                      key={`value-${suggestion.field}-${suggestion.value}-${idx}`}
+                      ref={(el) => {
+                        if (el) suggestionRefs.current.set(idx, el);
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground",
+                        isActive ? "bg-accent" : "hover:bg-accent"
+                      )}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onClick={() => handleValueSelect(suggestion.field, suggestion.value)}
+                    >
+                      <span className="text-muted-foreground">{displayName}:</span>{" "}
+                      <span className="font-medium">{suggestion.value}</span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key="raw-search"
+                    ref={(el) => {
+                      if (el) suggestionRefs.current.set(idx, el);
+                    }}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-1.5 text-xs cursor-pointer text-secondary-foreground border-t mt-1 pt-2",
+                      isActive ? "bg-accent" : "hover:bg-accent"
+                    )}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onClick={() => handleRawSearchSelect(suggestion.value)}
+                  >
+                    <Search className="w-3 h-3" />
+                    <span className="text-muted-foreground">Full text search:</span>
+                    <span className="font-medium">&quot;{suggestion.value}&quot;</span>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </>
+      )}
     </div>
   );
 };

@@ -6,6 +6,7 @@ use rayon::prelude::*;
 use tracing::instrument;
 use uuid::Uuid;
 
+use super::sampling::{get_sampling_factors_cached, should_sample_trace};
 use super::trigger::get_signal_triggers_cached;
 use crate::{
     api::v1::traces::RabbitMqSpanMessage,
@@ -21,7 +22,7 @@ use crate::{
     db::{
         DB,
         spans::{Span, SpanType},
-        trace::{Trace, upsert_trace_statistics_batch},
+        trace::{Trace, TraceType, upsert_trace_statistics_batch},
         workspaces::WorkspaceDeployment,
     },
     features::{Feature, is_feature_enabled},
@@ -138,7 +139,13 @@ pub async fn process_span_messages(
     // so the signal agent can see the trace data when processing.
     if let Some(updated_traces) = &updated_traces {
         if is_feature_enabled(Feature::Signals) {
-            let traces_by_project = group_traces_by_project(updated_traces);
+            let default_trace_type: i16 = Into::<u8>::into(TraceType::DEFAULT) as i16;
+            let default_traces: Vec<Trace> = updated_traces
+                .iter()
+                .filter(|trace| trace.trace_type() == default_trace_type)
+                .cloned()
+                .collect();
+            let traces_by_project = group_traces_by_project(&default_traces);
             for (project_id, project_traces) in &traces_by_project {
                 check_and_push_signals(
                     *project_id,
@@ -221,6 +228,7 @@ pub async fn process_span_messages(
                 db.clone(),
                 clickhouse.clone(),
                 cache.clone(),
+                queue.clone(),
                 project_id,
                 bytes,
             )
@@ -280,12 +288,53 @@ async fn check_and_push_signals(
         }
     }
 
+    // Lazily fetch pre-computed sampling factors only if any trigger has sampling enabled
+    let any_has_sampling = triggers.iter().any(|t| t.signal.sample_rate.is_some());
+    let sampling_factors = if any_has_sampling {
+        match get_sampling_factors_cached(cache.clone(), &clickhouse, project_id).await {
+            Ok(factors) => Some(factors),
+            Err(e) => {
+                log::error!(
+                    "Failed to get sampling factors for project {}: {:?}. \
+                     Sampled signals will be skipped; non-sampled signals proceed normally.",
+                    project_id,
+                    e
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     for trigger in &triggers {
         let matching_traces = traces
             .iter()
             .filter(|trace| trace.matches_filters(spans, &trigger.filters));
 
         for trace in matching_traces {
+            // Check sampling if enabled for this signal
+            if let Some(sample_rate) = trigger.signal.sample_rate {
+                if let Some(ref factors) = sampling_factors {
+                    if !should_sample_trace(sample_rate, &trace.user_id(), factors) {
+                        log::debug!(
+                            "Skipping trace for user {}",
+                            trace.user_id().unwrap_or_default()
+                        );
+                        continue;
+                    } else {
+                        log::debug!(
+                            "Processing trace for user {}",
+                            trace.user_id().unwrap_or_default()
+                        );
+                    }
+                } else {
+                    // Sampling factors failed to load — skip sampled triggers
+                    // to avoid processing all traces unsampled (over-billing)
+                    continue;
+                }
+            }
+
             // Filters matched - try to acquire lock to prevent duplicate triggers
             let lock_key = format!(
                 "{}:{}:{}:{}",

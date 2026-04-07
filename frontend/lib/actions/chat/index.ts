@@ -101,6 +101,15 @@ export async function generateChatResponse(
   const provider = model.split(":")[0] as Provider;
   const decodedKey = await getProviderApiKey(projectId, provider);
 
+  if (providerOptions?.google?.thinkingConfig) {
+    const tc = providerOptions.google.thinkingConfig as Record<string, unknown>;
+    if (tc.thinkingLevel != null) {
+      delete tc.thinkingBudget;
+    } else if (tc.thinkingBudget != null) {
+      delete tc.thinkingLevel;
+    }
+  }
+
   const startTime = new Date();
 
   let result: any;

@@ -93,8 +93,7 @@ pub fn decode_slack_token(
 
 /// Convert standard markdown links `[text](url)` to Slack mrkdwn `<url|text>`.
 fn md_links_to_slack(text: &str) -> String {
-    static RE: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap());
+    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap());
     RE.replace_all(text, "<$2|$1>").into_owned()
 }
 
@@ -105,7 +104,7 @@ fn format_event_identification_blocks(
     extracted_information: Option<serde_json::Value>,
 ) -> serde_json::Value {
     let trace_link = format!(
-        "https://laminar.sh/project/{}/traces/{}",
+        "https://laminar.sh/project/{}/traces/{}?chat=true",
         project_id, trace_id
     );
 
@@ -120,7 +119,7 @@ fn format_event_identification_blocks(
                         serde_json::Value::Null => String::new(),
                         _ => serde_json::to_string_pretty(value).unwrap_or_default(),
                     };
-                    format!("_{}_\n{}", key, formatted_value)
+                    format!("_{}_:\n{}", key, formatted_value)
                 })
                 .collect()
         } else {
@@ -170,6 +169,7 @@ fn format_event_identification_blocks(
                 }
             ]
         }));
+        blocks.push(json!({"type": "divider"}));
         return json!(blocks);
     }
 
@@ -195,7 +195,8 @@ fn format_event_identification_blocks(
                     "action_id": "view_trace"
                 }
             ]
-        }
+        },
+        {"type": "divider"}
     ])
 }
 
@@ -243,7 +244,7 @@ fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
             text.push_str("\nNoteworthy Events:\n");
             for event in &project.noteworthy_events {
                 let entry = format!(
-                    "• `{}` – {} ({}) <https://laminar.sh/project/{}/traces/{}|View trace>\n",
+                    "• `{}` – {} ({}) <https://laminar.sh/project/{}/traces/{}?chat=true|View trace>\n",
                     event.signal_name,
                     event.summary,
                     event.timestamp,

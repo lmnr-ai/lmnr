@@ -31,9 +31,9 @@
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^3.0.17",
-    "@ai-sdk/anthropic": "^2.0.13",
+    "@ai-sdk/anthropic": "^2.0.71",
     "@ai-sdk/azure": "^2.0.26",
-    "@ai-sdk/google": "^2.0.24",
+    "@ai-sdk/google": "^2.0.64",
     "@ai-sdk/groq": "^2.0.17",
     "@ai-sdk/mistral": "^2.0.13",
     "@ai-sdk/openai": "^2.0.23",

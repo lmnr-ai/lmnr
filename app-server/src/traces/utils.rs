@@ -4,7 +4,6 @@ use std::sync::{Arc, LazyLock};
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{Value, json};
-use tracing::{instrument, warn};
 use uuid::Uuid;
 
 use crate::opentelemetry_proto::opentelemetry_proto_common_v1;
@@ -31,7 +30,6 @@ static SKIP_SPAN_NAME_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Runnable[A-Z][A-Za-z]*(?:<[A-Za-z_,]+>)*\.task$").unwrap());
 
 /// Calculate usage for both default and LLM spans
-#[instrument(skip(attributes, db, cache, span_name))]
 pub async fn get_llm_usage_for_span(
     // mut because input and output tokens are updated to new convention
     attributes: &mut SpanAttributes,

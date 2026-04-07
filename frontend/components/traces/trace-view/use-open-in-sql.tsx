@@ -65,7 +65,7 @@ export const useOpenInSql = ({ projectId, params }: { projectId: string; params:
     } finally {
       setIsLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, query, name]);
 
   return { isLoading, openInSql };
 };

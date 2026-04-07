@@ -18,6 +18,7 @@ pub struct SearchSpanHit {
     pub span_id: String,
     pub input_snippet: Option<SnippetInfo>,
     pub output_snippet: Option<SnippetInfo>,
+    pub attributes_snippet: Option<SnippetInfo>,
 }
 
 const RE2_META_CHARS: &[char] = &[
@@ -150,6 +151,7 @@ pub struct SpanSnippetRow {
     pub span_id: Uuid,
     pub input_snippet: String,
     pub output_snippet: String,
+    pub attributes_snippet: String,
 }
 
 #[tracing::instrument(skip_all, fields(pairs_count = pairs.len()))]
@@ -199,7 +201,8 @@ fn build_snippet_query(project_id: Uuid, context_regex: &str, key_tuples: &str) 
     format!(
         "SELECT span_id,
                 extract(input, '{context_regex}') AS input_snippet,
-                extract(output, '{context_regex}') AS output_snippet
+                extract(output, '{context_regex}') AS output_snippet,
+                extract(attributes, '{context_regex}') AS attributes_snippet
          FROM spans
          WHERE project_id = '{project_id}'
            AND (trace_id, span_id) IN ({key_tuples})
@@ -268,6 +271,10 @@ pub async fn enrich_hits_with_snippets(
 
                 hit.output_snippet =
                     post_process_snippet(&row.output_snippet, &match_re, SNIPPET_CONTEXT_CHARS)
+                        .map(|(text, highlight)| SnippetInfo { text, highlight });
+
+                hit.attributes_snippet =
+                    post_process_snippet(&row.attributes_snippet, &match_re, SNIPPET_CONTEXT_CHARS)
                         .map(|(text, highlight)| SnippetInfo { text, highlight });
             }
             hit

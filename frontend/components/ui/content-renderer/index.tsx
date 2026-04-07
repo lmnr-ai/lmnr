@@ -259,7 +259,7 @@ const PureContentRenderer = ({
         {renderHeaderContent()}
       </div>
       {mode === "custom" ? (
-        <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0">
+        <div className="flex-1 flex bg-muted/50 overflow-auto w-full min-h-0 border-t">
           <TemplateRenderer data={renderedValue} presetKey={presetKey} />
         </div>
       ) : mode === "messages" ? (

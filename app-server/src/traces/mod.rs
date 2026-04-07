@@ -5,6 +5,7 @@ pub mod processor;
 pub mod producer;
 pub mod provider;
 pub mod realtime;
+pub mod sampling;
 pub mod span_attributes;
 pub mod spans;
 pub mod trigger;

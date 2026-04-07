@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { tryParseJson } from "@/lib/utils";
 
+import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
 import TriggersSection from "./triggers-section";
@@ -106,6 +107,8 @@ export default function SignalFormFields({ showTemplates }: { showTemplates: boo
       <SchemaFieldsBuilder />
 
       <TriggersSection />
+
+      <SamplingSection />
     </div>
   );
 }

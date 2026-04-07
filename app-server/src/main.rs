@@ -5,10 +5,11 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
+use actix_limitation::{Limiter, RateLimiter};
 use actix_web::{
-    App, HttpServer, dev,
+    App, HttpMessage, HttpServer, dev,
     http::StatusCode,
-    middleware::{ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
+    middleware::{Condition, ErrorHandlerResponse, ErrorHandlers, Logger, NormalizePath},
     web::{self, JsonConfig, PayloadConfig},
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
@@ -917,22 +918,22 @@ fn main() -> anyhow::Result<()> {
         let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
         let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
 
-        // == LLM Provider client ==
-        let llm_provider_client: Option<Arc<signals::provider::ProviderClient>> =
+        // == LLM Client ==
+        let llm_provider_client: Option<Arc<signals::provider::LlmClient>> =
             if is_feature_enabled(Feature::Signals) {
-                log::info!("Initializing LLM provider client for signals");
-                match runtime_handle.block_on(signals::provider::create_provider_client()) {
+                log::info!("Initializing LLM client for signals");
+                match runtime_handle.block_on(signals::provider::LlmClient::new()) {
                     Ok(client) => Some(Arc::new(client)),
                     Err(e) => {
                         log::warn!(
-                            "Failed to create LLM provider client (signals will be disabled): {:?}",
+                            "Failed to create LLM client (signals will be disabled): {:?}",
                             e
                         );
                         None
                     }
                 }
             } else {
-                log::info!("Signals feature disabled - skipping LLM provider initialization");
+                log::info!("Signals feature disabled - skipping LLM client initialization");
                 None
             };
 
@@ -1145,6 +1146,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
                         batch_worker_pool_clone.spawn(
                             BatchWorkerType::BrowserEvents,
                             num_browser_events_workers as usize,
@@ -1152,6 +1154,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 clickhouse: clickhouse.clone(),
                                 cache: cache.clone(),
+                                queue: queue.clone(),
                                 config: BatchingConfig {
                                     size,
                                     flush_interval,
@@ -1198,6 +1201,7 @@ fn main() -> anyhow::Result<()> {
                     // Spawn notification workers
                     {
                         let db = db_for_consumer.clone();
+                        let cache = cache_for_consumer.clone();
                         let client = reqwest::Client::new();
                         let resend = resend_client.clone();
                         let ch_service = Arc::new(ClickhouseService::new(
@@ -1213,6 +1217,7 @@ fn main() -> anyhow::Result<()> {
                             move || {
                                 NotificationHandler::new(
                                     db.clone(),
+                                    cache.clone(),
                                     client.clone(),
                                     resend.clone(),
                                     ch_service.clone(),
@@ -1376,6 +1381,7 @@ fn main() -> anyhow::Result<()> {
                         let db = db_for_consumer.clone();
                         let cache = cache_for_consumer.clone();
                         let clickhouse = clickhouse_for_consumer.clone();
+                        let queue = mq_for_consumer.clone();
                         worker_pool_clone.spawn(
                             WorkerType::Logs,
                             num_logs_workers as usize,
@@ -1383,6 +1389,7 @@ fn main() -> anyhow::Result<()> {
                                 db: db.clone(),
                                 cache: cache.clone(),
                                 clickhouse: clickhouse.clone(),
+                                queue: queue.clone(),
                             },
                             QueueConfig::new(LOGS_QUEUE, LOGS_EXCHANGE, LOGS_ROUTING_KEY),
                         );
@@ -1436,6 +1443,41 @@ fn main() -> anyhow::Result<()> {
 
     if enable_producer() {
         log::info!("Enabling producer mode, spinning up full HTTP and gRPC servers");
+
+        // === Rate limiter ===
+        let rate_limiter = if is_feature_enabled(Feature::RateLimiter) {
+            let redis_url = env::var("REDIS_URL").unwrap();
+            let limit: usize = env::var("RATE_LIMIT").unwrap().parse().unwrap();
+            let period_secs: u64 = env::var("RATE_LIMIT_PERIOD_SECS").unwrap().parse().unwrap();
+            // project_auth middleware populates ProjectApiKey in request extensions
+            match Limiter::builder(&redis_url)
+                .key_by(|req: &dev::ServiceRequest| {
+                    req.extensions()
+                        .get::<db::project_api_keys::ProjectApiKey>()
+                        .map(|k| format!("ratelimit:{}", k.project_id))
+                })
+                .limit(limit)
+                .period(Duration::from_secs(period_secs))
+                .build()
+            {
+                Ok(limiter) => {
+                    log::info!(
+                        "Rate limiter initialized ({} req/{} s per project)",
+                        limit,
+                        period_secs
+                    );
+                    Some(limiter)
+                }
+                Err(e) => {
+                    log::warn!("Failed to initialize rate limiter: {:?}", e);
+                    None
+                }
+            }
+        } else {
+            log::info!("Rate limiter is disabled");
+            None
+        };
+
         // == HTTP server and listener workers ==
         let http_server_handle = thread::Builder::new()
             .name("http".to_string())
@@ -1459,7 +1501,7 @@ fn main() -> anyhow::Result<()> {
                         let project_ingestion_auth =
                             HttpAuthentication::bearer(auth::project_ingestion_validator);
 
-                        App::new()
+                        let mut app = App::new()
                             .wrap(ErrorHandlers::new().handler(
                                 StatusCode::BAD_REQUEST,
                                 |res: dev::ServiceResponse| {
@@ -1482,7 +1524,13 @@ fn main() -> anyhow::Result<()> {
                             .app_data(web::Data::new(sse_connections_for_http.clone()))
                             .app_data(web::Data::new(quickwit_client.clone()))
                             .app_data(web::Data::new(pubsub.clone()))
-                            .app_data(web::Data::new(http_client_for_http.clone()))
+                            .app_data(web::Data::new(http_client_for_http.clone()));
+
+                        if let Some(ref limiter) = rate_limiter {
+                            app = app.app_data(web::Data::new(limiter.clone()));
+                        }
+
+                        app
                             // Ingestion endpoints allow both default and ingest-only keys
                             .service(
                                 web::scope("/v1/browser-sessions").service(
@@ -1534,6 +1582,15 @@ fn main() -> anyhow::Result<()> {
                                     ),
                             )
                             .service(
+                                web::scope("/v1/sql")
+                                    .wrap(Condition::new(
+                                        rate_limiter.is_some(),
+                                        RateLimiter::default(),
+                                    ))
+                                    .wrap(project_auth.clone())
+                                    .service(api::v1::sql::execute_sql_query),
+                            )
+                            .service(
                                 web::scope("/v1")
                                     .wrap(project_auth.clone())
                                     .service(api::v1::datasets::get_datasets)
@@ -1543,7 +1600,6 @@ fn main() -> anyhow::Result<()> {
                                     .service(api::v1::evals::init_eval)
                                     .service(api::v1::evals::save_eval_datapoints)
                                     .service(api::v1::evals::update_eval_datapoint)
-                                    .service(api::v1::sql::execute_sql_query)
                                     .service(api::v1::rollouts::stream)
                                     .service(api::v1::rollouts::update_status)
                                     .service(api::v1::rollouts::send_span_update)

@@ -54,6 +54,7 @@ function SignalContent() {
         prompt: form.prompt,
         schemaFields: form.schemaFields,
         triggers: form.triggers,
+        sampleRate: form.sampleRate,
       });
     },
     [signal, setSignal]

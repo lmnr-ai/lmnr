@@ -70,8 +70,10 @@ pub async fn process_event_notifications_and_clustering(
                 let Some(ref email) = target.email else {
                     continue;
                 };
-                let trace_link =
-                    format!("https://lmnr.ai/project/{}/traces/{}", project_id, trace_id);
+                let trace_link = format!(
+                    "https://lmnr.ai/project/{}/traces/{}?chat=true",
+                    project_id, trace_id
+                );
                 let subject = format!("Alert: {}", event_name);
                 let html = render_alert_email(&event_name, &attributes, &trace_link);
                 let payload = EmailPayload {
@@ -90,7 +92,7 @@ pub async fn process_event_notifications_and_clustering(
             payload: message_payload,
             project_id,
             workspace_id: target.workspace_id,
-            definition_type: "ALERT".to_string(),
+            definition_type: notifications::NotificationDefinitionType::Alert,
             definition_id: target.alert_id,
             target_id: target.id,
             target_type: target_type.to_string(),

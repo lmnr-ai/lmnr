@@ -4,15 +4,22 @@ import React, { useState } from "react";
 import { useSWRConfig } from "swr";
 import useSWRMutation from "swr/mutation";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button.tsx";
 import { Combobox } from "@/components/ui/combobox.tsx";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Label } from "@/components/ui/label.tsx";
 import { useUserContext } from "@/contexts/user-context.tsx";
-import { useToast } from "@/lib/hooks/use-toast";
-import { cn } from "@/lib/utils";
-import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types";
+import { useToast } from "@/lib/hooks/use-toast.ts";
+import { cn } from "@/lib/utils.ts";
+import { type Workspace, type WorkspaceUser } from "@/lib/workspaces/types.ts";
 
 interface TransferOwnershipDialogProps {
   open: boolean;

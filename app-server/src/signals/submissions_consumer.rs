@@ -16,7 +16,7 @@ use crate::{
     mq::MessageQueue,
     signals::{
         SignalRun, SignalWorkerConfig, llm_model, llm_provider,
-        provider::{LanguageModelClient, ProviderClient, models::ProviderRequestItem},
+        provider::{LlmClient, models::ProviderRequestItem},
         queue::{
             SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
             push_to_pending_queue, push_to_realtime_queue, push_to_signals_queue,
@@ -41,7 +41,7 @@ pub struct SignalJobSubmissionBatchHandler {
     pub cache: Arc<crate::cache::Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
-    pub llm_client: Arc<ProviderClient>,
+    pub llm_client: Arc<LlmClient>,
     pub config: Arc<SignalWorkerConfig>,
 }
 
@@ -51,7 +51,7 @@ impl SignalJobSubmissionBatchHandler {
         cache: Arc<crate::cache::Cache>,
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
-        llm_client: Arc<ProviderClient>,
+        llm_client: Arc<LlmClient>,
         config: Arc<SignalWorkerConfig>,
     ) -> Self {
         Self {
@@ -98,7 +98,7 @@ async fn process(
     cache: Arc<crate::cache::Cache>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    llm_client: Arc<ProviderClient>,
+    llm_client: Arc<LlmClient>,
     config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
     let batch_message_id = msg.id;
@@ -144,7 +144,8 @@ async fn process(
         }
     }
 
-    let result = process_batch(msg, db, clickhouse, queue, llm_client, config).await;
+    let result =
+        process_batch(msg, db, cache.clone(), clickhouse, queue, llm_client, config).await;
 
     if result.is_ok() {
         if let Err(e) = cache
@@ -173,9 +174,10 @@ async fn process(
 async fn process_batch(
     msg: SignalJobSubmissionBatchMessage,
     db: Arc<DB>,
+    cache: Arc<crate::cache::Cache>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    llm_client: Arc<ProviderClient>,
+    llm_client: Arc<LlmClient>,
     config: Arc<SignalWorkerConfig>,
 ) -> Result<(), HandlerError> {
     let mut requests: Vec<ProviderRequestItem> = Vec::with_capacity(msg.messages.len());
@@ -192,9 +194,12 @@ async fn process_batch(
             project_id,
             trace_id,
             message.run_id,
+            signal.id,
             &signal.prompt,
             &signal.structured_output_schema,
             clickhouse.clone(),
+            cache.clone(),
+            llm_client.clone(),
         )
         .await
         {
@@ -238,7 +243,6 @@ async fn process_batch(
     }
 
     let batch_result = submit_batch_to_llm(
-        &llm_model(),
         llm_client,
         requests,
         successful_messages.clone(),
@@ -305,8 +309,7 @@ async fn emit_submit_spans(
 /// Submit batch to LLM API and push to pending queue on success.
 /// On failure, returns the failed runs and the handler error.
 async fn submit_batch_to_llm(
-    model: &str,
-    llm_client: Arc<ProviderClient>,
+    llm_client: Arc<LlmClient>,
     requests: Vec<ProviderRequestItem>,
     messages: Vec<SignalMessage>,
     queue: Arc<MessageQueue>,
@@ -315,7 +318,6 @@ async fn submit_batch_to_llm(
     let span_requests = requests.clone();
     match llm_client
         .create_batch(
-            model,
             requests,
             Some(format!("signal_batch_{}", Uuid::new_v4())),
         )
