@@ -18,8 +18,9 @@ use crate::{
 
 use super::span_attributes::{
     ANTHROPIC_REQUEST_SERVICE_TIER, ANTHROPIC_RESPONSE_SERVICE_TIER, GEN_AI_REQUEST_BATCH,
-    GEN_AI_REQUEST_SERVICE_TIER, GEN_AI_RESPONSE_SERVICE_TIER, GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
-    GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
+    GEN_AI_REQUEST_SERVICE_TIER, GEN_AI_RESPONSE_SERVICE_TIER, GEN_AI_SYSTEM,
+    GEN_AI_USAGE_AUDIO_INPUT_TOKENS, GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_1H_TOKENS,
     GEN_AI_USAGE_CACHE_CREATION_EPHEMERAL_5M_TOKENS, GEN_AI_USAGE_REASONING_TOKENS,
     OPENAI_REQUEST_SERVICE_TIER, OPENAI_RESPONSE_SERVICE_TIER,
 };
@@ -96,7 +97,25 @@ pub async fn get_llm_usage_for_span(
             input_cost = cost_entry.input_cost;
             output_cost = cost_entry.output_cost;
             total_cost = input_cost + output_cost;
+        } else if total_tokens > 0 {
+            warn!(
+                span_name,
+                model,
+                provider = provider_name.as_deref().unwrap_or("unknown"),
+                "No pricing found for model. Cost will be reported as 0."
+            );
         }
+    } else if attributes.raw_attributes.contains_key(GEN_AI_SYSTEM) && total_tokens > 0 {
+        // Span has gen_ai.system but no model name.
+        warn!(
+            span_name,
+            provider = attributes
+                .raw_attributes
+                .get(GEN_AI_SYSTEM)
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown"),
+            "LLM span has tokens but no model name. Cost cannot be calculated."
+        );
     }
 
     SpanUsage {
