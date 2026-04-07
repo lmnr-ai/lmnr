@@ -232,8 +232,8 @@ impl SpanAttributes {
     fn detect_aisdk_operation_prefix(&self) -> Option<&'static str> {
         for prefix in AISDK_OPERATION_PREFIXES {
             if self
-                .raw_attributes
-                .contains_key(&format!("{prefix}.usage.inputTokens"))
+                    .raw_attributes
+                    .contains_key(&format!("{prefix}.usage.inputTokens"))
                 || self
                     .raw_attributes
                     .contains_key(&format!("{prefix}.usage.outputTokens"))
@@ -243,6 +243,12 @@ impl SpanAttributes {
                 || self
                     .raw_attributes
                     .contains_key(&format!("{prefix}.response.text"))
+                || self
+                    .raw_attributes
+                    .contains_key(&format!("{prefix}.response.toolCalls"))
+                || self
+                    .raw_attributes
+                    .contains_key(&format!("{prefix}.response.object"))
             {
                 return Some(prefix);
             }
