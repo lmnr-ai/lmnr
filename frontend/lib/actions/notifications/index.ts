@@ -20,7 +20,7 @@ const GetWebNotificationsSchema = z.object({
   workspaceId: z.guid(),
   userId: z.guid(),
   projectId: z.guid(),
-  limit: z.number().int().positive().optional().default(10),
+  limit: z.number().int().positive().optional().default(30),
 });
 
 const MarkNotificationAsReadSchema = z.object({
@@ -48,6 +48,7 @@ export const getWebNotifications = async (
       WHERE workspace_id = {workspaceId: UUID}
         AND target_type = 'WEB'
         AND definition_type = 'REPORT'
+        AND created_at >= now() - INTERVAL 1 MONTH
       ORDER BY created_at DESC
       LIMIT {limit: UInt32}
     `,
