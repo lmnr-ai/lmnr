@@ -138,9 +138,7 @@ const HorizontalBarChart = ({
                 shape={(props: any) => {
                   const { payload, tooltipPayload, tooltipPosition, dataKey, ...svgProps } = props;
                   const isClickable = onBarClick && (
-                    payload?.trace_id || payload?.__hidden_trace_id ||
-                    payload?.id || payload?.__hidden_id ||
-                    payload?.signal_id || payload?.__hidden_signal_id
+                    payload?.trace_id || payload?.id || payload?.signal_id
                   );
                   return <rect {...svgProps} className={cn({"hover:opacity-60 transition-opacity cursor-pointer": isClickable})} rx={4} />;
                 }}
@@ -156,8 +154,8 @@ const HorizontalBarChart = ({
                   dataKey={categoryColumn}
                   content={(props) => {
                     const row = data[props.index as number];
-                    const hasSignalId = row?.signal_id || row?.__hidden_signal_id;
-                    const hasTraceId = row?.trace_id || row?.__hidden_trace_id || row?.id || row?.__hidden_id;
+                    const hasSignalId = row?.signal_id;
+                    const hasTraceId = row?.trace_id || row?.id;
                     const isClickable = onBarClick && (hasTraceId || hasSignalId);
                     const showLabel = categoryColumn !== valueColumn;
                     const labelText = showLabel ? String(props.value) : "";

@@ -4,8 +4,8 @@ import { useCallback, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { ChartType, type DisplayMode, resolveDisplayMode } from "@/components/chart-builder/types";
-import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
-import { type DashboardChart } from "@/components/dashboard/types";
+import { useHomeEditorStoreContext } from "@/components/home/editor/home-editor-store";
+import { type HomeChart } from "@/components/home/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ import OrderByField from "./OrderByField";
 import TableSelect from "./TableSelect";
 
 const createChartViaApi = async (projectId: string, data: { name: string; query: string; config: any }) => {
-  const response = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+  const response = await fetch(`/api/projects/${projectId}/home-charts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -40,7 +40,7 @@ const updateChartViaApi = async (
   chartId: string,
   data: { name: string; query: string; config: any }
 ) => {
-  const response = await fetch(`/api/projects/${projectId}/dashboard-charts/${chartId}`, {
+  const response = await fetch(`/api/projects/${projectId}/home-charts/${chartId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -67,7 +67,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const { chart, setName, chartType, displayMode, setDisplayMode } = useDashboardEditorStoreContext((state) => ({
+  const { chart, setName, chartType, displayMode, setDisplayMode } = useHomeEditorStoreContext((state) => ({
     chart: state.chart,
     setName: state.setName,
     chartType: state.chart.settings.config.type,
@@ -94,8 +94,8 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
         ? await updateChartViaApi(String(projectId), id, data)
         : await createChartViaApi(String(projectId), data);
 
-      await mutate<DashboardChart[]>(
-        `/api/projects/${projectId}/dashboard-charts`,
+      await mutate<HomeChart[]>(
+        `/api/projects/${projectId}/home-charts`,
         (current = []) => {
           if (id) {
             return current.map((item) => (item.id === result.id ? result : item));
@@ -106,7 +106,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
       );
 
       toast({ title: `Successfully ${id ? "updated" : "created"} chart` });
-      router.push(`/project/${projectId}/dashboard`);
+      router.push(`/project/${projectId}/home${chart.id ? "" : "?newChart=1"}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to save chart";
       setSaveError(errorMessage);
@@ -139,8 +139,8 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">None</SelectItem>
-              <SelectItem value="total">Show Total</SelectItem>
-              <SelectItem value="average">Show Average</SelectItem>
+              <SelectItem value="total">Total</SelectItem>
+              <SelectItem value="average">Average</SelectItem>
             </SelectContent>
           </Select>
         </div>

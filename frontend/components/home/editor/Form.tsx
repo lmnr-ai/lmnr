@@ -9,9 +9,9 @@ import { useFormContext, useWatch } from "react-hook-form";
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { ChartType, resolveDisplayMode } from "@/components/chart-builder/types";
 import { type ColumnInfo, transformDataToColumns } from "@/components/chart-builder/utils";
-import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
-import { QueryBuilderFields } from "@/components/dashboard/editor/fields";
-import { getTimeColumn } from "@/components/dashboard/editor/table-schemas";
+import { useHomeEditorStoreContext } from "@/components/home/editor/home-editor-store";
+import { QueryBuilderFields } from "@/components/home/editor/fields";
+import { getTimeColumn } from "@/components/home/editor/table-schemas";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Label } from "@/components/ui/label.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -49,7 +49,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     setError,
     parameters,
     setParameterValue,
-  } = useDashboardEditorStoreContext((state) => ({
+  } = useHomeEditorStoreContext((state) => ({
     chart: state.chart,
     setQuery: state.setQuery,
     setChartConfig: state.setChartConfig,
@@ -130,14 +130,14 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       if (needsIdInjection && (!dimensions || dimensions.length === 0)) {
         if (table === "spans") {
           if (!existingColumns.has("trace_id") && !existingDimensions.has("trace_id")) {
-            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [], alias: "__hidden_trace_id" });
+            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [] });
           }
           if (!existingColumns.has("span_id") && !existingDimensions.has("span_id")) {
-            injectedMetrics.push({ fn: "raw", column: "span_id", args: [], alias: "__hidden_span_id" });
+            injectedMetrics.push({ fn: "raw", column: "span_id", args: [] });
           }
         } else if (table === "traces") {
           if (!existingColumns.has("id") && !existingDimensions.has("id")) {
-            injectedMetrics.push({ fn: "raw", column: "id", args: [], alias: "__hidden_id" });
+            injectedMetrics.push({ fn: "raw", column: "id", args: [] });
           }
         }
       }

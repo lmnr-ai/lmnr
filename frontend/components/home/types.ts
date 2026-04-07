@@ -1,6 +1,6 @@
 import { type ChartConfig } from "@/components/chart-builder/types";
 
-export interface DashboardChart {
+export interface HomeChart {
   id: string;
   name: string;
   settings: {

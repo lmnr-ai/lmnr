@@ -1,6 +1,6 @@
 import { type Metadata } from "next";
 
-import DashboardEditor from "@/components/dashboard/editor";
+import HomeEditor from "@/components/home/editor";
 import { getChart } from "@/lib/actions/dashboard";
 
 export const metadata: Metadata = {
@@ -12,8 +12,8 @@ export default async function ManageDashboardPage(props: { params: Promise<{ pro
 
   if (params.id !== "new") {
     const chart = await getChart(params);
-    return <DashboardEditor chart={chart} />;
+    return <HomeEditor chart={chart} />;
   }
 
-  return <DashboardEditor />;
+  return <HomeEditor />;
 }

@@ -6,8 +6,8 @@ import {
   getMetricAlias,
   getMetricFunctionValue,
   METRIC_FUNCTION_OPTIONS,
-} from "@/components/dashboard/editor/constants";
-import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas";
+} from "@/components/home/editor/constants";
+import { getAvailableColumns } from "@/components/home/editor/table-schemas";
 import SQLEditor from "@/components/sql/sql-editor";
 import type { SQLSchemaConfig } from "@/components/sql/utils";
 import { Badge } from "@/components/ui/badge.tsx";

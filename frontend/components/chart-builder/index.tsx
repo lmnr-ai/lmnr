@@ -203,7 +203,7 @@ const ChartBuilderCore = () => {
               className="self-end"
             >
               <Upload className="w-4 h-4 mr-2" />
-              Export to Dashboard
+              Export to Home
             </Button>
           </ExportChartDialog>
         </div>

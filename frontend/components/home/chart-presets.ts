@@ -65,7 +65,7 @@ ORDER BY time ASC WITH FILL
     FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
     TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
     STEP toInterval(1, {interval_unit:String})`,
-    config: { x: "time", y: "count", type: "line", total: true, breakdown: "status" },
+    config: { x: "time", y: "count", type: "line", displayMode: "total", breakdown: "status" },
   },
   {
     name: "Total duration",
@@ -126,7 +126,7 @@ ORDER BY time WITH FILL
     FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
     TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
     STEP toInterval(1, {interval_unit:String})`,
-    config: { x: "time", y: "total_cost", type: "bar", total: true },
+    config: { x: "time", y: "total_cost", type: "bar", displayMode: "total" },
   },
   {
     name: "Total tokens",
@@ -144,7 +144,7 @@ ORDER BY time WITH FILL
     FROM toStartOfInterval({start_time:DateTime64}, toInterval(1, {interval_unit:String}))
     TO toStartOfInterval({end_time:DateTime64}, toInterval(1, {interval_unit:String}))
     STEP toInterval(1, {interval_unit:String})`,
-    config: { x: "time", y: "total_tokens", type: "line", total: true },
+    config: { x: "time", y: "total_tokens", type: "line", displayMode: "total" },
   },
   {
     name: "Tokens by model",

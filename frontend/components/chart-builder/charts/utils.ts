@@ -1,6 +1,6 @@
 import { scaleTime } from "d3-scale";
 import { format, isValid, parseISO } from "date-fns";
-import { isNil } from "lodash";
+import { isNil, mean } from "lodash";
 
 import { type ChartConfig } from "@/components/ui/chart";
 
@@ -162,27 +162,6 @@ export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: an
   };
 };
 
-const selectColumnsFromData = (
-  data: Record<string, any>[],
-  xColumn: string,
-  yColumns: string[]
-): Record<string, any>[] =>
-  data.map((row) => {
-    const selectedRow: Record<string, any> = {
-      [xColumn]: row[xColumn],
-    };
-    yColumns.forEach((yColumn) => {
-      selectedRow[yColumn] = row[yColumn];
-    });
-    // Preserve hidden ID columns for click handlers
-    Object.keys(row).forEach((key) => {
-      if (key.startsWith("__hidden_")) {
-        selectedRow[key] = row[key];
-      }
-    });
-    return selectedRow;
-  });
-
 const createChartConfig = (columns: string[]): ChartConfig =>
   Object.fromEntries(
     columns.map((column, index) => [
@@ -201,8 +180,7 @@ export const transformDataForBreakdown = (
   yColumn: string,
   breakdownColumn: string
 ) => {
-  const groupedByX = new Map<string, Record<string, number>>();
-  const hiddenByX = new Map<string, Record<string, any>>();
+  const groupedByX = new Map<string, Record<string, any>>();
   const allBreakdownValues = new Set<string>();
 
   data.forEach((row) => {
@@ -215,14 +193,7 @@ export const transformDataForBreakdown = (
     }
 
     if (!groupedByX.has(xValue)) {
-      groupedByX.set(xValue, {});
-      const hidden: Record<string, any> = {};
-      Object.keys(row).forEach((key) => {
-        if (key.startsWith("__hidden_")) {
-          hidden[key] = row[key];
-        }
-      });
-      hiddenByX.set(xValue, hidden);
+      groupedByX.set(xValue, { ...row });
     }
 
     const xGroup = groupedByX.get(xValue);
@@ -233,11 +204,10 @@ export const transformDataForBreakdown = (
 
   const filteredBreakdownValues = Array.from(allBreakdownValues).filter((value) => value && !isNil(value));
 
-  const chartData = Array.from(groupedByX.entries()).map(([xValue, breakdownGroups]) => ({
+  const chartData = Array.from(groupedByX.entries()).map(([xValue, group]) => ({
+    ...group,
     [xColumn]: xValue,
-    ...Object.fromEntries(filteredBreakdownValues.map((value) => [value, 0])),
-    ...breakdownGroups,
-    ...hiddenByX.get(xValue),
+    ...Object.fromEntries(filteredBreakdownValues.map((value) => [value, group[value] ?? 0])),
   }));
 
   return {
@@ -248,12 +218,10 @@ export const transformDataForBreakdown = (
 };
 
 export const transformDataForSimpleChart = (data: Record<string, any>[], xColumn: string, yColumns: string[]) => {
-  const chartData = selectColumnsFromData(data, xColumn, yColumns);
-
   const filteredYColumns = yColumns.filter((column) => column && !isNil(column));
 
   return {
-    chartData,
+    chartData: data,
     keys: new Set(filteredYColumns),
     chartConfig: createChartConfig(filteredYColumns),
   };
@@ -275,22 +243,6 @@ export const calculateChartTotals = (data: Record<string, any>[], keys: string[]
   const totalMax = calculateDataMax(data, keys);
 
   return { totalSum, totalMax };
-};
-
-export const calculateAverageValue = (data: Record<string, any>[], keys: string[]): number => {
-  if (data.length === 0 || keys.length === 0) return 0;
-
-  // Exclude zero-filled rows (from WITH FILL gap filling) to avoid skewing the average
-  const nonZeroRows = data.filter((row) =>
-    keys.some((key) => (Number(row[key]) || 0) !== 0)
-  );
-  if (nonZeroRows.length === 0) return 0;
-
-  const totalSum = nonZeroRows.reduce(
-    (sum, row) => sum + keys.reduce((keySum, key) => keySum + (Number(row[key]) || 0), 0),
-    0
-  );
-  return totalSum / nonZeroRows.length;
 };
 
 export type DisplayValueResult = {
@@ -316,7 +268,8 @@ export const calculateDisplayValue = (
   }
 
   if (displayMode === "average") {
-    return { displayValue: calculateAverageValue(data, keys), totalMax };
+    const values = data.flatMap((row) => keys.map((key) => Number(row[key]) || 0)).filter((v) => v !== 0);
+    return { displayValue: values.length > 0 ? mean(values) : 0, totalMax };
   }
 
   return { displayValue: null, totalMax: 0 };

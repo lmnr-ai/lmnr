@@ -4,16 +4,16 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { ChartType } from "@/components/chart-builder/types";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
-import ChartHeader from "@/components/dashboard/chart-header";
-import { useDashboardTraceStore } from "@/components/dashboard/dashboard-trace-context";
-import { type DashboardChart } from "@/components/dashboard/types";
+import ChartHeader from "@/components/home/chart-header";
+import { useHomeTraceStore } from "@/components/home/home-trace-context";
+import { type HomeChart } from "@/components/home/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type GroupByInterval } from "@/lib/clickhouse/modifiers";
 import { convertToTimeParameters } from "@/lib/time";
 
 /**
- * For clickable chart types (horizontal bar, table), inject hidden ID columns
+ * For clickable chart types (horizontal bar), inject ID columns
  * into the SQL query if they're not already present. This handles charts that
  * were saved before the editor started injecting these columns.
  */
@@ -24,41 +24,41 @@ const injectIdColumns = (sql: string, chartType?: ChartType): string => {
 
   const hasGroupBy = /\bGROUP\s+BY\b/i.test(sql);
   const injections: string[] = [];
-  const lowerSql = sql.toLowerCase();
+
+  // Only check the SELECT clause (before FROM) for existing columns
+  const fromMatch = sql.match(/\bFROM\b/i);
+  const selectClause = fromMatch ? sql.slice(0, fromMatch.index).toLowerCase() : sql.toLowerCase();
 
   if (/\bfrom\s+signal_events\b/i.test(sql)) {
-    // Signal name → signal_id is 1:1, so any() is safe with GROUP BY
     const wrap = hasGroupBy ? (col: string) => `any(${col})` : (col: string) => col;
-    if (!lowerSql.includes("__hidden_trace_id")) {
-      injections.push(`${wrap("trace_id")} AS \`__hidden_trace_id\``);
+    if (!selectClause.includes("trace_id")) {
+      injections.push(`${wrap("trace_id")} AS trace_id`);
     }
-    if (!lowerSql.includes("__hidden_signal_id")) {
-      injections.push(`${wrap("signal_id")} AS \`__hidden_signal_id\``);
+    if (!selectClause.includes("signal_id")) {
+      injections.push(`${wrap("signal_id")} AS signal_id`);
     }
   } else if (!hasGroupBy) {
-    // For spans/traces, skip injection when GROUP BY is present
     if (/\bfrom\s+spans\b/i.test(sql)) {
-      if (!lowerSql.includes("__hidden_trace_id")) {
-        injections.push("trace_id AS `__hidden_trace_id`");
+      if (!selectClause.includes("trace_id")) {
+        injections.push("trace_id");
       }
-      if (!lowerSql.includes("__hidden_span_id")) {
-        injections.push("span_id AS `__hidden_span_id`");
+      if (!selectClause.includes("span_id")) {
+        injections.push("span_id");
       }
     } else if (/\bfrom\s+traces\b/i.test(sql)) {
-      if (!lowerSql.includes("__hidden_id")) {
-        injections.push("id AS `__hidden_id`");
+      if (!/\bid\b/.test(selectClause)) {
+        injections.push("id");
       }
     }
   }
 
   if (injections.length === 0) return sql;
 
-  // Insert the columns before FROM
   return sql.replace(/\bFROM\b/i, `, ${injections.join(", ")}\nFROM`);
 };
 
 interface ChartProps {
-  chart: DashboardChart;
+  chart: HomeChart;
 }
 
 const Chart = ({ chart }: ChartProps) => {
@@ -68,7 +68,7 @@ const Chart = ({ chart }: ChartProps) => {
   const [data, setData] = useState<Record<string, any>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const openTrace = useDashboardTraceStore((s) => s.openTrace);
+  const openTrace = useHomeTraceStore((s) => s.openTrace);
 
   const columns = useMemo(() => transformDataToColumns(data), [data]);
 
@@ -138,15 +138,15 @@ const Chart = ({ chart }: ChartProps) => {
 
   const handleBarClick = useCallback(
     (rowData: Record<string, any>) => {
-      const signalId = rowData.signal_id || rowData.__hidden_signal_id;
-      const traceId = rowData.trace_id || rowData.__hidden_trace_id || rowData.id || rowData.__hidden_id;
+      const signalId = rowData.signal_id;
+      const traceId = rowData.trace_id || rowData.id;
 
       if (signalId) {
         window.open(`/project/${projectId}/signals/${signalId}`, "_blank");
         return;
       }
 
-      const spanId = rowData.span_id || rowData.__hidden_span_id;
+      const spanId = rowData.span_id;
       if (traceId) {
         openTrace(String(traceId), spanId ? String(spanId) : undefined);
       }

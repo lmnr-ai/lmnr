@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { prettifyError, ZodError } from "zod/v4";
 
-import { deleteDashboardChart, getChart, updateChart, updateChartName } from "@/lib/actions/dashboard";
+import { deleteHomeChart, getChart, updateChart, updateChartName } from "@/lib/actions/dashboard";
 
 export async function GET(
   _req: NextRequest,
@@ -36,7 +36,7 @@ export async function DELETE(
   const { projectId, id } = await props.params;
 
   try {
-    await deleteDashboardChart({ projectId, id });
+    await deleteHomeChart({ projectId, id });
 
     return Response.json({ success: true });
   } catch (error) {

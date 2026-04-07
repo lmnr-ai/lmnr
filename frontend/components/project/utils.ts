@@ -14,7 +14,7 @@ import {
 export const getSidebarMenus = (projectId: string) => [
   {
     name: "Home",
-    href: `/project/${projectId}/dashboard`,
+    href: `/project/${projectId}/home`,
     icon: House,
   },
   {

@@ -1,8 +1,8 @@
 import { ChartType } from "@/components/chart-builder/types";
-import { type DashboardChart } from "@/components/dashboard/types";
+import { type HomeChart } from "@/components/home/types";
 import { type ReportType } from "@/lib/actions/reports/types.ts";
 
-const defaultCharts: Omit<DashboardChart, "id" | "createdAt">[] = [
+const defaultCharts: Omit<HomeChart, "id" | "createdAt">[] = [
   {
     name: "Top spans",
     query: `

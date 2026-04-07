@@ -1,11 +1,11 @@
 import { type Metadata } from "next";
 
-import Dashboard from "@/components/dashboard/dashboard";
+import Home from "@/components/home/home";
 
 export const metadata: Metadata = {
   title: "Home",
 };
 
 export default async function DashboardPage() {
-  return <Dashboard />;
+  return <Home />;
 }

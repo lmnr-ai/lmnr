@@ -6,8 +6,8 @@ import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { type ChartPreset, CHART_PRESETS, type PresetTable } from "@/components/dashboard/chart-presets";
-import { type DashboardChart } from "@/components/dashboard/types";
+import { type ChartPreset, CHART_PRESETS, type PresetTable } from "@/components/home/chart-presets";
+import { type HomeChart } from "@/components/home/types";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,7 +25,7 @@ const TABLE_FILTERS: { label: string; value: PresetTable }[] = [
   { label: "Signals", value: "signals" },
 ];
 
-const AddChartDropdown = () => {
+const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) => {
   const { projectId } = useParams();
   const { mutate } = useSWRConfig();
   const { toast } = useToast();
@@ -40,7 +40,7 @@ const AddChartDropdown = () => {
   const handleSelect = useCallback(
     async (preset: ChartPreset) => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+        const res = await fetch(`/api/projects/${projectId}/home-charts`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -56,8 +56,9 @@ const AddChartDropdown = () => {
           return;
         }
 
-        await mutate(`/api/projects/${projectId}/dashboard-charts`);
+        await mutate(`/api/projects/${projectId}/home-charts`);
         setOpen(false);
+        requestAnimationFrame(() => onChartCreated?.());
       } catch {
         toast({ variant: "destructive", title: "Something went wrong" });
       }
@@ -72,7 +73,7 @@ const AddChartDropdown = () => {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-64 p-0">
         <div className="p-1 border-b">
-          <Link href={{ pathname: "dashboard/new" }} onClick={() => setOpen(false)}>
+          <Link href={{ pathname: "home/new" }} onClick={() => setOpen(false)}>
             <button className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-sm hover:bg-accent cursor-pointer">
               <Pen className="size-3.5 text-muted-foreground" />
               Custom
