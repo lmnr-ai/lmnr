@@ -137,9 +137,9 @@ pub(crate) fn default_model_for_provider(provider: &str) -> String {
 /// Map a (provider, model size) pair to a concrete model ID.
 pub fn model_for_size(provider: &str, size: ModelSize) -> String {
     match (provider, size) {
-        ("gemini", ModelSize::Small) => "gemini-2.0-flash-lite".to_string(),
+        ("gemini", ModelSize::Small) => "gemini-3-flash-preview".to_string(),
         ("gemini", ModelSize::Medium) => "gemini-3-flash-preview".to_string(),
-        ("gemini", ModelSize::Large) => "gemini-2.5-pro-preview".to_string(),
+        ("gemini", ModelSize::Large) => "gemini-3-pro-preview".to_string(),
         ("bedrock", ModelSize::Small) => {
             "global.anthropic.claude-haiku-4-5-20251001-v1:0".to_string()
         }
@@ -281,22 +281,8 @@ impl LlmClient {
     }
 
     pub async fn get_batch(&self, batch_name: &str) -> ProviderResult<ProviderBatchOperation> {
+        // TODO: Implement batch retrieval for all providers
         let client = self.providers.get(&self.default_provider).unwrap();
         client.get_batch(batch_name).await
-    }
-
-    pub fn supports_batch(&self) -> bool {
-        self.providers
-            .get(&self.default_provider)
-            .map(|c| c.supports_batch())
-            .unwrap_or(false)
-    }
-
-    pub fn default_provider_name(&self) -> &str {
-        &self.default_provider
-    }
-
-    pub fn default_model_name(&self) -> &str {
-        &self.default_model
     }
 }
