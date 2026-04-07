@@ -147,19 +147,24 @@ const NotificationItem = ({
   const hasDetails = formatted.aiSummary || formatted.noteworthyEvents.length > 0;
   const isUnread = !notification.isRead;
 
-  const handleExpand = () => {
-    setExpanded(true);
+  const markAsRead = () => {
     if (isUnread) {
       onMarkAsRead(notification.id);
     }
+  };
+
+  const handleExpand = () => {
+    setExpanded(true);
+    markAsRead();
   };
 
   return (
     <div
       className={cn(
         "flex flex-col gap-1.5 border-b px-3 py-3 transition-colors",
-        isUnread ? "bg-secondary/40" : "bg-transparent"
+        isUnread ? "bg-secondary/40 cursor-pointer" : "bg-transparent"
       )}
+      onClick={markAsRead}
     >
       <div className="flex items-center justify-between">
         <span className={cn("text-xs text-foreground", isUnread ? "font-semibold" : "font-medium")}>
