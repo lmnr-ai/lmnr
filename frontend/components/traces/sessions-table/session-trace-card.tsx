@@ -4,10 +4,10 @@ import { ChevronDown, ChevronUp, CircleDollarSign, Clock3, Coins } from "lucide-
 import { useState } from "react";
 import { shallow } from "zustand/shallow";
 
-import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { type TraceRow } from "@/lib/traces/types";
 import { cn, getDurationString } from "@/lib/utils";
 
@@ -47,37 +47,53 @@ export default function SessionTraceCard({ trace, isLast, onClick }: SessionTrac
         )}
         onClick={onClick}
       >
-        {/* Details column */}
         <div className="flex flex-col h-full justify-between px-4 py-3 shrink-0 w-40">
-          <div className="flex flex-col gap-1">
-            <ClientTimestampFormatter
-              className="text-xs text-secondary-foreground leading-4"
-              timestamp={trace.startTime}
-            />
+          <div className="flex flex-col gap-2">
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-sm text-secondary-foreground leading-4 cursor-default">
+                    {new Date(trace.startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="border">
+                  {new Date(trace.startTime).toLocaleString([], {
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div onClick={(e) => e.stopPropagation()}>
-              <CopyTooltip value={trace.id}>
-                <span className="text-xs text-primary-foreground leading-4 truncate block" title={trace.id}>
-                  {trace.id}
-                </span>
-              </CopyTooltip>
+              {trace?.topSpanName && (
+                <CopyTooltip value={trace?.topSpanName}>
+                  <span className="text-sm text-primary-foreground leading-4 truncate block" title={trace.topSpanName}>
+                    {trace.topSpanName}
+                  </span>
+                </CopyTooltip>
+              )}
             </div>
           </div>
           <div className="flex flex-col gap-1">
             <div className="flex gap-1 h-4 items-center">
               <Clock3 size={12} className="shrink-0 text-muted-foreground" />
-              <span className="font-mono text-xs text-muted-foreground whitespace-nowrap leading-4">
+              <span className="font-mono text-sm text-muted-foreground whitespace-nowrap leading-4">
                 {getDurationString(trace.startTime, trace.endTime)}
               </span>
             </div>
             <div className="flex gap-1 h-4 items-center">
               <Coins size={12} className="shrink-0 text-muted-foreground" />
-              <span className="font-mono text-xs text-muted-foreground whitespace-nowrap leading-4">
+              <span className="font-mono text-sm text-muted-foreground whitespace-nowrap leading-4">
                 {compactNumberFormat.format(trace.totalTokens)}
               </span>
             </div>
             <div className="flex gap-1 h-4 items-center">
               <CircleDollarSign size={12} className="shrink-0 text-muted-foreground" />
-              <span className="font-mono text-xs text-muted-foreground whitespace-nowrap leading-4">
+              <span className="font-mono text-sm text-muted-foreground whitespace-nowrap leading-4">
                 {(trace.totalCost ?? 0).toFixed(2)}
               </span>
             </div>

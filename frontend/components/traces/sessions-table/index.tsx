@@ -1,13 +1,12 @@
 "use client";
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import AdvancedSearch from "@/components/common/advanced-search";
 import { filters } from "@/components/traces/sessions-table/columns";
 import { SessionsStoreProvider, useSessionsStoreContext } from "@/components/traces/sessions-table/sessions-store";
-import { useTraceViewNavigation } from "@/components/traces/trace-view/navigation-context";
 import { useTracesStoreContext } from "@/components/traces/traces-store";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
@@ -46,8 +45,6 @@ function SessionsTableContent() {
   const endDate = searchParams.get("endDate");
   const pastHours = searchParams.get("pastHours");
   const textSearchFilter = searchParams.get("search");
-
-  const { setNavigationRefList } = useTraceViewNavigation();
 
   const { expandedSessions, loadingSessions, sessionTraces, sessionTimelines } = useSessionsStoreContext(
     (state) => ({
@@ -161,22 +158,6 @@ function SessionsTableContent() {
     deps: [endDate, filter, pastHours, projectId, startDate, textSearchFilter],
   });
 
-  // Update navigation ref list from expanded session traces (in rendered order)
-  const allVisibleTraceIds = useMemo(() => {
-    const ids: string[] = [];
-    for (const session of sessions) {
-      if (expandedSessions.has(session.sessionId)) {
-        const traces = sessionTraces[session.sessionId] ?? [];
-        ids.push(...traces.map((t) => t.id));
-      }
-    }
-    return ids;
-  }, [sessions, sessionTraces, expandedSessions]);
-
-  useEffect(() => {
-    setNavigationRefList(allVisibleTraceIds);
-  }, [setNavigationRefList, allVisibleTraceIds]);
-
   const handleToggleSession = useCallback(
     async (sessionId: string) => {
       const isExpanded = expandedSessions.has(sessionId);
@@ -196,6 +177,7 @@ function SessionsTableContent() {
         urlParams.set("pageNumber", "0");
         urlParams.set("pageSize", "50");
         urlParams.set("filter", JSON.stringify({ column: "session_id", value: sessionId, operator: "eq" }));
+        urlParams.set("sortDirection", "ASC");
 
         if (pastHours != null) urlParams.set("pastHours", pastHours);
         if (startDate != null) urlParams.set("startDate", startDate);

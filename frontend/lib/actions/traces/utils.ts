@@ -196,7 +196,7 @@ export const buildTracesQueryWithParams = (options: BuildTracesQueryOptions): Qu
   if (sortBy && sortSql) {
     orderBy.push({ column: sortSql, direction: sortDirection ?? "DESC" });
   } else {
-    orderBy.push({ column: "start_time", direction: "DESC" });
+    orderBy.push({ column: "start_time", direction: sortDirection ?? "DESC" });
   }
 
   const queryOptions: SelectQueryOptions = {

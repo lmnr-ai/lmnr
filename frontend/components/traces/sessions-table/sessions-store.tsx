@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
-import { createStore, useStore } from "zustand";
+import { createStore } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 import { type TraceRow, type TraceTimelineItem } from "@/lib/traces/types";
 
@@ -11,7 +12,6 @@ export type SessionsState = {
   sessionTraces: Record<string, TraceRow[]>;
   sessionTimelines: Record<string, TraceTimelineItem[]>;
   traceIO: Record<string, { input: string | null; output: string | null }>;
-  loadingTraceIO: Set<string>;
   loadingSessionIO: Set<string>;
 };
 
@@ -21,8 +21,6 @@ export type SessionsActions = {
   setLoadingSession: (sessionId: string, loading: boolean) => void;
   setSessionTraces: (sessionId: string, traces: TraceRow[]) => void;
   mergeSessionTimelines: (timelines: Record<string, TraceTimelineItem[]>) => void;
-  setTraceIO: (traceId: string, io: { input: string | null; output: string | null }) => void;
-  setLoadingTraceIO: (traceId: string, loading: boolean) => void;
   mergeTraceIO: (io: Record<string, { input: string | null; output: string | null }>) => void;
   setLoadingSessionIO: (sessionId: string, loading: boolean) => void;
   resetExpandState: () => void;
@@ -39,7 +37,6 @@ const DEFAULT_STATE: SessionsState = {
   sessionTraces: {},
   sessionTimelines: {},
   traceIO: {},
-  loadingTraceIO: new Set(),
   loadingSessionIO: new Set(),
 };
 
@@ -89,22 +86,6 @@ export const createSessionsStore = () => {
         sessionTimelines: { ...state.sessionTimelines, ...timelines },
       })),
 
-    setTraceIO: (traceId, io) =>
-      set((state) => ({
-        traceIO: { ...state.traceIO, [traceId]: io },
-      })),
-
-    setLoadingTraceIO: (traceId, loading) =>
-      set((state) => {
-        const next = new Set(state.loadingTraceIO);
-        if (loading) {
-          next.add(traceId);
-        } else {
-          next.delete(traceId);
-        }
-        return { loadingTraceIO: next };
-      }),
-
     mergeTraceIO: (io) =>
       set((state) => ({
         traceIO: { ...state.traceIO, ...io },
@@ -127,7 +108,6 @@ export const createSessionsStore = () => {
         sessionTraces: {},
         sessionTimelines: {},
         traceIO: {},
-        loadingTraceIO: new Set(),
         loadingSessionIO: new Set(),
       });
     },
@@ -149,7 +129,7 @@ export const useSessionsStoreContext = <T,>(
 ): T => {
   const store = useContext(SessionsContext);
   if (!store) throw new Error("Missing SessionsContext.Provider in the tree");
-  return useStore(store, selector, equalityFn);
+  return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
 export const SessionsStoreProvider = ({ children }: PropsWithChildren) => {

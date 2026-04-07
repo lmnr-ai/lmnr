@@ -81,9 +81,7 @@ export default function SessionsVirtualList({
       });
       if (expandedSessions.has(session.sessionId)) {
         const isLoading = loadingSessions.has(session.sessionId);
-        const traces = (sessionTraces[session.sessionId] ?? [])
-          .slice()
-          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+        const traces = sessionTraces[session.sessionId] ?? [];
 
         if (isLoading) {
           items.push({ type: "trace-loading", sessionId: session.sessionId });
