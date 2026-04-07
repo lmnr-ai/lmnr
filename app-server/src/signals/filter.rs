@@ -490,10 +490,19 @@ pub fn apply_drop_rules(ch_spans: Vec<CHSpan>, rules: &[DropRule]) -> Vec<CHSpan
     if rules.is_empty() {
         return ch_spans;
     }
-    ch_spans
+    let original_count = ch_spans.len();
+    let result: Vec<CHSpan> = ch_spans
         .into_iter()
         .filter(|span| !rules.iter().any(|rule| rule_matches_span(rule, span)))
-        .collect()
+        .collect();
+    let dropped = original_count - result.len();
+    if dropped > 0 {
+        log::info!(
+            "Span drop rules filtered {dropped} of {original_count} spans ({} remaining)",
+            result.len()
+        );
+    }
+    result
 }
 
 #[cfg(test)]
