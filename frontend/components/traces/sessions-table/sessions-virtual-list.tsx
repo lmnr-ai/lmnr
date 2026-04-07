@@ -1,6 +1,6 @@
 "use client";
 
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/react-virtual";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -8,12 +8,14 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { type SessionRow as SessionRowType, type TraceRow, type TraceTimelineItem } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
-const itemTransition = { type: "spring", stiffness: 400, damping: 50 } as const;
-
 import SessionRowComponent from "./session-row";
 import SessionTableHeader from "./session-table-header";
 import SessionTraceCard from "./session-trace-card";
 import TraceSectionHeader from "./trace-section-header";
+
+const SESSION_HEADER_HEIGHT = 36;
+
+const itemTransition = { type: "spring", stiffness: 400, damping: 50 } as const;
 
 type VirtualListItem =
   | { type: "session-row"; session: SessionRowType; timeline?: TraceTimelineItem[] }
@@ -123,12 +125,44 @@ export default function SessionsVirtualList({
     [flatList]
   );
 
+  const stickyIndexes = useMemo(
+    () =>
+      flatList.reduce<number[]>((acc, item, index) => {
+        if (item.type === "session-row" && expandedSessions.has(item.session.sessionId)) {
+          acc.push(index);
+        }
+        return acc;
+      }, []),
+    [flatList, expandedSessions]
+  );
+
+  const activeStickyIndexRef = useRef<number | null>(null);
+
+  const isActiveSticky = useCallback((index: number) => activeStickyIndexRef.current === index, []);
+
+  const rangeExtractor = useCallback(
+    (range: Range) => {
+      if (stickyIndexes.length === 0) return defaultRangeExtractor(range);
+
+      activeStickyIndexRef.current = [...stickyIndexes].reverse().find((index) => range.startIndex >= index) ?? null;
+
+      const next = new Set([
+        ...(activeStickyIndexRef.current !== null ? [activeStickyIndexRef.current] : []),
+        ...defaultRangeExtractor(range),
+      ]);
+
+      return [...next].sort((a, b) => a - b);
+    },
+    [stickyIndexes]
+  );
+
   const virtualizer = useVirtualizer({
     count: flatList.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: (index) => estimateSize(flatList[index]),
     getItemKey,
     overscan: 20,
+    rangeExtractor,
   });
 
   // IntersectionObserver for infinite scroll
@@ -222,62 +256,65 @@ export default function SessionsVirtualList({
 
   return (
     <div ref={scrollContainerRef} className="flex-1 overflow-auto styled-scrollbar">
-      <SessionTableHeader />
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 border-x border-b rounded-b -mt-px">
-          <Loader2 className="animate-spin w-5 h-5 text-muted-foreground" />
-          <span className="ml-2 text-sm text-muted-foreground">Loading sessions...</span>
-        </div>
-      )}
-      {!isLoading && error && sessions.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 gap-2 border-x border-b rounded-b -mt-px">
-          <span className="text-sm text-destructive">Failed to load sessions</span>
-          <span className="text-xs text-muted-foreground">{error.message}</span>
-          {onRetry && (
-            <button onClick={onRetry} className="text-xs text-primary underline hover:no-underline mt-1">
-              Retry
-            </button>
-          )}
-        </div>
-      )}
-      {!isLoading && !error && sessions.length === 0 && (
-        <div className="flex items-center justify-center py-12 border-x border-b rounded-b -mt-px">
-          <span className="text-sm text-muted-foreground">No sessions found</span>
-        </div>
-      )}
-      {showList && (
-        <>
-          <div style={{ height: virtualizer.getTotalSize() }} className="relative border-x border-b rounded-b -mt-px">
-            {virtualizer.getVirtualItems().map((virtualItem) => {
-              const item = flatList[virtualItem.index];
-              const isLast = virtualItem.index === flatList.length - 1;
-              return (
-                <div
-                  key={virtualItem.key}
-                  data-index={virtualItem.index}
-                  ref={virtualizer.measureElement}
-                  className={cn(isLast && "rounded-b overflow-hidden")}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    transform: `translateY(${virtualItem.start}px)`,
-                  }}
-                >
-                  {renderItem(item)}
-                </div>
-              );
-            })}
+      <div className="min-w-[900px]">
+        <SessionTableHeader />
+        {isLoading && (
+          <div className="flex items-center justify-center py-12 border-x border-b rounded-b -mt-px">
+            <Loader2 className="animate-spin w-5 h-5 text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">Loading sessions...</span>
           </div>
-          <div ref={sentinelRef} style={{ height: 1 }} />
-          {isFetching && (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
+        )}
+        {!isLoading && error && sessions.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 gap-2 border-x border-b rounded-b -mt-px">
+            <span className="text-sm text-destructive">Failed to load sessions</span>
+            <span className="text-xs text-muted-foreground">{error.message}</span>
+            {onRetry && (
+              <button onClick={onRetry} className="text-xs text-primary underline hover:no-underline mt-1">
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+        {!isLoading && !error && sessions.length === 0 && (
+          <div className="flex items-center justify-center py-12 border-x border-b rounded-b -mt-px">
+            <span className="text-sm text-muted-foreground">No sessions found</span>
+          </div>
+        )}
+        {showList && (
+          <>
+            <div style={{ height: virtualizer.getTotalSize() }} className="relative border-x border-b rounded-b -mt-px">
+              {virtualizer.getVirtualItems().map((virtualItem) => {
+                const item = flatList[virtualItem.index];
+                const isLast = virtualItem.index === flatList.length - 1;
+                const activeSticky = isActiveSticky(virtualItem.index);
+                return (
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    ref={virtualizer.measureElement}
+                    className={cn(isLast && "rounded-b overflow-hidden")}
+                    style={{
+                      ...(activeSticky
+                        ? { position: "sticky", top: SESSION_HEADER_HEIGHT, zIndex: 1 }
+                        : { position: "absolute", top: 0, transform: `translateY(${virtualItem.start}px)` }),
+                      left: 0,
+                      width: "100%",
+                    }}
+                  >
+                    {renderItem(item)}
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </>
-      )}
+            <div ref={sentinelRef} style={{ height: 1 }} />
+            {isFetching && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

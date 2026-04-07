@@ -18,7 +18,7 @@ import FilterTag from "./tag";
 interface FilterSearchInputProps {
   placeholder?: string;
   className?: string;
-  resource?: "traces" | "spans" | "sessions";
+  resource?: "traces" | "spans";
   disableHotKey?: boolean;
   disabled?: boolean;
 }

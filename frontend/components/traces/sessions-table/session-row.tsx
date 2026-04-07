@@ -68,7 +68,7 @@ export default function SessionRow({ session, timeline, isExpanded, onToggle, on
       </div>
 
       {/* Traces count + timeline */}
-      <div className="flex flex-1 gap-4 h-full items-center min-w-0 px-4 py-0.5">
+      <div className="flex flex-1 gap-4 h-full items-center min-w-0 overflow-hidden px-4 py-0.5">
         <span className="text-xs text-secondary-foreground whitespace-nowrap">{session.traceCount ?? 0}</span>
         {timeline && timeline.length > 0 && (
           <TracesTimeline

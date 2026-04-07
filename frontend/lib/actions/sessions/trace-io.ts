@@ -1,8 +1,14 @@
+import { z } from "zod/v4";
+
 import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
 
 import { extractInputsForGroup, joinUserParts, systemTextHash } from "./extract-input";
 import { type ParsedInput, parseExtractedMessages } from "./parse-input";
+
+const bodySchema = z.object({
+  traceIds: z.array(z.guid()).min(1).max(100),
+});
 
 const TOP_PATH_QUERY = `
     SELECT path
@@ -67,7 +73,8 @@ export async function getMainAgentIOBatch({
   traceIds: string[];
   projectId: string;
 }): Promise<Record<string, TraceIOResult>> {
-  const traceData = await Promise.all(traceIds.map((traceId) => fetchTraceData(traceId, projectId)));
+  const parsed = bodySchema.parse({ traceIds });
+  const traceData = await Promise.all(parsed.traceIds.map((traceId) => fetchTraceData(traceId, projectId)));
 
   const bySystemHash = new Map<string, TraceWithParsedInput[]>();
   const noSystemTraces: TraceWithParsedInput[] = [];

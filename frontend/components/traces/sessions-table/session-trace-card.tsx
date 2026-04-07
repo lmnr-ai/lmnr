@@ -4,11 +4,12 @@ import { ChevronDown, ChevronUp, CircleDollarSign, Clock3, Coins } from "lucide-
 import { useState } from "react";
 import { shallow } from "zustand/shallow";
 
+import ClientTimestampFormatter from "@/components/client-timestamp-formatter.tsx";
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type TraceRow } from "@/lib/traces/types";
-import { cn, formatRelativeTime, getDurationString } from "@/lib/utils";
+import { cn, getDurationString } from "@/lib/utils";
 
 import { useSessionsStoreContext } from "./sessions-store";
 
@@ -49,7 +50,10 @@ export default function SessionTraceCard({ trace, isLast, onClick }: SessionTrac
         {/* Details column */}
         <div className="flex flex-col h-full justify-between px-4 py-3 shrink-0 w-40">
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-secondary-foreground leading-4">{formatRelativeTime(trace.startTime)}</span>
+            <ClientTimestampFormatter
+              className="text-xs text-secondary-foreground leading-4"
+              timestamp={trace.startTime}
+            />
             <div onClick={(e) => e.stopPropagation()}>
               <CopyTooltip value={trace.id}>
                 <span className="text-xs text-primary-foreground leading-4 truncate block" title={trace.id}>
@@ -123,7 +127,12 @@ function TraceIOContent({
 }) {
   return (
     <div className={cn("bg-muted/40 border-l flex-1 h-full min-w-0 overflow-hidden relative group")}>
-      <div className={cn("h-full px-3 pt-2 pb-8", isExpanded ? "overflow-y-auto" : "overflow-y-hidden")}>
+      <div
+        className={cn(
+          "h-full px-3 pt-2 pb-8 overflow-x-hidden break-words",
+          isExpanded ? "overflow-y-auto" : "overflow-y-hidden"
+        )}
+      >
         {isLoading && !text ? (
           <div className="flex flex-col gap-2">
             <Skeleton className="h-3 w-full" />

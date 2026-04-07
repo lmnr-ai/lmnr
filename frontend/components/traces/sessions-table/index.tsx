@@ -291,9 +291,9 @@ function SessionsTableContent() {
         <div className="w-full px-px">
           <AdvancedSearch
             filters={filters}
-            resource="sessions"
             placeholder="Search by session ID, duration, cost, tokens and more..."
             className="w-full flex-1"
+            storageKey="sessions"
           />
         </div>
       </div>
