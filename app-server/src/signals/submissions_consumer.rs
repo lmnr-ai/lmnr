@@ -7,10 +7,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    cache::{
-        CacheTrait,
-        keys::{SIGNAL_BATCH_LOCK_CACHE_KEY, SIGNAL_BATCH_SUBMITTED_CACHE_KEY},
-    },
+    cache::CacheTrait,
     ch::signal_run_messages::{CHSignalRunMessage, insert_signal_run_messages},
     db::DB,
     mq::MessageQueue,
