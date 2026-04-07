@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
 
 use crate::cache::keys::SPAN_DROP_RULES_CACHE_KEY;
@@ -16,11 +15,12 @@ use crate::signals::provider::models::{
 };
 use crate::signals::provider::{LlmClient, ProviderThinkingConfig, ProviderThinkingLevel};
 use crate::signals::utils::{
-    InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr, strip_noise,
-    try_parse_json,
+    InternalSpan, emit_internal_span, hash_system_prompt, request_to_span_input,
+    request_to_tools_attr, strip_noise, try_parse_json,
 };
 
 use super::spans::extract_system_message;
+use super::summarize::hash_signal_prompt;
 
 const FILTER_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
 const MAX_TRACE_STRING_LEN: usize = 1_000_000;
@@ -37,21 +37,6 @@ pub struct DropRule {
     #[serde(rename = "match")]
     pub match_: Vec<FieldMatcher>,
     pub reason: String,
-}
-
-fn hash_signal_prompt(signal_prompt: &str) -> String {
-    let digest = Sha3_256::digest(signal_prompt.as_bytes());
-    format!("{:x}", digest)[..8].to_string()
-}
-
-fn hash_text(text: &str) -> String {
-    let normalized = text
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase();
-    let digest = Sha3_256::digest(normalized.as_bytes());
-    format!("{:x}", digest)[..8].to_string()
 }
 
 /// Compute a pipeline fingerprint from trace spans.
@@ -86,7 +71,7 @@ pub fn pipeline_fingerprint(ch_spans: &[CHSpan]) -> Option<String> {
     if let Some(span) = best {
         let parsed = try_parse_json(&strip_noise(&span.input));
         if let Some((sys_text, _)) = extract_system_message(&parsed) {
-            return Some(hash_text(&sys_text));
+            return Some(hash_system_prompt(&sys_text));
         }
     }
 
@@ -94,7 +79,7 @@ pub fn pipeline_fingerprint(ch_spans: &[CHSpan]) -> Option<String> {
     let root = ch_spans
         .iter()
         .find(|s| s.parent_span_id.is_nil() || s.parent_span_id == Uuid::nil());
-    root.map(|s| hash_text(&s.name))
+    root.map(|s| hash_system_prompt(&s.name))
 }
 
 fn cache_key(
