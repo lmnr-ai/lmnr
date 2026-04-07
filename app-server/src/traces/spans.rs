@@ -1036,11 +1036,23 @@ pub fn should_keep_attribute(attribute: &str) -> bool {
         return false;
     }
 
-    // Newer AI SDK operation-prefixed prompt attributes (normalized to ai.prompt.messages)
-    if attribute.ends_with(".prompt.messages")
-        && AISDK_OPERATION_PREFIXES
+    // Newer AI SDK operation-prefixed attributes that have been normalized to
+    // standard `ai.*` / `gen_ai.*` keys. Remove the originals to save storage.
+    const AISDK_NORMALIZED_SUFFIXES: &[&str] = &[
+        ".prompt.messages",
+        ".response.text",
+        ".response.toolCalls",
+        ".response.object",
+        ".usage.inputTokens",
+        ".usage.outputTokens",
+        ".usage.cachedInputTokens",
+    ];
+    if AISDK_OPERATION_PREFIXES
+        .iter()
+        .any(|p| attribute.starts_with(p))
+        && AISDK_NORMALIZED_SUFFIXES
             .iter()
-            .any(|p| attribute.starts_with(p))
+            .any(|s| attribute.ends_with(s))
     {
         return false;
     }
