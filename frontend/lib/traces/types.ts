@@ -192,6 +192,7 @@ export type TracePreview = {
 
 export type TraceTimelineItem = {
   id: string;
+  name?: string;
   startTime: string;
   endTime: string;
   status: string;

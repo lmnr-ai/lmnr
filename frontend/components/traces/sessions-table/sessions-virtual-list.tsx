@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { type SessionRow as SessionRowType, type TraceRow, type TraceTimelineItem } from "@/lib/traces/types";
+import { cn } from "@/lib/utils";
 
 const itemTransition = { type: "spring", stiffness: 400, damping: 50 } as const;
 
@@ -182,12 +183,7 @@ export default function SessionsVirtualList({
               transition={itemTransition}
               style={{ overflow: "hidden" }}
             >
-              <SessionTraceCard
-                trace={item.trace}
-                isFirst={item.isFirst}
-                isLast={item.isLast}
-                onClick={() => onTraceClick(item.trace.id)}
-              />
+              <SessionTraceCard trace={item.trace} isLast={item.isLast} onClick={() => onTraceClick(item.trace.id)} />
             </motion.div>
           );
         case "trace-loading":
@@ -198,7 +194,7 @@ export default function SessionsVirtualList({
               transition={{ duration: 0.2 }}
               style={{ overflow: "hidden" }}
             >
-              <div className="flex items-center justify-center h-[60px] pl-6">
+              <div className="flex items-center justify-center h-[60px] pl-6 border-b">
                 <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
                 <span className="ml-2 text-xs text-muted-foreground">Loading traces...</span>
               </div>
@@ -212,7 +208,7 @@ export default function SessionsVirtualList({
               transition={itemTransition}
               style={{ overflow: "hidden" }}
             >
-              <div className="flex items-center justify-center h-[60px] pl-6">
+              <div className="flex items-center justify-center h-[60px] pl-6 border-b">
                 <span className="text-xs text-muted-foreground">No traces in this session</span>
               </div>
             </motion.div>
@@ -225,16 +221,16 @@ export default function SessionsVirtualList({
   const showList = !isLoading && sessions.length > 0;
 
   return (
-    <div ref={scrollContainerRef} className="flex-1 overflow-auto styled-scrollbar rounded-lg">
+    <div ref={scrollContainerRef} className="flex-1 overflow-auto styled-scrollbar">
       <SessionTableHeader />
       {isLoading && (
-        <div className="flex items-center justify-center py-12">
+        <div className="flex items-center justify-center py-12 border-x border-b rounded-b -mt-px">
           <Loader2 className="animate-spin w-5 h-5 text-muted-foreground" />
           <span className="ml-2 text-sm text-muted-foreground">Loading sessions...</span>
         </div>
       )}
       {!isLoading && error && sessions.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 gap-2">
+        <div className="flex flex-col items-center justify-center py-12 gap-2 border-x border-b rounded-b -mt-px">
           <span className="text-sm text-destructive">Failed to load sessions</span>
           <span className="text-xs text-muted-foreground">{error.message}</span>
           {onRetry && (
@@ -245,20 +241,22 @@ export default function SessionsVirtualList({
         </div>
       )}
       {!isLoading && !error && sessions.length === 0 && (
-        <div className="flex items-center justify-center py-12">
+        <div className="flex items-center justify-center py-12 border-x border-b rounded-b -mt-px">
           <span className="text-sm text-muted-foreground">No sessions found</span>
         </div>
       )}
       {showList && (
         <>
-          <div style={{ height: virtualizer.getTotalSize() }} className="relative">
+          <div style={{ height: virtualizer.getTotalSize() }} className="relative border-x border-b rounded-b -mt-px">
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const item = flatList[virtualItem.index];
+              const isLast = virtualItem.index === flatList.length - 1;
               return (
                 <div
                   key={virtualItem.key}
                   data-index={virtualItem.index}
                   ref={virtualizer.measureElement}
+                  className={cn(isLast && "rounded-b overflow-hidden")}
                   style={{
                     position: "absolute",
                     top: 0,

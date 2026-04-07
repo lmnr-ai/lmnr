@@ -18,12 +18,11 @@ const compactNumberFormat = new Intl.NumberFormat("en-US", {
 
 interface SessionTraceCardProps {
   trace: TraceRow;
-  isFirst: boolean;
   isLast: boolean;
   onClick?: () => void;
 }
 
-export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: SessionTraceCardProps) {
+export default function SessionTraceCard({ trace, isLast, onClick }: SessionTraceCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const { traceIO, isLoading } = useSessionsStoreContext(
@@ -51,11 +50,13 @@ export default function SessionTraceCard({ trace, isFirst, isLast, onClick }: Se
         <div className="flex flex-col h-full justify-between px-4 py-3 shrink-0 w-40">
           <div className="flex flex-col gap-1">
             <span className="text-xs text-secondary-foreground leading-4">{formatRelativeTime(trace.startTime)}</span>
-            <CopyTooltip value={trace.id}>
-              <span className="text-xs text-primary-foreground leading-4 truncate block" title={trace.id}>
-                {trace.id}
-              </span>
-            </CopyTooltip>
+            <div onClick={(e) => e.stopPropagation()}>
+              <CopyTooltip value={trace.id}>
+                <span className="text-xs text-primary-foreground leading-4 truncate block" title={trace.id}>
+                  {trace.id}
+                </span>
+              </CopyTooltip>
+            </div>
           </div>
           <div className="flex flex-col gap-1">
             <div className="flex gap-1 h-4 items-center">
@@ -122,8 +123,8 @@ function TraceIOContent({
 }) {
   return (
     <div className={cn("bg-muted/40 border-l flex-1 h-full min-w-0 overflow-hidden relative group")}>
-      <div className={cn("h-full px-3 py-2", isExpanded ? "overflow-y-auto" : "overflow-y-hidden")}>
-        {isLoading ? (
+      <div className={cn("h-full px-3 pt-2 pb-8", isExpanded ? "overflow-y-auto" : "overflow-y-hidden")}>
+        {isLoading && !text ? (
           <div className="flex flex-col gap-2">
             <Skeleton className="h-3 w-full" />
             <Skeleton className="h-3 w-4/5" />

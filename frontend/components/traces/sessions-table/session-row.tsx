@@ -25,7 +25,7 @@ interface SessionRowProps {
 export default function SessionRow({ session, timeline, isExpanded, onToggle, onTraceClick }: SessionRowProps) {
   return (
     <div
-      className="bg-secondary border-x border-b flex h-9 items-center w-full cursor-pointer hover:bg-muted"
+      className="bg-secondary border-b flex h-9 items-center w-full cursor-pointer hover:bg-muted"
       onClick={onToggle}
     >
       {/* Chevron */}
@@ -46,7 +46,7 @@ export default function SessionRow({ session, timeline, isExpanded, onToggle, on
       {/* Start time */}
       <div className={`flex items-center px-4 py-0.5 shrink-0 ${START_TIME_COLUMN_WIDTH_CLASSNAME}`}>
         <span className="text-secondary-foreground truncate">
-          <ClientTimestampFormatter timestamp={session.startTime} />
+          <ClientTimestampFormatter absolute timestamp={session.startTime} />
         </span>
       </div>
 
@@ -55,7 +55,7 @@ export default function SessionRow({ session, timeline, isExpanded, onToggle, on
         className={`flex items-center px-4 py-0.5 shrink-0 ${SESSION_ID_COLUMN_WIDTH_CLASSNAME}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <CopyTooltip value={session.sessionId}>
+        <CopyTooltip className="truncate" value={session.sessionId}>
           <span className="text-sm text-primary-foreground truncate block" title={session.sessionId}>
             {session.sessionId}
           </span>

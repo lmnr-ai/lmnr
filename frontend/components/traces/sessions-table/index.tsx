@@ -214,6 +214,7 @@ function SessionsTableContent() {
         if (controller.signal.aborted) return;
 
         setSessionTraces(sessionId, traces.items);
+        setLoadingSession(sessionId, false);
 
         const traceIds = traces.items.filter((t) => t.totalTokens > 0).map((t) => t.id);
         if (traceIds.length > 0) {
@@ -241,9 +242,7 @@ function SessionsTableContent() {
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         toast({ title: "Failed to load traces. Please try again.", variant: "destructive" });
-        // Collapse on failure
         collapseSession(sessionId);
-      } finally {
         setLoadingSession(sessionId, false);
       }
     },

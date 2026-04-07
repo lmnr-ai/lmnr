@@ -22,6 +22,7 @@ export async function getSessionTimelines(
   const selectColumns = [
     "id",
     "session_id as sessionId",
+    "top_span_name as name",
     "formatDateTime(start_time, '%Y-%m-%dT%H:%i:%S.%fZ') as startTime",
     "formatDateTime(end_time, '%Y-%m-%dT%H:%i:%S.%fZ') as endTime",
     "status",

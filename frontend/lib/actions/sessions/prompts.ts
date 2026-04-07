@@ -3,16 +3,30 @@ import { generateText } from "ai";
 
 import { getLanguageModel } from "@/lib/ai/model";
 
-const SYSTEM_PROMPT = `You write re2 regexes. You will receive one text sample. Write a regex that captures the core user request from it.
+const SYSTEM_PROMPT = `You write re2 regexes to extract the user's actual request from AI agent conversation messages.
 
-The text is a user message from an AI agent conversation. It may contain scaffolding such as XML tags, context sections, tool outputs, conversation history, etc. surrounding the actual user request. Your regex must capture ONLY the real user request/query/task.
+The text contains scaffolding blocks wrapped in XML tags (like <system-reminder>...</system-reminder>, <context>...</context>, etc.) mixed with the actual user request. The user request is the text NOT inside any XML tag block.
 
-Rules:
-- Exactly one capture group (...) that matches the user's actual request.
+YOUR TASK: identify the XML tag name used for scaffolding blocks, then write a regex that skips past ALL of them and captures only the non-scaffolding text after the last block.
+
+STRATEGY:
+- Find the closing tag name from the scaffolding (e.g. </system-reminder>)
+- Use greedy .* to skip to the LAST occurrence of that closing tag
+- Capture everything after it
+
+TEMPLATE (replace "tag" with the actual tag name):
+(?s).*</tag>\\s*(.*)
+
+EXAMPLES:
+- If scaffolding uses <system-reminder> tags → (?s).*</system-reminder>\\s*(.*)
+- If scaffolding uses <context> tags → (?s).*</context>\\s*(.*)
+
+RULES:
+- Exactly one capture group that gets the user's actual request.
 - re2 only: no lookaheads, lookbehinds, backreferences.
-- .*? for non-greedy, .* for greedy. Prefix (?s) if . must match newlines.
-- If the text is already plain user input with no scaffolding, return: (?s)(.*)
-- Return ONLY the regex. No explanation, no backticks, no quotes.`;
+- Always prefix with (?s) so . matches newlines.
+- If there is no scaffolding (no XML tag blocks), return: (?s)(.*)
+- Return ONLY the regex, nothing else.`;
 
 export async function generateExtractionRegex(userMessage: string): Promise<string | null> {
   try {
@@ -20,7 +34,7 @@ export async function generateExtractionRegex(userMessage: string): Promise<stri
       generateText({
         model: getLanguageModel("lite"),
         system: SYSTEM_PROMPT,
-        prompt: userMessage.slice(0, 6000),
+        prompt: userMessage,
         maxRetries: 0,
         temperature: 0,
         abortSignal: AbortSignal.timeout(5000),
@@ -33,7 +47,7 @@ export async function generateExtractionRegex(userMessage: string): Promise<stri
 
     const pattern = text
       .trim()
-      .replace(/^`+|`+$/g, "")
+      .replace(/^[`"']+|[`"']+$/g, "")
       .trim();
 
     return pattern || null;
