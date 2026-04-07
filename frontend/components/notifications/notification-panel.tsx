@@ -98,6 +98,40 @@ export const formatNotification = (notification: WebNotification, projectId?: st
   }
 };
 
+const NotificationDetails = ({ formatted, projectId }: { formatted: FormattedNotification; projectId?: string }) => (
+  <>
+    {formatted.aiSummary && (
+      <div className="flex flex-col gap-1 mt-1">
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Summary</span>
+        <p className="text-xs text-secondary-foreground leading-relaxed">{formatted.aiSummary}</p>
+      </div>
+    )}
+    {formatted.noteworthyEvents.length > 0 && (
+      <div className="flex flex-col gap-1.5 mt-1">
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Noteworthy events</span>
+        {formatted.noteworthyEvents.slice(0, 3).map((event, i) => (
+          <div key={i} className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-medium text-foreground">{event.signal_name}</span>
+              <span className="text-[10px] text-muted-foreground/70">{formatRelativeTime(event.timestamp)}</span>
+            </div>
+            <span className="text-xs text-muted-foreground leading-snug">{event.summary}</span>
+            {projectId && (
+              <Link
+                href={`/project/${projectId}/traces/${event.trace_id}?chat=true`}
+                className="text-[11px] text-muted-foreground underline hover:text-foreground mt-0.5 w-fit"
+                onClick={(e) => e.stopPropagation()}
+              >
+                View trace
+              </Link>
+            )}
+          </div>
+        ))}
+      </div>
+    )}
+  </>
+);
+
 const NotificationItem = ({
   notification,
   formatted,
@@ -113,7 +147,8 @@ const NotificationItem = ({
   const hasDetails = formatted.aiSummary || formatted.noteworthyEvents.length > 0;
   const isUnread = !notification.isRead;
 
-  const handleClick = () => {
+  const handleExpand = () => {
+    setExpanded(true);
     if (isUnread) {
       onMarkAsRead(notification.id);
     }
@@ -122,10 +157,9 @@ const NotificationItem = ({
   return (
     <div
       className={cn(
-        "flex flex-col gap-1.5 border-b px-3 py-3 cursor-pointer transition-colors",
-        isUnread ? "bg-secondary hover:bg-secondary/90" : "bg-transparent hover:bg-secondary/20"
+        "flex flex-col gap-1.5 border-b px-3 py-3 transition-colors",
+        isUnread ? "bg-secondary/40" : "bg-transparent"
       )}
-      onClick={handleClick}
     >
       <div className="flex items-center justify-between">
         <span className={cn("text-xs text-foreground", isUnread ? "font-semibold" : "font-medium")}>
@@ -139,61 +173,29 @@ const NotificationItem = ({
       <span className={cn("text-xs", isUnread ? "text-foreground/80" : "text-muted-foreground")}>
         {formatted.summary}
       </span>
-      {hasDetails && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setExpanded((prev) => !prev);
-          }}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-fit"
-        >
-          {expanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
-          {expanded ? "Show less" : "Show details"}
-        </button>
+      {hasDetails && !expanded && (
+        <div className="relative cursor-pointer" onClick={handleExpand}>
+          <div className="max-h-16 overflow-hidden">
+            <NotificationDetails formatted={formatted} projectId={projectId} />
+          </div>
+          <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+          <button className="relative flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors w-fit mt-1">
+            <ChevronDown className="size-3" />
+            Show more
+          </button>
+        </div>
       )}
       {expanded && (
         <>
-          {formatted.aiSummary && (
-            <div className="flex flex-col gap-1 mt-1">
-              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Summary</span>
-              <p className="text-xs text-secondary-foreground leading-relaxed">{formatted.aiSummary}</p>
-            </div>
-          )}
-          {formatted.noteworthyEvents.length > 0 && (
-            <div className="flex flex-col gap-1.5 mt-1">
-              <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                Noteworthy events
-              </span>
-              {formatted.noteworthyEvents.map((event, i) => (
-                <div key={i} className="flex flex-col gap-0.5 rounded-md bg-secondary/40 px-2.5 py-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-medium text-foreground">{event.signal_name}</span>
-                    <span className="text-[10px] text-muted-foreground/70">{formatRelativeTime(event.timestamp)}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground leading-snug">{event.summary}</span>
-                  {projectId && (
-                    <Link
-                      href={`/project/${projectId}/traces/${event.trace_id}`}
-                      className="text-[11px] text-primary hover:underline mt-0.5 w-fit"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      View trace
-                    </Link>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          <NotificationDetails formatted={formatted} projectId={projectId} />
+          <button
+            onClick={() => setExpanded(false)}
+            className="flex items-center gap-1 text-[11px] text-primary hover:text-primary/80 transition-colors w-fit"
+          >
+            <ChevronUp className="size-3" />
+            Show less
+          </button>
         </>
-      )}
-      {projectId && (
-        <Link
-          href={`/project/${projectId}/signals`}
-          className="text-xs text-primary hover:underline mt-0.5 w-fit"
-          onClick={(e) => e.stopPropagation()}
-        >
-          View all events
-        </Link>
       )}
     </div>
   );
@@ -240,7 +242,7 @@ const NotificationPanel = () => {
   return (
     <div
       className={cn(
-        "absolute inset-y-0 left-0 z-50 w-80 bg-background border-r shadow-lg",
+        "absolute inset-y-0 left-0 z-50 w-104 bg-background border-r shadow-lg",
         "transition-transform duration-200 ease-in-out",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
