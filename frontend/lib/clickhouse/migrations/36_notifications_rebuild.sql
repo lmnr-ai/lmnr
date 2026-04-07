@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS notification_deliveries
     workspace_id       UUID,
     channel            LowCardinality(String),
     destination        String DEFAULT '',
-    delivered          Bool DEFAULT true,
+    delivered          Bool DEFAULT false,
     created_at         DateTime64(3, 'UTC')
 )
 ENGINE = MergeTree()
