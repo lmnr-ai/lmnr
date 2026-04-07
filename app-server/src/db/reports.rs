@@ -12,23 +12,6 @@ pub struct Report {
     pub created_at: DateTime<Utc>,
 }
 
-/// Fetch all reports for a workspace.
-pub async fn get_all_reports_for_workspace(
-    pool: &PgPool,
-    workspace_id: &Uuid,
-) -> anyhow::Result<Vec<Report>> {
-    let reports = sqlx::query_as::<_, Report>(
-        "SELECT id, workspace_id, type, weekdays, hour, created_at
-         FROM reports
-         WHERE workspace_id = $1",
-    )
-    .bind(workspace_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(reports)
-}
-
 pub async fn get_reports_for_weekday_and_hour(
     pool: &PgPool,
     weekday: i32,
