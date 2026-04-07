@@ -151,13 +151,22 @@ impl MessageHandler for NotificationHandler {
         let workspace_id = message.workspace_id;
         let notification_kind = message.payload.kind_str().to_string();
         let notification_id = Uuid::new_v4();
-        let now_ms = chrono::Utc::now().timestamp_millis();
 
         // Serialize the payload for storage in the notifications table
         let payload_json =
             serde_json::to_string(&message.payload).unwrap_or_else(|_| "{}".to_string());
 
+        // For usage warnings, run the dedup check *before* inserting the
+        // notification record so that duplicate messages don't leave orphan rows
+        // in the `notifications` table.
+        if let NotificationKind::UsageWarning(ref payload) = message.payload {
+            if !self.acquire_usage_warning_lock(payload).await? {
+                return Ok(());
+            }
+        }
+
         // Insert into `notifications` table (one entry per event)
+        let now_ms = chrono::Utc::now().timestamp_millis();
         let ch_notification = CHNotification {
             id: notification_id,
             workspace_id,
@@ -185,6 +194,7 @@ impl MessageHandler for NotificationHandler {
                     .await?;
             }
             NotificationKind::UsageWarning(payload) => {
+                // Lock already acquired above; proceed directly to sending.
                 self.handle_usage_warning(workspace_id, notification_id, &payload)
                     .await?;
             }
@@ -397,28 +407,26 @@ impl NotificationHandler {
         Ok(())
     }
 
-    /// Handle a usage warning notification.
-    /// Fetches workspace owner emails, then sends email notification.
-    async fn handle_usage_warning(
+    /// Try to acquire the dedup lock for a usage warning. Returns `true` if
+    /// the lock was acquired (i.e. processing should proceed), `false` if
+    /// another worker already holds it (i.e. this is a duplicate).
+    async fn acquire_usage_warning_lock(
         &self,
-        workspace_id: Uuid,
-        notification_id: Uuid,
         payload: &UsageWarningPayload,
-    ) -> Result<(), HandlerError> {
-        // Deduplication lock for usage warnings
+    ) -> Result<bool, HandlerError> {
         let lock_key = format!("{USAGE_WARNING_SEND_LOCK_KEY}:{}", payload.warning_id);
         match self
             .cache
             .try_acquire_lock(&lock_key, USAGE_WARNING_SEND_LOCK_TTL_SECONDS)
             .await
         {
-            Ok(true) => {} // Lock acquired – proceed with send.
+            Ok(true) => Ok(true),
             Ok(false) => {
                 log::debug!(
                     "[Notifications] Usage warning send lock held for warning [{}], skipping",
                     payload.warning_id
                 );
-                return Ok(());
+                Ok(false)
             }
             Err(e) => {
                 log::warn!(
@@ -426,13 +434,23 @@ impl NotificationHandler {
                     payload.warning_id,
                     e
                 );
-                return Err(HandlerError::Transient(anyhow::anyhow!(
+                Err(HandlerError::Transient(anyhow::anyhow!(
                     "Cache error when trying to acquire lock for usage warning cache {}",
                     e
-                )));
+                )))
             }
         }
+    }
 
+    /// Handle a usage warning notification.
+    /// Fetches workspace owner emails, then sends email notification.
+    /// The dedup lock must already be acquired before calling this method.
+    async fn handle_usage_warning(
+        &self,
+        workspace_id: Uuid,
+        notification_id: Uuid,
+        payload: &UsageWarningPayload,
+    ) -> Result<(), HandlerError> {
         let owner_emails = usage_warnings::get_workspace_owner_emails(&self.db.pool, workspace_id)
             .await
             .map_err(|e| {
