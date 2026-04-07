@@ -50,6 +50,9 @@ pub fn is_feature_enabled(feature: Feature) -> bool {
         }
         Feature::Signals => {
             env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok_and(|s| !s.is_empty())
+                || (env::var("AWS_ACCESS_KEY_ID").is_ok_and(|s| !s.is_empty())
+                    && env::var("AWS_SECRET_ACCESS_KEY").is_ok_and(|s| !s.is_empty())
+                    && env::var("AWS_REGION").is_ok_and(|s| !s.is_empty()))
         }
         Feature::Reports => {
             env::var("ENABLE_REPORTS").is_ok_and(|s| s == "true")
