@@ -46,7 +46,7 @@ interface FormattedNotification {
 }
 
 // TODO: refactor this to have a more generic notification format, currently implemented only for signal events reports
-const formatNotification = (notification: WebNotification, projectId?: string): FormattedNotification | null => {
+export const formatNotification = (notification: WebNotification, projectId?: string): FormattedNotification | null => {
   try {
     const payload: ReportPayload = JSON.parse(notification.payload);
     const report = payload.report;

@@ -3,6 +3,7 @@
 import { Bell } from "lucide-react";
 import useSWR from "swr";
 
+import { formatNotification } from "@/components/notifications/notification-panel";
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
@@ -15,7 +16,7 @@ const NotificationTrigger = () => {
   const swrKey = workspace && project ? `/api/workspaces/${workspace.id}/notifications?projectId=${project.id}` : null;
   const { data: notifications } = useSWR<WebNotification[]>(swrKey, swrFetcher);
 
-  const hasUnread = notifications?.some((n) => !n.isRead) ?? false;
+  const hasUnread = notifications?.some((n) => !n.isRead && formatNotification(n, project?.id) !== null) ?? false;
 
   return (
     <button
