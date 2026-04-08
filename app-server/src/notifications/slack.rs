@@ -240,6 +240,10 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
 /// For multi-element batches (e.g. reports with per-project data),
 /// combines all entries into a single Slack message.
 pub fn format_message_blocks_batch(notifications: &[NotificationKind]) -> serde_json::Value {
+    if notifications.is_empty() {
+        return serde_json::json!([]);
+    }
+
     if notifications.len() == 1 {
         return format_message_blocks_single(&notifications[0]);
     }

@@ -265,6 +265,8 @@ async fn process_report_trigger(
         notifications,
     };
 
+    let project_count = notification_message.notifications.len();
+
     let serialized_size = serde_json::to_vec(&notification_message)
         .map(|v| v.len())
         .unwrap_or(0);
@@ -286,7 +288,7 @@ async fn process_report_trigger(
     log::info!(
         "[Reports Generator] Report notification pushed to queue for workspace {} ({} projects)",
         workspace_id,
-        serialized_size,
+        project_count,
     );
 
     Ok(())

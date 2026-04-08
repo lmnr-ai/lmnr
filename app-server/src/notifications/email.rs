@@ -23,6 +23,10 @@ pub fn format_email_batch(
     notifications: &[NotificationKind],
     workspace_id: &Uuid,
 ) -> (String, String, String) {
+    if notifications.is_empty() {
+        return (String::new(), String::new(), String::new());
+    }
+
     // Single notification — delegate to the type-specific renderer.
     if notifications.len() == 1 {
         return format_single_email(&notifications[0], workspace_id);
