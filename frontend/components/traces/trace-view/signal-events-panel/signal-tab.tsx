@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ExternalLink, Sparkles, X } from "lucide-react";
+import { ExternalLink, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
@@ -49,13 +49,12 @@ function PayloadValue({
     case "boolean":
       return (
         <span className="inline-flex items-center gap-1.5">
-          {value ? <Check className="size-4 text-green-500" /> : <X className="size-4 text-muted-foreground" />}
           <span className="text-secondary-foreground">{value ? "true" : "false"}</span>
         </span>
       );
     case "enum":
       return (
-        <span className="inline-flex items-center rounded-full border border-blue-400/20 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+        <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium text-secondary-foreground">
           {String(value)}
         </span>
       );
@@ -126,7 +125,7 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
-            className="h-6 px-1.5 text-xs bg-transparent border-blue-300/20 hover:bg-blue-200/10"
+            className="h-6 px-1.5 text-xs bg-transparent border-border hover:bg-muted text-secondary-foreground"
             onClick={handleOpenInChat}
           >
             <Sparkles className="size-3.5 mr-1" />
@@ -134,7 +133,7 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
           </Button>
           <Button
             variant="outline"
-            className="h-6 px-1.5 text-xs bg-transparent border-blue-300/20 hover:bg-blue-200/10"
+            className="h-6 px-1.5 text-xs bg-transparent border-border hover:bg-muted text-secondary-foreground"
             asChild
           >
             <Link href={`/project/${projectId}/signals/${signalId}?traceId=${traceId}`} target="_blank">
@@ -151,8 +150,8 @@ export default function SignalTab({ signalId, signalName, prompt, structuredOutp
       ) : (
         <>
           {validFields.map((field) => (
-            <div key={field.name} className="rounded-md border border-blue-200/10 bg-blue-300/5 px-2 py-1.5">
-              <div className="text-xs text-blue-200/60 mb-0.5">{field.name}</div>
+            <div key={field.name} className="rounded-md border border-border bg-muted/50 px-2 py-1.5">
+              <div className="text-xs text-muted-foreground mb-0.5">{field.name}</div>
               <div className="text-sm">
                 <PayloadValue value={parsed[field.name]} field={field} spanRefCallbacks={spanRefCallbacks} />
               </div>

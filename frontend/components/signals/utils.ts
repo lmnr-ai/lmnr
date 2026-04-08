@@ -94,3 +94,5 @@ export const jsonSchemaToSchemaFields = (schema: unknown): SchemaField[] => {
 };
 
 export const getDefaultSchemaFields = (): SchemaField[] => [{ name: "", description: "", type: "string" }];
+
+export const SIGNAL_COLORS = ["#3b82f6", "#8b5cf6", "#f97316", "#06b6d4", "#10b981", "#f59e0b", "#ec4899", "#84cc16"];

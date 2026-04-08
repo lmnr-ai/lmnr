@@ -10,8 +10,15 @@ import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/compone
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
-const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => void }) => {
+interface Props {
+  projectId: string;
+  refetch?: () => void;
+  triggerClassName?: string;
+}
+
+const ShareTraceButton = ({ projectId, triggerClassName }: Props) => {
   const { trace, updateTraceVisibility } = useTraceViewStore((state) => ({
     trace: state.trace,
     updateTraceVisibility: state.updateTraceVisibility,
@@ -63,7 +70,7 @@ const ShareTraceButton = ({ projectId }: { projectId: string; refetch?: () => vo
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <Button className="relative hover:bg-secondary px-1.5" variant="ghost">
+              <Button className={cn("relative hover:bg-secondary px-1.5", triggerClassName)} variant="ghost">
                 {trace.visibility === "public" ? <Globe className="h-4 w-4" /> : <Share className="h-4 w-4" />}
               </Button>
             </PopoverTrigger>
