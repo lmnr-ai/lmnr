@@ -309,7 +309,10 @@ impl MessageHandler for NotificationHandler {
                     ch_notifications.len(),
                     e
                 );
-                // Non-fatal: continue with delivery fan-out.
+                // Non-fatal: continue with delivery fan-out. The notification_ids
+                // passed to stage 2 are correlation identifiers, not CH foreign keys
+                // (ClickHouse has no referential integrity). Blocking delivery on CH
+                // availability would be worse than having unmatched IDs in logs.
             }
         }
 
@@ -368,13 +371,14 @@ impl MessageHandler for NotificationHandler {
 }
 
 /// Extract the project_id from a NotificationKind for CH storage.
-/// Returns Uuid::nil() for workspace-level notifications (usage warnings, reports).
+/// Returns Uuid::nil() for workspace-level notifications (usage warnings).
 fn project_id_from_kind(kind: &NotificationKind) -> Uuid {
     match kind {
         NotificationKind::EventIdentification { project_id, .. } => *project_id,
         NotificationKind::SignalsReport { report_data, .. } => {
-            // Reports span multiple projects; use the first project_id if available,
-            // otherwise nil. Each project's data is stored as a separate CH row.
+            // Each SignalsReport contains exactly one project's data (the report
+            // generator creates one NotificationKind per project). Extract its
+            // project_id for the per-project CH row.
             report_data
                 .projects
                 .first()
