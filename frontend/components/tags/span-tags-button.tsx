@@ -55,7 +55,7 @@ const SpanTagsButton = ({ spanId, className }: SpanTagsButtonProps) => {
         });
       }
     } catch (e) {
-      console.error("Error creating tag classes:", e);
+      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Failed to create tag classes" });
     }
     mutateTagClasses();
   }, [rawTags, tagClasses, projectId, mutateTagClasses]);
