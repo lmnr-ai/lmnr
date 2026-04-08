@@ -154,14 +154,13 @@ async fn prepare_batch_requests(
                 successful_messages.push(updated_message);
             }
             Err(e) => {
-                let signal_id = message.signal.id;
                 log::error!(
                     "[SIGNAL JOB] Failed to process run {}: {:?}",
                     message.run_id,
                     e
                 );
                 failed_runs.push(
-                    SignalRun::from_message(&message, signal_id)
+                    SignalRun::from_message(&message, message.signal.id)
                         .failed(&format!("Failed to process run: {}", e)),
                 );
             }
