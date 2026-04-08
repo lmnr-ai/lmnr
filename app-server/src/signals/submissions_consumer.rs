@@ -3,6 +3,7 @@
 //! - Pushes results to the Pending Queue for polling
 
 use async_trait::async_trait;
+use opentelemetry::{global, trace::Tracer};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -17,7 +18,6 @@ use crate::{
         queue::{
             SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
             push_to_pending_queue, push_to_realtime_queue, push_to_signals_queue,
-            push_to_submissions_queue,
         },
         utils::extract_batch_id_from_operation,
     },
@@ -85,9 +85,7 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
     }
 }
 
-const BATCH_LOCK_TTL_SECONDS: u64 = 7200;
-const BATCH_SUBMITTED_TTL_SECONDS: u64 = 86400;
-
+#[tracing::instrument(skip_all, name = "process_batch_submission", fields(batch_size = msg.messages.len()))]
 async fn process(
     msg: SignalJobSubmissionBatchMessage,
     db: Arc<DB>,
@@ -101,6 +99,10 @@ async fn process(
     let mut all_new_messages: Vec<CHSignalRunMessage> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
     let mut successful_messages: Vec<SignalMessage> = Vec::new();
+
+    // internal tracing
+    let tracer = global::tracer("app-server");
+    let mut prepare_requests_span = tracer.start("prepare_batch_requests");
 
     for message in msg.messages.iter() {
         let project_id = message.project_id;
@@ -146,6 +148,7 @@ async fn process(
             }
         }
     }
+    prepare_requests_span.end();
 
     if requests.is_empty() {
         log::error!("[SIGNAL JOB] No requests to submit");
@@ -227,6 +230,7 @@ async fn emit_submit_spans(
 
 /// Submit batch to LLM API and push to pending queue on success.
 /// On failure, returns the failed runs and the handler error.
+#[tracing::instrument(skip_all, fields(batch_size = requests.len()))]
 async fn submit_batch_to_llm(
     llm_client: Arc<LlmClient>,
     requests: Vec<ProviderRequestItem>,

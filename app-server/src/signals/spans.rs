@@ -484,6 +484,7 @@ fn spans_to_string(
 // TODO: move these two functions to CH Query engine for better integration
 // with hybrid deployment mode.
 /// Query trace spans from ClickHouse
+#[tracing::instrument(skip_all, fields(project_id, trace_id))]
 async fn get_trace_spans(
     clickhouse: clickhouse::Client,
     project_id: Uuid,

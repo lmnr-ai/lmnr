@@ -15,7 +15,10 @@ use crate::{
         SignalWorkerConfig,
         provider::{LlmClient, models::ProviderBatchOutput},
         push_to_signals_queue,
-        queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue, push_to_waiting_queue},
+        queue::{
+            SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue,
+            push_to_waiting_queue,
+        },
         response_processor::{FailureMetadata, finalize_runs, process_provider_responses},
     },
     worker::{HandlerError, MessageHandler},
@@ -70,6 +73,7 @@ impl MessageHandler for SignalJobPendingBatchHandler {
     }
 }
 
+#[tracing::instrument(skip_all, name = "process_batch_pending", fields(batch_id = %message.batch_id))]
 async fn process(
     message: SignalJobPendingBatchMessage,
     db: Arc<DB>,
@@ -146,6 +150,7 @@ async fn process(
     Ok(())
 }
 
+#[tracing::instrument(skip_all, fields(num_runs = failed_runs.len()))]
 pub async fn retry_or_fail_runs(
     failed_runs: Vec<SignalRun>,
     run_to_message: &HashMap<Uuid, SignalMessage>,
@@ -210,6 +215,7 @@ pub async fn retry_or_fail_runs(
     (permanently_failed_runs, retried_count)
 }
 
+#[tracing::instrument(skip_all, fields(batch_id = %message.batch_id))]
 async fn process_failed_batch(
     message: &SignalJobPendingBatchMessage,
     retryable: bool,
@@ -281,6 +287,7 @@ async fn process_failed_batch(
     Ok(())
 }
 
+#[tracing::instrument(skip_all, fields(batch_id = %message.batch_id))]
 async fn process_pending_batch(
     message: &SignalJobPendingBatchMessage,
     queue: Arc<MessageQueue>,
@@ -291,6 +298,7 @@ async fn process_pending_batch(
         .map_err(|e| HandlerError::transient(e))
 }
 
+#[tracing::instrument(skip_all, fields(batch_id = %message.batch_id))]
 pub async fn process_succeeded_batch(
     message: &SignalJobPendingBatchMessage,
     batch_output: Option<ProviderBatchOutput>,
