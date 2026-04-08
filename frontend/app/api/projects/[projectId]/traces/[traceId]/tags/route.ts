@@ -57,14 +57,12 @@ export async function POST(
     const updatedTags = [...new Set([...currentTags, tagName])];
 
     // Insert into CH trace_tags table (ReplacingMergeTree deduplicates by updated_at)
-    // DateTime64(6) expects microseconds since epoch
     await clickhouseClient.insert({
       table: "trace_tags",
       values: [
         {
           project_id: projectId,
           trace_id: traceId,
-          updated_at: Date.now() * 1000,
           tags: updatedTags,
         },
       ],

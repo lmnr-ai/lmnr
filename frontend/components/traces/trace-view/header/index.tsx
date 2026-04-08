@@ -20,7 +20,7 @@ import ResizableSignalCard from "./resizeable-signal-card";
 import CondensedTimelineControls from "./timeline-toggle";
 import TraceDropdown from "./trace-dropdown";
 
-const HEADER_ITEM_CLS = "flex items-center h-[28px]";
+const HEADER_ITEM_CLS = "flex items-center h-7";
 
 interface HeaderProps {
   handleClose: () => void;
@@ -132,12 +132,12 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
         <div className="flex flex-wrap items-center gap-1 flex-1">
           {!params?.traceId && (
             <span className={cn(HEADER_ITEM_CLS, "gap-0.5")}>
-              <Button variant="ghost" className="h-[28px] px-0.5" onClick={handleClose}>
+              <Button variant="ghost" className="h-7 px-0.5" onClick={handleClose}>
                 <ChevronsRight className="w-5 h-5" />
               </Button>
               {trace && (
                 <NextLink passHref href={`/project/${projectId}/traces/${trace?.id}?${fullScreenParams.toString()}`}>
-                  <Button variant="ghost" className="h-[28px] px-0.5">
+                  <Button variant="ghost" className="h-7 px-0.5">
                     <Maximize className="w-4 h-4" />
                   </Button>
                 </NextLink>

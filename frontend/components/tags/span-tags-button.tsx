@@ -65,57 +65,84 @@ const SpanTagsButton = ({ spanId, className }: SpanTagsButtonProps) => {
   }, [createNewTagClasses]);
 
   const onAttach = async (tagClassName: string) => {
-    const res = await fetch(`/api/projects/${projectId}/spans/${spanId}/tags`, {
-      method: "POST",
-      body: JSON.stringify({ name: tagClassName }),
-    });
-    if (!res.ok) {
-      toast({ variant: "destructive", title: "Failed to attach tag" });
-      return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}/spans/${spanId}/tags`, {
+        method: "POST",
+        body: JSON.stringify({ name: tagClassName }),
+      });
+      if (!res.ok) {
+        const errMessage = await res
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        throw new Error(errMessage ?? "Failed to attach tag");
+      }
+      const data = (await res.json()) as SpanTag;
+      await mutateTags([...rawTags, data], { revalidate: false });
+    } catch (e) {
+      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Something went wrong" });
     }
-    const data = (await res.json()) as SpanTag;
-    await mutateTags([...rawTags, data], { revalidate: false });
   };
 
   const onDetach = async (tag: TagType) => {
-    await mutateTags(
-      async () => {
-        const res = await fetch(`/api/projects/${projectId}/spans/${spanId}/tags/${encodeURIComponent(tag.id)}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) throw new Error("Failed to delete tag");
-        return rawTags.filter((t) => t.id !== tag.id);
-      },
-      {
-        optimisticData: rawTags.filter((t) => t.id !== tag.id),
-        rollbackOnError: true,
-        revalidate: false,
-      }
-    );
+    try {
+      await mutateTags(
+        async () => {
+          const res = await fetch(`/api/projects/${projectId}/spans/${spanId}/tags/${encodeURIComponent(tag.id)}`, {
+            method: "DELETE",
+          });
+          if (!res.ok) {
+            const errMessage = await res
+              .json()
+              .then((d) => d?.error)
+              .catch(() => null);
+            throw new Error(errMessage ?? "Failed to delete tag");
+          }
+          return rawTags.filter((t) => t.id !== tag.id);
+        },
+        {
+          optimisticData: rawTags.filter((t) => t.id !== tag.id),
+          rollbackOnError: true,
+          revalidate: false,
+        }
+      );
+    } catch (e) {
+      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Something went wrong" });
+    }
   };
 
   const onCreateAndAttach = async (name: string, color: string) => {
-    const tcRes = await fetch(`/api/projects/${projectId}/tag-classes/${name}`, {
-      method: "POST",
-      body: JSON.stringify({ color }),
-    });
-    if (!tcRes.ok) {
-      toast({ variant: "destructive", title: "Failed to create tag" });
-      return;
-    }
-    const newClass = (await tcRes.json()) as TagClass;
-    await mutateTagClasses([...tagClasses, newClass], { revalidate: false });
+    try {
+      const tcRes = await fetch(`/api/projects/${projectId}/tag-classes/${name}`, {
+        method: "POST",
+        body: JSON.stringify({ color }),
+      });
+      if (!tcRes.ok) {
+        const errMessage = await tcRes
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        throw new Error(errMessage ?? "Failed to create tag");
+      }
+      const newClass = (await tcRes.json()) as TagClass;
+      await mutateTagClasses([...tagClasses, newClass], { revalidate: false });
 
-    const tagRes = await fetch(`/api/projects/${projectId}/spans/${spanId}/tags`, {
-      method: "POST",
-      body: JSON.stringify({ name }),
-    });
-    if (!tagRes.ok) {
-      toast({ variant: "destructive", title: "Failed to attach tag" });
-      return;
+      const tagRes = await fetch(`/api/projects/${projectId}/spans/${spanId}/tags`, {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      if (!tagRes.ok) {
+        const errMessage = await tagRes
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        throw new Error(errMessage ?? "Failed to attach tag");
+      }
+      const newTag = (await tagRes.json()) as SpanTag;
+      await mutateTags([...rawTags, newTag], { revalidate: false });
+    } catch (e) {
+      toast({ variant: "destructive", title: e instanceof Error ? e.message : "Something went wrong" });
     }
-    const newTag = (await tagRes.json()) as SpanTag;
-    await mutateTags([...rawTags, newTag], { revalidate: false });
   };
 
   return (

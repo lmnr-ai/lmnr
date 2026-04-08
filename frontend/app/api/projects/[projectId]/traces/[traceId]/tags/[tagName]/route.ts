@@ -25,14 +25,12 @@ export async function DELETE(
     const updatedTags = currentTags.filter((t) => t !== tagName);
 
     // Insert updated row (ReplacingMergeTree deduplicates by updated_at)
-    // DateTime64(6) expects microseconds since epoch
     await clickhouseClient.insert({
       table: "trace_tags",
       values: [
         {
           project_id: projectId,
           trace_id: traceId,
-          updated_at: Date.now() * 1000,
           tags: updatedTags,
         },
       ],
