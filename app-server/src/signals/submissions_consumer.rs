@@ -3,7 +3,9 @@
 //! - Pushes results to the Pending Queue for polling
 
 use async_trait::async_trait;
+use futures_util::stream::{self, StreamExt};
 use std::sync::Arc;
+use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -30,6 +32,8 @@ use crate::{
         utils::{InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr},
     },
 };
+
+const DEFAULT_PROCESS_RUN_CONCURRENCY: usize = 16;
 
 pub struct SignalJobSubmissionBatchHandler {
     pub db: Arc<DB>,
@@ -102,26 +106,42 @@ async fn prepare_batch_requests(
     let mut failed_runs: Vec<SignalRun> = Vec::new();
     let mut successful_messages: Vec<SignalMessage> = Vec::new();
 
-    for message in messages.iter() {
-        let project_id = message.project_id;
-        let signal = &message.signal;
-        let trace_id = message.trace_id;
+    let concurrency = get_unsigned_env_with_default(
+        "SIGNALS_PROCESS_RUN_CONCURRENCY",
+        DEFAULT_PROCESS_RUN_CONCURRENCY,
+    );
+    let results: Vec<_> = stream::iter(messages.iter().cloned())
+        .map(|message| {
+            let clickhouse = clickhouse.clone();
+            let cache = cache.clone();
+            let llm_client = llm_client.clone();
+            let queue = queue.clone();
+            let config = config.clone();
+            async move {
+                let result = process_run(
+                    message.project_id,
+                    message.trace_id,
+                    message.run_id,
+                    message.signal.id,
+                    &message.signal.prompt,
+                    &message.signal.structured_output_schema,
+                    clickhouse,
+                    cache,
+                    llm_client,
+                    queue,
+                    &config,
+                )
+                .await;
+                (message, result)
+            }
+            .in_current_span()
+        })
+        .buffer_unordered(concurrency)
+        .collect()
+        .await;
 
-        match process_run(
-            project_id,
-            trace_id,
-            message.run_id,
-            signal.id,
-            &signal.prompt,
-            &signal.structured_output_schema,
-            clickhouse.clone(),
-            cache.clone(),
-            llm_client.clone(),
-            queue.clone(),
-            &config,
-        )
-        .await
-        {
+    for (message, result) in results {
+        match result {
             Ok(ProcessRunResult {
                 request,
                 new_messages,
@@ -134,13 +154,14 @@ async fn prepare_batch_requests(
                 successful_messages.push(updated_message);
             }
             Err(e) => {
+                let signal_id = message.signal.id;
                 log::error!(
                     "[SIGNAL JOB] Failed to process run {}: {:?}",
                     message.run_id,
                     e
                 );
                 failed_runs.push(
-                    SignalRun::from_message(message, signal.id)
+                    SignalRun::from_message(&message, signal_id)
                         .failed(&format!("Failed to process run: {}", e)),
                 );
             }

@@ -243,6 +243,7 @@ fn parse_drop_rules_from_response(
 /// Call the LLM to generate span drop rules and cache them.
 /// `fingerprint` is typically the `main_agent_hash` from summarization.
 /// Returns the generated rules (may be empty if the LLM finds nothing to drop).
+#[tracing::instrument(skip_all, fields(project_id, signal_id))]
 pub async fn generate_and_cache_drop_rules(
     cache: &Arc<Cache>,
     llm_client: &Arc<LlmClient>,
