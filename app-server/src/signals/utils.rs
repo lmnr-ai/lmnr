@@ -136,19 +136,6 @@ pub struct InternalSpan {
     pub tools: Option<Value>,
 }
 
-/// Hash a text to a stable short hex identifier.
-/// Normalizes whitespace and lowercases before hashing so minor formatting
-/// variations produce the same hash.
-pub fn hash_system_prompt(text: &str) -> String {
-    let normalized = text
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase();
-    let digest = Sha3_256::digest(normalized.as_bytes());
-    format!("{:x}", digest)[..8].to_string()
-}
-
 static XML_TAG_NAME_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"<(\w+)[\s/>]").unwrap());
 

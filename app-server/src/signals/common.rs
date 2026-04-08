@@ -23,7 +23,7 @@ use crate::{
         },
         spans::{
             build_trace_structure_string, extract_system_prompts_with_paths, get_trace_ch_spans,
-            hash_system_prompt,
+            structural_skeleton_hash,
         },
         summarize::summarize_system_prompts,
         tools::build_tool_definitions,
@@ -120,7 +120,7 @@ pub async fn process_run(
             ch_spans
                 .iter()
                 .find(|s| s.parent_span_id.is_nil() || s.parent_span_id == Uuid::nil())
-                .map(|s| hash_system_prompt(&s.name))
+                .map(|s| structural_skeleton_hash(&s.name))
         });
 
         // 3. Resolve span drop rules (cached or generated)
