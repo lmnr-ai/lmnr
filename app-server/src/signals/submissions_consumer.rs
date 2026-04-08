@@ -3,12 +3,14 @@
 //! - Pushes results to the Pending Queue for polling
 
 use async_trait::async_trait;
-use opentelemetry::{global, trace::{Span, Tracer}};
+use opentelemetry::{
+    global,
+    trace::{Span, Tracer},
+};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    cache::CacheTrait,
     ch::signal_run_messages::{CHSignalRunMessage, insert_signal_run_messages},
     db::DB,
     mq::MessageQueue,
