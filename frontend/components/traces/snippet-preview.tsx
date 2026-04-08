@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 export interface SnippetPreviewProps {
   inputSnippet?: SnippetInfo;
   outputSnippet?: SnippetInfo;
+  attributesSnippet?: SnippetInfo;
   snippetsCount?: number;
   className?: string;
   variant?: "table" | "span";
@@ -12,11 +13,12 @@ export interface SnippetPreviewProps {
 export function SnippetPreview({
   inputSnippet,
   outputSnippet,
+  attributesSnippet,
   snippetsCount,
   className,
   variant = "table",
 }: SnippetPreviewProps) {
-  const snippet = inputSnippet ?? outputSnippet;
+  const snippet = inputSnippet ?? outputSnippet ?? attributesSnippet;
   if (!snippet) {
     return <span className="text-xs text-muted-foreground">No preview</span>;
   }

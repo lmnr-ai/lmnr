@@ -37,9 +37,6 @@ pub const DEFAULT_BATCH_SIZE: usize = 64;
 pub struct SignalJobSubmissionBatchMessage {
     /// All signal messages in this batch (may contain different projects/signals)
     pub messages: Vec<SignalMessage>,
-    /// Unique ID for this batch message, used for idempotency on redelivery
-    #[serde(default = "Uuid::new_v4")]
-    pub id: Uuid,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

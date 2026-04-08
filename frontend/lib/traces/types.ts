@@ -60,6 +60,7 @@ export type Span = {
   outputTokens: number;
   totalTokens: number;
   cacheReadInputTokens?: number;
+  reasoningTokens?: number;
   inputCost: number;
   outputCost: number;
   totalCost: number;
@@ -146,6 +147,7 @@ export type TraceRow = {
   rootSpanOutput?: string;
   inputSnippet?: { text: string; highlight: [number, number] };
   outputSnippet?: { text: string; highlight: [number, number] };
+  attributesSnippet?: { text: string; highlight: [number, number] };
   snippetsCount?: number;
 };
 

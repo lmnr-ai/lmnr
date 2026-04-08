@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::Utc;
 use regex::Regex;
 use serde_json::Value;
+use sha3::{Digest, Sha3_256};
 use std::{collections::HashMap, sync::Arc, sync::LazyLock};
 use uuid::Uuid;
 
@@ -23,14 +24,22 @@ static BASE64_IMAGE_RE: LazyLock<Regex> = LazyLock::new(|| {
 static SIGNATURE_FIELD_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"("(?:signature|thought_signature)")\s*:\s*"[^"]*""#).unwrap());
 
+/// Matches signature/thought_signature fields inside nested JSON strings where
+/// quotes are backslash-escaped (e.g. `\"signature\":\"...\"`).
+static SIGNATURE_FIELD_ESCAPED_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(\\"(?:signature|thought_signature)\\")\s*:\s*\\"[^"\\]*\\""#).unwrap()
+});
+
 /// Strip base64 images and signature/thought_signature values from raw
 /// ClickHouse span content. Does NOT touch whitespace — use
 /// `clean_value_whitespace` (after JSON parsing) or `clean_raw_whitespace`
 /// (for non-JSON contexts like search) separately.
 pub fn strip_noise(raw: &str) -> String {
     let without_images = BASE64_IMAGE_RE.replace_all(raw, "[base64 image omitted]");
-    SIGNATURE_FIELD_RE
-        .replace_all(&without_images, r#"$1:"[signature omitted]""#)
+    let without_sigs = SIGNATURE_FIELD_RE
+        .replace_all(&without_images, r#"$1:"[signature omitted]""#);
+    SIGNATURE_FIELD_ESCAPED_RE
+        .replace_all(&without_sigs, r##"$1:\"[signature omitted]\""##)
         .into_owned()
 }
 
@@ -127,6 +136,19 @@ pub struct InternalSpan {
     pub tools: Option<Value>,
 }
 
+/// Hash a text to a stable short hex identifier.
+/// Normalizes whitespace and lowercases before hashing so minor formatting
+/// variations produce the same hash.
+pub fn hash_system_prompt(text: &str) -> String {
+    let normalized = text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+    let digest = Sha3_256::digest(normalized.as_bytes());
+    format!("{:x}", digest)[..8].to_string()
+}
+
 /// Try to parse JSON string, return the parsed value or the original string
 pub fn try_parse_json(json_string: &str) -> Value {
     if json_string.is_empty() {
@@ -157,13 +179,15 @@ pub fn extract_batch_id_from_operation(operation_name: &str) -> Result<String> {
 }
 
 /// Replaces span references with markdown URLs in a JSON value.
-/// Handles both proper `<span>` XML tags and informal `span abc123` references.
+/// Handles both proper `<span>` XML tags and informal span references.
 ///
 /// Converts short span IDs (last 6 hex chars of UUID) to full UUIDs using span_ids_map.
 ///
 /// Formats handled:
 /// - `<span id='a1b2c3' name='openai.chat' />` → `[openai.chat](...?spanId=...)`
-/// - `span a1b2c3` or `(span a1b2c3)` → `[span a1b2c3](...?spanId=...)`
+/// - `span a1b2c3` → `[span a1b2c3](...?spanId=...)`
+/// - `spans a1b2c3, d4e5f6` → `[span a1b2c3](...), [span d4e5f6](...)`
+/// - `spans a1b2c3 and d4e5f6` → `[span a1b2c3](...), [span d4e5f6](...)`
 pub fn replace_span_tags_with_links(
     attributes: Value,
     span_ids_map: &HashMap<String, Uuid>,
@@ -189,18 +213,28 @@ pub fn replace_span_tags_with_links(
         )
     });
 
-    // 2. Replace informal "span <hex_id>" references (only for known span IDs)
-    let informal_pattern = Regex::new(r"\bspan\s+([0-9a-fA-F]{6})\b")?;
+    // 2. Replace informal "span(s) id1, id2, ..." references (single or comma/and-separated)
+    let hex_id_re = Regex::new(r"[0-9a-fA-F]{6}")?;
+    let span_ref_pattern = Regex::new(
+        r"\bspans?\s+([0-9a-fA-F]{6}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+)[0-9a-fA-F]{6})*)\b",
+    )?;
 
-    let after_informal = informal_pattern.replace_all(&after_xml, |caps: &regex::Captures| {
-        let short_id = caps[1].to_lowercase();
-        match span_ids_map.get(&short_id) {
-            Some(uuid) => format!(
-                "[span {}](https://laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
-                short_id, project_id, trace_id, uuid
-            ),
-            None => caps[0].to_string(),
-        }
+    let after_informal = span_ref_pattern.replace_all(&after_xml, |caps: &regex::Captures| {
+        let ids_str = &caps[1];
+        let parts: Vec<String> = hex_id_re
+            .find_iter(ids_str)
+            .map(|m| {
+                let short_id = m.as_str().to_lowercase();
+                match span_ids_map.get(&short_id) {
+                    Some(uuid) => format!(
+                        "[span {}](https://laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
+                        short_id, project_id, trace_id, uuid
+                    ),
+                    None => format!("span {}", short_id),
+                }
+            })
+            .collect();
+        parts.join(", ")
     });
 
     let result: Value = serde_json::from_str(&after_informal)?;
@@ -405,6 +439,38 @@ mod tests {
     }
 
     #[test]
+    fn test_strip_noise_escaped_signature() {
+        let raw = r#"[{"role":"assistant","content":"[{\"type\":\"thinking\",\"thinking\":\"test\",\"signature\":\"EpYCClkIDBgCKkD64fnfxoi6ehwSz8E6sdOJeD6DZe8qq3fylskbvJoII3Q\"}]"}]"#;
+        let result = strip_noise(raw);
+        assert!(
+            result.contains("[signature omitted]"),
+            "escaped signature should be omitted, got: {}",
+            result
+        );
+        assert!(!result.contains("EpYCClkIDBgCKkD64fnf"));
+    }
+
+    #[test]
+    fn test_strip_noise_escaped_thought_signature() {
+        let raw = r#"{"content":"[{\"thought_signature\":\"Abc123DefGhi456JklMno789PqrStu012VwxYza345Bcd678Efg\"}]"}"#;
+        let result = strip_noise(raw);
+        assert!(
+            result.contains("[signature omitted]"),
+            "escaped thought_signature should be omitted, got: {}",
+            result
+        );
+        assert!(!result.contains("Abc123DefGhi456"));
+    }
+
+    #[test]
+    fn test_strip_noise_mixed_escaped_and_unescaped_signatures() {
+        let raw = r#"{"signature":"topLevelSig","nested":"[{\"signature\":\"nestedSig123456789abcdef\"}]"}"#;
+        let result = strip_noise(raw);
+        assert!(!result.contains("topLevelSig"));
+        assert!(!result.contains("nestedSig123456789abcdef"));
+    }
+
+    #[test]
     fn test_strip_noise_no_false_positives() {
         let raw = r#"{"message":"hello world","count":42}"#;
         let result = strip_noise(raw);
@@ -472,5 +538,119 @@ mod tests {
         assert!(result.contains("[base64 image omitted]"));
         assert!(result.contains("Current screenshot:"));
         assert!(!result.contains(&long_b64));
+    }
+
+    // ===================================================================
+    // replace_span_tags_with_links
+    // ===================================================================
+
+    fn make_span_ids_map(pairs: &[(&str, Uuid)]) -> HashMap<String, Uuid> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), *v))
+            .collect()
+    }
+
+    #[test]
+    fn test_span_link_single_span() {
+        let uuid = Uuid::new_v4();
+        let map = make_span_ids_map(&[("f188ea", uuid)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("see span f188ea for details".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains(&format!("[span f188ea]")));
+        assert!(s.contains(&format!("spanId={}", uuid)));
+    }
+
+    #[test]
+    fn test_span_link_plural_single_id() {
+        let uuid = Uuid::new_v4();
+        let map = make_span_ids_map(&[("f188ea", uuid)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("spans f188ea shows the error".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(
+            s.contains("[span f188ea]"),
+            "plural 'spans' with single ID should be linked, got: {}",
+            s
+        );
+    }
+
+    #[test]
+    fn test_span_link_comma_separated_list() {
+        let u1 = Uuid::new_v4();
+        let u2 = Uuid::new_v4();
+        let u3 = Uuid::new_v4();
+        let map = make_span_ids_map(&[("f188ea", u1), ("1a2b3c", u2), ("4d5e6f", u3)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("see spans f188ea, 1a2b3c, 4d5e6f for info".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains(&format!("spanId={}", u1)), "first ID missing: {}", s);
+        assert!(s.contains(&format!("spanId={}", u2)), "second ID missing: {}", s);
+        assert!(s.contains(&format!("spanId={}", u3)), "third ID missing: {}", s);
+    }
+
+    #[test]
+    fn test_span_link_and_separated() {
+        let u1 = Uuid::new_v4();
+        let u2 = Uuid::new_v4();
+        let map = make_span_ids_map(&[("aabb11", u1), ("cc22dd", u2)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("spans aabb11 and cc22dd are relevant".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains(&format!("spanId={}", u1)), "first ID missing: {}", s);
+        assert!(s.contains(&format!("spanId={}", u2)), "second ID missing: {}", s);
+    }
+
+    #[test]
+    fn test_span_link_oxford_comma() {
+        let u1 = Uuid::new_v4();
+        let u2 = Uuid::new_v4();
+        let u3 = Uuid::new_v4();
+        let map = make_span_ids_map(&[("aa11bb", u1), ("cc22dd", u2), ("ee33ff", u3)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input =
+            Value::String("see spans aa11bb, cc22dd, and ee33ff for context".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains(&format!("spanId={}", u1)), "first: {}", s);
+        assert!(s.contains(&format!("spanId={}", u2)), "second: {}", s);
+        assert!(s.contains(&format!("spanId={}", u3)), "third: {}", s);
+    }
+
+    #[test]
+    fn test_span_link_unknown_id_in_list() {
+        let u1 = Uuid::new_v4();
+        let map = make_span_ids_map(&[("f188ea", u1)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("spans f188ea, 999999 have issues".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains(&format!("spanId={}", u1)), "known ID should be linked: {}", s);
+        assert!(s.contains("span 999999"), "unknown ID kept as text: {}", s);
+        assert!(!s.contains(&format!("999999&chat")), "unknown ID should not be linked: {}", s);
+    }
+
+    #[test]
+    fn test_span_link_xml_tag_still_works() {
+        let uuid = Uuid::new_v4();
+        let map = make_span_ids_map(&[("abcdef", uuid)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("<span id='abcdef' name='openai.chat' />".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains("[openai.chat]"), "XML tag should produce named link: {}", s);
+        assert!(s.contains(&format!("spanId={}", uuid)));
     }
 }

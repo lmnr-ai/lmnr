@@ -149,11 +149,12 @@ export const baseExtensions = [
     },
   }),
   search({
-    createPanel: (view) => {
-      // empty div to hide the search panel
+    createPanel: () => {
       const dom = document.createElement("div");
+      dom.style.height = "0px";
       return { dom };
     },
+    scrollToMatch: (range) => EditorView.scrollIntoView(range, { y: "center" }),
   }),
   highlightSelectionMatches(),
   EditorView.lineWrapping,

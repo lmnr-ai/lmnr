@@ -2,7 +2,6 @@ use anyhow::Result;
 use chrono::DateTime;
 use serde::Deserialize;
 use serde_json::Value;
-use sha3::{Digest, Sha3_256};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
 use uuid::Uuid;
@@ -183,22 +182,12 @@ fn content_overlap_score(needle_words: &HashSet<String>, haystack_words: &HashSe
     matched as f64 / needle_words.len() as f64
 }
 
-/// Hash a system prompt text to a stable short hex identifier.
-/// Normalizes whitespace and lowercases before hashing so minor formatting
-/// variations produce the same hash.
-fn hash_system_prompt(text: &str) -> String {
-    let normalized = text
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase();
-    let digest = Sha3_256::digest(normalized.as_bytes());
-    format!("{:x}", digest)[..8].to_string()
-}
+// Re-export from utils for backwards compatibility
+pub use super::utils::hash_system_prompt;
 
 /// Extract the system message from a parsed LLM input message array.
 /// Returns `(system_text, remaining_messages)` if a `role: "system"` message is found.
-fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
+pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
     let messages = parsed.as_array()?;
     let sys_idx = messages.iter().position(|m| {
         m.get("role")
@@ -206,9 +195,23 @@ fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
             .is_some_and(|r| r == "system")
     })?;
     let sys_msg = &messages[sys_idx];
-    let sys_text = sys_msg
-        .get("content")
-        .and_then(|c| c.as_str())
+    let content_val = sys_msg.get("content");
+    let sys_text = content_val
+        // "content": "plain string" (OpenAI format)
+        .and_then(|c| c.as_str().map(|s| s.to_string()))
+        // "content": [{"text": "...", "type": "text"}, ...] (Anthropic format)
+        .or_else(|| {
+            content_val
+                .and_then(|c| c.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|block| block.get("text").and_then(|t| t.as_str()))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                })
+                .filter(|s| !s.is_empty())
+        })
+        // "parts": [{"text": "..."}] (Gemini format)
         .or_else(|| {
             sys_msg
                 .get("parts")
@@ -216,9 +219,9 @@ fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
                 .and_then(|arr| arr.first())
                 .and_then(|p| p.get("text"))
                 .and_then(|t| t.as_str())
+                .map(|s| s.to_string())
         })
-        .unwrap_or("")
-        .to_string();
+        .unwrap_or_default();
     if sys_text.is_empty() {
         return None;
     }
@@ -233,6 +236,7 @@ fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
 
 /// Scan all LLM spans and extract unique system prompts.
 /// Returns a map of `hash -> full_system_prompt_text` for all unique system prompts found.
+#[allow(dead_code)]
 pub fn extract_system_prompts(ch_spans: &[CHSpan]) -> HashMap<String, String> {
     let mut result: HashMap<String, String> = HashMap::new();
     for span in ch_spans {
@@ -243,6 +247,35 @@ pub fn extract_system_prompts(ch_spans: &[CHSpan]) -> HashMap<String, String> {
         if let Some((sys_text, _)) = extract_system_message(&parsed) {
             let hash = hash_system_prompt(&sys_text);
             result.entry(hash).or_insert(sys_text);
+        }
+    }
+    result
+}
+
+#[derive(Debug)]
+pub struct ExtractedSystemPrompt {
+    pub text: String,
+    pub path: String,
+}
+
+/// Scan all LLM spans and extract unique system prompts with their span paths.
+/// Returns a map of `hash -> ExtractedSystemPrompt` for all unique system prompts found.
+/// When the same prompt appears at multiple paths, the first occurrence's path is kept.
+pub fn extract_system_prompts_with_paths(
+    ch_spans: &[CHSpan],
+) -> HashMap<String, ExtractedSystemPrompt> {
+    let mut result: HashMap<String, ExtractedSystemPrompt> = HashMap::new();
+    for span in ch_spans {
+        if span.span_type != 1 {
+            continue;
+        }
+        let parsed = try_parse_json(&strip_noise(&span.input));
+        if let Some((sys_text, _)) = extract_system_message(&parsed) {
+            let hash = hash_system_prompt(&sys_text);
+            result.entry(hash).or_insert_with(|| ExtractedSystemPrompt {
+                text: sys_text,
+                path: span.path.clone(),
+            });
         }
     }
     result
@@ -495,6 +528,7 @@ fn spans_to_string(
 // TODO: move these two functions to CH Query engine for better integration
 // with hybrid deployment mode.
 /// Query trace spans from ClickHouse
+#[tracing::instrument(skip_all, fields(project_id, trace_id))]
 async fn get_trace_spans(
     clickhouse: clickhouse::Client,
     project_id: Uuid,

@@ -9,6 +9,7 @@ pub use mock::MockProviderClient;
 pub use models::*;
 
 use enum_dispatch::enum_dispatch;
+use std::collections::HashMap;
 use std::env;
 use std::sync::OnceLock;
 use thiserror::Error;
@@ -54,7 +55,7 @@ impl ProviderError {
 pub type ProviderResult<T> = Result<T, ProviderError>;
 
 #[enum_dispatch]
-pub trait LanguageModelClient: Send + Sync {
+pub(crate) trait LanguageModelClient: Send + Sync {
     fn supports_batch(&self) -> bool {
         false
     }
@@ -85,7 +86,7 @@ pub trait LanguageModelClient: Send + Sync {
 
 #[derive(Clone)]
 #[enum_dispatch(LanguageModelClient)]
-pub enum ProviderClient {
+pub(crate) enum ProviderClient {
     Gemini(GeminiClient),
     Bedrock(BedrockClient),
     Mock(MockProviderClient),
@@ -98,25 +99,19 @@ pub fn always_use_realtime() -> bool {
 }
 
 /// Checks whether the required environment variables are set for the Gemini provider.
-pub fn has_gemini_credentials() -> bool {
+fn has_gemini_credentials() -> bool {
     env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok_and(|v| !v.is_empty())
 }
 
 /// Checks whether the required environment variables are set for the Bedrock provider.
-pub fn has_bedrock_credentials() -> bool {
+fn has_bedrock_credentials() -> bool {
     env::var("AWS_ACCESS_KEY_ID").is_ok_and(|v| !v.is_empty())
         && env::var("AWS_SECRET_ACCESS_KEY").is_ok_and(|v| !v.is_empty())
         && env::var("AWS_REGION").is_ok_and(|v| !v.is_empty())
 }
 
 /// Resolve the provider name from env var or credential auto-detection.
-///
-/// Resolution order:
-/// 1. If `SIGNALS_LLM_PROVIDER` is set (case-insensitive, whitespace-tolerant), use it.
-/// 2. Otherwise, return the first provider whose credentials are available
-///    (Gemini first, then Bedrock).
-/// 3. Falls back to "gemini" if no credentials are found.
-pub fn resolve_provider_name() -> String {
+pub(crate) fn resolve_provider_name() -> String {
     env::var("SIGNALS_LLM_PROVIDER")
         .ok()
         .map(|v| v.trim().to_lowercase())
@@ -131,15 +126,30 @@ pub fn resolve_provider_name() -> String {
 }
 
 /// Return the default model ID for a given provider name.
-pub fn default_model_for_provider(provider: &str) -> String {
+pub(crate) fn default_model_for_provider(provider: &str) -> String {
     match provider {
-        "mock" => "".to_string(), // keep empty so that span name is shown instead of model name
+        "mock" => "".to_string(),
         "bedrock" => "global.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
         _ => "gemini-3-flash-preview".to_string(),
     }
 }
 
-fn finalize_client<C: LanguageModelClient>(client: &C) -> Result<(), ProviderError> {
+/// Map a (provider, model size) pair to a concrete model ID.
+pub fn model_for_size(provider: &str, size: ModelSize) -> String {
+    match (provider, size) {
+        ("gemini", ModelSize::Small) => "gemini-3-flash-preview".to_string(),
+        ("gemini", ModelSize::Medium) => "gemini-3-flash-preview".to_string(),
+        ("gemini", ModelSize::Large) => "gemini-3-pro-preview".to_string(),
+        ("bedrock", ModelSize::Small) => {
+            "global.anthropic.claude-haiku-4-5-20251001-v1:0".to_string()
+        }
+        ("bedrock", ModelSize::Medium) => "global.anthropic.claude-sonnet-4-6".to_string(),
+        ("bedrock", ModelSize::Large) => "global.anthropic.claude-opus-4-6-v1".to_string(),
+        _ => default_model_for_provider(provider),
+    }
+}
+
+fn finalize_client(client: &ProviderClient) -> Result<(), ProviderError> {
     let always_realtime_env = std::env::var("SIGNALS_ALWAYS_USE_REALTIME")
         .is_ok_and(|v| v.trim().to_lowercase() == "true");
     ALWAYS_USE_REALTIME
@@ -151,47 +161,128 @@ fn finalize_client<C: LanguageModelClient>(client: &C) -> Result<(), ProviderErr
         })
 }
 
-/// Initialize a provider client based on configuration and available credentials.
-///
-/// Uses [`resolve_provider_name`] for provider selection, then validates credentials
-/// and constructs the appropriate client.
-pub async fn create_provider_client() -> Result<ProviderClient, ProviderError> {
-    let provider_name = resolve_provider_name();
+/// LLM client that holds all available provider clients and multiplexes
+/// requests based on optional `provider` and `model_size` fields on
+/// [`ProviderRequest`]. Callers never deal with provider resolution --
+/// they just call `generate_content(&request)`.
+#[derive(Clone)]
+pub struct LlmClient {
+    providers: HashMap<String, ProviderClient>,
+    default_provider: String,
+    default_model: String,
+}
 
-    match provider_name.as_str() {
-        "gemini" => {
-            if !has_gemini_credentials() {
-                return Err(ProviderError::ConfigError(
-                    "Provider resolved to 'gemini' but GOOGLE_GENERATIVE_AI_API_KEY is not set"
-                        .to_string(),
-                ));
-            }
+impl LlmClient {
+    pub async fn new() -> Result<Self, ProviderError> {
+        let default_provider = resolve_provider_name();
+        let default_model = env::var("SIGNALS_LLM_MODEL")
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| default_model_for_provider(&default_provider));
+
+        let mut providers = HashMap::new();
+
+        if has_gemini_credentials() {
             let client = GeminiClient::new().map_err(|e| {
                 ProviderError::ConfigError(format!("Failed to create Gemini client: {e}"))
             })?;
             log::info!("Initialized Gemini provider");
-            finalize_client(&client)?;
-            Ok(ProviderClient::Gemini(client))
+            providers.insert("gemini".to_string(), ProviderClient::Gemini(client));
         }
-        "bedrock" => {
-            if !has_bedrock_credentials() {
-                return Err(ProviderError::ConfigError(
-                    "Provider resolved to 'bedrock' but one or more required AWS env vars are missing (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)".to_string(),
-                ));
-            }
+
+        if has_bedrock_credentials() {
             let client = BedrockClient::new().await?;
             log::info!("Initialized Bedrock provider");
-            finalize_client(&client)?;
-            Ok(ProviderClient::Bedrock(client))
+            providers.insert("bedrock".to_string(), ProviderClient::Bedrock(client));
         }
-        "mock" => {
+
+        if default_provider == "mock" {
             let client = MockProviderClient::new();
             log::info!("Initialized Mock provider");
-            finalize_client(&client)?;
-            Ok(ProviderClient::Mock(client))
+            providers.insert("mock".to_string(), ProviderClient::Mock(client));
         }
-        other => Err(ProviderError::ConfigError(format!(
-            "Unknown provider: '{other}'. Supported providers: gemini, bedrock, mock",
-        ))),
+
+        if !providers.contains_key(&default_provider) {
+            return Err(ProviderError::ConfigError(format!(
+                "Default provider '{}' could not be initialized (missing credentials?)",
+                default_provider
+            )));
+        }
+
+        finalize_client(providers.get(&default_provider).unwrap())?;
+
+        Ok(Self {
+            providers,
+            default_provider,
+            default_model,
+        })
+    }
+
+    /// Build an `LlmClient` directly from a `ProviderClient` for tests.
+    #[cfg(test)]
+    pub fn from_provider(name: &str, client: ProviderClient) -> Self {
+        let default_model = default_model_for_provider(name);
+        let mut providers = HashMap::new();
+        providers.insert(name.to_string(), client);
+        Self {
+            providers,
+            default_provider: name.to_string(),
+            default_model,
+        }
+    }
+
+    fn resolve(
+        &self,
+        request: &ProviderRequest,
+    ) -> Result<(&ProviderClient, String), ProviderError> {
+        let provider_name = request
+            .provider
+            .as_deref()
+            .unwrap_or(&self.default_provider);
+        let client = self.providers.get(provider_name).ok_or_else(|| {
+            ProviderError::ConfigError(format!(
+                "Provider '{}' not available. Available: {:?}",
+                provider_name,
+                self.providers.keys().collect::<Vec<_>>()
+            ))
+        })?;
+        let model = match request.model_size {
+            Some(size) => model_for_size(provider_name, size),
+            None => self.default_model.clone(),
+        };
+        Ok((client, model))
+    }
+
+    pub async fn generate_content(
+        &self,
+        request: &ProviderRequest,
+    ) -> ProviderResult<ProviderResponse> {
+        let (client, model) = self.resolve(request)?;
+        client.generate_content(&model, request).await
+    }
+
+    pub async fn create_batch(
+        &self,
+        requests: Vec<ProviderRequestItem>,
+        display_name: Option<String>,
+    ) -> ProviderResult<ProviderBatchOperation> {
+        let (client, model) = requests
+            .first()
+            .map(|r| self.resolve(&r.request))
+            .transpose()?
+            .unwrap_or_else(|| {
+                (
+                    self.providers.get(&self.default_provider).unwrap(),
+                    self.default_model.clone(),
+                )
+            });
+        client.create_batch(&model, requests, display_name).await
+    }
+
+    pub async fn get_batch(&self, batch_name: &str) -> ProviderResult<ProviderBatchOperation> {
+        // TODO: Implement batch retrieval for all providers
+        let client = self.providers.get(&self.default_provider).unwrap();
+        client.get_batch(batch_name).await
     }
 }

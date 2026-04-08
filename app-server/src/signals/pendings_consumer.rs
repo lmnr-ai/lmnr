@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     ch::{
-        signal_run_messages::{delete_signal_run_messages, insert_signal_run_messages},
+        signal_run_messages::insert_signal_run_messages,
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::DB,
@@ -13,9 +13,12 @@ use crate::{
     signals::SignalRun,
     signals::{
         SignalWorkerConfig,
-        provider::{LanguageModelClient, ProviderClient, models::ProviderBatchOutput},
+        provider::{LlmClient, models::ProviderBatchOutput},
         push_to_signals_queue,
-        queue::{SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue, push_to_waiting_queue},
+        queue::{
+            SignalJobPendingBatchMessage, SignalMessage, push_to_realtime_queue,
+            push_to_waiting_queue,
+        },
         response_processor::{FailureMetadata, finalize_runs, process_provider_responses},
     },
     worker::{HandlerError, MessageHandler},
@@ -28,7 +31,7 @@ pub struct SignalJobPendingBatchHandler {
     pub cache: Arc<crate::cache::Cache>,
     pub queue: Arc<MessageQueue>,
     pub clickhouse: clickhouse::Client,
-    pub llm_client: Arc<ProviderClient>,
+    pub llm_client: Arc<LlmClient>,
     pub config: Arc<SignalWorkerConfig>,
 }
 
@@ -38,7 +41,7 @@ impl SignalJobPendingBatchHandler {
         cache: Arc<crate::cache::Cache>,
         queue: Arc<MessageQueue>,
         clickhouse: clickhouse::Client,
-        llm_client: Arc<ProviderClient>,
+        llm_client: Arc<LlmClient>,
         config: Arc<SignalWorkerConfig>,
     ) -> Self {
         Self {
@@ -70,12 +73,13 @@ impl MessageHandler for SignalJobPendingBatchHandler {
     }
 }
 
+#[tracing::instrument(skip_all, name = "process_batch_pending", fields(batch_id = %message.batch_id))]
 async fn process(
     message: SignalJobPendingBatchMessage,
     db: Arc<DB>,
     clickhouse: clickhouse::Client,
     queue: Arc<MessageQueue>,
-    llm_client: Arc<ProviderClient>,
+    llm_client: Arc<LlmClient>,
     config: Arc<SignalWorkerConfig>,
     cache: Arc<crate::cache::Cache>,
 ) -> Result<(), HandlerError> {
@@ -146,6 +150,7 @@ async fn process(
     Ok(())
 }
 
+#[tracing::instrument(skip_all, fields(num_runs = failed_runs.len()))]
 pub async fn retry_or_fail_runs(
     failed_runs: Vec<SignalRun>,
     run_to_message: &HashMap<Uuid, SignalMessage>,
@@ -210,6 +215,7 @@ pub async fn retry_or_fail_runs(
     (permanently_failed_runs, retried_count)
 }
 
+#[tracing::instrument(skip_all, fields(batch_id = %message.batch_id))]
 async fn process_failed_batch(
     message: &SignalJobPendingBatchMessage,
     retryable: bool,
@@ -262,18 +268,6 @@ async fn process_failed_batch(
             log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
         }
 
-        let project_run_pairs: Vec<(Uuid, Uuid)> = permanently_failed_runs
-            .iter()
-            .map(|run| (run.project_id, run.run_id))
-            .collect();
-
-        if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
-            log::error!(
-                "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
-                e
-            );
-        }
-
         let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
         for run in &permanently_failed_runs {
             if let Some(job_id) = run.job_id {
@@ -293,6 +287,7 @@ async fn process_failed_batch(
     Ok(())
 }
 
+#[tracing::instrument(skip_all, fields(batch_id = %message.batch_id))]
 async fn process_pending_batch(
     message: &SignalJobPendingBatchMessage,
     queue: Arc<MessageQueue>,
@@ -303,6 +298,7 @@ async fn process_pending_batch(
         .map_err(|e| HandlerError::transient(e))
 }
 
+#[tracing::instrument(skip_all, fields(batch_id = %message.batch_id))]
 pub async fn process_succeeded_batch(
     message: &SignalJobPendingBatchMessage,
     batch_output: Option<ProviderBatchOutput>,

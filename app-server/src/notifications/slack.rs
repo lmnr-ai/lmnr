@@ -119,7 +119,7 @@ fn format_event_identification_blocks(
                         serde_json::Value::Null => String::new(),
                         _ => serde_json::to_string_pretty(value).unwrap_or_default(),
                     };
-                    format!("_{}_\n{}", key, formatted_value)
+                    format!("_{}_:\n{}", key, formatted_value)
                 })
                 .collect()
         } else {
@@ -169,6 +169,7 @@ fn format_event_identification_blocks(
                 }
             ]
         }));
+        blocks.push(json!({"type": "divider"}));
         return json!(blocks);
     }
 
@@ -194,7 +195,8 @@ fn format_event_identification_blocks(
                     "action_id": "view_trace"
                 }
             ]
-        }
+        },
+        {"type": "divider"}
     ])
 }
 

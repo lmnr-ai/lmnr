@@ -5,24 +5,27 @@ use uuid::Uuid;
 use crate::{
     cache::Cache,
     ch::{
-        signal_run_messages::{
-            CHSignalRunMessage, delete_signal_run_messages, get_signal_run_messages,
-        },
+        signal_run_messages::{CHSignalRunMessage, get_signal_run_messages},
         signal_runs::{CHSignalRun, insert_signal_runs},
     },
     db::{DB, signal_jobs::update_signal_job_stats},
+    mq::MessageQueue,
     signals::{
-        SignalRun, llm_model,
+        SignalRun, SignalWorkerConfig,
+        filter::{apply_drop_rules, generate_and_cache_drop_rules, lookup_cached_drop_rules},
         prompts::{IDENTIFICATION_PROMPT, SYSTEM_PROMPT},
         provider::{
-            ProviderClient, ProviderThinkingConfig, ProviderThinkingLevel,
+            LlmClient, ProviderThinkingConfig, ProviderThinkingLevel,
             models::{
                 ProviderContent as Content, ProviderGenerationConfig, ProviderPart as Part,
                 ProviderRequest, ProviderRequestItem,
             },
         },
-        spans::{build_trace_structure_string, extract_system_prompts, get_trace_ch_spans},
-        summarize::{generate_and_cache_summaries, lookup_cached_summaries},
+        spans::{
+            build_trace_structure_string, extract_system_prompts_with_paths, get_trace_ch_spans,
+            hash_system_prompt,
+        },
+        summarize::summarize_system_prompts,
         tools::build_tool_definitions,
     },
     worker::HandlerError,
@@ -49,19 +52,6 @@ pub async fn handle_failed_runs(
         log::error!("[SIGNAL JOB] Failed to insert failed runs: {:?}", e);
     }
 
-    // Delete messages for failed runs since they won't be processed further
-    let project_run_pairs: Vec<(Uuid, Uuid)> = failed_runs
-        .iter()
-        .map(|run| (run.project_id, run.run_id))
-        .collect();
-
-    if let Err(e) = delete_signal_run_messages(clickhouse.clone(), &project_run_pairs).await {
-        log::error!(
-            "[SIGNAL JOB] Failed to delete messages for failed runs: {:?}",
-            e
-        );
-    }
-
     // Update job statistics - group by job_id since runs may belong to different jobs
     let mut failed_by_job: HashMap<Uuid, i32> = HashMap::new();
     for run in &failed_runs {
@@ -76,6 +66,11 @@ pub async fn handle_failed_runs(
     }
 }
 
+#[tracing::instrument(
+    skip_all,
+    name = "prepare_single_request",
+    fields(project_id, run_id, signal_id, trace_id)
+)]
 pub async fn process_run(
     project_id: Uuid,
     trace_id: Uuid,
@@ -85,7 +80,9 @@ pub async fn process_run(
     structured_output_schema: &serde_json::Value,
     clickhouse: clickhouse::Client,
     cache: Arc<Cache>,
-    llm_client: Arc<ProviderClient>,
+    llm_client: Arc<LlmClient>,
+    queue: Arc<MessageQueue>,
+    config: &SignalWorkerConfig,
 ) -> Result<ProcessRunResult, HandlerError> {
     let processing_start_time = Utc::now();
 
@@ -97,47 +94,80 @@ pub async fn process_run(
         })?;
 
     let (contents, system_instruction, new_messages) = if existing_messages.is_empty() {
-        // Fetch spans and build compressed trace with system prompt summarization
         let ch_spans = get_trace_ch_spans(clickhouse.clone(), project_id, trace_id)
             .await
             .map_err(|e| {
                 HandlerError::Transient(anyhow::anyhow!("Failed to get trace spans: {}", e))
             })?;
 
-        let extracted = extract_system_prompts(&ch_spans);
-        let system_prompt_summaries = if extracted.is_empty() {
-            HashMap::new()
-        } else {
-            let hashes: Vec<String> = extracted.keys().cloned().collect();
-            let mut summaries =
-                lookup_cached_summaries(&cache, project_id, signal_id, prompt, &hashes).await;
+        // 1. Extract system prompts and summarize (also identifies main agent)
+        let extracted = extract_system_prompts_with_paths(&ch_spans);
 
-            let uncached: HashMap<String, String> = extracted
+        let summarization = summarize_system_prompts(
+            &cache,
+            &llm_client,
+            queue.clone(),
+            config.internal_project_id,
+            project_id,
+            signal_id,
+            prompt,
+            &extracted,
+        )
+        .await;
+
+        // 2. Use main_agent_hash as fingerprint; fall back to root span name
+        let fingerprint = summarization.main_agent_hash.clone().or_else(|| {
+            ch_spans
                 .iter()
-                .filter(|(h, _)| !summaries.contains_key(*h))
-                .map(|(h, t)| (h.clone(), t.clone()))
-                .collect();
+                .find(|s| s.parent_span_id.is_nil() || s.parent_span_id == Uuid::nil())
+                .map(|s| hash_system_prompt(&s.name))
+        });
 
-            if !uncached.is_empty() {
-                let model = llm_model();
-                let generated = generate_and_cache_summaries(
-                    &cache,
-                    &llm_client,
-                    &model,
-                    project_id,
-                    signal_id,
-                    prompt,
-                    &uncached,
-                )
-                .await;
-                summaries.extend(generated);
+        // 3. Resolve span drop rules (cached or generated)
+        let drop_rules = if let Some(ref fp) = fingerprint {
+            match lookup_cached_drop_rules(&cache, project_id, signal_id, prompt, fp).await {
+                Some(rules) => {
+                    if !rules.is_empty() {
+                        log::info!(
+                            "Applying {} cached span drop rules for trace {}",
+                            rules.len(),
+                            trace_id
+                        );
+                    }
+                    rules
+                }
+                None => {
+                    let unfiltered_structure =
+                        build_trace_structure_string(&ch_spans, trace_id, &summarization.summaries);
+
+                    let main_prompt_text = summarization
+                        .main_agent_hash
+                        .as_ref()
+                        .and_then(|h| extracted.get(h))
+                        .map(|p| p.text.as_str());
+                    generate_and_cache_drop_rules(
+                        &cache,
+                        &llm_client,
+                        queue.clone(),
+                        config.internal_project_id,
+                        project_id,
+                        signal_id,
+                        prompt,
+                        fp,
+                        &unfiltered_structure,
+                        main_prompt_text,
+                    )
+                    .await
+                }
             }
-
-            summaries
+        } else {
+            Vec::new()
         };
 
+        // 4. Apply drop rules and build the final trace string
+        let ch_spans_for_trace = apply_drop_rules(ch_spans, &drop_rules);
         let trace_structure =
-            build_trace_structure_string(&ch_spans, trace_id, &system_prompt_summaries);
+            build_trace_structure_string(&ch_spans_for_trace, trace_id, &summarization.summaries);
 
         let system_prompt = SYSTEM_PROMPT.replace("{{fullTraceData}}", &trace_structure);
 
@@ -237,13 +267,15 @@ pub async fn process_run(
             system_instruction: system_instruction.clone(),
             tools: Some(tools),
             generation_config: Some(ProviderGenerationConfig {
-                temperature: Some(0.95),
+                temperature: Some(1.0),
                 thinking_config: Some(ProviderThinkingConfig {
                     include_thoughts: Some(true),
-                    thinking_level: Some(ProviderThinkingLevel::Low),
+                    thinking_level: Some(ProviderThinkingLevel::Medium),
                 }),
                 ..Default::default()
             }),
+            provider: None,
+            model_size: None,
         },
         metadata: Some(serde_json::json!({
             "run_id": run_id,
