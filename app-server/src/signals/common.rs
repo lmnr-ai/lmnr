@@ -102,7 +102,7 @@ pub async fn process_run(
 
         // 1. Extract system prompts and summarize (also identifies main agent)
         let extracted = extract_system_prompts_with_paths(&ch_spans);
-        println!("extracted: {:?}", extracted);
+
         let summarization = summarize_system_prompts(
             &cache,
             &llm_client,
