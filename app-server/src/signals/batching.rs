@@ -4,7 +4,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use uuid::Uuid;
 
 use crate::batch_worker::message_handler::{BatchMessageHandler, HandlerResult};
 use crate::batch_worker::{config::BatchingConfig, message_handler::MessageDelivery};

@@ -66,6 +66,11 @@ pub async fn handle_failed_runs(
     }
 }
 
+#[tracing::instrument(
+    skip_all,
+    name = "prepare_single_request",
+    fields(project_id, run_id, signal_id, trace_id)
+)]
 pub async fn process_run(
     project_id: Uuid,
     trace_id: Uuid,
@@ -133,7 +138,6 @@ pub async fn process_run(
                     let unfiltered_structure =
                         build_trace_structure_string(&ch_spans, trace_id, &summarization.summaries);
 
-                    println!("summarization after: {:?}", summarization);
                     let main_prompt_text = summarization
                         .main_agent_hash
                         .as_ref()

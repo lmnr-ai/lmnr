@@ -7,7 +7,6 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
-    cache::CacheTrait,
     ch::signal_run_messages::{CHSignalRunMessage, insert_signal_run_messages},
     db::DB,
     mq::MessageQueue,
@@ -17,7 +16,6 @@ use crate::{
         queue::{
             SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
             push_to_pending_queue, push_to_realtime_queue, push_to_signals_queue,
-            push_to_submissions_queue,
         },
         utils::extract_batch_id_from_operation,
     },
@@ -85,21 +83,26 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
     }
 }
 
-async fn process(
-    msg: SignalJobSubmissionBatchMessage,
-    db: Arc<DB>,
-    cache: Arc<crate::cache::Cache>,
+#[tracing::instrument(skip_all, name = "prepare_batch_requests", fields(batch_size = messages.len()))]
+async fn prepare_batch_requests(
+    messages: &[SignalMessage],
     clickhouse: clickhouse::Client,
-    queue: Arc<MessageQueue>,
+    cache: Arc<crate::cache::Cache>,
     llm_client: Arc<LlmClient>,
-    config: Arc<SignalWorkerConfig>,
-) -> Result<(), HandlerError> {
-    let mut requests: Vec<ProviderRequestItem> = Vec::with_capacity(msg.messages.len());
+    queue: Arc<MessageQueue>,
+    config: &SignalWorkerConfig,
+) -> (
+    Vec<ProviderRequestItem>,
+    Vec<CHSignalRunMessage>,
+    Vec<SignalRun>,
+    Vec<SignalMessage>,
+) {
+    let mut requests: Vec<ProviderRequestItem> = Vec::with_capacity(messages.len());
     let mut all_new_messages: Vec<CHSignalRunMessage> = Vec::new();
     let mut failed_runs: Vec<SignalRun> = Vec::new();
     let mut successful_messages: Vec<SignalMessage> = Vec::new();
 
-    for message in msg.messages.iter() {
+    for message in messages.iter() {
         let project_id = message.project_id;
         let signal = &message.signal;
         let trace_id = message.trace_id;
@@ -143,6 +146,30 @@ async fn process(
             }
         }
     }
+
+    (requests, all_new_messages, failed_runs, successful_messages)
+}
+
+#[tracing::instrument(skip_all, name = "process_batch_submission", fields(batch_size = msg.messages.len()))]
+async fn process(
+    msg: SignalJobSubmissionBatchMessage,
+    db: Arc<DB>,
+    cache: Arc<crate::cache::Cache>,
+    clickhouse: clickhouse::Client,
+    queue: Arc<MessageQueue>,
+    llm_client: Arc<LlmClient>,
+    config: Arc<SignalWorkerConfig>,
+) -> Result<(), HandlerError> {
+    let (requests, all_new_messages, mut failed_runs, successful_messages) =
+        prepare_batch_requests(
+            &msg.messages,
+            clickhouse.clone(),
+            cache.clone(),
+            llm_client.clone(),
+            queue.clone(),
+            &config,
+        )
+        .await;
 
     if requests.is_empty() {
         log::error!("[SIGNAL JOB] No requests to submit");
@@ -224,6 +251,7 @@ async fn emit_submit_spans(
 
 /// Submit batch to LLM API and push to pending queue on success.
 /// On failure, returns the failed runs and the handler error.
+#[tracing::instrument(skip_all, fields(batch_size = requests.len()))]
 async fn submit_batch_to_llm(
     llm_client: Arc<LlmClient>,
     requests: Vec<ProviderRequestItem>,
