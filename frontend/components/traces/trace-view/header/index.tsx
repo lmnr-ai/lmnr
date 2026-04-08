@@ -1,10 +1,12 @@
-import { ChevronsRight, Maximize, Radio, Sparkles } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronsRight, Maximize, Sparkles } from "lucide-react";
 import NextLink from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { memo, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 
 import { useTraceSignals } from "@/components/signals/use-trace-signals";
+import { SIGNAL_COLORS } from "@/components/signals/utils";
 import TraceTagsButton from "@/components/tags/trace-tags-button";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
@@ -126,32 +128,48 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
           <span className={HEADER_ITEM_CLS}>
             <TraceTagsButton traceId={traceId} />
           </span>
-          {signalCount > 0 && (
-            <span className={HEADER_ITEM_CLS}>
+          {signalCount > 0 && !signalsPanelOpen && (
+            <motion.span className={HEADER_ITEM_CLS} layout layoutId="signals-panel-layout">
               <Button
-                onClick={() => setSignalsPanelOpen(!signalsPanelOpen)}
+                onClick={() => setSignalsPanelOpen(true)}
                 variant="outline"
-                className={cn(
-                  "h-6 text-xs px-1.5",
-                  signalsPanelOpen ? "border-primary text-primary hover:bg-primary/10" : "hover:bg-secondary"
-                )}
+                className="h-6 text-xs px-1.5 gap-1.5 hover:bg-secondary"
               >
-                <Radio size={14} className="mr-1" />
-                Signals ({signalCount})
+                <div className="flex -space-x-[6px]">
+                  {traceSignals.map((signal, i) => (
+                    <motion.div
+                      key={signal.signalId}
+                      layout
+                      layoutId={`trace-signals-layout-${signal.signalId}`}
+                      className="size-3.5 rounded-full border border-background"
+                      style={{ background: SIGNAL_COLORS[i % SIGNAL_COLORS.length] }}
+                      transition={{ layout: { type: "spring", stiffness: 300, damping: 30 } }}
+                    />
+                  ))}
+                </div>
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1, transition: { delay: 0.3 } }}
+                  exit={{ opacity: 0, transition: { duration: 0.1, delay: 0 } }}
+                >
+                  Signals
+                </motion.span>
               </Button>
-            </span>
+            </motion.span>
           )}
         </div>
         {trace && <ShareTraceButton projectId={projectId} />}
       </div>
-      {signalsPanelOpen && (
-        <ResizableSignalCard
-          traceId={traceId}
-          traceSignals={traceSignals}
-          isTraceSignalsLoading={isTraceSignalsLoading}
-          onClose={() => setSignalsPanelOpen(false)}
-        />
-      )}
+      <AnimatePresence>
+        {signalsPanelOpen && (
+          <ResizableSignalCard
+            traceId={traceId}
+            traceSignals={traceSignals}
+            isTraceSignalsLoading={isTraceSignalsLoading}
+            onClose={() => setSignalsPanelOpen(false)}
+          />
+        )}
+      </AnimatePresence>
       <div className="flex items-center gap-2 mt-2">
         <TraceViewSearch
           spans={spans}

@@ -15,11 +15,11 @@ const SignalsCell = ({ signalNames }: SignalsCellProps) => {
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="flex items-center gap-1.5">
-            <div className="flex flex-row items-center -space-x-[5px]">
+            <div className="flex flex-row items-center -space-x-2">
               {signalNames.map((name, i) => (
                 <div
                   key={name}
-                  className="size-3 border-[1.5px] border-secondary rotate-45"
+                  className="size-4 rounded-full border-2 border-secondary"
                   style={{ backgroundColor: SIGNAL_COLORS[i % SIGNAL_COLORS.length] }}
                 />
               ))}
@@ -35,7 +35,7 @@ const SignalsCell = ({ signalNames }: SignalsCellProps) => {
               {signalNames.map((name, i) => (
                 <div key={name} className="flex flex-row items-center gap-2">
                   <div
-                    className="size-2 rotate-45 flex-shrink-0"
+                    className="size-2.5 rounded-full flex-shrink-0"
                     style={{ backgroundColor: SIGNAL_COLORS[i % SIGNAL_COLORS.length] }}
                   />
                   <span className="text-xs">{name}</span>

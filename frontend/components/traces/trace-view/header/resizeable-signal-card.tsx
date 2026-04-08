@@ -93,7 +93,10 @@ export default function ResizableSignalCard({
   return (
     <motion.div
       className={cn("flex flex-col rounded-lg border bg-secondary/50 overflow-hidden relative", className)}
-      style={{ borderColor: `${activeColor}80` }}
+      style={{
+        borderColor: `${activeColor}80`,
+        backgroundColor: `${activeColor}10`,
+      }}
       custom={height}
       variants={cardVariants}
       initial="initial"
@@ -116,7 +119,10 @@ export default function ResizableSignalCard({
             className="flex flex-col flex-1 min-h-0 overflow-hidden gap-0"
           >
             <motion.div className="flex items-center gap-1 flex-shrink-0" layout layoutId="signals-panel-layout">
-              <TabsList className="flex-1 h-8">
+              <TabsList
+                className="flex-1 h-8"
+                style={{ background: `linear-gradient(${activeColor}20, ${activeColor}20), var(--color-muted)` }}
+              >
                 {traceSignals.map((signal, i) => (
                   <TooltipProvider key={signal.signalId} delayDuration={500}>
                     <Tooltip>
@@ -126,8 +132,8 @@ export default function ResizableSignalCard({
                             <motion.div
                               layout
                               layoutId={`trace-signals-layout-${signal.signalId}`}
-                              className="size-2 flex-shrink-0"
-                              style={{ backgroundColor: SIGNAL_COLORS[i % SIGNAL_COLORS.length], rotate: 45 }}
+                              className="size-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: SIGNAL_COLORS[i % SIGNAL_COLORS.length] }}
                               transition={{ layout: { type: "spring", stiffness: 300, damping: 30 } }}
                             />
                             <span className="block truncate">{signal.signalName}</span>
