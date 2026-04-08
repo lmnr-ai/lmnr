@@ -3,7 +3,7 @@
 //! - Pushes results to the Pending Queue for polling
 
 use async_trait::async_trait;
-use opentelemetry::{global, trace::Tracer};
+use opentelemetry::{global, trace::{Span, Tracer}};
 use std::sync::Arc;
 use uuid::Uuid;
 
