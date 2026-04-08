@@ -212,9 +212,11 @@ pub async fn summarize_system_prompts(
     }
 
     log::info!(
-        "Summarization cache miss for {} prompts (skeleton={}), generating",
+        "Summarization cache miss for {} prompts (skeleton={}), generating. project_id={}, signal_id={}",
         extracted.len(),
         prompts_hash,
+        project_id,
+        signal_id,
     );
 
     let start_time = Utc::now();

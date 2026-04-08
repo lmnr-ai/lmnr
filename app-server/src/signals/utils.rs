@@ -156,36 +156,36 @@ static XML_TAG_NAME_RE: LazyLock<Regex> =
 /// Resistant to dynamic content inside tags (config values, user context, tool lists)
 /// while preserving the stable identity of the prompt template.
 pub fn structural_skeleton_hash(text: &str) -> String {
-    let normalized = text
+    // Extract first sentence from original text (before whitespace normalization
+    // destroys newline boundaries). Cut at the first '.' or '\n' after 20+ chars.
+    let raw_first_sentence = text
+        .char_indices()
+        .find(|(i, c)| *i >= 20 && (*c == '.' || *c == '\n'))
+        .map(|(i, _)| &text[..i])
+        .unwrap_or_else(|| {
+            let end = text
+                .char_indices()
+                .nth(200)
+                .map(|(i, _)| i)
+                .unwrap_or(text.len());
+            &text[..end]
+        });
+
+    let first_sentence = raw_first_sentence
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
         .to_lowercase();
 
-    // Extract first sentence: up to the first '.' or '\n' that occurs after 20+ chars
-    let first_sentence = normalized
-        .char_indices()
-        .find(|(i, c)| *i >= 20 && (*c == '.' || *c == '\n'))
-        .map(|(i, _)| &normalized[..i])
-        .unwrap_or_else(|| {
-            // No sentence boundary found -- use first 200 chars or the whole thing
-            let end = normalized
-                .char_indices()
-                .nth(200)
-                .map(|(i, _)| i)
-                .unwrap_or(normalized.len());
-            &normalized[..end]
-        });
-
-    // Extract unique XML/HTML tag names
-    let mut tag_names: Vec<&str> = XML_TAG_NAME_RE
+    // Extract unique XML/HTML tag names (lowercased to match normalized first_sentence)
+    let mut tag_names: Vec<String> = XML_TAG_NAME_RE
         .captures_iter(text)
-        .map(|cap| cap.get(1).unwrap().as_str())
+        .map(|cap| cap.get(1).unwrap().as_str().to_lowercase())
         .collect();
     tag_names.sort();
     tag_names.dedup();
 
-    let skeleton = format!("{}|{}", first_sentence.trim(), tag_names.join(","));
+    let skeleton = format!("{}|{}", first_sentence, tag_names.join(","));
     let digest = Sha3_256::digest(skeleton.as_bytes());
     format!("{:x}", digest)[..8].to_string()
 }
@@ -756,11 +756,105 @@ Do not fabricate data.
     #[test]
     fn test_structural_skeleton_hash_case_insensitive() {
         let lower = "You are an AI assistant.\n<rules>be helpful</rules>";
-        let upper = "YOU ARE AN AI ASSISTANT.\n<rules>BE HELPFUL</rules>";
+        let upper = "YOU ARE AN AI ASSISTANT.\n<RULES>BE HELPFUL</RULES>";
 
         assert_eq!(
             structural_skeleton_hash(lower),
             structural_skeleton_hash(upper),
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_newline_boundary() {
+        // First sentence should stop at \n, not include tag content
+        let prompt_a = "You are a browser automation agent\n<config>Model: gpt-4</config>";
+        let prompt_b = "You are a browser automation agent\n<config>Model: claude-3</config>";
+
+        assert_eq!(
+            structural_skeleton_hash(prompt_a),
+            structural_skeleton_hash(prompt_b),
+            "Newline should terminate first sentence before dynamic tag content"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_period_boundary() {
+        // First sentence stops at period; content after differs
+        let v1 = "You are a helpful coding assistant. Today is Monday. User: Alice.";
+        let v2 = "You are a helpful coding assistant. Today is Friday. User: Bob.";
+
+        assert_eq!(
+            structural_skeleton_hash(v1),
+            structural_skeleton_hash(v2),
+            "Only first sentence (up to first period) should matter"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_whitespace_normalization() {
+        let spaced = "You   are  an   AI   assistant.\n<rules>  help  </rules>";
+        let compact = "You are an AI assistant.\n<rules>help</rules>";
+
+        assert_eq!(
+            structural_skeleton_hash(spaced),
+            structural_skeleton_hash(compact),
+            "Extra whitespace in first sentence should not affect hash"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_short_prompt_fallback() {
+        // Less than 20 chars before any boundary -- uses 200-char fallback
+        let short = "Be helpful.";
+        let hash = structural_skeleton_hash(short);
+        assert_eq!(hash.len(), 8, "Should still produce an 8-char hash");
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_tag_order_irrelevant() {
+        let order_a = "You are an AI agent for testing.\n<beta>x</beta>\n<alpha>y</alpha>";
+        let order_b = "You are an AI agent for testing.\n<alpha>z</alpha>\n<beta>w</beta>";
+
+        assert_eq!(
+            structural_skeleton_hash(order_a),
+            structural_skeleton_hash(order_b),
+            "Tag order should not affect hash (tags are sorted)"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_duplicate_tags() {
+        let single = "You are an AI agent for testing.\n<rules>rule 1</rules>";
+        let duped = "You are an AI agent for testing.\n<rules>rule 1</rules>\n<rules>rule 2</rules>";
+
+        assert_eq!(
+            structural_skeleton_hash(single),
+            structural_skeleton_hash(duped),
+            "Duplicate tag names should be deduped"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_same_sentence_different_tags() {
+        let with_rules = "You are an AI agent for testing.\n<rules>be safe</rules>";
+        let with_tools = "You are an AI agent for testing.\n<tools>search, read</tools>";
+
+        assert_ne!(
+            structural_skeleton_hash(with_rules),
+            structural_skeleton_hash(with_tools),
+            "Same sentence but different tag names should produce different hashes"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_self_closing_tags() {
+        let normal = "You are an AI agent for testing.\n<config>stuff</config>";
+        let self_closing = "You are an AI agent for testing.\n<config />";
+
+        assert_eq!(
+            structural_skeleton_hash(normal),
+            structural_skeleton_hash(self_closing),
+            "Self-closing tags should extract the same tag name"
         );
     }
 }
