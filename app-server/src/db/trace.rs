@@ -47,7 +47,7 @@ pub struct Trace {
     cost: f64,
     project_id: Uuid,
     status: Option<String>,
-    tags: Vec<String>,
+    tags: Vec<String>, // Span tags
     num_spans: i64,
     has_browser_session: Option<bool>,
     span_names: Option<Value>,

@@ -1,6 +1,6 @@
 import { capitalize } from "lodash";
 import { Bolt, Brain, ChevronDown, ChevronUp } from "lucide-react";
-import React, { memo, type PropsWithChildren, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { memo, type PropsWithChildren, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import ImageWithPreview from "@/components/playground/image-with-preview";
 import ContentRenderer from "@/components/ui/content-renderer/index";
