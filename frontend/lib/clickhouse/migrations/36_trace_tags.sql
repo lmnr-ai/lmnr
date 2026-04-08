@@ -1,6 +1,3 @@
--- Add trace_tags column to traces_replacing for backwards compatibility
-ALTER TABLE default.traces_replacing ADD COLUMN IF NOT EXISTS `trace_tags` Array(String) DEFAULT [];
-
 -- Create separate trace_tags table with ReplacingMergeTree for efficient tag updates
 CREATE TABLE IF NOT EXISTS trace_tags
 (
@@ -12,12 +9,6 @@ CREATE TABLE IF NOT EXISTS trace_tags
 ENGINE = ReplacingMergeTree(updated_at)
 ORDER BY (project_id, trace_id)
 SETTINGS index_granularity = 8192;
-
--- Migrate existing trace_tags data from traces_replacing into the new table
-INSERT INTO trace_tags (project_id, trace_id, updated_at, tags)
-SELECT project_id, id, now(), trace_tags
-FROM traces_replacing FINAL
-WHERE length(trace_tags) > 0;
 
 -- Drop views in dependency order (traces_v0 depends on raw_traces_v0)
 DROP VIEW IF EXISTS default.traces_v0;

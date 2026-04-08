@@ -221,10 +221,8 @@ export const columns: ColumnDef<TraceRow, any>[] = [
     meta: { sql: "tags" },
   },
   {
-    accessorFn: (row) => row.traceTags,
     cell: (row) => <TraceTagsCell traceId={row.row.original.id} />,
     header: "Tags",
-    accessorKey: "traceTags",
     id: "trace_tags",
     enableSorting: true,
     meta: { sql: "trace_tags" },
