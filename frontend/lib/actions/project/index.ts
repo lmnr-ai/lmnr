@@ -24,7 +24,13 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
 
   // Retrieve API key hashes before deleting the project, because they will be
   // cascade deleted from db once we delete the project.
-  const apiKeyHashes = await getProjectApiKeyHashes(projectId);
+  // This is best-effort — a failure here should not block project deletion.
+  let apiKeyHashes: string[] = [];
+  try {
+    apiKeyHashes = await getProjectApiKeyHashes(projectId);
+  } catch (error) {
+    console.error("Failed to retrieve project api key hashes", error);
+  }
 
   const workspaceId = await db.query.projects.findFirst({
     where: eq(projects.id, projectId),
