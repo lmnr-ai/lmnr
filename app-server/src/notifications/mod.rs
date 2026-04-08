@@ -346,6 +346,16 @@ impl MessageHandler for NotificationHandler {
         }
 
         if failures == total {
+            // Release the usage warning dedup lock so the requeued message can
+            // re-acquire it on retry. Without this, the lock's TTL would cause
+            // the retry to silently skip, permanently losing the notification.
+            if message.definition_type == NotificationDefinitionType::UsageWarning {
+                let lock_key = format!(
+                    "{}:{}",
+                    USAGE_WARNING_NOTIFICATION_LOCK_KEY, message.definition_id
+                );
+                let _ = self.cache.remove(&lock_key).await;
+            }
             return Err(HandlerError::transient(anyhow::anyhow!(
                 "Failed to push all {} delivery messages for definition {}",
                 total,
