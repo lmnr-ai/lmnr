@@ -23,7 +23,7 @@ use crate::{
         },
         spans::{
             build_trace_structure_string, extract_system_prompts_with_paths, get_trace_ch_spans,
-            hash_system_prompt,
+            structural_skeleton_hash,
         },
         summarize::summarize_system_prompts,
         tools::build_tool_definitions,
@@ -115,12 +115,12 @@ pub async fn process_run(
         )
         .await;
 
-        // 2. Use main_agent_hash as fingerprint; fall back to root span name
-        let fingerprint = summarization.main_agent_hash.clone().or_else(|| {
+        // 2. Use summary-based fingerprint for drop rules cache; fall back to root span name
+        let fingerprint = summarization.fingerprint.clone().or_else(|| {
             ch_spans
                 .iter()
                 .find(|s| s.parent_span_id.is_nil() || s.parent_span_id == Uuid::nil())
-                .map(|s| hash_system_prompt(&s.name))
+                .map(|s| structural_skeleton_hash(&s.name))
         });
 
         // 3. Resolve span drop rules (cached or generated)
@@ -137,14 +137,12 @@ pub async fn process_run(
                     rules
                 }
                 None => {
+                    log::info!(
+                        "Filter cache miss for trace {} (fingerprint={}), generating rules",
+                        trace_id, fp,
+                    );
                     let unfiltered_structure =
                         build_trace_structure_string(&ch_spans, trace_id, &summarization.summaries);
-
-                    let main_prompt_text = summarization
-                        .main_agent_hash
-                        .as_ref()
-                        .and_then(|h| extracted.get(h))
-                        .map(|p| p.text.as_str());
                     generate_and_cache_drop_rules(
                         &cache,
                         &llm_client,
@@ -155,7 +153,6 @@ pub async fn process_run(
                         prompt,
                         fp,
                         &unfiltered_structure,
-                        main_prompt_text,
                     )
                     .await
                 }
