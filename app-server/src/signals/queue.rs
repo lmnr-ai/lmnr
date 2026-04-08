@@ -72,6 +72,9 @@ pub struct SignalMessage {
     /// 0 = batch, 1 = realtime. Determines billing and routing.
     #[serde(default)]
     pub mode: u8,
+    /// Number of LLM spans processed after filtering (set on step 0, carried across steps)
+    #[serde(default)]
+    pub steps_processed: u32,
 }
 
 pub async fn push_to_submissions_queue(

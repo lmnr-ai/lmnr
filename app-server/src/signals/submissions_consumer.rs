@@ -147,11 +147,15 @@ async fn prepare_batch_requests(
                 request,
                 new_messages,
                 request_start_time,
+                steps_processed,
             }) => {
                 requests.push(request);
                 all_new_messages.extend(new_messages);
                 let mut updated_message = message.clone();
                 updated_message.request_start_time = request_start_time;
+                if message.step == 0 {
+                    updated_message.steps_processed = steps_processed;
+                }
                 successful_messages.push(updated_message);
             }
             Err(e) => {

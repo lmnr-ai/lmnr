@@ -144,8 +144,8 @@ export async function checkSignalRunsLimit(projectId: string, tracesCount: numbe
     const latestResetTime = addMonths(resetTimeDate, completeMonthsElapsed(resetTimeDate, new Date()));
     const latestResetTimeStr = latestResetTime.toISOString().replace(/Z$/, "");
 
-    const signalRunsQuery = `SELECT COUNT(*) as total_signal_runs
-    FROM signal_runs
+    const signalRunsQuery = `SELECT SUM(IF(steps_processed > 0, steps_processed, 1)) as total_signal_runs
+    FROM signal_runs FINAL
     WHERE project_id IN { projectIds: Array(UUID) }
     AND signal_runs.updated_at >= { latestResetTime: DateTime(3, "UTC") }
     AND signal_runs.status = 1`;

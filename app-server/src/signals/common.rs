@@ -35,6 +35,8 @@ pub struct ProcessRunResult {
     pub request: ProviderRequestItem,
     pub new_messages: Vec<CHSignalRunMessage>,
     pub request_start_time: chrono::DateTime<chrono::Utc>,
+    /// Number of LLM spans after filtering (only meaningful on step 0)
+    pub steps_processed: u32,
 }
 
 pub async fn handle_failed_runs(
@@ -93,7 +95,7 @@ pub async fn process_run(
             HandlerError::Transient(anyhow::anyhow!("Failed to query existing messages: {}", e))
         })?;
 
-    let (contents, system_instruction, new_messages) = if existing_messages.is_empty() {
+    let (contents, system_instruction, new_messages, steps_processed) = if existing_messages.is_empty() {
         let ch_spans = get_trace_ch_spans(clickhouse.clone(), project_id, trace_id)
             .await
             .map_err(|e| {
@@ -163,6 +165,10 @@ pub async fn process_run(
 
         // 4. Apply drop rules and build the final trace string
         let ch_spans_for_trace = apply_drop_rules(ch_spans, &drop_rules);
+        let steps_processed = ch_spans_for_trace
+            .iter()
+            .filter(|s| s.span_type == 1)
+            .count() as u32;
         let trace_structure =
             build_trace_structure_string(&ch_spans_for_trace, trace_id, &summarization.summaries);
 
@@ -219,6 +225,7 @@ pub async fn process_run(
             vec![user_content],
             Some(system_instruction_content),
             vec![system_message, user_message],
+            steps_processed,
         )
     } else {
         let mut contents = Vec::new();
@@ -251,7 +258,7 @@ pub async fn process_run(
             }
         }
 
-        (contents, system_instruction, vec![])
+        (contents, system_instruction, vec![], 0)
     };
 
     // 2. Build tool definitions
@@ -284,5 +291,6 @@ pub async fn process_run(
         request,
         new_messages,
         request_start_time: processing_start_time,
+        steps_processed,
     })
 }

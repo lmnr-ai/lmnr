@@ -89,9 +89,13 @@ impl MessageHandler for SignalJobRealtimeHandler {
                 request,
                 new_messages,
                 request_start_time,
+                steps_processed,
             }) => {
                 let mut updated_message = message.clone();
                 updated_message.request_start_time = request_start_time;
+                if message.step == 0 {
+                    updated_message.steps_processed = steps_processed;
+                }
 
                 if !new_messages.is_empty() {
                     insert_signal_run_messages(self.clickhouse.clone(), &new_messages)
@@ -418,6 +422,7 @@ mod tests {
             retry_count,
             request_start_time: chrono::Utc::now(),
             mode: 1,
+            steps_processed: 0,
         }
     }
 
