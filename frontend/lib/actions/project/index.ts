@@ -46,13 +46,9 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId.workspaceId);
 
   await db.delete(projects).where(eq(projects.id, projectId));
-  const clickhouseResult = await deleteProjectDataFromClickHouse(projectId);
 
-  if (!clickhouseResult.success) {
-    throw new Error(`Failed to delete project data for ${clickhouseResult.tables.join(",")}`);
-  }
-
-  // Delete API key cache entries after project deletion using the previously retrieved hashes.
+  // Delete API key cache entries right after project deletion (which cascade-deletes
+  // the keys from DB), so stale cache entries don't linger if ClickHouse cleanup fails.
   try {
     const cacheResult = await deleteProjectApiKeysFromCache(apiKeyHashes);
     if (!cacheResult.success) {
@@ -60,6 +56,12 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
     }
   } catch (error) {
     console.error("Failed to delete project api keys from cache", error);
+  }
+
+  const clickhouseResult = await deleteProjectDataFromClickHouse(projectId);
+
+  if (!clickhouseResult.success) {
+    throw new Error(`Failed to delete project data for ${clickhouseResult.tables.join(",")}`);
   }
 }
 
