@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait, keys::USAGE_WARNING_NOTIFICATION_LOCK_KEY};
-use crate::ch::notification_logs::CHNotificationLog;
+use crate::ch::notification_deliveries::CHNotificationDelivery;
 use crate::ch::notifications::CHNotification;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
@@ -157,6 +157,7 @@ pub async fn push_to_notification_queue(
 /// A delivery target resolved by the notifications consumer.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DeliveryTarget {
+    pub target_id: Uuid,
     pub target_type: TargetType,
     /// Email address (for Email targets).
     pub email: Option<String>,
@@ -277,7 +278,7 @@ impl MessageHandler for NotificationHandler {
             let notification_id = Uuid::new_v4();
             notification_ids.push(notification_id);
 
-            let notification_data = serde_json::to_string(kind).map_err(|e| {
+            let payload = serde_json::to_string(kind).map_err(|e| {
                 HandlerError::permanent(anyhow::anyhow!(
                     "Failed to serialize notification_kind: {}",
                     e
@@ -293,7 +294,7 @@ impl MessageHandler for NotificationHandler {
                 workspace_id: message.workspace_id,
                 definition_type: message.definition_type.to_string(),
                 definition_id: message.definition_id,
-                notification_data,
+                payload,
                 created_at: now_ms,
             });
         }
@@ -432,6 +433,7 @@ impl NotificationHandler {
                     .filter_map(|t| {
                         let target_type = t.r#type.parse::<TargetType>().ok()?;
                         Some(DeliveryTarget {
+                            target_id: t.id,
                             target_type,
                             email: t.email,
                             channel_id: t.channel_id,
@@ -454,6 +456,7 @@ impl NotificationHandler {
                     .filter_map(|t| {
                         let target_type = t.r#type.parse::<TargetType>().ok()?;
                         Some(DeliveryTarget {
+                            target_id: t.id,
                             target_type,
                             email: t.email,
                             channel_id: t.channel_id,
@@ -474,6 +477,7 @@ impl NotificationHandler {
                 Ok(owner_emails
                     .into_iter()
                     .map(|email| DeliveryTarget {
+                        target_id: Uuid::nil(),
                         target_type: TargetType::Email,
                         email: Some(email),
                         channel_id: None,
@@ -520,44 +524,43 @@ impl MessageHandler for NotificationDeliveryHandler {
     type Message = NotificationDeliveryMessage;
 
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        let delivered = match message.target.target_type {
+        let raw_message = match message.target.target_type {
             TargetType::Slack => self.handle_slack(&message).await?,
             TargetType::Email => self.handle_email(&message).await?,
         };
 
-        if delivered {
+        if let Some(raw_message) = raw_message {
             let now_ms = chrono::Utc::now().timestamp_millis();
 
-            // Log one entry per notification in the batch.
-            let log_entries: Vec<CHNotificationLog> = message
+            // Record one delivery entry per notification in the batch.
+            let delivery_entries: Vec<CHNotificationDelivery> = message
                 .notification_ids
                 .iter()
                 .zip(message.notifications.iter())
                 .map(|(notification_id, kind)| {
                     let project_id = project_id_from_kind(kind);
-                    CHNotificationLog {
-                        id: *notification_id,
+                    CHNotificationDelivery {
                         workspace_id: message.workspace_id,
                         project_id,
-                        definition_type: message.definition_type.to_string(),
-                        definition_id: message.definition_id,
-                        target_id: Uuid::nil(),
+                        notification_id: *notification_id,
+                        delivery_id: Uuid::new_v4(),
+                        target_id: message.target.target_id,
                         target_type: message.target.target_type.to_string(),
-                        payload: serde_json::to_string(kind).unwrap_or_default(),
+                        message: raw_message.clone(),
                         created_at: now_ms,
                     }
                 })
                 .collect();
 
-            if !log_entries.is_empty() {
+            if !delivery_entries.is_empty() {
                 if let Err(e) = self
                     .ch_service
-                    .insert_batch_for_workspace(message.workspace_id, &log_entries)
+                    .insert_batch_for_workspace(message.workspace_id, &delivery_entries)
                     .await
                 {
                     log::error!(
-                        "[NotificationDelivery] Failed to insert {} notification logs: {:?}",
-                        log_entries.len(),
+                        "[NotificationDelivery] Failed to insert {} delivery records: {:?}",
+                        delivery_entries.len(),
                         e
                     );
                 }
@@ -570,15 +573,17 @@ impl MessageHandler for NotificationDeliveryHandler {
 
 impl NotificationDeliveryHandler {
     /// Format and send a Slack notification combining all notifications in the batch.
+    /// Returns `Ok(Some(raw_message))` with the Slack blocks JSON on success,
+    /// `Ok(None)` if delivery was skipped.
     async fn handle_slack(
         &self,
         message: &NotificationDeliveryMessage,
-    ) -> Result<bool, HandlerError> {
+    ) -> Result<Option<String>, HandlerError> {
         let (Some(channel_id), Some(integration_id)) =
             (&message.target.channel_id, message.target.integration_id)
         else {
             log::warn!("[NotificationDelivery] Slack target missing channel_id or integration_id");
-            return Ok(false);
+            return Ok(None);
         };
 
         let integration =
@@ -591,7 +596,7 @@ impl NotificationDeliveryHandler {
                 "[NotificationDelivery] Slack integration not found: {}",
                 integration_id
             );
-            return Ok(false);
+            return Ok(None);
         };
 
         let decrypted_token = slack::decode_slack_token(
@@ -603,9 +608,14 @@ impl NotificationDeliveryHandler {
 
         let blocks = slack::format_message_blocks_batch(&message.notifications);
 
-        slack::send_message(&self.slack_client, &decrypted_token, channel_id, blocks)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
+        slack::send_message(
+            &self.slack_client,
+            &decrypted_token,
+            channel_id,
+            blocks.clone(),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
 
         log::debug!(
             "[NotificationDelivery] Slack notification sent ({} items) for definition_id={}",
@@ -613,25 +623,28 @@ impl NotificationDeliveryHandler {
             message.definition_id
         );
 
-        Ok(true)
+        let raw_message = serde_json::to_string(&blocks).unwrap_or_default();
+        Ok(Some(raw_message))
     }
 
     /// Format and send an email combining all notifications in the batch.
+    /// Returns `Ok(Some(html))` with the raw email HTML on success,
+    /// `Ok(None)` if delivery was skipped.
     async fn handle_email(
         &self,
         message: &NotificationDeliveryMessage,
-    ) -> Result<bool, HandlerError> {
+    ) -> Result<Option<String>, HandlerError> {
         let resend = match &self.resend {
             Some(r) => r.clone(),
             None => {
                 log::warn!("[NotificationDelivery] Resend client not configured, skipping email");
-                return Ok(false);
+                return Ok(None);
             }
         };
 
         let Some(ref recipient) = message.target.email else {
             log::warn!("[NotificationDelivery] Email target missing email address");
-            return Ok(false);
+            return Ok(None);
         };
 
         // Format the email combining all notifications in the batch.
@@ -666,7 +679,7 @@ impl NotificationDeliveryHandler {
             }
         }
 
-        Ok(true)
+        Ok(Some(html))
     }
 }
 

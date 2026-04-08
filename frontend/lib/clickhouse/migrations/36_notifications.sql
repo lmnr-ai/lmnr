@@ -5,8 +5,8 @@ CREATE TABLE IF NOT EXISTS notifications
     workspace_id       UUID,
     definition_type    LowCardinality(String),
     definition_id      UUID,
-    notification_data  String DEFAULT '',
+    payload            String DEFAULT '',
     created_at         DateTime64(3, 'UTC')
 )
 ENGINE = MergeTree()
-ORDER BY (workspace_id, definition_type, created_at)
+ORDER BY (workspace_id, project_id, definition_type, created_at)
