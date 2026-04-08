@@ -122,7 +122,7 @@ For each span, ask yourself: **"If I were the signal agent answering this signal
 - `llm` spans → keep. This is where reasoning, decisions, and errors surface.
 - `tool` spans → keep. This is where actions execute, fail, or return unexpected results.
 - `default` spans → drop unless they carry content you genuinely can't get from an adjacent `llm` or `tool` span.
-- All `llm` type spans with application-level exceptions will bypass filters regardless, so do not add rules just to preserve error cases.
+- Spans with exceptions will bypass filters regardless, so do not add rules just to preserve error cases.
 
 CRITICAL rule authoring guidance:
 - Strongly prefer rules with ONLY a `name` or `path` matcher. These are the most robust because they match consistently across trace variants.
