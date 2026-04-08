@@ -44,7 +44,7 @@ const TagsDropdown = ({
       }}
     >
       {children}
-      <DropdownMenuContent className="max-h-96 overflow-y-auto" side="bottom" align="start">
+      <DropdownMenuContent className="max-h-96" side="bottom" align="start">
         {step === 0 ? (
           <PickTag
             tags={tags}
