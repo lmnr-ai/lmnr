@@ -6,8 +6,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { type ChartPreset, CHART_PRESETS, type PresetTable } from "@/components/home/chart-presets";
-import { type HomeChart } from "@/components/home/types";
+import { CHART_PRESETS, type ChartPreset, type PresetTable } from "@/components/home/chart-presets";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,10 +31,7 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
   const [open, setOpen] = useState(false);
   const [activeTable, setActiveTable] = useState<PresetTable>("traces");
 
-  const filtered = useMemo(
-    () => CHART_PRESETS.filter((p) => p.table === activeTable),
-    [activeTable]
-  );
+  const filtered = useMemo(() => CHART_PRESETS.filter((p) => p.table === activeTable), [activeTable]);
 
   const handleSelect = useCallback(
     async (preset: ChartPreset) => {
@@ -51,7 +47,10 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
         });
 
         if (!res.ok) {
-          const err = await res.json().then((d) => d?.error).catch(() => null);
+          const err = await res
+            .json()
+            .then((d) => d?.error)
+            .catch(() => null);
           toast({ variant: "destructive", title: err ?? "Failed to create chart" });
           return;
         }
@@ -63,7 +62,7 @@ const AddChartDropdown = ({ onChartCreated }: { onChartCreated?: () => void }) =
         toast({ variant: "destructive", title: "Something went wrong" });
       }
     },
-    [projectId, mutate, toast]
+    [projectId, mutate, toast, onChartCreated]
   );
 
   return (
