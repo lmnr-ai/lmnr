@@ -7,6 +7,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
+    cache::CacheTrait,
     ch::signal_run_messages::{CHSignalRunMessage, insert_signal_run_messages},
     db::DB,
     mq::MessageQueue,
@@ -16,6 +17,7 @@ use crate::{
         queue::{
             SignalJobPendingBatchMessage, SignalJobSubmissionBatchMessage, SignalMessage,
             push_to_pending_queue, push_to_realtime_queue, push_to_signals_queue,
+            push_to_submissions_queue,
         },
         utils::extract_batch_id_from_operation,
     },
@@ -82,6 +84,9 @@ impl MessageHandler for SignalJobSubmissionBatchHandler {
         .await
     }
 }
+
+const BATCH_LOCK_TTL_SECONDS: u64 = 7200;
+const BATCH_SUBMITTED_TTL_SECONDS: u64 = 86400;
 
 async fn process(
     msg: SignalJobSubmissionBatchMessage,
