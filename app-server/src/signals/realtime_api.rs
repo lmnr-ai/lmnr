@@ -64,6 +64,7 @@ impl SignalJobRealtimeHandler {
 impl MessageHandler for SignalJobRealtimeHandler {
     type Message = SignalMessage;
 
+    #[tracing::instrument(skip_all, name = "realtime_handle")]
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         let project_id = message.project_id;
         let signal = &message.signal;
@@ -159,6 +160,7 @@ impl SignalJobRealtimeHandler {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn process_realtime_request(
         &self,
         request: crate::signals::provider::models::ProviderRequest,
@@ -172,23 +174,26 @@ impl SignalJobRealtimeHandler {
         let req_clone = request.clone();
 
         let generate_fn = || async {
-            llm_client
-                .generate_content(&req_clone)
-                .await
-                .map_err(|e| {
-                    if e.is_retryable() {
-                        backoff::Error::transient(e)
-                    } else {
-                        backoff::Error::permanent(e)
-                    }
-                })
+            llm_client.generate_content(&req_clone).await.map_err(|e| {
+                if e.is_retryable() {
+                    backoff::Error::transient(e)
+                } else {
+                    backoff::Error::permanent(e)
+                }
+            })
         };
 
         match backoff::future::retry(backoff, generate_fn).await {
             Ok(response) => {
                 emit_internal_span(
                     self.queue.clone(),
-                    Self::build_submit_span(&message, &self.config, span_input.clone(), span_tools.clone(), None),
+                    Self::build_submit_span(
+                        &message,
+                        &self.config,
+                        span_input.clone(),
+                        span_tools.clone(),
+                        None,
+                    ),
                 )
                 .await;
                 let inline_response = ProviderInlineResponse {
@@ -359,8 +364,8 @@ mod tests {
     use crate::mq::{
         MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait,
     };
-    use crate::signals::provider::mock::{GenerateFailureMode, MockProviderClient};
     use crate::signals::provider::ProviderClient;
+    use crate::signals::provider::mock::{GenerateFailureMode, MockProviderClient};
     use crate::signals::provider::models::ProviderRequest;
     use crate::signals::queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_ROUTING_KEY};
     use std::time::Duration;

@@ -66,6 +66,11 @@ pub async fn handle_failed_runs(
     }
 }
 
+#[tracing::instrument(
+    skip_all,
+    name = "prepare_single_request",
+    fields(project_id, run_id, signal_id, trace_id)
+)]
 pub async fn process_run(
     project_id: Uuid,
     trace_id: Uuid,
@@ -113,11 +118,8 @@ pub async fn process_run(
                 None => {
                     // Cache miss: build unfiltered trace to let the LLM analyze structure,
                     // then generate + cache rules for this and future runs.
-                    let unfiltered_structure = build_trace_structure_string(
-                        &ch_spans,
-                        trace_id,
-                        &HashMap::new(),
-                    );
+                    let unfiltered_structure =
+                        build_trace_structure_string(&ch_spans, trace_id, &HashMap::new());
                     generate_and_cache_drop_rules(
                         &cache,
                         &llm_client,
