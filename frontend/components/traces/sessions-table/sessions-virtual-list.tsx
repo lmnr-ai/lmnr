@@ -18,11 +18,11 @@ const SESSION_HEADER_HEIGHT = 36;
 const itemTransition = { type: "spring", stiffness: 400, damping: 50 } as const;
 
 type VirtualListItem =
-  | { type: "session-row"; session: SessionRowType; timeline?: TraceTimelineItem[] }
+  | { type: "session-row"; session: SessionRowType; timeline?: TraceTimelineItem[]; isLast: boolean }
   | { type: "trace-section-header"; sessionId: string }
   | { type: "trace-card"; trace: TraceRow; sessionId: string; isFirst: boolean; isLast: boolean }
-  | { type: "trace-loading"; sessionId: string }
-  | { type: "trace-empty"; sessionId: string };
+  | { type: "trace-loading"; sessionId: string; isLast: boolean }
+  | { type: "trace-empty"; sessionId: string; isLast: boolean };
 
 interface SessionsVirtualListProps {
   sessions: SessionRowType[];
@@ -73,20 +73,26 @@ export default function SessionsVirtualList({
 
   const flatList = useMemo(() => {
     const items: VirtualListItem[] = [];
-    for (const session of sessions) {
+    for (let i = 0; i < sessions.length; i++) {
+      const session = sessions[i];
+      const isLastSession = i === sessions.length - 1;
+      const isExpanded = expandedSessions.has(session.sessionId);
+
       items.push({
         type: "session-row",
         session,
         timeline: sessionTimelines[session.sessionId],
+        isLast: isLastSession && !isExpanded,
       });
-      if (expandedSessions.has(session.sessionId)) {
+
+      if (isExpanded) {
         const isLoading = loadingSessions.has(session.sessionId);
         const traces = sessionTraces[session.sessionId] ?? [];
 
         if (isLoading) {
-          items.push({ type: "trace-loading", sessionId: session.sessionId });
+          items.push({ type: "trace-loading", sessionId: session.sessionId, isLast: isLastSession });
         } else if (traces.length === 0) {
-          items.push({ type: "trace-empty", sessionId: session.sessionId });
+          items.push({ type: "trace-empty", sessionId: session.sessionId, isLast: isLastSession });
         } else {
           items.push({ type: "trace-section-header", sessionId: session.sessionId });
           traces.forEach((trace, idx) => {
@@ -192,8 +198,8 @@ export default function SessionsVirtualList({
               session={item.session}
               timeline={item.timeline}
               isExpanded={expandedSessions.has(item.session.sessionId)}
+              isLast={item.isLast}
               onToggle={() => onToggleSession(item.session.sessionId)}
-              onTraceClick={onTraceClick}
             />
           );
         case "trace-section-header":
@@ -226,7 +232,7 @@ export default function SessionsVirtualList({
               transition={{ duration: 0.2 }}
               style={{ overflow: "hidden" }}
             >
-              <div className="flex items-center justify-center h-[60px] pl-6 border-b">
+              <div className={cn("flex items-center justify-center h-[60px] pl-6", !item.isLast && "border-b")}>
                 <Loader2 className="animate-spin w-4 h-4 text-muted-foreground" />
                 <span className="ml-2 text-xs text-muted-foreground">Loading traces...</span>
               </div>
@@ -240,7 +246,7 @@ export default function SessionsVirtualList({
               transition={itemTransition}
               style={{ overflow: "hidden" }}
             >
-              <div className="flex items-center justify-center h-[60px] pl-6 border-b">
+              <div className={cn("flex items-center justify-center h-[60px] pl-6", !item.isLast && "border-b")}>
                 <span className="text-xs text-muted-foreground">No traces in this session</span>
               </div>
             </motion.div>
@@ -253,17 +259,17 @@ export default function SessionsVirtualList({
   const showList = !isLoading && sessions.length > 0;
 
   return (
-    <div ref={scrollContainerRef} className="flex-1 overflow-auto styled-scrollbar">
+    <div ref={scrollContainerRef} className="overflow-auto styled-scrollbar rounded-md border min-h-0">
       <div className="min-w-[900px]">
         <SessionTableHeader />
         {isLoading && (
-          <div className="flex items-center justify-center py-12 border-x border-b rounded-b -mt-px">
+          <div className="flex items-center justify-center py-12">
             <Loader2 className="animate-spin w-5 h-5 text-muted-foreground" />
             <span className="ml-2 text-sm text-muted-foreground">Loading sessions...</span>
           </div>
         )}
         {!isLoading && error && sessions.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 gap-2 border-x border-b rounded-b -mt-px">
+          <div className="flex flex-col items-center justify-center py-12 gap-2">
             <span className="text-sm text-destructive">Failed to load sessions</span>
             <span className="text-xs text-muted-foreground">{error.message}</span>
             {onRetry && (
@@ -274,23 +280,21 @@ export default function SessionsVirtualList({
           </div>
         )}
         {!isLoading && !error && sessions.length === 0 && (
-          <div className="flex items-center justify-center py-12 border-x border-b rounded-b -mt-px">
+          <div className="flex items-center justify-center py-12">
             <span className="text-sm text-muted-foreground">No sessions found</span>
           </div>
         )}
         {showList && (
           <>
-            <div style={{ height: virtualizer.getTotalSize() }} className="relative border-x border-b rounded-b -mt-px">
+            <div style={{ height: virtualizer.getTotalSize() }} className="relative">
               {virtualizer.getVirtualItems().map((virtualItem) => {
                 const item = flatList[virtualItem.index];
-                const isLast = virtualItem.index === flatList.length - 1;
                 const activeSticky = isActiveSticky(virtualItem.index);
                 return (
                   <div
                     key={virtualItem.key}
                     data-index={virtualItem.index}
                     ref={virtualizer.measureElement}
-                    className={cn(isLast && "rounded-b overflow-hidden")}
                     style={{
                       ...(activeSticky
                         ? { position: "sticky", top: SESSION_HEADER_HEIGHT, zIndex: 1 }

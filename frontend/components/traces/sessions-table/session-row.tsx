@@ -1,6 +1,5 @@
 import { ChevronRightIcon } from "lucide-react";
 
-import ClientTimestampFormatter from "@/components/client-timestamp-formatter";
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type SessionRow as SessionRowType, type TraceTimelineItem } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
@@ -8,9 +7,10 @@ import { cn } from "@/lib/utils";
 import {
   CHEVRON_COLUMN_WIDTH_CLASSNAME,
   SESSION_ID_COLUMN_WIDTH_CLASSNAME,
-  START_TIME_COLUMN_WIDTH_CLASSNAME,
+  TIME_RANGE_COLUMN_WIDTH_CLASSNAME,
   TOTALS_COLUMN_WIDTH_CLASSNAME,
 } from "./session-table-header";
+import SessionTimeRange from "./session-time-range";
 import TotalsPill from "./totals-pill";
 import TracesTimeline from "./traces-timeline";
 
@@ -18,14 +18,17 @@ interface SessionRowProps {
   session: SessionRowType;
   timeline?: TraceTimelineItem[];
   isExpanded: boolean;
+  isLast?: boolean;
   onToggle: () => void;
-  onTraceClick?: (traceId: string) => void;
 }
 
-export default function SessionRow({ session, timeline, isExpanded, onToggle, onTraceClick }: SessionRowProps) {
+export default function SessionRow({ session, timeline, isExpanded, isLast, onToggle }: SessionRowProps) {
   return (
     <div
-      className="bg-secondary border-b flex h-9 items-center w-full cursor-pointer hover:bg-muted"
+      className={cn(
+        "bg-secondary border-b flex h-11 items-center w-full cursor-pointer hover:bg-muted",
+        isLast && "border-b-0"
+      )}
       onClick={onToggle}
     >
       {/* Chevron */}
@@ -43,11 +46,9 @@ export default function SessionRow({ session, timeline, isExpanded, onToggle, on
         />
       </button>
 
-      {/* Start time */}
-      <div className={`flex items-center px-4 py-0.5 shrink-0 ${START_TIME_COLUMN_WIDTH_CLASSNAME}`}>
-        <span className="text-secondary-foreground truncate">
-          <ClientTimestampFormatter absolute timestamp={session.startTime} />
-        </span>
+      {/* Time range */}
+      <div className={`flex items-center px-4 py-0.5 shrink-0 ${TIME_RANGE_COLUMN_WIDTH_CLASSNAME}`}>
+        <SessionTimeRange startTime={session.startTime} endTime={session.endTime} />
       </div>
 
       {/* Session ID */}
@@ -67,16 +68,12 @@ export default function SessionRow({ session, timeline, isExpanded, onToggle, on
         <TotalsPill duration={session.duration} totalTokens={session.totalTokens} totalCost={session.totalCost} />
       </div>
 
-      {/* Traces count + timeline */}
-      <div className="flex flex-1 gap-4 h-full items-center min-w-0 overflow-hidden px-4 py-0.5">
-        <span className="text-xs text-secondary-foreground whitespace-nowrap">{session.traceCount ?? 0}</span>
-        {timeline && timeline.length > 0 && (
-          <TracesTimeline
-            traces={timeline}
-            sessionStartTime={session.startTime}
-            sessionEndTime={session.endTime}
-            onTraceClick={onTraceClick}
-          />
+      {/* Traces overview */}
+      <div className="flex flex-1 h-full items-center min-w-0 overflow-hidden px-4 py-0.5">
+        {timeline && timeline.length > 0 ? (
+          <TracesTimeline traces={timeline} />
+        ) : (
+          <span className="text-xs text-secondary-foreground whitespace-nowrap">{session.traceCount ?? 0}</span>
         )}
       </div>
     </div>
