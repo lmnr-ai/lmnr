@@ -57,11 +57,13 @@ const PickTag = ({ tags, tagClasses, query, setQuery, setStep, onAttach, onDetac
 
       {(!isEmpty(selected) || !isEmpty(available)) && <DropdownMenuSeparator />}
 
-      {!isEmpty(selected) && <SelectedTags tags={selected} onDetach={onDetach} />}
+      <div className="max-h-72 overflow-y-auto">
+        {!isEmpty(selected) && <SelectedTags tags={selected} onDetach={onDetach} />}
 
-      {!isEmpty(selected) && !isEmpty(available) && <DropdownMenuSeparator />}
+        {!isEmpty(selected) && !isEmpty(available) && <DropdownMenuSeparator />}
 
-      {!isEmpty(available) && <AvailableTags tags={available} onAttach={onAttach} />}
+        {!isEmpty(available) && <AvailableTags tags={available} onAttach={onAttach} />}
+      </div>
       {query && !hasExactMatch && available.length + selected.length < 5 && (
         <>
           <DropdownMenuSeparator />

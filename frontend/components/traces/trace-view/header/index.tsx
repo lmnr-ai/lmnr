@@ -165,14 +165,6 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               </Button>
             </span>
           )}
-          {trace?.metadata && (
-            <span className={HEADER_ITEM_CLS}>
-              <Metadata metadata={trace?.metadata} />
-            </span>
-          )}
-          <span className={HEADER_ITEM_CLS}>
-            <TraceTagsButton traceId={traceId} />
-          </span>
           {signalCount > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <Button
@@ -186,6 +178,14 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
                 <Radio size={14} className="mr-1" />
                 Signals ({signalCount})
               </Button>
+            </span>
+          )}
+          <span className={HEADER_ITEM_CLS}>
+            <TraceTagsButton traceId={traceId} />
+          </span>
+          {trace?.metadata && (
+            <span className={HEADER_ITEM_CLS}>
+              <Metadata metadata={trace?.metadata} />
             </span>
           )}
         </div>
