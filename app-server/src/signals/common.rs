@@ -112,7 +112,7 @@ pub async fn process_run(
             &extracted,
         )
         .await;
-        println!("summarization: {:?}", summarization);
+
         // 2. Use main_agent_hash as fingerprint; fall back to root span name
         let fingerprint = summarization.main_agent_hash.clone().or_else(|| {
             ch_spans
