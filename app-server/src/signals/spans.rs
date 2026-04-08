@@ -269,7 +269,7 @@ pub fn extract_system_prompts_with_paths(
         if span.span_type != 1 {
             continue;
         }
-        let parsed = try_parse_json(&span.input);
+        let parsed = try_parse_json(&strip_noise(&span.input));
         if let Some((sys_text, _)) = extract_system_message(&parsed) {
             let hash = hash_system_prompt(&sys_text);
             result.entry(hash).or_insert_with(|| ExtractedSystemPrompt {

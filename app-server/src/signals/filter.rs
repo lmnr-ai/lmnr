@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::cache::keys::SPAN_DROP_RULES_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 use crate::ch::spans::CHSpan;
+use crate::signals::spans::extract_exception_from_events;
 use crate::db::spans::SpanType;
 use crate::mq::MessageQueue;
 use crate::signals::prompts::{FILTER_GENERATION_SYSTEM_PROMPT, FILTER_GENERATION_USER_PROMPT};
@@ -430,7 +431,10 @@ pub fn apply_drop_rules(ch_spans: Vec<CHSpan>, rules: &[DropRule]) -> Vec<CHSpan
     let original_count = ch_spans.len();
     let result: Vec<CHSpan> = ch_spans
         .into_iter()
-        .filter(|span| !rules.iter().any(|rule| rule_matches_span(rule, span)))
+        .filter(|span| {
+            let has_exception = extract_exception_from_events(&span.events).is_some();
+            has_exception || !rules.iter().any(|rule| rule_matches_span(rule, span))
+        })
         .collect();
     let dropped = original_count - result.len();
     if dropped > 0 {
@@ -534,6 +538,28 @@ mod tests {
         let result = apply_drop_rules(spans, &rules);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].input, "system: you are a bot");
+    }
+
+    #[test]
+    fn test_apply_drop_rules_exception_bypass() {
+        let mut span_with_exception = make_test_span("benchmark_run", "", "");
+        span_with_exception.events = vec![(
+            0,
+            "exception".to_string(),
+            r#"{"exception.message":"something failed"}"#.to_string(),
+        )];
+        let span_without = make_test_span("benchmark_score", "", "");
+
+        let rules = vec![DropRule {
+            match_: vec![FieldMatcher {
+                field: "name".to_string(),
+                pattern: "benchmark*".to_string(),
+            }],
+            reason: "benchmark spans".to_string(),
+        }];
+        let result = apply_drop_rules(vec![span_with_exception, span_without], &rules);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "benchmark_run");
     }
 
     #[test]

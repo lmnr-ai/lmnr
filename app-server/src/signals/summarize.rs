@@ -283,17 +283,21 @@ pub async fn summarize_system_prompts(
     )
     .await;
 
-    let result = result.map(|(r, _)| r).unwrap_or(SummarizationResult {
-        summaries: HashMap::new(),
-        main_agent_hash: None,
-    });
-
-    if let Err(e) = cache
-        .insert_with_ttl(&key, result.clone(), SUMMARY_CACHE_TTL_SECONDS)
-        .await
-    {
-        log::warn!("Failed to cache summarization result: {:?}", e);
-    }
+    let result = match result {
+        Some((r, _)) => {
+            if let Err(e) = cache
+                .insert_with_ttl(&key, r.clone(), SUMMARY_CACHE_TTL_SECONDS)
+                .await
+            {
+                log::warn!("Failed to cache summarization result: {:?}", e);
+            }
+            r
+        }
+        None => SummarizationResult {
+            summaries: HashMap::new(),
+            main_agent_hash: None,
+        },
+    };
 
     result
 }
