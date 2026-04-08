@@ -9,22 +9,20 @@ use crate::cache::{Cache, CacheTrait};
 use crate::ch::spans::CHSpan;
 use crate::db::spans::SpanType;
 use crate::mq::MessageQueue;
+use crate::signals::prompts::{FILTER_GENERATION_SYSTEM_PROMPT, FILTER_GENERATION_USER_PROMPT};
 use crate::signals::provider::models::{
     ModelSize, ProviderContent, ProviderFunctionDeclaration, ProviderGenerationConfig,
     ProviderPart, ProviderRequest, ProviderTool,
 };
 use crate::signals::provider::{LlmClient, ProviderThinkingConfig, ProviderThinkingLevel};
 use crate::signals::utils::{
-    InternalSpan, emit_internal_span, hash_system_prompt, request_to_span_input,
-    request_to_tools_attr, strip_noise, try_parse_json,
+    InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr,
 };
 
-use super::spans::extract_system_message;
 use super::summarize::hash_signal_prompt;
 
 const FILTER_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
 const MAX_TRACE_STRING_LEN: usize = 1_000_000;
-const CANDIDATE_LLM_SPANS: usize = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldMatcher {
@@ -37,49 +35,6 @@ pub struct DropRule {
     #[serde(rename = "match")]
     pub match_: Vec<FieldMatcher>,
     pub reason: String,
-}
-
-/// Compute a pipeline fingerprint from trace spans.
-///
-/// Strategy: take the first N LLM spans by start_time, pick the most expensive
-/// one (by total_cost, falling back to input_tokens), and hash its system prompt.
-/// If no LLM spans have a system prompt, fall back to the root span name.
-pub fn pipeline_fingerprint(ch_spans: &[CHSpan]) -> Option<String> {
-    if ch_spans.is_empty() {
-        return None;
-    }
-
-    let mut llm_spans: Vec<&CHSpan> = ch_spans.iter().filter(|s| s.span_type == 1).collect();
-    llm_spans.sort_by_key(|s| s.start_time);
-    llm_spans.truncate(CANDIDATE_LLM_SPANS);
-
-    // Try to find the most expensive LLM span with a system prompt
-    let best = llm_spans
-        .iter()
-        .max_by(|a, b| {
-            let cost_cmp = a
-                .total_cost
-                .partial_cmp(&b.total_cost)
-                .unwrap_or(std::cmp::Ordering::Equal);
-            if cost_cmp != std::cmp::Ordering::Equal {
-                return cost_cmp;
-            }
-            a.input_tokens.cmp(&b.input_tokens)
-        })
-        .copied();
-
-    if let Some(span) = best {
-        let parsed = try_parse_json(&strip_noise(&span.input));
-        if let Some((sys_text, _)) = extract_system_message(&parsed) {
-            return Some(hash_system_prompt(&sys_text));
-        }
-    }
-
-    // Fallback: hash the root span name
-    let root = ch_spans
-        .iter()
-        .find(|s| s.parent_span_id.is_nil() || s.parent_span_id == Uuid::nil());
-    root.map(|s| hash_system_prompt(&s.name))
 }
 
 fn cache_key(
@@ -129,95 +84,83 @@ async fn cache_drop_rules(
     }
 }
 
-const FILTER_GENERATION_PROMPT: &str = r#"You are analyzing a trace from an LLM-powered application to determine which spans carry no diagnostic signal for a specific signal type. Your goal is to identify span patterns that are pure noise — infrastructure, scaffolding, or relay-only spans that never contain evidence relevant to the signal.
-
-<signal_description>
-{{signal_prompt}}
-</signal_description>
-
-<trace>
-{{trace_string}}
-</trace>
-
-Examine the trace carefully. For each span pattern that is clearly irrelevant to detecting the signal described above, call the `add_span_drop_rule` tool. Be conservative — only drop spans you are confident carry no signal. When in doubt, keep the span.
-
-CRITICAL rule authoring guidance:
-- Strongly prefer rules with ONLY a 'name' or 'path' matcher. These are the most robust because they match consistently across trace variants.
-- Do NOT add 'input' or 'output' matchers unless absolutely necessary to disambiguate spans that share the same name/path but differ in relevance. Input/output content varies between runs, so overly specific patterns will fail to match on future traces and the rule becomes useless.
-- Remember that within a rule, ALL matchers must match (AND semantics). An overly specific input/output pattern will prevent the entire rule from matching even when the name/path matches perfectly.
-
-After you have added all rules (or if no rules are needed), call the `done` tool to finish."#;
-
 fn build_filter_tool_definitions() -> Vec<ProviderTool> {
     vec![ProviderTool {
         function_declarations: vec![
             ProviderFunctionDeclaration {
-                name: "add_span_drop_rule".to_string(),
-                description: concat!(
-                    "Add a rule to drop spans from a trace before it is processed by the signal agent. ",
-                    "Use this to eliminate spans that carry no diagnostic signal for the current signal type, ",
-                    "reducing token usage and improving focus.\n\n",
-                    "A span is dropped if it matches ANY rule. Within a rule, ALL field matchers must match (AND semantics).\n\n",
-                    "Every rule MUST include at least one 'name' or 'path' field matcher.\n\n",
-                    "IMPORTANT — 'name' vs 'path':\n",
-                    "- 'name' is the span's own short name (e.g. \"anthropic.messages\", \"Bash\").\n",
-                    "- 'path' is the dot-separated ancestry path including the span itself (e.g. \"agent.Bash.anthropic.messages\").\n",
-                    "Use 'name' for matching a span regardless of where it appears in the hierarchy.\n",
-                    "Use 'path' for matching spans at a specific position in the call tree.\n\n",
-                    "Pattern syntax: glob only. '*' matches any sequence of characters including empty. Examples:\n",
-                    "- exact:    \"create_sdk_mcp_server\"\n",
-                    "- prefix:   \"run_benchmark*\"\n",
-                    "- suffix:   \"*.messages\"\n",
-                    "- contains: \"*tool_call*\"\n",
-                    "- any:      \"*\"\n\n",
-                    "Matchable fields:\n",
-                    "- \"name\"   — the span's own short name (NOT the full hierarchy path)\n",
-                    "- \"path\"   — the full dot-separated ancestry path (e.g. \"agent.tool.llm_call\")\n",
-                    "- \"input\"  — the full input field of the span as a string\n",
-                    "- \"output\" — the full output field of the span as a string\n\n",
-                    "Do NOT add a drop rule if:\n",
-                    "- You are unsure whether the span pattern ever contains signal\n",
-                    "- The rule would have no 'name' or 'path' matcher\n",
-                    "- The pattern is so broad it could match spans from unrelated pipelines",
-                ).to_string(),
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "match": {
-                            "type": "array",
-                            "description": "List of field matchers. ALL must match for the rule to apply. Must contain at least one matcher with field 'name' or 'path'.",
-                            "minItems": 1,
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "field": {
-                                        "type": "string",
-                                        "enum": ["name", "path", "input", "output"],
-                                        "description": "The span field to match against. 'name' is the span's own short name; 'path' is the full dot-separated ancestry."
-                                    },
-                                    "pattern": {
-                                        "type": "string",
-                                        "description": "Glob pattern. '*' matches any sequence including empty."
-                                    }
+            name: "add_span_drop_rule".to_string(),
+            description: concat!(
+                    "Add a rule to drop spans from the trace before the signal agent sees it. ",
+                    "Every span you drop saves tokens and helps the signal agent focus on what matters.\n\n",
+
+                    "WHEN TO USE:\n",
+                    "- `default` type spans: drop aggressively. These are almost always orchestration ",
+                    "scaffolding (entry points, message relay, wrappers) that duplicates content already ",
+                    "visible in adjacent `llm` or `tool` spans.\n",
+                    "- `llm` and `tool` type spans: rarely drop. These carry the agent's core reasoning ",
+                    "and execution. Only drop if a specific pattern is pure infrastructure ",
+                    "(e.g. an internal SDK span that wraps the real LLM call with no added content).\n\n",
+
+                    "RULE MECHANICS:\n",
+                    "A span is dropped if it matches ANY rule. Within a rule, ALL field matchers must match (AND semantics). ",
+                    "Every rule MUST include at least one 'name' or 'path' matcher.\n\n",
+
+                    "Prefer 'name' or 'path' matchers ONLY. Avoid 'input'/'output' matchers unless ",
+                    "you need to disambiguate spans that share a name but differ in relevance — ",
+                    "input/output content varies between runs, so overly specific patterns will silently ",
+                    "stop matching on future traces.\n\n",
+
+                    "'name' vs 'path':\n",
+                    "- 'name': the span's own short name (e.g. \"anthropic.messages\", \"Bash\"). ",
+                    "Matches regardless of position in the call tree.\n",
+                    "- 'path': the dot-separated ancestry including the span itself ",
+                    "(e.g. \"agent.Bash.anthropic.messages\"). Matches a specific position in the hierarchy.\n\n",
+
+                    "Pattern syntax (glob only): '*' matches any character sequence including empty.\n",
+                    "  exact:    \"create_sdk_mcp_server\"\n",
+                    "  prefix:   \"agent_run*\"\n",
+                    "  suffix:   \"*.messages\"\n",
+                    "  contains: \"*tool_call*\"\n",
+                    "  any:      \"*\"\n\n",
+
+                    "Matchable fields: \"name\", \"path\", \"input\", \"output\"\n\n",
+
+                    "Do NOT add a rule if:\n",
+                    "- You are unsure whether the span pattern ever contains signal — when in doubt, keep it\n",
+                    "- The rule has no 'name' or 'path' matcher\n",
+                    "- The pattern is so broad it could match unrelated spans across different trace shapes",
+                )
+                .to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "match": {
+                        "type": "array",
+                        "description": "List of field matchers. ALL must match for the rule to apply. Must contain at least one matcher with field 'name' or 'path'.",
+                        "minItems": 1,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "field": {
+                                    "type": "string",
+                                    "enum": ["name", "path", "input", "output"],
+                                    "description": "The span field to match against. 'name' is the span's own short name; 'path' is the full dot-separated ancestry."
                                 },
-                                "required": ["field", "pattern"]
-                            }
-                        },
-                        "reason": {
-                            "type": "string",
-                            "description": "One sentence explaining why spans matching this rule carry no signal."
+                                "pattern": {
+                                    "type": "string",
+                                    "description": "Glob pattern. '*' matches any sequence including empty."
+                                }
+                            },
+                            "required": ["field", "pattern"]
                         }
                     },
-                    "required": ["match", "reason"]
-                }),
-            },
-            ProviderFunctionDeclaration {
-                name: "done".to_string(),
-                description: "Call this when you have finished adding all drop rules (or if no rules are needed).".to_string(),
-                parameters: serde_json::json!({
-                    "type": "object",
-                    "properties": {}
-                }),
+                    "reason": {
+                        "type": "string",
+                        "description": "One sentence explaining why spans matching this rule carry no signal."
+                    }
+                },
+                "required": ["match", "reason"]
+            }),
             },
         ],
     }]
@@ -297,6 +240,7 @@ fn parse_drop_rules_from_response(
 }
 
 /// Call the LLM to generate span drop rules and cache them.
+/// `fingerprint` is typically the `main_agent_hash` from summarization.
 /// Returns the generated rules (may be empty if the LLM finds nothing to drop).
 pub async fn generate_and_cache_drop_rules(
     cache: &Arc<Cache>,
@@ -308,6 +252,7 @@ pub async fn generate_and_cache_drop_rules(
     signal_prompt: &str,
     fingerprint: &str,
     trace_string: &str,
+    main_agent_system_prompt: Option<&str>,
 ) -> Vec<DropRule> {
     if trace_string.len() > MAX_TRACE_STRING_LEN {
         log::info!(
@@ -319,7 +264,7 @@ pub async fn generate_and_cache_drop_rules(
 
     let start_time = Utc::now();
 
-    let user_prompt = FILTER_GENERATION_PROMPT
+    let user_prompt = FILTER_GENERATION_USER_PROMPT
         .replace("{{signal_prompt}}", signal_prompt)
         .replace("{{trace_string}}", trace_string);
 
@@ -331,14 +276,20 @@ pub async fn generate_and_cache_drop_rules(
                 ..Default::default()
             }]),
         }],
-        system_instruction: None,
+        system_instruction: Some(ProviderContent {
+            role: None,
+            parts: Some(vec![ProviderPart {
+                text: Some(FILTER_GENERATION_SYSTEM_PROMPT.to_string()),
+                ..Default::default()
+            }]),
+        }),
         tools: Some(build_filter_tool_definitions()),
         generation_config: Some(ProviderGenerationConfig {
             temperature: Some(1.0),
-            max_output_tokens: Some(4096),
+            max_output_tokens: Some(2048),
             thinking_config: Some(ProviderThinkingConfig {
                 include_thoughts: Some(true),
-                thinking_level: Some(ProviderThinkingLevel::High),
+                thinking_level: Some(ProviderThinkingLevel::Medium),
             }),
             ..Default::default()
         }),
@@ -392,6 +343,7 @@ pub async fn generate_and_cache_drop_rules(
                 serde_json::json!({
                     "project_id": project_id,
                     "signal_id": signal_id,
+                    "main_agent_system_prompt": main_agent_system_prompt.unwrap_or_default(),
                 })
                 .as_object()
                 .unwrap()

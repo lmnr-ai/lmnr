@@ -1,32 +1,33 @@
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
 
 use crate::cache::keys::SYS_PROMPT_SUMMARY_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
+use crate::signals::prompts::BATCH_SUMMARIZATION_PROMPT;
 use crate::signals::provider::models::{
-    ProviderContent, ProviderGenerationConfig, ProviderPart, ProviderRequest,
+    ProviderContent, ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderPart,
+    ProviderRequest, ProviderTool,
 };
-use crate::signals::provider::LlmClient;
-use crate::signals::provider::{ProviderThinkingConfig, ProviderThinkingLevel};
+use crate::signals::provider::{LlmClient, ProviderThinkingConfig, ProviderThinkingLevel};
+use crate::signals::spans::ExtractedSystemPrompt;
 
 const SUMMARY_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
 
-const SUMMARIZATION_PROMPT: &str = r#"Given this signal description that a developer wants to detect in traces:
-<signal_description>
-{{signal_prompt}}
-</signal_description>
-
-Compress the following system prompt from an LLM application. Retain only information relevant to detecting the above signal. Keep essential rules, constraints, and behavioral instructions that relate to the signal. Remove boilerplate, examples, formatting, and irrelevant details. Every sentence must be complete — never cut off mid-sentence or mid-word. Output ONLY the compressed text, nothing else.
-
-<system_prompt>
-{{system_prompt}}
-</system_prompt>"#;
-
 pub fn hash_signal_prompt(signal_prompt: &str) -> String {
     let digest = Sha3_256::digest(signal_prompt.as_bytes());
+    format!("{:x}", digest)[..8].to_string()
+}
+
+fn combined_prompts_hash(prompt_hashes: &[&str]) -> String {
+    let mut sorted: Vec<&str> = prompt_hashes.to_vec();
+    sorted.sort();
+    let joined = sorted.join(":");
+    let digest = Sha3_256::digest(joined.as_bytes());
     format!("{:x}", digest)[..8].to_string()
 }
 
@@ -34,88 +35,164 @@ fn cache_key(
     project_id: Uuid,
     signal_id: Uuid,
     signal_prompt_hash: &str,
-    sys_prompt_hash: &str,
+    prompts_hash: &str,
 ) -> String {
     format!(
-        "{SYS_PROMPT_SUMMARY_CACHE_KEY}:{project_id}:{signal_id}:{signal_prompt_hash}:{sys_prompt_hash}"
+        "{SYS_PROMPT_SUMMARY_CACHE_KEY}:{project_id}:{signal_id}:{signal_prompt_hash}:{prompts_hash}"
     )
 }
 
-/// Look up cached summaries for a set of system prompt hashes.
-/// Returns a map of `hash -> summary` for all hits.
-pub async fn lookup_cached_summaries(
-    cache: &Arc<Cache>,
-    project_id: Uuid,
-    signal_id: Uuid,
-    signal_prompt: &str,
-    hashes: &[String],
-) -> HashMap<String, String> {
-    let sig_hash = hash_signal_prompt(signal_prompt);
-    let mut result = HashMap::new();
-    for hash in hashes {
-        let key = cache_key(project_id, signal_id, &sig_hash, hash);
-        match cache.get::<String>(&key).await {
-            Ok(Some(summary)) => {
-                result.insert(hash.clone(), summary);
-            }
-            Ok(None) => {}
-            Err(e) => {
-                log::warn!(
-                    "Cache read error for system prompt summary {}: {:?}",
-                    hash,
-                    e
-                );
-            }
-        }
-    }
-
-    result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SummarizationResult {
+    pub summaries: HashMap<String, String>,
+    pub main_agent_hash: Option<String>,
 }
 
-/// Generate summaries for uncached system prompts and store them in cache.
-/// Returns the generated summaries as `hash -> summary`.
-pub async fn generate_and_cache_summaries(
-    cache: &Arc<Cache>,
-    llm_client: &Arc<LlmClient>,
-    project_id: Uuid,
-    signal_id: Uuid,
-    signal_prompt: &str,
-    uncached: &HashMap<String, String>,
-) -> HashMap<String, String> {
-    let sig_hash = hash_signal_prompt(signal_prompt);
-    let mut result = HashMap::new();
-    for (hash, sys_prompt_text) in uncached {
-        match generate_summary(llm_client, signal_prompt, sys_prompt_text).await {
-            Ok(summary) => {
-                let key = cache_key(project_id, signal_id, &sig_hash, hash);
-                if let Err(e) = cache
-                    .insert_with_ttl(&key, summary.clone(), SUMMARY_CACHE_TTL_SECONDS)
-                    .await
-                {
-                    log::warn!("Failed to cache system prompt summary {}: {:?}", hash, e);
+fn build_prompts_section(extracted: &HashMap<String, ExtractedSystemPrompt>) -> String {
+    let mut out = String::new();
+    for (hash, prompt) in extracted {
+        let _ = writeln!(out, "<prompt id=\"sp_{hash}\" path=\"{}\">", prompt.path);
+        let _ = writeln!(out, "{}", prompt.text);
+        let _ = writeln!(out, "</prompt>");
+        let _ = writeln!(out);
+    }
+    out
+}
+
+fn build_summarization_tool() -> Vec<ProviderTool> {
+    vec![ProviderTool {
+        function_declarations: vec![ProviderFunctionDeclaration {
+            name: "summarize_system_prompts".to_string(),
+            description: concat!(
+                "Submit compressed summaries for all system prompts and identify which one ",
+                "belongs to the main/core agent. Exactly one prompt must be marked as the main agent prompt."
+            )
+            .to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "summaries": {
+                        "type": "array",
+                        "description": "One entry per system prompt. Must include all prompts provided.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "prompt_id": {
+                                    "type": "string",
+                                    "description": "The prompt ID (e.g. 'sp_abc12345') as provided in the input."
+                                },
+                                "summary": {
+                                    "type": "string",
+                                    "description": "Compressed summary retaining only signal-relevant information."
+                                },
+                                "is_main_agent_prompt": {
+                                    "type": "boolean",
+                                    "description": "True for exactly one prompt — the core/primary agent orchestrating the trace."
+                                }
+                            },
+                            "required": ["prompt_id", "summary", "is_main_agent_prompt"]
+                        }
+                    }
+                },
+                "required": ["summaries"]
+            }),
+        }],
+    }]
+}
+
+fn parse_summarization_response(
+    response: &crate::signals::provider::models::ProviderResponse,
+    extracted: &HashMap<String, ExtractedSystemPrompt>,
+) -> SummarizationResult {
+    let mut summaries = HashMap::new();
+    let mut main_agent_hash = None;
+
+    let parts = response
+        .candidates
+        .as_ref()
+        .and_then(|c| c.first())
+        .and_then(|c| c.content.as_ref())
+        .and_then(|c| c.parts.as_ref());
+
+    if let Some(parts) = parts {
+        for part in parts {
+            let Some(fc) = &part.function_call else {
+                continue;
+            };
+            if fc.name != "summarize_system_prompts" {
+                continue;
+            }
+            let Some(args) = &fc.args else {
+                continue;
+            };
+            let Some(arr) = args.get("summaries").and_then(|s| s.as_array()) else {
+                continue;
+            };
+            for item in arr {
+                let prompt_id = item
+                    .get("prompt_id")
+                    .and_then(|p| p.as_str())
+                    .unwrap_or_default();
+                let summary = item
+                    .get("summary")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or_default();
+                let is_main = item
+                    .get("is_main_agent_prompt")
+                    .and_then(|b| b.as_bool())
+                    .unwrap_or(false);
+
+                let hash = prompt_id.strip_prefix("sp_").unwrap_or(prompt_id);
+                if !extracted.contains_key(hash) || summary.is_empty() {
+                    continue;
                 }
-                result.insert(hash.clone(), summary);
-            }
-            Err(e) => {
-                log::error!(
-                    "Failed to generate system prompt summary for {}: {:?}",
-                    hash,
-                    e
-                );
+                summaries.insert(hash.to_string(), summary.to_string());
+                if is_main {
+                    main_agent_hash = Some(hash.to_string());
+                }
             }
         }
     }
-    result
+
+    SummarizationResult {
+        summaries,
+        main_agent_hash,
+    }
 }
 
-async fn generate_summary(
+/// Summarize all extracted system prompts and identify the main agent prompt.
+/// Uses a single combined cache key. On hit, returns cached result.
+/// On miss, makes one LLM call to summarize all prompts together.
+pub async fn summarize_system_prompts(
+    cache: &Arc<Cache>,
     llm_client: &Arc<LlmClient>,
+    project_id: Uuid,
+    signal_id: Uuid,
     signal_prompt: &str,
-    system_prompt_text: &str,
-) -> anyhow::Result<String> {
-    let user_prompt = SUMMARIZATION_PROMPT
+    extracted: &HashMap<String, ExtractedSystemPrompt>,
+) -> SummarizationResult {
+    if extracted.is_empty() {
+        log::info!("No system prompts extracted from trace, skipping summarization");
+        return SummarizationResult {
+            summaries: HashMap::new(),
+            main_agent_hash: None,
+        };
+    }
+
+    let sig_hash = hash_signal_prompt(signal_prompt);
+    let prompt_hashes: Vec<&str> = extracted.keys().map(|s| s.as_str()).collect();
+    let prompts_hash = combined_prompts_hash(&prompt_hashes);
+    let key = cache_key(project_id, signal_id, &sig_hash, &prompts_hash);
+
+    if let Ok(Some(cached)) = cache.get::<SummarizationResult>(&key).await {
+        log::info!("Using cached summarization result for {} prompts", extracted.len());
+        return cached;
+    }
+
+    let prompts_section = build_prompts_section(extracted);
+    let user_prompt = BATCH_SUMMARIZATION_PROMPT
         .replace("{{signal_prompt}}", signal_prompt)
-        .replace("{{system_prompt}}", system_prompt_text);
+        .replace("{{prompts_section}}", &prompts_section);
 
     let request = ProviderRequest {
         contents: vec![ProviderContent {
@@ -126,10 +203,10 @@ async fn generate_summary(
             }]),
         }],
         system_instruction: None,
-        tools: None,
+        tools: Some(build_summarization_tool()),
         generation_config: Some(ProviderGenerationConfig {
             temperature: Some(0.0),
-            max_output_tokens: Some(2048),
+            max_output_tokens: Some(4096),
             thinking_config: Some(ProviderThinkingConfig {
                 include_thoughts: Some(false),
                 thinking_level: Some(ProviderThinkingLevel::Medium),
@@ -140,25 +217,31 @@ async fn generate_summary(
         model_size: None,
     };
 
-    let response = llm_client
-        .generate_content(&request)
+    let result = match llm_client.generate_content(&request).await {
+        Ok(response) => {
+            let result = parse_summarization_response(&response, extracted);
+            log::info!(
+                "Generated summaries for {} prompts, main_agent_hash={:?}",
+                result.summaries.len(),
+                result.main_agent_hash,
+            );
+            result
+        }
+        Err(e) => {
+            log::error!("LLM call failed for batch summarization: {}", e);
+            SummarizationResult {
+                summaries: HashMap::new(),
+                main_agent_hash: None,
+            }
+        }
+    };
+
+    if let Err(e) = cache
+        .insert_with_ttl(&key, result.clone(), SUMMARY_CACHE_TTL_SECONDS)
         .await
-        .map_err(|e| anyhow::anyhow!("LLM call failed for system prompt summary: {}", e))?;
-
-    let text = response
-        .candidates
-        .as_ref()
-        .and_then(|c| c.first())
-        .and_then(|c| c.content.as_ref())
-        .and_then(|c| c.parts.as_ref())
-        .and_then(|p| p.iter().find_map(|part| part.text.as_deref()))
-        .unwrap_or("")
-        .trim()
-        .to_string();
-
-    if text.is_empty() {
-        anyhow::bail!("LLM returned empty summary");
+    {
+        log::warn!("Failed to cache summarization result: {:?}", e);
     }
 
-    Ok(text)
+    result
 }
