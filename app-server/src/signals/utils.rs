@@ -149,6 +149,47 @@ pub fn hash_system_prompt(text: &str) -> String {
     format!("{:x}", digest)[..8].to_string()
 }
 
+static XML_TAG_NAME_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"<(\w+)[\s/>]").unwrap());
+
+/// Hash a system prompt by its structural skeleton: first sentence + sorted XML tag names.
+/// Resistant to dynamic content inside tags (config values, user context, tool lists)
+/// while preserving the stable identity of the prompt template.
+pub fn structural_skeleton_hash(text: &str) -> String {
+    let normalized = text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+
+    // Extract first sentence: up to the first '.' or '\n' that occurs after 20+ chars
+    let first_sentence = normalized
+        .char_indices()
+        .find(|(i, c)| *i >= 20 && (*c == '.' || *c == '\n'))
+        .map(|(i, _)| &normalized[..i])
+        .unwrap_or_else(|| {
+            // No sentence boundary found -- use first 200 chars or the whole thing
+            let end = normalized
+                .char_indices()
+                .nth(200)
+                .map(|(i, _)| i)
+                .unwrap_or(normalized.len());
+            &normalized[..end]
+        });
+
+    // Extract unique XML/HTML tag names
+    let mut tag_names: Vec<&str> = XML_TAG_NAME_RE
+        .captures_iter(text)
+        .map(|cap| cap.get(1).unwrap().as_str())
+        .collect();
+    tag_names.sort();
+    tag_names.dedup();
+
+    let skeleton = format!("{}|{}", first_sentence.trim(), tag_names.join(","));
+    let digest = Sha3_256::digest(skeleton.as_bytes());
+    format!("{:x}", digest)[..8].to_string()
+}
+
 /// Try to parse JSON string, return the parsed value or the original string
 pub fn try_parse_json(json_string: &str) -> Value {
     if json_string.is_empty() {
@@ -652,5 +693,74 @@ mod tests {
         let s = result.as_str().unwrap();
         assert!(s.contains("[openai.chat]"), "XML tag should produce named link: {}", s);
         assert!(s.contains(&format!("spanId={}", uuid)));
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_stable_across_dynamic_content() {
+        let prompt_v1 = r#"You are an AI agent designed to automate browser tasks.
+<agent_configuration>
+Model: browser-use-llm
+Proxy: enabled
+Vision: enabled
+</agent_configuration>
+<rules>
+Do not fabricate data.
+</rules>"#;
+
+        let prompt_v2 = r#"You are an AI agent designed to automate browser tasks.
+<agent_configuration>
+Model: gpt-4o
+Proxy: disabled
+Vision: disabled
+</agent_configuration>
+<rules>
+Do not fabricate data.
+</rules>"#;
+
+        assert_eq!(
+            structural_skeleton_hash(prompt_v1),
+            structural_skeleton_hash(prompt_v2),
+            "Same template with different config values should produce the same skeleton hash"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_differs_for_different_agents() {
+        let browser_agent = r#"You are an AI agent designed to automate browser tasks.
+<agent_configuration>Model: x</agent_configuration>
+<rules>Click things</rules>"#;
+
+        let code_agent = r#"You are Claude Code, an AI coding assistant.
+<instructions>Write code</instructions>
+<tools>bash, read, write</tools>"#;
+
+        assert_ne!(
+            structural_skeleton_hash(browser_agent),
+            structural_skeleton_hash(code_agent),
+            "Different agents should produce different skeleton hashes"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_no_tags() {
+        let plain_v1 = "You are a helpful customer support agent. Answer questions politely. Use the knowledge base.";
+        let plain_v2 = "You are a helpful customer support agent. Answer questions politely. Be concise.";
+
+        assert_eq!(
+            structural_skeleton_hash(plain_v1),
+            structural_skeleton_hash(plain_v2),
+            "Same first sentence with no tags should produce the same hash"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_case_insensitive() {
+        let lower = "You are an AI assistant.\n<rules>be helpful</rules>";
+        let upper = "YOU ARE AN AI ASSISTANT.\n<rules>BE HELPFUL</rules>";
+
+        assert_eq!(
+            structural_skeleton_hash(lower),
+            structural_skeleton_hash(upper),
+        );
     }
 }

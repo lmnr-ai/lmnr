@@ -20,6 +20,7 @@ use crate::signals::provider::{LlmClient, ProviderThinkingConfig, ProviderThinki
 use crate::signals::spans::ExtractedSystemPrompt;
 use crate::signals::utils::{
     InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr,
+    structural_skeleton_hash,
 };
 
 const SUMMARY_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
@@ -48,10 +49,13 @@ fn cache_key(
     )
 }
 
+use crate::signals::utils::hash_system_prompt;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SummarizationResult {
     pub summaries: HashMap<String, String>,
-    pub main_agent_hash: Option<String>,
+    /// Hash of the main agent's compressed summary text (stable across dynamic prompt content)
+    pub fingerprint: Option<String>,
 }
 
 fn build_prompts_section(extracted: &HashMap<String, ExtractedSystemPrompt>) -> String {
@@ -111,7 +115,7 @@ fn parse_summarization_response(
     extracted: &HashMap<String, ExtractedSystemPrompt>,
 ) -> SummarizationResult {
     let mut summaries = HashMap::new();
-    let mut main_agent_hash = None;
+    let mut main_agent_summary: Option<String> = None;
 
     let parts = response
         .candidates
@@ -152,17 +156,19 @@ fn parse_summarization_response(
                 if !extracted.contains_key(hash) || summary.is_empty() {
                     continue;
                 }
-                summaries.insert(hash.to_string(), summary.to_string());
                 if is_main {
-                    main_agent_hash = Some(hash.to_string());
+                    main_agent_summary = Some(summary.to_string());
                 }
+                summaries.insert(hash.to_string(), summary.to_string());
             }
         }
     }
 
+    let fingerprint = main_agent_summary.map(|s| hash_system_prompt(&s));
+
     SummarizationResult {
         summaries,
-        main_agent_hash,
+        fingerprint,
     }
 }
 
@@ -183,22 +189,33 @@ pub async fn summarize_system_prompts(
         log::info!("No system prompts extracted from trace, skipping summarization");
         return SummarizationResult {
             summaries: HashMap::new(),
-            main_agent_hash: None,
+            fingerprint: None,
         };
     }
 
     let sig_hash = hash_signal_prompt(signal_prompt);
-    let prompt_hashes: Vec<&str> = extracted.keys().map(|s| s.as_str()).collect();
-    let prompts_hash = combined_prompts_hash(&prompt_hashes);
+    let skeleton_hashes: Vec<String> = extracted
+        .values()
+        .map(|p| structural_skeleton_hash(&p.text))
+        .collect();
+    let skeleton_refs: Vec<&str> = skeleton_hashes.iter().map(|s| s.as_str()).collect();
+    let prompts_hash = combined_prompts_hash(&skeleton_refs);
     let key = cache_key(project_id, signal_id, &sig_hash, &prompts_hash);
 
     if let Ok(Some(cached)) = cache.get::<SummarizationResult>(&key).await {
         log::info!(
-            "Using cached summarization result for {} prompts",
-            extracted.len()
+            "Using cached summarization result for {} prompts (skeleton={})",
+            extracted.len(),
+            prompts_hash,
         );
         return cached;
     }
+
+    log::info!(
+        "Summarization cache miss for {} prompts (skeleton={}), generating",
+        extracted.len(),
+        prompts_hash,
+    );
 
     let start_time = Utc::now();
 
@@ -295,7 +312,7 @@ pub async fn summarize_system_prompts(
         }
         None => SummarizationResult {
             summaries: HashMap::new(),
-            main_agent_hash: None,
+            fingerprint: None,
         },
     };
 
