@@ -96,7 +96,7 @@ export function SpanCard({ span, branchMask, output, onSpanSelect, depth }: Span
       <div className={cn("flex flex-row flex-1 min-w-0 text-md", !cachingEnabled && "pl-2")}>
         <BranchConnector depth={depth} branchMask={branchMask} isSelected={isSelected} />
 
-        <div className="flex flex-col items-center shrink-0 pt-[6px] self-stretch">
+        <div className="flex flex-col items-center shrink-0 pt-1.5 self-stretch">
           <SpanTypeIcon
             iconClassName="min-w-4 min-h-4"
             spanType={span.spanType}

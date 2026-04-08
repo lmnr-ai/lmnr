@@ -9,6 +9,7 @@ pub struct Report {
     pub r#type: String,
     pub weekdays: Vec<i32>,
     pub hour: i32,
+    #[allow(unused)]
     pub created_at: DateTime<Utc>,
 }
 
