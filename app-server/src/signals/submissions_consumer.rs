@@ -109,7 +109,8 @@ async fn prepare_batch_requests(
     let concurrency = get_unsigned_env_with_default(
         "SIGNALS_PROCESS_RUN_CONCURRENCY",
         DEFAULT_PROCESS_RUN_CONCURRENCY,
-    );
+    )
+    .max(1);
     let results: Vec<_> = stream::iter(messages.iter().cloned())
         .map(|message| {
             let clickhouse = clickhouse.clone();
