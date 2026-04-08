@@ -106,6 +106,8 @@ pub async fn process_run(
         let summarization = summarize_system_prompts(
             &cache,
             &llm_client,
+            queue.clone(),
+            config.internal_project_id,
             project_id,
             signal_id,
             prompt,

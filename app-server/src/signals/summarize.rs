@@ -2,12 +2,15 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::Arc;
 
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use uuid::Uuid;
 
 use crate::cache::keys::SYS_PROMPT_SUMMARY_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
+use crate::db::spans::SpanType;
+use crate::mq::MessageQueue;
 use crate::signals::prompts::BATCH_SUMMARIZATION_PROMPT;
 use crate::signals::provider::models::{
     ProviderContent, ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderPart,
@@ -15,6 +18,9 @@ use crate::signals::provider::models::{
 };
 use crate::signals::provider::{LlmClient, ProviderThinkingConfig, ProviderThinkingLevel};
 use crate::signals::spans::ExtractedSystemPrompt;
+use crate::signals::utils::{
+    InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr,
+};
 
 const SUMMARY_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
 
@@ -166,6 +172,8 @@ fn parse_summarization_response(
 pub async fn summarize_system_prompts(
     cache: &Arc<Cache>,
     llm_client: &Arc<LlmClient>,
+    queue: Arc<MessageQueue>,
+    internal_project_id: Option<Uuid>,
     project_id: Uuid,
     signal_id: Uuid,
     signal_prompt: &str,
@@ -185,9 +193,14 @@ pub async fn summarize_system_prompts(
     let key = cache_key(project_id, signal_id, &sig_hash, &prompts_hash);
 
     if let Ok(Some(cached)) = cache.get::<SummarizationResult>(&key).await {
-        log::info!("Using cached summarization result for {} prompts", extracted.len());
+        log::info!(
+            "Using cached summarization result for {} prompts",
+            extracted.len()
+        );
         return cached;
     }
+
+    let start_time = Utc::now();
 
     let prompts_section = build_prompts_section(extracted);
     let user_prompt = BATCH_SUMMARIZATION_PROMPT
@@ -205,7 +218,7 @@ pub async fn summarize_system_prompts(
         system_instruction: None,
         tools: Some(build_summarization_tool()),
         generation_config: Some(ProviderGenerationConfig {
-            temperature: Some(0.0),
+            temperature: Some(1.0),
             max_output_tokens: Some(4096),
             thinking_config: Some(ProviderThinkingConfig {
                 include_thoughts: Some(false),
@@ -217,24 +230,63 @@ pub async fn summarize_system_prompts(
         model_size: None,
     };
 
-    let result = match llm_client.generate_content(&request).await {
+    let span_input = request_to_span_input(&request);
+    let span_tools = request_to_tools_attr(&request);
+
+    let (result, error) = match llm_client.generate_content(&request).await {
         Ok(response) => {
             let result = parse_summarization_response(&response, extracted);
-            log::info!(
-                "Generated summaries for {} prompts, main_agent_hash={:?}",
-                result.summaries.len(),
-                result.main_agent_hash,
-            );
-            result
+            (Some((result, response.usage_metadata)), None)
         }
         Err(e) => {
             log::error!("LLM call failed for batch summarization: {}", e);
-            SummarizationResult {
-                summaries: HashMap::new(),
-                main_agent_hash: None,
-            }
+            (None, Some(format!("{}", e)))
         }
     };
+
+    let usage = result.as_ref().and_then(|(_, u)| u.as_ref());
+
+    emit_internal_span(
+        queue,
+        InternalSpan {
+            name: "summarize_system_prompts".to_string(),
+            trace_id: Uuid::new_v4(),
+            run_id: Uuid::nil(),
+            signal_name: String::new(),
+            parent_span_id: None,
+            span_type: SpanType::LLM,
+            start_time,
+            input: Some(span_input),
+            output: result.as_ref().map(|(r, _)| serde_json::json!(r)),
+            input_tokens: usage.and_then(|u| u.prompt_token_count),
+            input_cached_tokens: usage.and_then(|u| u.cache_read_input_tokens),
+            output_tokens: usage.and_then(|u| u.candidates_token_count),
+            model: "gemini-3-flash-preview".to_string(),
+            provider: "gemini".to_string(),
+            internal_project_id,
+            job_id: None,
+            error,
+            provider_batch_id: None,
+            metadata: Some(
+                serde_json::json!({
+                    "project_id": project_id,
+                    "signal_id": signal_id,
+                })
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect(),
+            ),
+            tools: span_tools,
+        },
+    )
+    .await;
+
+    let result = result.map(|(r, _)| r).unwrap_or(SummarizationResult {
+        summaries: HashMap::new(),
+        main_agent_hash: None,
+    });
 
     if let Err(e) = cache
         .insert_with_ttl(&key, result.clone(), SUMMARY_CACHE_TTL_SECONDS)
