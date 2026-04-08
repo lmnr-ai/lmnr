@@ -169,6 +169,7 @@ fn parse_summarization_response(
 /// Summarize all extracted system prompts and identify the main agent prompt.
 /// Uses a single combined cache key. On hit, returns cached result.
 /// On miss, makes one LLM call to summarize all prompts together.
+#[tracing::instrument(skip_all, fields(project_id, signal_id, num_prompts = extracted.len()))]
 pub async fn summarize_system_prompts(
     cache: &Arc<Cache>,
     llm_client: &Arc<LlmClient>,
