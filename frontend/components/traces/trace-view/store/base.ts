@@ -128,16 +128,11 @@ export interface BaseTraceViewState {
   tracesAgentOpen: boolean;
   signalsPanelOpen: boolean;
 
-  // Signal data for the signal events panel
-  traceSignals: TraceSignal[];
-  isTraceSignalsLoading: boolean;
+  // Signal UI state
   activeSignalTabId: string | null;
 
-  // Set once at store creation. When signals are fetched (by either Header or
-  // SignalEventsPanel — whichever wins the race), the fetch callback checks this
-  // value to pick the correct default tab instead of blindly selecting the first
-  // signal. This avoids brittle useEffect chains that try to fix the tab after
-  // the fact.
+  // Set once at store creation. When signal data arrives via SWR, the Header
+  // checks this value to pick the correct default tab.
   initialSignalId?: string;
 
   // Pending signal→chat injection. Written by openSignalInChat, consumed
@@ -184,9 +179,7 @@ export interface BaseTraceViewActions {
   setTracesAgentOpen: (open: boolean) => void;
   setSignalsPanelOpen: (open: boolean) => void;
 
-  // Signal data actions
-  setTraceSignals: (signals: TraceSignal[]) => void;
-  setIsTraceSignalsLoading: (loading: boolean) => void;
+  // Signal UI actions
   setActiveSignalTabId: (id: string | null) => void;
 
   // Traces Agent injection actions
@@ -238,9 +231,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     tracesAgentOpen: options?.initialChatOpen ?? false,
     signalsPanelOpen: false,
 
-    // Signal data defaults
-    traceSignals: [],
-    isTraceSignalsLoading: false,
+    // Signal UI defaults
     activeSignalTabId: null,
     initialSignalId: options?.initialSignalId,
 
@@ -402,8 +393,6 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
     setSignalsPanelOpen: (open: boolean) => set({ signalsPanelOpen: open } as Partial<T>),
 
     // Signal data actions
-    setTraceSignals: (signals: TraceSignal[]) => set({ traceSignals: signals } as Partial<T>),
-    setIsTraceSignalsLoading: (loading: boolean) => set({ isTraceSignalsLoading: loading } as Partial<T>),
     setActiveSignalTabId: (id: string | null) => set({ activeSignalTabId: id } as Partial<T>),
 
     // Traces Agent injection actions

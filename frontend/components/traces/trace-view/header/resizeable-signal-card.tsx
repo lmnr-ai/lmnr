@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { SIGNAL_COLORS } from "@/components/signals/utils";
 import SignalTab from "@/components/traces/trace-view/signal-events-panel/signal-tab";
 import { useTraceViewStore } from "@/components/traces/trace-view/store";
+import { type TraceSignal } from "@/components/traces/trace-view/store/base";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -17,15 +18,17 @@ const MAX_SIGNAL_CARD_HEIGHT = 500;
 
 export default function ResizableSignalCard({
   traceId,
+  traceSignals,
+  isTraceSignalsLoading,
   onClose,
   className,
 }: {
   traceId: string;
+  traceSignals: TraceSignal[];
+  isTraceSignalsLoading: boolean;
   onClose: () => void;
   className?: string;
 }) {
-  const traceSignals = useTraceViewStore((state) => state.traceSignals);
-  const isTraceSignalsLoading = useTraceViewStore((state) => state.isTraceSignalsLoading);
   const activeSignalTabId = useTraceViewStore((state) => state.activeSignalTabId);
   const setActiveSignalTabId = useTraceViewStore((state) => state.setActiveSignalTabId);
 
