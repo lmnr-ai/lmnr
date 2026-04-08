@@ -2,6 +2,7 @@ import {
   Database,
   FlaskConical,
   GitFork,
+  House,
   LayoutGrid,
   Pen,
   PlayCircle,
@@ -12,6 +13,11 @@ import {
 } from "lucide-react";
 
 export const getSidebarMenus = (projectId: string) => [
+  {
+    name: "home",
+    href: `/project/${projectId}/home`,
+    icon: House,
+  },
   {
     name: "dashboards",
     href: `/project/${projectId}/dashboard`,
