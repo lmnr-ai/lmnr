@@ -12,7 +12,6 @@ pub struct DBCustomModelCost {
     pub provider: String,
     #[allow(unused)]
     pub model: String,
-    #[allow(unused)]
     pub costs: Value,
 }
 
