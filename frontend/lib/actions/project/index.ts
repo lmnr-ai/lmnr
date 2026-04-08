@@ -22,16 +22,9 @@ export const UpdateProjectSchema = z.object({
 export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) {
   const { projectId } = DeleteProjectSchema.parse(input);
 
-  try {
-    // Make sure to delete the project api keys first, because they will be
-    // cascade deleted from db once we delete the project.
-    const result = await deleteProjectApiKeysFromCache(projectId);
-    if (!result.success) {
-      console.error("Failed to delete project api keys from cache. Failed keys:", result.failedKeys);
-    }
-  } catch (error) {
-    console.error("Failed to delete project api keys from cache", error);
-  }
+  // Retrieve API key hashes before deleting the project, because they will be
+  // cascade deleted from db once we delete the project.
+  const apiKeyHashes = await getProjectApiKeyHashes(projectId);
 
   const workspaceId = await db.query.projects.findFirst({
     where: eq(projects.id, projectId),
@@ -47,10 +40,20 @@ export async function deleteProject(input: z.infer<typeof DeleteProjectSchema>) 
   await deleteAllProjectsWorkspaceInfoFromCache(workspaceId.workspaceId);
 
   await db.delete(projects).where(eq(projects.id, projectId));
-  const result = await deleteProjectDataFromClickHouse(projectId);
+  const clickhouseResult = await deleteProjectDataFromClickHouse(projectId);
 
-  if (!result.success) {
-    throw new Error(`Failed to delete project data for ${result.tables.join(",")}`);
+  if (!clickhouseResult.success) {
+    throw new Error(`Failed to delete project data for ${clickhouseResult.tables.join(",")}`);
+  }
+
+  // Delete API key cache entries after project deletion using the previously retrieved hashes.
+  try {
+    const cacheResult = await deleteProjectApiKeysFromCache(apiKeyHashes);
+    if (!cacheResult.success) {
+      console.error("Failed to delete project api keys from cache. Failed keys:", cacheResult.failedKeys);
+    }
+  } catch (error) {
+    console.error("Failed to delete project api keys from cache", error);
   }
 }
 
@@ -113,14 +116,19 @@ async function deleteProjectDataFromClickHouse(
   );
 }
 
-async function deleteProjectApiKeysFromCache(projectId: string) {
+async function getProjectApiKeyHashes(projectId: string): Promise<string[]> {
   const apiKeys = await db.query.projectApiKeys.findMany({
     where: eq(projectApiKeys.projectId, projectId),
+    columns: { hash: true },
   });
 
+  return apiKeys.map((apiKey) => apiKey.hash);
+}
+
+async function deleteProjectApiKeysFromCache(hashes: string[]) {
   const results = await Promise.allSettled(
-    apiKeys.map(async (apiKey) => {
-      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKey.hash}`;
+    hashes.map(async (hash) => {
+      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${hash}`;
       try {
         await cache.remove(cacheKey);
         return { success: true };
@@ -132,7 +140,7 @@ async function deleteProjectApiKeysFromCache(projectId: string) {
 
   return results.reduce<{ success: true } | { success: false; failedKeys: string[] }>(
     (acc, curr, index) => {
-      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${apiKeys[index].hash}`;
+      const cacheKey = `${PROJECT_API_KEY_CACHE_KEY}:${hashes[index]}`;
       if (curr.status === "rejected" || (curr.status === "fulfilled" && !curr.value.success)) {
         if ("failedKeys" in acc) {
           return { success: false, failedKeys: [...acc.failedKeys, cacheKey] };
