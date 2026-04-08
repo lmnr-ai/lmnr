@@ -3,6 +3,7 @@ import { type Row } from "@tanstack/react-table";
 import { isEmpty, map } from "lodash";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useSWRConfig } from "swr";
 import { useStore } from "zustand";
 
 import { useTimeSeriesStatsUrl } from "@/components/charts/time-series-chart/use-time-series-stats-url";
@@ -49,6 +50,7 @@ function TracesTableContent() {
   const { projectId } = useParams();
   const { toast } = useToast();
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const { mutate: globalMutate } = useSWRConfig();
 
   const {
     traceId,
@@ -207,6 +209,14 @@ function TracesTableContent() {
         }
 
         const data = (await res.json()) as { items: TraceRow[] };
+
+        // Insert all tags data into SWR cache
+        data.items.map((trace) =>
+          globalMutate(`/api/projects/${projectId}/traces/${trace.id}/tags`, trace.traceTags ?? [], {
+            revalidate: false,
+          })
+        );
+
         return { items: data.items, count: 0 };
       } catch (error) {
         toast({
@@ -310,7 +320,7 @@ function TracesTableContent() {
           const payload = JSON.parse(event.data);
           if (payload.traces && Array.isArray(payload.traces)) {
             for (const trace of payload.traces) {
-              updateRealtimeTrace(trace);
+              updateRealtimeTrace({ ...trace, spanTags: trace.tags ?? [] });
             }
           }
         } catch (e) {

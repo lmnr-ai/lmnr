@@ -2,7 +2,6 @@ use anyhow::Result;
 use chrono::DateTime;
 use serde::Deserialize;
 use serde_json::Value;
-use sha3::{Digest, Sha3_256};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
 use uuid::Uuid;
@@ -183,22 +182,11 @@ fn content_overlap_score(needle_words: &HashSet<String>, haystack_words: &HashSe
     matched as f64 / needle_words.len() as f64
 }
 
-/// Hash a system prompt text to a stable short hex identifier.
-/// Normalizes whitespace and lowercases before hashing so minor formatting
-/// variations produce the same hash.
-fn hash_system_prompt(text: &str) -> String {
-    let normalized = text
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase();
-    let digest = Sha3_256::digest(normalized.as_bytes());
-    format!("{:x}", digest)[..8].to_string()
-}
+pub use super::utils::structural_skeleton_hash;
 
 /// Extract the system message from a parsed LLM input message array.
 /// Returns `(system_text, remaining_messages)` if a `role: "system"` message is found.
-fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
+pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
     let messages = parsed.as_array()?;
     let sys_idx = messages.iter().position(|m| {
         m.get("role")
@@ -206,9 +194,23 @@ fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
             .is_some_and(|r| r == "system")
     })?;
     let sys_msg = &messages[sys_idx];
-    let sys_text = sys_msg
-        .get("content")
-        .and_then(|c| c.as_str())
+    let content_val = sys_msg.get("content");
+    let sys_text = content_val
+        // "content": "plain string" (OpenAI format)
+        .and_then(|c| c.as_str().map(|s| s.to_string()))
+        // "content": [{"text": "...", "type": "text"}, ...] (Anthropic format)
+        .or_else(|| {
+            content_val
+                .and_then(|c| c.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|block| block.get("text").and_then(|t| t.as_str()))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                })
+                .filter(|s| !s.is_empty())
+        })
+        // "parts": [{"text": "..."}] (Gemini format)
         .or_else(|| {
             sys_msg
                 .get("parts")
@@ -216,9 +218,9 @@ fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
                 .and_then(|arr| arr.first())
                 .and_then(|p| p.get("text"))
                 .and_then(|t| t.as_str())
+                .map(|s| s.to_string())
         })
-        .unwrap_or("")
-        .to_string();
+        .unwrap_or_default();
     if sys_text.is_empty() {
         return None;
     }
@@ -231,18 +233,30 @@ fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
     Some((sys_text, Value::Array(remaining)))
 }
 
-/// Scan all LLM spans and extract unique system prompts.
-/// Returns a map of `hash -> full_system_prompt_text` for all unique system prompts found.
-pub fn extract_system_prompts(ch_spans: &[CHSpan]) -> HashMap<String, String> {
-    let mut result: HashMap<String, String> = HashMap::new();
+#[derive(Debug)]
+pub struct ExtractedSystemPrompt {
+    pub text: String,
+    pub path: String,
+}
+
+/// Scan all LLM spans and extract unique system prompts with their span paths.
+/// Returns a map of `hash -> ExtractedSystemPrompt` for all unique system prompts found.
+/// When the same prompt appears at multiple paths, the first occurrence's path is kept.
+pub fn extract_system_prompts_with_paths(
+    ch_spans: &[CHSpan],
+) -> HashMap<String, ExtractedSystemPrompt> {
+    let mut result: HashMap<String, ExtractedSystemPrompt> = HashMap::new();
     for span in ch_spans {
         if span.span_type != 1 {
             continue;
         }
         let parsed = try_parse_json(&strip_noise(&span.input));
         if let Some((sys_text, _)) = extract_system_message(&parsed) {
-            let hash = hash_system_prompt(&sys_text);
-            result.entry(hash).or_insert(sys_text);
+            let hash = structural_skeleton_hash(&sys_text);
+            result.entry(hash).or_insert_with(|| ExtractedSystemPrompt {
+                text: sys_text,
+                path: span.path.clone(),
+            });
         }
     }
     result
@@ -334,7 +348,7 @@ pub fn compress_span_content(
 
                     let input_to_process =
                         if let Some((sys_text, remaining)) = extract_system_message(&parsed) {
-                            let hash = hash_system_prompt(&sys_text);
+                            let hash = structural_skeleton_hash(&sys_text);
                             if system_prompt_summaries.contains_key(&hash) {
                                 sys_prompt_ref = Some(format!("sp_{}", hash));
                                 remaining
@@ -495,6 +509,7 @@ fn spans_to_string(
 // TODO: move these two functions to CH Query engine for better integration
 // with hybrid deployment mode.
 /// Query trace spans from ClickHouse
+#[tracing::instrument(skip_all, fields(project_id, trace_id))]
 async fn get_trace_spans(
     clickhouse: clickhouse::Client,
     project_id: Uuid,
@@ -1209,28 +1224,28 @@ mod tests {
     }
 
     // ===================================================================
-    // hash_system_prompt
+    // structural_skeleton_hash
     // ===================================================================
 
     #[test]
     fn test_hash_stability() {
-        let hash1 = hash_system_prompt("You are a helpful assistant.");
-        let hash2 = hash_system_prompt("You are a helpful assistant.");
+        let hash1 = structural_skeleton_hash("You are a helpful assistant.");
+        let hash2 = structural_skeleton_hash("You are a helpful assistant.");
         assert_eq!(hash1, hash2);
         assert_eq!(hash1.len(), 8);
     }
 
     #[test]
     fn test_hash_whitespace_normalization() {
-        let hash1 = hash_system_prompt("You  are\n a   helpful\tassistant.");
-        let hash2 = hash_system_prompt("You are a helpful assistant.");
+        let hash1 = structural_skeleton_hash("You  are\n a   helpful\tassistant.");
+        let hash2 = structural_skeleton_hash("You are a helpful assistant.");
         assert_eq!(hash1, hash2);
     }
 
     #[test]
     fn test_hash_case_normalization() {
-        let hash1 = hash_system_prompt("You Are A Helpful Assistant.");
-        let hash2 = hash_system_prompt("you are a helpful assistant.");
+        let hash1 = structural_skeleton_hash("You Are A Helpful Assistant.");
+        let hash2 = structural_skeleton_hash("you are a helpful assistant.");
         assert_eq!(hash1, hash2);
     }
 
@@ -1266,10 +1281,10 @@ mod tests {
             ),
         ];
 
-        let extracted = extract_system_prompts(&spans);
+        let extracted = extract_system_prompts_with_paths(&spans);
         assert_eq!(extracted.len(), 1);
-        let (_, text) = extracted.iter().next().unwrap();
-        assert_eq!(text, sys_prompt);
+        let (hash, _) = extracted.iter().next().unwrap();
+        assert_eq!(hash, &structural_skeleton_hash(sys_prompt));
     }
 
     #[test]
@@ -1284,8 +1299,10 @@ mod tests {
             make_span(Uuid::new_v4(), Uuid::nil(), "llm_b", 1, 2000, &input, "b"),
         ];
 
-        let extracted = extract_system_prompts(&spans);
+        let extracted = extract_system_prompts_with_paths(&spans);
         assert_eq!(extracted.len(), 1);
+        let (hash, _) = extracted.iter().next().unwrap();
+        assert_eq!(hash, &structural_skeleton_hash(sys_prompt));
     }
 
     // ===================================================================
@@ -1299,7 +1316,7 @@ mod tests {
             r#"[{{"role":"system","content":"{}"}},{{"role":"user","content":"Help me"}}]"#,
             sys_prompt
         );
-        let hash = hash_system_prompt(sys_prompt);
+        let hash = structural_skeleton_hash(sys_prompt);
         let summaries: HashMap<String, String> = [(
             hash.clone(),
             "Customer support agent. Be polite.".to_string(),
@@ -1362,7 +1379,7 @@ mod tests {
             r#"[{{"role":"system","content":"{}"}},{{"role":"user","content":"Do X"}}]"#,
             sys_prompt
         );
-        let hash = hash_system_prompt(sys_prompt);
+        let hash = structural_skeleton_hash(sys_prompt);
         let summary = "Safety-focused AI agent with strict rules.".to_string();
         let summaries: HashMap<String, String> =
             [(hash.clone(), summary.clone())].into_iter().collect();

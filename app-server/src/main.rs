@@ -918,22 +918,22 @@ fn main() -> anyhow::Result<()> {
         let worker_pool = Arc::new(WorkerPool::new(queue.clone()));
         let batch_worker_pool = Arc::new(BatchWorkerPool::new(queue.clone()));
 
-        // == LLM Provider client ==
-        let llm_provider_client: Option<Arc<signals::provider::ProviderClient>> =
+        // == LLM Client ==
+        let llm_provider_client: Option<Arc<signals::provider::LlmClient>> =
             if is_feature_enabled(Feature::Signals) {
-                log::info!("Initializing LLM provider client for signals");
-                match runtime_handle.block_on(signals::provider::create_provider_client()) {
+                log::info!("Initializing LLM client for signals");
+                match runtime_handle.block_on(signals::provider::LlmClient::new()) {
                     Ok(client) => Some(Arc::new(client)),
                     Err(e) => {
                         log::warn!(
-                            "Failed to create LLM provider client (signals will be disabled): {:?}",
+                            "Failed to create LLM client (signals will be disabled): {:?}",
                             e
                         );
                         None
                     }
                 }
             } else {
-                log::info!("Signals feature disabled - skipping LLM provider initialization");
+                log::info!("Signals feature disabled - skipping LLM client initialization");
                 None
             };
 

@@ -4,9 +4,7 @@ import { useParams } from "next/navigation";
 import { type PropsWithChildren, useCallback, useMemo } from "react";
 
 import EvaluatorScoresList from "@/components/evaluators/evaluator-scores-list";
-import TagsContextProvider from "@/components/tags/tags-context";
-import TagsList from "@/components/tags/tags-list";
-import TagsTrigger from "@/components/tags/tags-trigger";
+import SpanTagsButton from "@/components/tags/span-tags-button";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import ErrorCard from "@/components/traces/error-card";
 import ExportSpansPopover from "@/components/traces/export-spans-popover";
@@ -117,15 +115,12 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
               schema={span.attributes?.["gen_ai.request.structured_output_schema"] || span.attributes?.["ai.schema"]}
             />
           </div>
-          <TagsContextProvider spanId={span.spanId}>
-            <div className="flex gap-2 flex-wrap items-center">
-              <TagsTrigger />
-              <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} />
-              <ExportSpansPopover span={span} />
-            </div>
-            <TagsList />
-            <EvaluatorScoresList spanId={span.spanId} />
-          </TagsContextProvider>
+          <div className="flex gap-2 gap-y-1 flex-wrap items-center">
+            <AddToLabelingQueuePopover spanId={span.spanId} traceId={span.traceId} />
+            <ExportSpansPopover span={span} />
+            <SpanTagsButton spanId={span.spanId} />
+          </div>
+          <EvaluatorScoresList spanId={span.spanId} />
         </div>
 
         {errorEventAttributes && <ErrorCard attributes={errorEventAttributes} />}

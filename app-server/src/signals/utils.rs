@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::Utc;
 use regex::Regex;
 use serde_json::Value;
+use sha3::{Digest, Sha3_256};
 use std::{collections::HashMap, sync::Arc, sync::LazyLock};
 use uuid::Uuid;
 
@@ -23,14 +24,22 @@ static BASE64_IMAGE_RE: LazyLock<Regex> = LazyLock::new(|| {
 static SIGNATURE_FIELD_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"("(?:signature|thought_signature)")\s*:\s*"[^"]*""#).unwrap());
 
+/// Matches signature/thought_signature fields inside nested JSON strings where
+/// quotes are backslash-escaped (e.g. `\"signature\":\"...\"`).
+static SIGNATURE_FIELD_ESCAPED_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(\\"(?:signature|thought_signature)\\")\s*:\s*\\"[^"\\]*\\""#).unwrap()
+});
+
 /// Strip base64 images and signature/thought_signature values from raw
 /// ClickHouse span content. Does NOT touch whitespace — use
 /// `clean_value_whitespace` (after JSON parsing) or `clean_raw_whitespace`
 /// (for non-JSON contexts like search) separately.
 pub fn strip_noise(raw: &str) -> String {
     let without_images = BASE64_IMAGE_RE.replace_all(raw, "[base64 image omitted]");
-    SIGNATURE_FIELD_RE
-        .replace_all(&without_images, r#"$1:"[signature omitted]""#)
+    let without_sigs = SIGNATURE_FIELD_RE
+        .replace_all(&without_images, r#"$1:"[signature omitted]""#);
+    SIGNATURE_FIELD_ESCAPED_RE
+        .replace_all(&without_sigs, r##"$1:\"[signature omitted]\""##)
         .into_owned()
 }
 
@@ -127,6 +136,47 @@ pub struct InternalSpan {
     pub tools: Option<Value>,
 }
 
+static XML_TAG_NAME_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"<(\w+)[\s/>]").unwrap());
+
+/// Hash a system prompt by its structural skeleton: first sentence + sorted XML tag names.
+/// Resistant to dynamic content inside tags (config values, user context, tool lists)
+/// while preserving the stable identity of the prompt template.
+pub fn structural_skeleton_hash(text: &str) -> String {
+    // Extract first sentence from original text (before whitespace normalization
+    // destroys newline boundaries). Cut at the first '.' or '\n' after 20+ chars.
+    let raw_first_sentence = text
+        .char_indices()
+        .find(|(i, c)| *i >= 20 && (*c == '.' || *c == '\n'))
+        .map(|(i, _)| &text[..i])
+        .unwrap_or_else(|| {
+            let end = text
+                .char_indices()
+                .nth(200)
+                .map(|(i, _)| i)
+                .unwrap_or(text.len());
+            &text[..end]
+        });
+
+    let first_sentence = raw_first_sentence
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+
+    // Extract unique XML/HTML tag names (lowercased to match normalized first_sentence)
+    let mut tag_names: Vec<String> = XML_TAG_NAME_RE
+        .captures_iter(text)
+        .map(|cap| cap.get(1).unwrap().as_str().to_lowercase())
+        .collect();
+    tag_names.sort();
+    tag_names.dedup();
+
+    let skeleton = format!("{}|{}", first_sentence, tag_names.join(","));
+    let digest = Sha3_256::digest(skeleton.as_bytes());
+    format!("{:x}", digest)[..8].to_string()
+}
+
 /// Try to parse JSON string, return the parsed value or the original string
 pub fn try_parse_json(json_string: &str) -> Value {
     if json_string.is_empty() {
@@ -157,13 +207,15 @@ pub fn extract_batch_id_from_operation(operation_name: &str) -> Result<String> {
 }
 
 /// Replaces span references with markdown URLs in a JSON value.
-/// Handles both proper `<span>` XML tags and informal `span abc123` references.
+/// Handles both proper `<span>` XML tags and informal span references.
 ///
 /// Converts short span IDs (last 6 hex chars of UUID) to full UUIDs using span_ids_map.
 ///
 /// Formats handled:
 /// - `<span id='a1b2c3' name='openai.chat' />` → `[openai.chat](...?spanId=...)`
-/// - `span a1b2c3` or `(span a1b2c3)` → `[span a1b2c3](...?spanId=...)`
+/// - `span a1b2c3` → `[span a1b2c3](...?spanId=...)`
+/// - `spans a1b2c3, d4e5f6` → `[span a1b2c3](...), [span d4e5f6](...)`
+/// - `spans a1b2c3 and d4e5f6` → `[span a1b2c3](...), [span d4e5f6](...)`
 pub fn replace_span_tags_with_links(
     attributes: Value,
     span_ids_map: &HashMap<String, Uuid>,
@@ -189,18 +241,28 @@ pub fn replace_span_tags_with_links(
         )
     });
 
-    // 2. Replace informal "span <hex_id>" references (only for known span IDs)
-    let informal_pattern = Regex::new(r"\bspan\s+([0-9a-fA-F]{6})\b")?;
+    // 2. Replace informal "span(s) id1, id2, ..." references (single or comma/and-separated)
+    let hex_id_re = Regex::new(r"[0-9a-fA-F]{6}")?;
+    let span_ref_pattern = Regex::new(
+        r"\bspans?\s+([0-9a-fA-F]{6}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+)[0-9a-fA-F]{6})*)\b",
+    )?;
 
-    let after_informal = informal_pattern.replace_all(&after_xml, |caps: &regex::Captures| {
-        let short_id = caps[1].to_lowercase();
-        match span_ids_map.get(&short_id) {
-            Some(uuid) => format!(
-                "[span {}](https://laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
-                short_id, project_id, trace_id, uuid
-            ),
-            None => caps[0].to_string(),
-        }
+    let after_informal = span_ref_pattern.replace_all(&after_xml, |caps: &regex::Captures| {
+        let ids_str = &caps[1];
+        let parts: Vec<String> = hex_id_re
+            .find_iter(ids_str)
+            .map(|m| {
+                let short_id = m.as_str().to_lowercase();
+                match span_ids_map.get(&short_id) {
+                    Some(uuid) => format!(
+                        "[span {}](https://laminar.sh/project/{}/traces/{}?spanId={}&chat=true)",
+                        short_id, project_id, trace_id, uuid
+                    ),
+                    None => format!("span {}", short_id),
+                }
+            })
+            .collect();
+        parts.join(", ")
     });
 
     let result: Value = serde_json::from_str(&after_informal)?;
@@ -405,6 +467,38 @@ mod tests {
     }
 
     #[test]
+    fn test_strip_noise_escaped_signature() {
+        let raw = r#"[{"role":"assistant","content":"[{\"type\":\"thinking\",\"thinking\":\"test\",\"signature\":\"EpYCClkIDBgCKkD64fnfxoi6ehwSz8E6sdOJeD6DZe8qq3fylskbvJoII3Q\"}]"}]"#;
+        let result = strip_noise(raw);
+        assert!(
+            result.contains("[signature omitted]"),
+            "escaped signature should be omitted, got: {}",
+            result
+        );
+        assert!(!result.contains("EpYCClkIDBgCKkD64fnf"));
+    }
+
+    #[test]
+    fn test_strip_noise_escaped_thought_signature() {
+        let raw = r#"{"content":"[{\"thought_signature\":\"Abc123DefGhi456JklMno789PqrStu012VwxYza345Bcd678Efg\"}]"}"#;
+        let result = strip_noise(raw);
+        assert!(
+            result.contains("[signature omitted]"),
+            "escaped thought_signature should be omitted, got: {}",
+            result
+        );
+        assert!(!result.contains("Abc123DefGhi456"));
+    }
+
+    #[test]
+    fn test_strip_noise_mixed_escaped_and_unescaped_signatures() {
+        let raw = r#"{"signature":"topLevelSig","nested":"[{\"signature\":\"nestedSig123456789abcdef\"}]"}"#;
+        let result = strip_noise(raw);
+        assert!(!result.contains("topLevelSig"));
+        assert!(!result.contains("nestedSig123456789abcdef"));
+    }
+
+    #[test]
     fn test_strip_noise_no_false_positives() {
         let raw = r#"{"message":"hello world","count":42}"#;
         let result = strip_noise(raw);
@@ -472,5 +566,282 @@ mod tests {
         assert!(result.contains("[base64 image omitted]"));
         assert!(result.contains("Current screenshot:"));
         assert!(!result.contains(&long_b64));
+    }
+
+    // ===================================================================
+    // replace_span_tags_with_links
+    // ===================================================================
+
+    fn make_span_ids_map(pairs: &[(&str, Uuid)]) -> HashMap<String, Uuid> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), *v))
+            .collect()
+    }
+
+    #[test]
+    fn test_span_link_single_span() {
+        let uuid = Uuid::new_v4();
+        let map = make_span_ids_map(&[("f188ea", uuid)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("see span f188ea for details".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains(&format!("[span f188ea]")));
+        assert!(s.contains(&format!("spanId={}", uuid)));
+    }
+
+    #[test]
+    fn test_span_link_plural_single_id() {
+        let uuid = Uuid::new_v4();
+        let map = make_span_ids_map(&[("f188ea", uuid)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("spans f188ea shows the error".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(
+            s.contains("[span f188ea]"),
+            "plural 'spans' with single ID should be linked, got: {}",
+            s
+        );
+    }
+
+    #[test]
+    fn test_span_link_comma_separated_list() {
+        let u1 = Uuid::new_v4();
+        let u2 = Uuid::new_v4();
+        let u3 = Uuid::new_v4();
+        let map = make_span_ids_map(&[("f188ea", u1), ("1a2b3c", u2), ("4d5e6f", u3)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("see spans f188ea, 1a2b3c, 4d5e6f for info".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains(&format!("spanId={}", u1)), "first ID missing: {}", s);
+        assert!(s.contains(&format!("spanId={}", u2)), "second ID missing: {}", s);
+        assert!(s.contains(&format!("spanId={}", u3)), "third ID missing: {}", s);
+    }
+
+    #[test]
+    fn test_span_link_and_separated() {
+        let u1 = Uuid::new_v4();
+        let u2 = Uuid::new_v4();
+        let map = make_span_ids_map(&[("aabb11", u1), ("cc22dd", u2)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("spans aabb11 and cc22dd are relevant".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains(&format!("spanId={}", u1)), "first ID missing: {}", s);
+        assert!(s.contains(&format!("spanId={}", u2)), "second ID missing: {}", s);
+    }
+
+    #[test]
+    fn test_span_link_oxford_comma() {
+        let u1 = Uuid::new_v4();
+        let u2 = Uuid::new_v4();
+        let u3 = Uuid::new_v4();
+        let map = make_span_ids_map(&[("aa11bb", u1), ("cc22dd", u2), ("ee33ff", u3)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input =
+            Value::String("see spans aa11bb, cc22dd, and ee33ff for context".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains(&format!("spanId={}", u1)), "first: {}", s);
+        assert!(s.contains(&format!("spanId={}", u2)), "second: {}", s);
+        assert!(s.contains(&format!("spanId={}", u3)), "third: {}", s);
+    }
+
+    #[test]
+    fn test_span_link_unknown_id_in_list() {
+        let u1 = Uuid::new_v4();
+        let map = make_span_ids_map(&[("f188ea", u1)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("spans f188ea, 999999 have issues".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains(&format!("spanId={}", u1)), "known ID should be linked: {}", s);
+        assert!(s.contains("span 999999"), "unknown ID kept as text: {}", s);
+        assert!(!s.contains(&format!("999999&chat")), "unknown ID should not be linked: {}", s);
+    }
+
+    #[test]
+    fn test_span_link_xml_tag_still_works() {
+        let uuid = Uuid::new_v4();
+        let map = make_span_ids_map(&[("abcdef", uuid)]);
+        let pid = Uuid::new_v4();
+        let tid = Uuid::new_v4();
+        let input = Value::String("<span id='abcdef' name='openai.chat' />".to_string());
+        let result = replace_span_tags_with_links(input, &map, pid, tid).unwrap();
+        let s = result.as_str().unwrap();
+        assert!(s.contains("[openai.chat]"), "XML tag should produce named link: {}", s);
+        assert!(s.contains(&format!("spanId={}", uuid)));
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_stable_across_dynamic_content() {
+        let prompt_v1 = r#"You are an AI agent designed to automate browser tasks.
+<agent_configuration>
+Model: browser-use-llm
+Proxy: enabled
+Vision: enabled
+</agent_configuration>
+<rules>
+Do not fabricate data.
+</rules>"#;
+
+        let prompt_v2 = r#"You are an AI agent designed to automate browser tasks.
+<agent_configuration>
+Model: gpt-4o
+Proxy: disabled
+Vision: disabled
+</agent_configuration>
+<rules>
+Do not fabricate data.
+</rules>"#;
+
+        assert_eq!(
+            structural_skeleton_hash(prompt_v1),
+            structural_skeleton_hash(prompt_v2),
+            "Same template with different config values should produce the same skeleton hash"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_differs_for_different_agents() {
+        let browser_agent = r#"You are an AI agent designed to automate browser tasks.
+<agent_configuration>Model: x</agent_configuration>
+<rules>Click things</rules>"#;
+
+        let code_agent = r#"You are Claude Code, an AI coding assistant.
+<instructions>Write code</instructions>
+<tools>bash, read, write</tools>"#;
+
+        assert_ne!(
+            structural_skeleton_hash(browser_agent),
+            structural_skeleton_hash(code_agent),
+            "Different agents should produce different skeleton hashes"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_no_tags() {
+        let plain_v1 = "You are a helpful customer support agent. Answer questions politely. Use the knowledge base.";
+        let plain_v2 = "You are a helpful customer support agent. Answer questions politely. Be concise.";
+
+        assert_eq!(
+            structural_skeleton_hash(plain_v1),
+            structural_skeleton_hash(plain_v2),
+            "Same first sentence with no tags should produce the same hash"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_case_insensitive() {
+        let lower = "You are an AI assistant.\n<rules>be helpful</rules>";
+        let upper = "YOU ARE AN AI ASSISTANT.\n<RULES>BE HELPFUL</RULES>";
+
+        assert_eq!(
+            structural_skeleton_hash(lower),
+            structural_skeleton_hash(upper),
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_newline_boundary() {
+        // First sentence should stop at \n, not include tag content
+        let prompt_a = "You are a browser automation agent\n<config>Model: gpt-4</config>";
+        let prompt_b = "You are a browser automation agent\n<config>Model: claude-3</config>";
+
+        assert_eq!(
+            structural_skeleton_hash(prompt_a),
+            structural_skeleton_hash(prompt_b),
+            "Newline should terminate first sentence before dynamic tag content"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_period_boundary() {
+        // First sentence stops at period; content after differs
+        let v1 = "You are a helpful coding assistant. Today is Monday. User: Alice.";
+        let v2 = "You are a helpful coding assistant. Today is Friday. User: Bob.";
+
+        assert_eq!(
+            structural_skeleton_hash(v1),
+            structural_skeleton_hash(v2),
+            "Only first sentence (up to first period) should matter"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_whitespace_normalization() {
+        let spaced = "You   are  an   AI   assistant.\n<rules>  help  </rules>";
+        let compact = "You are an AI assistant.\n<rules>help</rules>";
+
+        assert_eq!(
+            structural_skeleton_hash(spaced),
+            structural_skeleton_hash(compact),
+            "Extra whitespace in first sentence should not affect hash"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_short_prompt_fallback() {
+        // Less than 20 chars before any boundary -- uses 200-char fallback
+        let short = "Be helpful.";
+        let hash = structural_skeleton_hash(short);
+        assert_eq!(hash.len(), 8, "Should still produce an 8-char hash");
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_tag_order_irrelevant() {
+        let order_a = "You are an AI agent for testing.\n<beta>x</beta>\n<alpha>y</alpha>";
+        let order_b = "You are an AI agent for testing.\n<alpha>z</alpha>\n<beta>w</beta>";
+
+        assert_eq!(
+            structural_skeleton_hash(order_a),
+            structural_skeleton_hash(order_b),
+            "Tag order should not affect hash (tags are sorted)"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_duplicate_tags() {
+        let single = "You are an AI agent for testing.\n<rules>rule 1</rules>";
+        let duped = "You are an AI agent for testing.\n<rules>rule 1</rules>\n<rules>rule 2</rules>";
+
+        assert_eq!(
+            structural_skeleton_hash(single),
+            structural_skeleton_hash(duped),
+            "Duplicate tag names should be deduped"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_same_sentence_different_tags() {
+        let with_rules = "You are an AI agent for testing.\n<rules>be safe</rules>";
+        let with_tools = "You are an AI agent for testing.\n<tools>search, read</tools>";
+
+        assert_ne!(
+            structural_skeleton_hash(with_rules),
+            structural_skeleton_hash(with_tools),
+            "Same sentence but different tag names should produce different hashes"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_self_closing_tags() {
+        let normal = "You are an AI agent for testing.\n<config>stuff</config>";
+        let self_closing = "You are an AI agent for testing.\n<config />";
+
+        assert_eq!(
+            structural_skeleton_hash(normal),
+            structural_skeleton_hash(self_closing),
+            "Self-closing tags should extract the same tag name"
+        );
     }
 }
