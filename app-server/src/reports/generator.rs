@@ -229,27 +229,40 @@ async fn process_report_trigger(
         return Ok(());
     }
 
-    // Build the report data
-    let report_data = ReportData {
-        workspace_id,
-        workspace_name: workspace_name.clone(),
-        period_label: report_name.clone(),
-        period_start: period_start.format("%b %d, %Y").to_string(),
-        period_end: period_end.format("%b %d, %Y").to_string(),
-        projects: project_reports,
-        total_events,
-    };
-
     let title = format!("{} – {}", report_name, workspace_name);
+    let period_start_str = period_start.format("%b %d, %Y").to_string();
+    let period_end_str = period_end.format("%b %d, %Y").to_string();
 
-    // Push a single notification message with the report data.
+    // Build one NotificationKind::SignalsReport per project. Each report contains
+    // a single project's data so they can be stored individually in CH at project
+    // level. They are all combined into a single queue message so the deliveries
+    // consumer sends them as one email/slack message.
+    let notifications: Vec<NotificationKind> = project_reports
+        .into_iter()
+        .map(|project_report| {
+            let project_events = project_report.signal_event_counts.values().sum::<u64>();
+            NotificationKind::SignalsReport {
+                report_data: ReportData {
+                    workspace_id,
+                    workspace_name: workspace_name.clone(),
+                    period_label: report_name.clone(),
+                    period_start: period_start_str.clone(),
+                    period_end: period_end_str.clone(),
+                    projects: vec![project_report],
+                    total_events: project_events,
+                },
+                title: title.clone(),
+            }
+        })
+        .collect();
+
+    // Push a single notification message with all per-project reports.
     // Target fetching and formatting happen in the notification consumer pipeline.
     let notification_message = NotificationMessage {
-        project_id: Uuid::nil(),
-        workspace_id,
         definition_type: NotificationDefinitionType::Report,
         definition_id: report_id,
-        notification_kind: NotificationKind::SignalsReport { report_data, title },
+        workspace_id,
+        notifications,
     };
 
     let serialized_size = serde_json::to_vec(&notification_message)
@@ -271,8 +284,9 @@ async fn process_report_trigger(
     }
 
     log::info!(
-        "[Reports Generator] Report notification pushed to queue for workspace {}",
+        "[Reports Generator] Report notification pushed to queue for workspace {} ({} projects)",
         workspace_id,
+        serialized_size,
     );
 
     Ok(())

@@ -43,16 +43,15 @@ pub async fn process_event_notifications_and_clustering(
 
     for (alert_id, workspace_id) in seen_alerts {
         let notification_message = notifications::NotificationMessage {
-            project_id,
-            workspace_id,
             definition_type: NotificationDefinitionType::Alert,
             definition_id: alert_id,
-            notification_kind: NotificationKind::EventIdentification {
+            workspace_id,
+            notifications: vec![NotificationKind::EventIdentification {
                 project_id,
                 trace_id,
                 event_name: event_name.clone(),
                 extracted_information: Some(attributes.clone()),
-            },
+            }],
         };
 
         let serialized_size = serde_json::to_vec(&notification_message)

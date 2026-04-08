@@ -234,8 +234,50 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
     json!(blocks)
 }
 
-/// Format Slack message blocks from a `NotificationKind`.
-pub fn format_message_blocks(kind: &NotificationKind) -> serde_json::Value {
+/// Format Slack message blocks for a batch of notifications.
+///
+/// For single-element batches, renders the notification directly.
+/// For multi-element batches (e.g. reports with per-project data),
+/// combines all entries into a single Slack message.
+pub fn format_message_blocks_batch(notifications: &[NotificationKind]) -> serde_json::Value {
+    if notifications.len() == 1 {
+        return format_message_blocks_single(&notifications[0]);
+    }
+
+    // Multi-notification batch. Currently only reports produce multi-element
+    // batches, so we merge project data into a single report block set.
+    let mut combined_report_data: Option<ReportData> = None;
+    let mut title = String::new();
+
+    for kind in notifications {
+        if let NotificationKind::SignalsReport {
+            report_data,
+            title: t,
+        } = kind
+        {
+            match combined_report_data.as_mut() {
+                None => {
+                    combined_report_data = Some(report_data.clone());
+                    title = t.clone();
+                }
+                Some(existing) => {
+                    existing.projects.extend(report_data.projects.clone());
+                    existing.total_events += report_data.total_events;
+                }
+            }
+        }
+    }
+
+    if let Some(report_data) = combined_report_data {
+        return format_report_blocks(&title, &report_data);
+    }
+
+    // Fallback: render only the first notification.
+    format_message_blocks_single(&notifications[0])
+}
+
+/// Format Slack message blocks from a single `NotificationKind`.
+fn format_message_blocks_single(kind: &NotificationKind) -> serde_json::Value {
     match kind {
         NotificationKind::EventIdentification {
             project_id,
@@ -257,8 +299,6 @@ pub fn format_message_blocks(kind: &NotificationKind) -> serde_json::Value {
             formatted_limit,
             ..
         } => {
-            // Simple text block for usage warnings (these are primarily email-based,
-            // but we handle Slack gracefully if targets include it).
             json!([
                 {
                     "type": "section",

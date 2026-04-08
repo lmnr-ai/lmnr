@@ -437,16 +437,15 @@ async fn send_soft_limit_notification(
     };
 
     let notification_message = NotificationMessage {
-        project_id: Uuid::nil(),
-        workspace_id,
         definition_type: NotificationDefinitionType::UsageWarning,
         definition_id: warning_id,
-        notification_kind: NotificationKind::UsageWarning {
+        workspace_id,
+        notifications: vec![NotificationKind::UsageWarning {
             workspace_name,
             usage_label,
             formatted_limit,
             usage_item: usage_item_str.to_string(),
-        },
+        }],
     };
 
     match notifications::push_to_notification_queue(notification_message, queue).await {

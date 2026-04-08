@@ -1,7 +1,9 @@
 //! Email formatting for all notification types.
 //!
 //! This module is responsible for rendering HTML emails on the consumer side,
-//! based on the structured `NotificationKind` data.
+//! based on the structured `NotificationKind` data. When a delivery message
+//! contains multiple notifications (e.g. a report with per-project entries),
+//! they are combined into a single email.
 
 use uuid::Uuid;
 
@@ -12,8 +14,57 @@ const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
 const ALERT_FROM_EMAIL: &str = "Laminar <alerts@mail.lmnr.ai>";
 const USAGE_WARNING_FROM_EMAIL: &str = "Laminar <usage@mail.lmnr.ai>";
 
-/// Format an email (from, subject, html) based on the notification kind.
-pub fn format_email(kind: &NotificationKind, workspace_id: &Uuid) -> (String, String, String) {
+/// Format an email (from, subject, html) for a batch of notifications.
+///
+/// For single-element batches this behaves identically to the old per-notification
+/// rendering. For multi-element batches (e.g. reports with per-project data) all
+/// entries are combined into one email body.
+pub fn format_email_batch(
+    notifications: &[NotificationKind],
+    workspace_id: &Uuid,
+) -> (String, String, String) {
+    // Single notification — delegate to the type-specific renderer.
+    if notifications.len() == 1 {
+        return format_single_email(&notifications[0], workspace_id);
+    }
+
+    // Multi-notification batch. Currently only reports produce multi-element
+    // batches so we combine them into a single report email.
+    // Collect all report data entries into one combined ReportData.
+    let mut combined_report_data: Option<email_template::ReportData> = None;
+    let mut title = String::new();
+
+    for kind in notifications {
+        if let NotificationKind::SignalsReport {
+            report_data,
+            title: t,
+        } = kind
+        {
+            match combined_report_data.as_mut() {
+                None => {
+                    combined_report_data = Some(report_data.clone());
+                    title = t.clone();
+                }
+                Some(existing) => {
+                    // Merge project data from this report into the combined one.
+                    existing.projects.extend(report_data.projects.clone());
+                    existing.total_events += report_data.total_events;
+                }
+            }
+        }
+    }
+
+    if let Some(report_data) = combined_report_data {
+        let html = email_template::render_report_email(&report_data);
+        return (REPORT_FROM_EMAIL.to_string(), title, html);
+    }
+
+    // Fallback: render only the first notification.
+    format_single_email(&notifications[0], workspace_id)
+}
+
+/// Format an email for a single notification kind.
+fn format_single_email(kind: &NotificationKind, workspace_id: &Uuid) -> (String, String, String) {
     match kind {
         NotificationKind::EventIdentification {
             project_id,
@@ -205,7 +256,3 @@ pub fn render_usage_warning_email(
         meter_description = meter_description,
     )
 }
-
-// Re-export report email rendering from email_template (it stays there since
-// it's a large template shared with other modules).
-pub use crate::reports::email_template::render_report_email;
