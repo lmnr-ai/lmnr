@@ -156,8 +156,8 @@ const TraceTagsList = ({ traceId, className }: TraceTagsListProps) => {
           </Button>
         </DropdownMenuTrigger>
       </TagsDropdown>
-      {tags.map(({ name, color }) => (
-        <Badge variant="outline" className="rounded-full gap-1">
+      {tags.map(({ name, color, id }) => (
+        <Badge key={id} variant="outline" className="rounded-full gap-1">
           <div className="rounded-full size-2.5" style={{ backgroundColor: color }} />
           {name}
         </Badge>
