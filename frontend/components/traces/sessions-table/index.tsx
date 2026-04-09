@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { shallow } from "zustand/shallow";
 
 import AdvancedSearch from "@/components/common/advanced-search";
@@ -84,12 +84,8 @@ function SessionsTableContent() {
   // Serialize filter array for stable dependency comparison
   const filterKey = JSON.stringify(filter);
 
-  // Version counter to discard stale fetch responses after param changes
-  const fetchVersionRef = useRef(0);
-
   // Reset expanded/trace/timeline state when query params change
   useEffect(() => {
-    fetchVersionRef.current += 1;
     resetExpandState();
   }, [endDate, filterKey, pastHours, projectId, startDate, textSearchFilter, resetExpandState]);
 
@@ -281,7 +277,6 @@ function SessionsTableContent() {
           <DateRangeFilter />
           <RefreshButton
             onClick={() => {
-              fetchVersionRef.current += 1;
               resetExpandState();
               refetch();
             }}

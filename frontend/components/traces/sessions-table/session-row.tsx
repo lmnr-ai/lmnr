@@ -2,6 +2,7 @@ import { ChevronRightIcon } from "lucide-react";
 
 import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type SessionRow as SessionRowType } from "@/lib/traces/types";
+import { formatDuration } from "@/lib/traces/utils";
 import { cn } from "@/lib/utils";
 
 import {
@@ -18,13 +19,6 @@ import SessionTimeRange from "./session-time-range";
 const compactNumberFormat = new Intl.NumberFormat("en-US", {
   notation: "compact",
 });
-
-function formatDuration(durationSec: number): string {
-  if (durationSec < 0.01) return "0s";
-  if (durationSec < 100) return `${durationSec.toFixed(2)}s`;
-  if (durationSec < 1000) return `${durationSec.toFixed(1)}s`;
-  return `${Math.round(durationSec)}s`;
-}
 
 interface SessionRowProps {
   session: SessionRowType;
@@ -72,25 +66,19 @@ export default function SessionRow({ session, isExpanded, isLast, onToggle }: Se
       </div>
 
       <div className={`flex items-center px-4 py-0.5 shrink-0 ${DURATION_COLUMN_WIDTH_CLASSNAME}`}>
-        <span className="font-mono text-sm text-secondary-foreground tabular-nums">
-          {formatDuration(session.duration ?? 0)}
-        </span>
+        <span className="text-sm tabular-nums">{formatDuration(session.duration ?? 0)}</span>
       </div>
 
       <div className={`flex items-center px-4 py-0.5 shrink-0 ${TOKENS_COLUMN_WIDTH_CLASSNAME}`}>
-        <span className="font-mono text-sm text-secondary-foreground tabular-nums">
-          {compactNumberFormat.format(session.totalTokens ?? 0)}
-        </span>
+        <span className="text-sm tabular-nums">{compactNumberFormat.format(session.totalTokens ?? 0)}</span>
       </div>
 
       <div className={`flex items-center px-4 py-0.5 shrink-0 ${COST_COLUMN_WIDTH_CLASSNAME}`}>
-        <span className="font-mono text-sm text-secondary-foreground tabular-nums">
-          ${(session.totalCost ?? 0).toFixed(2)}
-        </span>
+        <span className="text-sm tabular-nums">${(session.totalCost ?? 0).toFixed(2)}</span>
       </div>
 
       <div className={`flex items-center px-4 py-0.5 shrink-0 ${COUNT_COLUMN_WIDTH_CLASSNAME}`}>
-        <span className="text-sm text-secondary-foreground tabular-nums">{session.traceCount ?? 0}</span>
+        <span className="text-sm tabular-nums">{session.traceCount ?? 0}</span>
       </div>
 
       <div className="flex-1 min-w-0" />
