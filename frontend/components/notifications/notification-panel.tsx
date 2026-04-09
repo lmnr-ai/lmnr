@@ -173,7 +173,7 @@ const NotificationItem = ({
             handleExpand();
           }}
         >
-          <div className="max-h-22 overflow-hidden">
+          <div className="max-h-21 overflow-hidden">
             <NotificationDetails formatted={formatted} projectId={projectId} />
           </div>
           <div
