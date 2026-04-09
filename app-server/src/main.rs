@@ -996,6 +996,11 @@ fn main() -> anyhow::Result<()> {
             .parse::<u8>()
             .unwrap_or(2);
 
+        let num_notification_delivery_workers = env::var("NUM_NOTIFICATION_DELIVERY_WORKERS")
+            .unwrap_or(String::from("2"))
+            .parse::<u8>()
+            .unwrap_or(2);
+
         let num_clustering_batching_workers = env::var("NUM_CLUSTERING_BATCHING_WORKERS")
             .unwrap_or(String::from("2"))
             .parse::<u8>()
@@ -1028,13 +1033,14 @@ fn main() -> anyhow::Result<()> {
             .unwrap_or(2);
 
         log::info!(
-            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
+            "Spans workers: {}, Data plane spans workers: {}, Spans indexer workers: {}, Browser events workers: {}, Signals workers: {}, Notification workers: {}, Notification delivery workers: {}, Clustering batching workers: {}, Clustering workers: {}, Trace Analysis LLM Batch Submissions workers: {}, Trace Analysis LLM Batch Pending workers: {}, Logs workers: {}, Reports workers: {}",
             num_spans_workers,
             num_data_plane_spans_workers,
             num_spans_indexer_workers,
             num_browser_events_workers,
             num_signals_workers,
             num_notification_workers,
+            num_notification_delivery_workers,
             num_clustering_batching_workers,
             num_clustering_workers,
             num_signal_job_submission_batch_workers,
@@ -1274,7 +1280,7 @@ fn main() -> anyhow::Result<()> {
 
                         worker_pool_clone.spawn(
                             WorkerType::NotificationDeliveries,
-                            num_notification_workers as usize,
+                            num_notification_delivery_workers as usize,
                             move || {
                                 NotificationDeliveryHandler::new(
                                     db.clone(),
