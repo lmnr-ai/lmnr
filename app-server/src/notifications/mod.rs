@@ -1,24 +1,21 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 use async_trait::async_trait;
-use backoff::ExponentialBackoffBuilder;
-use resend_rs::Resend;
-use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::cache::{Cache, CacheTrait, keys::USAGE_WARNING_NOTIFICATION_LOCK_KEY};
-use crate::ch::notification_deliveries::CHNotificationDelivery;
 use crate::ch::notifications::CHNotification;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
 use crate::mq::{MessageQueue, MessageQueueTrait};
-use crate::reports::email_template::ReportData;
+use crate::reports::email_template::NoteworthyEvent;
 use crate::worker::{HandlerError, MessageHandler};
 
+pub mod delivery;
 mod email;
-mod slack;
+pub(crate) mod slack;
 
 // ── Notifications queue (producers → notifications_consumer) ──
 
@@ -88,16 +85,27 @@ impl std::fmt::Display for NotificationDefinitionType {
 pub enum NotificationKind {
     /// A signal event was detected (alert).
     EventIdentification {
-        project_id: Uuid,
         trace_id: Uuid,
         event_name: String,
         extracted_information: Option<serde_json::Value>,
     },
-    /// A periodic signals report was generated for a single project.
+    /// A periodic signals report for a single project.
+    /// Each project gets its own `SignalsReport` notification; the delivery
+    /// consumer combines multiple project reports into one email/slack message.
     SignalsReport {
-        report_data: ReportData,
+        workspace_name: String,
+        project_name: String,
         /// Human-readable title, e.g. "Signal Events Summary – My Workspace".
         title: String,
+        period_label: String,
+        period_start: String,
+        period_end: String,
+        /// Map of signal_name -> total event count in period
+        signal_event_counts: BTreeMap<String, u64>,
+        /// AI-generated summary for this project's signals
+        ai_summary: String,
+        /// Noteworthy events selected by the AI summary
+        noteworthy_events: Vec<NoteworthyEvent>,
     },
     /// A usage threshold was reached.
     UsageWarning {
@@ -123,6 +131,9 @@ pub struct NotificationMessage {
     pub definition_type: NotificationDefinitionType,
     pub definition_id: Uuid,
     pub workspace_id: Uuid,
+    /// Optional project scope. Set for alerts and per-project report notifications.
+    /// `None` for workspace-level notifications (usage warnings, multi-project reports).
+    pub project_id: Option<Uuid>,
     pub notifications: Vec<NotificationKind>,
 }
 
@@ -175,13 +186,15 @@ pub struct NotificationDeliveryMessage {
     pub definition_type: NotificationDefinitionType,
     pub definition_id: Uuid,
     pub workspace_id: Uuid,
+    /// Optional project scope, propagated from the source NotificationMessage.
+    pub project_id: Option<Uuid>,
     pub target: DeliveryTarget,
     /// IDs assigned to each notification in stage 1 (for logging). Parallel to `notifications`.
     pub notification_ids: Vec<Uuid>,
     pub notifications: Vec<NotificationKind>,
 }
 
-async fn push_to_deliveries_queue(
+pub(crate) async fn push_to_deliveries_queue(
     message: NotificationDeliveryMessage,
     queue: Arc<MessageQueue>,
 ) -> anyhow::Result<()> {
@@ -268,6 +281,7 @@ impl MessageHandler for NotificationHandler {
         }
 
         let now_ms = chrono::Utc::now().timestamp_millis();
+        let project_id = message.project_id.unwrap_or(Uuid::nil());
 
         // 1. Persist each notification event to ClickHouse `notifications` table.
         //    Assign a unique ID per notification for logging/auditing.
@@ -285,11 +299,8 @@ impl MessageHandler for NotificationHandler {
                 ))
             })?;
 
-            // Extract project_id from the notification kind (for per-project CH records).
-            let project_id = project_id_from_kind(kind);
-
             ch_notifications.push(CHNotification {
-                id: notification_id,
+                notification_id,
                 project_id,
                 workspace_id: message.workspace_id,
                 definition_type: message.definition_type.to_string(),
@@ -338,6 +349,7 @@ impl MessageHandler for NotificationHandler {
                 definition_type: message.definition_type.clone(),
                 definition_id: message.definition_id,
                 workspace_id: message.workspace_id,
+                project_id: message.project_id,
                 target,
                 notification_ids: notification_ids.clone(),
                 notifications: message.notifications.clone(),
@@ -371,25 +383,6 @@ impl MessageHandler for NotificationHandler {
     }
 }
 
-/// Extract the project_id from a NotificationKind for CH storage.
-/// Returns Uuid::nil() for workspace-level notifications (usage warnings).
-fn project_id_from_kind(kind: &NotificationKind) -> Uuid {
-    match kind {
-        NotificationKind::EventIdentification { project_id, .. } => *project_id,
-        NotificationKind::SignalsReport { report_data, .. } => {
-            // Each SignalsReport contains exactly one project's data (the report
-            // generator creates one NotificationKind per project). Extract its
-            // project_id for the per-project CH row.
-            report_data
-                .projects
-                .first()
-                .map(|p| p.project_id)
-                .unwrap_or(Uuid::nil())
-        }
-        NotificationKind::UsageWarning { .. } => Uuid::nil(),
-    }
-}
-
 impl NotificationHandler {
     /// Fetch delivery targets based on the notification definition type.
     async fn fetch_targets(
@@ -404,20 +397,21 @@ impl NotificationHandler {
                         "Alert notification message has no notifications"
                     )));
                 };
-                let NotificationKind::EventIdentification {
-                    project_id,
-                    event_name,
-                    ..
-                } = first
-                else {
+                let NotificationKind::EventIdentification { event_name, .. } = first else {
                     return Err(HandlerError::permanent(anyhow::anyhow!(
                         "Alert notification must have EventIdentification kind"
                     )));
                 };
 
+                let project_id = message.project_id.ok_or_else(|| {
+                    HandlerError::permanent(anyhow::anyhow!(
+                        "Alert notification must have project_id"
+                    ))
+                })?;
+
                 let targets = crate::db::alert_targets::get_targets_for_event(
                     &self.db.pool,
-                    *project_id,
+                    project_id,
                     event_name,
                 )
                 .await
@@ -487,223 +481,4 @@ impl NotificationHandler {
             }
         }
     }
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// notification_deliveries_consumer — stage 2: format + send + log
-// ══════════════════════════════════════════════════════════════════════════════
-
-const LAMINAR_LOGO_PNG: &[u8] = include_bytes!("../../data/logo.png");
-const LAMINAR_LOGO_CID: &str = "laminar-logo";
-
-pub struct NotificationDeliveryHandler {
-    pub db: Arc<DB>,
-    pub slack_client: reqwest::Client,
-    pub resend: Option<Arc<Resend>>,
-    pub ch_service: Arc<ClickhouseService>,
-}
-
-impl NotificationDeliveryHandler {
-    pub fn new(
-        db: Arc<DB>,
-        slack_client: reqwest::Client,
-        resend: Option<Arc<Resend>>,
-        ch_service: Arc<ClickhouseService>,
-    ) -> Self {
-        Self {
-            db,
-            slack_client,
-            resend,
-            ch_service,
-        }
-    }
-}
-
-#[async_trait]
-impl MessageHandler for NotificationDeliveryHandler {
-    type Message = NotificationDeliveryMessage;
-
-    async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
-        let raw_message = match message.target.target_type {
-            TargetType::Slack => self.handle_slack(&message).await?,
-            TargetType::Email => self.handle_email(&message).await?,
-        };
-
-        if let Some(raw_message) = raw_message {
-            let now_ms = chrono::Utc::now().timestamp_millis();
-
-            // Record one delivery entry per notification in the batch.
-            let delivery_entries: Vec<CHNotificationDelivery> = message
-                .notification_ids
-                .iter()
-                .zip(message.notifications.iter())
-                .map(|(notification_id, kind)| {
-                    let project_id = project_id_from_kind(kind);
-                    CHNotificationDelivery {
-                        workspace_id: message.workspace_id,
-                        project_id,
-                        notification_id: *notification_id,
-                        delivery_id: Uuid::new_v4(),
-                        target_id: message.target.target_id,
-                        target_type: message.target.target_type.to_string(),
-                        message: raw_message.clone(),
-                        created_at: now_ms,
-                    }
-                })
-                .collect();
-
-            if !delivery_entries.is_empty() {
-                if let Err(e) = self
-                    .ch_service
-                    .insert_batch_for_workspace(message.workspace_id, &delivery_entries)
-                    .await
-                {
-                    log::error!(
-                        "[NotificationDelivery] Failed to insert {} delivery records: {:?}",
-                        delivery_entries.len(),
-                        e
-                    );
-                }
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl NotificationDeliveryHandler {
-    /// Format and send a Slack notification combining all notifications in the batch.
-    /// Returns `Ok(Some(raw_message))` with the Slack blocks JSON on success,
-    /// `Ok(None)` if delivery was skipped.
-    async fn handle_slack(
-        &self,
-        message: &NotificationDeliveryMessage,
-    ) -> Result<Option<String>, HandlerError> {
-        let (Some(channel_id), Some(integration_id)) =
-            (&message.target.channel_id, message.target.integration_id)
-        else {
-            log::warn!("[NotificationDelivery] Slack target missing channel_id or integration_id");
-            return Ok(None);
-        };
-
-        let integration =
-            crate::db::slack_integrations::get_integration_by_id(&self.db.pool, &integration_id)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
-
-        let Some(integration) = integration else {
-            log::warn!(
-                "[NotificationDelivery] Slack integration not found: {}",
-                integration_id
-            );
-            return Ok(None);
-        };
-
-        let decrypted_token = slack::decode_slack_token(
-            &integration.team_id,
-            &integration.nonce_hex,
-            &integration.token,
-        )
-        .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
-
-        let blocks = slack::format_message_blocks_batch(&message.notifications);
-
-        slack::send_message(
-            &self.slack_client,
-            &decrypted_token,
-            channel_id,
-            blocks.clone(),
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
-
-        log::debug!(
-            "[NotificationDelivery] Slack notification sent ({} items) for definition_id={}",
-            message.notifications.len(),
-            message.definition_id
-        );
-
-        let raw_message = serde_json::to_string(&blocks).unwrap_or_default();
-        Ok(Some(raw_message))
-    }
-
-    /// Format and send an email combining all notifications in the batch.
-    /// Returns `Ok(Some(html))` with the raw email HTML on success,
-    /// `Ok(None)` if delivery was skipped.
-    async fn handle_email(
-        &self,
-        message: &NotificationDeliveryMessage,
-    ) -> Result<Option<String>, HandlerError> {
-        let resend = match &self.resend {
-            Some(r) => r.clone(),
-            None => {
-                log::warn!("[NotificationDelivery] Resend client not configured, skipping email");
-                return Ok(None);
-            }
-        };
-
-        let Some(ref recipient) = message.target.email else {
-            log::warn!("[NotificationDelivery] Email target missing email address");
-            return Ok(None);
-        };
-
-        // Format the email combining all notifications in the batch.
-        let (from, subject, html) =
-            email::format_email_batch(&message.notifications, &message.workspace_id);
-
-        let mut email_opts =
-            CreateEmailBaseOptions::new(&from, [recipient.as_str()], &subject).with_html(&html);
-
-        // Attach inline logo for all notification emails.
-        email_opts = email_opts.with_attachment(
-            CreateAttachment::from_content(LAMINAR_LOGO_PNG.to_vec())
-                .with_filename("logo.png")
-                .with_content_type("image/png")
-                .with_content_id(LAMINAR_LOGO_CID),
-        );
-
-        match send_email_with_retry(&resend, email_opts).await {
-            Ok(response) => {
-                log::info!(
-                    "[NotificationDelivery] Email sent ({} items). Email ID: {:?}",
-                    message.notifications.len(),
-                    response.id
-                );
-            }
-            Err(e) => {
-                log::error!("[NotificationDelivery] Failed to send email: {:?}", e);
-                return Err(HandlerError::permanent(anyhow::anyhow!(
-                    "Failed to send email: {:?}",
-                    e
-                )));
-            }
-        }
-
-        Ok(Some(html))
-    }
-}
-
-async fn send_email_with_retry(
-    resend: &Resend,
-    email: CreateEmailBaseOptions,
-) -> resend_rs::Result<resend_rs::types::CreateEmailResponse> {
-    let backoff = ExponentialBackoffBuilder::new()
-        .with_initial_interval(Duration::from_secs(1))
-        .with_max_elapsed_time(Some(Duration::from_secs(10)))
-        .build();
-
-    backoff::future::retry(backoff, || async {
-        resend
-            .emails
-            .send(email.clone())
-            .await
-            .map_err(|e| match &e {
-                resend_rs::Error::RateLimit { .. } => {
-                    log::info!("[NotificationDelivery] Rate limited, will retry");
-                    backoff::Error::transient(e)
-                }
-                _ => backoff::Error::permanent(e),
-            })
-    })
-    .await
 }

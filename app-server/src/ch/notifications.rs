@@ -10,7 +10,7 @@ use super::{ClickhouseInsertable, DataPlaneBatch, Table};
 #[derive(Row, Serialize, Deserialize, Clone, Debug)]
 pub struct CHNotification {
     #[serde(with = "clickhouse::serde::uuid")]
-    pub id: Uuid,
+    pub notification_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]
     pub project_id: Uuid,
     #[serde(with = "clickhouse::serde::uuid")]

@@ -46,8 +46,8 @@ pub async fn process_event_notifications_and_clustering(
             definition_type: NotificationDefinitionType::Alert,
             definition_id: alert_id,
             workspace_id,
+            project_id: Some(project_id),
             notifications: vec![NotificationKind::EventIdentification {
-                project_id,
                 trace_id,
                 event_name: event_name.clone(),
                 extracted_information: Some(attributes.clone()),

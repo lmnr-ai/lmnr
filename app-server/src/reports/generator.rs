@@ -13,7 +13,7 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use super::ReportTriggerMessage;
-use super::email_template::{NoteworthyEvent, ProjectReportData, ReportData};
+use super::email_template::{NoteworthyEvent, ProjectReportData};
 use crate::ch::signal_events::{get_signal_event_counts, get_signal_events_for_summary};
 use crate::db::DB;
 use crate::db::projects::get_projects_for_workspace;
@@ -237,24 +237,34 @@ async fn process_report_trigger(
     // a single project's data so they can be stored individually in CH at project
     // level. They are all combined into a single queue message so the deliveries
     // consumer sends them as one email/slack message.
-    let notifications: Vec<NotificationKind> = project_reports
+    let notifications: Vec<(Option<Uuid>, NotificationKind)> = project_reports
         .into_iter()
         .map(|project_report| {
-            let project_events = project_report.signal_event_counts.values().sum::<u64>();
-            NotificationKind::SignalsReport {
-                report_data: ReportData {
-                    workspace_id,
-                    workspace_name: workspace_name.clone(),
-                    period_label: report_name.clone(),
-                    period_start: period_start_str.clone(),
-                    period_end: period_end_str.clone(),
-                    projects: vec![project_report],
-                    total_events: project_events,
-                },
+            let kind = NotificationKind::SignalsReport {
+                workspace_name: workspace_name.clone(),
+                project_name: project_report.project_name,
                 title: title.clone(),
-            }
+                period_label: report_name.clone(),
+                period_start: period_start_str.clone(),
+                period_end: period_end_str.clone(),
+                signal_event_counts: project_report.signal_event_counts,
+                ai_summary: project_report.ai_summary,
+                noteworthy_events: project_report.noteworthy_events,
+            };
+            (Some(project_report.project_id), kind)
         })
         .collect();
+
+    // For a multi-project report, project_id on the message is None (workspace-level).
+    // For a single-project report, set the project_id.
+    let message_project_id = if notifications.len() == 1 {
+        notifications[0].0
+    } else {
+        None
+    };
+
+    let notification_kinds: Vec<NotificationKind> =
+        notifications.into_iter().map(|(_, kind)| kind).collect();
 
     // Push a single notification message with all per-project reports.
     // Target fetching and formatting happen in the notification consumer pipeline.
@@ -262,7 +272,8 @@ async fn process_report_trigger(
         definition_type: NotificationDefinitionType::Report,
         definition_id: report_id,
         workspace_id,
-        notifications,
+        project_id: message_project_id,
+        notifications: notification_kinds,
     };
 
     let project_count = notification_message.notifications.len();

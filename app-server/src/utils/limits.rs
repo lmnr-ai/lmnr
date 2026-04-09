@@ -440,6 +440,7 @@ async fn send_soft_limit_notification(
         definition_type: NotificationDefinitionType::UsageWarning,
         definition_id: warning_id,
         workspace_id,
+        project_id: None,
         notifications: vec![NotificationKind::UsageWarning {
             workspace_name,
             usage_label,

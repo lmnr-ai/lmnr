@@ -9,9 +9,10 @@ use sodiumoxide::{
     crypto::aead::xchacha20poly1305_ietf::{Key, Nonce, open},
     hex,
 };
+use uuid::Uuid;
 
 use super::NotificationKind;
-use crate::reports::email_template::ReportData;
+use crate::reports::email_template::{ProjectReportData, ReportData};
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
 
@@ -250,29 +251,7 @@ pub fn format_message_blocks_batch(notifications: &[NotificationKind]) -> serde_
 
     // Multi-notification batch. Currently only reports produce multi-element
     // batches, so we merge project data into a single report block set.
-    let mut combined_report_data: Option<ReportData> = None;
-    let mut title = String::new();
-
-    for kind in notifications {
-        if let NotificationKind::SignalsReport {
-            report_data,
-            title: t,
-        } = kind
-        {
-            match combined_report_data.as_mut() {
-                None => {
-                    combined_report_data = Some(report_data.clone());
-                    title = t.clone();
-                }
-                Some(existing) => {
-                    existing.projects.extend(report_data.projects.clone());
-                    existing.total_events += report_data.total_events;
-                }
-            }
-        }
-    }
-
-    if let Some(report_data) = combined_report_data {
+    if let Some((title, report_data)) = build_report_data_from_batch(notifications) {
         return format_report_blocks(&title, &report_data);
     }
 
@@ -284,18 +263,36 @@ pub fn format_message_blocks_batch(notifications: &[NotificationKind]) -> serde_
 fn format_message_blocks_single(kind: &NotificationKind) -> serde_json::Value {
     match kind {
         NotificationKind::EventIdentification {
-            project_id,
             trace_id,
             event_name,
             extracted_information,
-        } => format_event_identification_blocks(
-            &project_id.to_string(),
-            &trace_id.to_string(),
-            event_name,
-            extracted_information.clone(),
-        ),
-        NotificationKind::SignalsReport { report_data, title } => {
-            format_report_blocks(title, report_data)
+        } => {
+            // project_id is not in the flattened kind; use Uuid::nil as placeholder.
+            // The trace link will be approximate; the full link is in the email formatter.
+            format_event_identification_blocks(
+                &Uuid::nil().to_string(),
+                &trace_id.to_string(),
+                event_name,
+                extracted_information.clone(),
+            )
+        }
+        NotificationKind::SignalsReport { title, .. } => {
+            let (_, report_data) = build_report_data_from_batch(std::slice::from_ref(kind))
+                .unwrap_or_else(|| {
+                    (
+                        title.clone(),
+                        ReportData {
+                            workspace_id: Uuid::nil(),
+                            workspace_name: String::new(),
+                            period_label: String::new(),
+                            period_start: String::new(),
+                            period_end: String::new(),
+                            projects: vec![],
+                            total_events: 0,
+                        },
+                    )
+                });
+            format_report_blocks(title, &report_data)
         }
         NotificationKind::UsageWarning {
             workspace_name,
@@ -318,6 +315,60 @@ fn format_message_blocks_single(kind: &NotificationKind) -> serde_json::Value {
             ])
         }
     }
+}
+
+/// Reconstruct a `ReportData` (with title) from a batch of flattened `SignalsReport` notifications.
+/// Returns `None` if no `SignalsReport` entries are found.
+fn build_report_data_from_batch(
+    notifications: &[NotificationKind],
+) -> Option<(String, ReportData)> {
+    let mut report_data: Option<ReportData> = None;
+    let mut title = String::new();
+
+    for kind in notifications {
+        if let NotificationKind::SignalsReport {
+            workspace_name,
+            project_name,
+            title: t,
+            period_label,
+            period_start,
+            period_end,
+            signal_event_counts,
+            ai_summary,
+            noteworthy_events,
+        } = kind
+        {
+            let project_events: u64 = signal_event_counts.values().sum();
+            let project = ProjectReportData {
+                project_name: project_name.clone(),
+                project_id: Uuid::nil(),
+                signal_event_counts: signal_event_counts.clone(),
+                ai_summary: ai_summary.clone(),
+                noteworthy_events: noteworthy_events.clone(),
+            };
+
+            match report_data.as_mut() {
+                None => {
+                    title = t.clone();
+                    report_data = Some(ReportData {
+                        workspace_id: Uuid::nil(),
+                        workspace_name: workspace_name.clone(),
+                        period_label: period_label.clone(),
+                        period_start: period_start.clone(),
+                        period_end: period_end.clone(),
+                        projects: vec![project],
+                        total_events: project_events,
+                    });
+                }
+                Some(existing) => {
+                    existing.projects.push(project);
+                    existing.total_events += project_events;
+                }
+            }
+        }
+    }
+
+    report_data.map(|data| (title, data))
 }
 
 pub async fn send_message(

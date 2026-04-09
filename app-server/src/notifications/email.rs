@@ -8,7 +8,7 @@
 use uuid::Uuid;
 
 use super::NotificationKind;
-use crate::reports::email_template::{self, html_escape};
+use crate::reports::email_template::{self, ProjectReportData, ReportData, html_escape};
 
 const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
 const ALERT_FROM_EMAIL: &str = "Laminar <alerts@mail.lmnr.ai>";
@@ -34,31 +34,14 @@ pub fn format_email_batch(
 
     // Multi-notification batch. Currently only reports produce multi-element
     // batches so we combine them into a single report email.
-    // Collect all report data entries into one combined ReportData.
-    let mut combined_report_data: Option<email_template::ReportData> = None;
-    let mut title = String::new();
-
-    for kind in notifications {
-        if let NotificationKind::SignalsReport {
-            report_data,
-            title: t,
-        } = kind
-        {
-            match combined_report_data.as_mut() {
-                None => {
-                    combined_report_data = Some(report_data.clone());
-                    title = t.clone();
-                }
-                Some(existing) => {
-                    // Merge project data from this report into the combined one.
-                    existing.projects.extend(report_data.projects.clone());
-                    existing.total_events += report_data.total_events;
-                }
-            }
-        }
-    }
-
-    if let Some(report_data) = combined_report_data {
+    if let Some(report_data) = build_report_data_from_batch(notifications, workspace_id) {
+        let title = notifications
+            .iter()
+            .find_map(|k| match k {
+                NotificationKind::SignalsReport { title, .. } => Some(title.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
         let html = email_template::render_report_email(&report_data);
         return (REPORT_FROM_EMAIL.to_string(), title, html);
     }
@@ -71,14 +54,16 @@ pub fn format_email_batch(
 fn format_single_email(kind: &NotificationKind, workspace_id: &Uuid) -> (String, String, String) {
     match kind {
         NotificationKind::EventIdentification {
-            project_id,
             trace_id,
             event_name,
             extracted_information,
         } => {
+            // For alert emails, the trace link uses workspace_id as a fallback for
+            // the project context. The full project-scoped link is set in the Slack
+            // formatter where project_id is available from the delivery message.
             let trace_link = format!(
                 "https://lmnr.ai/project/{}/traces/{}?chat=true",
-                project_id, trace_id
+                workspace_id, trace_id
             );
             let subject = format!("Alert: {}", event_name);
             let attributes = extracted_information
@@ -87,8 +72,20 @@ fn format_single_email(kind: &NotificationKind, workspace_id: &Uuid) -> (String,
             let html = render_alert_email(event_name, &attributes, &trace_link);
             (ALERT_FROM_EMAIL.to_string(), subject, html)
         }
-        NotificationKind::SignalsReport { report_data, title } => {
-            let html = email_template::render_report_email(report_data);
+        NotificationKind::SignalsReport { title, .. } => {
+            let report_data =
+                build_report_data_from_batch(std::slice::from_ref(kind), workspace_id).unwrap_or(
+                    ReportData {
+                        workspace_id: *workspace_id,
+                        workspace_name: String::new(),
+                        period_label: String::new(),
+                        period_start: String::new(),
+                        period_end: String::new(),
+                        projects: vec![],
+                        total_events: 0,
+                    },
+                );
+            let html = email_template::render_report_email(&report_data);
             (REPORT_FROM_EMAIL.to_string(), title.clone(), html)
         }
         NotificationKind::UsageWarning {
@@ -111,6 +108,59 @@ fn format_single_email(kind: &NotificationKind, workspace_id: &Uuid) -> (String,
             (USAGE_WARNING_FROM_EMAIL.to_string(), subject, html)
         }
     }
+}
+
+/// Reconstruct a `ReportData` from a batch of flattened `SignalsReport` notifications.
+/// Returns `None` if no `SignalsReport` entries are found.
+fn build_report_data_from_batch(
+    notifications: &[NotificationKind],
+    workspace_id: &Uuid,
+) -> Option<ReportData> {
+    let mut report_data: Option<ReportData> = None;
+
+    for kind in notifications {
+        if let NotificationKind::SignalsReport {
+            workspace_name,
+            project_name,
+            period_label,
+            period_start,
+            period_end,
+            signal_event_counts,
+            ai_summary,
+            noteworthy_events,
+            ..
+        } = kind
+        {
+            let project_events: u64 = signal_event_counts.values().sum();
+            let project = ProjectReportData {
+                project_name: project_name.clone(),
+                project_id: *workspace_id, // project_id is not in the flattened kind; use workspace_id as placeholder
+                signal_event_counts: signal_event_counts.clone(),
+                ai_summary: ai_summary.clone(),
+                noteworthy_events: noteworthy_events.clone(),
+            };
+
+            match report_data.as_mut() {
+                None => {
+                    report_data = Some(ReportData {
+                        workspace_id: *workspace_id,
+                        workspace_name: workspace_name.clone(),
+                        period_label: period_label.clone(),
+                        period_start: period_start.clone(),
+                        period_end: period_end.clone(),
+                        projects: vec![project],
+                        total_events: project_events,
+                    });
+                }
+                Some(existing) => {
+                    existing.projects.push(project);
+                    existing.total_events += project_events;
+                }
+            }
+        }
+    }
+
+    report_data
 }
 
 // ── Alert email ──

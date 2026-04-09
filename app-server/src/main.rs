@@ -39,7 +39,7 @@ use names::NameGenerator;
 use notifications::{
     NOTIFICATION_DELIVERIES_EXCHANGE, NOTIFICATION_DELIVERIES_QUEUE,
     NOTIFICATION_DELIVERIES_ROUTING_KEY, NOTIFICATIONS_EXCHANGE, NOTIFICATIONS_QUEUE,
-    NOTIFICATIONS_ROUTING_KEY, NotificationDeliveryHandler, NotificationHandler,
+    NOTIFICATIONS_ROUTING_KEY, NotificationHandler, delivery::NotificationDeliveryHandler,
 };
 use opentelemetry_proto::opentelemetry::proto::collector::logs::v1::logs_service_server::LogsServiceServer;
 use opentelemetry_proto::opentelemetry::proto::collector::trace::v1::trace_service_server::TraceServiceServer;
