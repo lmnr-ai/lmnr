@@ -7,9 +7,9 @@ use crate::signals::provider::{
 };
 use aws_sdk_bedrockruntime::Client as AwsBedrockClient;
 use aws_sdk_bedrockruntime::types::{
-    ContentBlock, ConversationRole, InferenceConfiguration, Message, StopReason,
-    SystemContentBlock, Tool, ToolInputSchema, ToolResultBlock, ToolResultContentBlock,
-    ToolResultStatus, ToolSpecification, ToolUseBlock,
+    CachePointBlock, CachePointType, ContentBlock, ConversationRole, InferenceConfiguration,
+    Message, StopReason, SystemContentBlock, Tool, ToolInputSchema, ToolResultBlock,
+    ToolResultContentBlock, ToolResultStatus, ToolSpecification, ToolUseBlock,
 };
 use aws_smithy_types::Document;
 use serde_json::Value;
@@ -93,6 +93,26 @@ impl LanguageModelClient for BedrockClient {
             messages.push(msg);
         }
 
+        // Add a cache point to the last message's content to cache the full
+        // conversation history prefix on multi-turn requests.
+        if let Some(last_msg) = messages.last() {
+            let mut blocks = last_msg.content().to_vec();
+            let cache_point = CachePointBlock::builder()
+                .r#type(CachePointType::Default)
+                .build()
+                .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+            blocks.push(ContentBlock::CachePoint(cache_point));
+
+            let updated_msg = Message::builder()
+                .role(last_msg.role().clone())
+                .set_content(Some(blocks))
+                .build()
+                .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+
+            let len = messages.len();
+            messages[len - 1] = updated_msg;
+        }
+
         let mut req_builder = self
             .client
             .converse()
@@ -107,6 +127,13 @@ impl LanguageModelClient for BedrockClient {
                         sys_blocks.push(SystemContentBlock::Text(text.clone()));
                     }
                 }
+            }
+            if !sys_blocks.is_empty() {
+                let cache_point = CachePointBlock::builder()
+                    .r#type(CachePointType::Default)
+                    .build()
+                    .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+                sys_blocks.push(SystemContentBlock::CachePoint(cache_point));
             }
             req_builder = req_builder.set_system(Some(sys_blocks));
         }
@@ -128,6 +155,12 @@ impl LanguageModelClient for BedrockClient {
             }
 
             if !bedrock_tools.is_empty() {
+                let cache_point = CachePointBlock::builder()
+                    .r#type(CachePointType::Default)
+                    .build()
+                    .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+                bedrock_tools.push(Tool::CachePoint(cache_point));
+
                 let tool_config = aws_sdk_bedrockruntime::types::ToolConfiguration::builder()
                     .set_tools(Some(bedrock_tools))
                     .build()
