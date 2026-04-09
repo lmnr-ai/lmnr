@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AddToLabelingQueuePopover from "@/components/traces/add-to-labeling-queue-popover";
 import { Button } from "@/components/ui/button.tsx";
 import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
+import FetchableJsonTooltip from "@/components/ui/fetchable-json-tooltip";
 import { InfiniteDataTable } from "@/components/ui/infinite-datatable";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -20,7 +21,6 @@ import ClientTimestampFormatter from "../client-timestamp-formatter";
 import RenameDatasetDialog from "../datasets/rename-dataset-dialog";
 import DownloadButton from "../ui/download-button";
 import Header from "../ui/header";
-import JsonTooltip from "../ui/json-tooltip";
 import AddDatapointsDialog from "./add-datapoints-dialog";
 import DatasetPanel from "./dataset-panel";
 import DownloadParquetDialog from "./download-parquet-dialog";
@@ -34,7 +34,7 @@ interface DatasetProps {
 
 const FETCH_SIZE = 50;
 
-const columns: ColumnDef<Datapoint>[] = [
+const buildColumns = (projectId: string, datasetId: string): ColumnDef<Datapoint>[] => [
   {
     cell: ({ row }) => <div>{row.index + 1}</div>,
     header: "Index",
@@ -50,14 +50,32 @@ const columns: ColumnDef<Datapoint>[] = [
   },
   {
     accessorFn: (row) => row.data,
-    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    cell: (row) => (
+      <DatapointFieldCell
+        data={row.getValue()}
+        columnSize={row.column.getSize()}
+        field="data"
+        datapointId={row.row.original.id}
+        projectId={projectId}
+        datasetId={datasetId}
+      />
+    ),
     header: "Data",
     size: 200,
     id: "data",
   },
   {
     accessorFn: (row) => row.target,
-    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    cell: (row) => (
+      <DatapointFieldCell
+        data={row.getValue()}
+        columnSize={row.column.getSize()}
+        field="target"
+        datapointId={row.row.original.id}
+        projectId={projectId}
+        datasetId={datasetId}
+      />
+    ),
     header: "Target",
     size: 200,
     id: "target",
@@ -66,10 +84,46 @@ const columns: ColumnDef<Datapoint>[] = [
     accessorFn: (row) => row.metadata,
     header: "Metadata",
     size: 200,
-    cell: (row) => <JsonTooltip data={row.getValue()} columnSize={row.column.getSize()} />,
+    cell: (row) => (
+      <DatapointFieldCell
+        data={row.getValue()}
+        columnSize={row.column.getSize()}
+        field="metadata"
+        datapointId={row.row.original.id}
+        projectId={projectId}
+        datasetId={datasetId}
+      />
+    ),
     id: "metadata",
   },
 ];
+
+interface DatapointFieldCellProps {
+  data: unknown;
+  columnSize: number;
+  field: "data" | "target" | "metadata";
+  datapointId: string;
+  projectId: string;
+  datasetId: string;
+}
+
+const DatapointFieldCell = ({
+  data,
+  columnSize,
+  field,
+  datapointId,
+  projectId,
+  datasetId,
+}: DatapointFieldCellProps) => {
+  const onFetchFull = useCallback(async () => {
+    const res = await fetch(`/api/projects/${projectId}/datasets/${datasetId}/datapoints/${datapointId}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json[field];
+  }, [projectId, datasetId, datapointId, field]);
+
+  return <FetchableJsonTooltip data={data} columnSize={columnSize} onFetchFull={onFetchFull} />;
+};
 
 const defaultDatasetColumnOrder = ["__row_selection", "index", "createdAt", "data", "target", "metadata"];
 
@@ -78,6 +132,7 @@ const DatasetContent = ({ dataset, enableDownloadParquet, publicApiBaseUrl }: Da
   const searchParams = useSearchParams();
   const pathName = usePathname();
   const { projectId } = useParams();
+  const columns = useMemo(() => buildColumns(String(projectId), dataset.id), [projectId, dataset.id]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { toast } = useToast();
   const [totalCount, setTotalCount] = useState(0);
