@@ -129,7 +129,7 @@ pub(crate) fn resolve_provider_name() -> String {
 pub(crate) fn default_model_for_provider(provider: &str) -> String {
     match provider {
         "mock" => "".to_string(),
-        "bedrock" => "global.anthropic.claude-haiku-4-5-20251001-v1:0".to_string(),
+        "bedrock" => "global.anthropic.claude-sonnet-4-6".to_string(),
         _ => "gemini-3-flash-preview".to_string(),
     }
 }

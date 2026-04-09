@@ -34,8 +34,6 @@ impl LanguageModelClient for BedrockClient {
         model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
-        // Compute thinking_enabled early because extended thinking and prompt
-        // caching are incompatible on Bedrock's Anthropic models.
         let thinking_enabled = request
             .generation_config
             .as_ref()
@@ -107,26 +105,23 @@ impl LanguageModelClient for BedrockClient {
             messages.push(msg);
         }
 
-        // Add cache points to enable Bedrock prompt caching for supported
-        // Anthropic Claude models (Opus 4, Sonnet 4, and newer).
-        // Non-supported models will return an API error which is propagated to callers.
-        // Cache points are incompatible with extended thinking, so skip when enabled.
-        if !thinking_enabled {
-            if let Some(last_msg) = messages.last() {
-                let mut blocks = last_msg.content().to_vec();
+        if let Some(first_msg) = messages.first() {
+            if first_msg.role() == &ConversationRole::User {
+                let mut blocks = first_msg.content().to_vec();
                 let cache_point = build_cache_point()?;
                 blocks.push(ContentBlock::CachePoint(cache_point));
 
                 let updated_msg = Message::builder()
-                    .role(last_msg.role().clone())
+                    .role(ConversationRole::User)
                     .set_content(Some(blocks))
                     .build()
                     .map_err(|e| ProviderError::RequestError(e.to_string()))?;
 
-                let len = messages.len();
-                messages[len - 1] = updated_msg;
+                messages[0] = updated_msg;
             }
         }
+
+        println!("messages: {:?}", messages);
 
         let mut req_builder = self
             .client
@@ -143,7 +138,7 @@ impl LanguageModelClient for BedrockClient {
                     }
                 }
             }
-            if !sys_blocks.is_empty() && !thinking_enabled {
+            if !sys_blocks.is_empty() {
                 let cache_point = build_cache_point()?;
                 sys_blocks.push(SystemContentBlock::CachePoint(cache_point));
             }
@@ -167,11 +162,6 @@ impl LanguageModelClient for BedrockClient {
             }
 
             if !bedrock_tools.is_empty() {
-                if !thinking_enabled {
-                    let cache_point = build_cache_point()?;
-                    bedrock_tools.push(Tool::CachePoint(cache_point));
-                }
-
                 let tool_config = aws_sdk_bedrockruntime::types::ToolConfiguration::builder()
                     .set_tools(Some(bedrock_tools))
                     .build()
@@ -295,7 +285,11 @@ impl LanguageModelClient for BedrockClient {
         };
 
         let usage = resp.usage().map(|u| ProviderUsageMetadata {
-            prompt_token_count: Some(u.input_tokens() as i32),
+            prompt_token_count: Some(
+                u.input_tokens() as i32
+                    + u.cache_read_input_tokens().unwrap_or(0)
+                    + u.cache_write_input_tokens().unwrap_or(0),
+            ),
             candidates_token_count: Some(u.output_tokens() as i32),
             total_token_count: Some(u.total_tokens() as i32),
             cache_read_input_tokens: u.cache_read_input_tokens(),

@@ -921,7 +921,7 @@ fn main() -> anyhow::Result<()> {
         // == LLM Client ==
         let llm_provider_client: Option<Arc<signals::provider::LlmClient>> =
             if is_feature_enabled(Feature::Signals) {
-                log::info!("Initializing LLM client for signals");
+                log::info!("Initializing LLM client");
                 match runtime_handle.block_on(signals::provider::LlmClient::new()) {
                     Ok(client) => Some(Arc::new(client)),
                     Err(e) => {
@@ -1195,7 +1195,7 @@ fn main() -> anyhow::Result<()> {
                             QueueConfig::new(SIGNALS_QUEUE, SIGNALS_EXCHANGE, SIGNALS_ROUTING_KEY),
                         );
                     } else {
-                        log::warn!("Gemini client not available - skipping signals workers");
+                        log::warn!("LLM client not available - skipping signals workers");
                     }
 
                     // Spawn notification workers
