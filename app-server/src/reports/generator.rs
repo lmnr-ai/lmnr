@@ -237,30 +237,26 @@ async fn process_report_trigger(
     // a single project's data so they can be stored individually in CH at project
     // level. They are all combined into a single queue message so the deliveries
     // consumer sends them as one email/slack message.
-    let notifications: Vec<(Option<Uuid>, NotificationKind)> = project_reports
+    let notification_kinds: Vec<NotificationKind> = project_reports
         .into_iter()
-        .map(|project_report| {
-            let kind = NotificationKind::SignalsReport {
-                workspace_name: workspace_name.clone(),
-                project_id: project_report.project_id,
-                project_name: project_report.project_name,
-                title: title.clone(),
-                period_label: report_name.clone(),
-                period_start: period_start_str.clone(),
-                period_end: period_end_str.clone(),
-                signal_event_counts: project_report.signal_event_counts,
-                ai_summary: project_report.ai_summary,
-                noteworthy_events: project_report.noteworthy_events,
-            };
-            (Some(project_report.project_id), kind)
+        .map(|project_report| NotificationKind::SignalsReport {
+            workspace_name: workspace_name.clone(),
+            project_id: project_report.project_id,
+            project_name: project_report.project_name,
+            title: title.clone(),
+            period_label: report_name.clone(),
+            period_start: period_start_str.clone(),
+            period_end: period_end_str.clone(),
+            signal_event_counts: project_report.signal_event_counts,
+            ai_summary: project_report.ai_summary,
+            noteworthy_events: project_report.noteworthy_events,
         })
         .collect();
 
-    let notification_kinds: Vec<NotificationKind> =
-        notifications.into_iter().map(|(_, kind)| kind).collect();
-
     // Push a single notification message with all per-project reports.
     // Target fetching and formatting happen in the notification consumer pipeline.
+    // message.project_id is None; the per-notification project_id lives inside
+    // each SignalsReport variant and is extracted by the consumers.
     let notification_message = NotificationMessage {
         definition_type: NotificationDefinitionType::Report,
         definition_id: report_id,
