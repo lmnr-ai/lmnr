@@ -22,6 +22,7 @@ use crate::signals::utils::{
     InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr,
     structural_skeleton_hash,
 };
+use crate::signals::{llm_model, llm_provider};
 
 const SUMMARY_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
 
@@ -279,8 +280,8 @@ pub async fn summarize_system_prompts(
             input_tokens: usage.and_then(|u| u.prompt_token_count),
             input_cached_tokens: usage.and_then(|u| u.cache_read_input_tokens),
             output_tokens: usage.and_then(|u| u.candidates_token_count),
-            model: "gemini-3-flash-preview".to_string(),
-            provider: "gemini".to_string(),
+            model: llm_model(),
+            provider: llm_provider(),
             internal_project_id,
             job_id: None,
             error,
@@ -325,9 +326,7 @@ mod tests {
     use super::*;
     use crate::signals::provider::models::*;
 
-    fn make_extracted(
-        pairs: &[(&str, &str)],
-    ) -> HashMap<String, ExtractedSystemPrompt> {
+    fn make_extracted(pairs: &[(&str, &str)]) -> HashMap<String, ExtractedSystemPrompt> {
         pairs
             .iter()
             .map(|(text, path)| {
@@ -423,10 +422,7 @@ mod tests {
     fn test_parse_response_multiple_prompts() {
         let main_text = "You are the main orchestrator agent.\n<tools>search</tools>";
         let sub_text = "You are a helper sub-agent.\n<rules>be concise</rules>";
-        let extracted = make_extracted(&[
-            (main_text, "agent.llm"),
-            (sub_text, "agent.sub.llm"),
-        ]);
+        let extracted = make_extracted(&[(main_text, "agent.llm"), (sub_text, "agent.sub.llm")]);
         let main_hash = structural_skeleton_hash(main_text);
         let sub_hash = structural_skeleton_hash(sub_text);
 
@@ -448,7 +444,10 @@ mod tests {
         let result = parse_summarization_response(&response, &extracted);
         assert_eq!(result.summaries.len(), 2);
         assert!(result.fingerprint.is_some());
-        assert_eq!(result.summaries.get(&main_hash).unwrap(), "Main orchestrator");
+        assert_eq!(
+            result.summaries.get(&main_hash).unwrap(),
+            "Main orchestrator"
+        );
         assert_eq!(result.summaries.get(&sub_hash).unwrap(), "Helper sub-agent");
     }
 }
