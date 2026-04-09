@@ -105,9 +105,9 @@ impl LanguageModelClient for BedrockClient {
             messages.push(msg);
         }
 
-        if let Some(first_msg) = messages.first() {
-            if first_msg.role() == &ConversationRole::User {
-                let mut blocks = first_msg.content().to_vec();
+        if let Some(last_msg) = messages.last() {
+            if last_msg.role() == &ConversationRole::User {
+                let mut blocks = last_msg.content().to_vec();
                 let cache_point = build_cache_point()?;
                 blocks.push(ContentBlock::CachePoint(cache_point));
 
@@ -117,7 +117,8 @@ impl LanguageModelClient for BedrockClient {
                     .build()
                     .map_err(|e| ProviderError::RequestError(e.to_string()))?;
 
-                messages[0] = updated_msg;
+                let last_idx = messages.len() - 1;
+                messages[last_idx] = updated_msg;
             }
         }
 
@@ -289,7 +290,11 @@ impl LanguageModelClient for BedrockClient {
                     + u.cache_write_input_tokens().unwrap_or(0),
             ),
             candidates_token_count: Some(u.output_tokens() as i32),
-            total_token_count: Some(u.total_tokens() as i32),
+            total_token_count: Some(
+                u.total_tokens() as i32
+                    + u.cache_read_input_tokens().unwrap_or(0)
+                    + u.cache_write_input_tokens().unwrap_or(0),
+            ),
             cache_read_input_tokens: u.cache_read_input_tokens(),
             cache_creation_input_tokens: u.cache_write_input_tokens(),
         });
