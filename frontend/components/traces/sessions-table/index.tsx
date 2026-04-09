@@ -79,7 +79,17 @@ function SessionsTableContent() {
   // Reset expanded/trace/timeline state when query params change
   useEffect(() => {
     resetExpandState();
-  }, [endDate, filterKey, pastHours, projectId, startDate, textSearchFilter, resetExpandState]);
+  }, [
+    endDate,
+    filterKey,
+    pastHours,
+    projectId,
+    sortColumn,
+    sortDirection,
+    startDate,
+    textSearchFilter,
+    resetExpandState,
+  ]);
 
   // Initialize with default time range if needed
   useEffect(() => {
