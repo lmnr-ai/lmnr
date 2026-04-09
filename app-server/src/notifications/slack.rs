@@ -240,16 +240,13 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
 /// For single-element batches, renders the notification directly.
 /// For multi-element batches (e.g. reports with per-project data),
 /// combines all entries into a single Slack message.
-pub fn format_message_blocks_batch(
-    notifications: &[NotificationKind],
-    project_id: Option<Uuid>,
-) -> serde_json::Value {
+pub fn format_message_blocks_batch(notifications: &[NotificationKind]) -> serde_json::Value {
     if notifications.is_empty() {
         return serde_json::json!([]);
     }
 
     if notifications.len() == 1 {
-        return format_message_blocks_single(&notifications[0], project_id);
+        return format_message_blocks_single(&notifications[0]);
     }
 
     // Multi-notification batch. Currently only reports produce multi-element
@@ -259,28 +256,23 @@ pub fn format_message_blocks_batch(
     }
 
     // Fallback: render only the first notification.
-    format_message_blocks_single(&notifications[0], project_id)
+    format_message_blocks_single(&notifications[0])
 }
 
 /// Format Slack message blocks from a single `NotificationKind`.
-fn format_message_blocks_single(
-    kind: &NotificationKind,
-    project_id: Option<Uuid>,
-) -> serde_json::Value {
+fn format_message_blocks_single(kind: &NotificationKind) -> serde_json::Value {
     match kind {
         NotificationKind::EventIdentification {
+            project_id,
             trace_id,
             event_name,
             extracted_information,
-        } => {
-            let pid = project_id.unwrap_or(Uuid::nil());
-            format_event_identification_blocks(
-                &pid.to_string(),
-                &trace_id.to_string(),
-                event_name,
-                extracted_information.clone(),
-            )
-        }
+        } => format_event_identification_blocks(
+            &project_id.to_string(),
+            &trace_id.to_string(),
+            event_name,
+            extracted_information.clone(),
+        ),
         NotificationKind::SignalsReport { title, .. } => {
             let (_, report_data) = build_report_data_from_batch(std::slice::from_ref(kind))
                 .unwrap_or_else(|| {

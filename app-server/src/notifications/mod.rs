@@ -85,6 +85,7 @@ impl std::fmt::Display for NotificationDefinitionType {
 pub enum NotificationKind {
     /// A signal event was detected (alert).
     EventIdentification {
+        project_id: Uuid,
         trace_id: Uuid,
         event_name: String,
         extracted_information: Option<serde_json::Value>,
@@ -290,11 +291,12 @@ impl MessageHandler for NotificationHandler {
             let notification_id = Uuid::new_v4();
             notification_ids.push(notification_id);
 
-            // For SignalsReport notifications, use the per-project project_id
-            // embedded in the variant. For other kinds, fall back to the
-            // message-level project_id.
+            // Extract the per-notification project_id from the payload when
+            // available (EventIdentification and SignalsReport both carry it).
+            // Fall back to the message-level project_id for other kinds.
             let project_id = match kind {
-                NotificationKind::SignalsReport { project_id, .. } => *project_id,
+                NotificationKind::EventIdentification { project_id, .. }
+                | NotificationKind::SignalsReport { project_id, .. } => *project_id,
                 _ => message_project_id,
             };
 
@@ -400,21 +402,20 @@ impl NotificationHandler {
                         "Alert notification message has no notifications"
                     )));
                 };
-                let NotificationKind::EventIdentification { event_name, .. } = first else {
+                let NotificationKind::EventIdentification {
+                    project_id,
+                    event_name,
+                    ..
+                } = first
+                else {
                     return Err(HandlerError::permanent(anyhow::anyhow!(
                         "Alert notification must have EventIdentification kind"
                     )));
                 };
 
-                let project_id = message.project_id.ok_or_else(|| {
-                    HandlerError::permanent(anyhow::anyhow!(
-                        "Alert notification must have project_id"
-                    ))
-                })?;
-
                 let targets = crate::db::alert_targets::get_targets_for_event(
                     &self.db.pool,
-                    project_id,
+                    *project_id,
                     event_name,
                 )
                 .await
