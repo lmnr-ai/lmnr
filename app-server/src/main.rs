@@ -165,10 +165,6 @@ fn main() -> anyhow::Result<()> {
             environment: Some(Cow::Owned(
                 env::var("ENVIRONMENT").unwrap_or("development".to_string()),
             )),
-            before_send: Some(Arc::new(|_| {
-                // We don't want Sentry to record events. We only use it for OTel tracing.
-                None
-            })),
             ..Default::default()
         },
     ));
@@ -178,7 +174,7 @@ fn main() -> anyhow::Result<()> {
         drop(_sentry_guard);
     }
 
-    instrumentation::setup_tracing(is_feature_enabled(Feature::Tracing));
+    instrumentation::setup_tracing_and_logging(is_feature_enabled(Feature::Tracing));
 
     let http_payload_limit: usize = env::var("HTTP_PAYLOAD_LIMIT")
         .unwrap_or(String::from("5242880")) // default to 5MB
