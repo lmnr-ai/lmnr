@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::cache::{Cache, CacheTrait, keys::USAGE_WARNING_NOTIFICATION_LOCK_KEY};
+use crate::cache::{Cache, CacheTrait, keys::USAGE_WARNING_SEND_LOCK_KEY};
 use crate::ch::notifications::CHNotification;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
@@ -254,10 +254,7 @@ impl MessageHandler for NotificationHandler {
         // check_soft_limits and enqueue duplicate NotificationMessages for the
         // same warning before mark_warning_as_notified takes effect.
         if message.definition_type == NotificationDefinitionType::UsageWarning {
-            let lock_key = format!(
-                "{}:{}",
-                USAGE_WARNING_NOTIFICATION_LOCK_KEY, message.definition_id
-            );
+            let lock_key = format!("{}:{}", USAGE_WARNING_SEND_LOCK_KEY, message.definition_id);
             match self
                 .cache
                 .try_acquire_lock(&lock_key, USAGE_WARNING_NOTIFICATION_LOCK_TTL_SECONDS)
@@ -366,10 +363,7 @@ impl MessageHandler for NotificationHandler {
             // re-acquire it on retry. Without this, the lock's TTL would cause
             // the retry to silently skip, permanently losing the notification.
             if message.definition_type == NotificationDefinitionType::UsageWarning {
-                let lock_key = format!(
-                    "{}:{}",
-                    USAGE_WARNING_NOTIFICATION_LOCK_KEY, message.definition_id
-                );
+                let lock_key = format!("{}:{}", USAGE_WARNING_SEND_LOCK_KEY, message.definition_id);
                 let _ = self.cache.remove(&lock_key).await;
             }
             return Err(HandlerError::transient(anyhow::anyhow!(
