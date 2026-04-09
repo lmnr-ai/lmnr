@@ -5,11 +5,11 @@ import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { type SessionRow as SessionRowType, type TraceRow, type TraceTimelineItem } from "@/lib/traces/types";
+import { type SessionRow as SessionRowType, type TraceRow } from "@/lib/traces/types";
 import { cn } from "@/lib/utils";
 
 import SessionRowComponent from "./session-row";
-import SessionTableHeader from "./session-table-header";
+import SessionTableHeader, { type SessionSortColumn, type SortDirection } from "./session-table-header";
 import SessionTraceCard from "./session-trace-card";
 import TraceSectionHeader from "./trace-section-header";
 
@@ -18,7 +18,7 @@ const SESSION_HEADER_HEIGHT = 36;
 const itemTransition = { type: "spring", stiffness: 400, damping: 50 } as const;
 
 type VirtualListItem =
-  | { type: "session-row"; session: SessionRowType; timeline?: TraceTimelineItem[]; isLast: boolean }
+  | { type: "session-row"; session: SessionRowType; isLast: boolean }
   | { type: "trace-section-header"; sessionId: string }
   | { type: "trace-card"; trace: TraceRow; sessionId: string; isFirst: boolean; isLast: boolean }
   | { type: "trace-loading"; sessionId: string; isLast: boolean }
@@ -29,7 +29,6 @@ interface SessionsVirtualListProps {
   expandedSessions: Set<string>;
   loadingSessions: Set<string>;
   sessionTraces: Record<string, TraceRow[]>;
-  sessionTimelines: Record<string, TraceTimelineItem[]>;
   onToggleSession: (sessionId: string) => void;
   onTraceClick: (traceId: string) => void;
   hasMore: boolean;
@@ -38,6 +37,10 @@ interface SessionsVirtualListProps {
   fetchNextPage: () => void;
   error?: Error | null;
   onRetry?: () => void;
+  sortColumn?: SessionSortColumn;
+  sortDirection?: SortDirection;
+  onSort: (column: SessionSortColumn, direction: SortDirection) => void;
+  onClearSort: () => void;
 }
 
 function estimateSize(item: VirtualListItem): number {
@@ -58,7 +61,6 @@ export default function SessionsVirtualList({
   expandedSessions,
   loadingSessions,
   sessionTraces,
-  sessionTimelines,
   onToggleSession,
   onTraceClick,
   hasMore,
@@ -67,6 +69,10 @@ export default function SessionsVirtualList({
   fetchNextPage,
   error,
   onRetry,
+  sortColumn,
+  sortDirection,
+  onSort,
+  onClearSort,
 }: SessionsVirtualListProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -81,7 +87,6 @@ export default function SessionsVirtualList({
       items.push({
         type: "session-row",
         session,
-        timeline: sessionTimelines[session.sessionId],
         isLast: isLastSession && !isExpanded,
       });
 
@@ -108,7 +113,7 @@ export default function SessionsVirtualList({
       }
     }
     return items;
-  }, [sessions, expandedSessions, loadingSessions, sessionTraces, sessionTimelines]);
+  }, [sessions, expandedSessions, loadingSessions, sessionTraces]);
 
   const getItemKey = useCallback(
     (index: number) => {
@@ -196,7 +201,6 @@ export default function SessionsVirtualList({
           return (
             <SessionRowComponent
               session={item.session}
-              timeline={item.timeline}
               isExpanded={expandedSessions.has(item.session.sessionId)}
               isLast={item.isLast}
               onToggle={() => onToggleSession(item.session.sessionId)}
@@ -261,7 +265,12 @@ export default function SessionsVirtualList({
   return (
     <div ref={scrollContainerRef} className="overflow-auto styled-scrollbar rounded-md border min-h-0">
       <div className="min-w-[900px]">
-        <SessionTableHeader />
+        <SessionTableHeader
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSort={onSort}
+          onClearSort={onClearSort}
+        />
         {isLoading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="animate-spin w-5 h-5 text-muted-foreground" />

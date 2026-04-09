@@ -4,13 +4,12 @@ import { createContext, type PropsWithChildren, useContext, useState } from "rea
 import { createStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 
-import { type TraceRow, type TraceTimelineItem } from "@/lib/traces/types";
+import { type TraceRow } from "@/lib/traces/types";
 
 export type SessionsState = {
   expandedSessions: Set<string>;
   loadingSessions: Set<string>;
   sessionTraces: Record<string, TraceRow[]>;
-  sessionTimelines: Record<string, TraceTimelineItem[]>;
   traceIO: Record<string, { input: string | null; output: string | null }>;
   loadingSessionIO: Set<string>;
 };
@@ -20,7 +19,6 @@ export type SessionsActions = {
   collapseSession: (sessionId: string) => void;
   setLoadingSession: (sessionId: string, loading: boolean) => void;
   setSessionTraces: (sessionId: string, traces: TraceRow[]) => void;
-  mergeSessionTimelines: (timelines: Record<string, TraceTimelineItem[]>) => void;
   mergeTraceIO: (io: Record<string, { input: string | null; output: string | null }>) => void;
   setLoadingSessionIO: (sessionId: string, loading: boolean) => void;
   resetExpandState: () => void;
@@ -35,7 +33,6 @@ const DEFAULT_STATE: SessionsState = {
   expandedSessions: new Set(),
   loadingSessions: new Set(),
   sessionTraces: {},
-  sessionTimelines: {},
   traceIO: {},
   loadingSessionIO: new Set(),
 };
@@ -81,11 +78,6 @@ export const createSessionsStore = () => {
         sessionTraces: { ...state.sessionTraces, [sessionId]: traces },
       })),
 
-    mergeSessionTimelines: (timelines) =>
-      set((state) => ({
-        sessionTimelines: { ...state.sessionTimelines, ...timelines },
-      })),
-
     mergeTraceIO: (io) =>
       set((state) => ({
         traceIO: { ...state.traceIO, ...io },
@@ -106,7 +98,6 @@ export const createSessionsStore = () => {
         expandedSessions: new Set(),
         loadingSessions: new Set(),
         sessionTraces: {},
-        sessionTimelines: {},
         traceIO: {},
         loadingSessionIO: new Set(),
       });

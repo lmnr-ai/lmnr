@@ -14,8 +14,9 @@ import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model
 import DataTableFilter from "@/components/ui/infinite-datatable/ui/datatable-filter";
 import RefreshButton from "@/components/ui/infinite-datatable/ui/refresh-button.tsx";
 import { useToast } from "@/lib/hooks/use-toast";
-import { type SessionRow, type TraceRow, type TraceTimelineItem } from "@/lib/traces/types";
+import { type SessionRow, type TraceRow } from "@/lib/traces/types";
 
+import { type SessionSortColumn, type SortDirection } from "./session-table-header";
 import SessionsVirtualList from "./sessions-virtual-list";
 
 const FETCH_SIZE = 50;
@@ -46,12 +47,16 @@ function SessionsTableContent() {
   const pastHours = searchParams.get("pastHours");
   const textSearchFilter = searchParams.get("search");
 
-  const { expandedSessions, loadingSessions, sessionTraces, sessionTimelines } = useSessionsStoreContext(
+  const sortColumnParam = searchParams.get("sortColumn") as SessionSortColumn | null;
+  const sortDirectionParam = searchParams.get("sortDir") as SortDirection | null;
+  const sortColumn = sortColumnParam ?? undefined;
+  const sortDirection = sortDirectionParam ?? undefined;
+
+  const { expandedSessions, loadingSessions, sessionTraces } = useSessionsStoreContext(
     (state) => ({
       expandedSessions: state.expandedSessions,
       loadingSessions: state.loadingSessions,
       sessionTraces: state.sessionTraces,
-      sessionTimelines: state.sessionTimelines,
     }),
     shallow
   );
@@ -61,7 +66,6 @@ function SessionsTableContent() {
     collapseSession,
     setLoadingSession,
     setSessionTraces,
-    mergeSessionTimelines,
     mergeTraceIO,
     setLoadingSessionIO,
     resetExpandState,
@@ -71,7 +75,6 @@ function SessionsTableContent() {
     collapseSession: state.collapseSession,
     setLoadingSession: state.setLoadingSession,
     setSessionTraces: state.setSessionTraces,
-    mergeSessionTimelines: state.mergeSessionTimelines,
     mergeTraceIO: state.mergeTraceIO,
     setLoadingSessionIO: state.setLoadingSessionIO,
     resetExpandState: state.resetExpandState,
@@ -103,7 +106,6 @@ function SessionsTableContent() {
 
   const fetchSessions = useCallback(
     async (pageNumber: number) => {
-      const version = fetchVersionRef.current;
       try {
         const urlParams = new URLSearchParams();
         urlParams.set("pageNumber", pageNumber.toString());
@@ -119,6 +121,9 @@ function SessionsTableContent() {
           urlParams.set("search", textSearchFilter);
         }
 
+        if (sortColumn) urlParams.set("sortColumn", sortColumn);
+        if (sortDirection) urlParams.set("sortDirection", sortDirection);
+
         const url = `/api/projects/${projectId}/sessions?${urlParams.toString()}`;
         const res = await fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } });
 
@@ -127,11 +132,7 @@ function SessionsTableContent() {
           throw new Error(text.error);
         }
 
-        const data = (await res.json()) as { items: SessionRow[]; timelines: Record<string, TraceTimelineItem[]> };
-        // Only merge timelines if params haven't changed since this fetch started
-        if (fetchVersionRef.current === version) {
-          mergeSessionTimelines(data.timelines);
-        }
+        const data = (await res.json()) as { items: SessionRow[] };
         return { items: data.items, count: 0 };
       } catch (error) {
         toast({
@@ -141,7 +142,7 @@ function SessionsTableContent() {
         throw error;
       }
     },
-    [endDate, filter, pastHours, projectId, startDate, textSearchFilter, toast, mergeSessionTimelines]
+    [endDate, filter, pastHours, projectId, sortColumn, sortDirection, startDate, textSearchFilter, toast]
   );
 
   const {
@@ -155,7 +156,7 @@ function SessionsTableContent() {
   } = useInfiniteScroll<SessionRow>({
     fetchFn: fetchSessions,
     enabled: shouldFetch,
-    deps: [endDate, filter, pastHours, projectId, startDate, textSearchFilter],
+    deps: [endDate, filter, pastHours, projectId, sortColumn, sortDirection, startDate, textSearchFilter],
   });
 
   const handleToggleSession = useCallback(
@@ -255,6 +256,23 @@ function SessionsTableContent() {
     [setTraceId, pathName, router, searchParams]
   );
 
+  const handleSort = useCallback(
+    (column: SessionSortColumn, direction: SortDirection) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("sortColumn", column);
+      params.set("sortDir", direction);
+      router.push(`${pathName}?${params.toString()}`);
+    },
+    [pathName, router, searchParams]
+  );
+
+  const handleClearSort = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("sortColumn");
+    params.delete("sortDir");
+    router.push(`${pathName}?${params.toString()}`);
+  }, [pathName, router, searchParams]);
+
   return (
     <div className="flex flex-col overflow-hidden px-4 pb-6 h-full">
       <div className="flex flex-col gap-2 items-start mb-2">
@@ -284,7 +302,6 @@ function SessionsTableContent() {
         expandedSessions={expandedSessions}
         loadingSessions={loadingSessions}
         sessionTraces={sessionTraces}
-        sessionTimelines={sessionTimelines}
         onToggleSession={handleToggleSession}
         onTraceClick={handleTraceClick}
         hasMore={hasMore}
@@ -293,6 +310,10 @@ function SessionsTableContent() {
         fetchNextPage={fetchNextPage}
         error={error}
         onRetry={refetch}
+        sortColumn={sortColumn}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+        onClearSort={handleClearSort}
       />
     </div>
   );

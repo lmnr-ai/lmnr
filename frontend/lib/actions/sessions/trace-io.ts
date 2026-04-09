@@ -2,8 +2,9 @@ import { z } from "zod/v4";
 
 import { processSpanPreviews } from "@/lib/actions/spans/previews";
 import { executeQuery } from "@/lib/actions/sql";
+import { fetcherJSON } from "@/lib/utils";
 
-import { extractInputsForGroup, joinUserParts, systemTextHash } from "./extract-input";
+import { extractInputsForGroup, joinUserParts } from "./extract-input";
 import { type ParsedInput, parseExtractedMessages } from "./parse-input";
 
 const bodySchema = z.object({
@@ -74,17 +75,41 @@ export async function getMainAgentIOBatch({
   projectId: string;
 }): Promise<Record<string, TraceIOResult>> {
   const parsed = bodySchema.parse({ traceIds });
+
   const traceData = await Promise.all(parsed.traceIds.map((traceId) => fetchTraceData(traceId, projectId)));
+
+  const textsToHash: string[] = [];
+  const traceIndexByTextIndex: number[] = [];
+  for (let i = 0; i < traceData.length; i++) {
+    const systemText = traceData[i].parsed?.systemText;
+    if (systemText) {
+      traceIndexByTextIndex.push(i);
+      textsToHash.push(systemText);
+    }
+  }
+
+  let hashes: string[] = [];
+  if (textsToHash.length > 0) {
+    hashes = await fetchSkeletonHashes(textsToHash, projectId);
+  }
 
   const bySystemHash = new Map<string, TraceWithParsedInput[]>();
   const noSystemTraces: TraceWithParsedInput[] = [];
 
-  for (const trace of traceData) {
-    if (!trace.parsed?.systemText) {
+  const traceHashMap = new Map<number, string>();
+  for (let j = 0; j < traceIndexByTextIndex.length; j++) {
+    if (hashes[j]) {
+      traceHashMap.set(traceIndexByTextIndex[j], hashes[j]);
+    }
+  }
+
+  for (let i = 0; i < traceData.length; i++) {
+    const trace = traceData[i];
+    const hash = traceHashMap.get(i);
+    if (!hash) {
       noSystemTraces.push(trace);
       continue;
     }
-    const hash = systemTextHash(trace.parsed.systemText);
     const group = bySystemHash.get(hash) ?? [];
     group.push(trace);
     bySystemHash.set(hash, group);
@@ -100,7 +125,7 @@ export async function getMainAgentIOBatch({
   }
 
   await Promise.all(
-    Array.from(bySystemHash.entries()).map(([hash, traces]) => extractInputsForGroup(hash, traces, results))
+    Array.from(bySystemHash.entries()).map(([hash, traces]) => extractInputsForGroup(hash, projectId, traces, results))
   );
 
   for (const traceId of traceIds) {
@@ -110,6 +135,18 @@ export async function getMainAgentIOBatch({
   }
 
   return results;
+}
+
+async function fetchSkeletonHashes(texts: string[], projectId: string): Promise<string[]> {
+  try {
+    return await fetcherJSON<string[]>(`/projects/${projectId}/skeleton-hashes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texts }),
+    });
+  } catch {
+    return [];
+  }
 }
 
 async function fetchTraceData(traceId: string, projectId: string): Promise<TraceWithParsedInput> {

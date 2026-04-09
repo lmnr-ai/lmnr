@@ -1,22 +1,16 @@
-import { createHash } from "crypto";
-
 import { cache } from "@/lib/cache";
 
 import { type ParsedInput, type TextPart } from "./parse-input";
 import { applyRe2Regex, generateExtractionRegex } from "./prompts";
 
 const SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60;
-const REGEX_CACHE_PREFIX = "trace_io_regex:";
+const REGEX_CACHE_PREFIX = "trace_input_regex:";
 const BATCH_SIZE = 10;
 
 const SCAFFOLDING_PATTERN = /^\s*<([a-z][a-z0-9_-]*)[\s>][\s\S]*<\/\1>\s*$/i;
 
 function looksLikeScaffolding(text: string): boolean {
   return SCAFFOLDING_PATTERN.test(text);
-}
-
-export function systemTextHash(systemText: string): string {
-  return createHash("sha256").update(systemText).digest("hex");
 }
 
 export function joinUserParts(parts: TextPart[]): string | null {
@@ -40,10 +34,11 @@ interface TraceForExtraction {
  */
 export async function extractInputsForGroup(
   systemHash: string,
+  projectId: string,
   traces: TraceForExtraction[],
   results: Record<string, { input: string | null; output: string | null }>
 ): Promise<void> {
-  const cacheKey = `${REGEX_CACHE_PREFIX}${systemHash}`;
+  const cacheKey = `${REGEX_CACHE_PREFIX}${projectId}:${systemHash}`;
 
   try {
     const cachedRegex = await cache.get<string>(cacheKey);

@@ -9,15 +9,15 @@ import { clickhouseClient } from "@/lib/clickhouse/client";
 import { searchTypeToQueryFilter } from "@/lib/clickhouse/spans";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { addTimeRangeToQuery, getTimeRange, type TimeRange } from "@/lib/clickhouse/utils";
-import { type SessionRow, type TraceTimelineItem } from "@/lib/traces/types";
-
-import { getSessionTimelines } from "./timelines";
+import { type SessionRow } from "@/lib/traces/types";
 
 export const GetSessionsSchema = PaginationFiltersSchema.extend({
   ...TimeRangeSchema.shape,
   projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
+  sortColumn: z.string().nullable().optional(),
+  sortDirection: z.enum(["ASC", "DESC"]).nullable().optional(),
 });
 
 export const DeleteSessionsSchema = z.object({
@@ -25,9 +25,7 @@ export const DeleteSessionsSchema = z.object({
   sessionIds: z.array(z.string()).min(1),
 });
 
-export async function getSessions(
-  input: z.infer<typeof GetSessionsSchema>
-): Promise<{ items: SessionRow[]; timelines: Record<string, TraceTimelineItem[]> }> {
+export async function getSessions(input: z.infer<typeof GetSessionsSchema>): Promise<{ items: SessionRow[] }> {
   const {
     projectId,
     pastHours,
@@ -38,6 +36,8 @@ export async function getSessions(
     search,
     searchIn,
     filter: inputFilters,
+    sortColumn,
+    sortDirection,
   } = input;
 
   const filters: Filter[] = compact(inputFilters);
@@ -55,7 +55,7 @@ export async function getSessions(
     : [];
 
   if (search && traceIds?.length === 0) {
-    return { items: [], timelines: {} };
+    return { items: [] };
   }
 
   const { query: mainQuery, parameters: mainParams } = buildSessionsQueryWithParams({
@@ -66,6 +66,8 @@ export async function getSessions(
     startTime,
     endTime,
     pastHours,
+    sortColumn: sortColumn ?? undefined,
+    sortDirection: sortDirection ?? undefined,
   });
 
   const items = await executeQuery<Omit<SessionRow, "subRows">>({
@@ -76,22 +78,7 @@ export async function getSessions(
 
   const sessionItems = items.map((item) => ({ ...item, subRows: [] }));
 
-  let timelines: Record<string, TraceTimelineItem[]> = {};
-  if (sessionItems.length > 0) {
-    const sessionIds = sessionItems.map((s) => s.sessionId);
-    timelines = await getSessionTimelines({
-      projectId,
-      sessionIds,
-      pastHours: pastHours ?? undefined,
-      startDate: startTime ?? undefined,
-      endDate: endTime ?? undefined,
-    });
-  }
-
-  return {
-    items: sessionItems,
-    timelines,
-  };
+  return { items: sessionItems };
 }
 
 const searchTraceIds = async ({

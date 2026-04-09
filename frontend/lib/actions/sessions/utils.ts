@@ -150,10 +150,31 @@ export interface BuildSessionsQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
+  sortColumn?: string;
+  sortDirection?: string;
 }
 
+const SORT_COLUMN_MAP: Record<string, string> = {
+  start_time: "MIN(start_time)",
+  duration: "SUM(end_time - start_time)",
+  total_tokens: "SUM(total_tokens)",
+  total_cost: "SUM(total_cost)",
+  trace_count: "COUNT(*)",
+};
+
 export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions): QueryResult => {
-  const { traceIds = [], filters, limit, offset, startTime, endTime, pastHours, columns } = options;
+  const {
+    traceIds = [],
+    filters,
+    limit,
+    offset,
+    startTime,
+    endTime,
+    pastHours,
+    columns,
+    sortColumn,
+    sortDirection,
+  } = options;
 
   const whereFilters: Filter[] = [];
   const havingFilters: Filter[] = [];
@@ -213,8 +234,8 @@ export const buildSessionsQueryWithParams = (options: BuildSessionsQueryOptions)
     groupBy: ["session_id"],
     orderBy: [
       {
-        column: "MIN(start_time)",
-        direction: "DESC",
+        column: (sortColumn && SORT_COLUMN_MAP[sortColumn]) || "MIN(start_time)",
+        direction: (sortDirection as "ASC" | "DESC") || "DESC",
       },
     ],
     ...(!isNil(limit) &&
