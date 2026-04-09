@@ -191,7 +191,7 @@ impl NotificationDeliveryHandler {
             &integration.token,
         )
         .map_err(|e| {
-            HandlerError::transient(anyhow::anyhow!("Failed to decode Slack token: {}", e))
+            HandlerError::permanent(anyhow::anyhow!("Failed to decode Slack token: {}", e))
         })?;
 
         let blocks =
