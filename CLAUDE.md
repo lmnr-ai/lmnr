@@ -113,6 +113,11 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 # Migrations are applied automatically on frontend startup
 ```
 
+## Signals and Alerts
+
+- Alerts reference signals via `alerts.source_id` → `signals.id`. When deleting a signal, always delete associated alerts first (both `deleteSignal` and `deleteSignals` in `frontend/lib/actions/signals/index.ts` handle this).
+- The Signals sidebar item is behind a feature flag (`Feature.SIGNALS`) which requires `GOOGLE_GENERATIVE_AI_API_KEY` or AWS Bedrock credentials to be set.
+
 ## Signal Triggers
 
 - Signal trigger filters are evaluated in `app-server/src/db/trace.rs` (`matches_filters` / `evaluate_single_filter`). Spans arrive in batches, so filter evaluation must check accumulated state from the DB (e.g. `trace.span_names`) — not just the current batch's raw spans. The `traces.span_names` JSONB column aggregates span names across all batches via `||` merge on upsert.

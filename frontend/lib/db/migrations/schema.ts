@@ -684,6 +684,11 @@ export const alerts = pgTable(
       foreignColumns: [projects.id],
       name: "alerts_project_id_fkey",
     }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.sourceId],
+      foreignColumns: [signals.id],
+      name: "alerts_source_id_fkey",
+    }).onDelete("cascade"),
   ]
 );
 
