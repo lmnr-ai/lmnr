@@ -14,10 +14,11 @@ use crate::reports::email_template::NoteworthyEvent;
 use crate::worker::{HandlerError, MessageHandler};
 
 pub mod delivery;
-use delivery::{DeliveryTarget, NotificationDeliveryMessage, push_to_deliveries_queue};
 mod email;
-pub(crate) mod slack;
+mod slack;
 mod utils;
+
+use delivery::{DeliveryTarget, NotificationDeliveryMessage, push_to_deliveries_queue};
 
 // ── Notifications queue (producers → notifications_consumer) ──
 

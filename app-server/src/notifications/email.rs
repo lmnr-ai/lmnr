@@ -15,11 +15,18 @@ const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
 const ALERT_FROM_EMAIL: &str = "Laminar <alerts@mail.lmnr.ai>";
 const USAGE_WARNING_FROM_EMAIL: &str = "Laminar <usage@mail.lmnr.ai>";
 
+#[derive(Default)]
+pub struct EmailContent {
+    pub from: String,
+    pub subject: String,
+    pub html: String,
+}
+
 const LAMINAR_LOGO_CID: &str = "laminar-logo";
 /// Primary brand color (#D0754E)
 const PRIMARY: &str = "#D0754E";
 
-/// Format an email (from, subject, html) for a batch of notifications.
+/// Format an email for a batch of notifications.
 ///
 /// All notifications in the batch are expected to be of the same kind.
 /// Reports are rendered by combining per-project data into a single email.
@@ -27,9 +34,9 @@ const PRIMARY: &str = "#D0754E";
 pub fn format_email_batch(
     notifications: &[NotificationKind],
     workspace_id: &Uuid,
-) -> (String, String, String) {
+) -> EmailContent {
     let Some(first) = notifications.first() else {
-        return (String::new(), String::new(), String::new());
+        return EmailContent::default();
     };
 
     match first {
@@ -43,38 +50,43 @@ pub fn format_email_batch(
                 "https://lmnr.ai/project/{}/traces/{}?chat=true",
                 project_id, trace_id
             );
-            let subject = format!("Alert: {}", event_name);
             let attributes = extracted_information
                 .clone()
                 .unwrap_or(serde_json::Value::Object(Default::default()));
-            let html = render_alert_email(event_name, &attributes, &trace_link);
-            (ALERT_FROM_EMAIL.to_string(), subject, html)
+            EmailContent {
+                from: ALERT_FROM_EMAIL.to_string(),
+                subject: format!("Alert: {}", event_name),
+                html: render_alert_email(event_name, &attributes, &trace_link),
+            }
         }
         NotificationKind::SignalsReport { .. } => {
             let (title, report_data) = build_report_data_from_batch(notifications, *workspace_id)
                 .expect("SignalsReport batch must contain at least one report");
-            let html = render_report_email(&report_data);
-            (REPORT_FROM_EMAIL.to_string(), title, html)
+            EmailContent {
+                from: REPORT_FROM_EMAIL.to_string(),
+                subject: title,
+                html: render_report_email(&report_data),
+            }
         }
         NotificationKind::UsageWarning {
             workspace_name,
             usage_label,
             formatted_limit,
             usage_item,
-        } => {
-            let subject = format!(
+        } => EmailContent {
+            from: USAGE_WARNING_FROM_EMAIL.to_string(),
+            subject: format!(
                 "Usage warning: {} reached {} \u{2013} {}",
                 usage_label, formatted_limit, workspace_name
-            );
-            let html = render_usage_warning_email(
+            ),
+            html: render_usage_warning_email(
                 workspace_name,
                 *workspace_id,
                 usage_item,
                 formatted_limit,
                 usage_label,
-            );
-            (USAGE_WARNING_FROM_EMAIL.to_string(), subject, html)
-        }
+            ),
+        },
     }
 }
 

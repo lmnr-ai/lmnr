@@ -237,12 +237,11 @@ impl NotificationDeliveryHandler {
             return Ok(None);
         };
 
-        // Format the email combining all notifications in the batch.
-        let (from, subject, html) =
-            email::format_email_batch(&message.notifications, &message.workspace_id);
+        let content = email::format_email_batch(&message.notifications, &message.workspace_id);
 
         let mut email_opts =
-            CreateEmailBaseOptions::new(&from, [recipient.as_str()], &subject).with_html(&html);
+            CreateEmailBaseOptions::new(&content.from, [recipient.as_str()], &content.subject)
+                .with_html(&content.html);
 
         // Attach inline logo for all notification emails.
         email_opts = email_opts.with_attachment(
@@ -269,7 +268,7 @@ impl NotificationDeliveryHandler {
             }
         }
 
-        Ok(Some(html))
+        Ok(Some(content.html))
     }
 }
 
