@@ -11,49 +11,11 @@ use sodiumoxide::{
 };
 use uuid::Uuid;
 
+use super::NotificationKind;
+use super::utils::build_report_data_from_batch;
 use crate::reports::email_template::ReportData;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct EventIdentificationPayload {
-    pub project_id: Uuid,
-    pub trace_id: Uuid,
-    pub event_name: String,
-    pub extracted_information: Option<serde_json::Value>,
-    pub channel_id: String,
-    pub integration_id: Uuid,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ReportPayload {
-    pub title: String,
-    pub report: ReportData,
-    pub channel_id: String,
-    pub integration_id: Uuid,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub enum SlackMessagePayload {
-    EventIdentification(EventIdentificationPayload),
-    Report(ReportPayload),
-}
-
-impl SlackMessagePayload {
-    pub fn channel_id(&self) -> &str {
-        match self {
-            Self::EventIdentification(p) => &p.channel_id,
-            Self::Report(p) => &p.channel_id,
-        }
-    }
-
-    pub fn integration_id(&self) -> &Uuid {
-        match self {
-            Self::EventIdentification(p) => &p.integration_id,
-            Self::Report(p) => &p.integration_id,
-        }
-    }
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SlackApiResponse {
@@ -91,12 +53,52 @@ pub fn decode_slack_token(
         .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
 }
 
+/// Format Slack message blocks for a batch of notifications.
+///
+/// All notifications in the batch are expected to be of the same kind.
+/// Reports are rendered by combining per-project data into a single message.
+/// Alerts and usage warnings use the first (and only) notification.
+pub fn format_message_blocks_batch(
+    notifications: &[NotificationKind],
+    workspace_id: Uuid,
+) -> serde_json::Value {
+    let Some(first) = notifications.first() else {
+        return json!([]);
+    };
+
+    match first {
+        NotificationKind::EventIdentification {
+            project_id,
+            trace_id,
+            event_name,
+            extracted_information,
+        } => format_event_identification_blocks(
+            &project_id.to_string(),
+            &trace_id.to_string(),
+            event_name,
+            extracted_information.clone(),
+        ),
+        NotificationKind::SignalsReport { .. } => {
+            let (title, report_data) = build_report_data_from_batch(notifications, workspace_id)
+                .expect("SignalsReport batch must contain at least one report");
+            format_report_blocks(&title, &report_data)
+        }
+        NotificationKind::UsageWarning {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            ..
+        } => format_usage_warning_blocks(workspace_name, usage_label, formatted_limit),
+    }
+}
+
 /// Convert standard markdown links `[text](url)` to Slack mrkdwn `<url|text>`.
 fn md_links_to_slack(text: &str) -> String {
     static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap());
     RE.replace_all(text, "<$2|$1>").into_owned()
 }
 
+// Format Slack message blocks for an event identification notification.
 fn format_event_identification_blocks(
     project_id: &str,
     trace_id: &str,
@@ -104,7 +106,7 @@ fn format_event_identification_blocks(
     extracted_information: Option<serde_json::Value>,
 ) -> serde_json::Value {
     let trace_link = format!(
-        "https://laminar.sh/project/{}/traces/{}?chat=true",
+        "https://lmnr.ai/project/{}/traces/{}?chat=true",
         project_id, trace_id
     );
 
@@ -200,8 +202,8 @@ fn format_event_identification_blocks(
     ])
 }
 
-fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
-    let report = &payload.report;
+/// Format Slack message blocks for a signals report notification.
+fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
     let project_count = report.projects.len();
 
     let overview = format!(
@@ -217,7 +219,7 @@ fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
     let mut blocks = vec![
         json!({
             "type": "section",
-            "text": { "type": "mrkdwn", "text": format!(":bar_chart: *{}*", payload.title) }
+            "text": { "type": "mrkdwn", "text": format!(":bar_chart: *{}*", title) }
         }),
         json!({
             "type": "section",
@@ -244,7 +246,7 @@ fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
             text.push_str("\nNoteworthy Events:\n");
             for event in &project.noteworthy_events {
                 let entry = format!(
-                    "• `{}` – {} ({}) <https://laminar.sh/project/{}/traces/{}?chat=true|View trace>\n",
+                    "• `{}` – {} ({}) <https://lmnr.ai/project/{}/traces/{}?chat=true|View trace>\n",
                     event.signal_name,
                     event.summary,
                     event.timestamp,
@@ -275,16 +277,25 @@ fn format_report_blocks(payload: &ReportPayload) -> serde_json::Value {
     json!(blocks)
 }
 
-pub fn format_message_blocks(payload: &SlackMessagePayload) -> serde_json::Value {
-    match payload {
-        SlackMessagePayload::EventIdentification(p) => format_event_identification_blocks(
-            &p.project_id.to_string(),
-            &p.trace_id.to_string(),
-            &p.event_name,
-            p.extracted_information.clone(),
-        ),
-        SlackMessagePayload::Report(p) => format_report_blocks(p),
-    }
+/// Format Slack message blocks for a usage warning notification.
+fn format_usage_warning_blocks(
+    workspace_name: &str,
+    usage_label: &str,
+    formatted_limit: &str,
+) -> serde_json::Value {
+    json!([
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!(
+                    ":warning: *Usage Warning*\n{} has reached *{}* of {}.",
+                    workspace_name, formatted_limit, usage_label
+                )
+            }
+        },
+        {"type": "divider"}
+    ])
 }
 
 pub async fn send_message(
