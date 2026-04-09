@@ -44,7 +44,7 @@ export function SpanControls({ children, span }: PropsWithChildren<SpanControlsP
   const { toast } = useToast();
   const { openInSql, isLoading } = useOpenInSql({
     projectId: projectId as string,
-    params: { type: "span", spanId: span.spanId },
+    params: { type: "span", spanId: span.spanId, traceId: span.traceId },
   });
 
   const handleCopySpanId = useCallback(async () => {
