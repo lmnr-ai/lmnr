@@ -53,6 +53,7 @@ export async function GET(
         name: signals.name,
         prompt: signals.prompt,
         structuredOutputSchema: signals.structuredOutputSchema,
+        color: signals.color,
       })
       .from(signals)
       .where(and(eq(signals.projectId, projectId), inArray(signals.id, signalIds)));
@@ -62,6 +63,7 @@ export async function GET(
       signalName: signal.name,
       prompt: signal.prompt,
       structuredOutput: signal.structuredOutputSchema,
+      color: signal.color,
       events: eventsBySignal.get(signal.id) ?? [],
     }));
 

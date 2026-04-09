@@ -5,12 +5,13 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ManageSignalSheet from "@/components/signals/manage-signal-sheet";
+import { type ManageSignalForm } from "@/components/signals/manage-signal-sheet/types";
 import SignalCards from "@/components/signals/signal-cards";
 import SignalsBanner, { SignalsBannerInfoButton } from "@/components/signals/signals-banner";
+import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
 import { Button } from "@/components/ui/button";
 import DateRangeFilter, { type DateRange } from "@/components/ui/date-range-filter";
 import { type DateRangeValue } from "@/components/ui/date-range-filter/store";
-import DeleteSelectedRows from "@/components/ui/delete-selected-rows.tsx";
 import Header from "@/components/ui/header.tsx";
 import { useInfiniteScroll } from "@/components/ui/infinite-datatable/hooks";
 import { DataTableStateProvider } from "@/components/ui/infinite-datatable/model/datatable-store";
@@ -38,9 +39,10 @@ export default function Signals() {
 
 function SignalsContent() {
   const { projectId } = useParams();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editValues, setEditValues] = useState<ManageSignalForm | undefined>(undefined);
   const { toast } = useToast();
-  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [sparklineData, setSparklineData] = useState<SignalSparklineData>({});
   const [dateRange, setDateRange] = useState<DateRangeValue>({ pastHours: "168" });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -145,32 +147,70 @@ function SignalsContent() {
     await refetch();
   }, [refetch]);
 
-  const handleDelete = useCallback(
-    async (selectedRowIds: string[]) => {
+  const handleEdit = useCallback(
+    async (signal: SignalRow) => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/signals`, {
+        const res = await fetch(`/api/projects/${projectId}/signals/${signal.id}`);
+        if (!res.ok) {
+          toast({ title: "Failed to fetch signal details", variant: "destructive" });
+          return;
+        }
+        const fullSignal = (await res.json()) as {
+          id: string;
+          name: string;
+          prompt: string;
+          projectId: string;
+          createdAt: string;
+          structuredOutputSchema: Record<string, unknown>;
+          sampleRate: number | null;
+          color?: string | null;
+          triggers?: Array<{ id: string; filters: any[]; mode: number }>;
+        };
+
+        const formValues: ManageSignalForm = {
+          id: fullSignal.id,
+          name: fullSignal.name,
+          prompt: fullSignal.prompt,
+          projectId: fullSignal.projectId,
+          sampleRate: fullSignal.sampleRate,
+          color: fullSignal.color ?? null,
+          schemaFields: jsonSchemaToSchemaFields(fullSignal.structuredOutputSchema),
+          triggers: (fullSignal.triggers ?? []).map((t) => ({
+            id: t.id,
+            filters: t.filters,
+            mode: t.mode,
+          })),
+        };
+        setEditValues(formValues);
+        setIsEditOpen(true);
+      } catch {
+        toast({ title: "Failed to load signal for editing", variant: "destructive" });
+      }
+    },
+    [projectId, toast]
+  );
+
+  const handleDelete = useCallback(
+    async (signalId: string) => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/signals/${signalId}`, {
           method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ ids: selectedRowIds }),
         });
 
         if (!res.ok) {
-          throw new Error("Failed to delete signals");
+          throw new Error("Failed to delete signal");
         }
 
-        updateData((currentData) => currentData.filter((s) => !selectedRowIds.includes(s.id)));
-        setRowSelection({});
+        updateData((currentData) => currentData.filter((s) => s.id !== signalId));
 
         toast({
-          title: "Signals deleted",
-          description: `Successfully deleted ${selectedRowIds.length} signal(s).`,
+          title: "Signal deleted",
+          description: "Successfully deleted the signal.",
         });
       } catch (error) {
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "Failed to delete signals. Please try again.",
+          description: error instanceof Error ? error.message : "Failed to delete signal. Please try again.",
           variant: "destructive",
         });
       }
@@ -187,8 +227,6 @@ function SignalsContent() {
     }
     return max;
   }, [sparklineData]);
-
-  const selectedRowIds = useMemo(() => Object.keys(rowSelection).filter((id) => rowSelection[id]), [rowSelection]);
 
   // Infinite scroll via scroll container
   useEffect(() => {
@@ -212,16 +250,10 @@ function SignalsContent() {
         <SignalsBannerInfoButton />
       </Header>
       <div className="px-4 pb-4">
-        <SignalsBanner onCreateSignal={() => setIsDialogOpen(true)} />
+        <SignalsBanner onCreateSignal={() => setIsCreateOpen(true)} />
       </div>
       <div className="flex flex-col gap-4 overflow-hidden px-4 pb-4 h-full">
         <div className="flex items-center gap-2 pt-1">
-          {selectedRowIds.length > 0 && (
-            <>
-              <span className="text-sm text-muted-foreground">{selectedRowIds.length} selected</span>
-              <DeleteSelectedRows selectedRowIds={selectedRowIds} onDelete={handleDelete} entityName="signals" />
-            </>
-          )}
           <div className="flex-1" />
           <DateRangeFilter
             mode="state"
@@ -230,8 +262,8 @@ function SignalsContent() {
             quickRanges={SIGNAL_QUICK_RANGES}
             hideAbsoluteDate
           />
-          <ManageSignalSheet open={isDialogOpen} setOpen={setIsDialogOpen} onSuccess={handleSuccess}>
-            <Button icon="plus" className="w-fit" onClick={() => setIsDialogOpen(true)}>
+          <ManageSignalSheet open={isCreateOpen} setOpen={setIsCreateOpen} onSuccess={handleSuccess}>
+            <Button icon="plus" className="w-fit" onClick={() => setIsCreateOpen(true)}>
               Signal
             </Button>
           </ManageSignalSheet>
@@ -268,8 +300,8 @@ function SignalsContent() {
                 projectId={projectId as string}
                 sparklineData={sparklineData}
                 sparklineMaxCount={sparklineMaxCount}
-                selectedIds={rowSelection}
-                onSelectionChange={setRowSelection}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
               />
               {isFetching && (
                 <div className="flex justify-center py-4">
@@ -280,6 +312,14 @@ function SignalsContent() {
           )}
         </div>
       </div>
+
+      {/* Edit sheet (opened from card three-dot menu) */}
+      <ManageSignalSheet
+        open={isEditOpen}
+        setOpen={setIsEditOpen}
+        defaultValues={editValues}
+        onSuccess={handleSuccess}
+      />
     </>
   );
 }

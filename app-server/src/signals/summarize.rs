@@ -20,7 +20,6 @@ use crate::signals::provider::{LlmClient, ProviderThinkingConfig, ProviderThinki
 use crate::signals::spans::ExtractedSystemPrompt;
 use crate::signals::utils::{
     InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr,
-    structural_skeleton_hash,
 };
 
 const SUMMARY_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
@@ -52,8 +51,7 @@ fn cache_key(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SummarizationResult {
     pub summaries: HashMap<String, String>,
-    /// Hash of the main agent's compressed summary text (stable across dynamic prompt content)
-    pub fingerprint: Option<String>,
+    pub main_agent_hash: Option<String>,
 }
 
 fn build_prompts_section(extracted: &HashMap<String, ExtractedSystemPrompt>) -> String {
@@ -113,7 +111,7 @@ fn parse_summarization_response(
     extracted: &HashMap<String, ExtractedSystemPrompt>,
 ) -> SummarizationResult {
     let mut summaries = HashMap::new();
-    let mut main_agent_summary: Option<String> = None;
+    let mut main_agent_hash = None;
 
     let parts = response
         .candidates
@@ -154,19 +152,17 @@ fn parse_summarization_response(
                 if !extracted.contains_key(hash) || summary.is_empty() {
                     continue;
                 }
-                if is_main {
-                    main_agent_summary = Some(summary.to_string());
-                }
                 summaries.insert(hash.to_string(), summary.to_string());
+                if is_main {
+                    main_agent_hash = Some(hash.to_string());
+                }
             }
         }
     }
 
-    let fingerprint = main_agent_summary.map(|s| structural_skeleton_hash(&s));
-
     SummarizationResult {
         summaries,
-        fingerprint,
+        main_agent_hash,
     }
 }
 
@@ -188,35 +184,22 @@ pub async fn summarize_system_prompts(
         log::info!("No system prompts extracted from trace, skipping summarization");
         return SummarizationResult {
             summaries: HashMap::new(),
-            fingerprint: None,
+            main_agent_hash: None,
         };
     }
 
     let sig_hash = hash_signal_prompt(signal_prompt);
-    let skeleton_hashes: Vec<String> = extracted
-        .values()
-        .map(|p| structural_skeleton_hash(&p.text))
-        .collect();
-    let skeleton_refs: Vec<&str> = skeleton_hashes.iter().map(|s| s.as_str()).collect();
-    let prompts_hash = combined_prompts_hash(&skeleton_refs);
+    let prompt_hashes: Vec<&str> = extracted.keys().map(|s| s.as_str()).collect();
+    let prompts_hash = combined_prompts_hash(&prompt_hashes);
     let key = cache_key(project_id, signal_id, &sig_hash, &prompts_hash);
 
     if let Ok(Some(cached)) = cache.get::<SummarizationResult>(&key).await {
         log::info!(
-            "Using cached summarization result for {} prompts (skeleton={})",
-            extracted.len(),
-            prompts_hash,
+            "Using cached summarization result for {} prompts",
+            extracted.len()
         );
         return cached;
     }
-
-    log::info!(
-        "Summarization cache miss for {} prompts (skeleton={}), generating. project_id={}, signal_id={}",
-        extracted.len(),
-        prompts_hash,
-        project_id,
-        signal_id,
-    );
 
     let start_time = Utc::now();
 
@@ -313,142 +296,9 @@ pub async fn summarize_system_prompts(
         }
         None => SummarizationResult {
             summaries: HashMap::new(),
-            fingerprint: None,
+            main_agent_hash: None,
         },
     };
 
     result
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::signals::provider::models::*;
-
-    fn make_extracted(
-        pairs: &[(&str, &str)],
-    ) -> HashMap<String, ExtractedSystemPrompt> {
-        pairs
-            .iter()
-            .map(|(text, path)| {
-                let hash = structural_skeleton_hash(text);
-                (
-                    hash,
-                    ExtractedSystemPrompt {
-                        text: text.to_string(),
-                        path: path.to_string(),
-                    },
-                )
-            })
-            .collect()
-    }
-
-    fn make_llm_response(summaries_json: serde_json::Value) -> ProviderResponse {
-        ProviderResponse {
-            candidates: Some(vec![ProviderCandidate {
-                content: Some(ProviderContent {
-                    role: Some("model".to_string()),
-                    parts: Some(vec![ProviderPart {
-                        function_call: Some(ProviderFunctionCall {
-                            id: None,
-                            name: "summarize_system_prompts".to_string(),
-                            args: Some(summaries_json),
-                        }),
-                        ..Default::default()
-                    }]),
-                }),
-                finish_reason: Some(ProviderFinishReason::Stop),
-            }]),
-            usage_metadata: None,
-            model_version: None,
-        }
-    }
-
-    #[test]
-    fn test_dynamic_content_produces_same_hash() {
-        let text_v1 = "You are a browser automation agent.\n<config>Model: gpt-4</config>";
-        let text_v2 = "You are a browser automation agent.\n<config>Model: claude-3</config>";
-
-        assert_eq!(
-            structural_skeleton_hash(text_v1),
-            structural_skeleton_hash(text_v2),
-            "Same template with different dynamic content should produce the same hash"
-        );
-
-        let extracted_v1 = make_extracted(&[(text_v1, "agent.llm")]);
-        let extracted_v2 = make_extracted(&[(text_v2, "agent.llm")]);
-
-        assert_eq!(
-            extracted_v1.keys().collect::<Vec<_>>(),
-            extracted_v2.keys().collect::<Vec<_>>(),
-            "Both traces should have the same extracted map keys"
-        );
-    }
-
-    #[test]
-    fn test_parse_response_and_cache_hit() {
-        let text_v1 = "You are a browser automation agent.\n<config>Model: gpt-4</config>";
-        let extracted_v1 = make_extracted(&[(text_v1, "agent.llm")]);
-        let hash = structural_skeleton_hash(text_v1);
-
-        let response = make_llm_response(serde_json::json!({
-            "summaries": [{
-                "prompt_id": format!("sp_{}", hash),
-                "summary": "Browser automation agent that automates web tasks",
-                "is_main_agent_prompt": true
-            }]
-        }));
-
-        let result = parse_summarization_response(&response, &extracted_v1);
-        assert_eq!(result.summaries.len(), 1);
-        assert!(result.fingerprint.is_some());
-        assert_eq!(
-            result.summaries.get(&hash).unwrap(),
-            "Browser automation agent that automates web tasks"
-        );
-
-        // Simulate cache hit for trace 2 with different config
-        let text_v2 = "You are a browser automation agent.\n<config>Model: claude-3</config>";
-        let hash_v2 = structural_skeleton_hash(text_v2);
-        assert_eq!(hash, hash_v2, "Same skeleton hash");
-
-        // The cached result works directly -- no remap needed
-        assert!(
-            result.summaries.contains_key(&hash_v2),
-            "Cached summaries should be directly usable for trace 2"
-        );
-    }
-
-    #[test]
-    fn test_parse_response_multiple_prompts() {
-        let main_text = "You are the main orchestrator agent.\n<tools>search</tools>";
-        let sub_text = "You are a helper sub-agent.\n<rules>be concise</rules>";
-        let extracted = make_extracted(&[
-            (main_text, "agent.llm"),
-            (sub_text, "agent.sub.llm"),
-        ]);
-        let main_hash = structural_skeleton_hash(main_text);
-        let sub_hash = structural_skeleton_hash(sub_text);
-
-        let response = make_llm_response(serde_json::json!({
-            "summaries": [
-                {
-                    "prompt_id": format!("sp_{}", main_hash),
-                    "summary": "Main orchestrator",
-                    "is_main_agent_prompt": true
-                },
-                {
-                    "prompt_id": format!("sp_{}", sub_hash),
-                    "summary": "Helper sub-agent",
-                    "is_main_agent_prompt": false
-                }
-            ]
-        }));
-
-        let result = parse_summarization_response(&response, &extracted);
-        assert_eq!(result.summaries.len(), 2);
-        assert!(result.fingerprint.is_some());
-        assert_eq!(result.summaries.get(&main_hash).unwrap(), "Main orchestrator");
-        assert_eq!(result.summaries.get(&sub_hash).unwrap(), "Helper sub-agent");
-    }
 }

@@ -561,6 +561,13 @@
       "when": 1774978896688,
       "tag": "0079_abandoned_gorgon",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1775685584280,
+      "tag": "0080_silly_weapon_omega",
+      "breakpoints": true
     }
   ]
 }

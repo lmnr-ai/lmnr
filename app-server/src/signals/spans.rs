@@ -182,7 +182,8 @@ fn content_overlap_score(needle_words: &HashSet<String>, haystack_words: &HashSe
     matched as f64 / needle_words.len() as f64
 }
 
-pub use super::utils::structural_skeleton_hash;
+// Re-export from utils for backwards compatibility
+pub use super::utils::hash_system_prompt;
 
 /// Extract the system message from a parsed LLM input message array.
 /// Returns `(system_text, remaining_messages)` if a `role: "system"` message is found.
@@ -233,6 +234,24 @@ pub fn extract_system_message(parsed: &Value) -> Option<(String, Value)> {
     Some((sys_text, Value::Array(remaining)))
 }
 
+/// Scan all LLM spans and extract unique system prompts.
+/// Returns a map of `hash -> full_system_prompt_text` for all unique system prompts found.
+#[allow(dead_code)]
+pub fn extract_system_prompts(ch_spans: &[CHSpan]) -> HashMap<String, String> {
+    let mut result: HashMap<String, String> = HashMap::new();
+    for span in ch_spans {
+        if span.span_type != 1 {
+            continue;
+        }
+        let parsed = try_parse_json(&strip_noise(&span.input));
+        if let Some((sys_text, _)) = extract_system_message(&parsed) {
+            let hash = hash_system_prompt(&sys_text);
+            result.entry(hash).or_insert(sys_text);
+        }
+    }
+    result
+}
+
 #[derive(Debug)]
 pub struct ExtractedSystemPrompt {
     pub text: String,
@@ -252,7 +271,7 @@ pub fn extract_system_prompts_with_paths(
         }
         let parsed = try_parse_json(&strip_noise(&span.input));
         if let Some((sys_text, _)) = extract_system_message(&parsed) {
-            let hash = structural_skeleton_hash(&sys_text);
+            let hash = hash_system_prompt(&sys_text);
             result.entry(hash).or_insert_with(|| ExtractedSystemPrompt {
                 text: sys_text,
                 path: span.path.clone(),
@@ -348,7 +367,7 @@ pub fn compress_span_content(
 
                     let input_to_process =
                         if let Some((sys_text, remaining)) = extract_system_message(&parsed) {
-                            let hash = structural_skeleton_hash(&sys_text);
+                            let hash = hash_system_prompt(&sys_text);
                             if system_prompt_summaries.contains_key(&hash) {
                                 sys_prompt_ref = Some(format!("sp_{}", hash));
                                 remaining
@@ -1224,28 +1243,28 @@ mod tests {
     }
 
     // ===================================================================
-    // structural_skeleton_hash
+    // hash_system_prompt
     // ===================================================================
 
     #[test]
     fn test_hash_stability() {
-        let hash1 = structural_skeleton_hash("You are a helpful assistant.");
-        let hash2 = structural_skeleton_hash("You are a helpful assistant.");
+        let hash1 = hash_system_prompt("You are a helpful assistant.");
+        let hash2 = hash_system_prompt("You are a helpful assistant.");
         assert_eq!(hash1, hash2);
         assert_eq!(hash1.len(), 8);
     }
 
     #[test]
     fn test_hash_whitespace_normalization() {
-        let hash1 = structural_skeleton_hash("You  are\n a   helpful\tassistant.");
-        let hash2 = structural_skeleton_hash("You are a helpful assistant.");
+        let hash1 = hash_system_prompt("You  are\n a   helpful\tassistant.");
+        let hash2 = hash_system_prompt("You are a helpful assistant.");
         assert_eq!(hash1, hash2);
     }
 
     #[test]
     fn test_hash_case_normalization() {
-        let hash1 = structural_skeleton_hash("You Are A Helpful Assistant.");
-        let hash2 = structural_skeleton_hash("you are a helpful assistant.");
+        let hash1 = hash_system_prompt("You Are A Helpful Assistant.");
+        let hash2 = hash_system_prompt("you are a helpful assistant.");
         assert_eq!(hash1, hash2);
     }
 
@@ -1281,10 +1300,10 @@ mod tests {
             ),
         ];
 
-        let extracted = extract_system_prompts_with_paths(&spans);
+        let extracted = extract_system_prompts(&spans);
         assert_eq!(extracted.len(), 1);
-        let (hash, _) = extracted.iter().next().unwrap();
-        assert_eq!(hash, &structural_skeleton_hash(sys_prompt));
+        let (_, text) = extracted.iter().next().unwrap();
+        assert_eq!(text, sys_prompt);
     }
 
     #[test]
@@ -1299,10 +1318,8 @@ mod tests {
             make_span(Uuid::new_v4(), Uuid::nil(), "llm_b", 1, 2000, &input, "b"),
         ];
 
-        let extracted = extract_system_prompts_with_paths(&spans);
+        let extracted = extract_system_prompts(&spans);
         assert_eq!(extracted.len(), 1);
-        let (hash, _) = extracted.iter().next().unwrap();
-        assert_eq!(hash, &structural_skeleton_hash(sys_prompt));
     }
 
     // ===================================================================
@@ -1316,7 +1333,7 @@ mod tests {
             r#"[{{"role":"system","content":"{}"}},{{"role":"user","content":"Help me"}}]"#,
             sys_prompt
         );
-        let hash = structural_skeleton_hash(sys_prompt);
+        let hash = hash_system_prompt(sys_prompt);
         let summaries: HashMap<String, String> = [(
             hash.clone(),
             "Customer support agent. Be polite.".to_string(),
@@ -1379,7 +1396,7 @@ mod tests {
             r#"[{{"role":"system","content":"{}"}},{{"role":"user","content":"Do X"}}]"#,
             sys_prompt
         );
-        let hash = structural_skeleton_hash(sys_prompt);
+        let hash = hash_system_prompt(sys_prompt);
         let summary = "Safety-focused AI agent with strict rules.".to_string();
         let summaries: HashMap<String, String> =
             [(hash.clone(), summary.clone())].into_iter().collect();

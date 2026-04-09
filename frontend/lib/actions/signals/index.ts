@@ -19,6 +19,7 @@ export type SignalRow = {
   eventsCount: number;
   clustersCount: number;
   lastEventAt: string | null;
+  color?: string | null;
 };
 
 export type Signal = {
@@ -29,6 +30,7 @@ export type Signal = {
   prompt: string;
   structuredOutput: Record<string, unknown>;
   sampleRate: number | null;
+  color?: string | null;
 };
 
 export const GetSignalsSchema = PaginationFiltersSchema.extend({
@@ -48,6 +50,7 @@ const CreateSignalSchema = z.object({
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
   sampleRate: z.number().int().min(1).max(95).nullable().optional(),
+  color: z.string().nullable().optional(),
 });
 
 const UpdateSignalSchema = z.object({
@@ -56,6 +59,7 @@ const UpdateSignalSchema = z.object({
   prompt: z.string(),
   structuredOutput: z.record(z.string(), z.unknown()),
   sampleRate: z.number().int().min(1).max(95).nullable().optional(),
+  color: z.string().nullable().optional(),
 });
 
 export const DeleteSignalSchema = z.object({
@@ -115,6 +119,7 @@ export async function getSignals(input: z.infer<typeof GetSignalsSchema>) {
       name: signals.name,
       prompt: signals.prompt,
       projectId: signals.projectId,
+      color: signals.color,
     })
     .from(signals)
     .where(and(...whereConditions))
@@ -220,7 +225,7 @@ export async function getSignal(input: z.infer<typeof GetSignalSchema>) {
 }
 
 export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
-  const { projectId, name, prompt, structuredOutput, sampleRate } = CreateSignalSchema.parse(input);
+  const { projectId, name, prompt, structuredOutput, sampleRate, color } = CreateSignalSchema.parse(input);
 
   const [result] = await db
     .insert(signals)
@@ -230,6 +235,7 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
       prompt,
       structuredOutputSchema: structuredOutput,
       sampleRate: sampleRate ?? null,
+      color: color ?? null,
     })
     .returning();
 
@@ -237,11 +243,11 @@ export async function createSignal(input: z.infer<typeof CreateSignalSchema>) {
 }
 
 export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
-  const { projectId, id, prompt, structuredOutput, sampleRate } = UpdateSignalSchema.parse(input);
+  const { projectId, id, prompt, structuredOutput, sampleRate, color } = UpdateSignalSchema.parse(input);
 
   const result = await db
     .update(signals)
-    .set({ prompt, structuredOutputSchema: structuredOutput, sampleRate: sampleRate ?? null })
+    .set({ prompt, structuredOutputSchema: structuredOutput, sampleRate: sampleRate ?? null, color: color ?? null })
     .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
     .returning();
 

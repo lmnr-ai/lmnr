@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useCallback } from "react";
 
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SignalSparklineData } from "@/lib/actions/signals/stats";
@@ -13,8 +12,8 @@ interface SignalCardsProps {
   projectId: string;
   sparklineData: SignalSparklineData;
   sparklineMaxCount?: number;
-  selectedIds: Record<string, boolean>;
-  onSelectionChange: (ids: Record<string, boolean>) => void;
+  onEdit: (signal: SignalRow) => void;
+  onDelete: (signalId: string) => void;
 }
 
 export default function SignalCards({
@@ -22,22 +21,9 @@ export default function SignalCards({
   projectId,
   sparklineData,
   sparklineMaxCount,
-  selectedIds,
-  onSelectionChange,
+  onEdit,
+  onDelete,
 }: SignalCardsProps) {
-  const toggleSelect = useCallback(
-    (id: string) => {
-      const next = { ...selectedIds };
-      if (next[id]) {
-        delete next[id];
-      } else {
-        next[id] = true;
-      }
-      onSelectionChange(next);
-    },
-    [selectedIds, onSelectionChange]
-  );
-
   return (
     <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {signals.map((signal, index) => (
@@ -52,8 +38,8 @@ export default function SignalCards({
             projectId={projectId}
             sparklineData={sparklineData}
             sparklineMaxCount={sparklineMaxCount}
-            isSelected={!!selectedIds[signal.id]}
-            onToggleSelect={() => toggleSelect(signal.id)}
+            onEdit={() => onEdit(signal)}
+            onDelete={() => onDelete(signal.id)}
           />
         </motion.div>
       ))}

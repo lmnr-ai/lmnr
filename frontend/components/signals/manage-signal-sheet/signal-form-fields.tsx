@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { tryParseJson } from "@/lib/utils";
 
+import ColorPicker from "./color-picker";
 import SamplingSection from "./sampling-section";
 import SchemaFieldsBuilder from "./schema-fields-builder";
 import TemplatePicker from "./template-picker";
@@ -66,6 +67,15 @@ export default function SignalFormFields({ showTemplates }: { showTemplates: boo
           )}
         />
         {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label className="text-sm font-medium">Color</Label>
+        <Controller
+          name="color"
+          control={control}
+          render={({ field }) => <ColorPicker value={field.value} onChange={field.onChange} />}
+        />
       </div>
 
       {showTemplates && <TemplatePicker onApply={applyTemplate} onClear={clearToBlank} />}

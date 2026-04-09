@@ -241,7 +241,7 @@ fn parse_drop_rules_from_response(
 }
 
 /// Call the LLM to generate span drop rules and cache them.
-/// `fingerprint` is typically the summary-based fingerprint from summarization.
+/// `fingerprint` is typically the `main_agent_hash` from summarization.
 /// Returns the generated rules (may be empty if the LLM finds nothing to drop).
 #[tracing::instrument(skip_all, fields(project_id, signal_id))]
 pub async fn generate_and_cache_drop_rules(
@@ -254,6 +254,7 @@ pub async fn generate_and_cache_drop_rules(
     signal_prompt: &str,
     fingerprint: &str,
     trace_string: &str,
+    main_agent_system_prompt: Option<&str>,
 ) -> Vec<DropRule> {
     if trace_string.len() > MAX_TRACE_STRING_LEN {
         log::info!(
@@ -344,7 +345,7 @@ pub async fn generate_and_cache_drop_rules(
                 serde_json::json!({
                     "project_id": project_id,
                     "signal_id": signal_id,
-                    "fingerprint": fingerprint,
+                    "main_agent_system_prompt": main_agent_system_prompt.unwrap_or_default(),
                 })
                 .as_object()
                 .unwrap()

@@ -1,3 +1,4 @@
+import { and, eq, inArray } from "drizzle-orm";
 import { compact } from "lodash";
 import { z } from "zod/v4";
 
@@ -13,6 +14,8 @@ import {
 import { clickhouseClient } from "@/lib/clickhouse/client.ts";
 import { type SpanSearchType } from "@/lib/clickhouse/types";
 import { getTimeRange } from "@/lib/clickhouse/utils";
+import { db } from "@/lib/db/drizzle";
+import { signals } from "@/lib/db/migrations/schema";
 import { type TraceRow } from "@/lib/traces/types.ts";
 
 import { DEFAULT_SEARCH_MAX_HITS } from "./utils";
@@ -151,6 +154,61 @@ export async function getTraces(input: z.infer<typeof GetTracesSchema>): Promise
         item.attributesSnippet = hit.attributes_snippet;
       }
       item.snippetsCount = snippetsCountMap.get(item.id) ?? 0;
+    }
+  }
+
+  // Enrich traces with signal names
+  if (items.length > 0) {
+    try {
+      const traceIdsForSignals = items.map((t) => t.id);
+      const signalEvents = await executeQuery<{ traceId: string; signalId: string }>({
+        projectId,
+        query: `
+          SELECT DISTINCT
+            trace_id as traceId,
+            signal_id as signalId
+          FROM signal_events
+          WHERE trace_id IN ({traceIds: Array(UUID)})
+        `,
+        parameters: { traceIds: traceIdsForSignals },
+      });
+
+      if (signalEvents.length > 0) {
+        const allSignalIds = [...new Set(signalEvents.map((e) => e.signalId))];
+
+        const signalRows = await db
+          .select({ id: signals.id, name: signals.name, color: signals.color })
+          .from(signals)
+          .where(and(eq(signals.projectId, projectId), inArray(signals.id, allSignalIds)));
+
+        const signalInfoMap = new Map(signalRows.map((s) => [s.id, { name: s.name, color: s.color }]));
+
+        const traceSignalNames = new Map<string, string[]>();
+        const traceSignals = new Map<string, { name: string; color: string | null }[]>();
+        for (const event of signalEvents) {
+          const info = signalInfoMap.get(event.signalId);
+          if (!info) continue;
+
+          // signalNames (backward compat)
+          const existingNames = traceSignalNames.get(event.traceId) ?? [];
+          if (!existingNames.includes(info.name)) existingNames.push(info.name);
+          traceSignalNames.set(event.traceId, existingNames);
+
+          // signals with color
+          const existingSignals = traceSignals.get(event.traceId) ?? [];
+          if (!existingSignals.some((s) => s.name === info.name)) {
+            existingSignals.push({ name: info.name, color: info.color });
+          }
+          traceSignals.set(event.traceId, existingSignals);
+        }
+
+        for (const item of items) {
+          item.signalNames = traceSignalNames.get(item.id) ?? [];
+          item.signals = traceSignals.get(item.id) ?? [];
+        }
+      }
+    } catch (error) {
+      console.error("Error enriching traces with signal names:", error);
     }
   }
 

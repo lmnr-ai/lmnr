@@ -1,4 +1,4 @@
-import { getDefaultSchemaFields, type SchemaField } from "@/components/signals/utils";
+import { DEFAULT_SIGNAL_COLOR, getDefaultSchemaFields, type SchemaField } from "@/components/signals/utils";
 import { type Filter } from "@/lib/actions/common/filters";
 import { Operator } from "@/lib/actions/common/operators";
 import { type Signal } from "@/lib/actions/signals";
@@ -36,4 +36,5 @@ export const getDefaultValues = (projectId: string, defaultMode: number): Manage
   testTraceId: "",
   triggers: getDefaultTriggers(defaultMode),
   sampleRate: null,
+  color: DEFAULT_SIGNAL_COLOR,
 });
