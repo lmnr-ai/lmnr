@@ -26,9 +26,9 @@ pub async fn process_event_notifications_and_clustering(
     let event_name = signal_event.name().to_string();
     let attributes = signal_event.payload_value().unwrap_or_default();
 
-    let alert = db::alert_targets::get_alert_for_event(&db.pool, project_id, &event_name).await?;
+    let alerts = db::alert_targets::get_alerts_for_event(&db.pool, project_id, &event_name).await?;
 
-    if let Some(alert) = alert {
+    for alert in alerts {
         let notification_message = notifications::NotificationMessage {
             definition_type: NotificationDefinitionType::Alert,
             definition_id: alert.alert_id,

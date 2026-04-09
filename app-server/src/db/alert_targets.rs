@@ -7,14 +7,15 @@ pub struct AlertInfo {
     pub workspace_id: Uuid,
 }
 
-/// Look up the alert for a given project and signal event name.
-/// Used by the signal postprocessor to discover which alert matches a fired event.
-pub async fn get_alert_for_event(
+/// Look up all alerts for a given project and signal event name.
+/// Used by the signal postprocessor to discover which alerts match a fired event.
+/// Multiple alerts can reference the same signal, so all must be returned.
+pub async fn get_alerts_for_event(
     pool: &PgPool,
     project_id: Uuid,
     event_name: &str,
-) -> anyhow::Result<Option<AlertInfo>> {
-    let record = sqlx::query_as::<_, AlertInfo>(
+) -> anyhow::Result<Vec<AlertInfo>> {
+    let records = sqlx::query_as::<_, AlertInfo>(
         r#"
         SELECT a.id AS alert_id, p.workspace_id
         FROM alerts a
@@ -22,15 +23,14 @@ pub async fn get_alert_for_event(
         INNER JOIN projects p ON p.id = a.project_id
         WHERE a.project_id = $1
           AND s.name = $2
-        LIMIT 1
         "#,
     )
     .bind(project_id)
     .bind(event_name)
-    .fetch_optional(pool)
+    .fetch_all(pool)
     .await?;
 
-    Ok(record)
+    Ok(records)
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
