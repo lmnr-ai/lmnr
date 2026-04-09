@@ -279,7 +279,7 @@ impl MessageHandler for NotificationHandler {
         }
 
         let now_ms = chrono::Utc::now().timestamp_millis();
-        let project_id = message.project_id.unwrap_or(Uuid::nil());
+        let message_project_id = message.project_id.unwrap_or(Uuid::nil());
 
         // 1. Persist each notification event to ClickHouse `notifications` table.
         //    Assign a unique ID per notification for logging/auditing.
@@ -289,6 +289,14 @@ impl MessageHandler for NotificationHandler {
         for kind in &message.notifications {
             let notification_id = Uuid::new_v4();
             notification_ids.push(notification_id);
+
+            // For SignalsReport notifications, use the per-project project_id
+            // embedded in the variant. For other kinds, fall back to the
+            // message-level project_id.
+            let project_id = match kind {
+                NotificationKind::SignalsReport { project_id, .. } => *project_id,
+                _ => message_project_id,
+            };
 
             let payload = serde_json::to_string(kind).map_err(|e| {
                 HandlerError::permanent(anyhow::anyhow!(
