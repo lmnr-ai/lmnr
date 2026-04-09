@@ -260,7 +260,7 @@ impl NotificationDeliveryHandler {
             }
             Err(e) => {
                 log::error!("[NotificationDelivery] Failed to send email: {:?}", e);
-                return Err(HandlerError::permanent(anyhow::anyhow!(
+                return Err(HandlerError::transient(anyhow::anyhow!(
                     "Failed to send email: {:?}",
                     e
                 )));
