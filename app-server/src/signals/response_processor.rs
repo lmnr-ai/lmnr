@@ -47,6 +47,7 @@ pub enum StepResult {
     CompletedWithEvent {
         attributes: serde_json::Value,
         summary: String,
+        severity: u8,
     },
     RequiresNextStep {
         reason: NextStepReason,
@@ -154,12 +155,14 @@ pub async fn process_provider_responses(
             StepResult::CompletedWithEvent {
                 attributes,
                 summary,
+                severity,
             } => {
                 match handle_create_event(
                     signal_message,
                     &run,
                     attributes,
                     summary,
+                    severity,
                     clickhouse.clone(),
                     db.clone(),
                     queue.clone(),
@@ -468,10 +471,12 @@ async fn process_single_response(
             StepResult::CompletedWithEvent {
                 attributes,
                 summary,
+                severity,
             } => (
                 StepResult::CompletedWithEvent {
                     attributes,
                     summary,
+                    severity,
                 },
                 new_messages,
             ),
@@ -683,11 +688,23 @@ pub async fn handle_tool_call(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
                 .unwrap_or_default();
+            let severity = function_call
+                .args
+                .as_ref()
+                .and_then(|args| args.get("severity"))
+                .and_then(|v| v.as_str())
+                .map(|s| match s {
+                    "critical" => 2u8,
+                    "warning" => 1u8,
+                    _ => 0u8,
+                })
+                .unwrap_or(0u8);
 
             if identified {
                 StepResult::CompletedWithEvent {
                     attributes,
                     summary,
+                    severity,
                 }
             } else {
                 StepResult::CompletedNoEvent
@@ -706,6 +723,7 @@ pub async fn handle_create_event(
     run: &SignalRun,
     attributes: serde_json::Value,
     summary: String,
+    severity: u8,
     clickhouse: clickhouse::Client,
     db: Arc<DB>,
     queue: Arc<MessageQueue>,
@@ -747,6 +765,7 @@ pub async fn handle_create_event(
         attrs,
         timestamp,
         summary,
+        severity,
     );
     insert_signal_events(clickhouse, vec![signal_event.clone()]).await?;
 
