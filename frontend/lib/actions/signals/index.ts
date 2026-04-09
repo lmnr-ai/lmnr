@@ -8,7 +8,7 @@ import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { alerts, signals, signalTriggers } from "@/lib/db/migrations/schema";
+import { signals, signalTriggers } from "@/lib/db/migrations/schema";
 
 export type SignalRow = {
   id: string;
@@ -253,8 +253,6 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
 export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
   const { projectId, id } = DeleteSignalSchema.parse(input);
 
-  await db.delete(alerts).where(and(eq(alerts.projectId, projectId), eq(alerts.sourceId, id)));
-
   const [result] = await db
     .delete(signals)
     .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
@@ -267,8 +265,6 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
 
 export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) {
   const { projectId, ids } = DeleteSignalsSchema.parse(input);
-
-  await db.delete(alerts).where(and(eq(alerts.projectId, projectId), inArray(alerts.sourceId, ids)));
 
   const events = await db
     .delete(signals)

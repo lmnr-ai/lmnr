@@ -115,7 +115,7 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 
 ## Signals and Alerts
 
-- Alerts reference signals via `alerts.source_id` → `signals.id`. When deleting a signal, always delete associated alerts first (both `deleteSignal` and `deleteSignals` in `frontend/lib/actions/signals/index.ts` handle this).
+- Alerts reference signals via `alerts.source_id` → `signals.id` with `ON DELETE CASCADE` (migration 0080). Associated alerts are automatically deleted by the database when a signal is deleted.
 - The Signals sidebar item is behind a feature flag (`Feature.SIGNALS`) which requires `GOOGLE_GENERATIVE_AI_API_KEY` or AWS Bedrock credentials to be set.
 
 ## Signal Triggers
