@@ -78,7 +78,11 @@ export function useBatchedTraceIO(
     pendingFetch.current.clear();
 
     for (const id of toFetch) fetching.current.add(id);
-    await fetchBatch(toFetch);
+
+    // Server enforces max 100 IDs per request
+    for (let i = 0; i < toFetch.length; i += 100) {
+      await fetchBatch(toFetch.slice(i, i + 100));
+    }
   }, [fetchBatch]);
 
   useEffect(() => {
@@ -107,6 +111,13 @@ export function useBatchedTraceIO(
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(scheduleFetch, debounceMs);
     }
+
+    return () => {
+      if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+    };
   }, [visibleTraceIds, scheduleFetch, debounceMs]);
 
   return { previews };
