@@ -22,6 +22,7 @@ const USAGE_WARNING_FROM_EMAIL: &str = "Laminar <usage@mail.lmnr.ai>";
 pub fn format_email_batch(
     notifications: &[NotificationKind],
     workspace_id: &Uuid,
+    project_id: Option<Uuid>,
 ) -> (String, String, String) {
     if notifications.is_empty() {
         return (String::new(), String::new(), String::new());
@@ -29,7 +30,7 @@ pub fn format_email_batch(
 
     // Single notification — delegate to the type-specific renderer.
     if notifications.len() == 1 {
-        return format_single_email(&notifications[0], workspace_id);
+        return format_single_email(&notifications[0], workspace_id, project_id);
     }
 
     // Multi-notification batch. Currently only reports produce multi-element
@@ -47,23 +48,25 @@ pub fn format_email_batch(
     }
 
     // Fallback: render only the first notification.
-    format_single_email(&notifications[0], workspace_id)
+    format_single_email(&notifications[0], workspace_id, project_id)
 }
 
 /// Format an email for a single notification kind.
-fn format_single_email(kind: &NotificationKind, workspace_id: &Uuid) -> (String, String, String) {
+fn format_single_email(
+    kind: &NotificationKind,
+    workspace_id: &Uuid,
+    project_id: Option<Uuid>,
+) -> (String, String, String) {
     match kind {
         NotificationKind::EventIdentification {
             trace_id,
             event_name,
             extracted_information,
         } => {
-            // For alert emails, the trace link uses workspace_id as a fallback for
-            // the project context. The full project-scoped link is set in the Slack
-            // formatter where project_id is available from the delivery message.
+            let pid = project_id.unwrap_or(*workspace_id);
             let trace_link = format!(
                 "https://lmnr.ai/project/{}/traces/{}?chat=true",
-                workspace_id, trace_id
+                pid, trace_id
             );
             let subject = format!("Alert: {}", event_name);
             let attributes = extracted_information

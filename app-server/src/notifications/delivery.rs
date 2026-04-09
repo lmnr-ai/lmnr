@@ -129,7 +129,7 @@ impl NotificationDeliveryHandler {
         )
         .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
 
-        let blocks = slack::format_message_blocks_batch(&message.notifications);
+        let blocks = slack::format_message_blocks_batch(&message.notifications, message.project_id);
 
         slack::send_message(
             &self.slack_client,
@@ -171,8 +171,11 @@ impl NotificationDeliveryHandler {
         };
 
         // Format the email combining all notifications in the batch.
-        let (from, subject, html) =
-            email::format_email_batch(&message.notifications, &message.workspace_id);
+        let (from, subject, html) = email::format_email_batch(
+            &message.notifications,
+            &message.workspace_id,
+            message.project_id,
+        );
 
         let mut email_opts =
             CreateEmailBaseOptions::new(&from, [recipient.as_str()], &subject).with_html(&html);

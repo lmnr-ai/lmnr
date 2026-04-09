@@ -240,13 +240,16 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
 /// For single-element batches, renders the notification directly.
 /// For multi-element batches (e.g. reports with per-project data),
 /// combines all entries into a single Slack message.
-pub fn format_message_blocks_batch(notifications: &[NotificationKind]) -> serde_json::Value {
+pub fn format_message_blocks_batch(
+    notifications: &[NotificationKind],
+    project_id: Option<Uuid>,
+) -> serde_json::Value {
     if notifications.is_empty() {
         return serde_json::json!([]);
     }
 
     if notifications.len() == 1 {
-        return format_message_blocks_single(&notifications[0]);
+        return format_message_blocks_single(&notifications[0], project_id);
     }
 
     // Multi-notification batch. Currently only reports produce multi-element
@@ -256,21 +259,23 @@ pub fn format_message_blocks_batch(notifications: &[NotificationKind]) -> serde_
     }
 
     // Fallback: render only the first notification.
-    format_message_blocks_single(&notifications[0])
+    format_message_blocks_single(&notifications[0], project_id)
 }
 
 /// Format Slack message blocks from a single `NotificationKind`.
-fn format_message_blocks_single(kind: &NotificationKind) -> serde_json::Value {
+fn format_message_blocks_single(
+    kind: &NotificationKind,
+    project_id: Option<Uuid>,
+) -> serde_json::Value {
     match kind {
         NotificationKind::EventIdentification {
             trace_id,
             event_name,
             extracted_information,
         } => {
-            // project_id is not in the flattened kind; use Uuid::nil as placeholder.
-            // The trace link will be approximate; the full link is in the email formatter.
+            let pid = project_id.unwrap_or(Uuid::nil());
             format_event_identification_blocks(
-                &Uuid::nil().to_string(),
+                &pid.to_string(),
                 &trace_id.to_string(),
                 event_name,
                 extracted_information.clone(),
