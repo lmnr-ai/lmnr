@@ -122,8 +122,8 @@ impl LanguageModelClient for BedrockClient {
             last["cache_control"] = cache_control_ephemeral();
         }
 
-        // Build tool definitions
-        let tools: Vec<Value> = request
+        // Build tool definitions with cache_control on the last tool
+        let mut tools: Vec<Value> = request
             .tools
             .as_ref()
             .map(|tool_groups| {
@@ -140,6 +140,11 @@ impl LanguageModelClient for BedrockClient {
                     .collect()
             })
             .unwrap_or_default();
+        if let Some(last) = tools.last_mut() {
+            if let Some(obj) = last.as_object_mut() {
+                obj.insert("cache_control".to_string(), cache_control_ephemeral());
+            }
+        }
 
         // Build messages, placing cache_control on the last block of the first user message
         let mut messages: Vec<Value> = Vec::new();
