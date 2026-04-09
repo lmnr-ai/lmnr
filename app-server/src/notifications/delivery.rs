@@ -118,7 +118,7 @@ impl MessageHandler for NotificationDeliveryHandler {
                     let project_id = match kind {
                         NotificationKind::EventIdentification { project_id, .. } => *project_id,
                         NotificationKind::SignalsReport { project_id, .. } => *project_id,
-                        _ => Uuid::nil(), // some notifications are workspace-level
+                        NotificationKind::UsageWarning { .. } => Uuid::nil(),
                     };
                     CHNotificationDelivery {
                         workspace_id: message.workspace_id,

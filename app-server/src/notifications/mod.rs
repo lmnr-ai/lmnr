@@ -225,7 +225,7 @@ impl MessageHandler for NotificationHandler {
             let project_id = match kind {
                 NotificationKind::EventIdentification { project_id, .. } => *project_id,
                 NotificationKind::SignalsReport { project_id, .. } => *project_id,
-                _ => Uuid::nil(), // some notifications are workspace-level
+                NotificationKind::UsageWarning { .. } => Uuid::nil(),
             };
 
             let payload = serde_json::to_string(kind).map_err(|e| {
