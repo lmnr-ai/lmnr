@@ -190,7 +190,9 @@ impl NotificationDeliveryHandler {
             &integration.nonce_hex,
             &integration.token,
         )
-        .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
+        .map_err(|e| {
+            HandlerError::transient(anyhow::anyhow!("Failed to decode Slack token: {}", e))
+        })?;
 
         let blocks =
             slack::format_message_blocks_batch(&message.notifications, message.workspace_id);
