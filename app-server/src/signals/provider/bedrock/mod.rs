@@ -34,6 +34,20 @@ impl LanguageModelClient for BedrockClient {
         model: &str,
         request: &ProviderRequest,
     ) -> ProviderResult<ProviderResponse> {
+        // Compute thinking_enabled early because extended thinking and prompt
+        // caching are incompatible on Bedrock's Anthropic models.
+        let thinking_enabled = request
+            .generation_config
+            .as_ref()
+            .and_then(|gc| gc.thinking_config.as_ref())
+            .and_then(|tc| tc.thinking_level.as_ref())
+            .is_some_and(|level| {
+                !matches!(
+                    level,
+                    super::models::ProviderThinkingLevel::ThinkingLevelUnspecified
+                )
+            });
+
         let mut messages = Vec::new();
         for content in &request.contents {
             let role = match content.role.as_deref().unwrap_or("user") {
@@ -96,19 +110,22 @@ impl LanguageModelClient for BedrockClient {
         // Add cache points to enable Bedrock prompt caching for supported
         // Anthropic Claude models (Opus 4, Sonnet 4, and newer).
         // Non-supported models will return an API error which is propagated to callers.
-        if let Some(last_msg) = messages.last() {
-            let mut blocks = last_msg.content().to_vec();
-            let cache_point = build_cache_point()?;
-            blocks.push(ContentBlock::CachePoint(cache_point));
+        // Cache points are incompatible with extended thinking, so skip when enabled.
+        if !thinking_enabled {
+            if let Some(last_msg) = messages.last() {
+                let mut blocks = last_msg.content().to_vec();
+                let cache_point = build_cache_point()?;
+                blocks.push(ContentBlock::CachePoint(cache_point));
 
-            let updated_msg = Message::builder()
-                .role(last_msg.role().clone())
-                .set_content(Some(blocks))
-                .build()
-                .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+                let updated_msg = Message::builder()
+                    .role(last_msg.role().clone())
+                    .set_content(Some(blocks))
+                    .build()
+                    .map_err(|e| ProviderError::RequestError(e.to_string()))?;
 
-            let len = messages.len();
-            messages[len - 1] = updated_msg;
+                let len = messages.len();
+                messages[len - 1] = updated_msg;
+            }
         }
 
         let mut req_builder = self
@@ -126,7 +143,7 @@ impl LanguageModelClient for BedrockClient {
                     }
                 }
             }
-            if !sys_blocks.is_empty() {
+            if !sys_blocks.is_empty() && !thinking_enabled {
                 let cache_point = build_cache_point()?;
                 sys_blocks.push(SystemContentBlock::CachePoint(cache_point));
             }
@@ -150,8 +167,10 @@ impl LanguageModelClient for BedrockClient {
             }
 
             if !bedrock_tools.is_empty() {
-                let cache_point = build_cache_point()?;
-                bedrock_tools.push(Tool::CachePoint(cache_point));
+                if !thinking_enabled {
+                    let cache_point = build_cache_point()?;
+                    bedrock_tools.push(Tool::CachePoint(cache_point));
+                }
 
                 let tool_config = aws_sdk_bedrockruntime::types::ToolConfiguration::builder()
                     .set_tools(Some(bedrock_tools))
@@ -161,18 +180,6 @@ impl LanguageModelClient for BedrockClient {
                 req_builder = req_builder.tool_config(tool_config);
             }
         }
-
-        let thinking_enabled = request
-            .generation_config
-            .as_ref()
-            .and_then(|gc| gc.thinking_config.as_ref())
-            .and_then(|tc| tc.thinking_level.as_ref())
-            .is_some_and(|level| {
-                !matches!(
-                    level,
-                    super::models::ProviderThinkingLevel::ThinkingLevelUnspecified
-                )
-            });
 
         let thinking_budget = if thinking_enabled {
             request
