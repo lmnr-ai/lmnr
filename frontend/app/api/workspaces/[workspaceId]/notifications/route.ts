@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, props: { params: Promise<{ works
     if (!(await isProjectInWorkspace(projectId, workspaceId))) {
       return NextResponse.json({ error: "Project does not belong to this workspace" }, { status: 400 });
     }
-    const result = await getWebNotifications({ workspaceId, userId, projectId });
+    const result = await getWebNotifications({ userId, projectId });
     return NextResponse.json(result);
   } catch (error) {
     console.error(error);

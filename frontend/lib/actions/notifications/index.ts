@@ -7,8 +7,8 @@ import { notificationReads } from "@/lib/db/migrations/schema";
 
 export interface WebNotification {
   id: string;
-  workspaceId: string;
   projectId: string;
+  workspaceId: string;
   definitionType: string;
   definitionId: string;
   payload: string;
@@ -17,9 +17,8 @@ export interface WebNotification {
 }
 
 const GetWebNotificationsSchema = z.object({
-  workspaceId: z.guid(),
-  userId: z.guid(),
   projectId: z.guid(),
+  userId: z.guid(),
   limit: z.number().int().positive().optional().default(30),
 });
 
@@ -32,27 +31,25 @@ const MarkNotificationAsReadSchema = z.object({
 export const getWebNotifications = async (
   input: z.input<typeof GetWebNotificationsSchema>
 ): Promise<WebNotification[]> => {
-  const { workspaceId, userId, projectId, limit } = GetWebNotificationsSchema.parse(input);
+  const { projectId, userId, limit } = GetWebNotificationsSchema.parse(input);
 
   const result = await clickhouseClient.query({
     query: `
       SELECT
-        id,
-        workspace_id as workspaceId,
+        notification_id as id,
         project_id as projectId,
+        workspace_id as workspaceId,
         definition_type as definitionType,
         definition_id as definitionId,
         payload,
         formatDateTime(created_at, '%Y-%m-%dT%H:%i:%S.%fZ') as createdAt
-      FROM notification_logs
-      WHERE workspace_id = {workspaceId: UUID}
-        AND target_type = 'WEB'
-        AND definition_type = 'REPORT'
+      FROM notifications
+      WHERE project_id = {projectId: UUID}
         AND created_at >= now() - INTERVAL 1 MONTH
       ORDER BY created_at DESC
       LIMIT {limit: UInt32}
     `,
-    query_params: { workspaceId, limit },
+    query_params: { projectId, limit },
     format: "JSONEachRow",
   });
 

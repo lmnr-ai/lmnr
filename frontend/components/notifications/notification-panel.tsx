@@ -17,25 +17,17 @@ interface NoteworthyEvent {
   trace_id: string;
 }
 
-interface ReportProject {
-  project_name: string;
+interface SignalsReport {
+  workspace_name: string;
   project_id: string;
+  project_name: string;
+  title: string;
+  period_label: string;
+  period_start: string;
+  period_end: string;
   signal_event_counts: Record<string, number>;
   ai_summary: string;
   noteworthy_events: NoteworthyEvent[];
-}
-
-interface ReportPayload {
-  title: string;
-  report: {
-    workspace_id: string;
-    workspace_name: string;
-    period_label: string;
-    period_start: string;
-    period_end: string;
-    total_events: number;
-    projects: ReportProject[];
-  };
 }
 
 interface FormattedNotification {
@@ -46,17 +38,16 @@ interface FormattedNotification {
 }
 
 // TODO: refactor this to have a more generic notification format, currently implemented only for signal events reports
-export const formatNotification = (notification: WebNotification, projectId?: string): FormattedNotification | null => {
+export const formatNotification = (notification: WebNotification): FormattedNotification | null => {
   try {
-    const payload: ReportPayload = JSON.parse(notification.payload);
-    const report = payload.report;
-    const project = projectId ? report.projects.find((p) => p.project_id === projectId) : undefined;
-    const periodStartMs = new Date(report.period_start).getTime();
-    const periodEndMs = new Date(report.period_end).getTime();
-
-    if (projectId && !project) {
+    const payload: { SignalsReport: SignalsReport } = JSON.parse(notification.payload);
+    const report = payload.SignalsReport;
+    if (!report) {
       return null;
     }
+
+    const periodStartMs = new Date(report.period_start).getTime();
+    const periodEndMs = new Date(report.period_end).getTime();
 
     // Hide weekly-style rollups to avoid duplicating info already shown by daily reports.
     if (!Number.isNaN(periodStartMs) && !Number.isNaN(periodEndMs)) {
@@ -66,12 +57,8 @@ export const formatNotification = (notification: WebNotification, projectId?: st
       }
     }
 
-    const events = project
-      ? Object.values(project.signal_event_counts).reduce((a, b) => a + b, 0)
-      : report.total_events;
-    const signalCount = project
-      ? Object.keys(project.signal_event_counts).length
-      : report.projects.reduce((acc, p) => acc + Object.keys(p.signal_event_counts).length, 0);
+    const events = Object.values(report.signal_event_counts).reduce((a, b) => a + b, 0);
+    const signalCount = Object.keys(report.signal_event_counts).length;
     const periodType = (() => {
       if (Number.isNaN(periodStartMs) || Number.isNaN(periodEndMs)) {
         return "selected period";
@@ -84,11 +71,11 @@ export const formatNotification = (notification: WebNotification, projectId?: st
       return "day";
     })();
 
-    const aiSummary = project?.ai_summary ?? null;
-    const noteworthyEvents = project ? project.noteworthy_events : report.projects.flatMap((p) => p.noteworthy_events);
+    const aiSummary = report.ai_summary || null;
+    const noteworthyEvents = report.noteworthy_events ?? [];
 
     return {
-      title: `Signal Events Summary`,
+      title: report.title || "Signal Events Summary",
       summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} in the last ${periodType}`,
       aiSummary,
       noteworthyEvents,
@@ -228,7 +215,7 @@ const NotificationPanel = () => {
   const formattedNotifications = notifications
     ?.map((n) => ({
       notification: n,
-      formatted: formatNotification(n, project?.id),
+      formatted: formatNotification(n),
     }))
     .filter(
       (item): item is { notification: WebNotification; formatted: FormattedNotification } => item.formatted !== null

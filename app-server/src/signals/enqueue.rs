@@ -92,6 +92,7 @@ async fn create_signal_run_and_message(
         event_id: None,
         error_message: None,
         mode: super::SignalMode::from_u8(mode),
+        steps_processed: 0,
     };
 
     let message = SignalMessage {
@@ -107,6 +108,7 @@ async fn create_signal_run_and_message(
         retry_count: 0,
         request_start_time: Utc::now(),
         mode,
+        steps_processed: 0,
     };
 
     (signal_run, message)

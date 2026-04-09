@@ -21,8 +21,8 @@ use crate::db::workspaces::get_workspace;
 use crate::mq::MessageQueue;
 use crate::mq::utils::mq_max_payload;
 use crate::notifications::{
-    EmailPayload, NotificationDefinitionType, NotificationMessage, NotificationType, ReportPayload,
-    TargetType, push_to_notification_queue,
+    EmailPayload, NotificationDefinitionType, NotificationMessage, ReportPayload, TargetType,
+    push_to_notification_queue,
 };
 use crate::signals::provider::models::{
     ProviderFunctionDeclaration, ProviderGenerationConfig, ProviderTool,
@@ -243,50 +243,6 @@ async fn process_report_trigger(
 
     let email_report = render_report_email(&report_data);
 
-    let title = format!("{} – {}", report_name, workspace_name);
-
-    // Push a WEB notification so the report is available in the UI notification panel.
-    // This runs before the targets check because WEB targets are not stored in the
-    // database and should always be sent when there are signal events to report.
-    {
-        let web_payload = ReportPayload {
-            title: title.clone(),
-            report: report_data.clone(),
-            channel_id: String::new(),
-            integration_id: Uuid::nil(),
-        };
-        let web_payload_value = serde_json::to_value(&web_payload)
-            .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?;
-
-        let web_notification = NotificationMessage {
-            notification_type: NotificationType::Web,
-            payload: web_payload_value,
-            project_id: Uuid::nil(),
-            workspace_id,
-            definition_type: NotificationDefinitionType::Report,
-            definition_id: report_id,
-            target_id: Uuid::nil(),
-            target_type: TargetType::Web.to_string(),
-        };
-
-        let serialized_size = serde_json::to_vec(&web_notification)
-            .map(|v| v.len())
-            .unwrap_or(0);
-        if serialized_size >= mq_max_payload() {
-            log::error!(
-                "[Reports Generator] MQ payload limit exceeded for WEB notification. payload size: [{}], workspace: [{}]",
-                serialized_size,
-                workspace_id,
-            );
-        } else if let Err(e) = push_to_notification_queue(web_notification, queue.clone()).await {
-            log::error!(
-                "[Reports Generator] Failed to push WEB report notification for workspace {}: {:?}",
-                workspace_id,
-                e
-            );
-        }
-    }
-
     // Fetch all notification targets
     let targets = get_report_targets(&db.pool, &report_id, &workspace_id)
         .await
@@ -300,6 +256,8 @@ async fn process_report_trigger(
         );
         return Ok(());
     }
+
+    let title = format!("{} – {}", report_name, workspace_name);
 
     // Push notifications to all targets
     let mut processed = 0;
@@ -351,10 +309,6 @@ async fn process_report_trigger(
                 };
                 serde_json::to_value(&payload)
                     .map_err(|e| HandlerError::permanent(anyhow::anyhow!(e)))?
-            }
-            TargetType::Web => {
-                // Web targets are not stored in the database; skip if encountered.
-                continue;
             }
         };
 
@@ -532,8 +486,8 @@ async fn generate_project_summary(
         generation_config: Some(ProviderGenerationConfig {
             temperature: Some(1.0),
             thinking_config: Some(ProviderThinkingConfig {
+                include_thoughts: Some(true),
                 thinking_level: Some(ProviderThinkingLevel::Medium),
-                ..Default::default()
             }),
             ..Default::default()
         }),

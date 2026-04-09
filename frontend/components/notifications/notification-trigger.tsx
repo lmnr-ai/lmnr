@@ -16,7 +16,7 @@ const NotificationTrigger = () => {
   const swrKey = workspace && project ? `/api/workspaces/${workspace.id}/notifications?projectId=${project.id}` : null;
   const { data: notifications } = useSWR<WebNotification[]>(swrKey, swrFetcher);
 
-  const hasUnread = notifications?.some((n) => !n.isRead && formatNotification(n, project?.id) !== null) ?? false;
+  const hasUnread = notifications?.some((n) => !n.isRead && formatNotification(n) !== null) ?? false;
 
   return (
     <button

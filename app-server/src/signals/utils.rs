@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::Utc;
 use regex::Regex;
 use serde_json::Value;
+use sha3::{Digest, Sha3_256};
 use std::{collections::HashMap, sync::Arc, sync::LazyLock};
 use uuid::Uuid;
 
@@ -133,6 +134,47 @@ pub struct InternalSpan {
     pub provider_batch_id: Option<String>,
     pub metadata: Option<HashMap<String, Value>>,
     pub tools: Option<Value>,
+}
+
+static XML_TAG_NAME_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"<(\w+)[\s/>]").unwrap());
+
+/// Hash a system prompt by its structural skeleton: first sentence + sorted XML tag names.
+/// Resistant to dynamic content inside tags (config values, user context, tool lists)
+/// while preserving the stable identity of the prompt template.
+pub fn structural_skeleton_hash(text: &str) -> String {
+    // Extract first sentence from original text (before whitespace normalization
+    // destroys newline boundaries). Cut at the first '.' or '\n' after 20+ chars.
+    let raw_first_sentence = text
+        .char_indices()
+        .find(|(i, c)| *i >= 20 && (*c == '.' || *c == '\n'))
+        .map(|(i, _)| &text[..i])
+        .unwrap_or_else(|| {
+            let end = text
+                .char_indices()
+                .nth(200)
+                .map(|(i, _)| i)
+                .unwrap_or(text.len());
+            &text[..end]
+        });
+
+    let first_sentence = raw_first_sentence
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+
+    // Extract unique XML/HTML tag names (lowercased to match normalized first_sentence)
+    let mut tag_names: Vec<String> = XML_TAG_NAME_RE
+        .captures_iter(text)
+        .map(|cap| cap.get(1).unwrap().as_str().to_lowercase())
+        .collect();
+    tag_names.sort();
+    tag_names.dedup();
+
+    let skeleton = format!("{}|{}", first_sentence, tag_names.join(","));
+    let digest = Sha3_256::digest(skeleton.as_bytes());
+    format!("{:x}", digest)[..8].to_string()
 }
 
 /// Try to parse JSON string, return the parsed value or the original string
@@ -638,5 +680,168 @@ mod tests {
         let s = result.as_str().unwrap();
         assert!(s.contains("[openai.chat]"), "XML tag should produce named link: {}", s);
         assert!(s.contains(&format!("spanId={}", uuid)));
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_stable_across_dynamic_content() {
+        let prompt_v1 = r#"You are an AI agent designed to automate browser tasks.
+<agent_configuration>
+Model: browser-use-llm
+Proxy: enabled
+Vision: enabled
+</agent_configuration>
+<rules>
+Do not fabricate data.
+</rules>"#;
+
+        let prompt_v2 = r#"You are an AI agent designed to automate browser tasks.
+<agent_configuration>
+Model: gpt-4o
+Proxy: disabled
+Vision: disabled
+</agent_configuration>
+<rules>
+Do not fabricate data.
+</rules>"#;
+
+        assert_eq!(
+            structural_skeleton_hash(prompt_v1),
+            structural_skeleton_hash(prompt_v2),
+            "Same template with different config values should produce the same skeleton hash"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_differs_for_different_agents() {
+        let browser_agent = r#"You are an AI agent designed to automate browser tasks.
+<agent_configuration>Model: x</agent_configuration>
+<rules>Click things</rules>"#;
+
+        let code_agent = r#"You are Claude Code, an AI coding assistant.
+<instructions>Write code</instructions>
+<tools>bash, read, write</tools>"#;
+
+        assert_ne!(
+            structural_skeleton_hash(browser_agent),
+            structural_skeleton_hash(code_agent),
+            "Different agents should produce different skeleton hashes"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_no_tags() {
+        let plain_v1 = "You are a helpful customer support agent. Answer questions politely. Use the knowledge base.";
+        let plain_v2 = "You are a helpful customer support agent. Answer questions politely. Be concise.";
+
+        assert_eq!(
+            structural_skeleton_hash(plain_v1),
+            structural_skeleton_hash(plain_v2),
+            "Same first sentence with no tags should produce the same hash"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_case_insensitive() {
+        let lower = "You are an AI assistant.\n<rules>be helpful</rules>";
+        let upper = "YOU ARE AN AI ASSISTANT.\n<RULES>BE HELPFUL</RULES>";
+
+        assert_eq!(
+            structural_skeleton_hash(lower),
+            structural_skeleton_hash(upper),
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_newline_boundary() {
+        // First sentence should stop at \n, not include tag content
+        let prompt_a = "You are a browser automation agent\n<config>Model: gpt-4</config>";
+        let prompt_b = "You are a browser automation agent\n<config>Model: claude-3</config>";
+
+        assert_eq!(
+            structural_skeleton_hash(prompt_a),
+            structural_skeleton_hash(prompt_b),
+            "Newline should terminate first sentence before dynamic tag content"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_period_boundary() {
+        // First sentence stops at period; content after differs
+        let v1 = "You are a helpful coding assistant. Today is Monday. User: Alice.";
+        let v2 = "You are a helpful coding assistant. Today is Friday. User: Bob.";
+
+        assert_eq!(
+            structural_skeleton_hash(v1),
+            structural_skeleton_hash(v2),
+            "Only first sentence (up to first period) should matter"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_whitespace_normalization() {
+        let spaced = "You   are  an   AI   assistant.\n<rules>  help  </rules>";
+        let compact = "You are an AI assistant.\n<rules>help</rules>";
+
+        assert_eq!(
+            structural_skeleton_hash(spaced),
+            structural_skeleton_hash(compact),
+            "Extra whitespace in first sentence should not affect hash"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_short_prompt_fallback() {
+        // Less than 20 chars before any boundary -- uses 200-char fallback
+        let short = "Be helpful.";
+        let hash = structural_skeleton_hash(short);
+        assert_eq!(hash.len(), 8, "Should still produce an 8-char hash");
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_tag_order_irrelevant() {
+        let order_a = "You are an AI agent for testing.\n<beta>x</beta>\n<alpha>y</alpha>";
+        let order_b = "You are an AI agent for testing.\n<alpha>z</alpha>\n<beta>w</beta>";
+
+        assert_eq!(
+            structural_skeleton_hash(order_a),
+            structural_skeleton_hash(order_b),
+            "Tag order should not affect hash (tags are sorted)"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_duplicate_tags() {
+        let single = "You are an AI agent for testing.\n<rules>rule 1</rules>";
+        let duped = "You are an AI agent for testing.\n<rules>rule 1</rules>\n<rules>rule 2</rules>";
+
+        assert_eq!(
+            structural_skeleton_hash(single),
+            structural_skeleton_hash(duped),
+            "Duplicate tag names should be deduped"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_same_sentence_different_tags() {
+        let with_rules = "You are an AI agent for testing.\n<rules>be safe</rules>";
+        let with_tools = "You are an AI agent for testing.\n<tools>search, read</tools>";
+
+        assert_ne!(
+            structural_skeleton_hash(with_rules),
+            structural_skeleton_hash(with_tools),
+            "Same sentence but different tag names should produce different hashes"
+        );
+    }
+
+    #[test]
+    fn test_structural_skeleton_hash_self_closing_tags() {
+        let normal = "You are an AI agent for testing.\n<config>stuff</config>";
+        let self_closing = "You are an AI agent for testing.\n<config />";
+
+        assert_eq!(
+            structural_skeleton_hash(normal),
+            structural_skeleton_hash(self_closing),
+            "Self-closing tags should extract the same tag name"
+        );
     }
 }

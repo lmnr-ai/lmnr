@@ -85,10 +85,6 @@ pub async fn process_event_notifications_and_clustering(
                 };
                 serde_json::to_value(&payload)?
             }
-            TargetType::Web => {
-                // Web targets are not stored in alert_targets; skip if encountered.
-                continue;
-            }
         };
 
         let notification_message = notifications::NotificationMessage {

@@ -64,6 +64,7 @@ impl SignalJobRealtimeHandler {
 impl MessageHandler for SignalJobRealtimeHandler {
     type Message = SignalMessage;
 
+    #[tracing::instrument(skip_all, name = "realtime_handle")]
     async fn handle(&self, message: Self::Message) -> Result<(), HandlerError> {
         let project_id = message.project_id;
         let signal = &message.signal;
@@ -79,6 +80,8 @@ impl MessageHandler for SignalJobRealtimeHandler {
             self.clickhouse.clone(),
             self.cache.clone(),
             self.llm_client.clone(),
+            self.queue.clone(),
+            &self.config,
         )
         .await
         {
@@ -86,9 +89,13 @@ impl MessageHandler for SignalJobRealtimeHandler {
                 request,
                 new_messages,
                 request_start_time,
+                steps_processed,
             }) => {
                 let mut updated_message = message.clone();
                 updated_message.request_start_time = request_start_time;
+                if steps_processed > 0 {
+                    updated_message.steps_processed = steps_processed;
+                }
 
                 if !new_messages.is_empty() {
                     insert_signal_run_messages(self.clickhouse.clone(), &new_messages)
@@ -157,6 +164,7 @@ impl SignalJobRealtimeHandler {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn process_realtime_request(
         &self,
         request: crate::signals::provider::models::ProviderRequest,
@@ -170,23 +178,26 @@ impl SignalJobRealtimeHandler {
         let req_clone = request.clone();
 
         let generate_fn = || async {
-            llm_client
-                .generate_content(&req_clone)
-                .await
-                .map_err(|e| {
-                    if e.is_retryable() {
-                        backoff::Error::transient(e)
-                    } else {
-                        backoff::Error::permanent(e)
-                    }
-                })
+            llm_client.generate_content(&req_clone).await.map_err(|e| {
+                if e.is_retryable() {
+                    backoff::Error::transient(e)
+                } else {
+                    backoff::Error::permanent(e)
+                }
+            })
         };
 
         match backoff::future::retry(backoff, generate_fn).await {
             Ok(response) => {
                 emit_internal_span(
                     self.queue.clone(),
-                    Self::build_submit_span(&message, &self.config, span_input.clone(), span_tools.clone(), None),
+                    Self::build_submit_span(
+                        &message,
+                        &self.config,
+                        span_input.clone(),
+                        span_tools.clone(),
+                        None,
+                    ),
                 )
                 .await;
                 let inline_response = ProviderInlineResponse {
@@ -357,8 +368,8 @@ mod tests {
     use crate::mq::{
         MessageQueue, MessageQueueDeliveryTrait, MessageQueueReceiverTrait, MessageQueueTrait,
     };
-    use crate::signals::provider::mock::{GenerateFailureMode, MockProviderClient};
     use crate::signals::provider::ProviderClient;
+    use crate::signals::provider::mock::{GenerateFailureMode, MockProviderClient};
     use crate::signals::provider::models::ProviderRequest;
     use crate::signals::queue::{SIGNALS_REALTIME_EXCHANGE, SIGNALS_REALTIME_ROUTING_KEY};
     use std::time::Duration;
@@ -411,6 +422,7 @@ mod tests {
             retry_count,
             request_start_time: chrono::Utc::now(),
             mode: 1,
+            steps_processed: 0,
         }
     }
 
