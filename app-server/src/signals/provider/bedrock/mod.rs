@@ -93,14 +93,12 @@ impl LanguageModelClient for BedrockClient {
             messages.push(msg);
         }
 
-        // Add a cache point to the last message's content to cache the full
-        // conversation history prefix on multi-turn requests.
+        // Add cache points to enable Bedrock prompt caching for supported
+        // Anthropic Claude models (Opus 4, Sonnet 4, and newer).
+        // Non-supported models will return an API error which is propagated to callers.
         if let Some(last_msg) = messages.last() {
             let mut blocks = last_msg.content().to_vec();
-            let cache_point = CachePointBlock::builder()
-                .r#type(CachePointType::Default)
-                .build()
-                .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+            let cache_point = build_cache_point()?;
             blocks.push(ContentBlock::CachePoint(cache_point));
 
             let updated_msg = Message::builder()
@@ -129,10 +127,7 @@ impl LanguageModelClient for BedrockClient {
                 }
             }
             if !sys_blocks.is_empty() {
-                let cache_point = CachePointBlock::builder()
-                    .r#type(CachePointType::Default)
-                    .build()
-                    .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+                let cache_point = build_cache_point()?;
                 sys_blocks.push(SystemContentBlock::CachePoint(cache_point));
             }
             req_builder = req_builder.set_system(Some(sys_blocks));
@@ -155,10 +150,7 @@ impl LanguageModelClient for BedrockClient {
             }
 
             if !bedrock_tools.is_empty() {
-                let cache_point = CachePointBlock::builder()
-                    .r#type(CachePointType::Default)
-                    .build()
-                    .map_err(|e| ProviderError::RequestError(e.to_string()))?;
+                let cache_point = build_cache_point()?;
                 bedrock_tools.push(Tool::CachePoint(cache_point));
 
                 let tool_config = aws_sdk_bedrockruntime::types::ToolConfiguration::builder()
@@ -309,6 +301,13 @@ impl LanguageModelClient for BedrockClient {
             model_version: Some(model.to_string()),
         })
     }
+}
+
+fn build_cache_point() -> Result<CachePointBlock, ProviderError> {
+    CachePointBlock::builder()
+        .r#type(CachePointType::Default)
+        .build()
+        .map_err(|e| ProviderError::RequestError(e.to_string()))
 }
 
 fn thinking_level_to_budget(level: &super::models::ProviderThinkingLevel) -> u64 {
