@@ -238,8 +238,10 @@ pub async fn finalize_runs(
             let cache = cache.clone();
             let queue = queue.clone();
             async move {
-                if let Err(e) =
-                    update_workspace_signal_runs_used(db, clickhouse, cache, queue, project_id, runs).await
+                if let Err(e) = update_workspace_signal_runs_used(
+                    db, clickhouse, cache, queue, project_id, runs,
+                )
+                .await
                 {
                     log::error!("Failed to update workspace signal runs used: {}", e);
                 }
@@ -696,9 +698,16 @@ pub async fn handle_tool_call(
                 .map(|s| match s {
                     "critical" => 2u8,
                     "warning" => 1u8,
-                    _ => 0u8,
+                    "info" => 0u8,
+                    other => {
+                        log::warn!(
+                            "Unknown severity value '{}', defaulting to warning (1)",
+                            other
+                        );
+                        1u8
+                    }
                 })
-                .unwrap_or(0u8);
+                .unwrap_or(1u8);
 
             if identified {
                 StepResult::CompletedWithEvent {

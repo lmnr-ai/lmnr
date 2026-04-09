@@ -126,7 +126,7 @@ pub fn build_tool_definitions(output_schema: &Value) -> ProviderTool {
                         "description": "REQUIRED when identified=true. The severity of the identified event. 'critical' = system failures or problems with severe user impact that demand immediate attention. 'warning' = degraded behavior, notable issues, or problems that should be reviewed soon. 'info' = minor observations, expected edge cases, or low-impact findings."
                     }
                 },
-                "required": ["identified"]
+                "required": ["identified", "severity"]
             }),
         },
     ];
