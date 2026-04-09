@@ -61,26 +61,17 @@ function SessionsTableContent() {
     shallow
   );
 
-  const {
-    toggleSession,
-    collapseSession,
-    setLoadingSession,
-    setSessionTraces,
-    mergeTraceIO,
-    setLoadingSessionIO,
-    resetExpandState,
-  } = useSessionsStoreContext(
-    (state) => ({
-      toggleSession: state.toggleSession,
-      collapseSession: state.collapseSession,
-      setLoadingSession: state.setLoadingSession,
-      setSessionTraces: state.setSessionTraces,
-      mergeTraceIO: state.mergeTraceIO,
-      setLoadingSessionIO: state.setLoadingSessionIO,
-      resetExpandState: state.resetExpandState,
-    }),
-    shallow
-  );
+  const { toggleSession, collapseSession, setLoadingSession, setSessionTraces, resetExpandState } =
+    useSessionsStoreContext(
+      (state) => ({
+        toggleSession: state.toggleSession,
+        collapseSession: state.collapseSession,
+        setLoadingSession: state.setLoadingSession,
+        setSessionTraces: state.setSessionTraces,
+        resetExpandState: state.resetExpandState,
+      }),
+      shallow
+    );
 
   // Serialize filter array for stable dependency comparison
   const filterKey = JSON.stringify(filter);
@@ -188,45 +179,11 @@ function SessionsTableContent() {
 
         setSessionTraces(sessionId, traces.items);
         setLoadingSession(sessionId, false);
-
-        const traceIds = traces.items.filter((t) => t.totalTokens > 0).map((t) => t.id);
-        if (traceIds.length > 0) {
-          setLoadingSessionIO(sessionId, true);
-          try {
-            const ioRes = await fetch(`/api/projects/${projectId}/traces/io`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ traceIds }),
-              signal: controller.signal,
-            });
-            if (controller.signal.aborted) return;
-            if (ioRes.ok) {
-              const ioData = (await ioRes.json()) as Record<string, { input: string | null; output: string | null }>;
-              if (!controller.signal.aborted) {
-                mergeTraceIO(ioData);
-              }
-            } else {
-              const errMessage = await ioRes
-                .json()
-                .then((d: { error?: string }) => d?.error)
-                .catch(() => null);
-              toast({
-                variant: "destructive",
-                title: "Error",
-                description: errMessage ?? "Failed to load trace previews. Please try again.",
-              });
-            }
-          } catch (ioError) {
-            if (ioError instanceof DOMException && ioError.name === "AbortError") return;
-          } finally {
-            setLoadingSessionIO(sessionId, false);
-          }
-        }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "Failed to load trace previews. Please try again.",
+          description: error instanceof Error ? error.message : "Failed to load traces. Please try again.",
           variant: "destructive",
         });
         collapseSession(sessionId);
@@ -242,8 +199,6 @@ function SessionsTableContent() {
       toggleSession,
       setLoadingSession,
       setSessionTraces,
-      mergeTraceIO,
-      setLoadingSessionIO,
       collapseSession,
     ]
   );

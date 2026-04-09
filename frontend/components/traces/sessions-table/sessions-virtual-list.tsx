@@ -3,6 +3,7 @@
 import { defaultRangeExtractor, type Range, useVirtualizer } from "@tanstack/react-virtual";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
+import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { type SessionRow as SessionRowType, type TraceRow } from "@/lib/traces/types";
@@ -12,6 +13,7 @@ import SessionRowComponent from "./session-row";
 import SessionTableHeader, { type SessionSortColumn, type SortDirection } from "./session-table-header";
 import SessionTraceCard from "./session-trace-card";
 import TraceSectionHeader from "./trace-section-header";
+import { type TraceIOEntry, useBatchedTraceIO } from "./use-batched-trace-io";
 
 const SESSION_HEADER_HEIGHT = 36;
 
@@ -74,6 +76,7 @@ export default function SessionsVirtualList({
   onSort,
   onClearSort,
 }: SessionsVirtualListProps) {
+  const { projectId } = useParams<{ projectId: string }>();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -174,6 +177,23 @@ export default function SessionsVirtualList({
     rangeExtractor,
   });
 
+  const virtualItems = virtualizer.getVirtualItems();
+  const rangeStart = virtualItems[0]?.index ?? 0;
+  const rangeEnd = virtualItems[virtualItems.length - 1]?.index ?? 0;
+
+  const visibleTraceIds = useMemo(() => {
+    const ids: string[] = [];
+    for (let i = rangeStart; i <= rangeEnd; i++) {
+      const item = flatList[i];
+      if (item?.type === "trace-card" && item.trace.totalTokens > 0) {
+        ids.push(item.trace.id);
+      }
+    }
+    return ids;
+  }, [rangeStart, rangeEnd, flatList]);
+
+  const { previews: traceIOPreviews } = useBatchedTraceIO(projectId, visibleTraceIds);
+
   // IntersectionObserver for infinite scroll
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -217,7 +237,9 @@ export default function SessionsVirtualList({
               <TraceSectionHeader />
             </motion.div>
           );
-        case "trace-card":
+        case "trace-card": {
+          const io: TraceIOEntry | null | undefined = traceIOPreviews[item.trace.id];
+          const ioLoading = item.trace.totalTokens > 0 && io === undefined;
           return (
             <motion.div
               initial={{ height: 120, opacity: 0.5 }}
@@ -225,9 +247,16 @@ export default function SessionsVirtualList({
               transition={itemTransition}
               style={{ overflow: "hidden" }}
             >
-              <SessionTraceCard trace={item.trace} isLast={item.isLast} onClick={() => onTraceClick(item.trace.id)} />
+              <SessionTraceCard
+                trace={item.trace}
+                isLast={item.isLast}
+                onClick={() => onTraceClick(item.trace.id)}
+                traceIO={io ?? undefined}
+                isIOLoading={ioLoading}
+              />
             </motion.div>
           );
+        }
         case "trace-loading":
           return (
             <motion.div
@@ -257,7 +286,7 @@ export default function SessionsVirtualList({
           );
       }
     },
-    [expandedSessions, onToggleSession, onTraceClick]
+    [expandedSessions, onToggleSession, onTraceClick, traceIOPreviews]
   );
 
   const showList = !isLoading && sessions.length > 0;

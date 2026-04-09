@@ -3,7 +3,6 @@
 import { TooltipPortal } from "@radix-ui/react-tooltip";
 import { ChevronDown, ChevronUp, CircleDollarSign, Clock3, Coins } from "lucide-react";
 import { useState } from "react";
-import { shallow } from "zustand/shallow";
 
 import Markdown from "@/components/traces/trace-view/list/markdown";
 import CopyTooltip from "@/components/ui/copy-tooltip";
@@ -13,7 +12,7 @@ import { type TraceRow } from "@/lib/traces/types";
 import { cn, getDurationString } from "@/lib/utils";
 
 import { TraceTimeTooltip } from "./session-time-range";
-import { useSessionsStoreContext } from "./sessions-store";
+import { type TraceIOEntry } from "./use-batched-trace-io";
 
 const compactNumberFormat = new Intl.NumberFormat("en-US", {
   notation: "compact",
@@ -23,18 +22,12 @@ interface SessionTraceCardProps {
   trace: TraceRow;
   isLast: boolean;
   onClick?: () => void;
+  traceIO?: TraceIOEntry;
+  isIOLoading: boolean;
 }
 
-export default function SessionTraceCard({ trace, isLast, onClick }: SessionTraceCardProps) {
+export default function SessionTraceCard({ trace, isLast, onClick, traceIO, isIOLoading }: SessionTraceCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-
-  const { traceIO, isLoading } = useSessionsStoreContext(
-    (s) => ({
-      traceIO: s.traceIO[trace.id],
-      isLoading: trace.sessionId ? s.loadingSessionIO.has(trace.sessionId) : false,
-    }),
-    shallow
-  );
 
   return (
     <div
@@ -114,7 +107,7 @@ export default function SessionTraceCard({ trace, isLast, onClick }: SessionTrac
         {/* Input column */}
         <TraceIOContent
           text={traceIO?.input}
-          isLoading={isLoading}
+          isLoading={isIOLoading}
           fallback="No input available"
           isExpanded={isExpanded}
           onExpand={(e) => {
@@ -126,7 +119,7 @@ export default function SessionTraceCard({ trace, isLast, onClick }: SessionTrac
         {/* Output column */}
         <TraceIOContent
           text={traceIO?.output}
-          isLoading={isLoading}
+          isLoading={isIOLoading}
           fallback="No output available"
           isExpanded={isExpanded}
           onExpand={(e) => {
