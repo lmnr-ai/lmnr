@@ -75,7 +75,7 @@ export const formatNotification = (notification: WebNotification): FormattedNoti
     const noteworthyEvents = report.noteworthy_events ?? [];
 
     return {
-      title: report.title || "Signal Events Summary",
+      title: "Signal Events Summary",
       summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} in the last ${periodType}`,
       aiSummary,
       noteworthyEvents,
