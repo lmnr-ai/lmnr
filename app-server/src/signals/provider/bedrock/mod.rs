@@ -121,8 +121,6 @@ impl LanguageModelClient for BedrockClient {
             }
         }
 
-        println!("messages: {:?}", messages);
-
         let mut req_builder = self
             .client
             .converse()
