@@ -7,7 +7,6 @@ use uuid::Uuid;
 use crate::cache::keys::SPAN_DROP_RULES_CACHE_KEY;
 use crate::cache::{Cache, CacheTrait};
 use crate::ch::spans::CHSpan;
-use crate::signals::spans::extract_exception_from_events;
 use crate::db::spans::SpanType;
 use crate::mq::MessageQueue;
 use crate::signals::prompts::{FILTER_GENERATION_SYSTEM_PROMPT, FILTER_GENERATION_USER_PROMPT};
@@ -16,6 +15,7 @@ use crate::signals::provider::models::{
     ProviderPart, ProviderRequest, ProviderTool,
 };
 use crate::signals::provider::{LlmClient, ProviderThinkingConfig, ProviderThinkingLevel};
+use crate::signals::spans::extract_exception_from_events;
 use crate::signals::utils::{
     InternalSpan, emit_internal_span, request_to_span_input, request_to_tools_attr,
 };
@@ -287,7 +287,7 @@ pub async fn generate_and_cache_drop_rules(
         tools: Some(build_filter_tool_definitions()),
         generation_config: Some(ProviderGenerationConfig {
             temperature: Some(1.0),
-            max_output_tokens: Some(2048),
+            max_output_tokens: Some(4096),
             thinking_config: Some(ProviderThinkingConfig {
                 include_thoughts: Some(true),
                 thinking_level: Some(ProviderThinkingLevel::Medium),
