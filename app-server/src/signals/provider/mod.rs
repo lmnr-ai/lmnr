@@ -240,6 +240,15 @@ impl LlmClient {
             .unwrap_or(&self.default_provider);
         let (resolved_provider, client) = if let Some(c) = self.providers.get(provider_name) {
             (provider_name, c)
+        } else if request.provider.is_some() {
+            // If the provider was explicitly requested, don't fall back to the default.
+            // Callers like filter.rs depend on specific provider capabilities (e.g. extended
+            // thinking, caching) that may not be available on the default provider.
+            return Err(ProviderError::ConfigError(format!(
+                "Provider '{}' not available. Available: {:?}",
+                provider_name,
+                self.providers.keys().collect::<Vec<_>>()
+            )));
         } else if let Some(c) = self.providers.get(&self.default_provider) {
             log::warn!(
                 "Provider '{}' not available, falling back to default '{}'",
