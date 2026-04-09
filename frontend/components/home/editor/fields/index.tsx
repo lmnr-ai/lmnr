@@ -3,13 +3,13 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { ChartType } from "@/components/chart-builder/types";
-import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
-import { type DashboardChart } from "@/components/dashboard/types";
+import { ChartType, type DisplayMode, resolveDisplayMode } from "@/components/chart-builder/types";
+import { useHomeEditorStoreContext } from "@/components/home/editor/home-editor-store";
+import { type HomeChart } from "@/components/home/types";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/lib/hooks/use-toast";
 
 import ChartTypeField from "./ChartTypeField";
@@ -21,7 +21,7 @@ import OrderByField from "./OrderByField";
 import TableSelect from "./TableSelect";
 
 const createChartViaApi = async (projectId: string, data: { name: string; query: string; config: any }) => {
-  const response = await fetch(`/api/projects/${projectId}/dashboard-charts`, {
+  const response = await fetch(`/api/projects/${projectId}/home-charts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -40,7 +40,7 @@ const updateChartViaApi = async (
   chartId: string,
   data: { name: string; query: string; config: any }
 ) => {
-  const response = await fetch(`/api/projects/${projectId}/dashboard-charts/${chartId}`, {
+  const response = await fetch(`/api/projects/${projectId}/home-charts/${chartId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -67,12 +67,12 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const { chart, setName, chartType, total, setTotal } = useDashboardEditorStoreContext((state) => ({
+  const { chart, setName, chartType, displayMode, setDisplayMode } = useHomeEditorStoreContext((state) => ({
     chart: state.chart,
     setName: state.setName,
     chartType: state.chart.settings.config.type,
-    total: state.chart.settings.config.total ?? false,
-    setTotal: state.setTotal,
+    displayMode: resolveDisplayMode(state.chart.settings.config),
+    setDisplayMode: state.setDisplayMode,
   }));
 
   const handleSaveChart = useCallback(async () => {
@@ -94,8 +94,8 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
         ? await updateChartViaApi(String(projectId), id, data)
         : await createChartViaApi(String(projectId), data);
 
-      await mutate<DashboardChart[]>(
-        `/api/projects/${projectId}/dashboard-charts`,
+      await mutate<HomeChart[]>(
+        `/api/projects/${projectId}/home-charts`,
         (current = []) => {
           if (id) {
             return current.map((item) => (item.id === result.id ? result : item));
@@ -106,7 +106,7 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
       );
 
       toast({ title: `Successfully ${id ? "updated" : "created"} chart` });
-      router.push(`/project/${projectId}/dashboard`);
+      router.push(`/project/${projectId}/home${chart.id ? "" : "?newChart=1"}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to save chart";
       setSaveError(errorMessage);
@@ -130,12 +130,21 @@ export const QueryBuilderFields = ({ isFormValid, hasChartConfig }: QueryBuilder
       {chartType === ChartType.HorizontalBarChart && <OrderByField />}
       <LimitField />
 
-      <div className="flex items-center gap-2">
-        <Checkbox id="showTotal" checked={total} onCheckedChange={(checked) => setTotal(checked as boolean)} />
-        <Label htmlFor="showTotal" className="text-xs text-secondary-foreground/80 cursor-pointer">
-          Show Total
-        </Label>
-      </div>
+      {(
+        <div className="grid gap-1">
+          <Label className="font-semibold text-xs">Display Value</Label>
+          <Select value={displayMode} onValueChange={(value) => setDisplayMode(value as DisplayMode)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="total">Total</SelectItem>
+              <SelectItem value="average">Average</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {saveError && <div className="text-sm text-destructive">{saveError}</div>}
       <Button

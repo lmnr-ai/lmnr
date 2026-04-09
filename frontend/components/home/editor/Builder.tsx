@@ -5,9 +5,9 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
-import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
-import { Form } from "@/components/dashboard/editor/Form";
-import { getDefaultFormValues } from "@/components/dashboard/editor/types";
+import { useHomeEditorStoreContext } from "@/components/home/editor/home-editor-store";
+import { Form } from "@/components/home/editor/Form";
+import { getDefaultFormValues } from "@/components/home/editor/types";
 import { type QueryStructure, QueryStructureSchema } from "@/lib/actions/sql/types";
 
 const convertSqlToJson = async (projectId: string, sql: string): Promise<QueryStructure> => {
@@ -28,7 +28,7 @@ const convertSqlToJson = async (projectId: string, sql: string): Promise<QuerySt
 
 const ChartBuilder = () => {
   const { projectId } = useParams();
-  const { chart } = useDashboardEditorStoreContext((state) => ({
+  const { chart } = useHomeEditorStoreContext((state) => ({
     chart: state.chart,
   }));
   const [isLoadingForm, setIsLoadingForm] = useState(true); // Start as true!
@@ -54,7 +54,6 @@ const ChartBuilder = () => {
         const filteredFilters = (queryStructure.filters || []).filter(
           (filter) => filter.field !== "start_time" && filter.field !== "end_time"
         );
-
         reset({
           table: queryStructure.table,
           metrics: queryStructure.metrics,

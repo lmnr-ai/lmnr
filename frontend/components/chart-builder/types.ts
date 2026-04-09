@@ -4,10 +4,21 @@ export enum ChartType {
   "HorizontalBarChart" = "horizontalBar",
 }
 
+export type DisplayMode = "total" | "average" | "none";
+
 export interface ChartConfig {
   type?: ChartType;
   x?: string;
   y?: string;
   breakdown?: string;
+  /** @deprecated Use displayMode instead. Kept for backward compatibility. */
   total?: boolean;
+  displayMode?: DisplayMode;
 }
+
+/** Resolve displayMode from config, with backward compatibility for `total: true`. */
+export const resolveDisplayMode = (config: ChartConfig): DisplayMode => {
+  if (config.displayMode) return config.displayMode;
+  if (config.total) return "total";
+  return "none";
+};

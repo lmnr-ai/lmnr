@@ -9,16 +9,17 @@ import {
   transformDataForBreakdown,
   transformDataForSimpleChart,
 } from "@/components/chart-builder/charts/utils";
-import { type ChartConfig, ChartType } from "@/components/chart-builder/types";
+import { type ChartConfig, ChartType, resolveDisplayMode } from "@/components/chart-builder/types";
 import { type ColumnInfo } from "@/components/chart-builder/utils";
 
 interface ChartRendererCoreProps {
   config: ChartConfig;
   data: Record<string, any>[];
   columns: ColumnInfo[];
+  onBarClick?: (rowData: Record<string, any>) => void;
 }
 
-export const ChartRendererCore = ({ config, data, columns }: ChartRendererCoreProps) => {
+export const ChartRendererCore = ({ config, data, columns, onBarClick }: ChartRendererCoreProps) => {
   const {
     chartData,
     keys,
@@ -56,12 +57,15 @@ export const ChartRendererCore = ({ config, data, columns }: ChartRendererCorePr
     );
   }
 
+  const displayMode = resolveDisplayMode(config);
+
   const props = {
     data: chartData,
     x: config.x,
     y: config.y,
     breakdown: config.breakdown,
-    total: config.total,
+    displayMode,
+    metricColumn: config.type === ChartType.HorizontalBarChart ? config.x : config.y,
     keys: Array.from(keys),
     chartConfig: uiChartConfig || generateChartConfig(Array.from(keys)),
   };
@@ -80,7 +84,7 @@ export const ChartRendererCore = ({ config, data, columns }: ChartRendererCorePr
     case ChartType.BarChart:
       return <BarChart {...props} />;
     case ChartType.HorizontalBarChart:
-      return <HorizontalBarChart {...props} />;
+      return <HorizontalBarChart {...props} onBarClick={onBarClick} />;
     default:
       return (
         <div className="flex items-center justify-center h-full w-full text-muted-foreground">

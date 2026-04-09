@@ -6,12 +6,12 @@ import { isDate, isEmpty, isNil, isObject } from "lodash";
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
 import { createStore, useStore } from "zustand";
 
-import { ChartType } from "@/components/chart-builder/types.ts";
-import { type DashboardChart } from "@/components/dashboard/types";
+import { ChartType, type DisplayMode } from "@/components/chart-builder/types.ts";
+import { type HomeChart } from "@/components/home/types";
 import { type SQLParameter } from "@/components/sql/sql-editor-store";
 
-type DashboardEditorState = {
-  chart: { id?: string; createdAt?: string } & Omit<DashboardChart, "id" | "createdAt">;
+type HomeEditorState = {
+  chart: { id?: string; createdAt?: string } & Omit<HomeChart, "id" | "createdAt">;
   isLoading: boolean;
   error: string | null;
   data: Record<string, string | number | boolean>[];
@@ -20,13 +20,13 @@ type DashboardEditorState = {
   tab: TabType;
 };
 
-type DashboardEditorActions = {
+type HomeEditorActions = {
   setTab: (tab: TabType) => void;
-  setChart: (chart: DashboardChart) => void;
+  setChart: (chart: HomeChart) => void;
   setQuery: (query: string) => void;
   setName: (name: string) => void;
-  setChartConfig: (config: DashboardChart["settings"]["config"]) => void;
-  setTotal: (total: boolean) => void;
+  setChartConfig: (config: HomeChart["settings"]["config"]) => void;
+  setDisplayMode: (displayMode: DisplayMode) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setData: (data: Record<string, string | number | boolean>[]) => void;
@@ -52,21 +52,21 @@ const initialParameters: SQLParameter[] = [
   },
 ];
 
-type DashboardEditorStore = DashboardEditorState & DashboardEditorActions;
-type DashboardEditorStoreApi = ReturnType<typeof createDashboardEditorStore>;
+type HomeEditorStore = HomeEditorState & HomeEditorActions;
+type HomeEditorStoreApi = ReturnType<typeof createHomeEditorStore>;
 
-export interface DashboardEditorProps {
-  chart?: DashboardChart;
+export interface HomeEditorProps {
+  chart?: HomeChart;
 }
 
-const defaultChart: DashboardEditorState["chart"] = {
+const defaultChart: HomeEditorState["chart"] = {
   name: "",
   query: "",
   settings: {
     config: {
       x: undefined,
       y: undefined,
-      total: false,
+      displayMode: "none",
       breakdown: undefined,
       type: ChartType.LineChart,
     },
@@ -79,8 +79,8 @@ const defaultChart: DashboardEditorState["chart"] = {
   },
 };
 
-const createDashboardEditorStore = (props: DashboardEditorProps) => {
-  const editorState: DashboardEditorState = {
+const createHomeEditorStore = (props: HomeEditorProps) => {
+  const editorState: HomeEditorState = {
     tab: TabType.Chart,
     chart: props.chart || defaultChart,
     columns: [],
@@ -90,7 +90,7 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
     parameters: initialParameters,
   };
 
-  return createStore<DashboardEditorStore>()((set, get) => ({
+  return createStore<HomeEditorStore>()((set, get) => ({
     ...editorState,
 
     setTab: (tab) => {
@@ -121,7 +121,7 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
         },
       })),
 
-    setTotal: (total) =>
+    setDisplayMode: (displayMode) =>
       set((state) => ({
         chart: {
           ...state.chart,
@@ -129,7 +129,8 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
             ...state.chart.settings,
             config: {
               ...state.chart.settings.config,
-              total,
+              displayMode,
+              total: undefined,
             },
           },
         },
@@ -237,18 +238,18 @@ const createDashboardEditorStore = (props: DashboardEditorProps) => {
   }));
 };
 
-const DashboardEditorStoreContext = createContext<DashboardEditorStoreApi | null>(null);
+const HomeEditorStoreContext = createContext<HomeEditorStoreApi | null>(null);
 
-export const useDashboardEditorStoreContext = <T,>(selector: (store: DashboardEditorStore) => T): T => {
-  const store = useContext(DashboardEditorStoreContext);
+export const useHomeEditorStoreContext = <T,>(selector: (store: HomeEditorStore) => T): T => {
+  const store = useContext(HomeEditorStoreContext);
   if (!store) {
-    throw new Error("useDashboardEditorStoreContext must be used within a DashboardEditorStoreProvider");
+    throw new Error("useHomeEditorStoreContext must be used within a HomeEditorStoreProvider");
   }
   return useStore(store, selector);
 };
 
-export const DashboardEditorStoreProvider = ({ children, ...props }: PropsWithChildren<DashboardEditorProps>) => {
-  const [storeState] = useState(() => createDashboardEditorStore(props));
+export const HomeEditorStoreProvider = ({ children, ...props }: PropsWithChildren<HomeEditorProps>) => {
+  const [storeState] = useState(() => createHomeEditorStore(props));
 
-  return <DashboardEditorStoreContext.Provider value={storeState}>{children}</DashboardEditorStoreContext.Provider>;
+  return <HomeEditorStoreContext.Provider value={storeState}>{children}</HomeEditorStoreContext.Provider>;
 };

@@ -1,9 +1,13 @@
+import { ArrowUpRight, ExternalLink, PanelRight } from "lucide-react";
 import React, { useMemo } from "react";
 import { Bar, BarChart as RechartsBarChart, LabelList, XAxis, YAxis } from "recharts";
 
+import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-import { calculateChartTotals, createAxisFormatter, getChartMargins } from "./utils";
+import { formatMetricValue } from "./format-value";
+import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
+import { cn } from "@/lib/utils";
 
 interface HorizontalBarChartProps {
   data: Record<string, any>[];
@@ -11,7 +15,9 @@ interface HorizontalBarChartProps {
   y: string;
   keys: string[];
   chartConfig: ChartConfig;
-  total?: boolean;
+  displayMode?: DisplayMode;
+  metricColumn?: string;
+  onBarClick?: (rowData: Record<string, any>) => void;
 }
 
 const measureText14Inter = (text: string): number => {
@@ -26,7 +32,16 @@ const measureText14Inter = (text: string): number => {
   return ctx.measureText(text).width;
 };
 
-const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: HorizontalBarChartProps) => {
+const HorizontalBarChart = ({
+  data,
+  x,
+  y,
+  keys,
+  chartConfig,
+  displayMode = "none",
+  metricColumn,
+  onBarClick,
+}: HorizontalBarChartProps) => {
   const valueColumn = x;
   const categoryColumn = y;
 
@@ -46,9 +61,9 @@ const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: Horizontal
     [data, valueColumn, yAxisFormatter]
   );
 
-  const { totalSum, totalMax } = useMemo(
-    () => calculateChartTotals(data, [valueColumn], total),
-    [data, valueColumn, total]
+  const { displayValue, totalMax } = useMemo(
+    () => calculateDisplayValue(data, [valueColumn], displayMode),
+    [data, valueColumn, displayMode]
   );
 
   const chartHeight = useMemo(() => {
@@ -61,7 +76,11 @@ const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: Horizontal
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
-      {total && <span className="font-medium text-2xl mb-2 truncate min-h-fit">{totalSum.toLocaleString()}</span>}
+      {displayValue !== null && (
+        <span className="font-medium text-2xl mb-2 truncate min-h-fit">
+          {formatMetricValue(displayValue, metricColumn)}
+        </span>
+      )}
       <ChartContainer config={chartConfig} className="w-full min-h-0" style={{ height: chartHeight }}>
         <RechartsBarChart
           barSize={32}
@@ -112,8 +131,56 @@ const HorizontalBarChart = ({ data, x, y, keys, chartConfig, total }: Horizontal
             if (!config) return null;
 
             return (
-              <Bar key={valueColumn} dataKey={valueColumn} fill={config.color} radius={4}>
-                <LabelList style={{ fill: "#E8E3E3", fontSize: 14 }} position="insideLeft" dataKey={categoryColumn} />
+              <Bar
+                key={valueColumn}
+                dataKey={valueColumn}
+                fill={config.color}
+                shape={(props: any) => {
+                  const { payload, tooltipPayload, tooltipPosition, dataKey, ...svgProps } = props;
+                  const isClickable = onBarClick && (
+                    payload?.trace_id || payload?.id || payload?.signal_id
+                  );
+                  return <rect {...svgProps} className={cn({"hover:opacity-60 transition-opacity cursor-pointer": isClickable})} rx={4} />;
+                }}
+                radius={4}
+                cursor={onBarClick ? "pointer" : undefined}
+                onClick={(barData: any) => {
+                  if (onBarClick && barData?.payload) {
+                    onBarClick(barData.payload);
+                  }
+                }}
+              >
+                <LabelList
+                  dataKey={categoryColumn}
+                  content={(props) => {
+                    const row = data[props.index as number];
+                    const hasSignalId = row?.signal_id;
+                    const hasTraceId = row?.trace_id || row?.id;
+                    const isClickable = onBarClick && (hasTraceId || hasSignalId);
+                    const showLabel = categoryColumn !== valueColumn;
+                    const labelText = showLabel ? String(props.value) : "";
+
+                    return (
+                      <g className="pointer-events-none">
+                        {labelText && (
+                          <text x={(props.x as number) + 8} y={(props.y as number) + 20} fill="#E8E3E3" fontSize={14}>
+                            {labelText}
+                          </text>
+                        )}
+                        {isClickable && (
+                          <foreignObject
+                            x={(props.x as number) + (labelText ? measureText14Inter(labelText) + 14 : 8)}
+                            y={(props.y as number) + 8}
+                            width={16}
+                            height={16}
+                          >
+                            <ArrowUpRight className="size-4 text-primary-foreground" />
+                          </foreignObject>
+                        )}
+                      </g>
+                    );
+                  }}
+                />
               </Bar>
             );
           })}

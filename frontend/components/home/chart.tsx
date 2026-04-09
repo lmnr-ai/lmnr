@@ -3,15 +3,16 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { transformDataToColumns } from "@/components/chart-builder/utils";
-import ChartHeader from "@/components/dashboard/chart-header";
-import { type DashboardChart } from "@/components/dashboard/types";
+import ChartHeader from "@/components/home/chart-header";
+import { useHomeTraceStore } from "@/components/home/home-trace-context";
+import { type HomeChart } from "@/components/home/types";
 import { IconResizeHandle } from "@/components/ui/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type GroupByInterval } from "@/lib/clickhouse/modifiers";
 import { convertToTimeParameters } from "@/lib/time";
 
 interface ChartProps {
-  chart: DashboardChart;
+  chart: HomeChart;
 }
 
 const Chart = ({ chart }: ChartProps) => {
@@ -21,12 +22,16 @@ const Chart = ({ chart }: ChartProps) => {
   const [data, setData] = useState<Record<string, any>[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const openTrace = useHomeTraceStore((s) => s.openTrace);
 
   const columns = useMemo(() => transformDataToColumns(data), [data]);
 
+  const pastHours = searchParams.get("pastHours");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const groupByInterval = searchParams.get("groupByInterval") as GroupByInterval | null;
+
   const timeParameters = useMemo(() => {
-    const groupByInterval = searchParams.get("groupByInterval") as GroupByInterval | null;
-    const pastHours = searchParams.get("pastHours");
     if (pastHours) {
       return {
         pastHours,
@@ -34,13 +39,10 @@ const Chart = ({ chart }: ChartProps) => {
       };
     }
 
-    const startTime = searchParams.get("startDate");
-    const endTime = searchParams.get("endDate");
-
-    if (startTime && endTime) {
+    if (startDate && endDate) {
       return {
-        startTime,
-        endTime,
+        startTime: startDate,
+        endTime: endDate,
         ...(groupByInterval && { groupByInterval }),
       };
     }
@@ -48,7 +50,7 @@ const Chart = ({ chart }: ChartProps) => {
       pastHours: 24,
       ...(groupByInterval && { groupByInterval }),
     };
-  }, [searchParams]);
+  }, [pastHours, startDate, endDate, groupByInterval]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -87,6 +89,24 @@ const Chart = ({ chart }: ChartProps) => {
     fetchData();
   }, [fetchData]);
 
+  const handleBarClick = useCallback(
+    (rowData: Record<string, any>) => {
+      const signalId = rowData.signal_id;
+      const traceId = rowData.trace_id || rowData.id;
+
+      if (signalId) {
+        window.open(`/project/${projectId}/signals/${signalId}`, "_blank");
+        return;
+      }
+
+      const spanId = rowData.span_id;
+      if (traceId) {
+        openTrace(String(traceId), spanId ? String(spanId) : undefined);
+      }
+    },
+    [openTrace, projectId]
+  );
+
   return (
     <div className="flex flex-col border gap-2 rounded-lg p-4 h-full border-dashed border-border relative">
       <ChartHeader name={name} id={id} projectId={projectId as string} />
@@ -98,7 +118,7 @@ const Chart = ({ chart }: ChartProps) => {
       ) : isLoading ? (
         <Skeleton className="h-full w-full" />
       ) : (
-        <ChartRendererCore config={settings.config} data={data} columns={columns} />
+        <ChartRendererCore config={settings.config} data={data} columns={columns} onBarClick={handleBarClick} />
       )}
       <IconResizeHandle className="size-4 absolute right-2 text-muted-foreground bottom-2" />
     </div>

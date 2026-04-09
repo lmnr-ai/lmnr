@@ -2,13 +2,14 @@ import "react-grid-layout/css/styles.css";
 import "./styles.css";
 
 import { compact, debounce, isEqual, pick } from "lodash";
+import { memo } from "react";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo } from "react";
 import { Responsive, type ResponsiveProps, WidthProvider } from "react-grid-layout";
 import useSWR from "swr";
 
-import Chart from "@/components/dashboard/chart";
-import { type DashboardChart, dragHandleKey } from "@/components/dashboard/types";
+import Chart from "@/components/home/chart";
+import { type HomeChart, dragHandleKey } from "@/components/home/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/lib/hooks/use-toast.ts";
 import { swrFetcher } from "@/lib/utils";
@@ -16,7 +17,7 @@ import { swrFetcher } from "@/lib/utils";
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const updateLayout = (updates: any, projectId: string) => {
-  fetch(`/api/projects/${projectId}/dashboard-charts`, {
+  fetch(`/api/projects/${projectId}/home-charts`, {
     method: "PATCH",
     body: JSON.stringify({ updates }),
   });
@@ -29,7 +30,7 @@ const GridLayout = () => {
     isLoading,
     mutate,
     error,
-  } = useSWR<DashboardChart[]>(`/api/projects/${projectId}/dashboard-charts`, swrFetcher);
+  } = useSWR<HomeChart[]>(`/api/projects/${projectId}/home-charts`, swrFetcher);
 
   const { toast } = useToast();
 
@@ -65,7 +66,7 @@ const GridLayout = () => {
             ["x", "y", "w", "h"]
           ),
         },
-      })) as DashboardChart[];
+      })) as HomeChart[];
 
       const updates = compact(
         data.map((chart) => {
@@ -141,4 +142,4 @@ const GridLayout = () => {
   );
 };
 
-export default GridLayout;
+export default memo(GridLayout);

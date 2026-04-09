@@ -53,7 +53,7 @@ export default function ProjectCreateDialog({
 
       const newProject = (await res.json()) as Project;
       onProjectCreate?.();
-      router.push(`/project/${newProject.id}/traces`);
+      router.push(`/project/${newProject.id}/home`);
       setIsDialogOpen(false);
     } catch (e) {
       toast({

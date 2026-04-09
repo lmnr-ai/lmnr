@@ -1,6 +1,6 @@
 import { useFormContext, useWatch } from "react-hook-form";
 
-import { getAvailableColumns } from "@/components/dashboard/editor/table-schemas";
+import { getAvailableColumns } from "@/components/home/editor/table-schemas";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";

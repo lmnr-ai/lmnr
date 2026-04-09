@@ -7,11 +7,11 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 
 import { ChartRendererCore } from "@/components/chart-builder/charts";
-import { ChartType } from "@/components/chart-builder/types";
+import { ChartType, resolveDisplayMode } from "@/components/chart-builder/types";
 import { type ColumnInfo, transformDataToColumns } from "@/components/chart-builder/utils";
-import { useDashboardEditorStoreContext } from "@/components/dashboard/editor/dashboard-editor-store";
-import { QueryBuilderFields } from "@/components/dashboard/editor/fields";
-import { getTimeColumn } from "@/components/dashboard/editor/table-schemas";
+import { QueryBuilderFields } from "@/components/home/editor/fields";
+import { useHomeEditorStoreContext } from "@/components/home/editor/home-editor-store";
+import { getTimeColumn } from "@/components/home/editor/table-schemas";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Label } from "@/components/ui/label.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -49,7 +49,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     setError,
     parameters,
     setParameterValue,
-  } = useDashboardEditorStoreContext((state) => ({
+  } = useHomeEditorStoreContext((state) => ({
     chart: state.chart,
     setQuery: state.setQuery,
     setChartConfig: state.setChartConfig,
@@ -68,7 +68,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
   const columns: ColumnInfo[] = useMemo(() => transformDataToColumns(data), [data]);
 
   const chartType = chart.settings.config.type;
-  const totalValue = chart.settings.config.total ?? false;
+  const displayMode = resolveDisplayMode(chart.settings.config);
 
   const chartConfig = useMemo(() => {
     const { metrics, dimensions } = formValues;
@@ -88,7 +88,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
       x: isHorizontalBar ? metricValue : dimensionValue,
       y: isHorizontalBar ? dimensionValue : metricValue,
       breakdown: isTimeSeries ? dimensions?.[0] : undefined,
-      total: false,
+      displayMode: "none" as const,
     };
   }, [chartType, formValues]);
 
@@ -96,9 +96,9 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
     if (!chartConfig) return null;
     return {
       ...chartConfig,
-      total: totalValue,
+      displayMode,
     };
-  }, [chartConfig, totalValue]);
+  }, [chartConfig, displayMode]);
 
   const generateAndExecuteQuery = useCallback(async () => {
     if (!formState.isValid || !projectId) {
@@ -112,6 +112,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
 
     try {
       const isHorizontalBar = chartType === ChartType.HorizontalBarChart;
+      const needsIdInjection = isHorizontalBar;
       const allFilters = [...(filters || [])];
 
       if (isHorizontalBar) {
@@ -122,9 +123,35 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         );
       }
 
+      // Inject ID fields for clickable chart types
+      const injectedMetrics = [...metrics];
+      const existingColumns = new Set(metrics.map((m) => m.column));
+      const existingDimensions = new Set(dimensions || []);
+      if (needsIdInjection && (!dimensions || dimensions.length === 0)) {
+        if (table === "spans") {
+          if (!existingColumns.has("trace_id") && !existingDimensions.has("trace_id")) {
+            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [] });
+          }
+          if (!existingColumns.has("span_id") && !existingDimensions.has("span_id")) {
+            injectedMetrics.push({ fn: "raw", column: "span_id", args: [] });
+          }
+        } else if (table === "traces") {
+          if (!existingColumns.has("id") && !existingDimensions.has("id")) {
+            injectedMetrics.push({ fn: "raw", column: "id", args: [] });
+          }
+        } else if (table === "signal_events") {
+          if (!existingColumns.has("signal_id") && !existingDimensions.has("signal_id")) {
+            injectedMetrics.push({ fn: "raw", column: "signal_id", args: [] });
+          }
+          if (!existingColumns.has("trace_id") && !existingDimensions.has("trace_id")) {
+            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [] });
+          }
+        }
+      }
+
       const queryStructure: QueryStructure = {
         table,
-        metrics,
+        metrics: injectedMetrics,
         dimensions: dimensions || [],
         filters: allFilters,
         orderBy: [],
@@ -156,7 +183,7 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
           x: chartConfig.x!,
           y: chartConfig.y!,
           breakdown: chartConfig.breakdown,
-          total: chart.settings.config.total ?? false,
+          displayMode: resolveDisplayMode(chart.settings.config),
         });
       }
 
@@ -255,7 +282,12 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
             </Select>
           </div>
         </div>
-        <div className="flex flex-col justify-center items-center w-full min-h-96 p-4 self-center border rounded border-dashed bg-secondary">
+        <div className="flex flex-col justify-start items-center w-full min-h-96 p-4 self-center border rounded border-dashed bg-secondary">
+          {chart.name && (
+            <div className="w-full mb-2">
+              <span className="font-medium text-lg text-secondary-foreground truncate">{chart.name}</span>
+            </div>
+          )}
           {isLoading ? (
             <div className="flex flex-col items-center space-y-4 text-muted-foreground">
               <Loader2 className="w-10 h-10 animate-spin" />

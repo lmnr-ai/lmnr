@@ -1,10 +1,12 @@
 import React, { useCallback, useMemo } from "react";
 import { Bar, BarChart as RechartsBarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
+import { type DisplayMode } from "@/components/chart-builder/types";
 import RoundedBar from "@/components/charts/time-series-chart/bar";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-import { calculateChartTotals, createAxisFormatter, getChartMargins } from "./utils";
+import { formatMetricValue } from "./format-value";
+import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
 
 interface BarChartProps {
   data: Record<string, any>[];
@@ -12,10 +14,11 @@ interface BarChartProps {
   y: string;
   keys: string[];
   chartConfig: ChartConfig;
-  total?: boolean;
+  displayMode?: DisplayMode;
+  metricColumn?: string;
 }
 
-const BarChart = ({ data, x, keys, chartConfig, total }: BarChartProps) => {
+const BarChart = ({ data, x, keys, chartConfig, displayMode = "none", metricColumn }: BarChartProps) => {
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
 
@@ -24,7 +27,10 @@ const BarChart = ({ data, x, keys, chartConfig, total }: BarChartProps) => {
     return getChartMargins(yValues, yAxisFormatter);
   }, [data, keys, yAxisFormatter]);
 
-  const { totalSum, totalMax } = useMemo(() => calculateChartTotals(data, keys, total), [data, keys, total]);
+  const { displayValue, totalMax } = useMemo(
+    () => calculateDisplayValue(data, keys, displayMode),
+    [data, keys, displayMode]
+  );
 
   const sortedKeys = useMemo(() => {
     const keyTotals = keys.map((key) => ({
@@ -42,7 +48,11 @@ const BarChart = ({ data, x, keys, chartConfig, total }: BarChartProps) => {
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
-      {total && <span className="font-medium text-2xl mb-2 truncate min-h-fit">{totalSum.toLocaleString()}</span>}
+      {displayValue !== null && (
+        <span className="font-medium text-2xl mb-2 truncate min-h-fit">
+          {formatMetricValue(displayValue, metricColumn)}
+        </span>
+      )}
       <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
         <RechartsBarChart data={data} margin={chartMargins}>
           <CartesianGrid vertical={false} />

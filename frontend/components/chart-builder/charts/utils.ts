@@ -1,6 +1,6 @@
 import { scaleTime } from "d3-scale";
 import { format, isValid, parseISO } from "date-fns";
-import { isNil } from "lodash";
+import { isNil, mean } from "lodash";
 
 import { type ChartConfig } from "@/components/ui/chart";
 
@@ -162,21 +162,6 @@ export const getChartMargins = (yAxisValues?: any[], yAxisFormatter?: (value: an
   };
 };
 
-const selectColumnsFromData = (
-  data: Record<string, any>[],
-  xColumn: string,
-  yColumns: string[]
-): Record<string, any>[] =>
-  data.map((row) => {
-    const selectedRow: Record<string, any> = {
-      [xColumn]: row[xColumn],
-    };
-    yColumns.forEach((yColumn) => {
-      selectedRow[yColumn] = row[yColumn];
-    });
-    return selectedRow;
-  });
-
 const createChartConfig = (columns: string[]): ChartConfig =>
   Object.fromEntries(
     columns.map((column, index) => [
@@ -195,7 +180,7 @@ export const transformDataForBreakdown = (
   yColumn: string,
   breakdownColumn: string
 ) => {
-  const groupedByX = new Map<string, Record<string, number>>();
+  const groupedByX = new Map<string, Record<string, any>>();
   const allBreakdownValues = new Set<string>();
 
   data.forEach((row) => {
@@ -208,7 +193,7 @@ export const transformDataForBreakdown = (
     }
 
     if (!groupedByX.has(xValue)) {
-      groupedByX.set(xValue, {});
+      groupedByX.set(xValue, { ...row });
     }
 
     const xGroup = groupedByX.get(xValue);
@@ -219,10 +204,10 @@ export const transformDataForBreakdown = (
 
   const filteredBreakdownValues = Array.from(allBreakdownValues).filter((value) => value && !isNil(value));
 
-  const chartData = Array.from(groupedByX.entries()).map(([xValue, breakdownGroups]) => ({
+  const chartData = Array.from(groupedByX.entries()).map(([xValue, group]) => ({
+    ...group,
     [xColumn]: xValue,
-    ...Object.fromEntries(filteredBreakdownValues.map((value) => [value, 0])),
-    ...breakdownGroups,
+    ...Object.fromEntries(filteredBreakdownValues.map((value) => [value, group[value] ?? 0])),
   }));
 
   return {
@@ -233,31 +218,41 @@ export const transformDataForBreakdown = (
 };
 
 export const transformDataForSimpleChart = (data: Record<string, any>[], xColumn: string, yColumns: string[]) => {
-  const chartData = selectColumnsFromData(data, xColumn, yColumns);
-
   const filteredYColumns = yColumns.filter((column) => column && !isNil(column));
 
   return {
-    chartData,
+    chartData: data,
     keys: new Set(filteredYColumns),
     chartConfig: createChartConfig(filteredYColumns),
   };
 };
 
-export const calculateChartTotals = (data: Record<string, any>[], keys: string[], showTotal: boolean = false) => {
-  if (!showTotal) return { totalSum: 0, totalMax: 0 };
+export type DisplayValueResult = {
+  displayValue: number | null;
+  totalMax: number;
+};
 
-  const totalSum = data.reduce(
-    (sum, row) =>
-      sum +
-      keys.reduce((keySum, key) => {
-        const value = Number(row[key]) || 0;
-        return keySum + value;
-      }, 0),
-    0
-  );
+export const calculateDisplayValue = (
+  data: Record<string, any>[],
+  keys: string[],
+  displayMode: string
+): DisplayValueResult => {
+  if (displayMode === "none") return { displayValue: null, totalMax: 0 };
 
   const totalMax = calculateDataMax(data, keys);
 
-  return { totalSum, totalMax };
+  if (displayMode === "total") {
+    const totalSum = data.reduce(
+      (sum, row) => sum + keys.reduce((keySum, key) => keySum + (Number(row[key]) || 0), 0),
+      0
+    );
+    return { displayValue: totalSum, totalMax };
+  }
+
+  if (displayMode === "average") {
+    const values = data.flatMap((row) => keys.map((key) => Number(row[key]) || 0)).filter((v) => v !== 0);
+    return { displayValue: values.length > 0 ? mean(values) : 0, totalMax };
+  }
+
+  return { displayValue: null, totalMax: 0 };
 };

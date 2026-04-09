@@ -1,9 +1,11 @@
 import React, { useMemo } from "react";
 import { CartesianGrid, Line, LineChart as RechartsLineChart, XAxis, YAxis } from "recharts";
 
+import { type DisplayMode } from "@/components/chart-builder/types";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-import { calculateChartTotals, createAxisFormatter, getChartMargins } from "./utils";
+import { formatMetricValue } from "./format-value";
+import { calculateDisplayValue, createAxisFormatter, getChartMargins } from "./utils";
 
 interface LineChartProps {
   data: Record<string, any>[];
@@ -12,10 +14,20 @@ interface LineChartProps {
   breakdown?: string;
   keys: string[];
   chartConfig: ChartConfig;
-  total?: boolean;
+  displayMode?: DisplayMode;
+  metricColumn?: string;
 }
 
-const LineChart = ({ data, x, y, breakdown, keys, chartConfig, total }: LineChartProps) => {
+const LineChart = ({
+  data,
+  x,
+  y,
+  breakdown,
+  keys,
+  chartConfig,
+  displayMode = "none",
+  metricColumn,
+}: LineChartProps) => {
   const xAxisFormatter = useMemo(() => createAxisFormatter(data, x), [data, x]);
   const yAxisFormatter = useMemo(() => createAxisFormatter(data, keys[0] || ""), [data, keys]);
 
@@ -24,13 +36,16 @@ const LineChart = ({ data, x, y, breakdown, keys, chartConfig, total }: LineChar
     return getChartMargins(yValues, yAxisFormatter);
   }, [data, keys, yAxisFormatter]);
 
-  const { totalSum, totalMax } = useMemo(() => calculateChartTotals(data, keys, total), [data, keys, total]);
+  const { displayValue, totalMax } = useMemo(
+    () => calculateDisplayValue(data, keys, displayMode),
+    [data, keys, displayMode]
+  );
 
   return (
     <div className="flex flex-col overflow-hidden h-full">
-      {total && (
+      {displayValue !== null && (
         <span className="font-medium text-2xl mb-2 truncate min-h-fit" style={{ marginLeft: chartMargins.left }}>
-          {totalSum.toLocaleString()}
+          {formatMetricValue(displayValue, metricColumn)}
         </span>
       )}
       <ChartContainer config={chartConfig} className="aspect-auto flex-1 min-h-0 w-full">

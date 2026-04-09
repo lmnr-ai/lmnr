@@ -3,7 +3,7 @@ import Link from "next/link";
 import React, { type FocusEvent, type KeyboardEventHandler, useCallback, useEffect, useRef, useState } from "react";
 import { useSWRConfig } from "swr";
 
-import { type DashboardChart, dragHandleKey } from "@/components/dashboard/types";
+import { type HomeChart, dragHandleKey } from "@/components/home/types";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,13 +22,13 @@ interface ChartHeaderProps {
 }
 
 const deleteChart = async (id: string, projectId: string) => {
-  await fetch(`/api/projects/${projectId}/dashboard-charts/${id}`, {
+  await fetch(`/api/projects/${projectId}/home-charts/${id}`, {
     method: "DELETE",
   });
 };
 
 const updateChart = async (id: string, projectId: string, name: string) => {
-  await fetch(`/api/projects/${projectId}/dashboard-charts/${id}`, {
+  await fetch(`/api/projects/${projectId}/home-charts/${id}`, {
     method: "PATCH",
     body: JSON.stringify({
       name,
@@ -43,8 +43,8 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
   const { mutate } = useSWRConfig();
   const handleDeleteChart = useCallback(async () => {
     try {
-      await mutate<DashboardChart[]>(
-        `/api/projects/${projectId}/dashboard-charts`,
+      await mutate<HomeChart[]>(
+        `/api/projects/${projectId}/home-charts`,
         async (currentData) => {
           await deleteChart(id, projectId);
           return (currentData || []).filter((item) => item.id !== id);
@@ -70,8 +70,8 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
       try {
         if (newName === name || name?.trim()?.length === 0) return;
         if (newName) {
-          await mutate<DashboardChart[]>(
-            `/api/projects/${projectId}/dashboard-charts`,
+          await mutate<HomeChart[]>(
+            `/api/projects/${projectId}/home-charts`,
             async (currentData) => {
               await updateChart(id, projectId, newName);
               return (currentData || []).map((item) => (item.id === id ? { ...item, name: newName } : item));
@@ -154,7 +154,7 @@ const ChartHeader = ({ name, id, projectId }: ChartHeaderProps) => {
               <Pen className="h-3.5 w-3.5 mr-1 text-inherit" />
               Rename
             </DropdownMenuItem>
-            <Link passHref href={`/project/${projectId}/dashboard/${id}`}>
+            <Link passHref href={`/project/${projectId}/home/${id}`}>
               <DropdownMenuItem className="cursor-pointer">
                 <Edit className="h-3.5 w-3.5 mr-1 text-inherit" />
                 Edit
