@@ -58,7 +58,10 @@ pub fn decode_slack_token(
 /// All notifications in the batch are expected to be of the same kind.
 /// Reports are rendered by combining per-project data into a single message.
 /// Alerts and usage warnings use the first (and only) notification.
-pub fn format_message_blocks_batch(notifications: &[NotificationKind]) -> serde_json::Value {
+pub fn format_message_blocks_batch(
+    notifications: &[NotificationKind],
+    workspace_id: Uuid,
+) -> serde_json::Value {
     let Some(first) = notifications.first() else {
         return json!([]);
     };
@@ -76,7 +79,7 @@ pub fn format_message_blocks_batch(notifications: &[NotificationKind]) -> serde_
             extracted_information.clone(),
         ),
         NotificationKind::SignalsReport { .. } => {
-            let (title, report_data) = build_report_data_from_batch(notifications, Uuid::nil())
+            let (title, report_data) = build_report_data_from_batch(notifications, workspace_id)
                 .expect("SignalsReport batch must contain at least one report");
             format_report_blocks(&title, &report_data)
         }

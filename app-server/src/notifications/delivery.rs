@@ -170,7 +170,12 @@ impl NotificationDeliveryHandler {
         let integration =
             crate::db::slack_integrations::get_integration_by_id(&self.db.pool, &integration_id)
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
+                .map_err(|e| {
+                    HandlerError::transient(anyhow::anyhow!(
+                        "Failed to get Slack integration: {}",
+                        e
+                    ))
+                })?;
 
         let Some(integration) = integration else {
             log::error!(
@@ -187,7 +192,8 @@ impl NotificationDeliveryHandler {
         )
         .map_err(|e| anyhow::anyhow!("Failed to decode Slack token: {}", e))?;
 
-        let blocks = slack::format_message_blocks_batch(&message.notifications);
+        let blocks =
+            slack::format_message_blocks_batch(&message.notifications, message.workspace_id);
 
         slack::send_message(
             &self.slack_client,
@@ -196,7 +202,9 @@ impl NotificationDeliveryHandler {
             blocks.clone(),
         )
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
+        .map_err(|e| {
+            HandlerError::transient(anyhow::anyhow!("Failed to send Slack message: {}", e))
+        })?;
 
         log::debug!(
             "[NotificationDelivery] Slack notification sent ({} items)",
