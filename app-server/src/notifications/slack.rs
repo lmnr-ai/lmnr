@@ -333,6 +333,7 @@ fn build_report_data_from_batch(
     for kind in notifications {
         if let NotificationKind::SignalsReport {
             workspace_name,
+            project_id,
             project_name,
             title: t,
             period_label,
@@ -346,7 +347,7 @@ fn build_report_data_from_batch(
             let project_events: u64 = signal_event_counts.values().sum();
             let project = ProjectReportData {
                 project_name: project_name.clone(),
-                project_id: Uuid::nil(),
+                project_id: *project_id,
                 signal_event_counts: signal_event_counts.clone(),
                 ai_summary: ai_summary.clone(),
                 noteworthy_events: noteworthy_events.clone(),

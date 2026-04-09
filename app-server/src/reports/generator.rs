@@ -242,6 +242,7 @@ async fn process_report_trigger(
         .map(|project_report| {
             let kind = NotificationKind::SignalsReport {
                 workspace_name: workspace_name.clone(),
+                project_id: project_report.project_id,
                 project_name: project_report.project_name,
                 title: title.clone(),
                 period_label: report_name.clone(),

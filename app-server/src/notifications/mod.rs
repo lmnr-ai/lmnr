@@ -94,6 +94,7 @@ pub enum NotificationKind {
     /// consumer combines multiple project reports into one email/slack message.
     SignalsReport {
         workspace_name: String,
+        project_id: Uuid,
         project_name: String,
         /// Human-readable title, e.g. "Signal Events Summary – My Workspace".
         title: String,

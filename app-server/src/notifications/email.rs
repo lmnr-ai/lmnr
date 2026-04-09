@@ -124,6 +124,7 @@ fn build_report_data_from_batch(
     for kind in notifications {
         if let NotificationKind::SignalsReport {
             workspace_name,
+            project_id,
             project_name,
             period_label,
             period_start,
@@ -137,7 +138,7 @@ fn build_report_data_from_batch(
             let project_events: u64 = signal_event_counts.values().sum();
             let project = ProjectReportData {
                 project_name: project_name.clone(),
-                project_id: *workspace_id, // project_id is not in the flattened kind; use workspace_id as placeholder
+                project_id: *project_id,
                 signal_event_counts: signal_event_counts.clone(),
                 ai_summary: ai_summary.clone(),
                 noteworthy_events: noteworthy_events.clone(),
