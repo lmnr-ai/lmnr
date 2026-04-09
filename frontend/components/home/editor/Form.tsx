@@ -9,8 +9,8 @@ import { useFormContext, useWatch } from "react-hook-form";
 import { ChartRendererCore } from "@/components/chart-builder/charts";
 import { ChartType, resolveDisplayMode } from "@/components/chart-builder/types";
 import { type ColumnInfo, transformDataToColumns } from "@/components/chart-builder/utils";
-import { useHomeEditorStoreContext } from "@/components/home/editor/home-editor-store";
 import { QueryBuilderFields } from "@/components/home/editor/fields";
+import { useHomeEditorStoreContext } from "@/components/home/editor/home-editor-store";
 import { getTimeColumn } from "@/components/home/editor/table-schemas";
 import DateRangeFilter from "@/components/ui/date-range-filter";
 import { Label } from "@/components/ui/label.tsx";
@@ -138,6 +138,13 @@ export const Form = ({ isLoadingChart }: { isLoadingChart: boolean }) => {
         } else if (table === "traces") {
           if (!existingColumns.has("id") && !existingDimensions.has("id")) {
             injectedMetrics.push({ fn: "raw", column: "id", args: [] });
+          }
+        } else if (table === "signal_events") {
+          if (!existingColumns.has("signal_id") && !existingDimensions.has("signal_id")) {
+            injectedMetrics.push({ fn: "raw", column: "signal_id", args: [] });
+          }
+          if (!existingColumns.has("trace_id") && !existingDimensions.has("trace_id")) {
+            injectedMetrics.push({ fn: "raw", column: "trace_id", args: [] });
           }
         }
       }
