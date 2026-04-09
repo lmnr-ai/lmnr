@@ -291,6 +291,10 @@ async fn send_email_with_retry(
                     log::info!("[NotificationDelivery] Rate limited, will retry");
                     backoff::Error::transient(e)
                 }
+                resend_rs::Error::Http(_) => {
+                    log::info!("[NotificationDelivery] HTTP error, will retry");
+                    backoff::Error::transient(e)
+                }
                 _ => backoff::Error::permanent(e),
             })
     })
