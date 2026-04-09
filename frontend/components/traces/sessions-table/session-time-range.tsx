@@ -1,8 +1,7 @@
 "use client";
 
-import { format, isSameDay, isToday } from "date-fns";
-
 import { TooltipContent } from "@/components/ui/tooltip";
+import { formatTimeRange } from "@/lib/utils";
 
 const timeFormat: Intl.DateTimeFormatOptions = {
   hour: "2-digit",
@@ -22,23 +21,6 @@ interface SessionTimeRangeProps {
   endTime: string;
 }
 
-function formatRange(start: Date, end: Date): string {
-  const sameDay = isSameDay(start, end);
-  const startIsToday = isToday(start);
-
-  if (startIsToday && sameDay) {
-    return `${format(start, "h:mm a")} – ${format(end, "h:mm a")}`;
-  }
-
-  const datePart = format(start, "MMM d");
-
-  if (sameDay) {
-    return `${datePart}, ${format(start, "h:mm a")} – ${format(end, "h:mm a")}`;
-  }
-
-  return `${datePart}, ${format(start, "h:mm a")} – ${format(end, "MMM d, h:mm a")}`;
-}
-
 export default function SessionTimeRange({ startTime, endTime }: SessionTimeRangeProps) {
   const start = new Date(startTime);
   const end = new Date(endTime);
@@ -47,7 +29,7 @@ export default function SessionTimeRange({ startTime, endTime }: SessionTimeRang
     return <span className="text-sm text-secondary-foreground">{startTime}</span>;
   }
 
-  return <span className="text-sm text-secondary-foreground truncate">{formatRange(start, end)}</span>;
+  return <span className="text-sm text-secondary-foreground truncate">{formatTimeRange(start, end)}</span>;
 }
 
 export function TraceTimeTooltip({ startTime, endTime }: { startTime: string; endTime: string }) {
