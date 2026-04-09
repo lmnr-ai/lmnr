@@ -1,8 +1,8 @@
 "use client";
 
 import { createContext, type PropsWithChildren, useContext, useState } from "react";
-import { createStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
+import { createStore } from "zustand/vanilla";
 
 import { type TraceRow } from "@/lib/traces/types";
 
@@ -17,6 +17,7 @@ export type SessionsState = {
 export type SessionsActions = {
   expandSession: (sessionId: string) => void;
   collapseSession: (sessionId: string) => void;
+  toggleSession: (sessionId: string) => { action: "expanded"; controller: AbortController } | { action: "collapsed" };
   setLoadingSession: (sessionId: string, loading: boolean) => void;
   setSessionTraces: (sessionId: string, traces: TraceRow[]) => void;
   mergeTraceIO: (io: Record<string, { input: string | null; output: string | null }>) => void;
@@ -40,7 +41,7 @@ const DEFAULT_STATE: SessionsState = {
 export const createSessionsStore = () => {
   const sessionControllers = new Map<string, AbortController>();
 
-  return createStore<SessionsStore>()((set) => ({
+  return createStore<SessionsStore>()((set, get) => ({
     ...DEFAULT_STATE,
 
     expandSession: (sessionId) =>
@@ -60,6 +61,18 @@ export const createSessionsStore = () => {
         nextLoading.delete(sessionId);
         return { expandedSessions: nextExpanded, loadingSessions: nextLoading };
       });
+    },
+
+    toggleSession: (sessionId) => {
+      const isExpanded = get().expandedSessions.has(sessionId);
+      if (isExpanded) {
+        get().collapseSession(sessionId);
+        return { action: "collapsed" };
+      }
+      const controller = get().getController(sessionId);
+      get().expandSession(sessionId);
+      get().setLoadingSession(sessionId, true);
+      return { action: "expanded", controller };
     },
 
     setLoadingSession: (sessionId, loading) =>

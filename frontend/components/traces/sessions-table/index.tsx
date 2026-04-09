@@ -62,24 +62,25 @@ function SessionsTableContent() {
   );
 
   const {
-    expandSession,
+    toggleSession,
     collapseSession,
     setLoadingSession,
     setSessionTraces,
     mergeTraceIO,
     setLoadingSessionIO,
     resetExpandState,
-    getController,
-  } = useSessionsStoreContext((state) => ({
-    expandSession: state.expandSession,
-    collapseSession: state.collapseSession,
-    setLoadingSession: state.setLoadingSession,
-    setSessionTraces: state.setSessionTraces,
-    mergeTraceIO: state.mergeTraceIO,
-    setLoadingSessionIO: state.setLoadingSessionIO,
-    resetExpandState: state.resetExpandState,
-    getController: state.getController,
-  }));
+  } = useSessionsStoreContext(
+    (state) => ({
+      toggleSession: state.toggleSession,
+      collapseSession: state.collapseSession,
+      setLoadingSession: state.setLoadingSession,
+      setSessionTraces: state.setSessionTraces,
+      mergeTraceIO: state.mergeTraceIO,
+      setLoadingSessionIO: state.setLoadingSessionIO,
+      resetExpandState: state.resetExpandState,
+    }),
+    shallow
+  );
 
   // Serialize filter array for stable dependency comparison
   const filterKey = JSON.stringify(filter);
@@ -157,17 +158,10 @@ function SessionsTableContent() {
 
   const handleToggleSession = useCallback(
     async (sessionId: string) => {
-      const isExpanded = expandedSessions.has(sessionId);
+      const result = toggleSession(sessionId);
+      if (result.action === "collapsed") return;
 
-      if (isExpanded) {
-        collapseSession(sessionId);
-        return;
-      }
-
-      // Expand: fetch traces for this session
-      const controller = getController(sessionId);
-      expandSession(sessionId);
-      setLoadingSession(sessionId, true);
+      const controller = result.controller;
 
       try {
         const urlParams = new URLSearchParams();
@@ -211,6 +205,16 @@ function SessionsTableContent() {
               if (!controller.signal.aborted) {
                 mergeTraceIO(ioData);
               }
+            } else {
+              const errMessage = await ioRes
+                .json()
+                .then((d: { error?: string }) => d?.error)
+                .catch(() => null);
+              toast({
+                variant: "destructive",
+                title: "Error",
+                description: errMessage ?? "Failed to load trace previews. Please try again.",
+              });
             }
           } catch (ioError) {
             if (ioError instanceof DOMException && ioError.name === "AbortError") return;
@@ -220,25 +224,27 @@ function SessionsTableContent() {
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        toast({ title: "Failed to load traces. Please try again.", variant: "destructive" });
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to load trace previews. Please try again.",
+          variant: "destructive",
+        });
         collapseSession(sessionId);
         setLoadingSession(sessionId, false);
       }
     },
     [
-      expandedSessions,
       pastHours,
       startDate,
       endDate,
       projectId,
       toast,
-      expandSession,
+      toggleSession,
       setLoadingSession,
       setSessionTraces,
       mergeTraceIO,
       setLoadingSessionIO,
       collapseSession,
-      getController,
     ]
   );
 
