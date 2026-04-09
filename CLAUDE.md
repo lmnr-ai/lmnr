@@ -113,6 +113,12 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 # Migrations are applied automatically on frontend startup
 ```
 
+## Signal Triggers
+
+- Signal trigger filters are evaluated in `app-server/src/db/trace.rs` (`matches_filters` / `evaluate_single_filter`). Spans arrive in batches, so filter evaluation must check accumulated state from the DB (e.g. `trace.span_names`) — not just the current batch's raw spans. The `traces.span_names` JSONB column aggregates span names across all batches via `||` merge on upsert.
+- Trigger evaluation flow: `process_span_messages` → `upsert_trace_statistics_batch` (returns merged DB trace) → `check_and_push_signals` → `matches_filters`. All filters use AND logic.
+- Run targeted tests with `cargo test --bin app-server db::trace::tests -- --nocapture`.
+
 ## Key Technical Details
 
 - **Rust edition**: 2024 (requires Rust 1.90+)
