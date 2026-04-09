@@ -17,7 +17,7 @@ pub fn setup_tracing_and_logging(enable_otel: bool) {
         EnvFilter::new("info")
     };
 
-    let sentry_dsn_set = std::env::var("SENTRY_DSN").is_ok();
+    let sentry_dsn_set = std::env::var("SENTRY_DSN").is_ok_and(|s| !s.is_empty());
 
     let sentry_layer = (enable_otel && sentry_dsn_set).then(|| {
         sentry::integrations::tracing::layer().event_filter(|md| match *md.level() {
