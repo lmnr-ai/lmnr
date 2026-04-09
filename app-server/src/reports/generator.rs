@@ -256,14 +256,6 @@ async fn process_report_trigger(
         })
         .collect();
 
-    // For a multi-project report, project_id on the message is None (workspace-level).
-    // For a single-project report, set the project_id.
-    let message_project_id = if notifications.len() == 1 {
-        notifications[0].0
-    } else {
-        None
-    };
-
     let notification_kinds: Vec<NotificationKind> =
         notifications.into_iter().map(|(_, kind)| kind).collect();
 
@@ -273,7 +265,7 @@ async fn process_report_trigger(
         definition_type: NotificationDefinitionType::Report,
         definition_id: report_id,
         workspace_id,
-        project_id: message_project_id,
+        project_id: None,
         notifications: notification_kinds,
     };
 

@@ -8,51 +8,31 @@
 use uuid::Uuid;
 
 use super::NotificationKind;
-use crate::reports::email_template::{self, ProjectReportData, ReportData, html_escape};
+use super::utils::build_report_data_from_batch;
+use crate::reports::email_template::ReportData;
 
 const REPORT_FROM_EMAIL: &str = "Laminar <reports@mail.lmnr.ai>";
 const ALERT_FROM_EMAIL: &str = "Laminar <alerts@mail.lmnr.ai>";
 const USAGE_WARNING_FROM_EMAIL: &str = "Laminar <usage@mail.lmnr.ai>";
 
+const LAMINAR_LOGO_CID: &str = "laminar-logo";
+/// Primary brand color (#D0754E)
+const PRIMARY: &str = "#D0754E";
+
 /// Format an email (from, subject, html) for a batch of notifications.
 ///
-/// For single-element batches this behaves identically to the old per-notification
-/// rendering. For multi-element batches (e.g. reports with per-project data) all
-/// entries are combined into one email body.
+/// All notifications in the batch are expected to be of the same kind.
+/// Reports are rendered by combining per-project data into a single email.
+/// Alerts and usage warnings use the first (and only) notification.
 pub fn format_email_batch(
     notifications: &[NotificationKind],
     workspace_id: &Uuid,
 ) -> (String, String, String) {
-    if notifications.is_empty() {
+    let Some(first) = notifications.first() else {
         return (String::new(), String::new(), String::new());
-    }
+    };
 
-    // Single notification — delegate to the type-specific renderer.
-    if notifications.len() == 1 {
-        return format_single_email(&notifications[0], workspace_id);
-    }
-
-    // Multi-notification batch. Currently only reports produce multi-element
-    // batches so we combine them into a single report email.
-    if let Some(report_data) = build_report_data_from_batch(notifications, workspace_id) {
-        let title = notifications
-            .iter()
-            .find_map(|k| match k {
-                NotificationKind::SignalsReport { title, .. } => Some(title.clone()),
-                _ => None,
-            })
-            .unwrap_or_default();
-        let html = email_template::render_report_email(&report_data);
-        return (REPORT_FROM_EMAIL.to_string(), title, html);
-    }
-
-    // Fallback: render only the first notification.
-    format_single_email(&notifications[0], workspace_id)
-}
-
-/// Format an email for a single notification kind.
-fn format_single_email(kind: &NotificationKind, workspace_id: &Uuid) -> (String, String, String) {
-    match kind {
+    match first {
         NotificationKind::EventIdentification {
             project_id,
             trace_id,
@@ -70,21 +50,11 @@ fn format_single_email(kind: &NotificationKind, workspace_id: &Uuid) -> (String,
             let html = render_alert_email(event_name, &attributes, &trace_link);
             (ALERT_FROM_EMAIL.to_string(), subject, html)
         }
-        NotificationKind::SignalsReport { title, .. } => {
-            let report_data =
-                build_report_data_from_batch(std::slice::from_ref(kind), workspace_id).unwrap_or(
-                    ReportData {
-                        workspace_id: *workspace_id,
-                        workspace_name: String::new(),
-                        period_label: String::new(),
-                        period_start: String::new(),
-                        period_end: String::new(),
-                        projects: vec![],
-                        total_events: 0,
-                    },
-                );
-            let html = email_template::render_report_email(&report_data);
-            (REPORT_FROM_EMAIL.to_string(), title.clone(), html)
+        NotificationKind::SignalsReport { .. } => {
+            let (title, report_data) = build_report_data_from_batch(notifications, *workspace_id)
+                .expect("SignalsReport batch must contain at least one report");
+            let html = render_report_email(&report_data);
+            (REPORT_FROM_EMAIL.to_string(), title, html)
         }
         NotificationKind::UsageWarning {
             workspace_name,
@@ -108,64 +78,10 @@ fn format_single_email(kind: &NotificationKind, workspace_id: &Uuid) -> (String,
     }
 }
 
-/// Reconstruct a `ReportData` from a batch of flattened `SignalsReport` notifications.
-/// Returns `None` if no `SignalsReport` entries are found.
-fn build_report_data_from_batch(
-    notifications: &[NotificationKind],
-    workspace_id: &Uuid,
-) -> Option<ReportData> {
-    let mut report_data: Option<ReportData> = None;
-
-    for kind in notifications {
-        if let NotificationKind::SignalsReport {
-            workspace_name,
-            project_id,
-            project_name,
-            period_label,
-            period_start,
-            period_end,
-            signal_event_counts,
-            ai_summary,
-            noteworthy_events,
-            ..
-        } = kind
-        {
-            let project_events: u64 = signal_event_counts.values().sum();
-            let project = ProjectReportData {
-                project_name: project_name.clone(),
-                project_id: *project_id,
-                signal_event_counts: signal_event_counts.clone(),
-                ai_summary: ai_summary.clone(),
-                noteworthy_events: noteworthy_events.clone(),
-            };
-
-            match report_data.as_mut() {
-                None => {
-                    report_data = Some(ReportData {
-                        workspace_id: *workspace_id,
-                        workspace_name: workspace_name.clone(),
-                        period_label: period_label.clone(),
-                        period_start: period_start.clone(),
-                        period_end: period_end.clone(),
-                        projects: vec![project],
-                        total_events: project_events,
-                    });
-                }
-                Some(existing) => {
-                    existing.projects.push(project);
-                    existing.total_events += project_events;
-                }
-            }
-        }
-    }
-
-    report_data
-}
-
 // ── Alert email ──
 
-/// Render a simple HTML email for an alert notification.
-pub fn render_alert_email(
+/// Render an HTML email for an alert notification.
+fn render_alert_email(
     event_name: &str,
     attributes: &serde_json::Value,
     trace_link: &str,
@@ -245,10 +161,8 @@ pub fn render_alert_email(
     )
 }
 
-// ── Usage warning email ──
-
 /// Render an HTML email for a usage warning notification.
-pub fn render_usage_warning_email(
+fn render_usage_warning_email(
     workspace_name: &str,
     workspace_id: Uuid,
     usage_item: &str,
@@ -308,4 +222,176 @@ pub fn render_usage_warning_email(
         formatted_limit = html_escape(formatted_limit),
         meter_description = meter_description,
     )
+}
+
+/// Render an HTML email for a signals report notification.
+fn render_report_email(data: &ReportData) -> String {
+    let mut projects_html = String::new();
+
+    for project in &data.projects {
+        let mut summary_rows = String::new();
+        let project_total: u64 = project.signal_event_counts.values().sum();
+        for (signal_name, count) in &project.signal_event_counts {
+            summary_rows.push_str(&format!(
+                r##"<tr>
+  <td style="padding:6px 0;font-size:14px;color:#111827;border-bottom:1px solid #f3f4f6;">{signal_name}</td>
+  <td style="padding:6px 0;font-size:14px;font-weight:600;color:{primary};text-align:right;border-bottom:1px solid #f3f4f6;">{count}</td>
+</tr>"##,
+                signal_name = html_escape(signal_name),
+                count = count,
+                primary = PRIMARY,
+            ));
+        }
+
+        let summary_section = format!(
+            r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
+  <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Signal Overview</h3>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td style="padding:6px 0;font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;border-bottom:1px solid #e5e7eb;">Signal</td>
+      <td style="padding:6px 0;font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;text-align:right;border-bottom:1px solid #e5e7eb;">Events</td>
+    </tr>
+    {summary_rows}
+    <tr>
+      <td style="padding:8px 0;font-size:14px;font-weight:700;color:#111827;">Total</td>
+      <td style="padding:8px 0;font-size:14px;font-weight:700;color:{primary};text-align:right;">{project_total}</td>
+    </tr>
+  </table>
+</div>"##,
+            summary_rows = summary_rows,
+            project_total = project_total,
+            primary = PRIMARY,
+        );
+
+        let ai_summary_html = if project.ai_summary.is_empty() {
+            String::new()
+        } else {
+            format!(
+                r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:20px;">
+  <h3 style="margin:0 0 8px;font-size:14px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Summary</h3>
+  <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;">{ai_summary}</p>
+</div>"##,
+                ai_summary = html_escape(&project.ai_summary),
+            )
+        };
+
+        let noteworthy_html = if project.noteworthy_events.is_empty() {
+            String::new()
+        } else {
+            let mut events_html = String::new();
+            for event in &project.noteworthy_events {
+                let summary_part = if event.summary.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        r#"<div style="margin-top:4px;color:#374151;font-size:13px;">{}</div>"#,
+                        html_escape(&event.summary)
+                    )
+                };
+
+                events_html.push_str(&format!(
+                    r##"<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-bottom:8px;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:4px;"><tr>
+    <td style="font-size:12px;color:#6b7280;" align="left">{signal_name} &middot; {timestamp}</td>
+    <td style="font-size:12px;" align="right"><a href="https://lmnr.ai/project/{project_id}/traces/{trace_id}?chat=true" style="color:{primary};text-decoration:none;">View trace &rarr;</a></td>
+  </tr></table>{summary}
+</div>"##,
+                    signal_name = html_escape(&event.signal_name),
+                    timestamp = html_escape(&event.timestamp),
+                    project_id = project.project_id,
+                    trace_id = html_escape(&event.trace_id),
+                    summary = summary_part,
+                    primary = PRIMARY,
+                ));
+            }
+
+            format!(
+                r##"<div style="margin-bottom:20px;">
+  <h3 style="margin:0 0 12px;font-size:14px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Noteworthy Events</h3>
+  {events_html}
+</div>"##,
+                events_html = events_html,
+            )
+        };
+
+        projects_html.push_str(&format!(
+            r##"<div style="margin-bottom:28px;">
+  <div style="border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:16px;">
+    <h2 style="margin:0;font-size:17px;font-weight:600;color:#111827;">{project_name}</h2>
+  </div>
+  {summary_section}
+  {ai_summary_html}
+  {noteworthy_html}
+</div>"##,
+            project_name = html_escape(&project.project_name),
+            summary_section = summary_section,
+            ai_summary_html = ai_summary_html,
+            noteworthy_html = noteworthy_html,
+        ));
+    }
+
+    if projects_html.is_empty() {
+        projects_html = r#"<p style="color:#9ca3af;font-size:14px;text-align:center;padding:24px 0;">No projects with signal activity found.</p>"#.to_string();
+    }
+
+    format!(
+        r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Signals Report – {workspace_name}</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:640px;margin:0 auto;padding:24px 16px;">
+
+  <!-- Header -->
+  <div style="background:#0A0A0A;border-radius:10px;padding:28px 24px;margin-bottom:20px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;"><tr>
+      <td style="vertical-align:middle;">
+        <img src="cid:{logo_cid}" alt="Laminar" width="120" height="21" style="display:block;" />
+      </td>
+      <td style="vertical-align:middle;text-align:right;">
+        <p style="margin:0 0 2px;font-size:13px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;">Total Events</p>
+        <p style="margin:0;font-size:32px;font-weight:700;color:#ffffff;">{total_events}</p>
+      </td>
+    </tr></table>
+    <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;">Signals Report</h1>
+    <p style="margin:0 0 4px;font-size:14px;color:#9ca3af;">{workspace_name} &middot; {period_label}</p>
+    <p style="margin:0;font-size:13px;color:#6b7280;">{period_start} &ndash; {period_end}</p>
+  </div>
+
+  <!-- Projects -->
+  <div style="background:#ffffff;border-radius:10px;border:1px solid #e5e7eb;padding:24px;margin-bottom:20px;">
+    {projects_html}
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center;padding:16px 0;">
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">This report was generated automatically by <a href="https://www.lmnr.ai" style="color:{primary};text-decoration:none;">Laminar</a>.</p>
+    <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">You are receiving this because you are subscribed to reports for the {workspace_name} workspace.</p>
+    <p style="margin:0;font-size:12px;color:#9ca3af;"><a href="https://lmnr.ai/workspace/{workspace_id}?tab=reports" style="color:{primary};text-decoration:none;">Unsubscribe</a></p>
+  </div>
+
+</div>
+</body>
+</html>"##,
+        workspace_id = data.workspace_id,
+        workspace_name = html_escape(&data.workspace_name),
+        period_label = html_escape(&data.period_label),
+        period_start = html_escape(&data.period_start),
+        period_end = html_escape(&data.period_end),
+        total_events = data.total_events,
+        projects_html = projects_html,
+        primary = PRIMARY,
+        logo_cid = LAMINAR_LOGO_CID,
+    )
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#x27;")
 }

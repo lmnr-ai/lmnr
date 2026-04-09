@@ -4,7 +4,6 @@
 //! - Clustering the signal events
 //! - Pushing notification messages for detected events
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -27,25 +26,13 @@ pub async fn process_event_notifications_and_clustering(
     let event_name = signal_event.name().to_string();
     let attributes = signal_event.payload_value().unwrap_or_default();
 
-    // Look up all alert targets for this event. Multiple distinct alerts may
-    // match the same signal name, so we group by alert_id and send one
-    // notification per distinct alert. The consumer re-fetches targets for fan-out.
-    let targets =
-        db::alert_targets::get_targets_for_event(&db.pool, project_id, &event_name).await?;
+    let alert = db::alert_targets::get_alert_for_event(&db.pool, project_id, &event_name).await?;
 
-    // Deduplicate by alert_id, keeping the first target per alert for workspace_id.
-    let mut seen_alerts: HashMap<Uuid, Uuid> = HashMap::new();
-    for target in &targets {
-        seen_alerts
-            .entry(target.alert_id)
-            .or_insert(target.workspace_id);
-    }
-
-    for (alert_id, workspace_id) in seen_alerts {
+    if let Some(alert) = alert {
         let notification_message = notifications::NotificationMessage {
             definition_type: NotificationDefinitionType::Alert,
-            definition_id: alert_id,
-            workspace_id,
+            definition_id: alert.alert_id,
+            workspace_id: alert.workspace_id,
             project_id: Some(project_id),
             notifications: vec![NotificationKind::EventIdentification {
                 project_id,

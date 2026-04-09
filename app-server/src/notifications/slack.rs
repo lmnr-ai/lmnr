@@ -12,7 +12,8 @@ use sodiumoxide::{
 use uuid::Uuid;
 
 use super::NotificationKind;
-use crate::reports::email_template::{ProjectReportData, ReportData};
+use super::utils::build_report_data_from_batch;
+use crate::reports::email_template::ReportData;
 
 const SLACK_API_BASE: &str = "https://slack.com/api";
 
@@ -52,12 +53,49 @@ pub fn decode_slack_token(
         .map_err(|e| anyhow::anyhow!("Failed to convert decrypted bytes to string: {}", e))
 }
 
+/// Format Slack message blocks for a batch of notifications.
+///
+/// All notifications in the batch are expected to be of the same kind.
+/// Reports are rendered by combining per-project data into a single message.
+/// Alerts and usage warnings use the first (and only) notification.
+pub fn format_message_blocks_batch(notifications: &[NotificationKind]) -> serde_json::Value {
+    let Some(first) = notifications.first() else {
+        return json!([]);
+    };
+
+    match first {
+        NotificationKind::EventIdentification {
+            project_id,
+            trace_id,
+            event_name,
+            extracted_information,
+        } => format_event_identification_blocks(
+            &project_id.to_string(),
+            &trace_id.to_string(),
+            event_name,
+            extracted_information.clone(),
+        ),
+        NotificationKind::SignalsReport { .. } => {
+            let (title, report_data) = build_report_data_from_batch(notifications, Uuid::nil())
+                .expect("SignalsReport batch must contain at least one report");
+            format_report_blocks(&title, &report_data)
+        }
+        NotificationKind::UsageWarning {
+            workspace_name,
+            usage_label,
+            formatted_limit,
+            ..
+        } => format_usage_warning_blocks(workspace_name, usage_label, formatted_limit),
+    }
+}
+
 /// Convert standard markdown links `[text](url)` to Slack mrkdwn `<url|text>`.
 fn md_links_to_slack(text: &str) -> String {
     static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap());
     RE.replace_all(text, "<$2|$1>").into_owned()
 }
 
+// Format Slack message blocks for an event identification notification.
 fn format_event_identification_blocks(
     project_id: &str,
     trace_id: &str,
@@ -161,6 +199,7 @@ fn format_event_identification_blocks(
     ])
 }
 
+/// Format Slack message blocks for a signals report notification.
 fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
     let project_count = report.projects.len();
 
@@ -235,138 +274,25 @@ fn format_report_blocks(title: &str, report: &ReportData) -> serde_json::Value {
     json!(blocks)
 }
 
-/// Format Slack message blocks for a batch of notifications.
-///
-/// For single-element batches, renders the notification directly.
-/// For multi-element batches (e.g. reports with per-project data),
-/// combines all entries into a single Slack message.
-pub fn format_message_blocks_batch(notifications: &[NotificationKind]) -> serde_json::Value {
-    if notifications.is_empty() {
-        return serde_json::json!([]);
-    }
-
-    if notifications.len() == 1 {
-        return format_message_blocks_single(&notifications[0]);
-    }
-
-    // Multi-notification batch. Currently only reports produce multi-element
-    // batches, so we merge project data into a single report block set.
-    if let Some((title, report_data)) = build_report_data_from_batch(notifications) {
-        return format_report_blocks(&title, &report_data);
-    }
-
-    // Fallback: render only the first notification.
-    format_message_blocks_single(&notifications[0])
-}
-
-/// Format Slack message blocks from a single `NotificationKind`.
-fn format_message_blocks_single(kind: &NotificationKind) -> serde_json::Value {
-    match kind {
-        NotificationKind::EventIdentification {
-            project_id,
-            trace_id,
-            event_name,
-            extracted_information,
-        } => format_event_identification_blocks(
-            &project_id.to_string(),
-            &trace_id.to_string(),
-            event_name,
-            extracted_information.clone(),
-        ),
-        NotificationKind::SignalsReport { title, .. } => {
-            let (_, report_data) = build_report_data_from_batch(std::slice::from_ref(kind))
-                .unwrap_or_else(|| {
-                    (
-                        title.clone(),
-                        ReportData {
-                            workspace_id: Uuid::nil(),
-                            workspace_name: String::new(),
-                            period_label: String::new(),
-                            period_start: String::new(),
-                            period_end: String::new(),
-                            projects: vec![],
-                            total_events: 0,
-                        },
-                    )
-                });
-            format_report_blocks(title, &report_data)
-        }
-        NotificationKind::UsageWarning {
-            workspace_name,
-            usage_label,
-            formatted_limit,
-            ..
-        } => {
-            json!([
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": format!(
-                            ":warning: *Usage Warning*\n{} has reached *{}* of {}.",
-                            workspace_name, formatted_limit, usage_label
-                        )
-                    }
-                },
-                {"type": "divider"}
-            ])
-        }
-    }
-}
-
-/// Reconstruct a `ReportData` (with title) from a batch of flattened `SignalsReport` notifications.
-/// Returns `None` if no `SignalsReport` entries are found.
-fn build_report_data_from_batch(
-    notifications: &[NotificationKind],
-) -> Option<(String, ReportData)> {
-    let mut report_data: Option<ReportData> = None;
-    let mut title = String::new();
-
-    for kind in notifications {
-        if let NotificationKind::SignalsReport {
-            workspace_name,
-            project_id,
-            project_name,
-            title: t,
-            period_label,
-            period_start,
-            period_end,
-            signal_event_counts,
-            ai_summary,
-            noteworthy_events,
-        } = kind
+/// Format Slack message blocks for a usage warning notification.
+fn format_usage_warning_blocks(
+    workspace_name: &str,
+    usage_label: &str,
+    formatted_limit: &str,
+) -> serde_json::Value {
+    json!([
         {
-            let project_events: u64 = signal_event_counts.values().sum();
-            let project = ProjectReportData {
-                project_name: project_name.clone(),
-                project_id: *project_id,
-                signal_event_counts: signal_event_counts.clone(),
-                ai_summary: ai_summary.clone(),
-                noteworthy_events: noteworthy_events.clone(),
-            };
-
-            match report_data.as_mut() {
-                None => {
-                    title = t.clone();
-                    report_data = Some(ReportData {
-                        workspace_id: Uuid::nil(),
-                        workspace_name: workspace_name.clone(),
-                        period_label: period_label.clone(),
-                        period_start: period_start.clone(),
-                        period_end: period_end.clone(),
-                        projects: vec![project],
-                        total_events: project_events,
-                    });
-                }
-                Some(existing) => {
-                    existing.projects.push(project);
-                    existing.total_events += project_events;
-                }
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!(
+                    ":warning: *Usage Warning*\n{} has reached *{}* of {}.",
+                    workspace_name, formatted_limit, usage_label
+                )
             }
-        }
-    }
-
-    report_data.map(|data| (title, data))
+        },
+        {"type": "divider"}
+    ])
 }
 
 pub async fn send_message(

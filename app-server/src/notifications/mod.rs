@@ -14,20 +14,16 @@ use crate::reports::email_template::NoteworthyEvent;
 use crate::worker::{HandlerError, MessageHandler};
 
 pub mod delivery;
+use delivery::{DeliveryTarget, NotificationDeliveryMessage, push_to_deliveries_queue};
 mod email;
 pub(crate) mod slack;
+mod utils;
 
 // ── Notifications queue (producers → notifications_consumer) ──
 
 pub const NOTIFICATIONS_EXCHANGE: &str = "notifications";
 pub const NOTIFICATIONS_QUEUE: &str = "notifications";
 pub const NOTIFICATIONS_ROUTING_KEY: &str = "notifications";
-
-// ── Notification deliveries queue (notifications_consumer → deliveries_consumer) ──
-
-pub const NOTIFICATION_DELIVERIES_EXCHANGE: &str = "notification_deliveries";
-pub const NOTIFICATION_DELIVERIES_QUEUE: &str = "notification_deliveries";
-pub const NOTIFICATION_DELIVERIES_ROUTING_KEY: &str = "notification_deliveries";
 
 // ── Shared types ──
 
@@ -80,41 +76,30 @@ impl std::fmt::Display for NotificationDefinitionType {
 // ── Notification kind: the core event data ──
 
 /// Core notification data produced by various subsystems.
-/// Contains only the essential event information — no channel IDs, emails, or formatting.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NotificationKind {
-    /// A signal event was detected (alert).
     EventIdentification {
         project_id: Uuid,
         trace_id: Uuid,
         event_name: String,
         extracted_information: Option<serde_json::Value>,
     },
-    /// A periodic signals report for a single project.
-    /// Each project gets its own `SignalsReport` notification; the delivery
-    /// consumer combines multiple project reports into one email/slack message.
     SignalsReport {
         workspace_name: String,
         project_id: Uuid,
         project_name: String,
-        /// Human-readable title, e.g. "Signal Events Summary – My Workspace".
         title: String,
         period_label: String,
         period_start: String,
         period_end: String,
-        /// Map of signal_name -> total event count in period
         signal_event_counts: BTreeMap<String, u64>,
-        /// AI-generated summary for this project's signals
         ai_summary: String,
-        /// Noteworthy events selected by the AI summary
         noteworthy_events: Vec<NoteworthyEvent>,
     },
-    /// A usage threshold was reached.
     UsageWarning {
         workspace_name: String,
         usage_label: String,
         formatted_limit: String,
-        /// "bytes" or "signal_runs"
         usage_item: String,
     },
 }
@@ -122,12 +107,10 @@ pub enum NotificationKind {
 // ── NotificationMessage (producers → notifications queue) ──
 
 /// Message pushed to the `notifications` queue by producers (reports generator,
-/// signal postprocessor, usage limits checker).
+/// signal processor, usage limits checker).
 ///
-/// Contains a list of notification events sharing the same definition. For alerts
-/// and usage warnings, `notifications` will have exactly one element. For reports,
-/// there is one element per project so they can be stored individually in CH
-/// but delivered as a single combined email/slack message.
+/// Contains a list of notification events sharing the same definition. All notifications from
+/// the message are delivered together.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NotificationMessage {
     pub definition_type: NotificationDefinitionType,
@@ -165,63 +148,14 @@ pub async fn push_to_notification_queue(
     Ok(())
 }
 
-// ── NotificationDeliveryMessage (notifications_consumer → deliveries queue) ──
-
-/// A delivery target resolved by the notifications consumer.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DeliveryTarget {
-    pub target_id: Uuid,
-    pub target_type: TargetType,
-    /// Email address (for Email targets).
-    pub email: Option<String>,
-    /// Slack channel ID (for Slack targets).
-    pub channel_id: Option<String>,
-    /// Slack integration ID (for Slack targets).
-    pub integration_id: Option<Uuid>,
-}
-
-/// Message pushed to the `notification_deliveries` queue.
-/// Contains the target info at the top level and the list of notification events.
-/// The deliveries consumer combines all notifications into a single email/slack message.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct NotificationDeliveryMessage {
-    pub definition_type: NotificationDefinitionType,
-    pub definition_id: Uuid,
-    pub workspace_id: Uuid,
-    /// Optional project scope, propagated from the source NotificationMessage.
-    pub project_id: Option<Uuid>,
-    pub target: DeliveryTarget,
-    /// IDs assigned to each notification in stage 1 (for logging). Parallel to `notifications`.
-    pub notification_ids: Vec<Uuid>,
-    pub notifications: Vec<NotificationKind>,
-}
-
-pub(crate) async fn push_to_deliveries_queue(
-    message: NotificationDeliveryMessage,
-    queue: Arc<MessageQueue>,
-) -> anyhow::Result<()> {
-    let serialized = serde_json::to_vec(&message)?;
-
-    queue
-        .publish(
-            &serialized,
-            NOTIFICATION_DELIVERIES_EXCHANGE,
-            NOTIFICATION_DELIVERIES_ROUTING_KEY,
-            None,
-        )
-        .await?;
-
-    Ok(())
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // notifications_consumer — stage 1: persist notifications + fan-out to targets
 // ══════════════════════════════════════════════════════════════════════════════
 
-/// How long the per-warning dedup lock is held in stage 1.
+/// How long the per-warning dedup lock is held.
 /// This prevents concurrent ingestion workers from enqueuing duplicate
 /// usage-warning notifications for the same warning definition.
-const USAGE_WARNING_NOTIFICATION_LOCK_TTL_SECONDS: u64 = 300; // 5 minutes
+const USAGE_WARNING_SEND_LOCK_TTL_SECONDS: u64 = 300; // 5 minutes
 
 pub struct NotificationHandler {
     pub db: Arc<DB>,
@@ -259,13 +193,13 @@ impl MessageHandler for NotificationHandler {
             let lock_key = format!("{}:{}", USAGE_WARNING_SEND_LOCK_KEY, message.definition_id);
             match self
                 .cache
-                .try_acquire_lock(&lock_key, USAGE_WARNING_NOTIFICATION_LOCK_TTL_SECONDS)
+                .try_acquire_lock(&lock_key, USAGE_WARNING_SEND_LOCK_TTL_SECONDS)
                 .await
             {
                 Ok(true) => {} // Lock acquired – proceed.
                 Ok(false) => {
                     log::debug!(
-                        "[Notifications] Usage warning dedup lock held for [{}], skipping",
+                        "[Notifications] Usage warning send lock held for [{}], skipping",
                         message.definition_id
                     );
                     return Ok(());
@@ -280,10 +214,7 @@ impl MessageHandler for NotificationHandler {
         }
 
         let now_ms = chrono::Utc::now().timestamp_millis();
-        let message_project_id = message.project_id.unwrap_or(Uuid::nil());
-
         // 1. Persist each notification event to ClickHouse `notifications` table.
-        //    Assign a unique ID per notification for logging/auditing.
         let mut notification_ids = Vec::with_capacity(message.notifications.len());
         let mut ch_notifications = Vec::with_capacity(message.notifications.len());
 
@@ -291,13 +222,10 @@ impl MessageHandler for NotificationHandler {
             let notification_id = Uuid::new_v4();
             notification_ids.push(notification_id);
 
-            // Extract the per-notification project_id from the payload when
-            // available (EventIdentification and SignalsReport both carry it).
-            // Fall back to the message-level project_id for other kinds.
             let project_id = match kind {
-                NotificationKind::EventIdentification { project_id, .. }
-                | NotificationKind::SignalsReport { project_id, .. } => *project_id,
-                _ => message_project_id,
+                NotificationKind::EventIdentification { project_id, .. } => *project_id,
+                NotificationKind::SignalsReport { project_id, .. } => *project_id,
+                _ => Uuid::nil(), // some notifications are workspace-level
             };
 
             let payload = serde_json::to_string(kind).map_err(|e| {
@@ -329,9 +257,7 @@ impl MessageHandler for NotificationHandler {
                     ch_notifications.len(),
                     e
                 );
-                // Non-fatal: continue with delivery fan-out. The notification_ids
-                // passed to stage 2 are correlation identifiers, not CH foreign keys
-                // (ClickHouse has no referential integrity). Blocking delivery on CH
+                // Non-fatal: continue with delivery fan-out. Blocking delivery on CH
                 // availability would be worse than having unmatched IDs in logs.
             }
         }
@@ -354,8 +280,6 @@ impl MessageHandler for NotificationHandler {
 
         for target in targets {
             let delivery = NotificationDeliveryMessage {
-                definition_type: message.definition_type.clone(),
-                definition_id: message.definition_id,
                 workspace_id: message.workspace_id,
                 project_id: message.project_id,
                 target,
@@ -396,38 +320,23 @@ impl NotificationHandler {
     ) -> Result<Vec<DeliveryTarget>, HandlerError> {
         match message.definition_type {
             NotificationDefinitionType::Alert => {
-                // For alerts, extract the event info from the first (and only) notification.
-                let Some(first) = message.notifications.first() else {
-                    return Err(HandlerError::permanent(anyhow::anyhow!(
-                        "Alert notification message has no notifications"
-                    )));
-                };
-                let NotificationKind::EventIdentification {
-                    project_id,
-                    event_name,
-                    ..
-                } = first
-                else {
-                    return Err(HandlerError::permanent(anyhow::anyhow!(
-                        "Alert notification must have EventIdentification kind"
-                    )));
-                };
+                let project_id = message.project_id.ok_or_else(|| {
+                    HandlerError::permanent(anyhow::anyhow!(
+                        "Alert notification must have project_id, definition_id={}",
+                        message.definition_id,
+                    ))
+                })?;
 
-                let targets = crate::db::alert_targets::get_targets_for_event(
+                let targets = crate::db::alert_targets::get_targets_for_alert(
                     &self.db.pool,
-                    *project_id,
-                    event_name,
+                    &message.definition_id,
+                    &project_id,
                 )
                 .await
                 .map_err(|e| HandlerError::transient(e))?;
 
-                // Filter to only the targets belonging to this specific alert
-                // (definition_id). The query returns targets for all alerts
-                // matching the event name; without this filter, multiple alerts
-                // on the same signal would cause duplicate deliveries.
                 Ok(targets
                     .into_iter()
-                    .filter(|t| t.alert_id == message.definition_id)
                     .filter_map(|t| {
                         let target_type = t.r#type.parse::<TargetType>().ok()?;
                         Some(DeliveryTarget {

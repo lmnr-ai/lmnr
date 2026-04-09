@@ -406,8 +406,8 @@ async fn check_soft_limits(
 }
 
 /// Build and enqueue a soft-limit notification for workspace owners.
-/// Only sends the core usage warning data. Target fetching, email rendering, and
-/// deduplication all happen downstream in the notification consumer pipeline.
+/// Deduplication is handled on the notification-worker side via a short-lived cache
+/// lock, so this function simply constructs the message and pushes it to the queue.
 async fn send_soft_limit_notification(
     db: Arc<DB>,
     cache: Arc<Cache>,

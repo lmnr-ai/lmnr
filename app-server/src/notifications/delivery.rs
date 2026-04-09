@@ -11,13 +11,64 @@ use async_trait::async_trait;
 use backoff::ExponentialBackoffBuilder;
 use resend_rs::Resend;
 use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{NotificationDeliveryMessage, NotificationKind, TargetType, email, slack};
+use super::{NotificationKind, TargetType, email, slack};
 use crate::ch::notification_deliveries::CHNotificationDelivery;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
+use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::worker::{HandlerError, MessageHandler};
+
+// ── Notification deliveries queue (notifications_consumer → deliveries_consumer) ──
+
+pub const NOTIFICATION_DELIVERIES_EXCHANGE: &str = "notification_deliveries";
+pub const NOTIFICATION_DELIVERIES_QUEUE: &str = "notification_deliveries";
+pub const NOTIFICATION_DELIVERIES_ROUTING_KEY: &str = "notification_deliveries";
+
+// ── NotificationDeliveryMessage (notifications_consumer → deliveries queue) ──
+
+/// A delivery target resolved by the notifications consumer.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DeliveryTarget {
+    pub target_id: Uuid,
+    pub target_type: TargetType,
+    pub email: Option<String>,
+    pub channel_id: Option<String>,
+    pub integration_id: Option<Uuid>,
+}
+
+/// Message pushed to the `notification_deliveries` queue.
+/// Contains the target info at the top level and the list of notification events.
+/// The deliveries consumer combines all notifications into a single email/slack message.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NotificationDeliveryMessage {
+    pub workspace_id: Uuid,
+    pub project_id: Option<Uuid>, // optional for workspace-level notifications
+    pub target: DeliveryTarget,
+    /// IDs assigned to each notification. Matches `notifications` order.
+    pub notification_ids: Vec<Uuid>,
+    pub notifications: Vec<NotificationKind>,
+}
+
+pub(crate) async fn push_to_deliveries_queue(
+    message: NotificationDeliveryMessage,
+    queue: Arc<MessageQueue>,
+) -> anyhow::Result<()> {
+    let serialized = serde_json::to_vec(&message)?;
+
+    queue
+        .publish(
+            &serialized,
+            NOTIFICATION_DELIVERIES_EXCHANGE,
+            NOTIFICATION_DELIVERIES_ROUTING_KEY,
+            None,
+        )
+        .await?;
+
+    Ok(())
+}
 
 const LAMINAR_LOGO_PNG: &[u8] = include_bytes!("../../data/logo.png");
 const LAMINAR_LOGO_CID: &str = "laminar-logo";
@@ -57,20 +108,17 @@ impl MessageHandler for NotificationDeliveryHandler {
 
         if let Some(raw_message) = raw_message {
             let now_ms = chrono::Utc::now().timestamp_millis();
-            let message_project_id = message.project_id.unwrap_or(Uuid::nil());
 
             // Record one delivery entry per notification in the batch.
-            // Extract per-notification project_id from the payload (matching
-            // stage 1 logic) so multi-project reports get the correct project_id.
             let delivery_entries: Vec<CHNotificationDelivery> = message
                 .notification_ids
                 .iter()
                 .zip(message.notifications.iter())
                 .map(|(notification_id, kind)| {
                     let project_id = match kind {
-                        NotificationKind::EventIdentification { project_id, .. }
-                        | NotificationKind::SignalsReport { project_id, .. } => *project_id,
-                        _ => message_project_id,
+                        NotificationKind::EventIdentification { project_id, .. } => *project_id,
+                        NotificationKind::SignalsReport { project_id, .. } => *project_id,
+                        _ => Uuid::nil(), // some notifications are workspace-level
                     };
                     CHNotificationDelivery {
                         workspace_id: message.workspace_id,
@@ -115,7 +163,7 @@ impl NotificationDeliveryHandler {
         let (Some(channel_id), Some(integration_id)) =
             (&message.target.channel_id, message.target.integration_id)
         else {
-            log::warn!("[NotificationDelivery] Slack target missing channel_id or integration_id");
+            log::error!("[NotificationDelivery] Slack target missing channel_id or integration_id");
             return Ok(None);
         };
 
@@ -125,7 +173,7 @@ impl NotificationDeliveryHandler {
                 .map_err(|e| anyhow::anyhow!("Failed to get Slack integration: {}", e))?;
 
         let Some(integration) = integration else {
-            log::warn!(
+            log::error!(
                 "[NotificationDelivery] Slack integration not found: {}",
                 integration_id
             );
@@ -151,9 +199,8 @@ impl NotificationDeliveryHandler {
         .map_err(|e| anyhow::anyhow!("Failed to send Slack message: {}", e))?;
 
         log::debug!(
-            "[NotificationDelivery] Slack notification sent ({} items) for definition_id={}",
+            "[NotificationDelivery] Slack notification sent ({} items)",
             message.notifications.len(),
-            message.definition_id
         );
 
         let raw_message = serde_json::to_string(&blocks).unwrap_or_default();
@@ -170,13 +217,13 @@ impl NotificationDeliveryHandler {
         let resend = match &self.resend {
             Some(r) => r.clone(),
             None => {
-                log::warn!("[NotificationDelivery] Resend client not configured, skipping email");
+                log::error!("[NotificationDelivery] Resend client not configured, skipping email");
                 return Ok(None);
             }
         };
 
         let Some(ref recipient) = message.target.email else {
-            log::warn!("[NotificationDelivery] Email target missing email address");
+            log::error!("[NotificationDelivery] Email target missing email address");
             return Ok(None);
         };
 
