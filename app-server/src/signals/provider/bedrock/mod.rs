@@ -161,6 +161,7 @@ impl LanguageModelClient for BedrockClient {
             }
 
             if !bedrock_tools.is_empty() {
+                bedrock_tools.push(Tool::CachePoint(build_cache_point()?));
                 let tool_config = aws_sdk_bedrockruntime::types::ToolConfiguration::builder()
                     .set_tools(Some(bedrock_tools))
                     .build()
