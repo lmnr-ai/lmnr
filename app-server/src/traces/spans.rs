@@ -923,10 +923,15 @@ impl Span {
             }
             // For older versions of our proxy, apply similar heuristics here directly
             if self.attributes.is_claude_code_span()
-                && self
+                && (self
                     .attributes
                     .request_model()
                     .is_some_and(|m| m.to_lowercase().contains("haiku"))
+                || self
+                    .attributes
+                    .response_model()
+                    .is_some_and(|m| m.to_lowercase().contains("haiku"))
+                )
                 // input check is relatively heavy, so perform it after simpler checks
                 && self.is_input_cc_bash_check()
             {
