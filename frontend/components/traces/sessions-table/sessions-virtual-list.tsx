@@ -264,7 +264,7 @@ export default function SessionsVirtualList({
 
   return (
     <div ref={scrollContainerRef} className="overflow-auto styled-scrollbar rounded-md border min-h-0">
-      <div className="min-w-[900px]">
+      <div className="w-fit min-w-full">
         <SessionTableHeader
           sortColumn={sortColumn}
           sortDirection={sortDirection}

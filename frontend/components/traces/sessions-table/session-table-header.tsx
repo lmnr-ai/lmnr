@@ -10,12 +10,12 @@ import {
 import { cn } from "@/lib/utils";
 
 export const CHEVRON_COLUMN_WIDTH_CLASSNAME = "w-10";
-export const TIME_RANGE_COLUMN_WIDTH_CLASSNAME = "w-[220px]";
-export const SESSION_ID_COLUMN_WIDTH_CLASSNAME = "w-[189px]";
-export const DURATION_COLUMN_WIDTH_CLASSNAME = "w-[100px]";
-export const TOKENS_COLUMN_WIDTH_CLASSNAME = "w-[100px]";
-export const COST_COLUMN_WIDTH_CLASSNAME = "w-[100px]";
-export const COUNT_COLUMN_WIDTH_CLASSNAME = "w-[80px]";
+export const TIME_RANGE_COLUMN_WIDTH_CLASSNAME = "w-54";
+export const SESSION_ID_COLUMN_WIDTH_CLASSNAME = "w-84";
+export const DURATION_COLUMN_WIDTH_CLASSNAME = "w-32";
+export const TOKENS_COLUMN_WIDTH_CLASSNAME = "w-32";
+export const COST_COLUMN_WIDTH_CLASSNAME = "w-32";
+export const COUNT_COLUMN_WIDTH_CLASSNAME = "w-28";
 
 export type SessionSortColumn = "start_time" | "duration" | "total_tokens" | "total_cost" | "trace_count";
 export type SortDirection = "ASC" | "DESC";
@@ -159,7 +159,7 @@ export default function SessionTableHeader({
         className={COST_COLUMN_WIDTH_CLASSNAME}
       />
       <SortableHeaderCell
-        label="Count"
+        label="Trace count"
         column="trace_count"
         sortColumn={sortColumn}
         sortDirection={sortDirection}
