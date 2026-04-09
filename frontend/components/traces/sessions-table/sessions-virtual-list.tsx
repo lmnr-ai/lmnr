@@ -46,7 +46,7 @@ interface SessionsVirtualListProps {
 }
 
 function estimateSize(item: VirtualListItem): number {
-  if (item.type === "session-row") return 36;
+  if (item.type === "session-row") return 42;
   if (item.type === "trace-section-header") return 52;
   if (item.type === "trace-loading" || item.type === "trace-empty") return 60;
   // trace-card: 140px card + padding (8px top for first, 24px bottom for last, 8px otherwise)

@@ -111,13 +111,6 @@ export function useBatchedTraceIO(
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(scheduleFetch, debounceMs);
     }
-
-    return () => {
-      if (timer.current) {
-        clearTimeout(timer.current);
-        timer.current = null;
-      }
-    };
   }, [visibleTraceIds, scheduleFetch, debounceMs]);
 
   return { previews };

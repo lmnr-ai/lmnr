@@ -141,6 +141,8 @@ const sessionsSelectColumns = [
   "any(user_id) as userId",
 ];
 
+export type SessionSortColumn = "start_time" | "duration" | "total_tokens" | "total_cost" | "trace_count";
+
 export interface BuildSessionsQueryOptions {
   columns?: string[];
   traceIds?: string[];
@@ -150,11 +152,11 @@ export interface BuildSessionsQueryOptions {
   startTime?: string;
   endTime?: string;
   pastHours?: string;
-  sortColumn?: string;
+  sortColumn?: SessionSortColumn;
   sortDirection?: "ASC" | "DESC";
 }
 
-const SORT_COLUMN_MAP: Record<string, string> = {
+const SORT_COLUMN_MAP: Record<SessionSortColumn, string> = {
   start_time: "MIN(start_time)",
   duration: "SUM(end_time - start_time)",
   total_tokens: "SUM(total_tokens)",

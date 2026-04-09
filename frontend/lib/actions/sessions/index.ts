@@ -16,7 +16,7 @@ export const GetSessionsSchema = PaginationFiltersSchema.extend({
   projectId: z.guid(),
   search: z.string().nullable().optional(),
   searchIn: z.array(z.string()).default([]),
-  sortColumn: z.string().nullable().optional(),
+  sortColumn: z.enum(["start_time", "duration", "total_tokens", "total_cost", "trace_count"]).nullable().optional(),
   sortDirection: z.enum(["ASC", "DESC"]).nullable().optional(),
 });
 

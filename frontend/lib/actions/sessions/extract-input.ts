@@ -1,3 +1,5 @@
+import { observe } from "@lmnr-ai/lmnr";
+
 import { cache } from "@/lib/cache";
 
 import { type ParsedInput, type TextPart } from "./parse-input";
@@ -76,35 +78,40 @@ export async function extractInputsForGroup(
     return;
   }
 
-  const llmInput = buildDeduplicatedLLMInput(samples.map((s) => s.parsed!.userParts));
-  const regex = await generateExtractionRegex(llmInput);
+  await observe({ name: "extract_trace_inputs" }, async () => {
+    const llmInput = buildDeduplicatedLLMInput(samples.map((s) => s.parsed!.userParts));
+    const regex = await generateExtractionRegex(llmInput);
 
-  if (!regex) {
+    if (!regex) {
+      for (const trace of traces) {
+        results[trace.traceId] = { input: joinUserParts(trace.parsed?.userParts ?? []), output: trace.output };
+      }
+      return;
+    }
+
+    let anyMatch = false;
     for (const trace of traces) {
-      results[trace.traceId] = { input: joinUserParts(trace.parsed?.userParts ?? []), output: trace.output };
+      const joinedText = joinUserParts(trace.parsed?.userParts ?? []);
+      if (!joinedText) {
+        results[trace.traceId] = { input: null, output: trace.output };
+        continue;
+      }
+      const extracted = observe(
+        { name: "apply_trace_input_extraction_regex", input: { pattern: regex, text: joinedText } },
+        () => applyRe2Regex(regex, joinedText)
+      );
+      if (extracted) {
+        results[trace.traceId] = { input: extracted, output: trace.output };
+        anyMatch = true;
+      } else {
+        results[trace.traceId] = { input: joinedText, output: trace.output };
+      }
     }
-    return;
-  }
 
-  let anyMatch = false;
-  for (const trace of traces) {
-    const joinedText = joinUserParts(trace.parsed?.userParts ?? []);
-    if (!joinedText) {
-      results[trace.traceId] = { input: null, output: trace.output };
-      continue;
+    if (anyMatch) {
+      await cache.set(cacheKey, regex, { expireAfterSeconds: SEVEN_DAYS_SECONDS }).catch(() => {});
     }
-    const extracted = applyRe2Regex(regex, joinedText);
-    if (extracted) {
-      results[trace.traceId] = { input: extracted, output: trace.output };
-      anyMatch = true;
-    } else {
-      results[trace.traceId] = { input: joinedText, output: trace.output };
-    }
-  }
-
-  if (anyMatch) {
-    await cache.set(cacheKey, regex, { expireAfterSeconds: SEVEN_DAYS_SECONDS }).catch(() => {});
-  }
+  });
 }
 
 /**

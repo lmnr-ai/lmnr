@@ -1,4 +1,4 @@
-import { getTracer, observe } from "@lmnr-ai/lmnr";
+import { getTracer } from "@lmnr-ai/lmnr";
 import { generateText } from "ai";
 import { RE2JS } from "re2js";
 
@@ -31,20 +31,18 @@ RULES:
 
 export async function generateExtractionRegex(userMessage: string): Promise<string | null> {
   try {
-    const { text } = await observe({ name: "generate_trace_input_extraction_regex" }, async () =>
-      generateText({
-        model: getLanguageModel("lite"),
-        system: SYSTEM_PROMPT,
-        prompt: userMessage,
-        maxRetries: 0,
-        temperature: 0,
-        abortSignal: AbortSignal.timeout(5000),
-        experimental_telemetry: {
-          isEnabled: true,
-          tracer: getTracer(),
-        },
-      })
-    );
+    const { text } = await generateText({
+      model: getLanguageModel("lite"),
+      system: SYSTEM_PROMPT,
+      prompt: userMessage,
+      maxRetries: 0,
+      temperature: 0,
+      abortSignal: AbortSignal.timeout(5000),
+      experimental_telemetry: {
+        isEnabled: true,
+        tracer: getTracer(),
+      },
+    });
 
     const pattern = text
       .trim()
