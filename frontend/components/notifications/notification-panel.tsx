@@ -96,8 +96,8 @@ const NotificationDetails = ({ formatted, projectId }: { formatted: FormattedNot
     {formatted.noteworthyEvents.length > 0 && (
       <div className="flex flex-col gap-1.5 mt-1">
         <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Noteworthy events</span>
-        {formatted.noteworthyEvents.slice(0, 3).map((event, i) => (
-          <div key={i} className="flex flex-col gap-0.5">
+        {formatted.noteworthyEvents.slice(0, 3).map((event) => (
+          <div key={event.trace_id} className="flex flex-col gap-0.5">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-medium text-foreground">{event.signal_name}</span>
               <span className="text-[10px] text-muted-foreground/70">{formatRelativeTime(event.timestamp)}</span>
