@@ -13,7 +13,7 @@ use resend_rs::Resend;
 use resend_rs::types::{CreateAttachment, CreateEmailBaseOptions};
 use uuid::Uuid;
 
-use super::{NotificationDeliveryMessage, TargetType, email, slack};
+use super::{NotificationDeliveryMessage, NotificationKind, TargetType, email, slack};
 use crate::ch::notification_deliveries::CHNotificationDelivery;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
@@ -57,21 +57,31 @@ impl MessageHandler for NotificationDeliveryHandler {
 
         if let Some(raw_message) = raw_message {
             let now_ms = chrono::Utc::now().timestamp_millis();
-            let project_id = message.project_id.unwrap_or(Uuid::nil());
+            let message_project_id = message.project_id.unwrap_or(Uuid::nil());
 
             // Record one delivery entry per notification in the batch.
+            // Extract per-notification project_id from the payload (matching
+            // stage 1 logic) so multi-project reports get the correct project_id.
             let delivery_entries: Vec<CHNotificationDelivery> = message
                 .notification_ids
                 .iter()
-                .map(|notification_id| CHNotificationDelivery {
-                    workspace_id: message.workspace_id,
-                    project_id,
-                    notification_id: *notification_id,
-                    delivery_id: Uuid::new_v4(),
-                    target_id: message.target.target_id,
-                    target_type: message.target.target_type.to_string(),
-                    message: raw_message.clone(),
-                    created_at: now_ms,
+                .zip(message.notifications.iter())
+                .map(|(notification_id, kind)| {
+                    let project_id = match kind {
+                        NotificationKind::EventIdentification { project_id, .. }
+                        | NotificationKind::SignalsReport { project_id, .. } => *project_id,
+                        _ => message_project_id,
+                    };
+                    CHNotificationDelivery {
+                        workspace_id: message.workspace_id,
+                        project_id,
+                        notification_id: *notification_id,
+                        delivery_id: Uuid::new_v4(),
+                        target_id: message.target.target_id,
+                        target_type: message.target.target_type.to_string(),
+                        message: raw_message.clone(),
+                        created_at: now_ms,
+                    }
                 })
                 .collect();
 
