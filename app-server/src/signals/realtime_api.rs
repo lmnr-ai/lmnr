@@ -93,7 +93,7 @@ impl MessageHandler for SignalJobRealtimeHandler {
             }) => {
                 let mut updated_message = message.clone();
                 updated_message.request_start_time = request_start_time;
-                if message.step == 0 {
+                if steps_processed > 0 {
                     updated_message.steps_processed = steps_processed;
                 }
 
