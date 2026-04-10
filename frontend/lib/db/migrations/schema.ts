@@ -1064,6 +1064,29 @@ export const signalTriggers = pgTable(
   ]
 );
 
+export const notificationReads = pgTable(
+  "notification_reads",
+  {
+    projectId: uuid("project_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    notificationId: uuid("notification_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.userId, table.notificationId], name: "notification_reads_pkey" }),
+    foreignKey({
+      columns: [table.projectId],
+      foreignColumns: [projects.id],
+      name: "notification_reads_project_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: "notification_reads_user_id_fkey",
+    }).onDelete("cascade"),
+  ]
+);
+
 export const spanRenderingKeys = pgTable(
   "span_rendering_keys",
   {

@@ -9,6 +9,7 @@ use crate::cache::{Cache, CacheTrait, keys::USAGE_WARNING_SEND_LOCK_KEY};
 use crate::ch::notifications::CHNotification;
 use crate::ch::service::ClickhouseService;
 use crate::db::DB;
+use crate::mq::utils::mq_max_payload;
 use crate::mq::{MessageQueue, MessageQueueTrait};
 use crate::reports::email_template::NoteworthyEvent;
 use crate::worker::{HandlerError, MessageHandler};
@@ -287,6 +288,29 @@ impl MessageHandler for NotificationHandler {
                 notification_ids: notification_ids.clone(),
                 notifications: message.notifications.clone(),
             };
+
+            let serialized_size = match serde_json::to_vec(&delivery) {
+                Ok(v) => v.len(),
+                Err(e) => {
+                    failures += 1;
+                    log::error!(
+                        "[Notifications] Failed to serialize delivery message: {:?}, target: {:?}",
+                        e,
+                        delivery.target,
+                    );
+                    continue;
+                }
+            };
+            if serialized_size >= mq_max_payload() {
+                failures += 1;
+                log::error!(
+                    "[Notifications] MQ payload limit exceeded for delivery message. \
+                     payload size: [{}], target: {:?}",
+                    serialized_size,
+                    delivery.target,
+                );
+                continue;
+            }
 
             if let Err(e) = push_to_deliveries_queue(delivery, self.queue.clone()).await {
                 failures += 1;
