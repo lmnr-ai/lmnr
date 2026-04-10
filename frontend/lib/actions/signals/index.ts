@@ -8,7 +8,7 @@ import { cache, SIGNAL_TRIGGERS_CACHE_KEY } from "@/lib/cache.ts";
 import { clickhouseClient } from "@/lib/clickhouse/client";
 import { getTimeRange } from "@/lib/clickhouse/utils";
 import { db } from "@/lib/db/drizzle";
-import { signals, signalTriggers } from "@/lib/db/migrations/schema";
+import { alerts, signals, signalTriggers } from "@/lib/db/migrations/schema";
 
 export type SignalRow = {
   id: string;
@@ -253,10 +253,14 @@ export async function updateSignal(input: z.infer<typeof UpdateSignalSchema>) {
 export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
   const { projectId, id } = DeleteSignalSchema.parse(input);
 
-  const [result] = await db
-    .delete(signals)
-    .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
-    .returning();
+  const [result] = await db.transaction(async (tx) => {
+    await tx.delete(alerts).where(and(eq(alerts.projectId, projectId), eq(alerts.sourceId, id)));
+
+    return tx
+      .delete(signals)
+      .where(and(eq(signals.projectId, projectId), eq(signals.id, id)))
+      .returning();
+  });
 
   await cache.remove(`${SIGNAL_TRIGGERS_CACHE_KEY}:${projectId}`);
 
@@ -266,10 +270,14 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
 export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) {
   const { projectId, ids } = DeleteSignalsSchema.parse(input);
 
-  const events = await db
-    .delete(signals)
-    .where(and(eq(signals.projectId, projectId), inArray(signals.id, ids)))
-    .returning();
+  const events = await db.transaction(async (tx) => {
+    await tx.delete(alerts).where(and(eq(alerts.projectId, projectId), inArray(alerts.sourceId, ids)));
+
+    return tx
+      .delete(signals)
+      .where(and(eq(signals.projectId, projectId), inArray(signals.id, ids)))
+      .returning();
+  });
 
   if (events.length > 0) {
     try {
