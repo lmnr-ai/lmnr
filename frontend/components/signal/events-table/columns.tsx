@@ -7,6 +7,7 @@ import CopyTooltip from "@/components/ui/copy-tooltip";
 import { type ColumnFilter } from "@/components/ui/infinite-datatable/ui/datatable-filter/utils.ts";
 import Mono from "@/components/ui/mono.tsx";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { SEVERITY_LABELS, type SeverityLevel } from "@/lib/actions/alerts/types";
 import { type EventRow } from "@/lib/events/types.ts";
 
 function PayloadFieldHeader({ name, description }: { name: string; description: string }) {
@@ -128,12 +129,6 @@ function createPayloadFilter(field: SchemaField): ColumnFilter {
   }
 }
 
-const SEVERITY_LABELS: Record<number, string> = {
-  0: "Info",
-  1: "Warning",
-  2: "Critical",
-};
-
 const SEVERITY_COLORS: Record<number, string> = {
   0: "text-blue-500 bg-blue-500/10 border-blue-500/20",
   1: "text-orange-500 bg-orange-500/10 border-orange-500/20",
@@ -152,7 +147,7 @@ const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
     accessorKey: "severity",
     header: "Severity",
     cell: (row) => {
-      const severity = Number(row.getValue());
+      const severity = Number(row.getValue()) as SeverityLevel;
       const label = SEVERITY_LABELS[severity] ?? "Info";
       const color = SEVERITY_COLORS[severity] ?? SEVERITY_COLORS[0];
       return (
