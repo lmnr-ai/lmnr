@@ -92,6 +92,7 @@ export type TraceViewTrace = {
   traceType: string;
   visibility: "public" | "private";
   hasBrowserSession: boolean;
+  sessionId?: string;
 };
 
 export type TraceSignal = {

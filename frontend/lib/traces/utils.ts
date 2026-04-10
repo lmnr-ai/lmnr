@@ -12,6 +12,13 @@ export const SPAN_TYPE_TO_COLOR = {
   [SpanType.CACHED]: "hsl(var(--llm))",
 };
 
+export function formatDuration(durationSec: number): string {
+  if (durationSec < 0.01) return "0s";
+  if (durationSec < 100) return `${durationSec.toFixed(2)}s`;
+  if (durationSec < 1000) return `${durationSec.toFixed(1)}s`;
+  return `${Math.round(durationSec)}s`;
+}
+
 // If the span hadn't arrived in one hour, it's probably not going to arrive.
 const MILLISECONDS_DATE_THRESHOLD = 1000 * 60 * 60; // 1 hour
 

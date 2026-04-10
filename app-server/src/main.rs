@@ -1682,7 +1682,8 @@ fn main() -> anyhow::Result<()> {
                                     .service(routes::spans::search_spans)
                                     .service(routes::rollouts::run)
                                     .service(routes::rollouts::update_status)
-                                    .service(routes::signals::submit_signal_job),
+                                    .service(routes::signals::submit_signal_job)
+                                    .service(routes::spans::get_skeleton_hashes),
                             )
                             .service(routes::probes::check_health)
                             .service(routes::probes::check_ready)
