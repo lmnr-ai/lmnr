@@ -242,45 +242,44 @@ const NotificationPanel = () => {
     }
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div
-      className={cn(
-        "absolute inset-y-0 left-0 z-50 w-104 bg-background border-r shadow-lg",
-        "transition-transform duration-200 ease-in-out",
-        isOpen ? "translate-x-0" : "-translate-x-full"
-      )}
-    >
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
-          <span className="text-sm font-medium">Notifications</span>
-          <button
-            onClick={close}
-            className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {!hasNotifications ? (
-            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-              No notifications yet
-            </div>
-          ) : (
-            <div className="flex flex-col">
-              {formattedNotifications.map(({ notification, formatted }) => (
-                <NotificationItem
-                  key={notification.id}
-                  notification={notification}
-                  formatted={formatted}
-                  projectId={project?.id}
-                  onMarkAsRead={handleMarkAsRead}
-                />
-              ))}
-            </div>
-          )}
+    <>
+      <div className="absolute inset-0 z-40 bg-black/20" onClick={close} />
+      <div className="absolute inset-y-0 left-0 z-50 w-104 max-w-full bg-background border-r shadow-lg">
+        <div className="flex flex-col h-full">
+          <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
+            <span className="text-sm font-medium">Notifications</span>
+            <button
+              onClick={close}
+              className="flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {!hasNotifications ? (
+              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                No notifications yet
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                {formattedNotifications.map(({ notification, formatted }) => (
+                  <NotificationItem
+                    key={notification.id}
+                    notification={notification}
+                    formatted={formatted}
+                    projectId={project?.id}
+                    onMarkAsRead={handleMarkAsRead}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
