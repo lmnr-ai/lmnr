@@ -5,21 +5,25 @@ import { getLanguageModel } from "@/lib/ai/model";
 
 const SYSTEM_PROMPT = `You write re2 regexes to extract the user's actual request from AI agent conversation messages.
 
-The text contains scaffolding blocks wrapped in XML tags (like <system-reminder>...</system-reminder>, <context>...</context>, etc.) mixed with the actual user request. The user request is the text NOT inside any XML tag block.
+The text contains scaffolding blocks wrapped in XML tags mixed with the actual user request.
 
-YOUR TASK: identify the XML tag name used for scaffolding blocks, then write a regex that skips past ALL of them and captures only the non-scaffolding text after the last block.
+YOUR TASK: find where the user's actual request is and write a regex that captures ONLY that text.
 
-STRATEGY:
-- Find the closing tag name from the scaffolding (e.g. </system-reminder>)
-- Use greedy .* to skip to the LAST occurrence of that closing tag
-- Capture everything after it
+There are two common patterns — pick the one that matches:
 
-TEMPLATE (replace "tag" with the actual tag name):
-(?s).*</tag>\\s*(.*)
+PATTERN A – The user request is INSIDE a dedicated tag (e.g. <user_request>, <user_message>, <query>).
+Use this when you see a tag whose content is clearly the user's own words, surrounded by system/scaffolding tags.
+Template: (?s)<tag>\\s*(.*?)\\s*</tag>
+Examples:
+- (?s)<user_request>\\s*(.*?)\\s*</user_request>
+- (?s)<query>\\s*(.*?)\\s*</query>
 
-EXAMPLES:
-- If scaffolding uses <system-reminder> tags → (?s).*</system-reminder>\\s*(.*)
-- If scaffolding uses <context> tags → (?s).*</context>\\s*(.*)
+PATTERN B – The user request is AFTER all scaffolding tags (the plain text at the end).
+Use this when scaffolding tags wrap system context and the user request follows the last closing tag.
+Template: (?s).*</tag>\\s*(.*)
+Examples:
+- (?s).*</system-reminder>\\s*(.*)
+- (?s).*</context>\\s*(.*)
 
 RULES:
 - Exactly one capture group that gets the user's actual request.
