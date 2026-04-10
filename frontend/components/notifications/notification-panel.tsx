@@ -66,7 +66,7 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
     const event = payload.EventIdentification;
     if (!event) return null;
 
-    const severity = event.severity ?? 2;
+    const severity = event.severity ?? 0;
     const severityLabel = SEVERITY_LABEL[severity] ?? "critical";
     const titleColor = SEVERITY_TITLE_COLOR[severity] ?? SEVERITY_TITLE_COLOR[2];
 
