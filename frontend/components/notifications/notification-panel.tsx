@@ -7,6 +7,7 @@ import useSWR from "swr";
 
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { useProjectContext } from "@/contexts/project-context";
+import { SEVERITY_LABELS } from "@/lib/actions/alerts/types";
 import { type WebNotification } from "@/lib/actions/notifications";
 import { useToast } from "@/lib/hooks/use-toast";
 import { cn, formatRelativeTime, swrFetcher } from "@/lib/utils";
@@ -39,12 +40,6 @@ interface EventIdentification {
   severity: number;
 }
 
-const SEVERITY_LABEL: Record<number, string> = {
-  0: "info",
-  1: "warning",
-  2: "critical",
-};
-
 const SEVERITY_TITLE_COLOR: Record<number, string> = {
   0: "text-blue-500",
   1: "text-orange-500",
@@ -67,7 +62,7 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
     if (!event) return null;
 
     const severity = event.severity ?? 0;
-    const severityLabel = SEVERITY_LABEL[severity] ?? "critical";
+    const severityLabel = (SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Critical").toLowerCase();
     const titleColor = SEVERITY_TITLE_COLOR[severity] ?? SEVERITY_TITLE_COLOR[2];
 
     const info = event.extracted_information;
