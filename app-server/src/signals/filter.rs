@@ -95,16 +95,24 @@ fn build_filter_tool_definitions() -> Vec<ProviderTool> {
                     "Every span you drop saves tokens and helps the signal agent focus on what matters.\n\n",
 
                     "WHEN TO USE:\n",
-                    "- `default` type spans: drop aggressively. These are almost always orchestration ",
-                    "scaffolding (entry points, message relay, wrappers) that duplicates content already ",
+                    "- `default` type spans: drop aggressively. Almost always orchestration ",
+                    "scaffolding (entry points, message relay, wrappers) that duplicates content ",
                     "visible in adjacent `llm` or `tool` spans.\n",
-                    "- `llm` and `tool` type spans: rarely drop. These carry the agent's core reasoning ",
-                    "and execution. Only drop if a specific pattern is pure infrastructure ",
-                    "(e.g. an internal SDK span that wraps the real LLM call with no added content).\n\n",
+                    "- `tool` type spans: keep most, drop selectively. Tools that confirm an action ",
+                    "with a trivial output ('Waited', 'Done', 'OK') or repeat dozens of times at the ",
+                    "same path with identical outputs are noise.\n",
+                    "- `llm` type spans: keep most, drop selectively. Core reasoning and decision-making ",
+                    "spans are high-value. But cheap/small model calls doing mechanical work (parsing, ",
+                    "format checking, classification) that repeat at the same path with predictable ",
+                    "outputs are droppable.\n\n",
+
+                    "STRONGEST SIGNAL FOR DROPPING: repetition. If a pattern appears many times at the ",
+                    "same path with no variation in outcome, drop it. Spans with exceptions bypass ",
+                    "filters regardless, so error cases are safe.\n\n",
 
                     "RULE MECHANICS:\n",
-                    "A span is dropped if it matches ANY rule. Within a rule, ALL field matchers must match (AND semantics). ",
-                    "Every rule MUST include at least one 'name' or 'path' matcher.\n\n",
+                    "A span is dropped if it matches ANY rule. Within a rule, ALL field matchers must ",
+                    "match (AND semantics). Every rule MUST include at least one 'name' or 'path' matcher.\n\n",
 
                     "Prefer 'name' or 'path' matchers ONLY. Avoid 'input'/'output' matchers unless ",
                     "you need to disambiguate spans that share a name but differ in relevance — ",
@@ -129,7 +137,8 @@ fn build_filter_tool_definitions() -> Vec<ProviderTool> {
                     "Do NOT add a rule if:\n",
                     "- You are unsure whether the span pattern ever contains signal — when in doubt, keep it\n",
                     "- The rule has no 'name' or 'path' matcher\n",
-                    "- The pattern is so broad it could match unrelated spans across different trace shapes",
+                    "- The pattern is so broad it could match unrelated spans across different trace shapes\n",
+                    "- You're trying to preserve error cases (they bypass filters automatically)",
                 )
                 .to_string(),
             parameters: serde_json::json!({
@@ -149,7 +158,7 @@ fn build_filter_tool_definitions() -> Vec<ProviderTool> {
                                 },
                                 "pattern": {
                                     "type": "string",
-                                    "description": "Glob pattern. '*' matches any sequence including empty."
+                                    "description": "Glob pattern. '*' matches any sequence including empty. Write patterns that generalize across runs."
                                 }
                             },
                             "required": ["field", "pattern"]
@@ -157,7 +166,7 @@ fn build_filter_tool_definitions() -> Vec<ProviderTool> {
                     },
                     "reason": {
                         "type": "string",
-                        "description": "One sentence explaining why spans matching this rule carry no signal."
+                        "description": "One sentence: what these spans are and why they carry no signal for this application."
                     }
                 },
                 "required": ["match", "reason"]
