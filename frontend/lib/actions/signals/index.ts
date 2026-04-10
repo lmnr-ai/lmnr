@@ -254,7 +254,9 @@ export async function deleteSignal(input: z.infer<typeof DeleteSignalSchema>) {
   const { projectId, id } = DeleteSignalSchema.parse(input);
 
   const [result] = await db.transaction(async (tx) => {
-    await tx.delete(alerts).where(and(eq(alerts.projectId, projectId), eq(alerts.sourceId, id)));
+    await tx
+      .delete(alerts)
+      .where(and(eq(alerts.projectId, projectId), eq(alerts.sourceId, id), eq(alerts.type, "SIGNAL_EVENT")));
 
     return tx
       .delete(signals)
@@ -271,7 +273,9 @@ export async function deleteSignals(input: z.infer<typeof DeleteSignalsSchema>) 
   const { projectId, ids } = DeleteSignalsSchema.parse(input);
 
   const events = await db.transaction(async (tx) => {
-    await tx.delete(alerts).where(and(eq(alerts.projectId, projectId), inArray(alerts.sourceId, ids)));
+    await tx
+      .delete(alerts)
+      .where(and(eq(alerts.projectId, projectId), inArray(alerts.sourceId, ids), eq(alerts.type, "SIGNAL_EVENT")));
 
     return tx
       .delete(signals)
