@@ -156,17 +156,15 @@ const SpanTagsList = ({ spanId, className }: SpanTagsListProps) => {
         onCreateAndAttach={onCreateAndAttach}
       >
         <DropdownMenuTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className={cn("h-6 text-xs px-1.5 gap-1.5", className)}>
-              <Tag className="size-3.5" />
-              Tags
-            </Button>
-          </DropdownMenuTrigger>
+          <Button variant="outline" className={cn("h-6 text-xs px-1.5 gap-1.5", className)}>
+            <Tag className="size-3.5" />
+            Tags
+          </Button>
         </DropdownMenuTrigger>
       </TagsDropdown>
       {tags.map(({ name, color, id }) => (
         <Badge key={id} variant="outline" className="rounded-full gap-1">
-          <div className="rounded-full size-2.5" style={{ backgroundColor: color }} />
+          <div className="rounded-full size-2.5 bg-gray-300" style={{ backgroundColor: color }} />
           {name}
         </Badge>
       ))}

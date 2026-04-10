@@ -158,7 +158,7 @@ const TraceTagsList = ({ traceId, className }: TraceTagsListProps) => {
       </TagsDropdown>
       {tags.map(({ name, color, id }) => (
         <Badge key={id} variant="outline" className="rounded-full gap-1">
-          <div className="rounded-full size-2.5" style={{ backgroundColor: color }} />
+          <div className="rounded-full size-2.5 bg-gray-300" style={{ backgroundColor: color }} />
           {name}
         </Badge>
       ))}
