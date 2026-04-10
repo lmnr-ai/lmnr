@@ -28,7 +28,7 @@ export type SpanPreviewResult = Record<string, string | null>;
 export const PREVIEW_SPAN_TYPES = new Set(["LLM", "CACHED", "TOOL", "EXECUTOR", "EVALUATOR"]);
 
 /** Span types that go through the full preview generation pipeline (provider matching + LLM key generation). */
-const GENERATION_SPAN_TYPES = new Set(["LLM", "CACHED"]);
+const GENERATION_SPAN_TYPES = new Set(["LLM", "CACHED", "TOOL"]);
 
 const buildTimeConditions = (startDate?: string, endDate?: string): string[] =>
   [startDate ? "start_time >= {startDate: String}" : null, endDate ? "start_time <= {endDate: String}" : null].filter(
@@ -54,7 +54,7 @@ const fetchSpanData = async (
     query: `
       SELECT
         span_id as spanId,
-        output as data,
+        if(span_type = 'TOOL', input, output) as data,
         name
       FROM spans
       WHERE trace_id = {traceId: UUID}
@@ -87,6 +87,8 @@ const tryProviderMatch = (
 
   const match = matchProviderKey(parsedData, providerHint);
   if (!match) return null;
+
+  if (match.rendered) return { rendered: match.rendered, key: match.key };
 
   const rendered = validateMustacheKey(match.key, match.data ?? parsedData);
   if (!rendered) return null;
@@ -155,8 +157,7 @@ const fillMissing = (previews: SpanPreviewResult, spanIds: string[]): SpanPrevie
 
 const applyCachedKeys = async (
   projectId: string,
-  parsedSpans: ParsedSpan[],
-  spanTypes: Record<string, string>
+  parsedSpans: ParsedSpan[]
 ): Promise<{ resolved: SpanPreviewResult; uncached: ParsedSpan[] }> => {
   const fingerprints = parsedSpans.map((s) => s.fingerprint);
 
@@ -181,18 +182,14 @@ const applyCachedKeys = async (
 
   parsedSpans.forEach((span) => {
     const cachedKey = fingerprintToKey.get(span.fingerprint);
-    if (cachedKey) {
-      const isProviderType = GENERATION_SPAN_TYPES.has(spanTypes[span.spanId] ?? "");
-      const match = isProviderType ? matchProviderKey(span.parsedData, span.provider) : null;
-      const rendered = validateMustacheKey(cachedKey, match?.data ?? span.parsedData);
-      if (rendered) {
-        resolved[span.spanId] = rendered;
-      } else if (match) {
-        const providerRendered = validateMustacheKey(match.key, match.data ?? span.parsedData);
-        resolved[span.spanId] = providerRendered ?? toJsonPreview(span.parsedData);
-      } else {
-        resolved[span.spanId] = toJsonPreview(span.parsedData);
-      }
+    if (!cachedKey) {
+      uncached.push(span);
+      return;
+    }
+
+    const rendered = validateMustacheKey(cachedKey, span.parsedData);
+    if (rendered) {
+      resolved[span.spanId] = rendered;
     } else {
       uncached.push(span);
     }
@@ -363,7 +360,7 @@ export async function processSpanPreviews(
     return fillMissing(classifiedPreviews, spanIds);
   }
 
-  const { resolved: cachedPreviews, uncached } = await applyCachedKeys(projectId, needsProcessing, spanTypes);
+  const { resolved: cachedPreviews, uncached } = await applyCachedKeys(projectId, needsProcessing);
 
   const cachedResult = { ...classifiedPreviews, ...cachedPreviews };
 

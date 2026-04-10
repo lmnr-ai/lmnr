@@ -18,8 +18,8 @@ Rules:
 Decision order:
 1. Single text field (content, text, result, output, message, answer) → {{{field}}}
 2. Label + value pair → **{{label}}** — {{value}}
-3. Function/tool call (has "name" + "args"/"arguments"/"input") → **{{name}}** (ignore arg fields)
-4. "name" as only non-meta field → **{{name}}**
+3. Function/tool call (has "name" + "args"/"arguments"/"input") → {{{best_arg}}} — pick the single most descriptive short string argument (ignore "name", it is shown elsewhere). The preview must be concise (one line).
+4. "name" as only non-meta field → null
 5. Array with name+value items → {{#arr}}\n- **{{name}}**: {{value}}\n{{/arr}}
 6. Deeply nested leaf → {{{path.0.to.0.field}}}
 7. All [meta]/empty → null
@@ -27,7 +27,10 @@ Decision order:
 Examples:
 - "score: number" + "grade: string" → **{{grade}}** — {{score}}
 - "id: string [meta]" + "name: string" + "type: string [meta]" → **{{name}}**
-- "name: string" + "args.span_ids[]: string" → **{{name}}**
+- "name: string" + "input.query: string" + "input.max_results: number" → {{{input.query}}}
+- "name: string" + "input.file_path: string" + "input.limit: number" → {{{input.file_path}}}
+- "name: string" + "arguments.command: string" → {{{arguments.command}}}
+- "name: string [meta]" + "id: string [meta]" + "type: string [meta]" → null
 - "[].content.parts[].function_call.name: string" + "[].content.parts[].function_call.args.city: string" → {{#.}}**{{content.parts.0.function_call.name}}**{{/.}}
 - "items[].name: string" + "items[].value: string" → {{#items}}\n- **{{name}}**: {{value}}\n{{/items}}
 - "choices[].message.content: string" → {{{choices.0.message.content}}}
