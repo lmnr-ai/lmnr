@@ -117,7 +117,7 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 
 - Alerts reference signals via `alerts.source_id`. There is NO FK constraint from `source_id` to `signals.id` because `source_id` may reference other entity types in the future. When deleting signals, associated alerts must be deleted in application code within the same transaction (see `deleteSignal`/`deleteSignals` in `frontend/lib/actions/signals/index.ts`).
 - The Signals sidebar item is behind a feature flag (`Feature.SIGNALS`) which requires `GOOGLE_GENERATIVE_AI_API_KEY` or AWS Bedrock credentials to be set.
-- Alert severity filtering uses `alerts.metadata` (JSONB). The Rust helper `AlertInfo::min_severity()` defaults to 2 (critical) when metadata is absent — this preserves backward compatibility for alerts created before severity support was added.
+- Alert severity filtering uses `alerts.metadata` (JSONB). The Rust helper `AlertInfo::min_severity()` defaults to 1 (warning) when metadata is absent — this preserves backward compatibility with the old `severity >= 1` check for alerts created before severity support was added.
 - Creating a signal auto-creates an alert (severity=critical) with all workspace member emails subscribed as targets (`createSignal` in `frontend/lib/actions/signals/index.ts`).
 - The notification panel (`frontend/components/notifications/notification-panel.tsx`) fetches both `REPORT` and `ALERT` definition types from ClickHouse. Alert notifications include severity in their payload via `NotificationKind::EventIdentification.severity`.
 

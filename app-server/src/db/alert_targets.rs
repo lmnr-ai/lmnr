@@ -10,14 +10,16 @@ pub struct AlertInfo {
 
 impl AlertInfo {
     /// Returns the minimum severity level configured for this alert.
-    /// Defaults to 2 (critical) if no metadata or severity is set.
+    /// Defaults to 1 (warning) if no metadata or severity is set,
+    /// preserving backward compatibility with alerts created before
+    /// severity support was added (old code used `severity >= 1`).
     pub fn min_severity(&self) -> u8 {
         self.metadata
             .as_ref()
             .and_then(|m| m.get("severity"))
             .and_then(|v| v.as_u64())
             .map(|v| v as u8)
-            .unwrap_or(2)
+            .unwrap_or(1)
     }
 }
 
