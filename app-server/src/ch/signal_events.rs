@@ -25,6 +25,8 @@ pub struct CHSignalEvent {
     /// Timestamp in nanoseconds
     pub timestamp: i64,
     pub summary: String,
+    /// 0 = info, 1 = warning, 2 = critical
+    pub severity: u8,
 }
 
 impl CHSignalEvent {
@@ -38,6 +40,7 @@ impl CHSignalEvent {
         payload: Value,
         timestamp: chrono::DateTime<chrono::Utc>,
         summary: String,
+        severity: u8,
     ) -> Self {
         Self {
             id,
@@ -49,6 +52,7 @@ impl CHSignalEvent {
             payload: payload.to_string(),
             timestamp: chrono_to_nanoseconds(timestamp),
             summary,
+            severity,
         }
     }
 

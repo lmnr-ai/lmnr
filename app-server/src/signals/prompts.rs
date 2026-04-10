@@ -37,6 +37,7 @@ You have exactly three tools available:
    When "identified" is true, you MUST also provide:
      - "data" (object) — the extracted information matching the developer's schema.
      - "summary" (string) — a short summary of the identification result used for event clustering.
+     - "severity" (string) — one of "critical", "warning", or "info" indicating how severe the finding is.
 
 <tool_selection_guidance>
 - NEVER call `search_in_spans` or `get_full_spans` on `<empty>` fields.
@@ -73,7 +74,7 @@ NEVER reference a span solely by its id, always use the <span> xml tag with the 
 pub const IDENTIFICATION_PROMPT: &str = r#"You are analyzing a trace to answer a developer's question. The developer has defined a signal with a prompt and a structured output schema. Your job is to determine whether the information described by the developer's prompt can be found in the trace, and if so, extract it as structured data matching their schema.
 
 There are exactly two outcomes:
-- The information IS present in the trace: call submit_identification with identified=true, along with the extracted "data" and a short "summary".
+- The information IS present in the trace: call submit_identification with identified=true, along with the extracted "data", a short "summary", and a "severity" assessment ("critical", "warning", or "info").
 - The information is NOT present in the trace: call submit_identification with identified=false.
 
 Follow the developer's prompt strictly. Extract only what the prompt asks for — nothing more. The developer's prompt may use phrasing like "You are ..." or other instructional language; interpret their intent but always return your result through a function call, never as plain text.
@@ -89,9 +90,9 @@ pub const SEARCH_IN_SPANS_DESCRIPTION: &str = "Searches within span input/output
 
 pub const GET_FULL_SPAN_INFO_DESCRIPTION: &str = "Retrieves complete information (full input, output, timing, etc.) for specific spans by their IDs. ONLY use this as a last resort when search_in_spans cannot find what you need. Do NOT use this when `input_truncated`/`output_truncated` flags are absent — the data is already complete. For LLM spans, only the last 2 messages are returned. You MUST provide the required 'span_ids' and 'reasoning' arguments.";
 
-pub const SUBMIT_IDENTIFICATION_DESCRIPTION: &str = "REQUIRED: This is the ONLY valid way to complete your analysis — never respond with plain text. Submits the final identification result. You MUST always provide the required 'identified' boolean argument. When identified=true, you MUST also provide 'summary' (short string for event clustering) and 'data' (object matching the developer's schema). When identified=false, 'identified' is still required.";
+pub const SUBMIT_IDENTIFICATION_DESCRIPTION: &str = "REQUIRED: This is the ONLY valid way to complete your analysis — never respond with plain text. Submits the final identification result. You MUST always provide the required 'identified' boolean argument. When identified=true, you MUST also provide 'summary' (short string for event clustering), 'data' (object matching the developer's schema), and 'severity' (one of 'critical', 'warning', or 'info'). When identified=false, 'identified' is still required.";
 
-pub const MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE: &str = "The previous function call was malformed. Please retry calling the same function. Make sure to use the expected function call formatting and include ALL required arguments. For search_in_spans: 'searches' array is required, each search with 'span_id', 'literal', 'search_in', and 'reasoning'. For get_full_spans: 'reasoning' and 'span_ids' are required. For submit_identification: 'identified' is required, and when identified=true, 'summary' and 'data' are also required.";
+pub const MALFORMED_FUNCTION_CALL_RETRY_GUIDANCE: &str = "The previous function call was malformed. Please retry calling the same function. Make sure to use the expected function call formatting and include ALL required arguments. For search_in_spans: 'searches' array is required, each search with 'span_id', 'literal', 'search_in', and 'reasoning'. For get_full_spans: 'reasoning' and 'span_ids' are required. For submit_identification: 'identified' is required, and when identified=true, 'summary', 'data', and 'severity' are also required.";
 
 pub const BATCH_SUMMARIZATION_PROMPT: &str = r#"Given this signal description that a developer wants to detect in traces:
 <signal_description>

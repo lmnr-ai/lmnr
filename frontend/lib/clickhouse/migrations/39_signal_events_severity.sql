@@ -1,0 +1,1 @@
+ALTER TABLE signal_events ADD COLUMN IF NOT EXISTS severity UInt8 DEFAULT 0;

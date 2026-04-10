@@ -26,39 +26,42 @@ pub async fn process_event_notifications_and_clustering(
     let event_name = signal_event.name().to_string();
     let attributes = signal_event.payload_value().unwrap_or_default();
 
-    let alerts = db::alert_targets::get_alerts_for_event(&db.pool, project_id, &event_name).await?;
+    if signal_event.severity >= 1 {
+        let alerts =
+            db::alert_targets::get_alerts_for_event(&db.pool, project_id, &event_name).await?;
 
-    for alert in alerts {
-        let notification_message = notifications::NotificationMessage {
-            definition_type: NotificationDefinitionType::Alert,
-            definition_id: alert.alert_id,
-            workspace_id: alert.workspace_id,
-            project_id: Some(project_id),
-            notifications: vec![NotificationKind::EventIdentification {
-                project_id,
-                trace_id,
-                event_name: event_name.clone(),
-                extracted_information: Some(attributes.clone()),
-            }],
-        };
+        for alert in alerts {
+            let notification_message = notifications::NotificationMessage {
+                definition_type: NotificationDefinitionType::Alert,
+                definition_id: alert.alert_id,
+                workspace_id: alert.workspace_id,
+                project_id: Some(project_id),
+                notifications: vec![NotificationKind::EventIdentification {
+                    project_id,
+                    trace_id,
+                    event_name: event_name.clone(),
+                    extracted_information: Some(attributes.clone()),
+                }],
+            };
 
-        let serialized_size = serde_json::to_vec(&notification_message)
-            .map(|v| v.len())
-            .unwrap_or(0);
-        if serialized_size >= mq_max_payload() {
-            log::error!(
-                "MQ payload limit exceeded for event {}: payload size [{}]",
-                event_name,
-                serialized_size,
-            );
-        } else if let Err(e) =
-            notifications::push_to_notification_queue(notification_message, queue.clone()).await
-        {
-            log::error!(
-                "Failed to push to notification queue for event {}: {:?}",
-                event_name,
-                e
-            );
+            let serialized_size = serde_json::to_vec(&notification_message)
+                .map(|v| v.len())
+                .unwrap_or(0);
+            if serialized_size >= mq_max_payload() {
+                log::error!(
+                    "MQ payload limit exceeded for event {}: payload size [{}]",
+                    event_name,
+                    serialized_size,
+                );
+            } else if let Err(e) =
+                notifications::push_to_notification_queue(notification_message, queue.clone()).await
+            {
+                log::error!(
+                    "Failed to push to notification queue for event {}: {:?}",
+                    event_name,
+                    e
+                );
+            }
         }
     }
 
