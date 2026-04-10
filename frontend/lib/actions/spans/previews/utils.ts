@@ -109,6 +109,8 @@ const METADATA_KEYS = new Set([
   "system_fingerprint",
 ]);
 
+const IDENTIFIER_KEYS = new Set(["name", "action", "function", "method", "command", "tool"]);
+
 export const flattenPaths = (data: unknown): string[] => {
   const paths: string[] = [];
 
@@ -117,8 +119,8 @@ export const flattenPaths = (data: unknown): string[] => {
 
     if (isString(value) || typeof value === "number" || typeof value === "boolean") {
       const lastKey = last(prefix.split("."))?.replace(/\[\]$/, "") ?? "";
-      const meta = METADATA_KEYS.has(lastKey) ? " [meta]" : "";
-      paths.push(`${prefix}: ${typeof value}${meta}`);
+      const tag = METADATA_KEYS.has(lastKey) ? " [meta]" : IDENTIFIER_KEYS.has(lastKey) ? " [id]" : "";
+      paths.push(`${prefix}: ${typeof value}${tag}`);
       return;
     }
 

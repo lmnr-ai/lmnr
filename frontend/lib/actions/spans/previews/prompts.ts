@@ -10,33 +10,34 @@ const PREVIEW_KEY_SYSTEM_PROMPT = `Pick fields from a schema to build a short Mu
 Array access: use .0. for nested arrays. When root is an array (paths start with []), wrap with {{#.}}...{{/.}} and use inner paths.
 
 Rules:
-- Pick 1-3 content fields. Prefer string fields without [meta].
-- {{{ }}} for long text strings. **bold** for labels/names.
-- null ONLY if every field is [meta] or empty.
-- Skip [meta] fields: id, status, type, mode, version, role, model, usage, timestamp, duration, finish_reason, token_count, index, logprobs, created, object, system_fingerprint.
+- Pick 1-3 content fields. {{{ }}} for long text strings. **bold** for short labels.
+- null ONLY if every field is [meta]/[id] or empty.
+
+Field classification:
+- [meta] fields (skip): id, status, type, mode, version, role, model, usage, timestamp, duration, finish_reason, token_count, index, logprobs, created, object, system_fingerprint.
+- [id] fields (skip when siblings have content): name, action, function, method, command, tool. These identify what operation runs and are shown in the span header. Never include them in the preview when other content fields exist.
+- Content fields (prefer): content, text, thinking, result, output, message, answer, query, description, summary, url, path. When multiple exist, pick the most descriptive one.
 
 Decision order:
-1. Single text field (content, text, result, output, message, answer) → {{{field}}}
-2. Label + value pair → **{{label}}** — {{value}}
-3. Function/tool call (has "name" + "args"/"arguments"/"input") → {{{best_arg}}} — pick the single most descriptive short string argument (ignore "name", it is shown elsewhere). The preview must be concise (one line).
-4. "name" as only non-meta field → null
+1. Content field present → {{{field}}}
+2. [id] field present + sibling fields under a nested key (args/arguments/input/params/body or any sub-object) → pick the single most descriptive short string leaf from those siblings as {{{nested.leaf}}}. Never use **bold** labels for these — just the raw value. If the only siblings are [meta] or null → null.
+3. [id] field is the only non-meta field → null
+4. Label + value pair (no [id] field present) → **{{label}}** — {{value}}
 5. Array with name+value items → {{#arr}}\n- **{{name}}**: {{value}}\n{{/arr}}
 6. Deeply nested leaf → {{{path.0.to.0.field}}}
-7. All [meta]/empty → null
+7. All [meta]/[id]/empty → null
 
 Examples:
-- "score: number" + "grade: string" → **{{grade}}** — {{score}}
-- "id: string [meta]" + "name: string" + "type: string [meta]" → **{{name}}**
-- "name: string" + "input.query: string" + "input.max_results: number" → {{{input.query}}}
-- "name: string" + "input.file_path: string" + "input.limit: number" → {{{input.file_path}}}
-- "name: string" + "arguments.command: string" → {{{arguments.command}}}
-- "name: string [meta]" + "id: string [meta]" + "type: string [meta]" → null
-- "[].content.parts[].function_call.name: string" + "[].content.parts[].function_call.args.city: string" → {{#.}}**{{content.parts.0.function_call.name}}**{{/.}}
-- "items[].name: string" + "items[].value: string" → {{#items}}\n- **{{name}}**: {{value}}\n{{/items}}
 - "choices[].message.content: string" → {{{choices.0.message.content}}}
 - "[].output[].content[].text: string" → {{#.}}{{{output.0.content.0.text}}}{{/.}}
-- "data.spans[].output[].content[].text: string" → {{{data.spans.0.output.0.content.0.text}}}
-- "id: string [meta]" + "status: string [meta]" + "version: string [meta]" → null`;
+- "name: string [id]" + "input.query: string" + "input.max_results: number" → {{{input.query}}}
+- "action: string [id]" + "params.file_name: string" + "params.old_str: string" → {{{params.file_name}}}
+- "action: string [id]" + "params.keys: string" → {{{params.keys}}}
+- "action: string [id]" + "params.index: number [meta]" → null
+- "name: string [id]" + "arguments.command: string" → {{{arguments.command}}}
+- "score: number" + "grade: string" → **{{grade}}** — {{score}}
+- "id: string [meta]" + "name: string" + "type: string [meta]" → **{{name}}**
+- "name: string [meta]" + "id: string [meta]" + "type: string [meta]" → null`;
 
 export type PreviewKeyResult = Array<string | null>;
 
