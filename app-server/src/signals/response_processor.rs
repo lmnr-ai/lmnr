@@ -707,7 +707,7 @@ pub async fn handle_tool_call(
                         1u8
                     }
                 })
-                .unwrap_or(1u8);
+                .unwrap_or(0u8);
 
             if identified {
                 StepResult::CompletedWithEvent {
