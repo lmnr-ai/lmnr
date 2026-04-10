@@ -32,13 +32,14 @@ pub async fn process_event_notifications_and_clustering(
 
         for alert in alerts {
             // Check if the event severity meets the alert's minimum severity threshold.
-            // Default to CRITICAL (2) for alerts without metadata (historical data).
+            // Default to WARNING (1) for alerts without metadata (historical data),
+            // preserving the old `severity >= 1` behavior.
             let min_severity = alert
                 .metadata
                 .as_ref()
                 .and_then(|m| m.get("severity"))
                 .and_then(|v| v.as_u64())
-                .unwrap_or(2) as u8;
+                .unwrap_or(1) as u8;
 
             if signal_event.severity < min_severity {
                 continue;

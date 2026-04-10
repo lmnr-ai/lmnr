@@ -120,7 +120,7 @@ npx drizzle-kit generate        # Generate migrations after manual DB changes
 
 - Alerts reference signals via `alerts.source_id`. There is NO FK constraint from `source_id` to `signals.id` because `source_id` may reference other entity types in the future. When deleting signals, associated alerts must be deleted in application code within the same transaction (see `deleteSignal`/`deleteSignals` in `frontend/lib/actions/signals/index.ts`).
 - The Signals sidebar item is behind a feature flag (`Feature.SIGNALS`) which requires `GOOGLE_GENERATIVE_AI_API_KEY` or AWS Bedrock credentials to be set.
-- Alert metadata is stored as JSONB in `alerts.metadata`. For `SIGNAL_EVENT` alerts, it contains `{severity: 0|1|2}` (info/warning/critical). The Rust backend reads this in `postprocess.rs` to filter events by severity threshold, defaulting to CRITICAL (2) when metadata is absent (backward compat for historical alerts).
+- Alert metadata is stored as JSONB in `alerts.metadata`. For `SIGNAL_EVENT` alerts, it contains `{severity: 0|1|2}` (info/warning/critical). The Rust backend reads this in `postprocess.rs` to filter events by severity threshold, defaulting to WARNING (1) when metadata is absent (backward compat for historical alerts that used `severity >= 1`).
 - Creating a signal auto-creates a CRITICAL-severity alert and subscribes all workspace member emails as alert targets.
 
 ## Signal Triggers
