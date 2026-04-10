@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
-import { getWebNotifications, markNotificationAsRead } from "@/lib/actions/notifications";
+import { getWebNotifications, markNotificationsAsRead } from "@/lib/actions/notifications";
 import { authOptions } from "@/lib/auth";
 import { isProjectInWorkspace } from "@/lib/authorization";
 
@@ -42,14 +42,14 @@ export async function POST(request: NextRequest, props: { params: Promise<{ work
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
-    const { notificationId, projectId } = body;
-    if (!notificationId || !projectId) {
-      return NextResponse.json({ error: "notificationId and projectId are required" }, { status: 400 });
+    const { notificationIds, projectId } = body;
+    if (!projectId || !Array.isArray(notificationIds) || notificationIds.length === 0) {
+      return NextResponse.json({ error: "projectId and notificationIds are required" }, { status: 400 });
     }
     if (!(await isProjectInWorkspace(projectId, workspaceId))) {
       return NextResponse.json({ error: "Project does not belong to this workspace" }, { status: 400 });
     }
-    await markNotificationAsRead({ userId, notificationId, projectId });
+    await markNotificationsAsRead({ userId, notificationIds, projectId });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);

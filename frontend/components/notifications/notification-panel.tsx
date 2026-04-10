@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
@@ -123,35 +123,43 @@ const NotificationItem = ({
   notification,
   formatted,
   projectId,
-  onMarkAsRead,
+  onViewed,
 }: {
   notification: WebNotification;
   formatted: FormattedNotification;
   projectId?: string;
-  onMarkAsRead: (notificationId: string) => void;
+  onViewed?: (id: string) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
   const hasDetails = formatted.aiSummary || formatted.noteworthyEvents.length > 0;
   const isUnread = !notification.isRead;
+  const itemRef = useRef<HTMLDivElement>(null);
 
-  const markAsRead = () => {
-    if (isUnread) {
-      onMarkAsRead(notification.id);
-    }
-  };
+  useEffect(() => {
+    if (!isUnread || !onViewed) return;
+    const el = itemRef.current;
+    if (!el) return;
 
-  const handleExpand = () => {
-    setExpanded(true);
-    markAsRead();
-  };
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          onViewed(notification.id);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isUnread, notification.id, onViewed]);
 
   return (
     <div
+      ref={itemRef}
       className={cn(
         "flex flex-col gap-1.5 border-b px-3 py-3 transition-colors",
-        isUnread ? "bg-secondary/40 cursor-pointer" : "bg-transparent"
+        isUnread ? "bg-secondary/40" : "bg-transparent"
       )}
-      onClick={markAsRead}
     >
       <div className="flex items-center justify-between">
         <span className={cn("text-xs text-foreground", isUnread ? "font-semibold" : "font-medium")}>
@@ -166,13 +174,7 @@ const NotificationItem = ({
         {formatted.summary}
       </span>
       {hasDetails && !expanded && (
-        <div
-          className="relative cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleExpand();
-          }}
-        >
+        <div className="relative cursor-pointer" onClick={() => setExpanded(true)}>
           <div className="max-h-21 overflow-hidden">
             <NotificationDetails formatted={formatted} projectId={projectId} />
           </div>
@@ -223,24 +225,44 @@ const NotificationPanel = () => {
 
   const hasNotifications = formattedNotifications && formattedNotifications.length > 0;
 
-  const handleMarkAsRead = async (notificationId: string) => {
-    if (!workspace || !project) return;
+  const pendingIdsRef = useRef<Set<string>>(new Set());
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    mutate((current) => current?.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n)), false);
+  const flushViewed = useCallback(() => {
+    if (!workspace || !project || pendingIdsRef.current.size === 0) return;
 
-    try {
-      const res = await fetch(`/api/workspaces/${workspace.id}/notifications`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notificationId, projectId: project.id }),
-      });
-      if (!res.ok) {
-        mutate();
-      }
-    } catch {
-      mutate();
+    const ids = Array.from(pendingIdsRef.current);
+    pendingIdsRef.current.clear();
+
+    mutate((current) => current?.map((n) => (ids.includes(n.id) ? { ...n, isRead: true } : n)), false);
+
+    fetch(`/api/workspaces/${workspace.id}/notifications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notificationIds: ids, projectId: project.id }),
+    })
+      .then((res) => {
+        if (!res.ok) mutate();
+      })
+      .catch(() => mutate());
+  }, [workspace, project, mutate]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      flushViewed();
     }
-  };
+  }, [isOpen, flushViewed]);
+
+  useEffect(() => () => flushViewed(), [flushViewed]);
+
+  const handleViewed = useCallback(
+    (id: string) => {
+      pendingIdsRef.current.add(id);
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = setTimeout(flushViewed, 500);
+    },
+    [flushViewed]
+  );
 
   if (!isOpen) return null;
 
@@ -271,7 +293,7 @@ const NotificationPanel = () => {
                     notification={notification}
                     formatted={formatted}
                     projectId={project?.id}
-                    onMarkAsRead={handleMarkAsRead}
+                    onViewed={handleViewed}
                   />
                 ))}
               </div>
