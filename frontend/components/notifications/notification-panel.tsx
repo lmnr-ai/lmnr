@@ -8,6 +8,7 @@ import useSWR from "swr";
 import { useNotificationPanelStore } from "@/components/notifications/notification-store";
 import { useProjectContext } from "@/contexts/project-context";
 import { type WebNotification } from "@/lib/actions/notifications";
+import { useToast } from "@/lib/hooks/use-toast";
 import { cn, formatRelativeTime, swrFetcher } from "@/lib/utils";
 
 interface NoteworthyEvent {
@@ -209,6 +210,7 @@ const NotificationItem = ({
 const NotificationPanel = () => {
   const { isOpen, close } = useNotificationPanelStore();
   const { workspace, project } = useProjectContext();
+  const { toast } = useToast();
 
   const swrKey = workspace && project ? `/api/workspaces/${workspace.id}/notifications?projectId=${project.id}` : null;
 
@@ -228,6 +230,11 @@ const NotificationPanel = () => {
   const pendingIdsRef = useRef<Set<string>>(new Set());
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Flush sends all pending viewed notification IDs to the server in one batch.
+  // Three call sites may invoke flushViewed in close succession: the 500ms debounce
+  // timer, the isOpen effect (panel close), and the unmount cleanup. This is safe
+  // because JS is single-threaded — clear() + Array.from is atomic within a tick,
+  // and the size === 0 guard ensures subsequent calls are no-ops.
   const flushViewed = useCallback(() => {
     if (!workspace || !project || pendingIdsRef.current.size === 0) return;
 
@@ -242,10 +249,16 @@ const NotificationPanel = () => {
       body: JSON.stringify({ notificationIds: ids, projectId: project.id }),
     })
       .then((res) => {
-        if (!res.ok) mutate();
+        if (!res.ok) {
+          mutate();
+          toast({ variant: "destructive", title: "Failed to mark notifications as read" });
+        }
       })
-      .catch(() => mutate());
-  }, [workspace, project, mutate]);
+      .catch(() => {
+        mutate();
+        toast({ variant: "destructive", title: "Failed to mark notifications as read" });
+      });
+  }, [workspace, project, mutate, toast]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -253,7 +266,13 @@ const NotificationPanel = () => {
     }
   }, [isOpen, flushViewed]);
 
-  useEffect(() => () => flushViewed(), [flushViewed]);
+  useEffect(
+    () => () => {
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      flushViewed();
+    },
+    [flushViewed]
+  );
 
   const handleViewed = useCallback(
     (id: string) => {
