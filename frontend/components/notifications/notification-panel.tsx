@@ -31,15 +31,64 @@ interface SignalsReport {
   noteworthy_events: NoteworthyEvent[];
 }
 
+interface EventIdentification {
+  project_id: string;
+  trace_id: string;
+  event_name: string;
+  severity: number;
+  extracted_information: Record<string, unknown> | null;
+}
+
 interface FormattedNotification {
   title: string;
   summary: string;
   aiSummary: string | null;
   noteworthyEvents: NoteworthyEvent[];
+  traceLink: string | null;
+  severityColor: string | null;
 }
 
-// TODO: refactor this to have a more generic notification format, currently implemented only for signal events reports
-export const formatNotification = (notification: WebNotification): FormattedNotification | null => {
+const SEVERITY_LABELS: Record<number, string> = {
+  0: "info",
+  1: "warning",
+  2: "critical",
+};
+
+const SEVERITY_COLORS: Record<number, string> = {
+  0: "text-blue-600 dark:text-blue-400",
+  1: "text-orange-600 dark:text-orange-400",
+  2: "text-red-600 dark:text-red-400",
+};
+
+const formatAlertNotification = (notification: WebNotification): FormattedNotification | null => {
+  try {
+    const payload: { EventIdentification: EventIdentification } = JSON.parse(notification.payload);
+    const event = payload.EventIdentification;
+    if (!event) return null;
+
+    const severityLabel = SEVERITY_LABELS[event.severity] ?? "info";
+    const severityColor = SEVERITY_COLORS[event.severity] ?? SEVERITY_COLORS[0];
+
+    const summary = event.extracted_information
+      ? Object.entries(event.extracted_information)
+          .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+          .join(", ")
+      : "";
+
+    return {
+      title: `${event.event_name} - new ${severityLabel} event`,
+      summary: summary || `A ${severityLabel} event was detected.`,
+      aiSummary: null,
+      noteworthyEvents: [],
+      traceLink: `/project/${event.project_id}/traces/${event.trace_id}?chat=true`,
+      severityColor,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const formatReportNotification = (notification: WebNotification): FormattedNotification | null => {
   try {
     const payload: { SignalsReport: SignalsReport } = JSON.parse(notification.payload);
     const report = payload.SignalsReport;
@@ -80,10 +129,19 @@ export const formatNotification = (notification: WebNotification): FormattedNoti
       summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} in the last ${periodType}`,
       aiSummary,
       noteworthyEvents,
+      traceLink: null,
+      severityColor: null,
     };
   } catch {
     return null;
   }
+};
+
+export const formatNotification = (notification: WebNotification): FormattedNotification | null => {
+  if (notification.definitionType === "ALERT") {
+    return formatAlertNotification(notification);
+  }
+  return formatReportNotification(notification);
 };
 
 const NotificationDetails = ({ formatted, projectId }: { formatted: FormattedNotification; projectId?: string }) => (
@@ -163,7 +221,13 @@ const NotificationItem = ({
       )}
     >
       <div className="flex items-center justify-between">
-        <span className={cn("text-xs text-foreground", isUnread ? "font-semibold" : "font-medium")}>
+        <span
+          className={cn(
+            "text-xs",
+            formatted.severityColor ?? "text-foreground",
+            isUnread ? "font-semibold" : "font-medium"
+          )}
+        >
           {formatted.title}
         </span>
         <div className="flex items-center gap-1.5 shrink-0 ml-2">
@@ -174,6 +238,15 @@ const NotificationItem = ({
       <span className={cn("text-xs", isUnread ? "text-foreground/80" : "text-muted-foreground")}>
         {formatted.summary}
       </span>
+      {formatted.traceLink && (
+        <Link
+          href={formatted.traceLink}
+          className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
+          onClick={(e) => e.stopPropagation()}
+        >
+          View trace
+        </Link>
+      )}
       {hasDetails && !expanded && (
         <div className="relative cursor-pointer" onClick={() => setExpanded(true)}>
           <div className="max-h-21 overflow-hidden">

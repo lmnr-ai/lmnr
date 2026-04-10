@@ -31,10 +31,7 @@ const PRIMARY: &str = "#D0754E";
 /// All notifications in the batch are expected to be of the same kind.
 /// Reports are rendered by combining per-project data into a single email.
 /// Alerts and usage warnings use the first (and only) notification.
-pub fn format_email_batch(
-    notifications: &[NotificationKind],
-    workspace_id: &Uuid,
-) -> EmailContent {
+pub fn format_email_batch(notifications: &[NotificationKind], workspace_id: &Uuid) -> EmailContent {
     let Some(first) = notifications.first() else {
         return EmailContent::default();
     };
@@ -45,6 +42,7 @@ pub fn format_email_batch(
             trace_id,
             event_name,
             extracted_information,
+            ..
         } => {
             let trace_link = format!(
                 "https://lmnr.ai/project/{}/traces/{}?chat=true",

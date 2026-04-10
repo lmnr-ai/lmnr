@@ -677,6 +677,7 @@ export const alerts = pgTable(
     type: text().notNull(),
     sourceId: uuid("source_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),
+    metadata: jsonb(),
   },
   (table) => [
     foreignKey({

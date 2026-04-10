@@ -60,6 +60,7 @@ const eventsSelectColumns = [
   "trace_id traceId",
   "formatDateTime(timestamp, '%Y-%m-%dT%H:%i:%S.%fZ') as timestamp",
   "payload",
+  "severity",
 ];
 
 export interface BuildEventsQueryOptions {
