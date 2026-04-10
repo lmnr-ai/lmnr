@@ -13,7 +13,7 @@ tags: ["claude agent sdk", "observability", "telemetry", "traces"]
 
 ![Example Claude Agent SDK trace](/blog/2025-12-03-example-trace.png)
 
-With [**Claude Agent SDK**](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/agent-sdk), you can build agents various agents including automated PR reviewers, self-healing CI/CD pipelines, research agents, web automations, or practically any task you can describe. Agents can spawn subagents, each with their own tools and context, creating deep execution trees.
+With [**Claude Agent SDK**](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/agent-sdk), you can build various agents including automated PR reviewers, self-healing CI/CD pipelines, research agents, web automations, or practically any task you can describe. Agents can spawn subagents, each with their own tools and context, creating deep execution trees.
 
 However, the SDK has a serious **observability challenge**. Behind the scenes, it runs Claude Code as a subprocess, effectively a black box. Your agent spawns three subagents, one of them runs a bash command that makes an unwanted change in a file, and you have no idea which subagent did it or what prompt led there. You need to know:
 
