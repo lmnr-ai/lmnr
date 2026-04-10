@@ -111,7 +111,7 @@ export default function ManageAlertSheet({
         signalName: signal?.name ?? "",
         channelId: slackTarget?.channelId ?? "",
         emailEnabled: !!emailTarget,
-        severity: (alert.metadata?.severity ?? SEVERITY_LEVELS.CRITICAL) as SeverityLevel,
+        severity: (alert.metadata?.severity ?? SEVERITY_LEVELS.WARNING) as SeverityLevel,
       });
     },
     [alert, reset, userEmail]
