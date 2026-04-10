@@ -94,6 +94,7 @@ export default function ManageAlertSheet({
   const signalName = watch("signalName");
   const channelId = watch("channelId");
   const emailEnabled = watch("emailEnabled");
+  const severity = watch("severity");
 
   const resetFormFromSignals = useCallback(
     (data: { items: SignalRow[] }) => {
@@ -180,6 +181,7 @@ export default function ManageAlertSheet({
     pastHours: dateRange.pastHours ?? null,
     startDate: dateRange.startDate ?? null,
     endDate: dateRange.endDate ?? null,
+    additionalParams: { minSeverity: String(severity) },
   });
 
   const { data: eventsStats, isLoading: isLoadingStats } = useSWR<{ items: TimeSeriesDataPoint[] }>(
