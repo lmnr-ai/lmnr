@@ -5,7 +5,7 @@ import { memo, useEffect, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 
 import { jsonSchemaToSchemaFields } from "@/components/signals/utils";
-import TraceTagsButton from "@/components/tags/trace-tags-button";
+import TraceTagsList from "@/components/tags/trace-tags-list";
 import ShareTraceButton from "@/components/traces/share-trace-button";
 import TraceViewSearch from "@/components/traces/trace-view/search";
 import { type TraceViewSpan, useTraceViewStore } from "@/components/traces/trace-view/store";
@@ -165,6 +165,11 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               </Button>
             </span>
           )}
+          {trace?.metadata && (
+            <span className={HEADER_ITEM_CLS}>
+              <Metadata metadata={trace?.metadata} />
+            </span>
+          )}
           {signalCount > 0 && (
             <span className={HEADER_ITEM_CLS}>
               <Button
@@ -180,14 +185,7 @@ const Header = ({ handleClose, spans, onSearch, traceId }: HeaderProps) => {
               </Button>
             </span>
           )}
-          <span className={HEADER_ITEM_CLS}>
-            <TraceTagsButton traceId={traceId} />
-          </span>
-          {trace?.metadata && (
-            <span className={HEADER_ITEM_CLS}>
-              <Metadata metadata={trace?.metadata} />
-            </span>
-          )}
+          <TraceTagsList traceId={traceId} />
         </div>
         {trace && <ShareTraceButton projectId={projectId} />}
       </div>

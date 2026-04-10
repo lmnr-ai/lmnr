@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Tag } from "lucide-react";
+import { Tag } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import useSWR from "swr";
@@ -11,14 +11,15 @@ import { useToast } from "@/lib/hooks/use-toast";
 import { type TagClass } from "@/lib/traces/types";
 import { cn, swrFetcher } from "@/lib/utils";
 
+import { Badge } from "../ui/badge";
 import TagsDropdown, { type Tag as TagType } from "./tags-dropdown";
 
-interface TraceTagsButtonProps {
+interface TraceTagsListProps {
   traceId: string;
   className?: string;
 }
 
-const TraceTagsButton = ({ traceId, className }: TraceTagsButtonProps) => {
+const TraceTagsList = ({ traceId, className }: TraceTagsListProps) => {
   const { projectId } = useParams();
   const { toast } = useToast();
 
@@ -140,38 +141,29 @@ const TraceTagsButton = ({ traceId, className }: TraceTagsButtonProps) => {
   };
 
   return (
-    <TagsDropdown
-      tags={tags}
-      tagClasses={tagClasses}
-      onAttach={onAttach}
-      onDetach={onDetach}
-      onCreateAndAttach={onCreateAndAttach}
-    >
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className={cn("h-6 text-xs px-1.5 gap-1.5", className)}>
-          {tags.length > 0 ? (
-            <div className="flex -space-x-[6px]">
-              {tags.slice(0, 5).map((tag) => (
-                <div
-                  key={tag.id}
-                  className={cn("size-3.5 border border-background rounded-full", !tag.color && "bg-gray-300")}
-                  style={tag.color ? { background: tag.color } : undefined}
-                />
-              ))}
-              {tags.length > 5 && (
-                <div className="size-3.5 border border-border rounded-full bg-muted flex items-center justify-center">
-                  <Plus className="size-2" />
-                </div>
-              )}
-            </div>
-          ) : (
+    <>
+      <TagsDropdown
+        tags={tags}
+        tagClasses={tagClasses}
+        onAttach={onAttach}
+        onDetach={onDetach}
+        onCreateAndAttach={onCreateAndAttach}
+      >
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className={cn("h-6 text-xs px-1.5 gap-1.5", className)}>
             <Tag className="size-3.5" />
-          )}
-          {tags.length === 0 ? "Tags" : tags.length === 1 ? tags[0].name : `Tags (${tags.length})`}
-        </Button>
-      </DropdownMenuTrigger>
-    </TagsDropdown>
+            Tags
+          </Button>
+        </DropdownMenuTrigger>
+      </TagsDropdown>
+      {tags.map(({ name, color, id }) => (
+        <Badge key={id} variant="outline" className="rounded-full gap-1">
+          <div className="rounded-full size-2.5 bg-gray-300" style={{ backgroundColor: color }} />
+          {name}
+        </Badge>
+      ))}
+    </>
   );
 };
 
-export default TraceTagsButton;
+export default TraceTagsList;
