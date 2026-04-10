@@ -22,7 +22,7 @@ use crate::signals::utils::{
 
 use super::summarize::hash_signal_prompt;
 
-const FILTER_CACHE_TTL_SECONDS: u64 = 30 * 24 * 60 * 60; // 30 days
+const FILTER_CACHE_TTL_SECONDS: u64 = 7 * 24 * 60 * 60; // 7 days
 const MAX_TRACE_STRING_LEN: usize = 1_000_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
