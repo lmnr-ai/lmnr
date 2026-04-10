@@ -96,9 +96,7 @@ Despite the word "proxy," there is no separate server to deploy or maintain. The
 
 Other observability solutions for `claude-agent-sdk` can only see what happens at the client boundary — the call you made and the final response you got back. Some can also ingest Claude Code's native logs, but those only contain metadata like token counts and durations. Neither approach gives you the actual prompts, tool inputs/outputs, or subagent trajectories.
 
-By solving the process-boundary problem with our Rust proxy, Laminar captures every LLM call, every tool execution, every subagent's trajectory — all nested under your application's trace.
-
-By solving the process-boundary problem with our Rust proxy, Laminar now provides the only drop-in solution for tracing `claude-agent-sdk`. It doesn't require you to spin up any additional infrastructure and handles everything in place.
+By solving the process-boundary problem with our Rust proxy, Laminar captures every LLM call, every tool execution, every subagent's trajectory — all nested under your application's trace. It doesn't require you to spin up any additional infrastructure and handles everything in place.
 
 Traces collect all LLM prompts, tool call inputs, and tool outputs. When your agent spawns subagents, each subagent's full trajectory appears correctly nested under the parent. You can see exactly which subagent made which tool calls, what prompts it received, and where it diverged. Crucially, all of this is properly nested under your application's top-level query span.
 
