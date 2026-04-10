@@ -22,9 +22,9 @@ const GetWebNotificationsSchema = z.object({
   limit: z.number().int().positive().optional().default(30),
 });
 
-const MarkNotificationAsReadSchema = z.object({
+const MarkNotificationsAsReadSchema = z.object({
   userId: z.guid(),
-  notificationId: z.guid(),
+  notificationIds: z.array(z.guid()).min(1),
   projectId: z.guid(),
 });
 
@@ -80,8 +80,11 @@ export const getWebNotifications = async (
   }));
 };
 
-export const markNotificationAsRead = async (input: z.infer<typeof MarkNotificationAsReadSchema>): Promise<void> => {
-  const { userId, notificationId, projectId } = MarkNotificationAsReadSchema.parse(input);
+export const markNotificationsAsRead = async (input: z.input<typeof MarkNotificationsAsReadSchema>): Promise<void> => {
+  const { userId, notificationIds, projectId } = MarkNotificationsAsReadSchema.parse(input);
 
-  await db.insert(notificationReads).values({ userId, notificationId, projectId }).onConflictDoNothing();
+  await db
+    .insert(notificationReads)
+    .values(notificationIds.map((notificationId) => ({ userId, notificationId, projectId })))
+    .onConflictDoNothing();
 };

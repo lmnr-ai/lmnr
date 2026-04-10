@@ -139,6 +139,8 @@ The frontend uses Husky with lint-staged. Before commits:
 - ESLint fixes issues
 - TypeScript type-check runs
 
+**Known issue**: `tsc --noEmit` may fail with pre-existing errors for SVG/PNG asset imports (missing module declarations in `assets/`). These are unrelated to your changes — verify your file has no errors with `npx tsc --noEmit 2>&1 | grep "your-file"` before using `--no-verify`.
+
 ## Frontend Best Practices
 
 ### One component per file
