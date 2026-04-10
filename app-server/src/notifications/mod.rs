@@ -77,6 +77,13 @@ impl std::fmt::Display for NotificationDefinitionType {
 
 // ── Notification kind: the core event data ──
 
+/// Old in-flight messages (serialized before the severity field was added) were
+/// only created for events with severity >= 1 (Warning). Default to 1 so they
+/// don't get silently downgraded to Info (0) on deserialization.
+const fn default_severity() -> u8 {
+    1
+}
+
 /// Core notification data produced by various subsystems.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NotificationKind {
@@ -85,7 +92,7 @@ pub enum NotificationKind {
         trace_id: Uuid,
         event_name: String,
         extracted_information: Option<serde_json::Value>,
-        #[serde(default)]
+        #[serde(default = "default_severity")]
         severity: u8,
     },
     SignalsReport {
