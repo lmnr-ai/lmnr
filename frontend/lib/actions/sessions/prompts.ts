@@ -1,6 +1,5 @@
 import { getTracer } from "@lmnr-ai/lmnr";
 import { generateText } from "ai";
-import { RE2JS } from "re2js";
 
 import { getLanguageModel } from "@/lib/ai/model";
 
@@ -55,25 +54,22 @@ export async function generateExtractionRegex(userMessage: string): Promise<stri
   }
 }
 
-export function applyRe2Regex(pattern: string, text: string): string | null {
+export function applyRegex(pattern: string, text: string): string | null {
   try {
-    let flags = 0;
+    let flags = "";
     let cleanPattern = pattern;
     if (cleanPattern.startsWith("(?s)")) {
-      flags = RE2JS.DOTALL;
+      flags = "s";
       cleanPattern = cleanPattern.slice(4);
     }
-    const regex = RE2JS.compile(cleanPattern, flags);
-    const matcher = regex.matcher(text);
-    if (matcher.find()) {
-      const group = matcher.group(1);
-      if (group !== null) {
-        const extracted = group.trim();
-        if (extracted.length > 0) return extracted;
-      }
+    const regex = new RegExp(cleanPattern, flags);
+    const match = regex.exec(text);
+    if (match && match[1] != null) {
+      const extracted = match[1].trim();
+      if (extracted.length > 0) return extracted;
     }
   } catch {
-    // Invalid regex pattern (RE2JS rejects unsafe patterns at compile time)
+    // Invalid regex pattern
   }
   return null;
 }

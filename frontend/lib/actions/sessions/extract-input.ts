@@ -3,7 +3,7 @@ import { observe } from "@lmnr-ai/lmnr";
 import { cache } from "@/lib/cache";
 
 import { type ParsedInput, type TextPart } from "./parse-input";
-import { applyRe2Regex, generateExtractionRegex } from "./prompts";
+import { applyRegex, generateExtractionRegex } from "./prompts";
 
 const SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60;
 const REGEX_CACHE_PREFIX = "trace_input_regex:";
@@ -52,7 +52,7 @@ export async function extractInputsForGroup(
           results[trace.traceId] = { input: null, output: trace.output };
           continue;
         }
-        const extracted = applyRe2Regex(cachedRegex, joinedText);
+        const extracted = applyRegex(cachedRegex, joinedText);
         if (extracted) {
           results[trace.traceId] = { input: extracted, output: trace.output };
         } else {
@@ -84,7 +84,9 @@ export async function extractInputsForGroup(
 
     if (!regex) {
       for (const trace of traces) {
-        results[trace.traceId] = { input: joinUserParts(trace.parsed?.userParts ?? []), output: trace.output };
+        if (!(trace.traceId in results)) {
+          results[trace.traceId] = { input: joinUserParts(trace.parsed?.userParts ?? []), output: trace.output };
+        }
       }
       return;
     }
@@ -98,7 +100,7 @@ export async function extractInputsForGroup(
       }
       const extracted = observe(
         { name: "apply_trace_input_extraction_regex", input: { pattern: regex, text: joinedText } },
-        () => applyRe2Regex(regex, joinedText)
+        () => applyRegex(regex, joinedText)
       );
       if (extracted) {
         results[trace.traceId] = { input: extracted, output: trace.output };
