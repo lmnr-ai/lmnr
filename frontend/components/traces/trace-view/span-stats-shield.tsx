@@ -13,6 +13,7 @@ interface SpanStatsShieldProps {
   cost?: number | null;
   cacheReadInputTokens?: number | null;
   className?: string;
+  variant?: "badge" | "inline";
 }
 
 export function SpanStatsShield({
@@ -22,21 +23,26 @@ export function SpanStatsShield({
   cost,
   cacheReadInputTokens,
   className,
+  variant = "badge",
 }: SpanStatsShieldProps) {
+  const isInline = variant === "inline";
+  const itemColor = isInline ? "text-muted-foreground" : "text-secondary-foreground";
+
   return (
     <div
       className={cn(
-        "items-center gap-2 text-xs bg-muted px-1.5 rounded-md flex shrink-0 animate-in fade-in duration-200",
+        "items-center gap-2 text-xs flex shrink-0",
+        !isInline && "bg-muted px-1.5 rounded-md animate-in fade-in duration-200",
         className
       )}
     >
-      <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
+      <div className={cn(itemColor, "inline-flex items-center gap-1 whitespace-nowrap", !isInline && "py-0.5")}>
         <Clock3 size={12} className="min-w-3 min-h-3" />
         <span>{getDurationString(startTime, endTime)}</span>
       </div>
       {!!tokens && (
-        <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-          <Coins size={14} className="min-w-3.5 min-h-3.5" />
+        <div className={cn(itemColor, "inline-flex items-center gap-1 whitespace-nowrap", !isInline && "py-0.5")}>
+          <Coins size={isInline ? 12 : 14} className={isInline ? "min-w-3 min-h-3" : "min-w-3.5 min-h-3.5"} />
           <span>{numberFormatter.format(tokens)}</span>
           {!!cacheReadInputTokens && (
             <span className="text-success-bright">({numberFormatter.format(cacheReadInputTokens)})</span>
@@ -44,8 +50,11 @@ export function SpanStatsShield({
         </div>
       )}
       {!!cost && (
-        <div className="text-secondary-foreground py-0.5 inline-flex items-center gap-1 whitespace-nowrap">
-          <CircleDollarSign size={14} className="min-w-3.5 min-h-3.5" />
+        <div className={cn(itemColor, "inline-flex items-center gap-1 whitespace-nowrap", !isInline && "py-0.5")}>
+          <CircleDollarSign
+            size={isInline ? 12 : 14}
+            className={isInline ? "min-w-3 min-h-3" : "min-w-3.5 min-h-3.5"}
+          />
           <span>${cost.toFixed(4)}</span>
         </div>
       )}

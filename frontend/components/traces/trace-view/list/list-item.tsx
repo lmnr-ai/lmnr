@@ -1,4 +1,3 @@
-import { isEmpty, isNil } from "lodash";
 import { X } from "lucide-react";
 import { useMemo } from "react";
 
@@ -6,8 +5,8 @@ import { useOptionalDebuggerStore } from "@/components/debugger-sessions/debugge
 import { NoSpanTooltip } from "@/components/traces/no-span-tooltip";
 import { SnippetPreview } from "@/components/traces/snippet-preview";
 import SpanTypeIcon from "@/components/traces/span-type-icon";
-import { ContentPreview } from "@/components/traces/trace-view/content-preview";
 import { DebuggerCheckpoint } from "@/components/traces/trace-view/debugger-checkpoint.tsx";
+import { CollapsedTextWithMore } from "@/components/traces/trace-view/list/collapsed-text-with-more";
 import { PreviewLoadingPlaceholder } from "@/components/traces/trace-view/preview-loading-placeholder";
 import { SpanDisplayTooltip } from "@/components/traces/trace-view/span-display-tooltip.tsx";
 import { SpanStatsShield } from "@/components/traces/trace-view/span-stats-shield";
@@ -40,46 +39,44 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
 
   const hasSnippet = !!(span.inputSnippet || span.outputSnippet || span.attributesSnippet);
   const isLLMType = span.spanType === "LLM" || span.spanType === "CACHED";
-
   const isPending = span.pending;
-  const isLoadingOutput = output === undefined;
-
   const previewText = typeof output === "string" && output !== "" ? output : null;
-  const showBlockPreview = isLLMType && !hasSnippet && !isPending && (isLoadingOutput || !isEmpty(output));
-
   const isSelected = selectedSpan?.spanId === span.spanId;
-
-  const outerClasses = cn(
-    "flex flex-row group/message cursor-pointer transition-all border-l-4",
-    "hover:bg-secondary",
-    isSelected ? "bg-primary/5 border-l-primary" : "border-l-transparent",
-    { "opacity-60": isCached }
-  );
-
-  const lockColumnClasses = cn("flex items-start justify-center shrink-0 w-10 p-1 self-stretch pt-2.5");
 
   return (
     <div
-      className={outerClasses}
+      className={cn(
+        "flex group/message cursor-pointer transition-all border-l-4",
+        "hover:bg-secondary",
+        isSelected ? "bg-primary/5 border-l-primary" : "border-l-transparent",
+        { "opacity-60": isCached }
+      )}
       onClick={() => {
         if (!isPending) {
           onSpanSelect(span);
         }
       }}
     >
-      {cachingEnabled && <div className={lockColumnClasses}>{fullSpan && <DebuggerCheckpoint span={fullSpan} />}</div>}
+      {cachingEnabled && (
+        <div className="flex items-start justify-center shrink-0 w-10 p-1 self-stretch pt-2.5">
+          {fullSpan && <DebuggerCheckpoint span={fullSpan} />}
+        </div>
+      )}
 
-      <div className={cn("flex flex-col flex-1 min-w-0 py-1")}>
-        <div className="flex items-center gap-2 pl-2 pr-3 py-2">
-          <div className="flex items-center gap-2 flex-1 overflow-hidden min-w-0">
-            <SpanTypeIcon
-              spanType={span.spanType}
-              className={cn("shrink-0", { "text-muted-foreground bg-muted": isPending })}
-            />
+      <div className="flex gap-2 items-start flex-1 min-w-0 px-3 py-2">
+        <SpanTypeIcon
+          spanType={span.spanType}
+          containerWidth={20}
+          containerHeight={20}
+          size={14}
+          className={cn("shrink-0", { "text-muted-foreground bg-muted": isPending })}
+        />
+        <div className={cn("flex flex-col flex-1 min-w-0", isLLMType && "gap-0.5")}>
+          <div className="flex items-center gap-2 min-w-0">
             <SpanDisplayTooltip isLLM={isLLMType} name={span.name}>
               <span
                 className={cn(
-                  "font-medium text-sm whitespace-nowrap shrink-0",
+                  "font-medium text-[13px] whitespace-nowrap shrink-0",
                   isPending && "text-muted-foreground shimmer"
                 )}
               >
@@ -98,11 +95,11 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
                     className="truncate"
                   />
                 </div>
-              ) : !isNil(previewText) ? (
+              ) : previewText ? (
                 <span className="text-[13px] text-secondary-foreground truncate min-w-0 flex-1">{previewText}</span>
               ) : null)}
 
-            <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <div className="flex items-center shrink-0 ml-auto">
               {isPending ? (
                 isStringDateOld(span.startTime) ? (
                   <NoSpanTooltip>
@@ -115,7 +112,7 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
                 )
               ) : (
                 <SpanStatsShield
-                  className="hidden group-hover/message:flex"
+                  variant="inline"
                   startTime={span.startTime}
                   endTime={span.endTime}
                   tokens={span.totalTokens}
@@ -125,19 +122,9 @@ const ListItem = ({ span, output, onSpanSelect }: ListItemProps) => {
               )}
             </div>
           </div>
-        </div>
 
-        {showBlockPreview && (
-          <div className="px-2 w-full flex flex-col gap-2 h-full flex-1">
-            {isLoadingOutput ? (
-              <PreviewLoadingPlaceholder />
-            ) : isNil(output) || output === "" ? (
-              <div className="text-sm text-muted-foreground italic">No output available</div>
-            ) : (
-              <ContentPreview output={output} maxHeight="max-h-60" expandable />
-            )}
-          </div>
-        )}
+          {isLLMType && !isPending && previewText && <CollapsedTextWithMore text={previewText} lineHeight={17} />}
+        </div>
       </div>
     </div>
   );
