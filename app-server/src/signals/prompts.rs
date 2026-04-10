@@ -88,7 +88,10 @@ Here's the developer's prompt that describes the information you need to extract
 
 REMINDER: Respond with a function call ONLY. Include ALL required arguments. No plain text."#;
 
-pub const SEARCH_IN_SPANS_DESCRIPTION: &str = "Searches within span input/output content with automatic fuzzy matching (case-insensitive, whitespace-normalized, word proximity). Returns matching snippets with ~1000 chars of surrounding context. Far more token-efficient than fetching full spans. Use ONLY on fields tagged `[truncated]` — fields tagged `[complete]` already contain full data. Fields with no tag (<omitted>, <empty>, <from_llm_output>) use get_full_spans or are not searchable. IMPORTANT: Batch ALL your searches into a SINGLE call using multiple entries in the 'searches' array. Do NOT call this tool multiple times in sequence — plan all searches upfront.";
+pub const SEARCH_IN_SPANS_DESCRIPTION: &str = "\
+Search within span content for specific text. Returns matching snippets with ~1000 chars of context. \
+ONLY search fields tagged [truncated]. Fields tagged [complete], <omitted>, or <empty> must not be searched. \
+Batch ALL searches into one call.";
 
 pub const GET_FULL_SPAN_INFO_DESCRIPTION: &str = "Retrieves complete information (full input, output, timing, etc.) for specific spans by their IDs. ONLY use this as a last resort when search_in_spans cannot find what you need. Do NOT use this on fields tagged `[complete]` — the data is already fully visible. For LLM spans, only the last 2 messages are returned. You MUST provide the required 'span_ids' and 'reasoning' arguments.";
 
