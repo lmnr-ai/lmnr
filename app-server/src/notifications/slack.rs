@@ -72,6 +72,7 @@ pub fn format_message_blocks_batch(
             trace_id,
             event_name,
             extracted_information,
+            ..
         } => format_event_identification_blocks(
             &project_id.to_string(),
             &trace_id.to_string(),

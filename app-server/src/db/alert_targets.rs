@@ -5,6 +5,20 @@ use uuid::Uuid;
 pub struct AlertInfo {
     pub alert_id: Uuid,
     pub workspace_id: Uuid,
+    pub metadata: Option<serde_json::Value>,
+}
+
+impl AlertInfo {
+    /// Returns the minimum severity level configured for this alert.
+    /// Defaults to 2 (critical) if no metadata or severity is set.
+    pub fn min_severity(&self) -> u8 {
+        self.metadata
+            .as_ref()
+            .and_then(|m| m.get("severity"))
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u8)
+            .unwrap_or(2)
+    }
 }
 
 /// Look up all alerts for a given project and signal event name.
@@ -17,7 +31,7 @@ pub async fn get_alerts_for_event(
 ) -> anyhow::Result<Vec<AlertInfo>> {
     let records = sqlx::query_as::<_, AlertInfo>(
         r#"
-        SELECT a.id AS alert_id, p.workspace_id
+        SELECT a.id AS alert_id, p.workspace_id, a.metadata
         FROM alerts a
         INNER JOIN signals s ON s.id = a.source_id
         INNER JOIN projects p ON p.id = a.project_id

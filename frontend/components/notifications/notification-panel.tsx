@@ -31,21 +31,73 @@ interface SignalsReport {
   noteworthy_events: NoteworthyEvent[];
 }
 
+interface EventIdentification {
+  project_id: string;
+  trace_id: string;
+  event_name: string;
+  extracted_information: Record<string, unknown> | null;
+  severity: number;
+}
+
+const SEVERITY_LABEL: Record<number, string> = {
+  0: "info",
+  1: "warning",
+  2: "critical",
+};
+
+const SEVERITY_TITLE_COLOR: Record<number, string> = {
+  0: "text-blue-500",
+  1: "text-orange-500",
+  2: "text-red-500",
+};
+
 interface FormattedNotification {
   title: string;
+  titleColor?: string;
   summary: string;
   aiSummary: string | null;
   noteworthyEvents: NoteworthyEvent[];
+  traceLink?: { projectId: string; traceId: string };
 }
 
-// TODO: refactor this to have a more generic notification format, currently implemented only for signal events reports
-export const formatNotification = (notification: WebNotification): FormattedNotification | null => {
+const formatAlertNotification = (notification: WebNotification): FormattedNotification | null => {
+  try {
+    const payload: { EventIdentification: EventIdentification } = JSON.parse(notification.payload);
+    const event = payload.EventIdentification;
+    if (!event) return null;
+
+    const severity = event.severity ?? 2;
+    const severityLabel = SEVERITY_LABEL[severity] ?? "critical";
+    const titleColor = SEVERITY_TITLE_COLOR[severity] ?? SEVERITY_TITLE_COLOR[2];
+
+    const info = event.extracted_information;
+    const summaryParts: string[] = [];
+    if (info && typeof info === "object") {
+      for (const [key, value] of Object.entries(info)) {
+        if (value !== null && value !== undefined) {
+          summaryParts.push(`${key}: ${String(value)}`);
+        }
+      }
+    }
+
+    return {
+      title: `${event.event_name} - new ${severityLabel} event`,
+      titleColor,
+      summary: summaryParts.length > 0 ? summaryParts.join(", ") : `A ${severityLabel} event was detected.`,
+      aiSummary: null,
+      noteworthyEvents: [],
+      traceLink: { projectId: event.project_id, traceId: event.trace_id },
+    };
+  } catch {
+    return null;
+  }
+};
+
+const formatReportNotification = (notification: WebNotification): FormattedNotification | null => {
   try {
     const payload: { SignalsReport: SignalsReport } = JSON.parse(notification.payload);
     const report = payload.SignalsReport;
-    if (!report) {
-      return null;
-    }
+    if (!report) return null;
 
     const periodStartMs = new Date(report.period_start).getTime();
     const periodEndMs = new Date(report.period_end).getTime();
@@ -53,37 +105,33 @@ export const formatNotification = (notification: WebNotification): FormattedNoti
     // Hide weekly-style rollups to avoid duplicating info already shown by daily reports.
     if (!Number.isNaN(periodStartMs) && !Number.isNaN(periodEndMs)) {
       const periodDays = (periodEndMs - periodStartMs) / (1000 * 60 * 60 * 24);
-      if (periodDays > 3) {
-        return null;
-      }
+      if (periodDays > 3) return null;
     }
 
     const events = Object.values(report.signal_event_counts).reduce((a, b) => a + b, 0);
     const signalCount = Object.keys(report.signal_event_counts).length;
     const periodType = (() => {
-      if (Number.isNaN(periodStartMs) || Number.isNaN(periodEndMs)) {
-        return "selected period";
-      }
-
+      if (Number.isNaN(periodStartMs) || Number.isNaN(periodEndMs)) return "selected period";
       const diffDays = Math.max(1, Math.round((periodEndMs - periodStartMs) / (1000 * 60 * 60 * 24)));
-      if (diffDays > 1) {
-        return `${diffDays} days`;
-      }
-      return "day";
+      return diffDays > 1 ? `${diffDays} days` : "day";
     })();
-
-    const aiSummary = report.ai_summary || null;
-    const noteworthyEvents = report.noteworthy_events ?? [];
 
     return {
       title: "Signal Events Summary",
       summary: `${events} new event${events !== 1 ? "s" : ""} among ${signalCount} signal${signalCount !== 1 ? "s" : ""} in the last ${periodType}`,
-      aiSummary,
-      noteworthyEvents,
+      aiSummary: report.ai_summary || null,
+      noteworthyEvents: report.noteworthy_events ?? [],
     };
   } catch {
     return null;
   }
+};
+
+export const formatNotification = (notification: WebNotification): FormattedNotification | null => {
+  if (notification.definitionType === "ALERT") {
+    return formatAlertNotification(notification);
+  }
+  return formatReportNotification(notification);
 };
 
 const NotificationDetails = ({ formatted, projectId }: { formatted: FormattedNotification; projectId?: string }) => (
@@ -163,7 +211,13 @@ const NotificationItem = ({
       )}
     >
       <div className="flex items-center justify-between">
-        <span className={cn("text-xs text-foreground", isUnread ? "font-semibold" : "font-medium")}>
+        <span
+          className={cn(
+            "text-xs",
+            formatted.titleColor ?? "text-foreground",
+            isUnread ? "font-semibold" : "font-medium"
+          )}
+        >
           {formatted.title}
         </span>
         <div className="flex items-center gap-1.5 shrink-0 ml-2">
@@ -174,6 +228,15 @@ const NotificationItem = ({
       <span className={cn("text-xs", isUnread ? "text-foreground/80" : "text-muted-foreground")}>
         {formatted.summary}
       </span>
+      {formatted.traceLink && projectId && (
+        <Link
+          href={`/project/${formatted.traceLink.projectId}/traces/${formatted.traceLink.traceId}?chat=true`}
+          className="text-[11px] text-muted-foreground underline hover:text-foreground w-fit"
+          onClick={(e) => e.stopPropagation()}
+        >
+          View trace
+        </Link>
+      )}
       {hasDetails && !expanded && (
         <div className="relative cursor-pointer" onClick={() => setExpanded(true)}>
           <div className="max-h-21 overflow-hidden">

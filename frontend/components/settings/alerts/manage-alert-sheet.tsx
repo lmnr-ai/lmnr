@@ -19,7 +19,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { ALERT_TARGET_TYPE, type AlertWithDetails } from "@/lib/actions/alerts/types";
+import {
+  ALERT_TARGET_TYPE,
+  type AlertWithDetails,
+  SEVERITY_LABELS,
+  SEVERITY_LEVELS,
+  type SeverityLevel,
+} from "@/lib/actions/alerts/types";
 import { type SignalRow } from "@/lib/actions/signals";
 import { type SlackChannel } from "@/lib/actions/slack";
 import { useToast } from "@/lib/hooks/use-toast";
@@ -41,6 +47,7 @@ interface AlertFormValues {
   signalName: string;
   channelId: string;
   emailEnabled: boolean;
+  severity: SeverityLevel;
 }
 
 const CHART_FIELDS = ["count"] as const;
@@ -50,6 +57,7 @@ const DEFAULT_VALUES: AlertFormValues = {
   signalName: "",
   channelId: "",
   emailEnabled: false,
+  severity: SEVERITY_LEVELS.CRITICAL,
 };
 
 export default function ManageAlertSheet({
@@ -103,6 +111,7 @@ export default function ManageAlertSheet({
         signalName: signal?.name ?? "",
         channelId: slackTarget?.channelId ?? "",
         emailEnabled: !!emailTarget,
+        severity: (alert.metadata?.severity ?? SEVERITY_LEVELS.CRITICAL) as SeverityLevel,
       });
     },
     [alert, reset, userEmail]
@@ -286,6 +295,7 @@ export default function ManageAlertSheet({
             type: "SIGNAL_EVENT",
             sourceId: selectedSignal.id,
             targets,
+            metadata: { severity: data.severity },
           }),
         });
 
@@ -422,6 +432,36 @@ export default function ManageAlertSheet({
                 </div>
               )}
             />
+
+            {selectedSignal && (
+              <Controller
+                name="severity"
+                control={control}
+                render={({ field }) => (
+                  <div className="grid gap-2">
+                    <Label>Minimum severity level</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Only events at or above this severity will trigger notifications.
+                    </p>
+                    <Select
+                      value={String(field.value)}
+                      onValueChange={(value) => field.onChange(Number(value) as SeverityLevel)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(SEVERITY_LABELS).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              />
+            )}
 
             {selectedSignal && (
               <div className="flex flex-col gap-3 border rounded-md p-3 bg-muted/30">

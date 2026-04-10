@@ -46,7 +46,7 @@ export const getWebNotifications = async (
       FROM notifications
       WHERE project_id = {projectId: UUID}
         AND created_at >= now() - INTERVAL 1 MONTH
-        AND definition_type = 'REPORT'
+        AND definition_type IN ('REPORT', 'ALERT')
       ORDER BY created_at DESC
       LIMIT {limit: UInt32}
     `,

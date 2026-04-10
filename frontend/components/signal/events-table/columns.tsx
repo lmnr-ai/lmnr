@@ -128,6 +128,18 @@ function createPayloadFilter(field: SchemaField): ColumnFilter {
   }
 }
 
+const SEVERITY_LABELS: Record<number, string> = {
+  0: "Info",
+  1: "Warning",
+  2: "Critical",
+};
+
+const SEVERITY_COLORS: Record<number, string> = {
+  0: "text-blue-500 bg-blue-500/10 border-blue-500/20",
+  1: "text-orange-500 bg-orange-500/10 border-orange-500/20",
+  2: "text-red-500 bg-red-500/10 border-red-500/20",
+};
+
 const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
   {
     accessorKey: "timestamp",
@@ -135,6 +147,22 @@ const staticColumnsBeforePayload: ColumnDef<EventRow>[] = [
     cell: (row) => <ClientTimestampFormatter timestamp={String(row.getValue())} />,
     size: 140,
     id: "timestamp",
+  },
+  {
+    accessorKey: "severity",
+    header: "Severity",
+    cell: (row) => {
+      const severity = Number(row.getValue());
+      const label = SEVERITY_LABELS[severity] ?? "Info";
+      const color = SEVERITY_COLORS[severity] ?? SEVERITY_COLORS[0];
+      return (
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${color}`}>
+          {label}
+        </span>
+      );
+    },
+    size: 100,
+    id: "severity",
   },
 ];
 
@@ -195,7 +223,7 @@ export function buildEventsColumns(schemaFields: SchemaField[]): {
 
   const columns = [...staticColumnsBeforePayload, ...payloadColumns, ...staticColumnsAfterPayload];
 
-  const columnOrder = ["timestamp", "traceId", ...validFields.map((f) => `payload:${f.name}`), "id"];
+  const columnOrder = ["timestamp", "severity", ...validFields.map((f) => `payload:${f.name}`), "traceId", "id"];
 
   const filters = [...staticFilters, ...payloadFilters];
 

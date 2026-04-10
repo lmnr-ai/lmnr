@@ -1,0 +1,1 @@
+ALTER TABLE "alerts" ADD COLUMN IF NOT EXISTS "metadata" jsonb;

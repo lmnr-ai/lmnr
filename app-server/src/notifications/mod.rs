@@ -85,6 +85,8 @@ pub enum NotificationKind {
         trace_id: Uuid,
         event_name: String,
         extracted_information: Option<serde_json::Value>,
+        #[serde(default)]
+        severity: u8,
     },
     SignalsReport {
         workspace_name: String,
