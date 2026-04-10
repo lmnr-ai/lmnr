@@ -64,8 +64,8 @@ const formatAlertNotification = (notification: WebNotification): FormattedNotifi
     // Default to 1 (warning) for backward compatibility: old alert notifications
     // were only created when severity >= 1, so missing severity means at least warning.
     const severity = event.severity ?? 1;
-    const severityLabel = (SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Critical").toLowerCase();
-    const titleColor = SEVERITY_TITLE_COLOR[severity] ?? SEVERITY_TITLE_COLOR[2];
+    const severityLabel = (SEVERITY_LABELS[severity as keyof typeof SEVERITY_LABELS] ?? "Info").toLowerCase();
+    const titleColor = SEVERITY_TITLE_COLOR[severity] ?? SEVERITY_TITLE_COLOR[0];
 
     const info = event.extracted_information;
     const summaryParts: string[] = [];
