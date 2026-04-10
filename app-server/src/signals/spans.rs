@@ -10,7 +10,7 @@ use crate::ch::spans::CHSpan;
 
 use super::utils::{clean_whitespace, strip_noise, try_parse_json};
 
-const TRUNCATE_THRESHOLD: usize = 1024;
+const TRUNCATE_THRESHOLD: usize = 2048;
 /// Max chars to keep per message string in LLM span inputs.
 const LLM_MESSAGE_MAX_CHARS: usize = 3000;
 /// Hard cap on total serialized LLM input size after per-string truncation.
@@ -446,6 +446,21 @@ pub fn compress_span_content(
         .collect()
 }
 
+/// Returns the inline tag for an input/output field based on its content and truncation status.
+/// Special sentinel values (`<omitted>`, `<empty>`, `<from_llm_output>`) get no tag since
+/// they are not searchable regardless.
+fn field_tag(value: &str, truncated: bool) -> &'static str {
+    if value.starts_with("<omitted ") || value == "<empty>" || value.starts_with("<from_llm_output")
+    {
+        return "";
+    }
+    if truncated {
+        " [truncated]"
+    } else {
+        " [complete]"
+    }
+}
+
 fn spans_to_string(
     spans: &[CompressedSpan],
     system_prompt_summaries: &HashMap<String, String>,
@@ -491,17 +506,21 @@ fn spans_to_string(
         if let Some(ref_id) = &span.system_prompt_ref {
             let _ = writeln!(out, "  system_prompt: {}", ref_id);
         }
-        if span.input_truncated {
-            let _ = writeln!(out, "  input_truncated: true");
-        }
-        if span.output_truncated {
-            let _ = writeln!(out, "  output_truncated: true");
-        }
         if let Some(exception) = &span.exception {
             let _ = writeln!(out, "  exception: {}", exception);
         }
-        let _ = writeln!(out, "  input: {}", span.input);
-        let _ = writeln!(out, "  output: {}", span.output);
+        let _ = writeln!(
+            out,
+            "  input{}: {}",
+            field_tag(&span.input, span.input_truncated),
+            span.input
+        );
+        let _ = writeln!(
+            out,
+            "  output{}: {}",
+            field_tag(&span.output, span.output_truncated),
+            span.output
+        );
     }
     out
 }
