@@ -24,6 +24,8 @@ export const generateMetadata = async (props: { params: Promise<{ slug: string }
       title: data.title,
       description,
       authors: data.coAuthors ? [data.author, ...data.coAuthors] : [data.author],
+      // this isn't used by google since 2009 but could help minor crawlers
+      keywords: data.tags,
       openGraph: {
         title: data.title,
         description,
@@ -116,14 +118,17 @@ export default async function BlogPostPage(props0: { params: Promise<{ slug: str
                 }
                 return <p className="pt-4 text-white/85 font-light" {...props} />;
               },
-              a: (props) => (
-                <a
-                  className="text-white underline hover:text-primary"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  {...props}
-                />
-              ),
+              a: (props) => {
+                const isExternal =
+                  typeof props.href === "string" && !props.href.startsWith("/") && !props.href.startsWith("#");
+                return (
+                  <a
+                    className="text-white underline hover:text-primary"
+                    {...(isExternal && { target: "_blank", rel: "noopener noreferrer" })}
+                    {...props}
+                  />
+                );
+              },
               blockquote: (props) => <blockquote className="border-l-2 border-primary pl-4" {...props} />,
               pre: (props) => <PreHighlighter className="pl-4 py-4" {...props} />,
               code: (props) => (
