@@ -791,6 +791,9 @@ pub async fn handle_create_event(
         .build();
     let ch_ref = &clickhouse;
     let event_ref = &signal_event;
+    // NOTE: all errors treated as transient because anyhow::Error doesn't expose
+    // ClickHouse error kinds; permanent errors (schema mismatch, etc.) will retry
+    // until the 10s timeout before propagating.
     backoff::future::retry(backoff, || async move {
         insert_signal_events(ch_ref.clone(), vec![event_ref.clone()])
             .await
