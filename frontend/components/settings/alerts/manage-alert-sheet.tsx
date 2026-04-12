@@ -175,13 +175,15 @@ export default function ManageAlertSheet({
     [signalsData, signalName]
   );
 
+  const additionalParams = useMemo(() => ({ minSeverity: String(severity) }), [severity]);
+
   const statsUrl = useTimeSeriesStatsUrl({
     baseUrl: selectedSignal ? `/api/projects/${projectId}/signals/${selectedSignal.id}/events/stats` : "",
     chartContainerWidth,
     pastHours: dateRange.pastHours ?? null,
     startDate: dateRange.startDate ?? null,
     endDate: dateRange.endDate ?? null,
-    additionalParams: { minSeverity: String(severity) },
+    additionalParams,
   });
 
   const { data: eventsStats, isLoading: isLoadingStats } = useSWR<{ items: TimeSeriesDataPoint[] }>(
