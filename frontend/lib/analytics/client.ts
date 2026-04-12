@@ -8,7 +8,7 @@ export type Feature = "sessions" | "signals" | "traces" | "alerts";
 let telemetryOn = false;
 
 export const init = (telemetryEnabled: boolean) => {
-  if (!telemetryEnabled) return;
+  if (!telemetryEnabled || telemetryOn) return;
   telemetryOn = true;
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
