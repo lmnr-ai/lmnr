@@ -5,10 +5,11 @@ const POSTHOG_HOST = "https://p.laminar.sh";
 
 export type Feature = "sessions" | "signals" | "traces" | "alerts";
 
-let initialized = false;
+let telemetryOn = false;
 
 export const init = (telemetryEnabled: boolean) => {
   if (!telemetryEnabled) return;
+  telemetryOn = true;
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     person_profiles: "identified_only",
@@ -18,25 +19,24 @@ export const init = (telemetryEnabled: boolean) => {
       maskTextSelector: "*",
     },
   });
-  initialized = true;
 };
 
 export const identify = (userId: string, traits?: Record<string, unknown>) => {
-  if (!initialized) return;
+  if (!telemetryOn) return;
   posthog.identify(userId, traits);
 };
 
 export const group = (type: string, id: string, traits?: Record<string, unknown>) => {
-  if (!initialized) return;
+  if (!telemetryOn) return;
   posthog.group(type, id, traits);
 };
 
 export const reset = () => {
-  if (!initialized) return;
+  if (!telemetryOn) return;
   posthog.reset();
 };
 
 export const track = (feature: Feature, action: string, properties?: Record<string, unknown>) => {
-  if (!initialized) return;
+  if (!telemetryOn) return;
   posthog.capture(`${feature}:${action}`, properties);
 };
