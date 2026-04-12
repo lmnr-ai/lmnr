@@ -270,7 +270,7 @@ const NotificationItem = ({
     const el = contentRef.current;
     if (!el || expanded) return;
     setOverflows(el.scrollHeight > el.clientHeight);
-  }, [expanded]);
+  }, [expanded, formatted]);
 
   const contentBody = (
     <>
