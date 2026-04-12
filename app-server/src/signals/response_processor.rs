@@ -150,7 +150,6 @@ pub async fn process_provider_responses(
         .await;
 
         new_messages.extend(new_run_messages);
-        log::error!("STEP RESULT: {:?}", step_result);
 
         match step_result {
             StepResult::CompletedNoEvent => {
