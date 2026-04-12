@@ -180,7 +180,10 @@ export const formatNotification = (notification: WebNotification): FormattedNoti
   if (notification.definitionType === "ALERT") {
     return formatAlertNotification(notification);
   }
-  return formatReportNotification(notification);
+  if (notification.definitionType === "REPORT") {
+    return formatReportNotification(notification);
+  }
+  return null;
 };
 
 const SeverityIcon = ({ severity }: { severity: number }) => {
