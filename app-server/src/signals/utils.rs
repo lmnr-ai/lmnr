@@ -138,6 +138,17 @@ pub struct InternalSpan {
 
 static XML_TAG_NAME_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<(\w+)[\s/>]").unwrap());
 
+static SPAN_XML_TAG_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#).unwrap()
+});
+
+static SPAN_REF_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\bspans?\s+([0-9a-fA-F]{6}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+)[0-9a-fA-F]{6})*)\b")
+        .unwrap()
+});
+
+static HEX_ID_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[0-9a-fA-F]{6}").unwrap());
+
 /// Hash a system prompt by its structural skeleton: first sentence + sorted XML tag names.
 /// Resistant to dynamic content inside tags (config values, user context, tool lists)
 /// while preserving the stable identity of the prompt template.
@@ -233,10 +244,7 @@ fn replace_span_tags_in_str(
     // 1. Replace proper <span id='...' name='...' /> XML tags.
     //    The LLM prompt in prompts.rs explicitly instructs this attribute order (id before name),
     //    so we rely on it here rather than making the pattern order-agnostic.
-    let xml_pattern =
-        Regex::new(r#"<span\s+id=['"]([^'"]+)['"]\s+name=['"]([^'"]+)['"][^>]*/?\s*>"#).unwrap();
-
-    let after_xml = xml_pattern.replace_all(s, |caps: &regex::Captures| {
+    let after_xml = SPAN_XML_TAG_RE.replace_all(s, |caps: &regex::Captures| {
         let short_id = &caps[1];
         let span_name = &caps[2];
         let real_span_id = span_ids_map
@@ -250,15 +258,9 @@ fn replace_span_tags_in_str(
     });
 
     // 2. Replace informal "span(s) id1, id2, ..." references (single or comma/and-separated)
-    let hex_id_re = Regex::new(r"[0-9a-fA-F]{6}").unwrap();
-    let span_ref_pattern = Regex::new(
-        r"\bspans?\s+([0-9a-fA-F]{6}(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+)[0-9a-fA-F]{6})*)\b",
-    )
-    .unwrap();
-
-    let after_informal = span_ref_pattern.replace_all(&after_xml, |caps: &regex::Captures| {
+    let after_informal = SPAN_REF_RE.replace_all(&after_xml, |caps: &regex::Captures| {
         let ids_str = &caps[1];
-        let parts: Vec<String> = hex_id_re
+        let parts: Vec<String> = HEX_ID_RE
             .find_iter(ids_str)
             .map(|m| {
                 let short_id = m.as_str().to_lowercase();
