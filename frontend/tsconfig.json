@@ -26,14 +26,6 @@
     "downlevelIteration": true,
     "target": "ES2017"
   },
-  "include": [
-    "next-env.d.ts",
-    "./*.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    "app/posthog.js",
-    ".next/dev/types/**/*.ts"
-  ],
+  "include": ["next-env.d.ts", "./*.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
   "exclude": ["node_modules"]
 }

@@ -7,11 +7,10 @@ import { type PropsWithChildren } from "react";
 
 import { Toaster } from "@/components/ui/toaster";
 import { type FeatureFlags, FeatureFlagsProvider } from "@/contexts/feature-flags-context";
+import { AnalyticsProvider } from "@/lib/analytics";
 import { Feature, isFeatureEnabled } from "@/lib/features/features.ts";
 import { manrope, sans, spaceGrotesk } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
-
-import { PostHogProvider } from "./providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://laminar.sh"),
@@ -77,7 +76,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
   return (
     <html lang="en" className={cn("h-full antialiased", sans.variable, manrope.variable, spaceGrotesk.variable)}>
       <FeatureFlagsProvider flags={featureFlags}>
-        <PostHogProvider telemetryEnabled={featureFlags[Feature.POSTHOG]}>
+        <AnalyticsProvider telemetryEnabled={featureFlags[Feature.POSTHOG]}>
           <body className="flex flex-col h-full">
             <NuqsAdapter>
               <div className="flex">
@@ -88,7 +87,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
               </div>
             </NuqsAdapter>
           </body>
-        </PostHogProvider>
+        </AnalyticsProvider>
       </FeatureFlagsProvider>
     </html>
   );
