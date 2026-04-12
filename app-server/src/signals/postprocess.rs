@@ -38,7 +38,8 @@ pub async fn process_event_notifications_and_clustering(
                 .as_ref()
                 .and_then(|m| m.get("severity"))
                 .and_then(|v| v.as_u64())
-                .unwrap_or(2) as u8;
+                .and_then(|n| u8::try_from(n).ok())
+                .unwrap_or(2);
 
             if signal_event.severity < min_severity {
                 continue;
