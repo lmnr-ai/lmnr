@@ -155,6 +155,15 @@ services:
       QUICKWIT_SEARCH_URL: http://quickwit:7280
       GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
 
+  ai-sdk:
+    image: ghcr.io/lmnr-ai/ai-sdk
+    pull_policy: always
+    ports:
+      - "${AI_SDK_HOST_PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      AEAD_SECRET_KEY: ${AEAD_SECRET_KEY}
+
 volumes:
   clickhouse-data:
   clickhouse-logs:
