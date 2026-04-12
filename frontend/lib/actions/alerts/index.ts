@@ -140,7 +140,7 @@ export async function updateAlert(input: z.infer<typeof UpdateAlertSchema>) {
   return await db.transaction(async (tx) => {
     await tx
       .update(alerts)
-      .set({ name, type, sourceId, metadata: metadata ?? null })
+      .set({ name, type, sourceId, ...(metadata !== undefined && { metadata }) })
       .where(and(eq(alerts.id, alertId), eq(alerts.projectId, projectId)));
 
     // Fetch existing email targets belonging to OTHER users so we can preserve them.
