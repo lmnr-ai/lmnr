@@ -7,6 +7,7 @@ import { convertToTimeParameters } from "@/lib/time.ts";
 
 export interface BatchedPreviewsHook {
   previews: Record<string, any>;
+  userInputs: Record<string, string | null>;
   clearCache: () => void;
 }
 
@@ -21,31 +22,50 @@ export function useBatchedSpanPreviews(
   visibleSpanIds: string[],
   trace: { id?: string; startTime?: string; endTime?: string },
   options: UseBatchedSpanPreviewsOptions = {},
-  spanTypes?: Record<string, string>
+  spanTypes?: Record<string, string>,
+  inputSpanIds?: string[]
 ): BatchedPreviewsHook {
   const { debounceMs = 150, maxEntries = 100, isShared = false } = options;
   const { toast } = useToast();
   const cache = useRef(new SimpleLRU<string, any>(maxEntries));
+  const inputCache = useRef(new SimpleLRU<string, string | null>(maxEntries));
   const fetching = useRef(new Set<string>());
   const pendingFetch = useRef(new Set<string>());
   const timer = useRef<NodeJS.Timeout | null>(null);
   const lastIdsRef = useRef<string>("");
   const [previews, setPreviews] = useState<Record<string, any>>({});
+  const [userInputs, setUserInputs] = useState<Record<string, string | null>>({});
   const spanTypesRef = useRef<Record<string, string>>(spanTypes ?? {});
+  const inputSpanIdsRef = useRef<string[]>(inputSpanIds ?? []);
 
   if (spanTypes) {
     spanTypesRef.current = spanTypes;
+  }
+  if (inputSpanIds) {
+    inputSpanIdsRef.current = inputSpanIds;
   }
 
   const fetchBatch = useCallback(
     async (spanIds: string[]) => {
       if (spanIds.length === 0 || !trace?.id) return;
 
+      // Determine which inputSpanIds are relevant for this batch
+      const inputSpanIdSet = new Set(inputSpanIdsRef.current);
+      const batchInputSpanIds = spanIds.filter((id) => inputSpanIdSet.has(id));
+      // Regular span IDs are the ones not in inputSpanIds
+      const regularSpanIds = spanIds.filter((id) => !inputSpanIdSet.has(id));
+
       try {
         const body: Record<string, any> = {
-          spanIds,
+          spanIds: regularSpanIds.length > 0 ? regularSpanIds : spanIds,
           spanTypes: spanTypesRef.current,
         };
+
+        if (batchInputSpanIds.length > 0) {
+          body.inputSpanIds = batchInputSpanIds;
+          // Include all IDs in spanIds for the query
+          body.spanIds = [...new Set([...regularSpanIds, ...batchInputSpanIds])];
+        }
 
         if (trace?.startTime && trace?.endTime) {
           const startTime = new Date(new Date(trace.startTime).getTime() - 1000).toISOString();
@@ -70,20 +90,38 @@ export function useBatchedSpanPreviews(
           throw new Error(errorData.error || "Failed to fetch span previews");
         }
 
-        const data = (await response.json()) as { previews: Record<string, string | null> };
+        const data = (await response.json()) as {
+          previews: Record<string, string | null>;
+          userInputs: Record<string, string | null>;
+        };
 
-        spanIds.forEach((id) => {
+        regularSpanIds.forEach((id) => {
           cache.current.set(id, get(data.previews, id, null));
+          fetching.current.delete(id);
+        });
+
+        batchInputSpanIds.forEach((id) => {
+          inputCache.current.set(id, get(data.userInputs, id, null));
           fetching.current.delete(id);
         });
 
         setPreviews((prev) => {
           const next = { ...prev };
-          spanIds.forEach((id) => {
+          regularSpanIds.forEach((id) => {
             next[id] = cache.current.get(id);
           });
           return next;
         });
+
+        if (batchInputSpanIds.length > 0) {
+          setUserInputs((prev) => {
+            const next = { ...prev };
+            batchInputSpanIds.forEach((id) => {
+              next[id] = inputCache.current.get(id) ?? null;
+            });
+            return next;
+          });
+        }
       } catch (error) {
         toast({
           variant: "destructive",
@@ -119,8 +157,11 @@ export function useBatchedSpanPreviews(
     await fetchBatch(toFetch);
   }, [fetchBatch]);
 
+  // Combine visible span IDs + input span IDs for cache check
+  const allIds = [...visibleSpanIds, ...(inputSpanIds ?? [])];
+
   useEffect(() => {
-    const currentIdsKey = visibleSpanIds.join(",");
+    const currentIdsKey = allIds.join(",");
 
     if (currentIdsKey === lastIdsRef.current) {
       return;
@@ -128,8 +169,12 @@ export function useBatchedSpanPreviews(
 
     lastIdsRef.current = currentIdsKey;
 
-    const newIds = visibleSpanIds.filter(
-      (id) => !cache.current.has(id) && !fetching.current.has(id) && !pendingFetch.current.has(id)
+    const newIds = allIds.filter(
+      (id) =>
+        !cache.current.has(id) &&
+        !inputCache.current.has(id) &&
+        !fetching.current.has(id) &&
+        !pendingFetch.current.has(id)
     );
 
     if (newIds.length > 0) {
@@ -140,13 +185,15 @@ export function useBatchedSpanPreviews(
       }
       timer.current = setTimeout(scheduleFetch, debounceMs);
     }
-  }, [visibleSpanIds, scheduleFetch, debounceMs]);
+  }, [allIds, scheduleFetch, debounceMs]);
 
   const clearCache = useCallback(() => {
     cache.current.clear();
+    inputCache.current.clear();
     fetching.current.clear();
     setPreviews({});
+    setUserInputs({});
   }, []);
 
-  return { previews, clearCache };
+  return { previews, userInputs, clearCache };
 }

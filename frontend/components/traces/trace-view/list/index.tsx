@@ -1,11 +1,19 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { compact, isEmpty, isNil, isNull, times } from "lodash";
+import { isEmpty, isNil, isNull, times } from "lodash";
 import { useParams } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
+import { AgentGroupItem } from "@/components/traces/trace-view/list/agent-group-item";
 import ListItem from "@/components/traces/trace-view/list/list-item.tsx";
 import { useBatchedSpanPreviews } from "@/components/traces/trace-view/list/use-batched-span-previews";
-import { type TraceViewSpan, useTraceViewBaseStore } from "@/components/traces/trace-view/store/base";
+import { useTraceUserInput } from "@/components/traces/trace-view/list/use-trace-user-input";
+import { UserInputItem } from "@/components/traces/trace-view/list/user-input-item";
+import {
+  type ReaderListGroup,
+  type TraceViewListSpan,
+  type TraceViewSpan,
+  useTraceViewBaseStore,
+} from "@/components/traces/trace-view/store/base";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 import { useScrollContext } from "../scroll-context.tsx";
@@ -15,37 +23,96 @@ interface ListProps {
   isShared?: boolean;
 }
 
+type FlatRow = { type: "span"; span: TraceViewListSpan } | { type: "group"; group: ReaderListGroup };
+
 const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { scrollRef, updateState, setVisibleSpanIds } = useScrollContext();
-  const { getListData, spans, isSpansLoading, selectedSpan, trace, condensedTimelineVisibleSpanIds } =
-    useTraceViewBaseStore((state) => ({
-      getListData: state.getListData,
-      spans: state.spans,
-      isSpansLoading: state.isSpansLoading,
-      selectedSpan: state.selectedSpan,
-      trace: state.trace,
-      condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
-    }));
+  const {
+    getReaderListData,
+    spans,
+    isSpansLoading,
+    selectedSpan,
+    trace,
+    condensedTimelineVisibleSpanIds,
+    readerCollapsedGroups,
+  } = useTraceViewBaseStore((state) => ({
+    getReaderListData: state.getReaderListData,
+    spans: state.spans,
+    isSpansLoading: state.isSpansLoading,
+    selectedSpan: state.selectedSpan,
+    trace: state.trace,
+    condensedTimelineVisibleSpanIds: state.condensedTimelineVisibleSpanIds,
+    readerCollapsedGroups: state.readerCollapsedGroups,
+  }));
 
   const prevVisibleIdsRef = useRef<string>("");
 
-  const listSpans = useMemo(() => getListData(), [getListData, spans, condensedTimelineVisibleSpanIds]);
+  const readerEntries = useMemo(
+    () => getReaderListData(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getReaderListData, spans, condensedTimelineVisibleSpanIds]
+  );
+
+  const flatRows = useMemo(() => {
+    const rows: FlatRow[] = [];
+    for (const entry of readerEntries) {
+      if (entry.type === "span") {
+        rows.push({ type: "span", span: entry.span });
+      } else {
+        rows.push({ type: "group", group: entry });
+      }
+    }
+    return rows;
+  }, [readerEntries]);
+
+  // Collect all span types for the batch previews request
+  const spanTypes = useMemo(() => {
+    const types: Record<string, string> = {};
+    for (const row of flatRows) {
+      if (row.type === "span") {
+        types[row.span.spanId] = row.span.spanType;
+      } else {
+        for (const s of row.group.spans) {
+          types[s.spanId] = s.spanType;
+        }
+      }
+    }
+    return types;
+  }, [flatRows]);
+
+  // Collect inputSpanIds: first LLM span of each group
+  const inputSpanIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const entry of readerEntries) {
+      if (entry.type === "group" && entry.firstLlmSpanId) {
+        ids.push(entry.firstLlmSpanId);
+      }
+    }
+    return ids;
+  }, [readerEntries]);
 
   const virtualizer = useVirtualizer({
-    count: listSpans.length,
+    count: flatRows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 286,
+    estimateSize: () => 42,
     overscan: 20,
   });
 
+  // When collapse state changes, invalidate all cached measurements
+  // so the virtualizer re-measures the affected group cards.
+  useEffect(() => {
+    virtualizer.measure();
+  }, [readerCollapsedGroups, virtualizer]);
+
   const selectedSpanIndex = useMemo(() => {
     if (isNil(selectedSpan)) return null;
-    const selectedIndex = listSpans.findIndex((span) => span.spanId === selectedSpan.spanId);
-    return selectedIndex;
-  }, [selectedSpan?.spanId, listSpans]);
+    return flatRows.findIndex((row) => {
+      if (row.type === "span") return row.span.spanId === selectedSpan.spanId;
+      return row.group.spans.some((s) => s.spanId === selectedSpan.spanId);
+    });
+  }, [selectedSpan?.spanId, flatRows]);
 
-  // Scroll to selected span when selection changes
   useEffect(() => {
     if (isNull(selectedSpanIndex) || isSpansLoading) return;
     if (selectedSpanIndex !== -1) {
@@ -58,37 +125,44 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
 
   const items = virtualizer?.getVirtualItems() || [];
 
-  const visibleSpanIds = compact(items.map((item) => listSpans[item.index]?.spanId)) as string[];
-
-  const spanTypes = useMemo(() => {
-    const types: Record<string, string> = {};
-    for (const span of listSpans) {
-      types[span.spanId] = span.spanType;
+  // Collect all span IDs visible in viewport (including all spans inside visible groups)
+  const allVisibleSpanIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const item of items) {
+      const row = flatRows[item.index];
+      if (row?.type === "span") {
+        ids.push(row.span.spanId);
+      } else if (row?.type === "group") {
+        for (const s of row.group.spans) {
+          ids.push(s.spanId);
+        }
+      }
     }
-    return types;
-  }, [listSpans]);
+    return ids;
+  }, [items, flatRows]);
 
-  const { previews } = useBatchedSpanPreviews(
+  const { previews, userInputs } = useBatchedSpanPreviews(
     projectId,
-    // Fetches previews for visible or rendered spans in virtualized list.
-    // Make sure that spans in view (~20) + overscan spans < cache size (default 100) in this hook.
-    visibleSpanIds,
+    allVisibleSpanIds,
     {
       id: trace?.id,
       startTime: trace?.startTime,
       endTime: trace?.endTime,
     },
     { isShared },
-    spanTypes
+    spanTypes,
+    inputSpanIds
   );
 
+  const { userInput, isLoading: isUserInputLoading } = useTraceUserInput(projectId, trace?.id, isShared);
+
   useEffect(() => {
-    const currentIdsKey = visibleSpanIds.join(",");
+    const currentIdsKey = allVisibleSpanIds.join(",");
     if (prevVisibleIdsRef.current !== currentIdsKey) {
       prevVisibleIdsRef.current = currentIdsKey;
-      setVisibleSpanIds(visibleSpanIds);
+      setVisibleSpanIds(allVisibleSpanIds);
     }
-  }, [visibleSpanIds, setVisibleSpanIds]);
+  }, [allVisibleSpanIds, setVisibleSpanIds]);
 
   useEffect(
     () => () => {
@@ -126,7 +200,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
   }, [handleScroll, scrollRef?.current]);
 
   const handleSpanSelect = useCallback(
-    (listSpan: (typeof listSpans)[0]) => {
+    (listSpan: TraceViewListSpan) => {
       if (listSpan.pending) return;
       const fullSpan = spans.find((s) => s.spanId === listSpan.spanId);
       if (fullSpan) {
@@ -135,6 +209,8 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     },
     [spans, onSpanSelect]
   );
+
+  const hasEntries = readerEntries.length > 0;
 
   if (isSpansLoading) {
     return (
@@ -149,7 +225,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
     );
   }
 
-  if (isEmpty(listSpans)) {
+  if (!hasEntries) {
     return (
       <div className="flex flex-1 items-center justify-center p-8 text-center">
         <span className="text-base text-secondary-foreground">
@@ -167,6 +243,7 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
       className="overflow-x-hidden overflow-y-auto grow relative h-full w-full styled-scrollbar pb-4"
     >
       <div className="flex flex-col">
+        <UserInputItem text={userInput} isLoading={isUserInputLoading} />
         <div
           className="relative"
           style={{
@@ -185,12 +262,34 @@ const List = ({ onSpanSelect, isShared = false }: ListProps) => {
             }}
           >
             {items.map((virtualRow) => {
-              const listSpan = listSpans[virtualRow.index];
-              if (!listSpan) return null;
+              const row = flatRows[virtualRow.index];
+              if (!row) return null;
+
+              if (row.type === "group") {
+                const isCollapsed = !readerCollapsedGroups.has(row.group.groupId);
+                const firstSpan = row.group.spans[0];
+                const firstSpanIsLlm = firstSpan && (firstSpan.spanType === "LLM" || firstSpan.spanType === "CACHED");
+                const groupPreview = firstSpan
+                  ? firstSpanIsLlm && row.group.firstLlmSpanId
+                    ? userInputs[row.group.firstLlmSpanId]
+                    : previews[firstSpan.spanId]
+                  : null;
+                return (
+                  <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
+                    <AgentGroupItem
+                      group={row.group}
+                      collapsed={isCollapsed}
+                      preview={groupPreview}
+                      previews={previews}
+                      onSpanSelect={handleSpanSelect}
+                    />
+                  </div>
+                );
+              }
 
               return (
                 <div key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index}>
-                  <ListItem span={listSpan} output={previews[listSpan.spanId]} onSpanSelect={handleSpanSelect} />
+                  <ListItem span={row.span} output={previews[row.span.spanId]} onSpanSelect={handleSpanSelect} />
                 </div>
               );
             })}

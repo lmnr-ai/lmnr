@@ -2,6 +2,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { TimeRangeSchema } from "@/lib/actions/common/types.ts";
+import { joinUserParts } from "@/lib/actions/sessions/extract-input";
+import { parseExtractedMessages } from "@/lib/actions/sessions/parse-input";
 import { executeQuery } from "@/lib/actions/sql";
 import { db } from "@/lib/db/drizzle";
 import { spanRenderingKeys } from "@/lib/db/migrations/schema";
@@ -21,6 +23,7 @@ export const GetSpanPreviewsSchema = TimeRangeSchema.omit({ pastHours: true }).e
   traceId: z.guid(),
   spanIds: z.array(z.string()).min(1),
   spanTypes: z.record(z.string(), z.string()),
+  inputSpanIds: z.array(z.string()).optional(),
 });
 
 export type SpanPreviewResult = Record<string, string | null>;
@@ -41,20 +44,34 @@ const fetchSpanData = async (
   spanIds: string[],
   spanTypes: Record<string, string>,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  inputSpanIds?: string[]
 ): Promise<Array<{ spanId: string; data: string; name: string }>> => {
+  const inputSpanIdSet = new Set(inputSpanIds ?? []);
   const previewSpanIds = spanIds.filter((id) => PREVIEW_SPAN_TYPES.has(spanTypes[id] ?? ""));
 
   if (previewSpanIds.length === 0) return [];
 
   const timeConditions = buildTimeConditions(startDate, endDate);
 
+  // For inputSpanIds, always fetch `input` regardless of span type.
+  // For others, keep existing behavior: TOOL -> input, everything else -> output.
+  const dataExpr =
+    inputSpanIdSet.size > 0
+      ? `if(span_id IN {inputSpanIds: Array(UUID)}, input, if(span_type = 'TOOL', input, output))`
+      : `if(span_type = 'TOOL', input, output)`;
+
+  const parameters: Record<string, unknown> = { traceId, spanIds: previewSpanIds, startDate, endDate };
+  if (inputSpanIdSet.size > 0) {
+    parameters.inputSpanIds = Array.from(inputSpanIdSet);
+  }
+
   return executeQuery<{ spanId: string; data: string; name: string }>({
     projectId,
     query: `
       SELECT
         span_id as spanId,
-        if(span_type = 'TOOL', input, output) as data,
+        ${dataExpr} as data,
         name
       FROM spans
       WHERE trace_id = {traceId: UUID}
@@ -62,7 +79,7 @@ const fetchSpanData = async (
         AND span_type IN ('LLM', 'CACHED', 'TOOL', 'EXECUTOR', 'EVALUATOR')
         ${timeConditions.map((c) => `AND ${c}`).join("\n        ")}
     `,
-    parameters: { traceId, spanIds: previewSpanIds, startDate, endDate },
+    parameters,
   });
 };
 
@@ -339,6 +356,45 @@ export interface RawSpanData {
 }
 
 /**
+ * Extract the user message from raw LLM span input data.
+ * Tries to parse the input as a messages array and extract the last user message.
+ */
+function extractUserMessageFromInput(rawData: string): string | null {
+  if (!rawData) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawData);
+  } catch {
+    return null;
+  }
+
+  // The input for LLM spans is typically a messages array or an object with a messages field
+  let messagesArr: unknown[] | null = null;
+  if (Array.isArray(parsed)) {
+    messagesArr = parsed;
+  } else if (parsed && typeof parsed === "object" && "messages" in parsed) {
+    const msgs = (parsed as Record<string, unknown>).messages;
+    if (Array.isArray(msgs)) messagesArr = msgs;
+  }
+
+  if (!messagesArr || messagesArr.length === 0) return null;
+
+  const firstMsg = JSON.stringify(messagesArr[0]);
+  const lastMsg = messagesArr.length > 1 ? JSON.stringify(messagesArr[messagesArr.length - 1]) : "";
+
+  const parsedInput = parseExtractedMessages(firstMsg, lastMsg);
+  if (!parsedInput) return null;
+
+  return joinUserParts(parsedInput.userParts);
+}
+
+export interface SpanPreviewsResult {
+  previews: SpanPreviewResult;
+  userInputs: Record<string, string | null>;
+}
+
+/**
  * Process already-fetched raw span data through the full preview pipeline
  * (classify → cached DB keys → provider matching → LLM generation).
  *
@@ -350,14 +406,36 @@ export async function processSpanPreviews(
   projectId: string,
   spanIds: string[],
   spanTypes: Record<string, string>,
-  options: GetSpanPreviewsOptions = {}
-): Promise<SpanPreviewResult> {
+  options: GetSpanPreviewsOptions = {},
+  inputSpanIds?: string[]
+): Promise<SpanPreviewsResult> {
+  const inputSpanIdSet = new Set(inputSpanIds ?? []);
+
+  // Separate input spans from regular preview spans
+  const inputSpanRaws: RawSpanData[] = [];
+  const regularSpanRaws: RawSpanData[] = [];
+
+  for (const raw of rawSpans) {
+    if (inputSpanIdSet.has(raw.spanId)) {
+      inputSpanRaws.push(raw);
+    } else {
+      regularSpanRaws.push(raw);
+    }
+  }
+
+  // Extract user messages for input spans
+  const userInputs: Record<string, string | null> = {};
+  for (const raw of inputSpanRaws) {
+    userInputs[raw.spanId] = extractUserMessageFromInput(raw.data);
+  }
+
+  const regularSpanIds = spanIds.filter((id) => !inputSpanIdSet.has(id));
   const { skipGeneration = false } = options;
 
-  const { resolved: classifiedPreviews, needsProcessing } = classifyRawSpans(rawSpans, spanTypes);
+  const { resolved: classifiedPreviews, needsProcessing } = classifyRawSpans(regularSpanRaws, spanTypes);
 
   if (needsProcessing.length === 0) {
-    return fillMissing(classifiedPreviews, spanIds);
+    return { previews: fillMissing(classifiedPreviews, regularSpanIds), userInputs };
   }
 
   const { resolved: cachedPreviews, uncached } = await applyCachedKeys(projectId, needsProcessing);
@@ -365,7 +443,7 @@ export async function processSpanPreviews(
   const cachedResult = { ...classifiedPreviews, ...cachedPreviews };
 
   if (uncached.length === 0) {
-    return fillMissing(cachedResult, spanIds);
+    return { previews: fillMissing(cachedResult, regularSpanIds), userInputs };
   }
 
   const { resolved: providerPreviews, needsLlm } = applyProviderMatching(uncached, spanTypes);
@@ -376,23 +454,26 @@ export async function processSpanPreviews(
     for (const span of needsLlm) {
       providerResult[span.spanId] = toJsonPreview(span.parsedData);
     }
-    return fillMissing(providerResult, spanIds);
+    return { previews: fillMissing(providerResult, regularSpanIds), userInputs };
   }
 
   const { resolved: llmPreviews, keysToSave: llmKeys } = await generateAndApplyKeys(needsLlm);
 
   await saveRenderingKeys(projectId, llmKeys);
 
-  return fillMissing({ ...providerResult, ...llmPreviews }, spanIds);
+  return { previews: fillMissing({ ...providerResult, ...llmPreviews }, regularSpanIds), userInputs };
 }
 
 export async function getSpanPreviews(
   input: z.infer<typeof GetSpanPreviewsSchema>,
   options: GetSpanPreviewsOptions = {}
-): Promise<SpanPreviewResult> {
-  const { projectId, traceId, spanIds, spanTypes, startDate, endDate } = GetSpanPreviewsSchema.parse(input);
+): Promise<SpanPreviewsResult> {
+  const { projectId, traceId, spanIds, spanTypes, startDate, endDate, inputSpanIds } =
+    GetSpanPreviewsSchema.parse(input);
 
-  const rawSpans = await fetchSpanData(projectId, traceId, spanIds, spanTypes, startDate, endDate);
+  const allSpanIds = [...new Set([...spanIds, ...(inputSpanIds ?? [])])];
 
-  return processSpanPreviews(rawSpans, projectId, spanIds, spanTypes, options);
+  const rawSpans = await fetchSpanData(projectId, traceId, allSpanIds, spanTypes, startDate, endDate, inputSpanIds);
+
+  return processSpanPreviews(rawSpans, projectId, spanIds, spanTypes, options, inputSpanIds);
 }

@@ -60,6 +60,7 @@ export type TraceViewListSpan = {
   spanType: SpanType;
   name: string;
   model?: string;
+  path: string;
   startTime: string;
   endTime: string;
   totalTokens: number;
@@ -74,6 +75,21 @@ export type TraceViewListSpan = {
   outputSnippet?: SnippetInfo;
   attributesSnippet?: SnippetInfo;
 };
+
+export type ReaderListGroup = {
+  type: "group";
+  groupId: string;
+  name: string;
+  path: string;
+  spans: TraceViewListSpan[];
+  firstLlmSpanId: string | null;
+  startTime: string;
+  endTime: string;
+  totalTokens: number;
+  totalCost: number;
+};
+
+export type ReaderListEntry = { type: "span"; span: TraceViewListSpan } | ReaderListGroup;
 
 export type TraceViewTrace = {
   id: string;
@@ -150,6 +166,9 @@ export interface BaseTraceViewState {
 
   // Layout options
   isAlwaysSelectSpan: boolean;
+
+  // Reader mode group collapse state
+  readerCollapsedGroups: Set<string>;
 }
 
 export interface BaseTraceViewActions {
@@ -194,9 +213,12 @@ export interface BaseTraceViewActions {
   openSignalInChat: (signalDefinition: string, eventPayload: string) => void;
   consumePendingChatInjection: () => { signalDefinition: string; eventPayload: string } | null;
 
+  toggleReaderGroup: (groupId: string) => void;
+
   getTreeSpans: () => TreeSpan[];
   getCondensedTimelineData: () => CondensedTimelineData;
   getListData: () => TraceViewListSpan[];
+  getReaderListData: () => ReaderListEntry[];
   getHasLangGraph: () => boolean;
   getSpanAttribute: (spanId: string, attributeKey: string) => any | undefined;
 }
@@ -250,6 +272,9 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
 
     // Layout options
     isAlwaysSelectSpan: options?.isAlwaysSelectSpan ?? false,
+
+    // Reader mode group collapse state (all collapsed by default)
+    readerCollapsedGroups: new Set<string>(),
 
     setHasBrowserSession: (hasBrowserSession: boolean) => set({ hasBrowserSession } as Partial<T>),
     setTrace: (trace) => {
@@ -308,6 +333,7 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
         spanType: span.spanType,
         name: span.name,
         model: span.model,
+        path: span.path,
         startTime: span.startTime,
         endTime: span.endTime,
         totalTokens: span.totalTokens,
@@ -321,6 +347,154 @@ export function createBaseTraceViewSlice<T extends BaseTraceViewStore>(
       }));
 
       return lightweightListSpans;
+    },
+
+    getReaderListData: () => {
+      const { spans, condensedTimelineVisibleSpanIds } = get();
+
+      const selectionFilteredSpans =
+        condensedTimelineVisibleSpanIds.size === 0
+          ? spans
+          : spans.filter((s) => condensedTimelineVisibleSpanIds.has(s.spanId));
+
+      const listSpans = selectionFilteredSpans.filter((span) => span.spanType !== "DEFAULT");
+      const pathInfoMap = computePathInfoMap(spans);
+
+      const toLightweight = (span: TraceViewSpan): TraceViewListSpan => ({
+        spanId: span.spanId,
+        parentSpanId: span.parentSpanId,
+        spanType: span.spanType,
+        name: span.name,
+        model: span.model,
+        path: span.path,
+        startTime: span.startTime,
+        endTime: span.endTime,
+        totalTokens: span.totalTokens,
+        cacheReadInputTokens: span.cacheReadInputTokens,
+        totalCost: span.totalCost,
+        pending: span.pending,
+        pathInfo: pathInfoMap.get(span.spanId) ?? null,
+        inputSnippet: span.inputSnippet,
+        outputSnippet: span.outputSnippet,
+        attributesSnippet: span.attributesSnippet,
+      });
+
+      // Main agent path = LLM path with earliest start + most tokens.
+      // Spans whose path starts with the main agent path stay flat.
+      // Consecutive spans with a different (non-empty) path get grouped.
+      // Spans with empty path stay flat.
+      const llmSpans = listSpans.filter((s) => s.spanType === "LLM" || s.spanType === "CACHED");
+      let mainAgentPath: string | null = null;
+
+      if (llmSpans.length > 0) {
+        const pathStats = new Map<string, { minStart: string; totalTokens: number }>();
+        for (const s of llmSpans) {
+          if (!s.path) continue;
+          const existing = pathStats.get(s.path);
+          if (!existing) {
+            pathStats.set(s.path, { minStart: s.startTime, totalTokens: s.totalTokens });
+          } else {
+            if (s.startTime < existing.minStart) existing.minStart = s.startTime;
+            existing.totalTokens += s.totalTokens;
+          }
+        }
+
+        let bestPath = "";
+        let bestStart = "";
+        let bestTokens = -1;
+        for (const [path, stats] of pathStats) {
+          if (
+            !bestPath ||
+            stats.minStart < bestStart ||
+            (stats.minStart === bestStart && stats.totalTokens > bestTokens)
+          ) {
+            bestPath = path;
+            bestStart = stats.minStart;
+            bestTokens = stats.totalTokens;
+          }
+        }
+        mainAgentPath = bestPath;
+      }
+
+      const isMainAgentSpan = (span: TraceViewSpan): boolean => {
+        if (!mainAgentPath) return true;
+        if (!span.path) return true;
+        return span.path === mainAgentPath || span.path.startsWith(mainAgentPath + ".");
+      };
+
+      // Walk spans in time order. Consecutive non-main-agent spans get grouped.
+      const entries: ReaderListEntry[] = [];
+      let currentGroup: { path: string; spans: TraceViewSpan[] } | null = null;
+
+      const flushGroup = () => {
+        if (!currentGroup || currentGroup.spans.length === 0) return;
+        const groupSpans = currentGroup.spans;
+        const groupPath = currentGroup.path;
+
+        const firstLlm = groupSpans.find((s) => s.spanType === "LLM" || s.spanType === "CACHED");
+
+        // Not a real subagent if no LLM span — emit flat
+        if (!firstLlm) {
+          for (const s of groupSpans) {
+            entries.push({ type: "span", span: toLightweight(s) });
+          }
+          currentGroup = null;
+          return;
+        }
+
+        const groupId = `group-${groupPath}-${groupSpans[0].spanId}`;
+
+        let totalTokens = 0;
+        let totalCost = 0;
+        for (const s of groupSpans) {
+          totalTokens += s.totalTokens;
+          totalCost += s.totalCost;
+        }
+
+        const pathParts = groupPath.split(".");
+        const groupName = pathParts[pathParts.length - 1] || groupSpans[0].name;
+
+        entries.push({
+          type: "group",
+          groupId,
+          name: groupName,
+          path: groupPath,
+          spans: groupSpans.map(toLightweight),
+          firstLlmSpanId: firstLlm.spanId,
+          startTime: groupSpans[0].startTime,
+          endTime: groupSpans[groupSpans.length - 1].endTime,
+          totalTokens,
+          totalCost,
+        });
+        currentGroup = null;
+      };
+
+      for (const span of listSpans) {
+        if (isMainAgentSpan(span)) {
+          flushGroup();
+          entries.push({ type: "span", span: toLightweight(span) });
+        } else {
+          if (currentGroup) {
+            currentGroup.spans.push(span);
+          } else {
+            currentGroup = { path: span.path, spans: [span] };
+          }
+        }
+      }
+      flushGroup();
+
+      return entries;
+    },
+
+    toggleReaderGroup: (groupId: string) => {
+      const prev = get().readerCollapsedGroups;
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      set({ readerCollapsedGroups: next } as Partial<T>);
     },
 
     setSelectedSpan: (span) => set({ selectedSpan: span, spanPanelOpen: !!span } as Partial<T>),

@@ -137,6 +137,30 @@ export async function getMainAgentIOBatch({
   return results;
 }
 
+/**
+ * Extract the user input for a single trace using the main-agent detection
+ * pipeline (top LLM path -> parse messages -> regex extraction).
+ */
+export async function getTraceUserInput(traceId: string, projectId: string): Promise<string | null> {
+  const traceData = await fetchTraceInputOnly(traceId, projectId);
+  if (!traceData.parsed) return null;
+
+  const rawInput = joinUserParts(traceData.parsed.userParts);
+  if (!rawInput) return null;
+
+  const systemText = traceData.parsed.systemText;
+  if (!systemText) return rawInput;
+
+  const hashes = await fetchSkeletonHashes([systemText], projectId);
+  const hash = hashes[0];
+  if (!hash) return rawInput;
+
+  const results: Record<string, { input: string | null; output: string | null }> = {};
+  await extractInputsForGroup(hash, projectId, [traceData], results);
+
+  return results[traceId]?.input ?? rawInput;
+}
+
 async function fetchSkeletonHashes(texts: string[], projectId: string): Promise<string[]> {
   try {
     return await fetcherJSON<string[]>(`/projects/${projectId}/skeleton-hashes`, {
@@ -147,6 +171,33 @@ async function fetchSkeletonHashes(texts: string[], projectId: string): Promise<
   } catch {
     return [];
   }
+}
+
+async function fetchTraceInputOnly(traceId: string, projectId: string): Promise<TraceWithParsedInput> {
+  const pathRows = await executeQuery<{ path: string }>({
+    query: TOP_PATH_QUERY,
+    parameters: { traceId },
+    projectId,
+  });
+
+  if (pathRows.length === 0) {
+    return { traceId, output: null, parsed: null };
+  }
+
+  const topPath = pathRows[0].path;
+
+  const inputRows = await executeQuery<InputQueryRow>({
+    query: INPUT_QUERY,
+    parameters: { traceId, path: topPath },
+    projectId,
+  });
+
+  if (inputRows.length === 0) {
+    return { traceId, output: null, parsed: null };
+  }
+
+  const parsed = parseExtractedMessages(inputRows[0].first_message, inputRows[0].last_message);
+  return { traceId, output: null, parsed };
 }
 
 async function fetchTraceData(traceId: string, projectId: string): Promise<TraceWithParsedInput> {
@@ -191,6 +242,6 @@ async function resolveOutput(
 ): Promise<string | null> {
   if (rows.length === 0) return null;
   const { spanId } = rows[0];
-  const previews = await processSpanPreviews(rows, projectId, [spanId], { [spanId]: "LLM" });
-  return previews[spanId] || null;
+  const result = await processSpanPreviews(rows, projectId, [spanId], { [spanId]: "LLM" });
+  return result.previews[spanId] || null;
 }

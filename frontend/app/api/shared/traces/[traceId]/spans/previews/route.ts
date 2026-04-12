@@ -9,17 +9,18 @@ export async function POST(req: NextRequest, props: { params: Promise<{ traceId:
 
   try {
     const body = await req.json();
-    const { spanIds, spanTypes, startDate, endDate } = body;
+    const { spanIds, spanTypes, startDate, endDate, inputSpanIds } = body;
 
-    const previews = await getSharedSpanPreviews({
+    const result = await getSharedSpanPreviews({
       traceId,
       spanIds,
       spanTypes,
       startDate,
       endDate,
+      inputSpanIds,
     });
 
-    return NextResponse.json({ previews });
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: prettifyError(error) }, { status: 400 });
